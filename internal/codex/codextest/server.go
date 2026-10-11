@@ -545,6 +545,29 @@ func (s *Server) Item(threadID, turnID string, item map[string]any) {
 	t.items[turnID] = append(t.items[turnID], item)
 }
 
+// Complete ends the current turn and sends the terminal notification,
+// whose items may be unloaded: clients read them with thread/items/list.
+func (s *Server) Complete(id, status, failure string) string {
+	s.mu.Lock()
+	t := s.threads[id]
+	last := t.last()
+	last.status = status
+	t.Status, t.Flags = "idle", nil
+	turnID := last.id
+	note, subs := t.statusChanged(), clientsOf(t)
+	s.mu.Unlock()
+	var turnError any
+	if failure != "" {
+		turnError = map[string]any{"message": failure}
+	}
+	s.Notify(id, "turn/completed", map[string]any{"turn": map[string]any{
+		"id": turnID, "status": status, "error": turnError, "items": []any{}}})
+	for _, c := range subs {
+		c.send(note)
+	}
+	return turnID
+}
+
 // Ask makes a request that waits for a person in a thread and sends it to
 // every client of the thread: an approval, a grant, a question or what an MCP
 // server asks. It returns the id of the request.
@@ -763,6 +786,7 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		ThreadID       string `json:"threadId"`
 		TurnID         string `json:"turnId"`
 		ExpectedTurnID string `json:"expectedTurnId"`
+		SortDirection  string `json:"sortDirection"`
 		Cursor         string `json:"cursor"`
 		IncludeHidden  bool   `json:"includeHidden"`
 	}
@@ -1037,7 +1061,10 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		}
 		last.status = "interrupted"
 		t.Status, t.Flags = "idle", nil
-		return map[string]any{}, nil, ""
+		note := map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": t.ID,
+			"turn": map[string]any{"id": last.id, "status": "interrupted", "items": []any{}, "error": nil}},
+			"to": clientsOf(t)}
+		return map[string]any{}, []map[string]any{note}, ""
 	case "thread/turns/list":
 		// A thread nobody has written to is not on the disk yet, and the
 		// daemon refuses to list its turns rather than list none.
@@ -1053,7 +1080,11 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		return map[string]any{"data": data, "nextCursor": nil}, nil, ""
 	case "thread/items/list":
 		data := []any{}
-		for _, item := range t.items[p.TurnID] {
+		items := slices.Clone(t.items[p.TurnID])
+		if p.SortDirection == "desc" {
+			slices.Reverse(items)
+		}
+		for _, item := range items {
 			data = append(data, map[string]any{"turnId": p.TurnID, "item": item,
 				"startedAtMs": nil, "completedAtMs": nil})
 		}

@@ -58,6 +58,9 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Caller != "" && (r.Kind != SessionClose || !safeUUID(r.Caller)) {
+		return badRequest("only a child close takes a caller conversation, which must be a uuid")
+	}
 	if r.Contour != "" && r.Ask != AskCodexModels && r.Agent != ResumeCodex {
 		return badRequest("only the question of the codex models and a resume of codex name a contour")
 	}
@@ -582,6 +585,14 @@ func ValidParent(name string) error {
 }
 
 func (p Project) validate() error {
+	if p.OpenedBy != "" && !safeUUID(p.OpenedBy) {
+		return badRequest("the conversation opening a session must be a uuid")
+	}
+	if p.Codex != nil {
+		if err := p.Codex.Validate(); err != nil {
+			return err
+		}
+	}
 	if p.Path == "" {
 		return badRequest("a project without a path")
 	}

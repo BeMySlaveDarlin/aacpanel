@@ -37,7 +37,7 @@ func onCodex(t *testing.T, setup func(*codextest.Server)) (*codextest.Server, *E
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	e := New(nil, "")
-	e.codex = codex.Start(ctx, []registry.CodexHome{{Dir: srv.Home, Contour: "acme"}}, nil)
+	e.codex = codex.Start(ctx, []registry.CodexHome{{Dir: srv.Home, Contour: "acme"}}, nil, e.reportCodexTurn)
 	t.Cleanup(func() {
 		cancel()
 		e.codex.Wait()

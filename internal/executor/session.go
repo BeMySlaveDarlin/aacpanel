@@ -13,6 +13,7 @@ import (
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/schema"
+	"aacpanel/internal/stream"
 )
 
 const projectRootsEnv = hostcfg.ProjectRootsEnv
@@ -33,7 +34,9 @@ type project struct {
 	FromMap   bool
 	// Parent is the session that had this one opened, by its name; see
 	// action.Project.
-	Parent string
+	Parent   string
+	OpenedBy string
+	Codex    *action.CodexLaunch
 }
 
 // Open starts a session of a project, as New does, or goes on with a thread
@@ -54,6 +57,13 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 	}
 	if c, warns := launcher.ParseCodex(p.Launch); c.Agent == schema.AgentCodex {
 		return e.codexOpen(ctx, p, c, warns)
+	}
+	if p.Codex != nil {
+		return "", "", fmt.Errorf("Codex launch options need agent codex")
+	}
+	owner, err := e.openingSession(p.OpenedBy)
+	if err != nil {
+		return "", "", err
 	}
 
 	trusted, err := projectTrusted(p.Path)
@@ -90,6 +100,15 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 		return "", "", err
 	}
 	detail := describeConsole(rep)
+	if owner.Conversation != "" {
+		key, err := processOwnerKey(rep.Agent)
+		if err == nil {
+			err = stream.KeepOwner(key, owner)
+		}
+		if err != nil {
+			return detail, rep.Session, fmt.Errorf("session %s started, but its opening session was not recorded: %w", rep.Session, err)
+		}
+	}
 	if granted {
 		detail += "; trust for directory " + p.Path + " was granted by the panel — claude itself never asked about it"
 	}
@@ -105,7 +124,7 @@ func chooseProject(target string, want *action.Project) (project, error) {
 		return project{
 			Name: want.Session, Path: path, Session: want.Session, RC: want.Session,
 			Launch: want.Launch, ClaudeBin: want.ClaudeBin, ConfigDir: want.ConfigDir,
-			FromMap: true, Parent: want.Parent,
+			FromMap: true, Parent: want.Parent, OpenedBy: want.OpenedBy, Codex: want.Codex,
 		}, nil
 	}
 	list, err := projects()

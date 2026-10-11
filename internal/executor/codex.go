@@ -30,7 +30,7 @@ import (
 // StartCodex links the executor to the codex daemons of the contours until
 // ctx ends.
 func (e *Executor) StartCodex(ctx context.Context) {
-	e.codex = codex.Start(ctx, registry.CodexHomes(), codexTerminals)
+	e.codex = codex.Start(ctx, registry.CodexHomes(), codexTerminals, e.reportCodexTurn)
 }
 
 // listCodexPanes lists the panes of the user's tmux with the command each was

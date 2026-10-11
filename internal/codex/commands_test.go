@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"aacpanel/internal/codex/codextest"
+	"aacpanel/internal/stream"
 )
 
 // A name given in the panel reaches the row, and stays there only while codex
@@ -185,18 +186,25 @@ func TestAThreadResumedFromTheArchiveHasNoParent(t *testing.T) {
 	stop := running(t, first)
 	ready(t, first)
 	ctx := context.Background()
-	child, err := first.Start(ctx, Begin{CWD: "/srv/proj", Parent: "lead", Hold: true})
+	child, err := first.Start(ctx, Begin{CWD: "/srv/proj", Parent: "lead", Hold: true,
+		Owner: stream.SessionOwner{Name: "lead", Conversation: threadB}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if st, raw, _ := stateOf(t, child); st.Parent != "lead" {
 		t.Fatalf("the state of a thread started for a session does not name it: %s", raw)
 	}
+	if owner := stream.OwnerOf(child); owner.Conversation != threadB {
+		t.Fatal("the opener was not kept")
+	}
 	if _, err := first.Close(ctx, child); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := first.Resume(ctx, child); err != nil {
 		t.Fatal(err)
+	}
+	if owner := stream.OwnerOf(child); owner.Conversation != "" {
+		t.Fatal("resuming a thread retained its opening session")
 	}
 	if st, raw, ok := stateOf(t, child); !ok || st.Parent != "" {
 		t.Errorf("the thread resumed from the archive names a parent: %s", raw)

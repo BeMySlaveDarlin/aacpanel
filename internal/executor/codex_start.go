@@ -42,6 +42,31 @@ var (
 // the thread is named after the project's session, which writes it to the
 // disk for codex to resume.
 func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexParams, warns []string) (string, string, error) {
+	owner, err := e.openingSession(p.OpenedBy)
+	if err != nil {
+		return "", "", err
+	}
+	if p.Codex != nil {
+		if err := p.Codex.Validate(); err != nil {
+			return "", "", err
+		}
+		if p.Codex.Model != "" {
+			c.Model = p.Codex.Model
+		}
+		if p.Codex.Effort != "" {
+			c.Effort = p.Codex.Effort
+		}
+		if p.Codex.Sandbox != "" {
+			c.Sandbox = p.Codex.Sandbox
+		}
+	}
+	if owner.Conversation != "" {
+		c.Transport, c.Intent, c.Approval = launcher.CodexInDaemon, "", "never"
+		c.Sandbox = "workspace-write"
+		if p.Codex != nil && p.Codex.Sandbox != "" {
+			c.Sandbox = p.Codex.Sandbox
+		}
+	}
 	home, ok := registry.CodexHomeOf(p.ConfigDir)
 	if !ok {
 		return "", "", fmt.Errorf("contour %s has no codex home — %s names none for it — so codex has no daemon "+
@@ -58,7 +83,11 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 
 	tmux := c.Transport == launcher.TransportTmux
 	begin := codex.Begin{CWD: p.Path, Model: c.Model, Approval: c.Approval, Sandbox: c.Sandbox, Effort: c.Effort,
-		Parent: p.Parent}
+		Parent: p.Parent, Owner: owner, Workspace: owner.Conversation != "" && c.Sandbox == "workspace-write"}
+	if p.Codex != nil {
+		begin.WritableRoots = p.Codex.WritableRoots
+		begin.Workspace = c.Sandbox == "workspace-write"
+	}
 	if path, err := toolServer(); err == nil {
 		begin.Tools, begin.Allowed = path, toolset.CodexAllowed()
 	} else {
@@ -69,6 +98,11 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 		begin.Name = p.Session
 	} else {
 		begin.Message, begin.Hold = c.Intent, true
+	}
+	if owner.Conversation != "" {
+		// Naming materializes an empty thread before the first letter: the
+		// daemon cannot resume or list turns of an unwritten thread.
+		begin.Name = p.Session
 	}
 	id, err := link.Start(ctx, begin)
 	if id == "" {

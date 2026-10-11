@@ -20,35 +20,31 @@ const CloseInstructions = "When the person asks this session to close itself " +
 	"(«закройся», «выключись», «закрой сессию») or it was opened for one job — by session_open, say — and " +
 	"the job is done, close it with session_close."
 
-// codexCloseInstructions is the same line to a thread of codex, which opens
-// no sessions with session_open.
-const codexCloseInstructions = "When the person asks this session to close itself " +
-	"(«закройся», «выключись», «закрой сессию») or it was opened for one job and the job is done, close it " +
-	"with session_close."
+const codexCloseInstructions = "Use session_close when the person asks to close this thread, or to close a " +
+	"child you opened. A helper opened by session_open stays open for follow-up turns until its parent or " +
+	"person explicitly asks it to close."
 
 // closeRules are what the tool says to a claude session and to a thread of
 // codex alike: whose word a close waits for, and what of the session's work
 // holds it.
-const closeRules = " It closes only this session: never a service, a container or another session. Only when " +
-	"the person asks for it, or when the session was opened for one job and the job is done; put what the work " +
-	"left on disk first, the way the project keeps it, and say your last words to the person before the call. " +
-	"A close ends everything the session runs — its agents, workflows and background commands — so while any of " +
-	"them is at work nothing is closed and the call says what is at work; a wake-up the session set runs nothing " +
-	"and does not count. A close you decided on: end the turn and close once that work is done. A close the " +
-	"person asked for: tell them what is at work. anyway closes all the same and ends that work: only on the " +
-	"person's word."
+const closeRules = " Without name it closes only this session; with name, only a child this conversation opened " +
+	"through session_open. Close on the person's request or once the one job the session was opened for is done. " +
+	"A Codex helper stays open for follow-up turns until its parent or person explicitly asks it to close. " +
+	"Save the work on disk as the project requires and give the report before closing. A close ends the session's " +
+	"agents, workflows and background commands, so their work holds the close; a wake-up counts as no work. " +
+	"Wait until they finish, or tell the person what is at work. anyway ends that work too: only on the person's word."
 
 // CloseDescription is the tool's own word to the model.
 const CloseDescription = "Closes this session through the panel, as Close on its screen does, and starts nothing " +
 	"in its place." + closeRules + " The session is closed right after the call, a session on the stream at the " +
-	"end of the current turn: once the panel has taken the close, end the turn and do nothing more."
+	"end of the current turn: once the panel has taken a self-close, end the turn and do nothing more." + helperCycle
 
 // codexCloseDescription is the tool's word to a thread of codex, which the
 // panel closes as its Close does: the turn the thread runs — the one that
 // makes the call — is interrupted, and the panel leaves the thread.
 const codexCloseDescription = "Closes this thread of codex through the panel, as Close on its screen does: the " +
 	"turn the thread runs — the one making this call — is interrupted and the panel leaves the thread; codex " +
-	"resume brings it back." + closeRules
+	"resume brings it back." + closeRules + helperCycle
 
 // closeWait is how long the panel's answer is waited for, for the reason the
 // restart waits as long: a close the panel took on the stream is answered
@@ -57,8 +53,8 @@ var closeWait = 3 * time.Second
 
 // Close is the tool that closes the session calling it, on the host h. It is
 // allowed: a session opened for one job closes itself once the job is done,
-// with nobody at the screen to answer a prompt, and the tool closes only the
-// session that calls it and waits out its work.
+// with nobody at the screen to answer a prompt. A named child is checked by
+// its opening record on the host; the close waits out the target's work.
 func Close(h Host) mcp.Tool {
 	return mcp.Tool{
 		Name:         CloseName,
@@ -85,6 +81,7 @@ func closeSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "description": "A child opened by this conversation; omitted closes this session."},
 			"anyway": map[string]any{"type": "boolean",
 				"description": "Close even with agents, workflows or background commands at work; they end. Only on the person's word."},
 		},
@@ -92,24 +89,20 @@ func closeSchema() map[string]any {
 	}
 }
 
-// closeSelf asks the panel to close the session its server serves. The close
-// names the conversation the server found — a claude's, or the thread a call
-// of codex proved — and never a session of the model's choosing: the panel
-// finds the session that runs it, and the executor closes that session only
-// while it still runs it.
+// closeSelf names the caller's conversation for a self-close, or sends that
+// identity as Caller for a named child's close. The host checks the opening
+// record before closing a child, independently of the collector snapshot.
 func closeSelf(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
-		Anyway bool `json:"anyway"`
+		Anyway bool   `json:"anyway"`
+		Name   string `json:"name"`
 	}
-	// A name the model adds is refused rather than passed over: a model that
-	// takes the tool for a way to close another session would otherwise close
-	// its own.
 	if len(raw) > 0 {
 		read := json.NewDecoder(bytes.NewReader(raw))
 		read.DisallowUnknownFields()
 		if err := read.Decode(&args); err != nil {
 			return "Nothing was closed: the arguments are not the tool's (" + err.Error() + "). It closes this " +
-				"session and takes no other.", true
+				"session or a child it opened.", true
 		}
 	}
 	b, err := bind()
@@ -119,6 +112,33 @@ func closeSelf(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) 
 	if b.SessionID == "" {
 		return "Nothing was closed: the conversation of this session is not known yet — claude has not " +
 			"written the file of this session. Call again in a moment.", true
+	}
+	if args.Name != "" {
+		if err := action.ValidParent(args.Name); err != nil {
+			return "Nothing was closed: " + err.Error(), true
+		}
+		if !args.Anyway {
+			if snap, err := h.read(); err == nil {
+				for _, row := range snap.Sessions {
+					if row.Name == args.Name && row.SessionID != "" {
+						if w := h.atWork(row.SessionID, freshWait); w.any() {
+							return waitLine(w, "close", "closed"), true
+						}
+					}
+				}
+			}
+		}
+		got, err := h.act(ctx, string(action.SessionClose), args.Name, map[string]any{"caller": b.SessionID}, closeWait)
+		if err != nil {
+			return "Nothing was closed: " + err.Error(), true
+		}
+		if !got.Taken {
+			return "The panel did not take the child close: " + got.Said, true
+		}
+		if got.Late {
+			return "The panel is closing child " + args.Name + "; this session can continue.", false
+		}
+		return "The panel closed child " + args.Name + ": " + got.Said, false
 	}
 	if !args.Anyway {
 		if w := h.atWork(b.SessionID, freshWait); w.any() {

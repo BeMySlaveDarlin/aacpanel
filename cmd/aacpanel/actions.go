@@ -87,12 +87,26 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 	if req.Kind == action.SessionClose {
+		if caller, present := body.Params["caller"]; present {
+			var ok bool
+			req.Caller, ok = caller.(string)
+			if !ok || req.Caller == "" || body.Target == "" {
+				http.Error(w, "a child close needs a caller conversation and a target name", http.StatusBadRequest)
+				return
+			}
+		}
 		name, conversation, err := s.closeTarget(body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		req.Target, body.Target, req.Conversation = name, name, conversation
+		if req.Caller != "" {
+			// An executor that does not know Caller must refuse, not silently
+			// close an arbitrary name. It sees a conversation mismatch; one
+			// that checks ownership replaces it with the child's conversation.
+			req.Conversation = req.Caller
+		}
 	}
 	if why := s.codexOutOfReach(req.Target); why != "" {
 		http.Error(w, why, http.StatusConflict)
@@ -377,6 +391,16 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				}
 				want.Launch = launch
 				params["agent"] = agent
+			}
+			if err := helperStart(want, body.Params); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if want.OpenedBy != "" {
+				params["openedBy"] = want.OpenedBy
+			}
+			if want.Codex != nil {
+				params["codex"] = want.Codex
 			}
 		} else if agent == schema.AgentCodex {
 			http.Error(w, "codex starts only in a project of the map: its daemon is the one of the project's contour, "+

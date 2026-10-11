@@ -70,7 +70,7 @@ var quiet = []string{
 	"thread/attachment/updated", "thread/prediction/updated",
 	"thread/queue/changed", "project/changed", "thread/project/updated", "thread/environment/connected",
 	"thread/environment/disconnected",
-	"turn/started", "hook/started", "turn/completed", "hook/completed", "turn/diff/updated",
+	"turn/started", "hook/started", "hook/completed", "turn/diff/updated",
 	"turn/plan/updated", "item/started", "item/autoApprovalReview/started",
 	"item/autoApprovalReview/completed", "autoApprovalReview/strictReviewRequired", "item/completed",
 	"rawResponseItem/completed", "rawResponse/completed", "item/agentMessage/delta", "item/plan/delta",
@@ -371,6 +371,11 @@ type Link struct {
 	// kick asks the connected link to read the daemon now: a thread turned
 	// free, and a message of the queue waits for it.
 	kick chan struct{}
+
+	deliverReport func(context.Context, TurnReport) error
+	reports       []TurnReport
+	reported      map[string]bool
+	reportWake    chan struct{}
 }
 
 // NewLink makes the link to the daemon of a codex home; Run keeps it.
@@ -380,6 +385,7 @@ func NewLink(home, contour string) *Link {
 		threads: map[string]*thread{}, pending: map[string][]Request{},
 		held: map[string]bool{}, closed: map[string]string{}, moving: map[string]bool{}, wake: make(chan struct{}, 1),
 		boxes: loadOutboxes(contour), usage: map[string]Context{}, kick: make(chan struct{}, 1),
+		reported: map[string]bool{}, reportWake: make(chan struct{}, 1),
 	}
 }
 
@@ -397,12 +403,15 @@ type Links struct {
 // Start removes the state files a stopped executor left behind and keeps a
 // link to the daemon of every home until ctx ends; terminals, where given,
 // tells which threads codex runs in a terminal of the panel.
-func Start(ctx context.Context, homes []contours.CodexHome, terminals Terminals) *Links {
+func Start(ctx context.Context, homes []contours.CodexHome, terminals Terminals, report ...func(context.Context, TurnReport) error) *Links {
 	Sweep()
 	ls := &Links{}
 	for _, h := range homes {
 		l := NewLink(h.Dir, h.Contour)
 		l.terminals = terminals
+		if len(report) > 0 {
+			l.deliverReport = report[0]
+		}
 		ls.list = append(ls.list, l)
 		ls.runs.Go(func() { l.Run(ctx) })
 	}
@@ -492,6 +501,9 @@ func alive(pid int) bool {
 // while after it drops. The state files of the link go with the connection —
 // whatever the daemon ran is not known without it.
 func (l *Link) Run(ctx context.Context) {
+	done := make(chan struct{})
+	go func() { defer close(done); l.reportTurns(ctx) }()
+	defer func() { <-done }()
 	defer l.forget()
 	for {
 		l.report(l.serve(ctx))
@@ -875,6 +887,8 @@ func unwritten(err error) bool {
 // the TUI shows them, the panel does not answer them.
 func (l *Link) handle(msg message) {
 	switch {
+	case len(msg.ID) == 0 && msg.Method == "turn/completed":
+		l.completedTurn(msg.Params)
 	case len(msg.ID) == 0 && msg.Method == "thread/status/changed":
 		var p struct {
 			ThreadID string       `json:"threadId"`

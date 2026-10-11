@@ -29,6 +29,10 @@ type Request struct {
 	// still runs that one.
 	Conversation string `json:"conversation,omitempty"`
 
+	// Caller closes a child by the conversation that opened it. It is checked
+	// on the host against the opening record, never against visual grouping.
+	Caller string `json:"caller,omitempty"`
+
 	Project *Project `json:"project,omitempty"`
 
 	Permit *Permit `json:"permit,omitempty"`
@@ -144,6 +148,11 @@ type Project struct {
 	Parent string `json:"parent,omitempty"`
 
 	Launch json.RawMessage `json:"launch,omitempty"`
+
+	// OpenedBy is the conversation that called session_open. Parent is only
+	// the session's place in the panel and may also be set by a person.
+	OpenedBy string       `json:"openedBy,omitempty"`
+	Codex    *CodexLaunch `json:"codex,omitempty"`
 
 	ClaudeBin string `json:"claudeBin,omitempty"`
 

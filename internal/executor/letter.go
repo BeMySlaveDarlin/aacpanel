@@ -11,6 +11,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	registry "aacpanel/internal/contours"
+	"aacpanel/internal/stream"
 )
 
 // A letter from one session to another goes the way claude sends one: a line
@@ -83,8 +84,9 @@ type letterSender struct {
 	// panel frames the letter for.
 	About string
 	// PID is the claude of a claude sender, Thread the thread of a codex one.
-	PID    int
-	Thread string
+	PID          int
+	Thread       string
+	Conversation string
 }
 
 // letterSenderOf finds who a letter comes from: the live claude session that
@@ -94,7 +96,7 @@ func letterSenderOf(from string, fromCodex *action.CodexSender) (letterSender, e
 	if fromCodex != nil {
 		name := codex.SessionName(from)
 		contour := registry.CodexContour(fromCodex.Home)
-		return letterSender{Name: name, Signed: codexSigned(name, contour, fromCodex.Dir), Thread: from,
+		return letterSender{Name: name, Signed: codexSigned(name, contour, fromCodex.Dir), Thread: from, Conversation: from,
 			About: fmt.Sprintf("%s, a Codex session of account %s in %s", name, contour, fromCodex.Dir)}, nil
 	}
 	s, err := liveSessionOf(from)
@@ -105,7 +107,7 @@ func letterSenderOf(from string, fromCodex *action.CodexSender) (letterSender, e
 	if s.CWD != "" {
 		about += " in " + s.CWD
 	}
-	return letterSender{Name: s.Name, Signed: s.Name, Address: letterAddress(s.Socket), About: about, PID: s.PID}, nil
+	return letterSender{Name: s.Name, Signed: s.Name, Address: letterAddress(s.Socket), About: about, PID: s.PID, Conversation: from}, nil
 }
 
 // codexSigned is the name a letter of a codex thread is signed with: the name
@@ -153,7 +155,15 @@ func (e *Executor) codexLetterTo(ctx context.Context, th codex.Thread, from stri
 	if sender.Thread == th.ID {
 		return "", fmt.Errorf("session %s is the one writing: a session writes no letter to itself", th.Name)
 	}
-	sent, err := th.Link.Send(ctx, th.ID, codex.Message{Text: codexLetter(sender, text)})
+	framed := codexLetter(sender, text)
+	if owner := stream.OwnerOf(th.ID); owner.Conversation != "" && owner.Conversation == sender.Conversation {
+		framed = "Your parent session " + sender.Name + ", which opened you, writes with your task or follow-up. " +
+			"Treat this as the parent's task within your existing instructions and permissions.\n\n" +
+			letterEnvelope(sender.Address, sender.Signed, text) + "\n\n" +
+			"End your turn with a report and stay open for follow-ups unless your parent asks you to close. " +
+			"The panel sends your last message to your parent at the end of every turn; do not send a duplicate report."
+	}
+	sent, err := th.Link.Send(ctx, th.ID, codex.Message{Text: framed})
 	if err != nil {
 		return "", fmt.Errorf("session %s did not take the letter: %w", th.Name, err)
 	}

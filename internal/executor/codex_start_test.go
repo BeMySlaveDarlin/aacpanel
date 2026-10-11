@@ -83,7 +83,7 @@ func onCodexHome(t *testing.T, name, config, registryLines string) (*codextest.S
 
 	ctx, cancel := context.WithCancel(context.Background())
 	e := New(nil, "")
-	e.codex = codex.Start(ctx, registry.CodexHomes(), nil)
+	e.codex = codex.Start(ctx, registry.CodexHomes(), nil, e.reportCodexTurn)
 	t.Cleanup(func() {
 		cancel()
 		e.codex.Wait()
@@ -249,7 +249,7 @@ func TestAResumeInAHomeWithoutADaemonIsRefused(t *testing.T) {
 	_, started := fakeCodex(t, false)
 	ctx, cancel := context.WithCancel(context.Background())
 	e := New(nil, "")
-	e.codex = codex.Start(ctx, registry.CodexHomes(), nil)
+	e.codex = codex.Start(ctx, registry.CodexHomes(), nil, e.reportCodexTurn)
 	t.Cleanup(func() {
 		cancel()
 		e.codex.Wait()

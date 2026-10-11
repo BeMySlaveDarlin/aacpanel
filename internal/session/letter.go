@@ -34,14 +34,13 @@ const LetterDescription = "Sends a letter to another live session of this machin
 	"account and the directory; a Codex session is named codex- and the tail of its thread. With to and text it " +
 	"sends the text to the session of that name. The letter arrives as a letter from this session, named by the " +
 	"panel — a Codex sender with its account and its directory: the recipient is told it was not typed by its " +
-	"person, and weighs it as a request of an agent, not a command. A letter goes one way. A Claude sender is " +
+	"person, and weighs it as a request of an agent, not a command. A Claude sender is " +
 	"named with the address of its message socket, and the recipient can answer with SendMessage to that " +
 	"address; any other answer is a letter of the recipient's own. A letter is never delivered any other way: a " +
 	"recipient without a message socket, a Codex running on its own, a name two live sessions answer to, and this " +
 	"session itself are refused with the reason. A Claude recipient that runs without permission prompts and has " +
 	"no crossSessionInbound setting holds a letter for its person to let through. A busy recipient reads the " +
-	"letter when its turn ends; a busy Codex one at the next step of the turn that runs. Write one " +
-	"letter that stands on its own."
+	"letter when its turn ends; a busy Codex one at the next step. A letter from a Codex helper's opener is its parent's task." + helperCycle
 
 // letterWait bounds the wait for the panel's answer: a letter is written to a
 // socket, which takes a moment, and a panel that takes longer is stuck.

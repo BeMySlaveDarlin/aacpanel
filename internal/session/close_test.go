@@ -14,8 +14,8 @@ import (
 
 // The close is allowed, since a session opened for one job closes itself with
 // nobody at the screen; it says when to reach for it in a line the model reads
-// without the description. The line to codex names no session_open, which a
-// thread does not have, and the word to codex says its turn is interrupted,
+// without the description. Both agents can open helpers; the word to Codex
+// says its turn is interrupted,
 // since a thread is not closed at the end of one.
 func TestACloseIsAllowedAndSaysWhenToReachForIt(t *testing.T) {
 	for _, tool := range []mcp.Tool{Close(Host{}), CodexClose(Host{})} {
@@ -32,7 +32,7 @@ func TestACloseIsAllowedAndSaysWhenToReachForIt(t *testing.T) {
 		if n := len(tool.Description); n > 1536 {
 			t.Errorf("the description of %s is %d bytes", tool.Name, n)
 		}
-		for _, want := range []string{"only this session", "anyway", "only on the person's word"} {
+		for _, want := range []string{"only this session", "anyway", "only on the person's word", "stays open for follow-up turns"} {
 			if !strings.Contains(tool.Description, want) {
 				t.Errorf("the word of %s does not say %q: %s", tool.Name, want, tool.Description)
 			}
@@ -45,12 +45,12 @@ func TestACloseIsAllowedAndSaysWhenToReachForIt(t *testing.T) {
 			Additional *bool                      `json:"additionalProperties"`
 		}
 		if err := json.Unmarshal(raw, &schema); err != nil || schema.Type != "object" || schema.Required != nil ||
-			schema.Additional == nil || *schema.Additional || len(schema.Properties) != 1 || schema.Properties["anyway"] == nil {
+			schema.Additional == nil || *schema.Additional || len(schema.Properties) != 2 || schema.Properties["anyway"] == nil {
 			t.Errorf("%s takes %s: anyway and nothing more, never a session to close", tool.Name, raw)
 		}
 	}
-	if !strings.Contains(CloseInstructions, "session_open") || strings.Contains(codexCloseInstructions, "session_open") {
-		t.Error("the line of a claude session names session_open and the line of codex does not")
+	if !strings.Contains(CloseInstructions, "session_open") || !strings.Contains(codexCloseInstructions, "session_open") {
+		t.Error("both agents must know the helper cycle")
 	}
 	if !strings.Contains(CloseDescription, "at the end of the current turn") ||
 		!strings.Contains(codexCloseDescription, "is interrupted") {

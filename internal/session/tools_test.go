@@ -496,7 +496,7 @@ func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
 		schema.Additional == nil || *schema.Additional {
 		t.Fatalf("the schema of %s is %s", tool.Name, raw)
 	}
-	if len(schema.Properties) != 3 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
+	if len(schema.Properties) != 7 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
 		len(schema.Required) != 1 || schema.Required[0] != "dir" {
 		t.Errorf("%s takes %s: a directory it needs, a name and an agent it may have, nothing more", tool.Name, raw)
 	}

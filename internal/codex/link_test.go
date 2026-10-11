@@ -149,7 +149,7 @@ func TestPollWritesTheStateOfAThreadAndNothingOfTheConversation(t *testing.T) {
 	if params.ClientInfo.Name != "aacpanel" || !params.Capabilities.Experimental || params.Capabilities.Attestation {
 		t.Errorf("initialize went with %s", hello[0])
 	}
-	for _, m := range []string{"item/completed", "item/agentMessage/delta", "turn/completed", "turn/diff/updated",
+	for _, m := range []string{"item/completed", "item/agentMessage/delta", "turn/diff/updated",
 		"turn/plan/updated", "item/reasoning/textDelta", "thread/started"} {
 		if !slices.Contains(params.Capabilities.Quiet, m) {
 			t.Errorf("%s carries the conversation and is not turned off", m)
@@ -159,6 +159,7 @@ func TestPollWritesTheStateOfAThreadAndNothingOfTheConversation(t *testing.T) {
 		t.Error("the word that a request was answered is turned off: a request answered in the TUI would wait on the phone")
 	}
 	for m, why := range map[string]string{
+		"turn/completed":             "a helper would never report back to its parent",
 		"thread/name/updated":        "a name changed in the TUI would leave the panel's on the row until the next read",
 		"thread/goal/updated":        "the goal would stand as it was until the next read",
 		"thread/goal/cleared":        "a goal cleared in the TUI would stay on the row until the next read",

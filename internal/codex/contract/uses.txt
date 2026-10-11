@@ -300,7 +300,8 @@ call thread/items/list
   send turnId
   send sortDirection: desc
   send cursor
-  read data[].item.type: fileChange
+  read data[].item.type: fileChange agentMessage
+  read data[].item<agentMessage>.text
   read data[].item<fileChange>.id
   read data[].item<fileChange>.changes[].path
   read data[].item<fileChange>.changes[].kind.type: add delete
@@ -459,7 +460,7 @@ hear account/rateLimits/updated
 quiet error thread/started thread/archived thread/deleted thread/unarchived thread/closed thread/reverted
 quiet skills/changed thread/attachment/updated thread/prediction/updated thread/queue/changed project/changed
 quiet thread/project/updated thread/environment/connected thread/environment/disconnected
-quiet turn/started hook/started turn/completed hook/completed turn/diff/updated turn/plan/updated item/started
+quiet turn/started hook/started hook/completed turn/diff/updated turn/plan/updated item/started
 quiet item/autoApprovalReview/started item/autoApprovalReview/completed autoApprovalReview/strictReviewRequired
 quiet item/completed rawResponseItem/completed rawResponse/completed item/agentMessage/delta item/plan/delta
 quiet command/exec/outputDelta process/outputDelta process/exited item/commandExecution/outputDelta
@@ -476,3 +477,9 @@ quiet thread/realtime/item/started thread/realtime/item/transcript/delta thread/
 quiet thread/realtime/transcript/delta thread/realtime/transcript/done thread/realtime/outputAudio/delta
 quiet thread/realtime/sdp thread/realtime/error thread/realtime/closed windows/worldWritableWarning
 quiet windowsSandbox/setupCompleted account/login/completed
+
+hear turn/completed
+  read threadId
+  read turn.id
+  read turn.status: completed failed interrupted
+  read turn.error.message

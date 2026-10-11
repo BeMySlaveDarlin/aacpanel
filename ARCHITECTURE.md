@@ -662,6 +662,32 @@ that wait for a person. The executor keeps one connection per home, WebSocket
 over the daemon's control socket, and dials again ten seconds after the socket
 appears or the connection drops — at once when an action waits for it.
 
+**A session can open a Codex helper through `session_open`, send its task with
+`send_to_session`, receive a report after each turn, continue by letter and
+close the child by name with `session_close`.** The helper is held in the
+contour's daemon and takes a letter as soon as the open returns. It starts
+without the map's opening message; the task arrives in an envelope naming the
+opening session as its parent. Model and effort inherit the map unless the
+call overrides them. Helpers use `approvalPolicy: never`, `workspace-write`
+with network on, or explicit `read-only`; extra absolute writable roots are
+supplied by the caller, not inferred from the host. These choices affect one
+start and leave the map intact.
+
+The opening record is separate from the visual parent and names the parent's
+conversation as well as its session. Manual grouping grants no reports or
+closing rights, and another conversation under the same name inherits none.
+The record survives an executor restart; resuming a closed thread from the
+archive clears it. `turn/completed` queues one delivery attempt per thread and
+turn in the connected executor, including failure and interruption. A separate
+worker reads the last agent message with `thread/items/list`: it cannot call
+back into the daemon from the connection's reader. The parent receives it
+through the stream holder's peer `OpLetter` or a Codex `Link.Send`. A tmux or
+gone parent receives none. Delivery failures are logged; this channel has no
+persistent report queue or replay of completions missed while disconnected.
+Reports over 32 KiB are saved whole in an owner-readable file under the
+executor's state directory and the letter names its path; files remain there
+for the parent to read. Claude children have no automatic turn reports.
+
 **A codex home pairs with one claude contour by its name.** A home is named
 the way a claude config directory is: `~/.codex` is the personal one, any other
 its directory's name without the leading dot. It pairs with the contour whose
@@ -677,7 +703,7 @@ stands as a contour of its own name, paired with no account, and so does a home
 named after neither. The host does not read the map, so a contour renamed there
 after the install pairs only by its account's name.
 
-- **The threads are read, not followed.** Every two seconds the executor lists
+- **Thread summaries are polled.** Every two seconds the executor lists
   the loaded threads and reads each one, and writes a state file per thread in
   the holders' directory: the claude holder's summary plus `agent: "codex"`,
   the directory, the contour, the home and the rollout. A thread that is
@@ -1885,16 +1911,20 @@ snapshot written after the look began, through `internal/session`, which the
 context guard uses too. A session on the stream is closed only at
 the end of its turn, which cannot end while the call waits, so the panel's
 answer would come after the call: the tool waits three seconds and takes
-silence for a restart under way. `session_close` asks for `session.close` with
-the conversation and nothing more — no name, and an argument it does not take is
-refused rather than passed over, since a model that took the tool for a way to
-close another session would close its own: the panel finds the live session
-that runs the conversation, and the executor closes it only while it still runs
-it, the way Close on its screen does — a session on the stream by its input, at
+silence for a restart under way. `session_close` without a name asks for
+`session.close` with the calling conversation: the panel finds the live session
+that runs it, and the executor closes it only while it still runs that
+conversation, the way Close on its screen does — a session on the stream by its input, at
 the end of the turn the call is part of, any other at once — and starts nothing
 in its place. It waits for the same work as the restart, with the same `anyway`
 and the same three seconds for the panel's answer, and the host's main session
-is refused by the executor, as from the screen. `send_to_session` lists the live sessions of
+is refused by the executor, as from the screen. With a name, the close carries
+the caller's conversation and the host checks the separate opening record;
+manual grouping is not ownership. The request also names the caller as its
+conversation until the executor checks ownership and substitutes the child's:
+an executor that does not know child closes refuses the mismatch. Claude
+children are recorded by process and start time, Codex children by thread.
+`send_to_session` lists the live sessions of
 every account from the snapshot, and sends a letter as `session.letter` with
 the sender's conversation: the executor finds the sender and the recipient
 among the sessions of every contour and writes the letter to the recipient's
@@ -1916,16 +1946,15 @@ with an environment that names no thread, and names the thread in the `_meta`
 of every call as `threadId`: the server under codex takes the sender from the
 call, and only a thread whose lock the codex that started it holds among its
 open files (`<CODEX_HOME>/thread-writer-locks/<thread>.lock`), which says the
-home too. It offers the tools of a session but two, each bound to that
+home too. It offers the tools of a session except restart, each bound to that
 thread: the checklist, the brief, the call and the notepad of secrets go under
 the thread as a claude session's go under its conversation, the close closes
 the thread as Close on its screen does — the turn that runs, the one making
 the call, is interrupted and the panel leaves the thread — and a call that
 names no thread the codex holds is refused by every one of them. The restart
-is claude's — the daemon keeps the thread, and the panel refuses it — and a new
-session spends the limits of an account, which a thread is not given on top of
-what codex starts on its own. The server's word to codex names only what it
-has: a brief is weighed against a question asked in the conversation, since
+is claude's — the daemon keeps the thread, and the panel refuses it. A new
+session asks for confirmation as a Claude session's open does. The server's
+word to codex names only what it has: a brief is weighed against a question asked in the conversation, since
 codex has no dialog of claude's, and the letter is not offered as the way past
 a `SendMessage` it does not have. Codex writes a call of an MCP tool and its
 answer as one item of the rollout, and the feed draws the card of a brief or a
@@ -1953,9 +1982,9 @@ modes from `config.toml` of the home.
 `session.open` with a directory, and with a name only where the model gives
 one: the panel finds the project of the map the directory belongs to — the
 project's own, one inside it or a worktree of it, as a restart finds it — and
-opens the session there with the account, the launch parameters and the first
-message of the map, under the project's session name unless one is given; a
-live session of that name makes the launcher take a free one. A directory no
+opens the session there with the account and launch parameters of the map,
+the map's first message for Claude and no first message for a Codex helper,
+under the project's session name unless one is given; a live session of that name makes the launcher take a free one. A directory no
 project holds is refused rather than looked up by the name, since the panel
 would know neither the account to open it in nor its launch parameters, and
 the answer names the contour, so the session can tell its person which account
@@ -1968,8 +1997,10 @@ waits a minute for the panel, which answers once the new claude is up; silence
 past that is an open whose outcome is not known, and the tool says not to open
 again blindly. The restart and the close are allowed: the restart past the
 context cap is done with nobody at the screen, and so is the close of a session
-done with the one job it was opened for; each touches only the session that
-calls it and waits out its work. The letter is not: it puts words before another agent,
+done with the one job it was opened for; the restart touches only the calling
+session, and the close also takes a child that conversation opened. Both wait
+out the work of the session they close. The letter is not: it puts words before
+another agent,
 and claude asks the person first, as it does for any tool. Nor is the open: a
 new session starts work in its account and spends its limits, and the question
 claude asks before the call is the person's word to open it.

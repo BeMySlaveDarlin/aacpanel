@@ -199,7 +199,7 @@ func toolCall(id int, tool, args, meta string) string {
 
 // A thread of codex is offered the tools a thread has, in the order a claude
 // session is offered them, and the server's word to it names only those:
-// nothing of the restart and the new session it does not have, nor of the
+// nothing of the restart it does not have, nor of the
 // tools of claude it is pointed to elsewhere — a brief is weighed against a
 // question in the conversation, and the rules say so before anything else.
 func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
@@ -222,7 +222,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
@@ -235,12 +235,12 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 			t.Errorf("the word does not name %s:\n%s", name, said)
 		}
 	}
-	for _, missing := range []string{"session_restart", "session_open", "AskUserQuestion", "SendMessage"} {
+	for _, missing := range []string{"session_restart", "AskUserQuestion", "SendMessage"} {
 		if strings.Contains(said, missing) {
 			t.Errorf("the word to codex names %s, which it does not have:\n%s", missing, said)
 		}
 	}
-	for _, missing := range []string{"session_restart", "session_open", "AskUserQuestion"} {
+	for _, missing := range []string{"session_restart", "AskUserQuestion"} {
 		if strings.Contains(descriptions, missing) {
 			t.Errorf("a tool tells codex of %s:\n%s", missing, descriptions)
 		}
@@ -273,6 +273,7 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 		{"secret_ask", `{"name":"github-token","title":"GitHub token"}`},
 		{"send_to_session", `{"to":"lab","text":"done"}`},
 		{"session_close", `{}`},
+		{"session_open", `{"dir":"/srv/proj","agent":"codex"}`},
 	}
 	for _, meta := range []string{"", `{"callId":"call_1"}`, `{"threadId":"019a1f00-0000-7000-8000-00000000ef01"}`} {
 		var lines []string

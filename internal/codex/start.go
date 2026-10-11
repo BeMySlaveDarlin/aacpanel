@@ -53,6 +53,10 @@ type Begin struct {
 	// Parent is the session that had the panel start the thread, by its
 	// name; empty for a thread a person started.
 	Parent string
+	Owner  stream.SessionOwner
+	// Workspace overrides only this thread's write roots and network policy.
+	Workspace     bool
+	WritableRoots []string
 }
 
 // toolsConfig is the panel's MCP server as a thread's configuration names
@@ -116,6 +120,12 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 		}
 	}
 	config := map[string]any{}
+	if b.Workspace {
+		config["sandbox_workspace_write.network_access"] = true
+		if len(b.WritableRoots) > 0 {
+			config["sandbox_workspace_write.writable_roots"] = b.WritableRoots
+		}
+	}
 	if b.Effort != "" {
 		config["model_reasoning_effort"] = b.Effort
 	}
@@ -137,6 +147,11 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 	id := out.Thread.ID
 	if id == "" {
 		return "", fmt.Errorf("the codex daemon of %s started a thread and did not name it", l.home)
+	}
+	if b.Owner.Conversation != "" {
+		if err := stream.KeepOwner(id, b.Owner); err != nil {
+			return id, fmt.Errorf("the thread started, but its opening session was not recorded: %w", err)
+		}
 	}
 	l.seen(out.Thread, time.Now())
 	// thread/start makes the caller a client of the thread, and its answer
@@ -205,6 +220,9 @@ func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 	delete(l.closed, threadID)
 	l.mu.Unlock()
 	l.disown(threadID)
+	if err := os.Remove(stream.OpenedPath(threadID)); err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("the thread's opening session was not cleared: %w", err)
+	}
 	l.seen(out.Thread, time.Now())
 	settled := out.read()
 	l.set(threadID, func(t *thread) { t.subscribed, t.settings = true, settled })
