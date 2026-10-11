@@ -14,7 +14,7 @@
 // words it holds are those a person decides on or reads to decide — the
 // command or the change an approval asks about, the questions and the forms a
 // thread waits on, the name and the goal of a thread, and the messages that
-// wait in the panel's queue for a thread to be free.
+// wait in the panel's queue for a turn to take them.
 package codex
 
 import (
@@ -57,7 +57,7 @@ var waitsForPerson = []string{methodCommand, methodFileChange, methodPermissions
 
 // quiet are the notifications a link turns off at the handshake. It reads the
 // word that a request was answered, the status of a thread — a thread that
-// turns free takes the next message of the panel's queue at once — its
+// turns free takes what waits in the panel's queue at once — its
 // settings, its name and its goal, how full its context is and the rate limits
 // of the account; none of them carries a word of the conversation beyond a
 // name and a goal a person gives. Every other notification the

@@ -51,7 +51,8 @@ type Request struct {
 
 	// Asked names the question a codex thread asked without waiting that a
 	// session.send answers, by the id codex gives it: the answer goes into
-	// the turn that runs rather than into the panel's queue behind it.
+	// the turn that runs past whatever waits in the panel's queue, and is
+	// never queued itself.
 	Asked string `json:"asked,omitempty"`
 
 	// From is the conversation of the session a session.letter comes from:

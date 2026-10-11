@@ -3,6 +3,7 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -22,8 +23,8 @@ type Message struct {
 	Images []string `json:"images,omitempty"`
 }
 
-// input is the message as turn/start takes it: the words, then each picture
-// as a file of the host codex reads itself.
+// input is the message as turn/start and turn/steer take it: the words, then
+// each picture as a file of the host codex reads itself.
 func (m Message) input() []any {
 	out := []any{}
 	if m.Text != "" {
@@ -35,14 +36,37 @@ func (m Message) input() []any {
 	return out
 }
 
-// Queued is a message that waits in the panel's queue of a thread.
+// Queued is a message that waits in the panel's queue of a thread. Steer says
+// it is the person's and goes into the first turn that takes it, the way the
+// person's words go into the turn that runs; any other — a letter — waits for
+// the thread to be free and goes as a turn of its own.
 type Queued struct {
 	Message
+	Steer bool      `json:"steer,omitempty"`
 	Since time.Time `json:"since"`
 }
 
+// Sent is where a message went: into the turn that runs, as a turn of its own,
+// or into the panel's queue, at its place there counted from one.
+type Sent struct {
+	Steered bool
+	Place   int
+}
+
+// errBusy is a thread that runs a turn a message does not go into: a turn
+// that refused it — a review or a compaction takes no message — one the
+// daemon has not listed yet, or any turn for a message that waits for the
+// thread to be free.
+var errBusy = errors.New("the thread runs a turn that does not take the message")
+
+// startRefused is a turn/start the daemon refused: the message it carried
+// would be refused again.
+type startRefused struct{ error }
+
+func (e startRefused) Unwrap() error { return e.error }
+
 // outbox is what the panel holds for a thread until a turn takes it: the
-// messages that wait for the turn that runs to end, and a model and an effort
+// messages no turn has taken yet, and a model and an effort
 // that go with the next turn/start where the daemon would not change them
 // sooner. It is kept on the disk by the contour of the home, so an executor
 // started again delivers what waited; it goes with the thread when the panel
@@ -148,46 +172,63 @@ func (l *Link) nudge() {
 	}
 }
 
-// Send gives a thread a message. A free thread starts a turn with it. A busy
-// one — or one with messages of the panel waiting before it — gets it in the
-// panel's queue, and the turn that runs takes nothing of it: the message goes
-// as a turn of its own once the thread is free, in the order it came. It
-// returns the place of the message in the queue, zero when a turn started
-// with it.
-func (l *Link) Send(ctx context.Context, threadID string, m Message) (int, error) {
+// Send gives a thread the person's message the way claude takes one written
+// during a turn: the turn that runs takes it at its next step, and a free
+// thread starts a turn with it. A turn that does not take it — a review or a
+// compaction, or one the daemon has not listed yet — leaves it in the panel's
+// queue, and so does a message of the person that waits there before it, so
+// that none overtakes another: the queue gives it to the first turn that
+// takes it, or starts a turn with it once the thread is free.
+func (l *Link) Send(ctx context.Context, threadID string, m Message) (Sent, error) {
+	c, err := l.client()
+	if err != nil {
+		return Sent{}, err
+	}
+	l.sub.Lock()
+	defer l.sub.Unlock()
+	if !l.steering(threadID) {
+		steered, err := l.deliver(ctx, c, threadID, m)
+		if !errors.Is(err, errBusy) {
+			return Sent{Steered: steered}, err
+		}
+	}
+	return Sent{Place: l.enqueue(threadID, Queued{Message: m, Steer: true, Since: time.Now()})}, nil
+}
+
+// SendAfter gives a thread a message that waits for the turn that runs to
+// end, as claude reads a letter of another session once its turn is over: a
+// free thread with nothing in the panel's queue starts a turn with it, and any
+// other gets it in the queue, to go as a turn of its own once the thread is
+// free. It returns the place of the message in the queue, zero when a turn
+// started with it.
+func (l *Link) SendAfter(ctx context.Context, threadID string, m Message) (int, error) {
 	c, err := l.client()
 	if err != nil {
 		return 0, err
 	}
 	l.sub.Lock()
 	defer l.sub.Unlock()
-	free, err := l.free(ctx, c, threadID)
-	if err != nil {
-		return 0, err
-	}
 	l.mu.Lock()
 	waiting := l.queued(threadID) > 0
 	l.mu.Unlock()
-	if free && !waiting {
-		return 0, l.start(ctx, c, threadID, m)
+	if !waiting {
+		_, free, err := look(ctx, c, threadID)
+		if err != nil {
+			return 0, err
+		}
+		if free {
+			return 0, l.start(ctx, c, threadID, m)
+		}
 	}
-	l.mu.Lock()
-	b := l.box(threadID)
-	b.Queue = append(b.Queue, Queued{Message: m, Since: time.Now()})
-	n := len(b.Queue)
-	l.keepOutbox(threadID)
-	l.mu.Unlock()
-	l.save(threadID)
-	l.nudge()
-	return n, nil
+	return l.enqueue(threadID, Queued{Message: m, Since: time.Now()}), nil
 }
 
 // Answer gives a thread the answer to a question it asked without waiting. A
-// turn that runs takes it at once, as codex's own terminal hands it — codex
-// asked so as to go on, and an answer behind that turn would come after the
-// work it was for — and a free thread starts a turn with it. It reports
-// whether the turn that runs took it. A turn that ends between the look and
-// the answer leaves the thread free, and the answer starts a turn of its own.
+// turn that runs takes it at once, past whatever waits in the panel's queue,
+// as codex's own terminal hands it — codex asked so as to go on, and an answer
+// behind that turn would come after the work it was for — and a free thread
+// starts a turn with it. It reports whether the turn that runs took it. An
+// answer is never queued: a turn that does not take it is the refusal.
 func (l *Link) Answer(ctx context.Context, threadID string, m Message) (bool, error) {
 	c, err := l.client()
 	if err != nil {
@@ -195,35 +236,77 @@ func (l *Link) Answer(ctx context.Context, threadID string, m Message) (bool, er
 	}
 	l.sub.Lock()
 	defer l.sub.Unlock()
-	turn, err := runningTurn(ctx, c, threadID)
+	steered, err := l.deliver(ctx, c, threadID, m)
+	if errors.Is(err, errBusy) {
+		return false, fmt.Errorf("the turn that runs did not take the answer: %w", err)
+	}
+	return steered, err
+}
+
+// deliver gives a message to the turn a thread runs, named by its id so that
+// the message goes into that turn or nowhere, and starts a turn with it on a
+// free thread. It reports whether the turn that runs took it. A turn that
+// ends between the look and the steer leaves no turn to take it, and the
+// message starts a turn of its own. A turn that runs on and refuses it, or
+// one the daemon has not listed yet, is errBusy. Called with sub held.
+func (l *Link) deliver(ctx context.Context, c *conn, id string, m Message) (bool, error) {
+	turn, free, err := look(ctx, c, id)
 	if err != nil {
 		return false, err
 	}
-	if turn != "" {
-		params := map[string]any{"threadId": threadID, "expectedTurnId": turn, "input": m.input()}
-		if m.ID != "" {
-			params["clientUserMessageId"] = m.ID
-		}
-		err = within(ctx, c, "turn/steer", params, nil)
-		if err == nil {
-			return true, nil
-		}
-		if !refused(err) {
-			return false, err
-		}
-		refusal := err
-		if turn, err = runningTurn(ctx, c, threadID); err != nil {
-			return false, err
-		}
-		if turn != "" {
-			return false, fmt.Errorf("the turn that runs did not take the answer: %w", refusal)
-		}
+	if free {
+		return false, l.start(ctx, c, id, m)
 	}
-	return false, l.start(ctx, c, threadID, m)
+	if turn == "" {
+		return false, errBusy
+	}
+	params := map[string]any{"threadId": id, "expectedTurnId": turn, "input": m.input()}
+	if m.ID != "" {
+		params["clientUserMessageId"] = m.ID
+	}
+	err = within(ctx, c, "turn/steer", params, nil)
+	if err == nil {
+		return true, nil
+	}
+	if !refused(err) {
+		return false, err
+	}
+	refusal := err
+	if turn, err = runningTurn(ctx, c, id); err != nil {
+		return false, err
+	}
+	if turn != "" {
+		return false, fmt.Errorf("%w: %w", errBusy, refusal)
+	}
+	return false, l.start(ctx, c, id, m)
+}
+
+// steering says a message of the person waits in the panel's queue of a
+// thread: a new one goes behind it rather than past it.
+func (l *Link) steering(id string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	b := l.boxes[id]
+	return b != nil && slices.ContainsFunc(b.Queue, func(q Queued) bool { return q.Steer })
+}
+
+// enqueue puts a message at the end of the panel's queue of a thread, keeps
+// the queue on the disk and has the link look at the thread now. It returns
+// the place of the message there.
+func (l *Link) enqueue(id string, q Queued) int {
+	l.mu.Lock()
+	b := l.box(id)
+	b.Queue = append(b.Queue, q)
+	n := len(b.Queue)
+	l.keepOutbox(id)
+	l.mu.Unlock()
+	l.save(id)
+	l.nudge()
+	return n
 }
 
 // Unqueue takes a message back from the panel's queue of a thread before it
-// goes. It reports false when the message is not there: it has gone as a turn.
+// goes. It reports false when the message is not there: a turn has it.
 func (l *Link) Unqueue(threadID, messageID string) bool {
 	l.sub.Lock()
 	defer l.sub.Unlock()
@@ -242,19 +325,21 @@ func (l *Link) Unqueue(threadID, messageID string) bool {
 	return found
 }
 
-// free says a thread runs no turn: neither one the daemon reports nor one the
-// panel has just started — the daemon answers turn/start before the thread
-// turns active, and a second turn/start then would go into the first turn.
-func (l *Link) free(ctx context.Context, c *conn, id string) (bool, error) {
+// look says what a thread runs: the turn in progress, empty when none is
+// listed, and whether the thread is free — neither a turn the daemon reports
+// active nor one the panel has just started: the daemon answers turn/start
+// before the thread turns active, and a second turn/start then would go into
+// the first turn.
+func look(ctx context.Context, c *conn, id string) (string, bool, error) {
 	info, err := read(ctx, c, id)
 	if err != nil {
-		return false, err
-	}
-	if info.Status.Type == "active" {
-		return false, nil
+		return "", false, err
 	}
 	turn, err := runningTurn(ctx, c, id)
-	return turn == "", err
+	if err != nil {
+		return "", false, err
+	}
+	return turn, turn == "" && info.Status.Type != "active", nil
 }
 
 // start starts a turn with a message, and with the model and the effort that
@@ -276,6 +361,9 @@ func (l *Link) start(ctx context.Context, c *conn, id string, m Message) error {
 	}
 	l.mu.Unlock()
 	if err := within(ctx, c, "turn/start", params, nil); err != nil {
+		if refused(err) {
+			return startRefused{err}
+		}
 		return err
 	}
 	l.later(id, "", "")
@@ -283,35 +371,60 @@ func (l *Link) start(ctx context.Context, c *conn, id string, m Message) error {
 	return nil
 }
 
-// drain starts a turn with the first message of a thread's queue once the
-// thread is free. A message the daemon refuses is dropped — it would be
-// refused at every round and hold the rest behind it — and the executor's log
-// names the thread; one that did not reach the daemon stays first.
+// drain gives the panel's queue of a thread to the daemon, the oldest message
+// first, for as long as the thread takes them. A message of the person goes
+// into the turn that runs, if it takes one, and a turn starts with it on a
+// free thread; a letter waits for the thread to be free and starts a turn of
+// its own. So a free thread takes one letter a turn and every message of the
+// person behind it into that turn, and a turn after turn — a goal codex works
+// towards starts the next as one ends — leaves no message of the person
+// waiting for a free moment that never comes. A message the daemon refuses to
+// start a turn with is dropped — it would be refused at every round and hold
+// the rest behind it — and the executor's log names the thread; one that did
+// not reach the daemon, or that the turn that runs does not take, stays first.
 func (l *Link) drain(ctx context.Context, c *conn, id string) {
 	l.sub.Lock()
 	defer l.sub.Unlock()
-	l.mu.Lock()
-	if l.queued(id) == 0 {
+	for {
+		l.mu.Lock()
+		if l.queued(id) == 0 {
+			l.mu.Unlock()
+			return
+		}
+		next := l.boxes[id].Queue[0]
 		l.mu.Unlock()
-		return
+		err := l.hand(ctx, c, id, next)
+		var bad startRefused
+		if err != nil && !errors.As(err, &bad) {
+			return
+		}
+		if err != nil {
+			log.Printf("codex %s: thread %s refused a message of the panel's queue, and it is dropped: %v", l.home, id, err)
+		}
+		l.mu.Lock()
+		if b := l.boxes[id]; b != nil && len(b.Queue) > 0 {
+			b.Queue = slices.Delete(b.Queue, 0, 1)
+			l.keepOutbox(id)
+		}
+		l.mu.Unlock()
+		l.save(id)
 	}
-	next := l.boxes[id].Queue[0]
-	l.mu.Unlock()
-	if free, err := l.free(ctx, c, id); err != nil || !free {
-		return
+}
+
+// hand gives a thread a message of its queue: the person's to the turn that
+// runs or a turn of its own, a letter to a turn of its own once the thread is
+// free. Called with sub held.
+func (l *Link) hand(ctx context.Context, c *conn, id string, q Queued) error {
+	if q.Steer {
+		_, err := l.deliver(ctx, c, id, q.Message)
+		return err
 	}
-	err := l.start(ctx, c, id, next.Message)
-	if err != nil && !refused(err) {
-		return
-	}
+	_, free, err := look(ctx, c, id)
 	if err != nil {
-		log.Printf("codex %s: thread %s refused a message of the panel's queue, and it is dropped: %v", l.home, id, err)
+		return err
 	}
-	l.mu.Lock()
-	if b := l.boxes[id]; b != nil && len(b.Queue) > 0 {
-		b.Queue = slices.Delete(b.Queue, 0, 1)
-		l.keepOutbox(id)
+	if !free {
+		return errBusy
 	}
-	l.mu.Unlock()
-	l.save(id)
+	return l.start(ctx, c, id, q.Message)
 }

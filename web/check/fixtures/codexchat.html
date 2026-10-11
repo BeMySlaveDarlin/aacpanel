@@ -148,8 +148,8 @@ window.done = (async () => {
     await until(() => sent.some((s) => s.kind === "session.permit"));
     out.permitSent = sent.filter((s) => s.kind === "session.permit");
 
-    // A busy thread with two messages already queued: the field says where
-    // the next one goes, and the paperclip opens where files come from.
+    // A busy thread with two messages already queued: the field says what
+    // claude's busy field does, and the paperclip opens where files come from.
     render(null, root);
     render(page({ ...thread, status: "busy", queued: 2 }), root);
     if (!await until(() => root.querySelector(".composer .cstrip .pickfile") && root.querySelector(".chatfeed .msg.ai"))) {

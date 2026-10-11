@@ -89,6 +89,9 @@ type turn struct {
 	// inner is the turn a review runs under its root turn: the daemon
 	// interrupts only it.
 	inner string
+	// compact says the turn summarises the conversation: like a review, it
+	// takes no message steered into it.
+	compact bool
 }
 
 type thread struct {
@@ -141,6 +144,9 @@ type Server struct {
 	// lag leaves a thread as it was after turn/start: the daemon answers
 	// turn/start before the thread turns active.
 	lag bool
+	// ending are the threads whose turn ends as the next turn/steer to them
+	// arrives, before the daemon reads it.
+	ending map[string]bool
 	// mcp are the MCP servers as the threads' own connections have them,
 	// changed those a discovery finds changed or added since, fromStart the
 	// names the threads got from their start rather than from config.toml,
@@ -165,7 +171,8 @@ func New(t testing.TB) *Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(home) })
-	s := &Server{Home: home, threads: map[string]*thread{}, clients: map[*client]bool{}, refuse: map[string]bool{}}
+	s := &Server{Home: home, threads: map[string]*thread{}, clients: map[*client]bool{}, refuse: map[string]bool{},
+		ending: map[string]bool{}}
 	s.Start(t)
 	t.Cleanup(s.Close)
 	return s
@@ -230,6 +237,14 @@ func (s *Server) Lag() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lag = true
+}
+
+// EndAtSteer has the turn a thread runs end as the next turn/steer to it
+// arrives: a message sent as the turn finishes finds no turn to go into.
+func (s *Server) EndAtSteer(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ending[id] = true
 }
 
 // Mcp sets the MCP servers of the threads as their own connections have them,
@@ -805,7 +820,7 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		// A compaction is a turn of its own, even on a thread with nothing
 		// to compact.
 		s.turnN++
-		t.turns = append(t.turns, turn{id: fmt.Sprintf("turn-%d", s.turnN), status: "inProgress"})
+		t.turns = append(t.turns, turn{id: fmt.Sprintf("turn-%d", s.turnN), status: "inProgress", compact: true})
 		t.Status = "active"
 		note := t.statusChanged()
 		note["to"] = clientsOf(t)
@@ -872,11 +887,35 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		note["to"] = clientsOf(t)
 		return map[string]any{}, []map[string]any{note}, ""
 	case "turn/steer":
+		// A message steered into a turn goes into the turn the thread runs
+		// — the inner one of a review — and into no turn that summarises or
+		// reviews, with codex's own words for each refusal.
 		last := t.last()
-		if last == nil || last.status != "inProgress" || last.id != p.ExpectedTurnID {
-			return nil, nil, "expectedTurnId does not match the active turn"
+		var after []map[string]any
+		if s.ending[t.ID] && last != nil && last.status == "inProgress" {
+			delete(s.ending, t.ID)
+			last.status = "completed"
+			t.Status, t.Flags = "idle", nil
+			note := t.statusChanged()
+			note["to"] = clientsOf(t)
+			after = append(after, note)
 		}
-		return map[string]any{"turnId": last.id}, nil, ""
+		if last == nil || last.status != "inProgress" {
+			return nil, after, "no active turn to steer"
+		}
+		active := last.id
+		if last.inner != "" {
+			active = last.inner
+		}
+		switch {
+		case p.ExpectedTurnID != active:
+			return nil, after, "expected active turn id `" + p.ExpectedTurnID + "` but found `" + active + "`"
+		case last.inner != "":
+			return nil, after, "cannot steer a review turn"
+		case last.compact:
+			return nil, after, "cannot steer a compact turn"
+		}
+		return map[string]any{"turnId": active}, after, ""
 	case "turn/interrupt":
 		last := t.last()
 		if last != nil && last.inner != "" && last.inner != p.TurnID {

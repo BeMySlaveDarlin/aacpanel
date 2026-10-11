@@ -237,84 +237,183 @@ func TestAnApprovalAnsweredElsewhereLeavesThePanel(t *testing.T) {
 	})
 }
 
-// A message to a free thread starts a turn. A message to a busy one waits in
-// the panel's queue — the turn that runs takes nothing of it — and goes as a
-// turn of its own once the thread is free, one message a turn, in the order
-// they came. The link stays a client of the thread while anything waits.
-func TestSendStartsATurnOnAFreeThreadAndQueuesForABusyOne(t *testing.T) {
+// A message to a free thread starts a turn. A message to a busy one goes into
+// the turn that runs at once, named by the turn's id, the way claude takes a
+// message written during a turn at its next step: the daemon is not asked to
+// start a turn, nothing waits for the one that runs to end, and the state
+// counts no queue. Once the thread is free the link leaves it.
+func TestSendStartsATurnOnAFreeThreadAndSteersABusyOne(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
 	ctx := context.Background()
 
-	place, err := l.Send(ctx, threadA, Message{Text: "look at the tests"})
-	if err != nil || place != 0 {
-		t.Fatalf("a message to a free thread: place %d, %v", place, err)
+	sent, err := l.Send(ctx, threadA, Message{Text: "look at the tests"})
+	if err != nil || sent != (Sent{}) {
+		t.Fatalf("a message to a free thread: %+v, %v", sent, err)
 	}
 	starts := srv.Calls("turn/start")
 	if len(starts) != 1 || !strings.Contains(string(starts[0]), `"text":"look at the tests"`) {
 		t.Fatalf("turn/start went as %s", starts)
 	}
 
-	for i, text := range []string{"and the docs", "and the linter"} {
-		place, err := l.Send(ctx, threadA, Message{Text: text, ID: "id-" + text})
-		if err != nil || place != i+1 {
-			t.Fatalf("a message to a busy thread: place %d, %v", place, err)
+	for _, m := range []Message{
+		{ID: "id-docs", Text: "and the docs"},
+		{ID: "id-shot", Text: "and this", Images: []string{"/srv/files/a.png"}},
+	} {
+		sent, err := l.Send(ctx, threadA, m)
+		if err != nil || sent != (Sent{Steered: true}) {
+			t.Fatalf("a message to a busy thread: %+v, %v", sent, err)
 		}
 	}
-	if n := len(srv.Calls("turn/start")); n != 1 || len(srv.Calls("turn/steer")) != 0 {
-		t.Fatalf("a message to a busy thread went at once: %d turn/start, %s", n, srv.Calls("turn/steer"))
+	steers := srv.Calls("turn/steer")
+	if n := len(srv.Calls("turn/start")); n != 1 || len(steers) != 2 {
+		t.Fatalf("two messages to a busy thread went as %d turn/start and %d turn/steer", n-1, len(steers))
 	}
-	until(t, "the state to count the queue", func() bool {
-		st, _, _ := stateOf(t, threadA)
-		return st.Queue == 2
-	})
-	if _, raw, _ := stateOf(t, threadA); strings.Contains(string(raw), "the docs") {
-		t.Errorf("the state file carries the words of a queued message: %s", raw)
+	for i, want := range []string{
+		`[{"text":"and the docs","text_elements":[],"type":"text"}]`,
+		`[{"text":"and this","text_elements":[],"type":"text"},{"path":"/srv/files/a.png","type":"localImage"}]`,
+	} {
+		p := params(t, steers[i])
+		input, _ := json.Marshal(p["input"])
+		if p["threadId"] != threadA || p["expectedTurnId"] != "turn-1" || string(input) != want ||
+			p["clientUserMessageId"] != []string{"id-docs", "id-shot"}[i] {
+			t.Errorf("turn/steer went as %s", steers[i])
+		}
+	}
+	if st, _, _ := stateOf(t, threadA); st.Queue != 0 {
+		t.Errorf("messages the turn took are counted as a queue of %d", st.Queue)
 	}
 
-	srv.Set(threadA, "idle")
-	until(t, "the first message of the queue to go", func() bool { return len(srv.Calls("turn/start")) == 2 })
-	if second := string(srv.Calls("turn/start")[1]); !strings.Contains(second, `"text":"and the docs"`) ||
-		!strings.Contains(second, `"clientUserMessageId":"id-and the docs"`) {
-		t.Errorf("the queue sent %s first", second)
-	}
-	time.Sleep(5 * pollEvery)
-	if n := len(srv.Calls("turn/start")); n != 2 {
-		t.Fatalf("the queue sent %d turns into one free moment", n-1)
-	}
-	until(t, "the state to count one", func() bool {
-		st, _, _ := stateOf(t, threadA)
-		return st.Queue == 1
-	})
-	srv.Set(threadA, "idle")
-	until(t, "the second message of the queue to go", func() bool { return len(srv.Calls("turn/start")) == 3 })
-	if !srv.Subscribed(threadA) {
-		t.Error("the link left the thread while the turn of its queue runs")
-	}
 	srv.Set(threadA, "idle")
 	until(t, "the link to leave the thread once it is free", func() bool { return !srv.Subscribed(threadA) })
 	if len(srv.Calls("thread/unsubscribe")) == 0 {
 		t.Error("the link left without saying so")
 	}
+	if n := len(srv.Calls("turn/start")); n != 1 {
+		t.Errorf("a message the turn took went again as %d turns", n-1)
+	}
 }
 
-// A message for a thread whose turn another client runs waits for that turn
-// to end; the link joins the thread meanwhile, or it would not hear the end.
-func TestAMessageForATurnOfAnotherClientWaitsForItsEnd(t *testing.T) {
+// A message sent as the turn ends finds no turn to go into: the daemon
+// refuses the steer, and the message starts a turn of its own rather than
+// wait in a queue.
+func TestAMessageSentAsTheTurnEndsStartsATurn(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
 	srv.Running(threadA, "turn-tui")
+	srv.EndAtSteer(threadA)
 
-	place, err := l.Send(context.Background(), threadA, Message{Text: "one more thing"})
-	if err != nil || place != 1 {
-		t.Fatalf("place %d, %v", place, err)
+	sent, err := l.Send(context.Background(), threadA, Message{ID: "late", Text: "one more thing"})
+	if err != nil || sent != (Sent{}) {
+		t.Fatalf("a message as the turn ends: %+v, %v", sent, err)
 	}
-	until(t, "the link to subscribe while the message waits", func() bool { return srv.Subscribed(threadA) })
-	if len(srv.Calls("turn/start")) != 0 {
-		t.Fatal("the message went into the turn of another client")
+	if n := len(srv.Calls("turn/steer")); n != 1 {
+		t.Fatalf("turn/steer went %d times", n)
+	}
+	starts := srv.Calls("turn/start")
+	if len(starts) != 1 || !strings.Contains(string(starts[0]), `"text":"one more thing"`) ||
+		!strings.Contains(string(starts[0]), `"clientUserMessageId":"late"`) {
+		t.Fatalf("turn/start went as %s", starts)
+	}
+	if st, _, _ := stateOf(t, threadA); st.Queue != 0 {
+		t.Errorf("the message waits in a queue of %d", st.Queue)
+	}
+}
+
+// A turn that takes no message — a compaction, a review — leaves the
+// person's message in the panel's queue, and a message after it goes behind
+// it rather than past it. Once that turn is over the first starts a turn and
+// the next goes into that turn, the way claude's queue goes into its next
+// turn; a turn that starts as the one before ends, as a goal codex works
+// towards starts the next, takes them as well, with no free moment between.
+func TestATurnThatTakesNoMessageLeavesItForTheNextTurn(t *testing.T) {
+	srv, l := linked(t, idle(threadA))
+	until(t, "the state file", written(t, threadA))
+	ctx := context.Background()
+	if err := l.Compact(ctx, threadA); err != nil {
+		t.Fatal(err)
+	}
+	for i, text := range []string{"older", "newer"} {
+		sent, err := l.Send(ctx, threadA, Message{ID: text, Text: text})
+		if err != nil || sent != (Sent{Place: i + 1}) {
+			t.Fatalf("a message to a compaction: %+v, %v", sent, err)
+		}
+	}
+	stateSays(t, threadA, "the queue of two", func(st State) bool { return st.Queue == 2 })
+	time.Sleep(5 * pollEvery)
+	if n := len(srv.Calls("turn/start")); n != 0 || len(steersOf(t, srv, "newer")) != 0 {
+		t.Fatalf("while the compaction ran the queue started %d turns, and tried the newer message past the "+
+			"older %d times", n, len(steersOf(t, srv, "newer")))
+	}
+
+	srv.Set(threadA, "idle")
+	until(t, "the queue to go", func() bool { return len(steersOf(t, srv, "newer")) == 1 })
+	if got := turnTexts(t, srv); len(got) != 1 || got[0] != "text:older" {
+		t.Errorf("the queue started turns with %q", got)
+	}
+	if turn := steersOf(t, srv, "newer")[0]["expectedTurnId"]; turn != "turn-2" {
+		t.Errorf("the newer message went into %v, expected the turn the older one started", turn)
+	}
+	stateSays(t, threadA, "an empty queue", func(st State) bool { return st.Queue == 0 })
+
+	// A goal: the compaction ends and the next turn runs, with no free
+	// moment between them for the queue to wait for.
+	srv.Set(threadA, "idle")
+	if err := l.Compact(ctx, threadA); err != nil {
+		t.Fatal(err)
+	}
+	if sent, err := l.Send(ctx, threadA, Message{ID: "goal", Text: "mind the budget"}); err != nil || sent.Place != 1 {
+		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
+	}
+	srv.Running(threadA, "turn-goal")
+	until(t, "the message to go into the next turn", func() bool {
+		steers := steersOf(t, srv, "goal")
+		return len(steers) > 0 && steers[len(steers)-1]["expectedTurnId"] == "turn-goal"
+	})
+	stateSays(t, threadA, "an empty queue", func(st State) bool { return st.Queue == 0 })
+	if n := len(srv.Calls("turn/start")); n != 1 {
+		t.Errorf("the message waited for a free thread and started %d turns", n-1)
+	}
+}
+
+// steersOf are the turn/steer calls that carried the message of the name.
+func steersOf(t *testing.T, srv *codextest.Server, id string) []map[string]any {
+	t.Helper()
+	var out []map[string]any
+	for _, raw := range srv.Calls("turn/steer") {
+		if p := params(t, raw); p["clientUserMessageId"] == id {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// A message for a thread whose turn another client runs goes into that turn,
+// as it does into one the panel started. A letter waits for that turn to end;
+// the link joins the thread meanwhile, or it would not hear the end.
+func TestAMessageGoesIntoATurnOfAnotherClientAndALetterWaitsForItsEnd(t *testing.T) {
+	srv, l := linked(t, idle(threadA))
+	until(t, "the state file", written(t, threadA))
+	srv.Running(threadA, "turn-tui")
+	ctx := context.Background()
+
+	sent, err := l.Send(ctx, threadA, Message{Text: "one more thing"})
+	if err != nil || !sent.Steered {
+		t.Fatalf("%+v, %v", sent, err)
+	}
+	if steers := srv.Calls("turn/steer"); len(steers) != 1 || params(t, steers[0])["expectedTurnId"] != "turn-tui" {
+		t.Fatalf("turn/steer went as %s", steers)
+	}
+	place, err := l.SendAfter(ctx, threadA, Message{Text: "a letter"})
+	if err != nil || place != 1 {
+		t.Fatalf("a letter: place %d, %v", place, err)
+	}
+	until(t, "the link to subscribe while the letter waits", func() bool { return srv.Subscribed(threadA) })
+	if len(srv.Calls("turn/start")) != 0 || len(srv.Calls("turn/steer")) != 1 {
+		t.Fatal("the letter went into the turn of another client")
 	}
 	srv.Set(threadA, "idle")
-	until(t, "the message to go once the turn ended", func() bool { return len(srv.Calls("turn/start")) == 1 })
+	until(t, "the letter to go once the turn ended", func() bool { return len(srv.Calls("turn/start")) == 1 })
 	srv.Set(threadA, "idle")
 	until(t, "the link to leave the free thread", func() bool { return !srv.Subscribed(threadA) })
 }

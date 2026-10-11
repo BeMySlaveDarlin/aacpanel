@@ -1,11 +1,12 @@
 // The conversation of a codex thread: the shared screen with what codex brings
 // to it. A thread lives with the daemon of its codex home, not in a place of
 // the panel's: there is no terminal of it to watch, no window, no move and no
-// question aside. The panel writes to it — words and files, into a queue of
-// its own while a turn runs, and the answer to a question it asked into the
-// turn — sets how it thinks and what it may do from the band under the field,
-// stops its turn, answers what it asks and closes it; the agents the thread
-// started are listed as claude's are, each opening its own thread.
+// question aside. The panel writes to it — words and files, into the turn
+// that runs as claude takes a message written during a turn, and the answer
+// to a question it asked — sets how it thinks and what it may do from the
+// band under the field, stops its turn, answers what it asks and closes it;
+// the agents the thread started are listed as claude's are, each opening its
+// own thread.
 
 import { useState } from "preact/hooks";
 
@@ -78,7 +79,7 @@ export function CodexChat(props) {
         composer: ({ items, pending }) => {
             const asked = hanging(items, pending, live.ask);
             const busy = live.status === "busy" && !live.turnOver;
-            return { ids: true, asked, waits: waits(live, asked, busy), busy };
+            return { ids: true, asked, waits: waits(asked, busy), busy };
         },
         dock: ({ items, pending }) => {
             const ask = asking(items, pending, live.ask);
@@ -123,15 +124,14 @@ function CodexWork({ work, processes, onOpen }) {
     `;
 }
 
-// waits is what the field says while a turn runs: a message written now goes
-// into the panel's queue and out as a turn of its own after this one, behind
-// what already waits there — unless it answers a question that hangs, which
-// goes into the turn at once. While a question hangs the field says so on a
-// free thread too, where the answer starts a turn.
-function waits(live, asked, busy) {
-    if (asked) return busy ? "answer the question — it goes into the turn that runs" : "answer the question — it starts a turn";
-    const ahead = (live && live.queued) || 0;
-    return ahead > 0 ? `goes after the turn, behind ${ahead} queued` : "goes after the turn";
+// waits is what the field says while a question codex asked without waiting
+// hangs: what is written answers it, into the turn that runs or as a turn of
+// its own on a free thread. Otherwise the field says what claude's does while
+// a turn runs, nothing of its own: a message written now goes into the turn
+// that runs, which takes it at its next step, as claude takes one.
+function waits(asked, busy) {
+    if (!asked) return "";
+    return busy ? "answer the question — it goes into the turn that runs" : "answer the question — it starts a turn";
 }
 
 // CodexSections are the tools of a thread: where it lives, what it has, its

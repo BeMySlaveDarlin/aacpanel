@@ -128,7 +128,7 @@ func (l *Link) StartReview(ctx context.Context, threadID string, r Review) error
 	}
 	l.sub.Lock()
 	defer l.sub.Unlock()
-	free, err := l.free(ctx, c, threadID)
+	_, free, err := look(ctx, c, threadID)
 	if err != nil {
 		return err
 	}

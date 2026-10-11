@@ -93,7 +93,7 @@ func TestACodexQuestionAboveTheFeedStandsOverTheComposer(t *testing.T) {
 		words.Params["asked"] != "call_ask_logo" || words.Params["messageId"] == "" {
 		t.Errorf("the words typed over the question went as %+v: the answer to it, named", words)
 	}
-	if got.Words.Dock != nil || got.Words.Placeholder != "Goes after the turn" {
+	if got.Words.Dock != nil || got.Words.Placeholder != "Write to codex-0000ef01" {
 		t.Errorf("the question answered with words stays: %+v", got.Words)
 	}
 }

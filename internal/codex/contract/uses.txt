@@ -112,7 +112,8 @@ call turn/start
   send model
   send effort
 
-# The answer to a question codex asked without waiting, into the turn that runs.
+# A message of the person into the turn that runs, the answer to a question
+# codex asked without waiting among them.
 call turn/steer
   send threadId
   send expectedTurnId

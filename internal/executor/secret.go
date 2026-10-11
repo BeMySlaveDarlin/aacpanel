@@ -62,8 +62,8 @@ func (e *Executor) secretPut(ctx context.Context, target string, secret *action.
 }
 
 // codexSecretPut saves the notepad for a thread of codex and tells the thread
-// as the panel tells it anything: a turn of its own on a free thread, the
-// panel's queue on a busy one.
+// as the person's message tells it: a turn of its own on a free thread, into
+// the turn that runs on a busy one.
 func codexSecretPut(ctx context.Context, th codex.Thread, secret *action.Secret) (string, error) {
 	return saveSecret(secret, func(text string) (string, error) {
 		if _, err := codexSend(ctx, th, codex.Message{Text: text}); err != nil {

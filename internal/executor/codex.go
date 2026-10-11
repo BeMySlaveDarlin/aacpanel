@@ -17,8 +17,8 @@ import (
 
 // A codex session is a thread of the codex daemon of a contour, held by the
 // daemon rather than by anything the panel started. It is reached only through
-// the daemon's protocol: a message is a turn, or waits in the panel's queue
-// while one runs; a stop is an interrupt — of the agent's own thread for an
+// the daemon's protocol: a message is a turn, or goes into the turn that
+// runs; a stop is an interrupt — of the agent's own thread for an
 // agent the thread started — an approval is a reply to the
 // daemon's request, a setting is a change of the thread's settings, a close
 // is an interrupt and the panel leaving the thread. None of the ways of a claude
@@ -171,21 +171,26 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 	return "", codexRefusal(th.Name)
 }
 
-// codexSend gives a thread a message: a turn of its own on a free thread, and
-// the panel's queue on a busy one, which sends it once the turn that runs
-// ends — the way claude's own queue waits, rather than into the turn that
-// runs.
+// codexSend gives a thread a message the way claude takes one written during
+// a turn: into the turn that runs, which takes it at its next step, and as a
+// turn of its own on a free thread. A turn that takes no message — a review,
+// a compaction — leaves it in the panel's queue, for the first turn that
+// takes it.
 func codexSend(ctx context.Context, th codex.Thread, m codex.Message) (string, error) {
-	place, err := th.Link.Send(ctx, th.ID, m)
+	sent, err := th.Link.Send(ctx, th.ID, m)
 	if err != nil {
 		return "", fmt.Errorf("session %s did not take the message: %w", th.Name, err)
 	}
-	if place == 0 {
+	switch {
+	case sent.Steered:
+		return fmt.Sprintf("sent to %s (busy — the turn that runs takes it at its next step), %d characters",
+			th.Name, len([]rune(m.Text))), nil
+	case sent.Place == 0:
 		return fmt.Sprintf("sent to %s (free — a turn started with it), %d characters", th.Name,
 			len([]rune(m.Text))), nil
 	}
-	return fmt.Sprintf("%s is busy: the message waits in the panel's queue, %s, and goes as a turn of its own "+
-		"once the turn that runs ends", th.Name, ordinal(place)), nil
+	return fmt.Sprintf("%s runs a turn that takes no message now: the message waits in the panel's queue, %s, "+
+		"and goes into the first turn that takes it", th.Name, ordinal(sent.Place)), nil
 }
 
 // codexAnswerAsked gives a thread the answer to a question it asked without
@@ -211,7 +216,8 @@ func ordinal(n int) string {
 }
 
 // codexUnqueue takes a message back from the panel's queue of a thread. A
-// message that has gone is a turn of the thread, and the answer says so.
+// message a turn has — one that went into the turn that runs among them — is
+// beyond taking back, and the answer says so.
 func codexUnqueue(th codex.Thread, messageID string) (string, error) {
 	if !th.Link.Unqueue(th.ID, messageID) {
 		return "", fmt.Errorf("the message is already delivered: %s has read it, and it can no longer be taken back", th.Name)
@@ -222,7 +228,7 @@ func codexUnqueue(th codex.Thread, messageID string) (string, error) {
 // codexFile puts the files where a claude session gets them and gives the
 // thread a message with them, the caption first: a picture goes into the turn
 // as a file codex reads itself, any other file as its path in the words. A
-// busy thread gets the message in the panel's queue, files and all.
+// busy thread gets the message into the turn that runs, files and all.
 func codexFile(ctx context.Context, th codex.Thread, caption string, files []action.File) (string, error) {
 	if len(files) == 0 {
 		return "", fmt.Errorf("no file arrived: there is nothing to send")
@@ -296,7 +302,7 @@ func codexSet(ctx context.Context, th codex.Thread, set *action.Setting) (string
 	switch {
 	case done.Later:
 		return fmt.Sprintf("the codex daemon does not change a running thread here, so %s goes with the next "+
-			"message to %s", modelText(set.Model, done.Effort), th.Name), nil
+			"message that starts a turn of %s", modelText(set.Model, done.Effort), th.Name), nil
 	case set.Model != "" || set.Effort != "":
 		return fmt.Sprintf("%s runs %s from its next turn", th.Name, modelText(set.Model, done.Effort)), nil
 	case set.Plan != nil && *set.Plan:

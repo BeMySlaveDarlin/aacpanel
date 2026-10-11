@@ -74,7 +74,7 @@ func TestWordsTypedWhileACodexQuestionHangsGoAsItsAnswer(t *testing.T) {
 	if got.Answered.Stamp != "went as the answer" || got.Answered.TakeBack != 0 {
 		t.Errorf("the answer on its way says %q with %d ways back from the queue", got.Answered.Stamp, got.Answered.TakeBack)
 	}
-	if got.Answered.Placeholder != "Goes after the turn" {
+	if got.Answered.Placeholder != "Write to codex-0000abcd" {
 		t.Errorf("the field once the question is answered says %q", got.Answered.Placeholder)
 	}
 

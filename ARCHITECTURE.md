@@ -921,17 +921,29 @@ after the install pairs only by its account's name.
   thread runs it; the check against config on the screen is the discovery,
   asked for, and tells it. Every other action over a codex session is refused by name: none of the
   claude ways — keys, signals, a holder's socket — reaches it.
-- **A busy thread gets a message in the panel's queue**, not in the turn that
-  runs: it goes as a turn of its own once the thread is free — the daemon says
-  so to its clients, and the poll finds it besides — one message a turn, in
-  the order they came, and a message waiting there is taken back
-  (`session.unqueue`) by the name the panel gave it. The queue outlives a
-  connection that dropped and an executor started again: it is kept on the
-  disk beside the state files, the person's words in a file of the owner's,
-  until a turn takes them. It goes with its thread — closed by the panel, or
-  unloaded by a daemon started again — since a thread the daemon let go is not
-  the panel's to bring back. A message the daemon refuses is dropped with a
-  line in the executor's log rather than held in front of the rest.
+- **A message of the person goes into the turn that runs**, as claude takes a
+  message written during a turn at its next step: `turn/steer` names the
+  turn, so the message goes into that turn or nowhere, and a free thread
+  starts a turn with it. A turn that ends between the look and the steer
+  leaves no turn to take it, and the message starts a turn of its own. A turn
+  that takes no message — a review, a compaction — or one the daemon has not
+  listed yet leaves it in the panel's queue, and a message of the person after
+  it goes behind it rather than past it. The queue gives them to the first
+  turn that takes them, or starts a turn with the first once the thread is
+  free — the daemon says so to its clients, and the poll finds it besides —
+  and a turn that follows another with no free moment between, as a goal
+  codex works towards starts the next, takes them too. A letter of another
+  session waits there for the thread to be free and goes as a turn of its
+  own, one a turn, as claude reads a letter once its turn is over. A message
+  waiting in the queue is taken back (`session.unqueue`) by the name the panel
+  gave it; one a turn has is beyond taking back, as one claude has read. The
+  queue outlives a connection that dropped and an executor started again: it
+  is kept on the disk beside the state files, the person's words in a file of
+  the owner's, until a turn takes them. It goes with its thread — closed by
+  the panel, or unloaded by a daemon started again — since a thread the daemon
+  let go is not the panel's to bring back. A message the daemon refuses to
+  start a turn with is dropped with a line in the executor's log rather than
+  held in front of the rest.
 - **The model, the effort, the permissions and the plan of a running thread
   change for its next turns** (`session.set`), with `thread/settings/update`.
   A model and an effort are held to the catalogue of the home's daemon first:
@@ -943,7 +955,8 @@ after the install pairs only by its account's name.
   the ones the thread runs go with it. The method is experimental: a daemon
   that dropped it after updating itself still takes a model and an effort with
   the next turn the panel starts, and the answer says the pick waits for the
-  next message; a mode and the plan are refused with the daemon's reason. The
+  next message that starts a turn; a mode and the plan are refused with the
+  daemon's reason. The
   daemon tells the settings to the clients of a thread, so a thread the panel
   only reads shows its model and effort and no mode until the panel joins it.
 - **The fill of the context and the limits of the account come from the
@@ -993,7 +1006,8 @@ after the install pairs only by its account's name.
   so as to go on, and an answer in the panel's queue behind that turn would
   come after the work it was for — or starts a turn on a free thread. Words
   of one's own typed in the composer while the question hangs go the same
-  way; a message with files goes as files, into the queue. While no message
+  way, past whatever waits in the panel's queue; a message with files goes as
+  files, as any message of the person does. While no message
   has come after it, the question stands on the thread's row as a question of
   claude's does — the list says the session asks and a push goes out — and
   the row stays as busy or as free as the thread is. The row carries the id
@@ -1621,7 +1635,8 @@ codex has no dialog of claude's, and the letter is not offered as the way past
 a `SendMessage` it does not have. Codex writes a call of an MCP tool and its
 answer as one item of the rollout, and the feed draws the card of a brief or a
 secret from that item; a secret saved for a thread reaches it as a message of
-the panel, a turn on a free thread and the queue on a busy one, and a brief
+the panel, a turn on a free thread and into the turn that runs on a busy one,
+as the person's words do, and a brief
 lands under the directory the row of the thread names. A letter of a
 thread goes as `session.letter` naming the thread, its home and its directory,
 signed `codex-<tail> — <contour> — <directory>`: claude's envelope has no field

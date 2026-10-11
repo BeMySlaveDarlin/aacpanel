@@ -141,7 +141,9 @@ func codexLetter(sender letterSender, text string) string {
 
 // codexLetterTo sends a letter to a codex thread through the daemon that
 // holds it, framed and in its envelope: a turn of its own on a free thread,
-// the panel's queue on a busy one, as any message of the panel.
+// the panel's queue on a busy one, to go once the turn that runs ends — the
+// way claude reads a letter, and unlike the person's words, which go into the
+// turn.
 func (e *Executor) codexLetterTo(ctx context.Context, th codex.Thread, from string, fromCodex *action.CodexSender,
 	text string) (string, error) {
 	sender, err := letterSenderOf(from, fromCodex)
@@ -151,7 +153,7 @@ func (e *Executor) codexLetterTo(ctx context.Context, th codex.Thread, from stri
 	if sender.Thread == th.ID {
 		return "", fmt.Errorf("session %s is the one writing: a session writes no letter to itself", th.Name)
 	}
-	place, err := th.Link.Send(ctx, th.ID, codex.Message{Text: codexLetter(sender, text)})
+	place, err := th.Link.SendAfter(ctx, th.ID, codex.Message{Text: codexLetter(sender, text)})
 	if err != nil {
 		return "", fmt.Errorf("session %s did not take the letter: %w", th.Name, err)
 	}

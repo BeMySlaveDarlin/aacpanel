@@ -211,12 +211,12 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	}
 
 	// The composer: codex's band, the stop of a busy turn, and a field that
-	// says a message goes after the turn.
+	// says what claude's does while a turn runs: a message goes into the turn.
 	if strings.Join(got.Band, ",") != "clip,think,perm,thread" {
 		t.Errorf("the band under the field of a codex thread holds %v, expected the paperclip, how it thinks, what it may do and the thread", got.Band)
 	}
-	if got.Placeholder != "Goes after the turn" {
-		t.Errorf("the field of a busy codex thread says %q, expected that a message goes after the turn", got.Placeholder)
+	if got.Placeholder != "Write to "+name {
+		t.Errorf("the field of a busy codex thread says %q, expected the words of claude's busy field", got.Placeholder)
 	}
 	if got.StopOff == nil || *got.StopOff || !strings.Contains(got.StopLabel, "stop the work of session "+name) {
 		t.Errorf("an empty composer of a busy codex thread offers the stop %q (off %v)", got.StopLabel, got.StopOff)
@@ -342,8 +342,9 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if got.Placeholder != "Write to codex-5afc361b" {
 		t.Errorf("the field says %q", got.Placeholder)
 	}
-	if got.BusyPlaceholder != "Goes after the turn, behind 2 queued" {
-		t.Errorf("the field of a busy thread with two queued says %q", got.BusyPlaceholder)
+	if got.BusyPlaceholder != "Write to codex-5afc361b" {
+		t.Errorf("the field of a busy thread with two queued says %q, expected the words of claude's busy field",
+			got.BusyPlaceholder)
 	}
 	if strings.Join(got.Attach, ",") != "Camera,Photos,Files" {
 		t.Errorf("the paperclip of a codex thread opens %v, expected where files come from, as claude's does", got.Attach)
