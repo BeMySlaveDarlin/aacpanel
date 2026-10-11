@@ -10,12 +10,15 @@ import (
 )
 
 const (
-	seenSocketName   = "seen.sock"
-	seenDirEnv       = "AACP_SEEN_DIR"
-	seenDirDefault   = "/run/aacpanel-agent"
-	maxSeenReply     = 4 << 10
-	transcriptLookup = 450 * time.Millisecond
+	seenSocketName = "seen.sock"
+	seenDirEnv     = "AACP_SEEN_DIR"
+	seenDirDefault = "/run/aacpanel-agent"
+	maxSeenReply   = 4 << 10
 )
+
+// transcriptLookup is a variable for the tests alone, as the waits of
+// waits.go are.
+var transcriptLookup = 450 * time.Millisecond
 
 // What else the collector is asked about a conversation, instead of whether a
 // prompt landed: whether the session's own turn is over, and the permission

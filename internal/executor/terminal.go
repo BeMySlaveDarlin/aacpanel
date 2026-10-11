@@ -44,7 +44,6 @@ const (
 	enterKey   = "\r"
 	clearLine  = "\x15"
 	escKey     = "\x1b"
-	pastePoll  = 90 * time.Millisecond
 	// How a message is typed: a run of small writes with a pause between
 	// them. One large write is taken by the console for a paste — it folds
 	// the text into a chip and marks it in the transcript as pasted content,
@@ -52,12 +51,19 @@ const (
 	// what they said. These two numbers are what was measured against a live
 	// session: at this size and this pace a message of a thousand characters
 	// over thirteen lines arrives as typed, and one write of the same text
-	// arrives folded.
+	// arrives folded. The pause is typePause below.
 	typeChunk = 80
-	typePause = 50 * time.Millisecond
 	markRunes = 24
 	tailLines = 3
 	tailRunes = 64
+)
+
+// The pace of typing a message and of looking at the composer again: the
+// pause is the one measured against a live session, as typeChunk is.
+// Variables for the tests alone, as the waits of waits.go are.
+var (
+	pastePoll = 90 * time.Millisecond
+	typePause = 50 * time.Millisecond
 )
 
 var promptMarks = []string{"❯", ">"}

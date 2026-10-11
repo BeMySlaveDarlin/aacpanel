@@ -152,7 +152,7 @@ func (t *tmuxTerm) Close() error {
 		t.pty.Close()
 		select {
 		case <-t.gone:
-		case <-time.After(termShutdown):
+		case <-time.After(clientGone):
 			if t.cmd.Process != nil {
 				t.cmd.Process.Kill()
 			}

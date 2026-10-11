@@ -561,8 +561,12 @@ func attachNeighbour(t *testing.T, target string, cols, rows uint16) func() {
 	}
 	pty.closeSlave()
 	go io.Copy(io.Discard, pty.master)
+	// The neighbour is a stand-in and goes with the test: a tmux client lets
+	// go of a closed terminal only seconds later, and the test would sit that
+	// out after its last check.
 	t.Cleanup(func() {
 		pty.Close()
+		_ = cmd.Process.Kill()
 		cmd.Wait()
 	})
 	return func() {

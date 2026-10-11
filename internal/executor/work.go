@@ -12,18 +12,21 @@ import (
 )
 
 const (
-	workOpen     = "/tasks "
-	workTitle    = "Background"
-	workSelect   = "to select"
-	workClose    = "Esc to close"
-	workBack     = "to go back"
-	workStopKey  = "x"
-	workDownKey  = "\x1b[B"
-	workUpKey    = "\x1b[A"
-	workBackKey  = "\x1b[D"
-	workStepWait = 120 * time.Millisecond
-	workSteps    = 60
+	workOpen    = "/tasks "
+	workTitle   = "Background"
+	workSelect  = "to select"
+	workClose   = "Esc to close"
+	workBack    = "to go back"
+	workStopKey = "x"
+	workDownKey = "\x1b[B"
+	workUpKey   = "\x1b[A"
+	workBackKey = "\x1b[D"
+	workSteps   = 60
 )
+
+// workStepWait is the pause between two looks at the work screen. A variable
+// for the tests alone, as the waits of waits.go are.
+var workStepWait = 120 * time.Millisecond
 
 var workStatusRe = regexp.MustCompile(`\s+\([A-Za-z][A-Za-z ]*\)$`)
 

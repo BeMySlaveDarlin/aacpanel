@@ -13,4 +13,7 @@ var (
 	seenTimeout  = time.Second
 	sendWait     = 5 * time.Second
 	workOpenWait = 3 * time.Second
+	// clientGone is how long a closed terminal bridge waits for its tmux
+	// client to go before it kills it.
+	clientGone = 2 * time.Second
 )

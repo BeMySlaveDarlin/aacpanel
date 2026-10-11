@@ -19,13 +19,18 @@ import (
 const (
 	askStoreEnv     = "AACP_ASK_STORE"
 	askStoreName    = "asked.json"
-	keyPause        = 80 * time.Millisecond
 	keyRight        = "\x1b[C"
 	keyTab          = "\t"
 	submitPick      = "1"
-	fieldPoll       = 90 * time.Millisecond
 	dialogMax       = 9
 	dialogMarkRunes = 10
+)
+
+// The pace of the keys pressed into a dialog and of looking at its field
+// again. Variables for the tests alone, as the waits of waits.go are.
+var (
+	keyPause  = 80 * time.Millisecond
+	fieldPoll = 90 * time.Millisecond
 )
 
 type storedAsk struct {
