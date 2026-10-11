@@ -263,6 +263,7 @@ func TestOnlyAModelAndAnEffortAreWatched(t *testing.T) {
 }
 
 func TestAStatusLineDrawnAgainWithTheSameModelIsNoProof(t *testing.T) {
+	quickWaits(t, &arriveWait)
 	sid, show := statusLine(t)
 	show("claude-opus-5-5", "Opus 5.5", "xhigh", 1000000)
 	// A session that answers draws its status line again and again; the

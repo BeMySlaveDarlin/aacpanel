@@ -430,6 +430,7 @@ func TestSessionFileWaitsUntilComposerLetsGo(t *testing.T) {
 }
 
 func TestSessionFileFailsWhenComposerKeepsIt(t *testing.T) {
+	quickWaits(t, &sendWait)
 	dir := t.TempDir()
 	t.Setenv(filesEnv, dir)
 	socket, _ := listenFake(t)
@@ -501,6 +502,9 @@ func TestScreenNeverLeavesExecutor(t *testing.T) {
 		{name: "the reply stuck in the composer", swallow: 99, wantErr: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			if c.wantErr {
+				quickWaits(t, &sendWait)
+			}
 			dir := t.TempDir()
 			t.Setenv(filesEnv, dir)
 			socket, _ := listenFake(t)
@@ -537,6 +541,7 @@ func TestScreenNeverLeavesExecutor(t *testing.T) {
 }
 
 func TestSessionFileFailsWhenScreenNeverShowsReply(t *testing.T) {
+	quickWaits(t, &arriveWait)
 	dir := t.TempDir()
 	t.Setenv(filesEnv, dir)
 	socket, _ := listenFake(t)

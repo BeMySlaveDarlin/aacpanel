@@ -175,6 +175,7 @@ func TestTranscriptCarriesTheMark(t *testing.T) {
 
 func TestGhostTextStillGoesThroughTheScreen(t *testing.T) {
 	const text = "a reply that landed in the composer and waits for a second Enter"
+	quickWaits(t, &sendWait)
 	startFakeSeen(t)
 	tail := watchTranscript(liveSession{SessionID: "id-3"})
 
@@ -229,6 +230,7 @@ func TestUnreadableScreenWithoutTranscriptAnswersAtOnce(t *testing.T) {
 }
 
 func TestSilentAgentLeavesEverythingToTheScreen(t *testing.T) {
+	quickWaits(t, &arriveWait)
 	noSeen(t)
 	tail := watchTranscript(liveSession{SessionID: "id-5"})
 	if tail.watching() {
@@ -398,6 +400,7 @@ func TestLiveAgentSeesAttachmentChip(t *testing.T) {
 func TestTranscriptNeverLeavesExecutor(t *testing.T) {
 	const secret = "the bank key hunter2 and a private conversation"
 	const text = "our own reply, the one that never turns up in the conversation"
+	quickWaits(t, &arriveWait)
 	talk, path := agentSeen(t, userLine(text))
 	tail := watchTranscript(liveSession{SessionID: talk})
 	appendLine(t, path, userLine(secret))
