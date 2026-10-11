@@ -288,3 +288,17 @@ def mark_withdrawn(items, sid):
                 item = {**item, "state": "withdrawn"}
         out.append(item)
     return out
+
+
+def programs():
+    """Returns installed agent versions and the last update verdict kept by the executor."""
+    out = {}
+    for name in ("codex", "claude"):
+        try:
+            with open(os.path.join(kept_dir(), "programs", name + ".json"), encoding="utf-8") as f:
+                row = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(row, dict):
+            out[name] = row
+    return out

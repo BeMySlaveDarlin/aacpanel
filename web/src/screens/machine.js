@@ -7,6 +7,7 @@ import { Icon } from "../ui/icons.js";
 import { level, uptime } from "../format.js";
 import { useProbes } from "../alerts.js";
 import { Certificate } from "./certificate.js";
+import { Programs } from "./programs.js";
 import { Resources } from "./resources.js";
 import { Probes, probeState } from "./probes.js";
 
@@ -36,7 +37,7 @@ function probeBrief(probes, watched) {
     return "answering";
 }
 
-export function Machine({ snapshot, error, ageSec, history = [], faults = [], onBack }) {
+export function Machine({ snapshot, error, ageSec, history = [], faults = [], exec, onDone, onBack }) {
     const [open, setOpen] = useState("");
     const toggle = (id) => setOpen((cur) => (cur === id ? "" : id));
 
@@ -56,9 +57,11 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], on
         `}
 
         <div class="mgrid">
-            <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
             <${Resources} snapshot=${snapshot} error=${error} ageSec=${ageSec} filter="all"
                 history=${history} faults=${faults} />
+
+            <${Programs} programs=${snapshot && snapshot.programs} exec=${exec} onDone=${onDone} />
+            <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
 
             <${Block} title="Probes" icon=${Icon.probes()}
                 value=${probes.kind === "ready" && watched > 0 ? `${ok}/${watched}` : null}

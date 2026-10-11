@@ -1,5 +1,6 @@
 // The Machine section: categories on the left, the picked one in the centre.
 import { Certificate } from "../screens/certificate.js";
+import { Programs } from "../screens/programs.js";
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { area, Chart } from "../chart.js";
@@ -155,7 +156,7 @@ function ProbeRow({ probe }) {
     `;
 }
 
-export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMem, cat }) {
+export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMem, cat, exec, onDone }) {
     const { procs } = useProcs(cat === "cpu" || cat === "mem");
     const h = (snapshot && snapshot.host) || {};
     const stamps = (history || []).map((p) => p.t);
@@ -290,8 +291,10 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
                     </span>
                 </div>
             </div>
+            ${cat !== "probes" && body()}
+            <${Programs} programs=${snapshot && snapshot.programs} exec=${exec} onDone=${onDone} />
             <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
-            ${body()}
+            ${cat === "probes" && body()}
         </section>
     `;
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -276,6 +277,11 @@ func codexBin() (string, error) {
 				"on the host — until the path is fixed, codex is not started", codexEnv, p)
 		}
 		return p, nil
+	}
+	// Prefer the managed installation to a contour wrapper from PATH.
+	managed := filepath.Join(standaloneCodex(), "current", "bin", "codex")
+	if info, err := os.Stat(managed); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+		return managed, nil
 	}
 	path, err := exec.LookPath("codex")
 	if err != nil {

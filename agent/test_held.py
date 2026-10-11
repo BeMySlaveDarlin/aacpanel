@@ -357,3 +357,19 @@ class CodexReleases(unittest.TestCase):
         self.keep("nobody.json", {"release": "0.163.0", "reference": "0.162.1"})
         self.keep(".work.json.tmp", {"contour": "work", "release": "0.163.0"})
         self.assertEqual(held.codex_releases(), [])
+
+
+class Programs(unittest.TestCase):
+    setUp = CodexReleases.setUp
+    keep = CodexReleases.keep
+
+    def test_versions_and_verdicts_reach_the_snapshot(self):
+        self.dir = os.path.join(held.kept_dir(), "programs")
+        self.assertEqual(held.programs(), {})
+        codex = {"version": "0.163.0", "checkedVersion": "0.163.0", "verdict": "passed", "detail": "protocol checked"}
+        claude = {"version": "2.1.0"}
+        self.keep("codex.json", codex)
+        self.keep("claude.json", claude)
+        self.assertEqual(held.programs(), {"codex": codex, "claude": claude})
+        self.keep("claude.json", "invalid")
+        self.assertEqual(held.programs(), {"codex": codex})

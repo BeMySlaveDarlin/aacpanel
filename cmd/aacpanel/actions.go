@@ -487,7 +487,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	req.ID = requestID(journalID)
 	req.Device = deviceName
 
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), execTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), action.Timeout(req.Kind, execTimeout))
 	defer cancel()
 
 	resp, err := s.exec.Do(ctx, req)

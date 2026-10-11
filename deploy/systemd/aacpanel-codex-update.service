@@ -1,0 +1,12 @@
+[Unit]
+Description=aacpanel: update Codex and check its protocol
+Requires=aacpanel-exec.service
+After=aacpanel-exec.service network-online.target
+ConditionFileIsExecutable=%h/.codex/packages/standalone/current/bin/codex
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/aacpanel-exec -update-codex
+TimeoutStartSec=16min
+Nice=10
+IOSchedulingClass=idle

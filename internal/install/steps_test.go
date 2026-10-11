@@ -40,6 +40,7 @@ type rig struct {
 // templates are the files of the tree the steps read from the clone.
 var templates = []string{".env.example", "deploy/host.env.example",
 	"deploy/systemd/aacpanel-agent@.service", "deploy/systemd/aacpanel-exec.service",
+	"deploy/systemd/aacpanel-codex-update.service", "deploy/systemd/aacpanel-codex-update.timer",
 	"deploy/systemd/aacpanel-docker-gc.service", "deploy/systemd/aacpanel-docker-gc.timer"}
 
 type rigOption func(*rigSetup)
@@ -808,26 +809,82 @@ func TestTheDockerCleanupIsATimerOfTheUser(t *testing.T) {
 	}
 }
 
+func TestTheCodexTimerOwnsUpdatesUntilUninstalled(t *testing.T) {
+	g := newRig(t)
+	if !slices.ContainsFunc(g.in.Steps(), func(s *Step) bool { return s.ID == "codex-timer" }) {
+		t.Fatal("the delivery has no Codex update timer")
+	}
+	dir := g.in.userUnitDir()
+	wants := filepath.Join(dir, "timers.target.wants")
+	g.timerInstalled("codex-timer", "aacpanel-codex-update.timer")
+	for _, name := range []string{"aacpanel-codex-update.service", "aacpanel-codex-update.timer"} {
+		if g.read(filepath.Join(dir, name)) != g.read(filepath.Join(g.clone, "deploy", "systemd", name)) {
+			t.Errorf("%s is not the unit of the tree", name)
+		}
+	}
+	want := []string{
+		"dir " + filepath.Join(g.home, ".config") + " created",
+		"dir " + filepath.Join(g.home, ".config/systemd") + " created",
+		"dir " + dir + " created",
+		"userunit " + filepath.Join(dir, "aacpanel-codex-update.service") + " created",
+		"userunit " + filepath.Join(dir, "aacpanel-codex-update.timer") + " created",
+		"enabled user " + "aacpanel-codex-update.timer" + " by-installer",
+		"dir " + wants + " created",
+	}
+	if !slices.Equal(g.lines(), want) {
+		t.Errorf("the manifest holds\n%s\nwant\n%s", strings.Join(g.lines(), "\n"), strings.Join(want, "\n"))
+	}
+	if got, want := g.ran(true), []string{"systemctl --user daemon-reload", "systemctl --user enable --now " + "aacpanel-codex-update.timer"}; !slices.Equal(got, want) {
+		t.Errorf("ran %q, want %q", got, want)
+	}
+	if !g.already(g.step("codex-timer")) {
+		t.Error("a timer in place was installed again")
+	}
+
+	es, err := ReadManifest(g.r.Manifest.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm := NewRemoval(g.m, g.in.f(), es, "")
+	for _, u := range []string{"aacpanel-codex-update.timer", "aacpanel-codex-update.service"} {
+		g.says([]string{"systemctl", "--user", "disable", "--now", u}, "")
+	}
+	g.r.Sink = nil
+	if err := Perform(g.r, rm.Steps()); err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{filepath.Join(dir, "aacpanel-codex-update.service"), filepath.Join(dir, "aacpanel-codex-update.timer"), wants, filepath.Join(g.home, ".config")} {
+		if _, err := os.Lstat(gone); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s is still there after uninstall", gone)
+		}
+	}
+	if !slices.Contains(g.m.Ran, "systemctl --user disable --now "+"aacpanel-codex-update.timer") {
+		t.Errorf("uninstall did not disable the timer: %q", g.m.Ran)
+	}
+}
+
 // gcInstalled takes the rig through the step of the cleanup: the timer is
 // enabled and started as systemctl would do it, with its link.
-func (g *rig) gcInstalled() {
+func (g *rig) gcInstalled() { g.timerInstalled("gc-timer", gcTimer) }
+
+func (g *rig) timerInstalled(id, timer string) {
 	g.t.Helper()
 	dir := g.in.userUnitDir()
 	wants := filepath.Join(dir, "timers.target.wants")
 	g.says([]string{"systemctl", "--user", "daemon-reload"}, "")
-	g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "disabled\n")
-	g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "inactive\n")
-	enable := []string{"systemctl", "--user", "enable", "--now", gcTimer}
+	g.says([]string{"systemctl", "--user", "is-enabled", timer}, "disabled\n")
+	g.says([]string{"systemctl", "--user", "is-active", timer}, "inactive\n")
+	enable := []string{"systemctl", "--user", "enable", "--now", timer}
 	g.says(enable, "")
 	g.m.Effects[Command(enable[0], enable[1:]...)] = func(Cmd) error {
-		g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "enabled\n")
-		g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "active\n")
+		g.says([]string{"systemctl", "--user", "is-enabled", timer}, "enabled\n")
+		g.says([]string{"systemctl", "--user", "is-active", timer}, "active\n")
 		if err := os.MkdirAll(wants, 0o755); err != nil {
 			return err
 		}
-		return os.Symlink(filepath.Join(dir, gcTimer), filepath.Join(wants, gcTimer))
+		return os.Symlink(filepath.Join(dir, timer), filepath.Join(wants, timer))
 	}
-	if err := g.do(g.step("gc-timer")); err != nil {
+	if err := g.do(g.step(id)); err != nil {
 		g.t.Fatal(err)
 	}
 }

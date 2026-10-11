@@ -6,6 +6,7 @@
 │   · linger for u                                                         new │
 │ As you                                                                       │
 │   · ~/bin/aacpanel-exec, built with the installer's Go                   new │
+│   · aacpanel-codex-update.timer, every six hours                         new │
 │   · aacpanel-exec.service, user unit                                     new │
 │   · ~/aacpanel/.env                                                      new │
 │   · compose: aacpanel, aacpanel-db, socket-proxy                         new │

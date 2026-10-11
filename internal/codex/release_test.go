@@ -1,9 +1,11 @@
 package codex
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"aacpanel/internal/codex/contract"
 	"aacpanel/internal/stream"
@@ -26,7 +28,7 @@ func releaseOfFile(t *testing.T) (Release, bool) {
 // beside the release of the reference, and a daemon that updated itself and
 // came back is written again: the service compares the two.
 func TestTheReleaseOfTheDaemonIsWrittenAtEveryHandshake(t *testing.T) {
-	srv, _ := linked(t)
+	srv, link := linked(t)
 	until(t, "the release to be written", func() bool { _, ok := releaseOfFile(t); return ok })
 
 	ref, err := contract.Reference()
@@ -39,9 +41,17 @@ func TestTheReleaseOfTheDaemonIsWrittenAtEveryHandshake(t *testing.T) {
 		t.Errorf("the release reads as %+v, the reference is %q", got, ref.Release())
 	}
 
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if err := link.ReadyVersion(ctx, "0.163.0"); err == nil {
+		t.Fatal("the old daemon passed for the new release")
+	}
 	srv.Close()
 	srv.Agent("aacpanel/0.163.0 (Debian 13.0.0; x86_64) xterm-256color (aacpanel; 1)")
 	srv.Start(t)
+	if err := link.ReadyVersion(t.Context(), "0.163.0"); err != nil {
+		t.Fatal(err)
+	}
 	until(t, "the release the daemon came back with", func() bool {
 		got, _ := releaseOfFile(t)
 		return got.Release == "0.163.0"

@@ -413,10 +413,10 @@ const (
 	gcTimer   = "aacpanel-docker-gc.timer"
 )
 
-// gcUnits are the units of the cleanup as this tree ships them, by name.
-func (in *Install) gcUnits() (map[string][]byte, error) {
+// timerUnits reads a fixed delivery timer and its service from the tree.
+func (in *Install) timerUnits(service, timer string) (map[string][]byte, error) {
 	out := map[string][]byte{}
-	for _, name := range []string{gcService, gcTimer} {
+	for _, name := range []string{service, timer} {
 		raw, err := in.M.ReadFile(filepath.Join(in.clone(), "deploy", "systemd", name))
 		if err != nil {
 			return nil, err
@@ -426,10 +426,9 @@ func (in *Install) gcUnits() (map[string][]byte, error) {
 	return out, nil
 }
 
-// gcInPlace tells whether the units of the cleanup are this tree's and the
-// timer is enabled and waiting.
-func (in *Install) gcInPlace(r *Run) (bool, error) {
-	units, err := in.gcUnits()
+// timerInPlace checks the delivered files and the enabled, active timer.
+func (in *Install) timerInPlace(r *Run, service, timer string) (bool, error) {
+	units, err := in.timerUnits(service, timer)
 	if err != nil {
 		return false, err
 	}
@@ -439,15 +438,15 @@ func (in *Install) gcInPlace(r *Run) (bool, error) {
 			return false, nil
 		}
 	}
-	active, enabled := in.unitState(r, true, gcTimer)
+	active, enabled := in.unitState(r, true, timer)
 	return active == "active" && enabled == "enabled", nil
 }
 
-func (in *Install) gcTimerStep() *Step {
-	return &Step{ID: "gc-timer", Title: "Docker cleanup timer",
-		Done: in.gcInPlace,
+func (in *Install) timerStep(id, title, service, timer, detail string) *Step {
+	return &Step{ID: id, Title: title,
+		Done: func(r *Run) (bool, error) { return in.timerInPlace(r, service, timer) },
 		Apply: func(r *Run) error {
-			units, err := in.gcUnits()
+			units, err := in.timerUnits(service, timer)
 			if err != nil {
 				return err
 			}
@@ -456,7 +455,7 @@ func (in *Install) gcTimerStep() *Step {
 				return err
 			}
 			changed := false
-			for _, name := range []string{gcService, gcTimer} {
+			for _, name := range []string{service, timer} {
 				path := filepath.Join(dir, name)
 				if have, err := os.ReadFile(path); err == nil && bytes.Equal(have, units[name]) {
 					continue
@@ -474,32 +473,40 @@ func (in *Install) gcTimerStep() *Step {
 					return fail("systemctl --user daemon-reload fails", err)
 				}
 			}
-			if in.ask(r, "systemctl", "--user", "is-enabled", gcTimer) != "enabled" {
-				if err := in.recordEnable(r, gcTimer, "timers.target"); err != nil {
+			if in.ask(r, "systemctl", "--user", "is-enabled", timer) != "enabled" {
+				if err := in.recordEnable(r, timer, "timers.target"); err != nil {
 					return err
 				}
-				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "enable", "--now", gcTimer}, Limit: time.Minute}); err != nil {
-					return fail("the cleanup's timer did not enable", err)
+				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "enable", "--now", timer}, Limit: time.Minute}); err != nil {
+					return fail("the delivery timer did not enable", err)
 				}
 				return nil
 			}
-			if changed || in.ask(r, "systemctl", "--user", "is-active", gcTimer) != "active" {
-				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "restart", gcTimer}, Limit: time.Minute}); err != nil {
-					return fail("the cleanup's timer did not start", err)
+			if changed || in.ask(r, "systemctl", "--user", "is-active", timer) != "active" {
+				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "restart", timer}, Limit: time.Minute}); err != nil {
+					return fail("the delivery timer did not start", err)
 				}
 			}
 			return nil
 		},
 		Verify: func(r *Run) error {
-			if active, enabled := in.unitState(r, true, gcTimer); active != "active" || enabled != "enabled" {
-				return &Failed{Diagnosis: fmt.Sprintf("%s is %s and %s after it was enabled", gcTimer, orNone(active), orNone(enabled)),
-					Fix: []string{"systemctl --user status " + gcTimer + " says why."}}
+			if active, enabled := in.unitState(r, true, timer); active != "active" || enabled != "enabled" {
+				return &Failed{Diagnosis: fmt.Sprintf("%s is %s and %s after it was enabled", timer, orNone(active), orNone(enabled)),
+					Fix: []string{"systemctl --user status " + timer + " says why."}}
 			}
-			r.Say(Pass, gcTimer+" active and enabled · weekly: docker builder prune, docker image prune")
+			r.Say(Pass, timer+" active and enabled · "+detail)
 			return nil
 		},
 		Undo: UndoKind,
 	}
+}
+
+func (in *Install) gcTimerStep() *Step {
+	return in.timerStep("gc-timer", "Docker cleanup timer", gcService, gcTimer, "weekly: docker builder prune, docker image prune")
+}
+
+func (in *Install) codexTimerStep() *Step {
+	return in.timerStep("codex-timer", "Codex update timer", "aacpanel-codex-update.service", "aacpanel-codex-update.timer", "every six hours: update and check the protocol")
 }
 
 // gcThere tells whether a unit of the cleanup is among the user's.

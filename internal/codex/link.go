@@ -320,12 +320,16 @@ type Link struct {
 
 	mu      sync.Mutex
 	conn    *conn
+	release string
 	threads map[string]*thread
 	pending map[string][]Request
 	said    string
 	// polled is set once the threads of the connection have been read:
 	// before that, a thread the link does not list may only not be read yet.
 	polled bool
+	// activity includes children omitted from the session map. An unread
+	// status is not evidence that a daemon is safe to restart.
+	activity map[string]string
 
 	// boxes are what the panel holds for threads until a turn takes it, the
 	// messages of its queue among them; kept on the disk.
@@ -561,6 +565,7 @@ func (l *Link) serve(ctx context.Context) error {
 	l.released(release)
 	l.mu.Lock()
 	l.conn = c
+	l.release = release
 	l.held = heldMarks(l.contour)
 	// The daemon may have updated itself since the last connection: what the
 	// old one did not know, the new one is asked again.
@@ -638,9 +643,18 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 	// A thread started meanwhile is not in the list yet: what the panel keeps
 	// of the unloaded ones is let go only while no thread is being started.
 	l.sub.Lock()
+	l.mu.Lock()
+	l.activity = nil
+	l.mu.Unlock()
 	ids, err := loaded(ctx, c)
 	if err == nil {
 		l.unloaded(ids)
+		l.mu.Lock()
+		l.activity = make(map[string]string, len(ids))
+		for _, id := range ids {
+			l.activity[id] = ""
+		}
+		l.mu.Unlock()
 	}
 	l.sub.Unlock()
 	if err != nil {
@@ -667,6 +681,9 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 			}
 			continue
 		}
+		l.mu.Lock()
+		l.activity[id] = info.Status.Type
+		l.mu.Unlock()
 		if info.Parent != "" || info.Status.Type == "notLoaded" || info.Status.Type == "" {
 			continue
 		}
@@ -897,6 +914,11 @@ func (l *Link) handle(msg message) {
 		if json.Unmarshal(msg.Params, &p) != nil || p.Status.Type == "" {
 			return
 		}
+		l.mu.Lock()
+		if l.activity != nil && p.ThreadID != "" {
+			l.activity[p.ThreadID] = p.Status.Type
+		}
+		l.mu.Unlock()
 		// A thread that runs on after a question is answered says so with a
 		// status of its own, and the row is busy again at once.
 		if p.ThreadID != "" && p.Status.Type != "notLoaded" {
@@ -1187,6 +1209,7 @@ func (l *Link) forget() {
 	}
 	l.pending = map[string][]Request{}
 	l.polled = false
+	l.activity = nil
 }
 
 func (l *Link) remove(id string) {

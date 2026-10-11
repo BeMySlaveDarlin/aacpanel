@@ -49,18 +49,28 @@ type hostReturn struct {
 // over the screen.
 func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 	var got struct {
-		Error       string   `json:"error"`
-		Nav         []string `json:"nav"`
-		NavOn       string   `json:"navOn"`
-		Pages       []string `json:"pages"`
-		First       hostPage `json:"first"`
-		Forward     hostTurn `json:"forward"`
-		Machine     hostPage `json:"machine"`
-		Certificate string   `json:"certificate"`
-		Further     hostTurn `json:"further"`
-		Journal     hostPage `json:"journal"`
-		Backward    hostTurn `json:"backward"`
-		Again       string   `json:"again"`
+		Programs struct {
+			Before      string `json:"before"`
+			After       string `json:"after"`
+			Unavailable bool   `json:"unavailable"`
+			Sent        []struct {
+				Kind   string `json:"kind"`
+				Target string `json:"target"`
+			} `json:"sent"`
+		} `json:"programs"`
+		Certificate string    `json:"certificate"`
+		Order       []float64 `json:"order"`
+		Error       string    `json:"error"`
+		Nav         []string  `json:"nav"`
+		NavOn       string    `json:"navOn"`
+		Pages       []string  `json:"pages"`
+		First       hostPage  `json:"first"`
+		Forward     hostTurn  `json:"forward"`
+		Machine     hostPage  `json:"machine"`
+		Further     hostTurn  `json:"further"`
+		Journal     hostPage  `json:"journal"`
+		Backward    hostTurn  `json:"backward"`
+		Again       string    `json:"again"`
 		Reopened    struct {
 			Page  string `json:"page"`
 			NavOn string `json:"navOn"`
@@ -87,9 +97,36 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 	if !strings.Contains(got.Certificate, "panel.example.org") || !strings.Contains(got.Certificate, "13 days left") {
 		t.Errorf("phone loses certificate expiry: %q", got.Certificate)
 	}
+	if len(got.Order) != 5 {
+		t.Fatalf("machine blocks are missing: %v", got.Order)
+	}
+	for i := 1; i < len(got.Order); i++ {
+		if got.Order[i] <= got.Order[i-1] {
+			t.Fatalf("machine must show metrics, traffic, agents, certificate, probes in order: %v", got.Order)
+		}
+	}
 
 	// The menu is read before anything is pressed: a walk that lost its way
 	// for want of the Host button still says what the menu read.
+	t.Run("agent versions and their updates belong to the host", func(t *testing.T) {
+		for _, want := range []string{"Codex", "0.163.0", "Claude", "2.1.283", "passed", "Updated by the panel", "Updates itself", "work: restart pending: 2 turns running"} {
+			if !strings.Contains(got.Programs.Before, want) {
+				t.Errorf("host programs omit %q: %s", want, got.Programs.Before)
+			}
+		}
+		if len(got.Programs.Sent) != 2 || got.Programs.Sent[0].Kind != "codex.update" || got.Programs.Sent[1].Kind != "claude.update" || got.Programs.Sent[0].Target != "host" || got.Programs.Sent[1].Target != "host" {
+			t.Errorf("update requests: %+v", got.Programs.Sent)
+		}
+		for _, want := range []string{"0.164.0", "2.1.284", "The protocol contract passed.", "The feed contract passed."} {
+			if !strings.Contains(got.Programs.After, want) {
+				t.Errorf("update result omits %q: %s", want, got.Programs.After)
+			}
+		}
+		if !got.Programs.Unavailable {
+			t.Error("update buttons stay enabled with an old executor")
+		}
+	})
+
 	t.Run("the tab is called Host and a kept containers tab opens it", func(t *testing.T) {
 		if want := []string{"Sessions", "Profiles", "Host"}; !equalStrings(got.Nav, want) {
 			t.Errorf("the bottom menu reads %v, expected %v", got.Nav, want)

@@ -306,6 +306,7 @@ export function DesktopShell({
         if (section === "machine") {
             return html`<${MachineCenter}
                 snapshot=${snapshot}
+                exec=${exec} onDone=${onRefresh}
                 probes=${probes}
                 history=${history}
                 topCpu=${topCpu}

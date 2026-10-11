@@ -1,0 +1,12 @@
+# This installed unit is the ownership marker for other Codex updaters.
+# While it exists, the panel owns updates; uninstall removes it.
+[Unit]
+Description=aacpanel: check for Codex updates every six hours
+
+[Timer]
+OnCalendar=*-*-* 00/6:00:00
+Persistent=true
+RandomizedDelaySec=20min
+
+[Install]
+WantedBy=timers.target

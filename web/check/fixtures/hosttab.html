@@ -36,6 +36,7 @@ localStorage.setItem("aacpanel.tab", "containers");
 
 const now = Date.now();
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const updates = [];
 const actions = [
     { id: 41, kind: "observer.start", target: "lab", detail: "observer ci started: gh run watch 123 in /srv/proj", result: "ok", ts: new Date(now - 4 * 60e3).toISOString(),
       device_name: "phone", duration_ms: 2300 },
@@ -44,8 +45,18 @@ const actions = [
     { id: 39, kind: "alarm.set", target: "codex-0000abcd", detail: "alarm poll set: first ring at 2026-10-12T09:00:00Z, every 10m0s", result: "ok", ts: new Date(now - 3 * 3600e3).toISOString(),
       device_name: "phone", duration_ms: 1200 },
 ];
-window.fetch = counted(async (url) => {
+window.fetch = counted(async (url, options) => {
     const u = String(url);
+    if (u === "/api/actions" && options?.method === "POST") {
+        const request = JSON.parse(options.body);
+        updates.push(request);
+        if (request.kind === "codex.update") {
+            snapshot.programs.codex = { version: "0.164.0", checkedVersion: "0.164.0", verdict: "passed", detail: "The protocol contract passed." };
+        } else {
+            snapshot.programs.claude = { version: "2.1.284", checkedVersion: "2.1.284", verdict: "passed", detail: "The feed contract passed." };
+        }
+        return json({ ok: true, detail: "Agent update checked" });
+    }
     if (u.startsWith("/api/term")) return new Response("404 page not found", { status: 404 });
     if (u.startsWith("/api/actions")) return json({ actions });
     if (u === "/api/probes") return json({ probes: [] });
@@ -75,6 +86,10 @@ const tree = { running: 6, total: 8, stacks: [
 ] };
 const snapshot = {
     lanCertificate: { name: "panel.example.org", expiresAt: 1800000000, daysLeft: 13 },
+    programs: {
+        codex: { version: "0.163.0", checkedVersion: "0.163.0", verdict: "passed", detail: "The protocol contract passed.", restartPending: { work: "restart pending: 2 turns running" } },
+        claude: { version: "2.1.283" },
+    },
     at: 1, hostName: "helios", sessions: [], profileMap: [], limits: null,
     host: {
         cpuPct: 23.4, cpus: 16, load: [2.1, 1.8, 1.6], uptime: 12 * 86400 + 3 * 3600,
@@ -83,12 +98,12 @@ const snapshot = {
         net: [{ name: "eth0", rxRate: 182000, txRate: 46000, state: "up", speed: 1000 }],
     },
 };
-const exec = { available: true, kinds: ["container.restart", "container.stop", "container.start", "stack.up"] };
+const exec = { available: true, kinds: ["container.restart", "container.stop", "container.start", "stack.up", "codex.update", "claude.update"] };
 const wait = { opening: () => [], of: () => null };
 const alerts = { kind: "ready", alerts: [], older: [], reload: () => {} };
 const props = {
     snapshot, tree, treeError: null, hostError: null, ageSec: 1, history: [], faults: [], alerts, openAlerts: 0,
-    exec, onRefresh: () => {}, wait, conn: { kind: "live" }, theme: "space", onTheme: () => {}, updateReady: false,
+    exec, onRefresh: () => { props.snapshot = { ...snapshot }; start(); }, wait, conn: { kind: "live" }, theme: "space", onTheme: () => {}, updateReady: false,
     updating: false, onApplyUpdate: () => {}, installable: false, onInstall: () => {},
     route: { here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }, jump: null, onJumped: () => {},
 };
@@ -226,7 +241,32 @@ window.done = (async () => {
         out.forward = await swipe(1, "Machine");
         out.machine = look("Machine");
         out.certificate = pageAt(1).querySelector(".lancert")?.textContent;
+        const machine = pageAt(1);
+        const traffic = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector("h2")?.textContent === "Traffic over the period");
+        const probes = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector(".tname")?.textContent === "Probes");
+        out.order = [machine.querySelector(".metrics"), traffic, machine.querySelector(".programs"), machine.querySelector(".lancert"), probes].map((el) => el.getBoundingClientRect().top);
         await pause("machine");
+        const programRows = () => Array.from(pageAt(1).querySelectorAll(".program-row"));
+        out.programs = { before: text(pageAt(1).querySelector(".programs")) };
+        for (const name of ["Codex", "Claude"]) {
+            programRows().find((el) => text(el.querySelector("strong")) === name).querySelector("button").click();
+            await until(() => document.querySelector(".sheet.on .btn.primary"));
+            if (updates.length !== (name === "Codex" ? 0 : 1)) throw new Error("an update skipped its confirmation");
+            document.querySelector(".sheet.on .btn.primary").click();
+            await until(() => updates.length === (name === "Codex" ? 1 : 2) && !programRows()[0].querySelector("button").disabled);
+        }
+        out.programs.sent = updates;
+        out.programs.after = text(pageAt(1).querySelector(".programs"));
+        const knownKinds = exec.kinds;
+        exec.kinds = [];
+        props.snapshot = { ...snapshot };
+        start();
+        await until(() => programRows().every((el) => el.querySelector("button").disabled));
+        out.programs.unavailable = programRows().every((el) => el.querySelector("button").disabled);
+        exec.kinds = knownKinds;
+        props.snapshot = { ...snapshot };
+        start();
+        await until(() => programRows().every((el) => !el.querySelector("button").disabled));
         out.further = await swipe(1, "Journal");
         await until(() => pageAt(2).querySelector(".entry"));
         out.journal = look("Journal");

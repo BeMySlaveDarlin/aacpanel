@@ -48,6 +48,8 @@ func main() {
 		os.Exit(hook.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 
+	updateCodex := flag.Bool("update-codex", false, "ask the running executor to update Codex and check its protocol")
+	checkClaude := flag.Bool(strings.TrimPrefix(executor.ClaudeContractFlag, "-"), false, "check the native Claude feed in a temporary project and print its JSON report; spends tokens on Haiku")
 	list := flag.Bool("list", false, "print the list of allowed actions and exit")
 	socket := flag.String("socket", defaultSocket(), "path to the unix socket")
 	dockerHost := flag.String("docker", defaultDocker, "docker address: unix:///... or http://host:port")
@@ -77,6 +79,28 @@ func main() {
 			"Not a panel action: the executor starts it through systemd-run, in a unit of its own")
 	serveMCP := mcpFlags(flag.CommandLine)
 	flag.Parse()
+	if *checkClaude {
+		if err := executor.CheckClaude(os.Stdout); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *updateCodex {
+		req := action.Request{ID: fmt.Sprintf("codex-update-%d", time.Now().UnixNano()), Kind: action.CodexUpdate, Target: "host", Device: "delivery timer"}
+		resp, err := action.NewClient(*socket, actionTimeout).Do(context.Background(), req)
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		if !resp.OK {
+			log.Print(resp.Error)
+			os.Exit(1)
+		}
+		fmt.Println(resp.Detail)
+		return
+	}
 
 	if *serveMCP {
 		os.Exit(runMCP(os.Stdin, os.Stdout, os.Getppid()))
@@ -359,6 +383,7 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 
 	go keepLimits(ctx)
 	exec.StartCodex(ctx)
+	go exec.KeepPrograms(ctx)
 	startObservers(ctx, exec)
 
 	kinds := exec.Kinds()

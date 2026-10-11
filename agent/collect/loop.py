@@ -135,6 +135,7 @@ def main():
             "models": models_snapshot(catalog, catalog_lock),
             "probes": probes_snapshot(probes, probes_lock),
             "codexReleases": held.codex_releases(),
+            "programs": held.programs(),
         }
         try:
             write_state(state)

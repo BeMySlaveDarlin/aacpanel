@@ -347,6 +347,18 @@ function sessionHint(one) {
 }
 
 export const ACTIONS = {
+    "codex.update": {
+        title: () => "Update Codex?",
+        effect: "The panel installs the current release and checks its protocol. Idle daemons restart; busy daemons wait until a later update check finds their turns finished.",
+        done: () => "Codex update checked",
+        ok: "Update now",
+    },
+    "claude.update": {
+        title: () => "Update Claude?",
+        effect: "The native Claude installation checks for an update, then the panel checks the feed in a temporary session on Haiku, spending tokens of the default account. Running sessions keep their version until restarted.",
+        done: () => "Claude update checked",
+        ok: "Update now",
+    },
     "container.stop": {
         title: (target) => `Stop ${target}?`,
         effect: "Dependent containers of the stack will not hear about it.",
@@ -1005,6 +1017,8 @@ const NAMES = {
     "container.restart": "Restart",
     "container.start": "Start",
     "stack.up": "Bring up stack",
+    "codex.update": "Update Codex",
+    "claude.update": "Update Claude",
     "stack.down": "Bring down stack",
     "session.close": "Close session",
     "session.restart": "Restart session",

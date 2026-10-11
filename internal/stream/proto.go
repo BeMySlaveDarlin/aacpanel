@@ -142,6 +142,10 @@ func CodexReleasePath(contour string) string {
 	return filepath.Join(keptDir(), "codex-release", contour+".json")
 }
 
+// ProgramPath holds an installed agent version and the last update verdict.
+// It outlives the executor so a failed update stays visible after a restart.
+func ProgramPath(name string) string { return filepath.Join(keptDir(), "programs", name+".json") }
+
 // Permit is an answer to a permission, by the call it was given for.
 type Permit struct {
 	Use  string `json:"use"`

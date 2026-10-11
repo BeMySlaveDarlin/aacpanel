@@ -23,6 +23,7 @@ type state struct {
 	// CodexReleases are the releases of codex the daemons of the homes run,
 	// for the push that says one moved past the release its protocol was
 	// checked against.
+	Programs      json.RawMessage `json:"programs"`
 	CodexReleases json.RawMessage `json:"codexReleases"`
 }
 
@@ -98,6 +99,7 @@ func (h *Reader) JSON() ([]byte, error) {
 		"profiles":       st.Profiles,
 		"models":         st.Models,
 		"codexReleases":  st.CodexReleases,
+		"programs":       st.Programs,
 	}
 	payload, err := json.Marshal(out)
 	if err != nil {

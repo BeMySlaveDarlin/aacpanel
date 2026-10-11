@@ -42,6 +42,7 @@ type Executor struct {
 	// daemons serialises starting the codex daemons: two News at once would
 	// both find no daemon and both start one.
 	daemons sync.Mutex
+	updates sync.Mutex
 
 	// cores are the cores every unit the executor starts is held to, as
 	// hostcfg.Cores gives them; empty, the system puts the units where it
@@ -148,6 +149,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		}
 	}
 	switch req.Kind {
+	case action.CodexUpdate, action.ClaudeUpdate:
+		return e.updateAgent(ctx, req.Kind)
 	case action.ContainerStart, action.ContainerStop, action.ContainerRestart:
 		return e.container(ctx, req)
 	case action.StackUp:
@@ -261,6 +264,8 @@ func (e *Executor) container(ctx context.Context, req action.Request) (string, e
 	}
 
 	switch req.Kind {
+	case action.CodexUpdate, action.ClaudeUpdate:
+		return e.updateAgent(ctx, req.Kind)
 	case action.ContainerStart:
 		if target.Running() {
 			return "already running", nil

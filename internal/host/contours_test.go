@@ -281,3 +281,24 @@ func TestContoursCarryTheAccountAndTheGuard(t *testing.T) {
 		t.Errorf("a contour whose settings were not read got an account or a guard: %+v", got[1])
 	}
 }
+
+func TestHostSnapshotCarriesInstalledAgentVersions(t *testing.T) {
+	reader := readerWith(t, `{"at":1,"programs":{"codex":{"version":"0.163.0","checkedVersion":"0.163.0","verdict":"passed","detail":"protocol checked"},"claude":{"version":"2.1.283"}}}`)
+	raw, err := reader.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var snapshot struct {
+		Programs map[string]struct {
+			Version string
+			Verdict string
+			Detail  string
+		}
+	}
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Programs["codex"].Version != "0.163.0" || snapshot.Programs["codex"].Verdict != "passed" || snapshot.Programs["codex"].Detail != "protocol checked" || snapshot.Programs["claude"].Version != "2.1.283" {
+		t.Fatalf("programs lost in the host snapshot: %s", raw)
+	}
+}

@@ -167,6 +167,16 @@ func TestWatcherReadsTheReleasesOfCodex(t *testing.T) {
 		t.Errorf("the releases read as %+v (seen %v), meant %+v", cur.Codex, cur.CodexSeen, want)
 	}
 
+	cur = read(`{"at":1788814000,"codexReleases":[{"contour":"personal","release":"0.163.0","reference":"0.162.1"}],
+ "programs":{"codex":{"version":"0.163.0","checkedVersion":"0.163.0","verdict":"passed","detail":"protocol checked"}}}`)
+	if len(cur.Codex) != 1 || cur.Codex[0].Verdict != "passed" || cur.Codex[0].Detail != "protocol checked" {
+		t.Fatalf("contract verdict lost: %+v", cur.Codex)
+	}
+	cur = read(`{"at":1788814000,"codexReleases":[],"programs":{"codex":{"version":"0.162.1","checkedVersion":"0.163.0","verdict":"failed","detail":"field missing"}}}`)
+	if len(cur.Codex) != 1 || cur.Codex[0].Verdict != "failed" || cur.Codex[0].Release != "0.163.0" {
+		t.Fatalf("a rolled-back release lost its failure: %+v", cur.Codex)
+	}
+
 	if cur := read(`{"at": 1788814000, "sessionsAt": 1788814000, "codexReleases": []}`); !cur.CodexSeen {
 		t.Error("an empty list of releases was not seen")
 	}

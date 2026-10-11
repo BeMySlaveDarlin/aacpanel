@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -252,7 +253,14 @@ type snapshot struct {
 			At     string `json:"at"`
 		} `json:"ask"`
 	} `json:"sessions"`
-	Limits *limitsBlock `json:"limits"`
+	Limits   *limitsBlock `json:"limits"`
+	Programs struct {
+		Codex struct {
+			CheckedVersion string `json:"checkedVersion"`
+			Verdict        string `json:"verdict"`
+			Detail         string `json:"detail"`
+		} `json:"codex"`
+	} `json:"programs"`
 	// CodexReleases are the releases the daemons of the codex homes ran at
 	// their last handshake, each beside the release the protocol was checked
 	// against; absent from a collector that does not carry them.
@@ -318,10 +326,18 @@ func (w *watcher) readSnapshot(ctx context.Context, cur *notify.World) {
 	if snap.CodexReleases != nil {
 		cur.CodexSeen = true
 		for _, c := range snap.CodexReleases {
-			cur.Codex = append(cur.Codex, notify.Codex{Contour: c.Contour, Release: c.Release, Reference: c.Reference})
+			row := notify.Codex{Contour: c.Contour, Release: c.Release, Reference: c.Reference}
+			if c.Release == snap.Programs.Codex.CheckedVersion {
+				row.Verdict, row.Detail = snap.Programs.Codex.Verdict, snap.Programs.Codex.Detail
+			}
+			cur.Codex = append(cur.Codex, row)
 		}
 	}
 
+	if p := snap.Programs.Codex; p.Verdict == "failed" && !slices.ContainsFunc(cur.Codex, func(c notify.Codex) bool { return c.Release == p.CheckedVersion }) {
+		cur.CodexSeen = true
+		cur.Codex = append(cur.Codex, notify.Codex{Contour: "host", Release: p.CheckedVersion, Verdict: p.Verdict, Detail: p.Detail})
+	}
 	if snap.Limits == nil {
 		return
 	}

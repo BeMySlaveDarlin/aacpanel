@@ -37,7 +37,7 @@ export function Host({
             page=${(name) => {
                 if (name === "machine") {
                     return html`<${Machine} snapshot=${snapshot} error=${hostError} ageSec=${ageSec}
-                        history=${history} faults=${faults} />`;
+                        history=${history} faults=${faults} exec=${exec} onDone=${onDone} />`;
                 }
                 if (name === "journal") return html`<${Journal} />`;
                 return html`

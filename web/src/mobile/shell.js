@@ -155,7 +155,7 @@ export function MobileShell({
             <main class="body">
                 ${page === "machine"
                     ? html`<${Machine} snapshot=${snapshot} error=${hostError} ageSec=${ageSec}
-                        history=${history} faults=${faults} onBack=${() => setPage(null)} />`
+                        history=${history} faults=${faults} exec=${exec} onDone=${onRefresh} onBack=${() => setPage(null)} />`
                     : page === "devices"
                     ? html`<${Devices} onBack=${() => setPage(null)} />`
                     : page === "usage"

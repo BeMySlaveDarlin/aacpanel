@@ -18,11 +18,19 @@ func TestTheMachineTableAtADeskKeepsBothKinds(t *testing.T) {
 			Peak  string `json:"peak"`
 			Title string `json:"title"`
 		} `json:"rows"`
-		Note        string `json:"note"`
-		Certificate string `json:"certificate"`
-		Warning     bool   `json:"warning"`
+		Note        string    `json:"note"`
+		Certificate string    `json:"certificate"`
+		Warning     bool      `json:"warning"`
+		Programs    string    `json:"programs"`
+		Order       []float64 `json:"order"`
 	}
 	runWideFixture(t, "topdesk.html", &got)
+	if len(got.Order) != 3 || got.Order[0] >= got.Order[1] || got.Order[1] >= got.Order[2] {
+		t.Errorf("metrics must precede agents and the certificate: %v", got.Order)
+	}
+	if !strings.Contains(got.Programs, "0.163.0") || !strings.Contains(got.Programs, "2.1.283") {
+		t.Errorf("desktop agent versions are missing: %s", got.Programs)
+	}
 
 	if !strings.Contains(got.Certificate, "panel.example.org") || !strings.Contains(got.Certificate, "13 days left") || !got.Warning {
 		t.Errorf("LAN certificate is not visible: %q (warning %v)", got.Certificate, got.Warning)

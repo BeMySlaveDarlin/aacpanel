@@ -366,7 +366,7 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 	s.mu.Unlock()
 
 	started := time.Now()
-	runCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	runCtx, cancel := context.WithTimeout(ctx, Timeout(req.Kind, s.timeout))
 	var detail, session string
 	var err error
 	if opener, ok := s.exec.(Opener); ok && (req.Kind == SessionOpen || req.Agent == ResumeCodex) {

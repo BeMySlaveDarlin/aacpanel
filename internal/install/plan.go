@@ -58,6 +58,7 @@ func (s *Survey) Plan() []PlanRow {
 	home := f.Account.Home
 	rows = append(rows,
 		row("~/bin/aacpanel-exec, built with the installer's Go", tag(filepath.Join(home, "bin", "aacpanel-exec"))),
+		row("aacpanel-codex-update.timer, every six hours", tag(filepath.Join(home, ".config", "systemd", "user", "aacpanel-codex-update.timer"))),
 		row("aacpanel-exec.service, user unit", tag(filepath.Join(home, ".config", "systemd", "user", "aacpanel-exec.service"))),
 		row(f.Short(filepath.Join(f.Clone, ".env")), tag(filepath.Join(f.Clone, ".env"))),
 		row("compose: "+s.services(), s.composeTag()),

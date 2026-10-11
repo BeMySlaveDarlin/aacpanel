@@ -439,8 +439,8 @@ a free composer is a keystroke into the conversation.
 **The stream is claude's control protocol, and part of it is not public.** Any
 release may change a request the feed leans on without a word, so
 `make stream-contract` runs every such request against the installed claude
-and names the one that no longer holds. It is run by hand when the feed
-breaks after claude updated itself: the panel does not hold sessions against
+and names the one that no longer holds. It also runs after the host's Update
+Claude button: the panel does not hold sessions against
 the version it last passed on. The check spends tokens on haiku and goes to
 the network, which is why it is not part of `make check`. The Go runner in
 `cmd/stream-contract` also sends the holder's letter frame: `origin.kind=peer`
@@ -886,9 +886,49 @@ after the install pairs only by its account's name.
   first. The executor waits for the socket in that home and for its
   connection; a daemon that puts up no socket there is named — most often a
   program that chose the home by itself. The program is `AACP_CODEX`, or
-  `codex` from the executor's `PATH`. The daemon updates itself as codex does,
-  and a turn an update cuts is resumed like any other.
-- **The protocol is held to a contract, since the daemon updates itself.** A
+  the standalone `~/.codex/packages/standalone/current/bin/codex` when present,
+  or `codex` from the executor's `PATH`. An update waits for running turns
+  before restarting their daemon.
+- **The panel owns updates of the standalone Codex installation.** The host's
+  Machine page shows both installed agent versions and offers `codex.update`
+  and `claude.update`, fixed host actions through the confirmation gate and
+  executor audit. `aacpanel-codex-update.timer` asks the same executor every
+  six hours; its installed file at
+  `~/.config/systemd/user/aacpanel-codex-update.timer` is the ownership marker
+  other host updaters check before doing anything. Uninstall removes it.
+  The updater keeps the shared `~/.codex/packages/standalone/current` link:
+  contour wrappers and the panel use one installation. It downloads the native
+  installer and pins the release from its release channel, clears `CODEX_HOME`,
+  and sends its shim to `packages/standalone/bin` with that directory in PATH,
+  leaving the user's command wrapper and shell profile alone. It shares the
+  host updater's `.atlas-update.lock`. Each package root keeps its current
+  release and the previous selection for rollback. Older releases are removed
+  after a successful restart; a pending restart keeps its packages intact.
+  The installed binary runs the same protocol checker as `cmd/codex-contract`.
+  A failed protocol check restores the previous link and leaves daemons alone.
+  A compatible release is also installed in each contour's native
+  `packages/app-server-daemon` root: daemon lifecycle commands use that selection
+  regardless of the CLI that invokes them. Explicit release selection pins these
+  packages and disables their latest-channel updater. This costs a package per
+  home and its download. The panel restarts each idle daemon in its own transient
+  unit, waits for its new version at the handshake, and checks its panel hooks.
+  The link's existing poll supplies the status of every loaded thread, including
+  children. A running turn or unknown activity defers the restart; the host page
+  names the pending contour and the next timer or button run tries again.
+  Starting a panel turn is serialized with the idle check and restart command.
+  The collector carries the versions and verdict to the host screen and the
+  existing Codex attention mechanism. A failed restart or download remains
+  separate from the protocol verdict. Downloads can take up to fifteen minutes;
+  session actions keep their shorter timeout.
+  Claude retains its own updater. Its button invokes `~/.local/bin/claude update`,
+  never a contour wrapper found through PATH. Installed versions are sampled
+  every minute so Claude's automatic updates appear too. The button runs the
+  same feed runner as `make stream-contract` after updating, in a separate
+  transient unit so the executor's transcript restriction stays in place.
+  Its confirmation names the cost: a temporary Haiku session on the default
+  account, resumed in print mode and a private console. The host page keeps
+  the verdict; automatic updates outside the panel do not start this probe.
+- **The protocol is held to a contract across Codex releases.** A
   release may drop a field the panel decodes, rename a status or require a new
   param without a word, and the panel would meet it as a zero or a refusal.
   `make codex-contract` has the installed codex write the schema of its
@@ -915,7 +955,8 @@ after the install pairs only by its account's name.
   it at every handshake by contour in
   `~/.local/state/aacpanel-stream/codex-release/` (`$XDG_STATE_HOME` moves
   it), beside the release of the reference it was built with; the collector
-  puts both in the snapshot, and the service pushes when they differ: codex
+  puts both in the snapshot. An update verdict is shown once per release and
+  verdict; without a verdict for that release, the service pushes when they differ: codex
   moved to one release, the protocol was checked against another, run
   `make codex-contract`. The reason is held while the daemon runs that
   release, so it is said once — not at every look, not after the service

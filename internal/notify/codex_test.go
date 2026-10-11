@@ -107,3 +107,19 @@ func TestTheNewsOfCodexCanBeTurnedOff(t *testing.T) {
 		t.Errorf("the push carries %+v, want %+v", got, want)
 	}
 }
+
+func TestCodexContractVerdictsReachAttentionOnce(t *testing.T) {
+	ctx := context.Background()
+	tr := started(newJournal())
+	for _, verdict := range []string{"passed", "failed"} {
+		cur := codexOn("0.163.0")
+		cur.Codex[0].Verdict, cur.Codex[0].Detail = verdict, "thread/start checked"
+		said := ofCodex(tr.Step(ctx, Look(snapshotWorld(), cur)))
+		if len(said) != 1 || !strings.Contains(said[0].Title, verdict) || !strings.Contains(said[0].Body, "thread/start checked") || strings.Contains(said[0].Body, "run make") {
+			t.Fatalf("%s verdict: %+v", verdict, said)
+		}
+		if repeated := ofCodex(tr.Step(ctx, Look(cur, cur))); len(repeated) != 0 {
+			t.Fatalf("verdict repeated: %+v", repeated)
+		}
+	}
+}

@@ -23,13 +23,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"aacpanel/internal/codex/contract"
@@ -82,7 +79,7 @@ func run(codex, schemaDir string, asJSON, write bool) int {
 			return say(2, "no directory for the schema: %v", err)
 		}
 		defer os.RemoveAll(dir)
-		if version, err = generate(codex, dir); err != nil {
+		if version, err = contract.Generate(context.Background(), codex, dir); err != nil {
 			return say(2, "%v", err)
 		}
 		schemaDir = dir
@@ -147,25 +144,6 @@ func checkHooks(program string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), runWait)
 	defer cancel()
 	return install.CheckCodexHooks(ctx, program, home, hooks)
-}
-
-// generate has codex write the schema of its protocol and returns its version.
-func generate(codex, dir string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), runWait)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, codex, "--version").Output()
-	if err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			return "", fmt.Errorf("no codex to ask: %s is not found — name the program with -codex or %s", codex, codexEnv)
-		}
-		return "", fmt.Errorf("%s --version: %v", codex, err)
-	}
-	version := strings.TrimSpace(string(out))
-	cmd := exec.CommandContext(ctx, codex, "app-server", "generate-json-schema", "--experimental", "--out", dir)
-	if said, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("%s did not write its schema: %v\n%s", version, err, said)
-	}
-	return version, nil
 }
 
 func writeReference(cur *contract.Schema, panel *contract.Contract, version string) int {

@@ -237,7 +237,7 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 		return Response{}, fmt.Errorf("encoding the request: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	ctx, cancel := context.WithTimeout(ctx, Timeout(req.Kind, c.timeout))
 	defer cancel()
 
 	dialer := net.Dialer{Timeout: dialTimeout}

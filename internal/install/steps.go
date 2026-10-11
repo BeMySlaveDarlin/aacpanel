@@ -59,7 +59,7 @@ func (in *Install) Steps() []*Step {
 	if in.nativeInstalls() {
 		steps = append(steps, in.claudeInstallStep())
 	}
-	steps = append(steps, in.envFileStep(), in.execBuildStep(), in.execUnitStep())
+	steps = append(steps, in.envFileStep(), in.execBuildStep(), in.execUnitStep(), in.codexTimerStep())
 	if in.S.Has("gc") {
 		steps = append(steps, in.gcTimerStep())
 	} else if in.gcThere() {

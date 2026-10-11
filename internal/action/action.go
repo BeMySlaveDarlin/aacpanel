@@ -127,9 +127,15 @@ const (
 	SecretDrop Kind = "secret.drop"
 )
 
+// Agent updates have fixed programs and sources: the request carries neither.
+const (
+	CodexUpdate  Kind = "codex.update"
+	ClaudeUpdate Kind = "claude.update"
+)
+
 // Kinds is the full list of what the executor can do.
 var Kinds = []Kind{
-	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
+	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown, CodexUpdate, ClaudeUpdate,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,

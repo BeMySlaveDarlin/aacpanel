@@ -224,6 +224,8 @@ type Codex struct {
 	Contour   string
 	Release   string
 	Reference string
+	Verdict   string
+	Detail    string
 }
 
 // Report is what Look saw on this pass.
@@ -829,7 +831,7 @@ func burning(now time.Time, l Limit, watch, key string) Event {
 // codex back on it — is forgotten without a word.
 func codexReleases(r *Report, cur World) {
 	for _, c := range cur.Codex {
-		if c.Contour == "" || c.Release == "" || c.Reference == "" || c.Release == c.Reference {
+		if c.Contour == "" || c.Release == "" || (c.Verdict == "" && (c.Reference == "" || c.Release == c.Reference)) {
 			continue
 		}
 		r.raise(updated(c))
@@ -837,6 +839,15 @@ func codexReleases(r *Report, cur World) {
 }
 
 func updated(c Codex) Event {
+	if c.Verdict != "" {
+		severity := Info
+		if c.Verdict != "passed" {
+			severity = Warning
+		}
+		return Event{Key: domainCodex + ":" + c.Contour + ":" + c.Release + ":" + c.Verdict, Domain: domainCodex,
+			Title: "Codex contract " + c.Verdict + " · " + c.Contour,
+			Body:  "Codex " + c.Release + ": " + c.Detail, Severity: severity}
+	}
 	return Event{
 		Key:    domainCodex + ":" + c.Contour + ":" + c.Release,
 		Domain: domainCodex,

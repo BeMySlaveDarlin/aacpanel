@@ -128,6 +128,10 @@ func (r Request) Validate() error {
 		return badRequest("the target is longer than %d characters", targetLimit)
 	}
 	switch {
+	case r.Kind == CodexUpdate || r.Kind == ClaudeUpdate:
+		if r.Target != "host" {
+			return badRequest("agent updates target the host")
+		}
 	case r.Kind == SessionPermit:
 		if r.Permit == nil {
 			return badRequest("action %s without the item to press", r.Kind)

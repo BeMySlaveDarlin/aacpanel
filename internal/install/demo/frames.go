@@ -119,6 +119,7 @@ func planFrame(t ui.Theme, mc machine, a answers, width int) string {
 		{Text: "  · linger for " + mc.user, Tag: "new"},
 		{Text: "As you", Head: true},
 		{Text: "  · ~/bin/aacpanel-exec, built with the installer's Go", Tag: "new"},
+		{Text: "  · aacpanel-codex-update.timer, every six hours", Tag: "new"},
 		{Text: "  · aacpanel-exec.service, user unit", Tag: "new"},
 		{Text: "  · compose: " + a.services(), Tag: "new"},
 	}

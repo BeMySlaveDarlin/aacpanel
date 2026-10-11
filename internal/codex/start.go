@@ -614,3 +614,24 @@ func (l *Link) unhold(id string) {
 func textInput(text string) []any {
 	return []any{map[string]any{"type": "text", "text": text, "text_elements": []any{}}}
 }
+
+// ReadyVersion waits for the new daemon's handshake, rather than mistaking an
+// old connection that has not noticed the restart yet for the updated daemon.
+func (l *Link) ReadyVersion(ctx context.Context, version string) error {
+	for {
+		if err := l.Ready(ctx); err != nil {
+			return err
+		}
+		l.mu.Lock()
+		got := l.release
+		l.mu.Unlock()
+		if got == version {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("codex daemon of %s reports %s, expected %s", l.home, got, version)
+		case <-time.After(readyPoll):
+		}
+	}
+}
