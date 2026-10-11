@@ -450,6 +450,10 @@ func TestMcpChangeNamesAServerAndWhatToDo(t *testing.T) {
 			Mcp: &McpChange{Server: "docker", Do: McpReconnect}}, false},
 		{"the question", Request{Ask: AskMcp, Target: "aacpanel"}, true},
 		{"the question with no session", Request{Ask: AskMcp}, false},
+		{"a discovery", Request{Ask: AskMcp, Target: "aacpanel", Discover: true}, true},
+		{"a discovery riding another question", Request{Ask: AskModels, Target: "aacpanel", Discover: true}, false},
+		{"a discovery riding an action", Request{ID: "1", Kind: SessionMcp, Target: "aacpanel",
+			Mcp: &McpChange{Server: "docker", Do: McpReconnect}, Discover: true}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -20,6 +20,7 @@ func TestMcpOpensTheServersOfTheSession(t *testing.T) {
 		Docker        string   `json:"docker"`
 		Dots          []string `json:"dots"`
 		ComposerAfter string   `json:"composerAfter"`
+		Check         bool     `json:"check"`
 		SentBefore    int      `json:"sentBefore"`
 		Server        string   `json:"server"`
 		Facts         []string `json:"facts"`
@@ -37,6 +38,11 @@ func TestMcpOpensTheServersOfTheSession(t *testing.T) {
 	if !got.SendReady || got.Title != "MCP servers" || got.ComposerAfter != "" || got.SentBefore != 0 {
 		t.Fatalf("/mcp: ready %v, opened %q, left %q in the composer, sent %d", got.SendReady, got.Title,
 			got.ComposerAfter, got.SentBefore)
+	}
+	// Claude has one word on its servers, its session's own: there is no
+	// check against config to ask for.
+	if got.Check {
+		t.Error("a claude session offers the check against config of a codex thread")
 	}
 	if got.Count != "20 servers" || !reflect.DeepEqual(got.Groups, []string{"User", "claude.ai", "Plugins and built-in"}) {
 		t.Errorf("the list reads %q grouped %v", got.Count, got.Groups)

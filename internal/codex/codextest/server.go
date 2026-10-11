@@ -8,11 +8,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -136,9 +138,18 @@ type Server struct {
 	// lag leaves a thread as it was after turn/start: the daemon answers
 	// turn/start before the thread turns active.
 	lag bool
-	// mcp and skills are what mcpServerStatus/list and skills/list answer.
-	mcp    []map[string]any
-	skills []map[string]any
+	// mcp are the MCP servers as the threads' own connections have them,
+	// changed those a discovery finds changed or added since, fromStart the
+	// names the threads got from their start rather than from config.toml,
+	// off the servers of plugins switched off by plugin, and mcpStarts how
+	// many server processes the discoveries started. skills are what
+	// skills/list answers.
+	mcp       []map[string]any
+	changed   []map[string]any
+	fromStart map[string]bool
+	off       map[string][]string
+	mcpStarts int
+	skills    []map[string]any
 }
 
 // New starts a daemon in a home of its own. The home is short on purpose: a
@@ -218,12 +229,61 @@ func (s *Server) Lag() {
 	s.lag = true
 }
 
-// Mcp sets the servers mcpServerStatus/list answers with, in the shape of the
-// protocol.
+// Mcp sets the MCP servers of the threads as their own connections have them,
+// in the shape of the protocol. A list of one server by name answers with
+// the thread's own, and a list of every server with all of them, McpChanged
+// taking the place of those it names. A server with a pluginId comes from
+// that plugin, installed and enabled; config.toml names the others.
+//
+// A server codex gives no status is one the thread does not have: a list of
+// one server by name answers it with nothing, as codex answers a server
+// added after the thread started.
 func (s *Server) Mcp(servers ...map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.mcp = servers
+}
+
+// McpChanged sets the servers whose configuration changed or that were added
+// after the threads started, as a discovery finds them: with no status and
+// with the tools of the server started anew. A list of one server by name
+// does not see them.
+func (s *Server) McpChanged(servers ...map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.changed = servers
+}
+
+// McpFromStart names servers the threads got from their start, as the panel
+// gives a thread its own: config/read does not name them.
+func (s *Server) McpFromStart(names ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fromStart = map[string]bool{}
+	for _, n := range names {
+		s.fromStart[n] = true
+	}
+}
+
+// PluginOff installs a plugin switched off in config.toml, with the MCP
+// servers it carries: plugin/installed lists it as not enabled, and no thread
+// has its servers.
+func (s *Server) PluginOff(id string, servers ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.off == nil {
+		s.off = map[string][]string{}
+	}
+	s.off[id] = servers
+}
+
+// McpStarts is how many processes of MCP servers codex started to discover
+// them: a list of every server of a thread starts each stdio server it
+// lists, and a list of one server by name starts none.
+func (s *Server) McpStarts() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.mcpStarts
 }
 
 // Skills sets the skills skills/list answers with for any directory.
@@ -646,6 +706,14 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		}
 		return map[string]any{"data": data}, nil, ""
 	}
+	switch method {
+	case "config/read":
+		return s.configRead(), nil, ""
+	case "plugin/installed":
+		return s.pluginsInstalled(), nil, ""
+	case "plugin/read":
+		return s.pluginRead(raw)
+	}
 	t := s.threads[p.ThreadID]
 	if t == nil {
 		return nil, nil, "thread not found: " + p.ThreadID
@@ -757,11 +825,7 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		t.Processes = nil
 		return map[string]any{}, nil, ""
 	case "mcpServerStatus/list":
-		data := []any{}
-		for _, m := range s.mcp {
-			data = append(data, m)
-		}
-		return map[string]any{"data": data, "nextCursor": nil}, nil, ""
+		return s.mcpList(raw), nil, ""
 	case "turn/start":
 		var q struct {
 			Model  string `json:"model"`
@@ -831,6 +895,123 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		return map[string]any{"data": data, "nextCursor": nil, "backwardsCursor": nil}, nil, ""
 	}
 	return nil, nil, "method not found: " + method
+}
+
+// mcpList answers mcpServerStatus/list of a thread the way codex 0.162 did. A
+// list for one server by name answers from the thread's own connection and
+// starts nothing; a list of every server discovers each anew, starting every
+// stdio server it lists that is not disabled.
+func (s *Server) mcpList(raw json.RawMessage) map[string]any {
+	var p struct {
+		Name *string `json:"serverName"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	data := []any{}
+	if p.Name != nil {
+		for _, m := range s.mcp {
+			if m["name"] == *p.Name && m["runtimeStatus"] != nil {
+				data = append(data, m)
+			}
+		}
+		return map[string]any{"data": data, "nextCursor": nil}
+	}
+	listed := slices.Clone(s.mcp)
+	for _, m := range s.changed {
+		if i := slices.IndexFunc(listed, func(o map[string]any) bool { return o["name"] == m["name"] }); i >= 0 {
+			listed[i] = m
+		} else {
+			listed = append(listed, m)
+		}
+	}
+	for _, m := range listed {
+		if m["httpOrigin"] == nil && m["runtimeStatus"] != "disabled" {
+			s.mcpStarts++
+		}
+		data = append(data, m)
+	}
+	return map[string]any{"data": data, "nextCursor": nil}
+}
+
+// configRead is config/read with the servers config.toml names: those of the
+// threads and the changed ones that come from no plugin and not from the
+// start of a thread. The rest of a config the panel does not read.
+func (s *Server) configRead() map[string]any {
+	servers := map[string]any{}
+	for _, m := range append(slices.Clone(s.mcp), s.changed...) {
+		name, _ := m["name"].(string)
+		if m["pluginId"] == nil && !s.fromStart[name] {
+			servers[name] = map[string]any{"command": "mcp-" + name, "enabled": m["runtimeStatus"] != "disabled"}
+		}
+	}
+	return map[string]any{"config": map[string]any{"model": "gpt-home", "mcp_servers": servers}, "origins": map[string]any{}}
+}
+
+// pluginServers are the MCP servers of every plugin by its id, name@market,
+// and whether the plugin is enabled.
+func (s *Server) pluginServers() (map[string][]string, map[string]bool) {
+	servers, enabled := map[string][]string{}, map[string]bool{}
+	for _, m := range append(slices.Clone(s.mcp), s.changed...) {
+		if id, ok := m["pluginId"].(string); ok && id != "" {
+			name, _ := m["name"].(string)
+			if !slices.Contains(servers[id], name) {
+				servers[id] = append(servers[id], name)
+			}
+			enabled[id] = true
+		}
+	}
+	for id, names := range s.off {
+		servers[id] = names
+	}
+	return servers, enabled
+}
+
+// marketPath is where the marketplace file of a market lies.
+func marketPath(market string) string {
+	return "/srv/plugins/" + market + "/.agents/plugins/marketplace.json"
+}
+
+// pluginsInstalled is plugin/installed: every plugin a server comes from, by
+// the marketplace of its id, installed.
+func (s *Server) pluginsInstalled() map[string]any {
+	servers, enabled := s.pluginServers()
+	markets := map[string][]any{}
+	for _, id := range slices.Sorted(maps.Keys(servers)) {
+		name, market, _ := strings.Cut(id, "@")
+		markets[market] = append(markets[market], map[string]any{"id": id, "name": name, "installed": true,
+			"enabled": enabled[id], "source": map[string]any{"type": "local", "path": "/srv/plugins/" + market + "/" + name},
+			"authPolicy": "ON_INSTALL", "installPolicy": "AVAILABLE"})
+	}
+	list := []any{}
+	for _, market := range slices.Sorted(maps.Keys(markets)) {
+		list = append(list, map[string]any{"name": market, "path": marketPath(market), "plugins": markets[market]})
+	}
+	return map[string]any{"marketplaces": list, "marketplaceLoadErrors": []any{}}
+}
+
+// pluginRead is plugin/read of a plugin by its name and the path of its
+// marketplace, refused the way codex refuses it without exactly one of a
+// path and the name of a remote marketplace.
+func (s *Server) pluginRead(raw json.RawMessage) (any, []map[string]any, string) {
+	var p struct {
+		Name   string  `json:"pluginName"`
+		Path   *string `json:"marketplacePath"`
+		Remote *string `json:"remoteMarketplaceName"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	if (p.Path == nil) == (p.Remote == nil) {
+		return nil, nil, "plugin/read requires exactly one of marketplacePath or remoteMarketplaceName"
+	}
+	servers, enabled := s.pluginServers()
+	for id, names := range servers {
+		name, market, _ := strings.Cut(id, "@")
+		if name != p.Name || (p.Path != nil && *p.Path != marketPath(market)) {
+			continue
+		}
+		return map[string]any{"plugin": map[string]any{"marketplaceName": market, "marketplacePath": marketPath(market),
+			"mcpServers": names, "skills": []any{}, "apps": []any{}, "hooks": []any{}, "appTemplates": []any{},
+			"summary": map[string]any{"id": id, "name": name, "installed": true, "enabled": enabled[id]}}}, nil, ""
+	}
+	return nil, nil, "plugin not found: " + p.Name
 }
 
 // start makes a thread the way thread/start does: in the directory asked,

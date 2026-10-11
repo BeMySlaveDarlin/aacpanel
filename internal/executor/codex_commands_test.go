@@ -243,11 +243,13 @@ func TestCodexQuestionsAreAnsweredWithCodexsLists(t *testing.T) {
 		len(models.List) != 2 || models.List[1].Value != "gpt-other" || models.List[1].Effort != "medium" {
 		t.Errorf("the models are %+v, %v", models, err)
 	}
-	mcp, err := e.Mcp(ctx, codexName)
 	want := []action.McpServer{{Name: "docs", Status: "needs-auth", Source: "plugin", URL: "https://docs.test",
 		Tools: []string{}, Auth: "notLoggedIn"}}
-	if err != nil || mcp.Agent != "codex" || !reflect.DeepEqual(mcp.Servers, want) {
-		t.Errorf("the servers are %+v, %v", mcp, err)
+	for _, discover := range []bool{false, true} {
+		mcp, err := e.Mcp(ctx, codexName, discover)
+		if err != nil || mcp.Agent != "codex" || !reflect.DeepEqual(mcp.Servers, want) {
+			t.Errorf("discovered %v, the servers are %+v, %v", discover, mcp, err)
+		}
 	}
 	setup, err := e.Setup(ctx, codexName, action.SetupSkills)
 	if err != nil || setup.Agent != "codex" || !reflect.DeepEqual(setup.Skills, []action.Skill{{Name: "pdf",
@@ -256,6 +258,33 @@ func TestCodexQuestionsAreAnsweredWithCodexsLists(t *testing.T) {
 	}
 	if _, err := e.Setup(ctx, codexName, action.SetupHooks); err == nil || !strings.Contains(err.Error(), "its skills") {
 		t.Errorf("the hooks of a codex session: %v", err)
+	}
+}
+
+// The question the MCP screen asks of a codex session as it opens starts no
+// server: codex starts every stdio server of a thread anew only for a
+// discovery, and a discovery is asked for by name.
+func TestTheServersOfACodexSessionStartOnlyForADiscovery(t *testing.T) {
+	srv, e := onCodex(t, func(srv *codextest.Server) {
+		srv.Mcp(map[string]any{"name": "docker", "runtimeStatus": "connected", "authStatus": "unsupported",
+			"tools": map[string]any{"ps": map[string]any{"name": "ps"}}},
+			map[string]any{"name": "shell", "runtimeStatus": "connected", "authStatus": "unsupported",
+				"tools": map[string]any{"run": map[string]any{"name": "run"}}})
+	})
+	ctx := context.Background()
+	for range 3 {
+		if mcp, err := e.Mcp(ctx, codexName, false); err != nil || len(mcp.Servers) != 2 {
+			t.Fatalf("the servers are %+v, %v", mcp, err)
+		}
+	}
+	if n := srv.McpStarts(); n != 0 {
+		t.Errorf("opening the screen three times started %d servers", n)
+	}
+	if mcp, err := e.Mcp(ctx, codexName, true); err != nil || len(mcp.Servers) != 2 {
+		t.Fatalf("the discovered servers are %+v, %v", mcp, err)
+	}
+	if n := srv.McpStarts(); n != 2 {
+		t.Errorf("a discovery started %d servers, expected both", n)
 	}
 }
 
@@ -281,13 +310,16 @@ func TestCodexServersStandInTheWordsOfTheScreen(t *testing.T) {
 		}
 		srv.Mcp(servers...)
 	})
-	mcp, err := e.Mcp(context.Background(), codexName)
-	if err != nil || len(mcp.Servers) != len(states) {
-		t.Fatalf("the servers are %+v, %v", mcp, err)
-	}
-	for i, s := range states {
-		if got := mcp.Servers[i].Status; got != s.screen {
-			t.Errorf("a server codex calls %v reaches the screen as %q, expected %q", s.codex, got, s.screen)
+	for _, discover := range []bool{false, true} {
+		mcp, err := e.Mcp(context.Background(), codexName, discover)
+		if err != nil || len(mcp.Servers) != len(states) {
+			t.Fatalf("the servers are %+v, %v", mcp, err)
+		}
+		for i, s := range states {
+			if got := mcp.Servers[i].Status; got != s.screen {
+				t.Errorf("discovered %v, a server codex calls %v reaches the screen as %q, expected %q", discover,
+					s.codex, got, s.screen)
+			}
 		}
 	}
 }

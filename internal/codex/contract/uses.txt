@@ -210,8 +210,12 @@ call model/list
   read data[].defaultReasoningEffort
   read nextCursor
 
+# The MCP servers of a thread: asked one by one by name, which codex answers
+# from the thread's own connection, or all at once when a person asks for a
+# discovery, which starts every stdio server anew.
 call mcpServerStatus/list
   send threadId
+  send serverName
   send detail: toolsAndAuthOnly
   send cursor
   read data[].name
@@ -226,6 +230,28 @@ call mcpServerStatus/list
   read data[].serverInfo.version
   read data[].serverInfo.description
   read nextCursor
+
+# The names the servers are asked by, said without starting any. The servers
+# of config.toml are the keys under mcp_servers of the config, a key the
+# schema does not declare: the config is open to any key, and stays so.
+call config/read
+  send cwd
+  read config{}
+
+call plugin/installed
+  send cwds[]
+  read marketplaces[].name
+  read marketplaces[].path
+  read marketplaces[].plugins[].id
+  read marketplaces[].plugins[].name
+  read marketplaces[].plugins[].installed
+  read marketplaces[].plugins[].enabled
+
+call plugin/read
+  send pluginName
+  send marketplacePath
+  send remoteMarketplaceName
+  read plugin.mcpServers[]
 
 call skills/list
   send cwds[]

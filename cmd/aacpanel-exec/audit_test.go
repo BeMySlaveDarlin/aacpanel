@@ -102,11 +102,14 @@ func TestAuditedPassesOnEveryQuestion(t *testing.T) {
 	if _, err := any(audited{next: muteExec{}}).(action.ModelsAsker).Models(t.Context(), "aacpanel"); err == nil {
 		t.Error("an executor that does not know models said nothing instead of refusing")
 	}
-	mcp, err := a.(action.McpAsker).Mcp(t.Context(), "aacpanel")
+	mcp, err := a.(action.McpAsker).Mcp(t.Context(), "aacpanel", false)
 	if err != nil || mcp == nil || len(mcp.Servers) != 1 {
 		t.Errorf("the question about MCP came back as %+v, %v", mcp, err)
 	}
-	if _, err := any(audited{next: muteExec{}}).(action.McpAsker).Mcp(t.Context(), "aacpanel"); err == nil {
+	if mcp, err := a.(action.McpAsker).Mcp(t.Context(), "aacpanel", true); err != nil || mcp == nil || len(mcp.Servers) != 2 {
+		t.Errorf("the discovery of MCP came back as %+v, %v", mcp, err)
+	}
+	if _, err := any(audited{next: muteExec{}}).(action.McpAsker).Mcp(t.Context(), "aacpanel", false); err == nil {
 		t.Error("an executor that does not know MCP said nothing instead of refusing")
 	}
 	status, err := a.(action.StatusAsker).Status(t.Context(), "aacpanel")
@@ -128,8 +131,14 @@ func (modelsExec) Status(context.Context, string) (*action.Status, error) {
 	return &action.Status{Transport: "stream", Version: "2.1.282"}, nil
 }
 
-func (modelsExec) Mcp(context.Context, string) (*action.Mcp, error) {
-	return &action.Mcp{Transport: "stream", Servers: []action.McpServer{{Name: "docker", Status: "connected"}}}, nil
+// Mcp answers a discovery with one server more, so a wrapper that loses the
+// word asks the other question.
+func (modelsExec) Mcp(_ context.Context, _ string, discover bool) (*action.Mcp, error) {
+	servers := []action.McpServer{{Name: "docker", Status: "connected"}}
+	if discover {
+		servers = append(servers, action.McpServer{Name: "late", Status: "changed"})
+	}
+	return &action.Mcp{Transport: "stream", Servers: servers}, nil
 }
 
 type keepingExec struct {

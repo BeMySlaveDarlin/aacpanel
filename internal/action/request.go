@@ -87,6 +87,13 @@ type Request struct {
 	// Part names the screen a setup question asks for.
 	Part string `json:"part,omitempty"`
 
+	// Discover has the question of the MCP servers of a codex session list
+	// them as configured now rather than as the thread runs them: codex
+	// starts every stdio server of the thread anew for it, which is what
+	// tells a server whose configuration changed since the thread started.
+	// A claude session answers the same either way.
+	Discover bool `json:"discover,omitempty"`
+
 	// History is the side chat so far, sent with a question aside.
 	History []SideTurn `json:"history,omitempty"`
 

@@ -2,6 +2,13 @@
 // list by where each server comes from, and one server with what can be done
 // to it. The panel asks the session each time the screen opens, so what it
 // shows is the session's word now, not a copy from earlier.
+//
+// A codex thread is read the way that starts none of its servers: codex
+// starts every stdio server anew to discover them, and a sheet opened in
+// passing would put a process of each on the host every time. The thread
+// answers for each server by name instead, which cannot tell a server edited
+// in config.toml since the thread started — it reads as the thread runs it.
+// The check against config is the discovery, asked for by a button.
 
 import { useEffect, useState } from "preact/hooks";
 
@@ -71,12 +78,13 @@ export function groupsOf(servers) {
     return [...known.values(), ...other.values()].filter((g) => g.servers.length);
 }
 
-function useMcp(name, tick) {
+function useMcp(name, tick, discover) {
     const [answer, setAnswer] = useState(null);
     useEffect(() => {
         let alive = true;
         setAnswer(null);
-        fetch(`/api/session/mcp?name=${encodeURIComponent(name)}`, { credentials: "same-origin" })
+        const url = `/api/session/mcp?name=${encodeURIComponent(name)}${discover ? "&discover=1" : ""}`;
+        fetch(url, { credentials: "same-origin" })
             .then(async (r) => {
                 if (!r.ok) throw new Error((await r.text()).trim() || `the server answered ${r.status}`);
                 return r.json();
@@ -84,18 +92,21 @@ function useMcp(name, tick) {
             .then((body) => { if (alive) setAnswer(body); })
             .catch((err) => { if (alive) setAnswer({ state: "unknown", reason: String(err.message || err) }); });
         return () => { alive = false; };
-    }, [name, tick]);
+    }, [name, tick, discover]);
     return answer;
 }
 
 // McpSheet is what /mcp opens in a session on the stream. A codex thread's
 // servers are only read: codex sets them in its config, and the panel does
-// not reconnect or turn them off.
+// not reconnect or turn them off. Asking again reads them from the thread
+// again; only the check against config starts them.
 export function McpSheet({ name, exec, readOnly = false }) {
     const [tick, setTick] = useState(0);
     const [open, setOpen] = useState("");
-    const data = useMcp(name, tick);
-    const again = () => setTick((n) => n + 1);
+    const [discover, setDiscover] = useState(false);
+    const data = useMcp(name, tick, discover);
+    const again = () => { setDiscover(false); setTick((n) => n + 1); };
+    const check = () => { setDiscover(true); setTick((n) => n + 1); };
 
     const head = html`
         <div class="shead cmdtitle">
@@ -105,7 +116,10 @@ export function McpSheet({ name, exec, readOnly = false }) {
             </button>
         </div>
     `;
-    if (!data) return html`<div class="cmdsheet">${head}<p class="cmdnote">Asking the session…</p></div>`;
+    if (!data) {
+        const wait = discover ? "Starting every server to check it against the config…" : "Asking the session…";
+        return html`<div class="cmdsheet">${head}<p class="cmdnote">${wait}</p></div>`;
+    }
     if (data.state !== "ok") {
         return html`<div class="cmdsheet">${head}<p class="cmdnote">${data.reason || "The session did not answer."}</p></div>`;
     }
@@ -147,6 +161,13 @@ export function McpSheet({ name, exec, readOnly = false }) {
                     </ul>
                 </section>
             `)}
+            ${data.agent === "codex" && html`
+                <p class="cmdnote mcpview">${discover
+                    ? "Checked against the config: every server was started anew, and one changed since the thread started reads \"config changed\"."
+                    : "As the thread runs them: a server edited in config.toml since the thread started reads as the thread has it. The check starts every server anew."}</p>
+                <div class="mcpacts">
+                    <button type="button" class="btn mcpcheck" onClick=${check}>Check against config</button>
+                </div>`}
             ${readOnly && html`<p class="cmdnote">Read-only: codex's servers are set in its config.toml and in codex itself.</p>`}
         </div>
     `;

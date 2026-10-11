@@ -21,6 +21,9 @@ func (r Request) Validate() error {
 	if r.Contour != "" && r.Ask != AskCodexModels && r.Agent != ResumeCodex {
 		return badRequest("only the question of the codex models and a resume of codex name a contour")
 	}
+	if r.Discover && r.Ask != AskMcp {
+		return badRequest("only the question of the MCP servers discovers them")
+	}
 	if r.Ask != "" {
 		if r.Kind != "" || r.Resume != "" || r.Secret != nil || r.Agent != "" {
 			return badRequest("question %q performs no actions", r.Ask)

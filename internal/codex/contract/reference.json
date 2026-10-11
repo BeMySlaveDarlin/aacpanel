@@ -745,6 +745,9 @@
        "enum": [
         "plugin/installed"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/PluginInstalledParams"
       }
      }
     },
@@ -763,6 +766,9 @@
        "enum": [
         "plugin/read"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/PluginReadParams"
       }
      }
     },
@@ -1538,6 +1544,9 @@
        "enum": [
         "config/read"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ConfigReadParams"
       }
      }
     },
@@ -3764,6 +3773,39 @@
     ],
     "type": "object"
    },
+   "Config": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+   },
+   "ConfigReadParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "cwd": {
+      "description": "Optional working directory to resolve project config layers. If specified, return the effective config as seen from that directory (i.e., including any project layers between `cwd` and the project/repo root).",
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    },
+    "title": "ConfigReadParams",
+    "type": "object"
+   },
+   "ConfigReadResponse": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "config": {
+      "$ref": "#/definitions/v2/Config"
+     }
+    },
+    "required": [
+     "config",
+     "origins"
+    ],
+    "title": "ConfigReadResponse",
+    "type": "object"
+   },
    "FileSystemAccessMode": {
     "enum": [
      "read",
@@ -4038,6 +4080,13 @@
        }
       ],
       "description": "Controls how much MCP inventory data to fetch for each server. Defaults to `Full` when omitted."
+     },
+     "serverName": {
+      "description": "Limit discovery to one server. With a thread ID, reuse that thread's MCP connection.",
+      "type": [
+       "string",
+       "null"
+      ]
      },
      "threadId": {
       "type": [
@@ -4356,6 +4405,156 @@
      "unknown"
     ],
     "type": "string"
+   },
+   "PluginDetail": {
+    "properties": {
+     "mcpServers": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "appTemplates",
+     "apps",
+     "hooks",
+     "marketplaceName",
+     "mcpServers",
+     "skills",
+     "summary"
+    ],
+    "type": "object"
+   },
+   "PluginInstalledParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "cwds": {
+      "description": "Optional working directories used to discover repo marketplaces.",
+      "items": {
+       "$ref": "#/definitions/v2/AbsolutePathBuf"
+      },
+      "type": [
+       "array",
+       "null"
+      ]
+     }
+    },
+    "title": "PluginInstalledParams",
+    "type": "object"
+   },
+   "PluginInstalledResponse": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "marketplaces": {
+      "items": {
+       "$ref": "#/definitions/v2/PluginMarketplaceEntry"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "marketplaces"
+    ],
+    "title": "PluginInstalledResponse",
+    "type": "object"
+   },
+   "PluginMarketplaceEntry": {
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "path": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/AbsolutePathBuf"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Local marketplace file path when the marketplace is backed by a local file. Remote-only catalog marketplaces do not have a local path."
+     },
+     "plugins": {
+      "items": {
+       "$ref": "#/definitions/v2/PluginSummary"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "name",
+     "plugins"
+    ],
+    "type": "object"
+   },
+   "PluginReadParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "marketplacePath": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/AbsolutePathBuf"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "pluginName": {
+      "type": "string"
+     },
+     "remoteMarketplaceName": {
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    },
+    "required": [
+     "pluginName"
+    ],
+    "title": "PluginReadParams",
+    "type": "object"
+   },
+   "PluginReadResponse": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "plugin": {
+      "$ref": "#/definitions/v2/PluginDetail"
+     }
+    },
+    "required": [
+     "plugin"
+    ],
+    "title": "PluginReadResponse",
+    "type": "object"
+   },
+   "PluginSummary": {
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "id": {
+      "type": "string"
+     },
+     "installed": {
+      "type": "boolean"
+     },
+     "name": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "authPolicy",
+     "enabled",
+     "id",
+     "installPolicy",
+     "installed",
+     "name",
+     "source"
+    ],
+    "type": "object"
    },
    "RateLimitReachedType": {
     "enum": [

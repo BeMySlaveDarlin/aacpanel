@@ -15,13 +15,15 @@ import (
 // stream is asked with claude's own request; a terminal lists its servers on a
 // screen driven by keys, and the answer says where it lives.
 //
-// A codex session answers with codex's own list of its servers.
-func (e *Executor) Mcp(ctx context.Context, target string) (*action.Mcp, error) {
+// A codex session answers with codex's own list of its servers: as the thread
+// runs them, or, discovered, as they are configured now. Claude has one
+// answer, its session's own, and gives it either way.
+func (e *Executor) Mcp(ctx context.Context, target string, discover bool) (*action.Mcp, error) {
 	if th, err := e.codexSession(target); err != nil || th != nil {
 		if err != nil {
 			return nil, err
 		}
-		return codexMcp(ctx, *th)
+		return codexMcp(ctx, *th, discover)
 	}
 	s, err := findOneLiveSession(target)
 	if err != nil {

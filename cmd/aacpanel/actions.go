@@ -636,7 +636,9 @@ func (s *Server) apiSessionProcesses(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"state": "ok", "processes": list})
 }
 
-// apiSessionMcp says what a live session knows about its MCP servers.
+// apiSessionMcp says what a live session knows about its MCP servers;
+// discover=1 asks a codex session for them as configured now, which starts
+// every server of its thread anew.
 func (s *Server) apiSessionMcp(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
@@ -647,7 +649,7 @@ func (s *Server) apiSessionMcp(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
 		return
 	}
-	mcp, err := s.exec.Mcp(r.Context(), name)
+	mcp, err := s.exec.Mcp(r.Context(), name, r.URL.Query().Get("discover") == "1")
 	if err != nil {
 		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
 		return

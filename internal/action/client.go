@@ -183,9 +183,10 @@ func (c *Client) Models(ctx context.Context, target string) (*Models, error) {
 	return resp.Models, nil
 }
 
-// Mcp asks a session about its MCP servers.
-func (c *Client) Mcp(ctx context.Context, target string) (*Mcp, error) {
-	resp, err := c.Do(ctx, Request{Ask: AskMcp, Target: target})
+// Mcp asks a session about its MCP servers; discover asks a codex session for
+// them as configured now, which starts every server of the thread anew.
+func (c *Client) Mcp(ctx context.Context, target string, discover bool) (*Mcp, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskMcp, Target: target, Discover: discover})
 	if err != nil {
 		return nil, err
 	}

@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"aacpanel/internal/mcp"
 	"aacpanel/internal/stream"
 )
 
@@ -395,9 +397,67 @@ type McpServer struct {
 	Tools       []string
 }
 
-// McpServers lists the MCP servers of a thread, with the thread's own
-// connections to them.
+// McpServers lists the MCP servers of a thread as the thread runs them, and
+// starts none of them. A list of every server of a thread has codex start
+// each stdio server anew to discover it — a process on the host every time,
+// and a container for a server that runs in one — while a list asked for one
+// server by name answers from the thread's own connection and starts
+// nothing. So the servers are asked one by one, and their names come from
+// what codex says without starting anything: the servers of config.toml as
+// the thread's directory sees it, those of every plugin installed and
+// enabled, and the panel's own server, which a thread the panel started has
+// from its start and config.toml may not name.
+//
+// The price is what only a discovery tells. A server whose configuration was
+// edited after the thread started it reads as the thread runs it, with the
+// thread's tools; one added since reads with no status, as a discovery reads
+// it too, but with no tools. DiscoverMcpServers says which servers changed.
 func (l *Link) McpServers(ctx context.Context, threadID string) ([]McpServer, error) {
+	c, err := l.client()
+	if err != nil {
+		return nil, err
+	}
+	cwd := l.cwdOf(threadID)
+	if cwd == "" {
+		return nil, errors.New("codex does not say the directory of the thread, and its MCP servers are those of a directory")
+	}
+	plugins, err := configuredMcp(ctx, c, cwd)
+	if err != nil {
+		return nil, err
+	}
+	names := slices.Collect(maps.Keys(plugins))
+	if _, ok := plugins[mcp.ServerName]; !ok {
+		names = append(names, mcp.ServerName)
+	}
+	slices.Sort(names)
+	out := []McpServer{}
+	for _, name := range names {
+		params := map[string]any{"threadId": threadID, "serverName": name, "detail": "toolsAndAuthOnly"}
+		page, _, err := mcpPage(ctx, c, params)
+		if err != nil {
+			return nil, err
+		}
+		if len(page) > 0 {
+			out = append(out, page...)
+			continue
+		}
+		// A server the configuration names and the thread does not have was
+		// added after the thread started. The panel's own server is asked
+		// whatever the configuration says, and a thread without it does not
+		// have it at all.
+		if plugin, configured := plugins[name]; configured {
+			out = append(out, McpServer{Name: name, Plugin: plugin, Tools: []string{}})
+		}
+	}
+	return out, nil
+}
+
+// DiscoverMcpServers lists the MCP servers of a thread as they are configured
+// now, beside the thread's own connections to them: codex starts every stdio
+// server of the thread anew to discover it, which is what tells a server
+// whose configuration changed after the thread started it. A person asks for
+// it; opening the list does not.
+func (l *Link) DiscoverMcpServers(ctx context.Context, threadID string) ([]McpServer, error) {
 	c, err := l.client()
 	if err != nil {
 		return nil, err
@@ -405,52 +465,130 @@ func (l *Link) McpServers(ctx context.Context, threadID string) ([]McpServer, er
 	out := []McpServer{}
 	cursor := ""
 	for range 20 {
-		// The full detail reads every resource of every server, seconds of
-		// work; tools and the sign-in are what the panel shows.
 		params := map[string]any{"threadId": threadID, "detail": "toolsAndAuthOnly"}
 		if cursor != "" {
 			params["cursor"] = cursor
 		}
-		var page struct {
-			Data []struct {
-				Name    string                     `json:"name"`
-				Status  string                     `json:"runtimeStatus"`
-				Auth    string                     `json:"authStatus"`
-				Origin  string                     `json:"httpOrigin"`
-				Plugin  string                     `json:"pluginId"`
-				Tools   map[string]json.RawMessage `json:"tools"`
-				Failure string                     `json:"toolsError"`
-				Info    *struct {
-					Name        string `json:"name"`
-					Title       string `json:"title"`
-					Version     string `json:"version"`
-					Description string `json:"description"`
-				} `json:"serverInfo"`
-			} `json:"data"`
-			Next string `json:"nextCursor"`
-		}
-		if err := within(ctx, c, "mcpServerStatus/list", params, &page); err != nil {
+		page, next, err := mcpPage(ctx, c, params)
+		if err != nil {
 			return nil, err
 		}
-		for _, m := range page.Data {
-			s := McpServer{Name: m.Name, Status: m.Status, Auth: m.Auth, Origin: m.Origin, Plugin: m.Plugin,
-				Error: m.Failure, Tools: []string{}}
-			for name := range m.Tools {
-				s.Tools = append(s.Tools, name)
-			}
-			sort.Strings(s.Tools)
-			if m.Info != nil {
-				s.Title, s.Version, s.Description = m.Info.Title, m.Info.Version, m.Info.Description
-				if s.Title == "" {
-					s.Title = m.Info.Name
-				}
-			}
-			out = append(out, s)
-		}
-		if page.Next == "" || page.Next == cursor {
+		out = append(out, page...)
+		if next == "" || next == cursor {
 			break
 		}
-		cursor = page.Next
+		cursor = next
+	}
+	return out, nil
+}
+
+// mcpPage reads one answer of mcpServerStatus/list: the servers and where the
+// next page starts.
+func mcpPage(ctx context.Context, c *conn, params map[string]any) ([]McpServer, string, error) {
+	// The full detail reads every resource of every server, seconds of work;
+	// tools and the sign-in are what the panel shows.
+	var page struct {
+		Data []struct {
+			Name    string                     `json:"name"`
+			Status  string                     `json:"runtimeStatus"`
+			Auth    string                     `json:"authStatus"`
+			Origin  string                     `json:"httpOrigin"`
+			Plugin  string                     `json:"pluginId"`
+			Tools   map[string]json.RawMessage `json:"tools"`
+			Failure string                     `json:"toolsError"`
+			Info    *struct {
+				Name        string `json:"name"`
+				Title       string `json:"title"`
+				Version     string `json:"version"`
+				Description string `json:"description"`
+			} `json:"serverInfo"`
+		} `json:"data"`
+		Next string `json:"nextCursor"`
+	}
+	if err := within(ctx, c, "mcpServerStatus/list", params, &page); err != nil {
+		return nil, "", err
+	}
+	out := []McpServer{}
+	for _, m := range page.Data {
+		s := McpServer{Name: m.Name, Status: m.Status, Auth: m.Auth, Origin: m.Origin, Plugin: m.Plugin,
+			Error: m.Failure, Tools: []string{}}
+		for name := range m.Tools {
+			s.Tools = append(s.Tools, name)
+		}
+		sort.Strings(s.Tools)
+		if m.Info != nil {
+			s.Title, s.Version, s.Description = m.Info.Title, m.Info.Version, m.Info.Description
+			if s.Title == "" {
+				s.Title = m.Info.Name
+			}
+		}
+		out = append(out, s)
+	}
+	return out, page.Next, nil
+}
+
+// configuredMcp names the MCP servers codex configures for a directory now,
+// each with the plugin it comes from — empty for a server of config.toml.
+// Codex says it without starting a server: config.toml, as the layers of the
+// directory make it, names its own servers, and each plugin installed and
+// enabled names those it carries. The plugins a thread lists as disabled are
+// not taken off: codex starts their servers all the same and keeps them in
+// the thread, and says it does not filter by that list yet.
+func configuredMcp(ctx context.Context, c *conn, cwd string) (map[string]string, error) {
+	var config struct {
+		Config struct {
+			Servers map[string]struct{} `json:"mcp_servers"`
+		} `json:"config"`
+	}
+	if err := within(ctx, c, "config/read", map[string]any{"cwd": cwd}, &config); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for name := range config.Config.Servers {
+		out[name] = ""
+	}
+	var installed struct {
+		Marketplaces []struct {
+			Name    string `json:"name"`
+			Path    string `json:"path"`
+			Plugins []struct {
+				ID        string `json:"id"`
+				Name      string `json:"name"`
+				Installed bool   `json:"installed"`
+				Enabled   bool   `json:"enabled"`
+			} `json:"plugins"`
+		} `json:"marketplaces"`
+	}
+	if err := within(ctx, c, "plugin/installed", map[string]any{"cwds": []string{cwd}}, &installed); err != nil {
+		return nil, err
+	}
+	for _, m := range installed.Marketplaces {
+		for _, p := range m.Plugins {
+			// A plugin switched off in config.toml has its servers in no
+			// thread, and a discovery does not list them either.
+			if !p.Installed || !p.Enabled {
+				continue
+			}
+			// A marketplace of a file is read by its path, one of codex's
+			// remote catalogue, which has none, by its name.
+			params := map[string]any{"pluginName": p.Name, "marketplacePath": m.Path}
+			if m.Path == "" {
+				params = map[string]any{"pluginName": p.Name, "remoteMarketplaceName": m.Name}
+			}
+			var read struct {
+				Plugin struct {
+					Servers []string `json:"mcpServers"`
+				} `json:"plugin"`
+			}
+			if err := within(ctx, c, "plugin/read", params, &read); err != nil {
+				return nil, fmt.Errorf("the MCP servers of the plugin %s: %w", p.ID, err)
+			}
+			for _, name := range read.Plugin.Servers {
+				if _, taken := out[name]; !taken {
+					out[name] = p.ID
+				}
+			}
+		}
 	}
 	return out, nil
 }
@@ -472,12 +610,7 @@ func (l *Link) Skills(ctx context.Context, threadID string) ([]Skill, error) {
 	if err != nil {
 		return nil, err
 	}
-	l.mu.Lock()
-	cwd := ""
-	if t := l.threads[threadID]; t != nil {
-		cwd = t.info.CWD
-	}
-	l.mu.Unlock()
+	cwd := l.cwdOf(threadID)
 	if cwd == "" {
 		return nil, errors.New("codex does not say the directory of the thread, and its skills are those of a directory")
 	}
@@ -509,6 +642,17 @@ func (l *Link) Skills(ctx context.Context, threadID string) ([]Skill, error) {
 		}
 	}
 	return list, nil
+}
+
+// cwdOf is the directory of a thread as codex last said it, empty when it has
+// not.
+func (l *Link) cwdOf(threadID string) string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if t := l.threads[threadID]; t != nil {
+		return t.info.CWD
+	}
+	return ""
 }
 
 // onGoal takes the goal of a thread as the daemon told it; nil is no goal.

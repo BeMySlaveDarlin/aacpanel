@@ -340,8 +340,15 @@ func TestMcpServersAndSkillsAreCodexsLists(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(servers, want) {
 		t.Errorf("the servers are %+v, %v", servers, err)
 	}
-	if calls := srv.Calls("mcpServerStatus/list"); len(calls) != 1 || !strings.Contains(string(calls[0]), threadA) {
+	// The panel's own server is asked of a thread whatever config.toml says,
+	// and one the thread does not have is not listed.
+	calls := srv.Calls("mcpServerStatus/list")
+	if len(calls) != 2 || !strings.Contains(string(calls[0]), `"serverName":"aacpanel"`) ||
+		!strings.Contains(string(calls[1]), `"serverName":"docker"`) || !strings.Contains(string(calls[1]), threadA) {
 		t.Errorf("the servers were asked as %s", calls)
+	}
+	if calls := srv.Calls("config/read"); len(calls) != 1 || !strings.Contains(string(calls[0]), `"cwd":"/srv/proj"`) {
+		t.Errorf("the configuration was read as %s", calls)
 	}
 	skills, err := l.Skills(ctx, threadA)
 	if err != nil || !reflect.DeepEqual(skills, []Skill{{Name: "pdf", Description: "read pdfs", Scope: "user"}}) {
@@ -354,7 +361,8 @@ func TestMcpServersAndSkillsAreCodexsLists(t *testing.T) {
 
 // How a server of a thread stands comes in codex's own words, and a server
 // codex has no word for — one changed or added after the thread started it —
-// comes with none rather than one the panel made up.
+// comes with none rather than one the panel made up, read from the thread or
+// discovered.
 func TestMcpServersStandAsCodexSaysTheyDo(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	states := []any{"notStarted", "starting", "connected", "authenticationRequired", "failed", "cancelled", "disabled", nil}
@@ -365,15 +373,86 @@ func TestMcpServersStandAsCodexSaysTheyDo(t *testing.T) {
 	}
 	srv.Mcp(servers...)
 	until(t, "the state file", written(t, threadA))
-	got, err := l.McpServers(context.Background(), threadA)
-	if err != nil || len(got) != len(states) {
-		t.Fatalf("the servers are %+v, %v", got, err)
-	}
-	for i, s := range states {
-		want, _ := s.(string)
-		if got[i].Status != want {
-			t.Errorf("a server codex calls %v stands as %q", s, got[i].Status)
+	for how, list := range map[string]func(context.Context, string) ([]McpServer, error){
+		"from the thread": l.McpServers, "discovered": l.DiscoverMcpServers} {
+		got, err := list(context.Background(), threadA)
+		if err != nil || len(got) != len(states) {
+			t.Fatalf("%s the servers are %+v, %v", how, got, err)
 		}
+		for i, s := range states {
+			want, _ := s.(string)
+			if got[i].Status != want {
+				t.Errorf("%s a server codex calls %v stands as %q", how, s, got[i].Status)
+			}
+		}
+	}
+}
+
+// Opening the servers of a thread starts none of them: every server is asked
+// of the thread by name, which codex answers from the thread's own
+// connection, and the names come from config.toml, from the plugins installed
+// and enabled, and the panel's own server from the start of the thread. A
+// server edited since the thread started reads as the thread runs it, and one
+// added since reads with no status and no tools. A discovery, asked for, is
+// what starts every stdio server anew and says which of them changed.
+func TestOpeningTheServersOfAThreadStartsNone(t *testing.T) {
+	srv, l := linked(t, idle(threadA))
+	server := func(name string, status any, tools ...string) map[string]any {
+		m := map[string]any{"name": name, "runtimeStatus": status, "authStatus": "unsupported", "httpOrigin": nil,
+			"pluginId": nil, "toolsError": nil, "tools": map[string]any{}, "serverInfo": nil}
+		for _, tool := range tools {
+			m["tools"].(map[string]any)[tool] = map[string]any{"name": tool}
+		}
+		return m
+	}
+	docs := server("docs", "connected", "query")
+	docs["pluginId"], docs["httpOrigin"] = "docs@market", "https://docs.test"
+	browse := server("browse", "connected", "open")
+	browse["pluginId"] = "web@market"
+	srv.Mcp(server("docker", "connected", "ps"), server("edited", "connected", "ping_a"), server("off", "disabled"),
+		docs, server("aacpanel", "connected", "checklist"), browse)
+	srv.McpChanged(server("edited", nil, "ping_b"), server("late", nil, "ping_late"))
+	srv.McpFromStart("aacpanel")
+	srv.PluginOff("dormant@market", "sleeper")
+	until(t, "the state file", written(t, threadA))
+	ctx := context.Background()
+
+	got, err := l.McpServers(ctx, threadA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := srv.McpStarts(); n != 0 {
+		t.Errorf("opening the servers started %d of them", n)
+	}
+	read := func(list []McpServer) []string {
+		out := []string{}
+		for _, s := range list {
+			out = append(out, s.Name+"|"+s.Status+"|"+s.Plugin+"|"+strings.Join(s.Tools, ","))
+		}
+		return out
+	}
+	want := []string{"aacpanel|connected||checklist", "browse|connected|web@market|open", "docker|connected||ps",
+		"docs|connected|docs@market|query", "edited|connected||ping_a", "late|||", "off|disabled||"}
+	if !reflect.DeepEqual(read(got), want) {
+		t.Errorf("the servers of the thread read\n%s\nexpected\n%s", strings.Join(read(got), "\n"), strings.Join(want, "\n"))
+	}
+	for _, call := range srv.Calls("mcpServerStatus/list") {
+		if !strings.Contains(string(call), `"serverName":`) || !strings.Contains(string(call), threadA) {
+			t.Errorf("a server was asked as %s", call)
+		}
+	}
+
+	got, err = l.DiscoverMcpServers(ctx, threadA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := srv.McpStarts(); n != 5 {
+		t.Errorf("a discovery started %d servers, expected every stdio server not disabled", n)
+	}
+	want = []string{"docker|connected||ps", "edited|||ping_b", "off|disabled||", "docs|connected|docs@market|query",
+		"aacpanel|connected||checklist", "browse|connected|web@market|open", "late|||ping_late"}
+	if !reflect.DeepEqual(read(got), want) {
+		t.Errorf("the discovered servers read\n%s\nexpected\n%s", strings.Join(read(got), "\n"), strings.Join(want, "\n"))
 	}
 }
 

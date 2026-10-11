@@ -466,12 +466,12 @@ func (a audited) Models(ctx context.Context, target string) (*action.Models, err
 }
 
 // Mcp asks the wrapped executor about the MCP servers of a session.
-func (a audited) Mcp(ctx context.Context, target string) (*action.Mcp, error) {
+func (a audited) Mcp(ctx context.Context, target string, discover bool) (*action.Mcp, error) {
 	asker, ok := a.next.(action.McpAsker)
 	if !ok {
 		return nil, fmt.Errorf("this executor does not know the MCP servers of a session")
 	}
-	return asker.Mcp(ctx, target)
+	return asker.Mcp(ctx, target, discover)
 }
 
 // Status asks the wrapped executor what a session says about itself.

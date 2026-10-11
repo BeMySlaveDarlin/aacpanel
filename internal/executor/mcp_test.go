@@ -35,7 +35,7 @@ func TestMcpListsTheServersWithoutTheirKeys(t *testing.T) {
 	f.mu.Unlock()
 	e, _ := newTest(t, "")
 
-	got, err := e.Mcp(context.Background(), "demo")
+	got, err := e.Mcp(context.Background(), "demo", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestATerminalSessionHasNoMcpForThePanel(t *testing.T) {
 		args: []string{"claude", "-n", "term"}})
 	sessionFiles(t, fakeSession{pid: 5002, name: "term", start: "5556", sid: "s-5002"})
 	e, _ := newTest(t, "")
-	got, err := e.Mcp(context.Background(), "term")
+	got, err := e.Mcp(context.Background(), "term", false)
 	if err != nil || got.Transport != action.SwitchConsole || len(got.Servers) != 0 {
 		t.Fatalf("a terminal answered %+v, %v", got, err)
 	}

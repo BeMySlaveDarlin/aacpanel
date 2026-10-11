@@ -878,7 +878,17 @@ appears or the connection drops — at once when an action waits for it.
   and the skills of a codex session are codex's own lists, answered in the
   shapes of claude's — the models of the daemon of the session's contour, which
   lists the catalogue of its own release, with no catalogue of claude's account
-  beside them; `/api/codex/models` takes the contour too. Every other action over a codex session is refused by name: none of the
+  beside them; `/api/codex/models` takes the contour too. The MCP servers
+  are asked of the thread one by one, which starts none of them: a list of
+  them all has codex start every stdio server anew to discover it — a process
+  on the host, or a container, at every opening of the screen — while a list
+  of one by name answers from the thread's own connection. The names come
+  from what codex says without starting anything: the servers of config.toml
+  as the thread's directory sees it, those of every plugin installed and
+  enabled, and the panel's own server, which a thread has from its start.
+  The price is that a server edited since the thread started reads as the
+  thread runs it; the check against config on the screen is the discovery,
+  asked for, and tells it. Every other action over a codex session is refused by name: none of the
   claude ways — keys, signals, a holder's socket — reaches it.
 - **A busy thread gets a message in the panel's queue**, not in the turn that
   runs: it goes as a turn of its own once the thread is free — the daemon says

@@ -8,7 +8,10 @@
 // The MCP servers of a codex thread, read-only, in every state codex gives a
 // server, in the words the host passes them in: the list with a dot and a
 // word for each, and each server opened with its state and what it says of
-// it. The errors are cut from those a real codex daemon gave.
+// it. The errors are cut from those a real codex daemon gave. Then the check
+// against config: the discovery is asked for by the button alone, says it
+// starts every server while it runs, and asking again reads the thread
+// again.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { McpSheet } from "/src/screens/chat/mcp.js";
@@ -28,9 +31,25 @@ const SERVERS = [
     { name: "context7", status: "changed", source: "plugin", url: "https://mcp.context7.com", tools: ["resolve-library-id", "query-docs"] },
     { name: "docker", status: "changed", source: "config.toml", tools: ["docker_ps"] },
 ];
+// What a discovery finds: the server edited since the thread started reads
+// changed, with the tools of the server started anew.
+const DISCOVERED = [
+    { name: "codex_apps", status: "connected", source: "config.toml", tools: ["calendar_search", "drive_read", "gmail_send"] },
+    { name: "edited", status: "changed", source: "config.toml", tools: ["ping_b"] },
+];
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const asked = [];
+// A discovery is held until the fixture has read what the sheet says while
+// it runs.
+let release = () => {};
 window.fetch = async (url) => {
-    if (String(url).startsWith("/api/session/mcp")) {
+    const u = String(url);
+    if (u.startsWith("/api/session/mcp")) {
+        asked.push(u);
+        if (u.includes("discover=1")) {
+            await new Promise((r) => { release = r; });
+            return json({ state: "ok", transport: "stream", agent: "codex", servers: DISCOVERED });
+        }
         return json({ state: "ok", transport: "stream", agent: "codex", servers: SERVERS });
     }
     return new Response("", { status: 404 });
@@ -66,6 +85,21 @@ const rows = () => Array.from(root.querySelectorAll(".mcplist .mcprow"));
         root.querySelector(".mcpback").click();
         if (!await until(() => rows().length === SERVERS.length)) throw new Error(`the list did not come back from ${s.name}`);
     }
+
+    const view = () => text(root.querySelector(".mcpview"));
+    out.threadView = view();
+    out.check = text(root.querySelector(".mcpcheck"));
+    root.querySelector(".mcpcheck").click();
+    if (!await until(() => /Starting every server/.test(text(root)))) throw new Error("the check did not say it runs");
+    out.checking = text(root.querySelector(".cmdnote"));
+    release();
+    if (!await until(() => rows().length === DISCOVERED.length)) throw new Error("the check did not list its servers");
+    out.checkedView = view();
+    out.checked = rows().map((r) => [text(r.querySelector(".cmdname")), text(r.querySelector(".cmdrownote"))].join("|"));
+    root.querySelector('[aria-label="ask the session again"]').click();
+    if (!await until(() => rows().length === SERVERS.length)) throw new Error("asking again did not read the thread");
+    out.againView = view();
+    out.asked = asked.map((u) => u.replace(/^\/api\/session\/mcp/, ""));
     window.done = out;
 })().catch((err) => { window.done = { error: String(err && err.message || err) }; });
 </script>

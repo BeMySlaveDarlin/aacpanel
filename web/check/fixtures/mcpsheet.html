@@ -83,6 +83,7 @@ const sendButton = () => document.querySelector(".composer .iconbtn.accent");
     out.dots = Array.from(document.querySelectorAll(".sheet.on .mcprow")).map((r) =>
         `${r.querySelector(".cmdname").textContent.trim()}:${r.querySelector(".mcpdot").className.replace("mcpdot ", "")}`);
     out.composerAfter = document.querySelector("textarea").value;
+    out.check = Boolean(document.querySelector(".sheet.on .mcpcheck"));
     out.sentBefore = sent.length;
 
     Array.from(document.querySelectorAll(".sheet.on .mcprow"))

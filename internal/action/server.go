@@ -44,9 +44,10 @@ type ModelsAsker interface {
 	Models(ctx context.Context, target string) (*Models, error)
 }
 
-// McpAsker is an executor that knows the MCP servers of a session.
+// McpAsker is an executor that knows the MCP servers of a session; discover
+// lists those of a codex session as configured now.
 type McpAsker interface {
-	Mcp(ctx context.Context, target string) (*Mcp, error)
+	Mcp(ctx context.Context, target string, discover bool) (*Mcp, error)
 }
 
 // StatusAsker is an executor that knows what a session says about itself.
@@ -295,7 +296,7 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		if !ok {
 			return Failed(req.ID, errors.New("this executor does not know the MCP servers of a session"), 0)
 		}
-		mcp, err := asker.Mcp(ctx, req.Target)
+		mcp, err := asker.Mcp(ctx, req.Target, req.Discover)
 		if err != nil {
 			return Failed(req.ID, err, 0)
 		}

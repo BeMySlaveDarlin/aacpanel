@@ -70,3 +70,43 @@ func TestTheServersOfACodexThreadReadInEveryStateCodexGives(t *testing.T) {
 		t.Errorf("%v read unknown", got.Unknown)
 	}
 }
+
+// The servers of a codex thread open as the thread runs them, which starts
+// none of them, and the sheet says what that cannot tell; the check against
+// config is the discovery, asked for by its button alone, which says while it
+// runs that it starts every server. Asking again reads the thread again
+// rather than starting them once more.
+func TestTheCheckAgainstConfigIsAskedForByItsButtonAlone(t *testing.T) {
+	var got struct {
+		Error       string   `json:"error"`
+		ThreadView  string   `json:"threadView"`
+		Check       string   `json:"check"`
+		Checking    string   `json:"checking"`
+		CheckedView string   `json:"checkedView"`
+		Checked     []string `json:"checked"`
+		AgainView   string   `json:"againView"`
+		Asked       []string `json:"asked"`
+	}
+	runFixture(t, "codexmcp.html", &got)
+	if got.Error != "" {
+		t.Fatal(got.Error)
+	}
+	want := []string{"?name=codex-5afc361b", "?name=codex-5afc361b&discover=1", "?name=codex-5afc361b"}
+	if !reflect.DeepEqual(got.Asked, want) {
+		t.Errorf("the sheet asked %v, expected %v", got.Asked, want)
+	}
+	if got.Check != "Check against config" {
+		t.Errorf("the button reads %q", got.Check)
+	}
+	const limit = "a server edited in config.toml since the thread started reads as the thread has it"
+	if !strings.Contains(got.ThreadView, limit) || !strings.Contains(got.AgainView, limit) {
+		t.Errorf("the sheet does not tell what the thread's own word cannot: %q, then %q", got.ThreadView, got.AgainView)
+	}
+	if got.Checking != "Starting every server to check it against the config…" {
+		t.Errorf("while the check runs the sheet says %q", got.Checking)
+	}
+	if !strings.Contains(got.CheckedView, "every server was started anew") ||
+		!reflect.DeepEqual(got.Checked, []string{"codex_apps|3 tools", "edited|config changed"}) {
+		t.Errorf("the check reads %v under %q", got.Checked, got.CheckedView)
+	}
+}

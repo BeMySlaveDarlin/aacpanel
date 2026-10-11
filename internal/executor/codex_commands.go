@@ -368,15 +368,21 @@ var mcpStatuses = map[string]string{
 }
 
 // codexMcp answers the MCP servers of a codex session as codex lists them,
-// with the thread's connections to them. A server of codex's config.toml is
-// grouped under it, one of a plugin under the plugins.
-func codexMcp(ctx context.Context, th codex.Thread) (*action.Mcp, error) {
-	list, err := th.Link.McpServers(ctx, th.ID)
+// with the thread's connections to them: one by one from the thread, which
+// starts none of them, or discovered anew, which starts each and is what
+// tells a server whose configuration changed. A server of codex's
+// config.toml is grouped under it, one of a plugin under the plugins.
+func codexMcp(ctx context.Context, th codex.Thread, discover bool) (*action.Mcp, error) {
+	list := th.Link.McpServers
+	if discover {
+		list = th.Link.DiscoverMcpServers
+	}
+	servers, err := list(ctx, th.ID)
 	if err != nil {
 		return nil, fmt.Errorf("session %s: %w", th.Name, err)
 	}
 	out := &action.Mcp{Transport: action.SwitchStream, Agent: codex.Agent, Servers: []action.McpServer{}}
-	for _, m := range list {
+	for _, m := range servers {
 		// A word codex has since added goes to the screen as codex says it.
 		status, ok := mcpStatuses[m.Status]
 		if !ok {

@@ -1165,8 +1165,13 @@ func TestSessionMcpPassesTheServersOn(t *testing.T) {
 	if body.State != "ok" || body.Transport != "stream" || len(body.Servers) != 1 || body.Servers[0].Name != "docker" {
 		t.Errorf("the answer is %s", w.Body.String())
 	}
-	if got := <-fake.got; got.Ask != action.AskMcp || got.Target != "aacpanel" {
+	if got := <-fake.got; got.Ask != action.AskMcp || got.Target != "aacpanel" || got.Discover {
 		t.Errorf("the executor was asked %+v", got)
+	}
+	// A discovery is asked for by name, and only then.
+	srv.apiSessionMcp(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/session/mcp?name=aacpanel&discover=1", nil))
+	if got := <-fake.got; got.Ask != action.AskMcp || !got.Discover {
+		t.Errorf("a discovery asked the executor %+v", got)
 	}
 
 	empty, _ := startFakeExec(t, action.Response{OK: true, Mcp: &action.Mcp{Transport: "console"}})
