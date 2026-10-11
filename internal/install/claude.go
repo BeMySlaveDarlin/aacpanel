@@ -325,14 +325,8 @@ func (in *Install) wiredSays() string {
 			hooks++
 		}
 	}
-	rules := 0
-	if w.has("tools") {
-		rules += len(toolRules)
-	}
-	if w.has("restart") {
-		rules++
-	}
-	return fmt.Sprintf("%s, the status line before yours, %s", count(hooks, "hook"), count(rules, "allow rule"))
+	return fmt.Sprintf("%s, the status line before yours, %s", count(hooks, "hook"),
+		count(AllowRules(w.has), "allow rule"))
 }
 
 // wireMCP gives the account the panel's server, through claude's own

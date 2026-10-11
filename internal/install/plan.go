@@ -192,13 +192,10 @@ func (s *Survey) hooks() int {
 	return n
 }
 
-// allows is how many allow rules go into permissions: the panel's four
-// tools, and the restart with Self-restart.
+// allows is how many allow rules go into permissions: the panel's tools, and
+// the restart with Self-restart.
 func (s *Survey) allows() int {
-	if s.Has("restart") {
-		return 5
-	}
-	return 4
+	return AllowRules(s.Has)
 }
 
 // values are the answers as the plan reads them back, each with where it

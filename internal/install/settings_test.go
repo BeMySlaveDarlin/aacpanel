@@ -1,6 +1,7 @@
 package install
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -100,6 +101,33 @@ func TestTheToolRulesAreWhatTheServerAllows(t *testing.T) {
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Errorf("the installer allows %v, the server allows %v", got, want)
+	}
+}
+
+// The number of allow rules the plan, the line of a wired account and the
+// demo name is the number the wiring writes into the settings, with
+// Self-restart and without: a literal would hold the count of the day it was
+// written, and the next tool of the panel would make it wrong.
+func TestTheRulesCountedAreTheRulesWritten(t *testing.T) {
+	for _, kit := range [][]string{fullKit.Kit, {"relay", "limits", "tools"}} {
+		w := Wiring{Clone: repo, Kit: kit}
+		out, _ := wire(t, "", w)
+		var settings struct {
+			Permissions struct {
+				Allow []string `json:"allow"`
+			} `json:"permissions"`
+		}
+		if err := json.Unmarshal([]byte(out), &settings); err != nil {
+			t.Fatal(err)
+		}
+		if n := AllowRules(w.has); n != len(settings.Permissions.Allow) || n == 0 {
+			t.Errorf("kit %v: %d allow rules are counted, %d are written: %v", kit, n,
+				len(settings.Permissions.Allow), settings.Permissions.Allow)
+		}
+		s := &Survey{given: map[string]Given{"kit": {Value: strings.Join(kit, ",")}}}
+		if s.allows() != AllowRules(w.has) {
+			t.Errorf("kit %v: the plan counts %d allow rules, the wiring %d", kit, s.allows(), AllowRules(w.has))
+		}
 	}
 }
 

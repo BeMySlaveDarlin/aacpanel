@@ -231,7 +231,7 @@ plan into `<install>/plan.txt` and quits:
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 5 allow rules · 5 hooks                                                  │
+│   · 7 allow rules · 5 hooks                                                  │
 │ Values                                                                       │
 │   host lab (hostname) · home session lab (host name)                         │
 │   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/install"
 	"aacpanel/internal/install/ui"
 )
 
@@ -36,13 +37,11 @@ func (a answers) hooks() int {
 	return n
 }
 
-// allows is how many allow rules go into permissions: the panel's four tools
-// and the restart when Self-restart is checked.
+// allows is how many allow rules go into permissions, counted as the real
+// install counts them: the panel's tools and the restart when Self-restart is
+// checked.
 func (a answers) allows() int {
-	if a.has("restart") {
-		return 5
-	}
-	return 4
+	return install.AllowRules(a.has)
 }
 
 func (a answers) services() string {

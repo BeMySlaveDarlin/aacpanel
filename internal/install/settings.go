@@ -252,6 +252,22 @@ var (
 	restartRule = "mcp__aacpanel__session_restart"
 )
 
+// AllowRules is how many allow rules the kit puts into the permissions of an
+// account with the parts has says are checked: the panel's tools with Panel
+// tools, the restart with Self-restart. The plan, the line of a wired account
+// and the demo count by it, so a tool added to the list is counted on every
+// screen that names the number.
+func AllowRules(has func(part string) bool) int {
+	n := 0
+	if has("tools") {
+		n += len(toolRules)
+	}
+	if has("restart") {
+		n++
+	}
+	return n
+}
+
 // Wiring is what the settings of an account are to carry: the parts of the
 // kit, the clone their scripts run from, the state directory.
 type Wiring struct {
