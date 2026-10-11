@@ -606,12 +606,13 @@ def _with_crew(row, path):
     and leaves it with the next message of the person; the row stays as busy
     or as free as the thread is, since codex goes on, and says it asks so.
     The question itself, with its options, goes with the state of the
-    conversation (see codex_ask), as claude's does.
+    conversation (see codex_ask), as claude's does; the row names it by the
+    id its answer goes under, as claude's row does.
     """
     asked = (_crew(path) or {}).get("asked")
     if asked:
         row["ask"] = {"header": "", "text": asked["text"], "count": asked["count"], "at": asked["at"],
-                      "async": True}
+                      "async": True, "toolUseId": asked["id"]}
     working = sum(1 for agent in codex_crew(path) if agent["status"] == ACTIVE)
     if not working:
         return row

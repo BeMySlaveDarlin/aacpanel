@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -109,6 +110,57 @@ func TestAnsweredMarkOutlivesTheScreen(t *testing.T) {
 		{"the mark hides only its own question", `(() => { remember("s13", ` + asked + `); return hidesAsk(recall("s13", 5000), "toolu_2", 5000); })()`, false},
 		{"a new answer replaces the old one", `(() => { remember("s14", ` + asked + `); const m = remember("s14", ` + permit + `); return recall("s14", 5000) === m; })()`, true},
 		{"after a new answer the old question is shown", `(() => { remember("s15", ` + asked + `); remember("s15", ` + permit + `); return hidesAsk(recall("s15", 5000), "toolu_1", 5000); })()`, false},
+	}
+
+	exprs := make([]string, 0, len(cases))
+	for _, c := range cases {
+		exprs = append(exprs, c.expr)
+	}
+	got := runAnsweredJS(t, exprs)
+	for i, c := range cases {
+		if got[i] != c.want {
+			t.Errorf("%s: %s = %v, expected %v", c.name, c.expr, got[i], c.want)
+		}
+	}
+}
+
+// TestAShownRowDropsWhatWasAnswered checks the row as the head and the list
+// draw it: the question an answer from this page went to, named by its id,
+// and the waiting it put the session into leave the row until the snapshot
+// catches up or the ceiling passes; another question, a session never
+// answered and a question codex did not wait for hold nothing else, and every
+// mark set or forgotten tells the screens that listen.
+func TestAShownRowDropsWhatWasAnswered(t *testing.T) {
+	const (
+		asks    = `{ session: "%s", status: "waiting", waitingFor: "input needed", ask: { toolUseId: "toolu_9", at: "x" } }`
+		claude  = `answered({ status: "waiting", waitingFor: "input needed" }, "toolu_9", 1000)`
+		codex   = `answered({ status: "busy" }, "call_9", 1000, "", true)`
+		threads = `{ session: "%s", status: "busy", ask: { async: true, toolUseId: "call_9" } }`
+	)
+	row := func(shape, name string) string { return strings.Replace(shape, "%s", name, 1) }
+	cases := []struct {
+		name string
+		expr string
+		want bool
+	}{
+		{"the answered question leaves the row and the session works on",
+			`(() => { remember("w1", ` + claude + `); const s = shown(` + row(asks, "w1") + `, 5000); return !s.ask && s.status === "busy" && s.waitingFor === ""; })()`, true},
+		{"another question stays on the row",
+			`(() => { remember("w2", ` + claude + `); return Boolean(shown({ session: "w2", status: "busy", ask: { toolUseId: "toolu_8" } }, 5000).ask); })()`, true},
+		{"past the ceiling the snapshot has its word back",
+			`(() => { remember("w3", ` + claude + `); return Boolean(shown(` + row(asks, "w3") + `, 1000 + ANSWER_LAG_MS).ask); })()`, true},
+		{"a session never answered is drawn as the snapshot has it",
+			`(() => { const r = ` + row(asks, "w4") + `; return shown(r, 5000) === r; })()`, true},
+		{"a permission answered no longer has the session waiting",
+			`(() => { remember("w5", answered({ status: "waiting", waitingFor: "dialog open" }, "", 1000)); return shown({ session: "w5", status: "waiting", waitingFor: "dialog open" }, 5000).status; })() === "busy"`, true},
+		{"a question codex did not wait for leaves its thread's row",
+			`(() => { remember("w6", ` + codex + `); const s = shown(` + row(threads, "w6") + `, 5000); return !s.ask && s.status === "busy"; })()`, true},
+		{"a question codex did not wait for holds no waiting of the thread",
+			`lagging(answered({ status: "waiting" }, "call_9", 1000, "", true), { status: "waiting" }, 5000)`, false},
+		{"its mark does not settle on the snapshot",
+			`(() => { const m = ` + codex + `; return settle(m, { status: "idle" }) === m; })()`, true},
+		{"a mark set or forgotten tells the screens that listen, until they stop",
+			`(() => { let n = 0; const off = listen(() => { n += 1; }); remember("w7", ` + codex + `); remember("w7", null); off(); remember("w7", ` + codex + `); return n === 2; })()`, true},
 	}
 
 	exprs := make([]string, 0, len(cases))

@@ -22,7 +22,7 @@ import { contoursOf, personalOf } from "../screens/sessions/map.js";
 import { kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../agent.js";
-import { aboutOf, closedRow, pastModel, stateOf, stopsOf, waitsOf } from "../screens/sessions/blocks.js";
+import { aboutOf, closedRow, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
 import { effortName, modeLoud, modeName, usualMode } from "../screens/chat/picker.js";
@@ -646,6 +646,9 @@ function sectionOfTask(task, map, sections) {
 
 export function SessionColumn({ snapshot, profiles, limits, current, currentId, onPick, picks, setPicks, onNames, onOrder, onArchive, exec, wait }) {
     const all = (snapshot && snapshot.sessions) || [];
+    // A row stops waiting with the head of its conversation, not at the next
+    // snapshot.
+    useAnswers();
 
     const map = (snapshot && snapshot.profileMap) || [];
     const names = useMemo(() => {

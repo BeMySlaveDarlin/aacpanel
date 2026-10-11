@@ -489,9 +489,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     ? html`<p class="outsidenote">${outsideNote(live)}</p>`
                     : asksTurn
                     ? html`<${Ask} ask=${ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
-                                   onAnswered=${(use, text) => (goesOn
-                                       ? sentAnswer(use, text)
-                                       : mark(answered(live, use, Date.now(), ask.at)))} />`
+                                   onAnswered=${(use, text) => {
+                                       if (goesOn) sentAnswer(use, text);
+                                       mark(answered(live, use, Date.now(), ask.at, goesOn));
+                                   }} />`
                     : permits
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)}
                                       onAnswered=${() => mark(answered(live, ""))} />`

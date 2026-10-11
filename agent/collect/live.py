@@ -327,6 +327,9 @@ def sessions():
             if state and sid:
                 asked.BOOK.answered(sid, set(state.answered), state.ended, state.prompted)
             ask = asked.BOOK.of(sid) if sid else None
+            # The row names the question by the id its answer goes under: a
+            # screen that answered it stops saying the session asks before
+            # the next snapshot drops the question.
             if ask:
                 first = (ask.get("questions") or [{}])[0]
                 s["ask"] = {
@@ -334,6 +337,7 @@ def sessions():
                     "text": first.get("text") or "",
                     "count": len(ask.get("questions") or []),
                     "at": ask.get("at") or "",
+                    "toolUseId": ask.get("toolUseId") or "",
                 }
             if busy:
                 work = work_of(ctx.with_codex_runs(busy, runs))

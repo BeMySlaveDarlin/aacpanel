@@ -28,13 +28,27 @@ type askScreen struct {
 	Word     string `json:"word"`
 }
 
+// standing is how a session stands on the screen: the word in the head of its
+// conversation, and its row in the column of sessions beside it.
+type standing struct {
+	Word string `json:"word"`
+	Row  *struct {
+		Tone string `json:"tone"`
+		Said string `json:"said"`
+	} `json:"row"`
+}
+
 type codexAsyncRun struct {
 	Claude struct {
 		Label    string   `json:"label"`
 		Skeleton []string `json:"skeleton"`
 		Foot     bool     `json:"foot"`
 	} `json:"claude"`
-	Codex struct {
+	ClaudeAsks     standing     `json:"claudeAsks"`
+	ClaudeSent     []sentAction `json:"claudeSent"`
+	ClaudeAnswered standing     `json:"claudeAnswered"`
+	CodexAsks      standing     `json:"codexAsks"`
+	Codex          struct {
 		Label    string   `json:"label"`
 		Skeleton []string `json:"skeleton"`
 		Send     string   `json:"send"`
@@ -50,7 +64,8 @@ type codexAsyncRun struct {
 	} `json:"picked"`
 	Posted []sentAction `json:"posted"`
 	Going  struct {
-		Card *askedCardShot `json:"card"`
+		Card   *askedCardShot `json:"card"`
+		Stands standing       `json:"stands"`
 		askScreen
 	} `json:"going"`
 	Read struct {
@@ -80,6 +95,33 @@ type codexAsyncRun struct {
 		Open  []string `json:"open"`
 		Going []string `json:"going"`
 	} `json:"rows"`
+}
+
+// TestAnAnsweredSessionStopsWaitingAtOnce answers a question of claude's and
+// one codex asked without waiting while the snapshot the screen holds goes on
+// showing both: the head of the conversation and the row of the session in
+// the column beside it stop saying it waits, or asks, the moment the answer
+// has gone, and say it works on the answer — the snapshot takes seconds to
+// catch up, and the person has answered already.
+func TestAnAnsweredSessionStopsWaitingAtOnce(t *testing.T) {
+	var got codexAsyncRun
+	runFixture(t, "codexasync.html", &got)
+
+	stands := func(what string, s standing, word, tone string) {
+		t.Helper()
+		if s.Word != word || s.Row == nil || s.Row.Tone != tone {
+			t.Errorf("%s: the head says %q and the row stands %+v, want %q and the tone %s", what, s.Word, s.Row, word, tone)
+		}
+	}
+	stands("claude asks", got.ClaudeAsks, "waiting for you", "wait")
+	want := []sentAction{{Kind: "session.answer", Target: "site",
+		Params: map[string]any{"ask": "toolu_theme", "picks": []any{[]any{2.0}}}}}
+	if !reflect.DeepEqual(got.ClaudeSent, want) {
+		t.Fatalf("claude's question was answered with %+v, want %+v", got.ClaudeSent, want)
+	}
+	stands("claude answered", got.ClaudeAnswered, "answering", "busy")
+	stands("codex asks", got.CodexAsks, "asks you", "wait")
+	stands("codex answered", got.Going.Stands, "answering", "busy")
 }
 
 const (

@@ -4,10 +4,13 @@
 <style>html,body{height:100%;margin:0}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
+<div id="column" style="display:none"></div>
 <script type="module">
 // A question codex asked without waiting beside the question of claude's it
 // is answered as. Claude on the stream asks which theme a page takes, and its
-// sheet is read; then a codex thread that asked the same nine hours of work
+// sheet is read and answered: the head of the conversation and the row in the
+// column of sessions beside it stop saying it waits at once, while the
+// snapshot still shows the question. Then a codex thread that asked the same nine hours of work
 // ago — the question far above the end of the feed the screen holds, and the
 // row only saying the thread asks — offers it in the same sheet. A pick, a
 // note and Send go as one message naming the question, its words the answer
@@ -28,6 +31,7 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
 import { rows } from "/src/screens/chat/feed.js";
 import { asyncAnswer, panelSaid } from "/src/screens/chat/panelsaid.js";
 
@@ -45,7 +49,7 @@ const claudeAsk = {
 const claude = {
     session: "site", sessionId: claudeAsk.sessionId, profile: "acme", status: "waiting", waitingFor: "input needed",
     transport: "stream", model: "claude-opus-5-5", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/site",
-    ask: { header: "Theme", text: THEME, count: 1, at: ago(1) },
+    ask: { header: "Theme", text: THEME, count: 1, at: claudeAsk.at, toolUseId: "toolu_theme" },
 };
 // The same session once the round is answered: its card in the feed.
 const claudeDone = { ...claude, session: "site-done", status: "idle", waitingFor: "", ask: undefined };
@@ -61,7 +65,8 @@ const codexAsk = {
 const codex = {
     session: "codex-0000abcd", sessionId: THREAD, profile: "acme", agent: "codex", transport: "stream",
     status: "busy", model: "gpt-6-astra", tokens: 94000, limit: 272000, pct: 34.9, cwd: "/srv/site",
-    lastRequestAt: ago(1), ask: { header: "", text: THEME, count: 1, at: ago(540), async: true },
+    lastRequestAt: ago(1),
+    ask: { header: "", text: THEME, count: 1, at: codexAsk.at, async: true, toolUseId: "call_ask_theme" },
 };
 // A second thread that asked two questions together.
 const twoAsk = {
@@ -73,7 +78,7 @@ const twoAsk = {
 };
 const two = {
     ...codex, session: "codex-0000ef01", sessionId: "01a12345-0000-7000-8000-00000000ef01", status: "idle",
-    ask: { header: "", text: "And the footer?", count: 2, at: ago(30), async: true },
+    ask: { header: "", text: "And the footer?", count: 2, at: twoAsk.at, async: true, toolUseId: "call_ask_logo" },
 };
 setLiveSessions([claude, codex, two]);
 
@@ -108,7 +113,9 @@ const feeds = {
 };
 
 const posted = [];
-const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
+const sentTo = (target) => posted.filter((r) => r.target === target)
+    .map((r) => ({ kind: r.kind, target: r.target, params: r.params }));
+const json =(b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/actions") && init && init.method === "POST") {
@@ -195,6 +202,20 @@ const screen = () => ({
     word: text(one(".chathead .talkword")),
 });
 
+// The column of sessions a desk shows beside the conversation, given the
+// snapshot once: what changes in it after an answer comes from the answer.
+const column = document.getElementById("column");
+render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: Date.now() / 1000, sessions: [claude, codex], profileMap: [], limits: null, host: { home: "/home/u" } },
+    profiles: { profiles: [] }, limits: null, current: "", currentId: "", onPick() {}, picks: [], setPicks() {},
+    onNames() {}, onOrder() {}, onArchive() {}, exec, wait: null,
+}))), column);
+const rowOf = (name) => {
+    const row = Array.from(column.querySelectorAll(".dklive")).find((r) => text(r.querySelector(".dkname")) === name);
+    return row ? { tone: row.dataset.tone, said: text(row.querySelector(".dksessmain")) } : null;
+};
+const stands = (name) => ({ word: text(one(".chathead .talkword")), row: rowOf(name) });
+
 const show = async (live) => {
     render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${live.session} id=${live.sessionId} live=${live}
         exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
@@ -212,6 +233,16 @@ window.done = (async () => {
                    foot: Boolean(sheet().querySelector(".askfoot")) };
     if (mode === "claude") return {};
 
+    // Claude's question answered: a single one goes at the tap. The snapshot
+    // the screen holds still says the session waits on it.
+    out.claudeAsks = stands("site");
+    Array.from(sheet().querySelectorAll(".askopts .askopt:not(.askown) .askpick"))
+        .find((b) => text(b) === "Dark").click();
+    if (!await until(() => sentTo("site").length > 0 && !sheet())) throw new Error("claude's answer did not go");
+    await settled();
+    out.claudeSent = sentTo("site");
+    out.claudeAnswered = stands("site");
+
     await show(codex);
     if (!await until(() => sheet() && one(".chatfeed .msg"))) throw new Error("codex's question did not come");
     await settled();
@@ -219,13 +250,14 @@ window.done = (async () => {
     out.codex = { label: text(sheet().querySelector(".asklabel")), skeleton: skeleton(sheet(), ".askfoot"),
                   send: text(go()), sendOff: Boolean(go() && go().disabled),
                   drop: text(sheet().querySelector(".askdropwhy")), ...screen() };
+    out.codexAsks = stands("codex-0000abcd");
     if (mode === "codex") return {};
 
     sheet().querySelectorAll(".askopts .askopt:not(.askown) .askpick")[1].click();
     if (!await until(() => sheet() && sheet().querySelector(".asknote"))) throw new Error("no note beside the pick");
     await settled();
     out.picked = {
-        posted: posted.length,
+        posted: sentTo("codex-0000abcd").length,
         on: Array.from(sheet().querySelectorAll(".askopts .askopt:not(.askown)")).map((o) => o.classList.contains("on")),
         send: text(go()), sendOff: go().disabled,
     };
@@ -236,18 +268,18 @@ window.done = (async () => {
     if (mode === "codexnote") return {};
 
     go().click();
-    if (!await until(() => posted.length > 0 && lastCard() && one(".composer textarea"))) {
+    if (!await until(() => sentTo("codex-0000abcd").length > 0 && lastCard() && one(".composer textarea"))) {
         throw new Error("the answer did not go");
     }
     // A second message, if the sheet sent one, has the time to show itself.
     await sleep(300);
-    out.posted = posted.map((r) => ({ kind: r.kind, target: r.target, params: r.params }));
-    out.going = { card: card(), ...screen() };
+    out.posted = sentTo("codex-0000abcd");
+    out.going = { card: card(), ...screen(), stands: stands("codex-0000abcd") };
     if (mode === "codexgoing") return {};
 
     // The thread read the answer: the transcript has the message, and the
     // state no longer carries the question.
-    emit("chat", { items: [{ role: "me", pos: 99000, text: posted[0].params.text, at: new Date().toISOString() }],
+    emit("chat", { items: [{ role: "me", pos: 99000, text: out.posted[0].params.text, at: new Date().toISOString() }],
                    total: 2414 });
     emit("state", { tasks: [], agents: [] });
     if (!await until(() => lastCard() && !lastCard().parentElement.querySelector(".mstamp"))) {
@@ -268,10 +300,11 @@ window.done = (async () => {
     await settled();
     out.two = { steps: sheet().querySelectorAll(".asksteps i").length, label: text(sheet().querySelector(".asklabel")) };
     sheet().querySelector(".askdrop").click();
-    if (!await until(() => posted.length > 1 && lastCard())) throw new Error("putting the questions away sent nothing");
+    if (!await until(() => sentTo("codex-0000ef01").length > 0 && lastCard())) {
+        throw new Error("putting the questions away sent nothing");
+    }
     await sleep(300);
-    out.putAway = { posted: posted.slice(1).map((r) => ({ kind: r.kind, target: r.target, params: r.params })),
-                    card: card(), ...screen() };
+    out.putAway = { posted: sentTo("codex-0000ef01"), card: card(), ...screen() };
 
     // The feed alone. An answer of two questions, one with a note of two
     // lines and one in words of several, reads back as it was written.

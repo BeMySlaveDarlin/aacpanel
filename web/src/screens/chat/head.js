@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { waitText } from "../../ui/waits.js";
+import { shown } from "./answered.js";
 
 // Marquee renders a heading that does not fit as a running line.
 export function Marquee({ text }) {
@@ -66,14 +67,17 @@ export function shortPath(cwd) {
 // line a pointer or a screen reader gets, and the word that stands beside the
 // dot where a line has no room. still is the time the data stood still at
 // (see useAsOf): a state read off a snapshot nobody refreshes is not said as
-// if it were now, it is dated.
-export function stateOf(live, still = null, move = null) {
+// if it were now, it is dated. A question or a permission answered from this
+// page no longer has the session waiting, whatever the snapshot has not caught
+// up with yet (see shown in answered.js).
+export function stateOf(row, still = null, move = null) {
     // A session on its way to tmux or the stream is gone from the snapshot for
     // a while, and that is the move, not the end of it.
     if (move) {
         return { tone: "busy", say: move.to === "console" ? "moving to tmux" : "moving to the stream", word: "moving" };
     }
-    if (!live) return { tone: "off", say: "the conversation is gone", word: "closed" };
+    if (!row) return { tone: "off", say: "the conversation is gone", word: "closed" };
+    const live = shown(row);
     if (still !== null) {
         return still
             ? { tone: "off", say: `no fresh data since ${still} — the session may stand otherwise now`, word: `as of ${still}` }

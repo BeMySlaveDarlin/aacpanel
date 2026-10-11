@@ -1096,7 +1096,8 @@ class AsyncQuestions(Runtime):
         self.follow(busy=True)
         row = ctx.codex_sessions()[0]
         self.assertEqual(row.get("ask"), {"header": "", "text": "Should the logo stay?", "count": 1,
-                                          "at": "2026-10-09T14:00:15.000Z", "async": True},
+                                          "at": "2026-10-09T14:00:15.000Z", "async": True,
+                                          "toolUseId": "call_ask_logo"},
                          "the question answered by the next message is gone, the last one hangs, "
                          "said on the row as claude's is")
         self.assertEqual(row["status"], "busy", "codex goes on: a question it did not wait for holds nothing")

@@ -207,6 +207,30 @@ class Sessions(unittest.TestCase):
         self.assertNotIn("ask", row, "the row still offers a question nobody can answer")
         self.assertIsNone(asked.BOOK.of(UUID_A))
 
+    def test_a_question_that_hangs_is_named_on_the_row_by_its_id(self):
+        # The screen that answered a question stops saying the session asks
+        # before the next snapshot drops it: it knows the question by its id.
+        state = sesstate.State()
+
+        class Cache:
+            def state(self, path, born=None):
+                return state
+
+            def forget(self, alive):
+                pass
+
+        self.addCleanup(setattr, agent, "SESSION_STATE", agent.SESSION_STATE)
+        agent.SESSION_STATE = Cache()
+        at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        asked.BOOK.put({"sessionId": UUID_A, "toolUseId": "toolu_next", "at": at,
+                        "questions": [{"text": "What next?", "header": "Next"}]})
+        self.addCleanup(asked.BOOK.drop, UUID_A)
+        path = f"/home/x/.claude/projects/-opt-p/{UUID_A}.jsonl"
+        self.rows({"session": "aacpanel", "sessionId": UUID_A, "transcript": path})
+        row = agent.sessions()["sessions"][0]
+        self.assertEqual(row.get("ask"), {"header": "Next", "text": "What next?", "count": 1,
+                                          "at": at, "toolUseId": "toolu_next"})
+
     def test_the_birth_of_the_process_reaches_the_session_state(self):
         seen = []
 

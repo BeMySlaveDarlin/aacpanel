@@ -11,7 +11,7 @@ import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
 import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
-import { blocksOf, ProjectBlock, RANK, SessionSheet } from "./sessions/blocks.js";
+import { blocksOf, ProjectBlock, RANK, SessionSheet, useAnswers } from "./sessions/blocks.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
@@ -49,6 +49,7 @@ const RECENT_ASK = 20;
 // Sessions renders the sessions tab.
 export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage, onTerm }) {
     const [project, setProject] = useState(null);
+    useAnswers();
 
     const profiles = (snapshot && snapshot.profileMap) || [];
     const limits = (snapshot && snapshot.limits) || null;

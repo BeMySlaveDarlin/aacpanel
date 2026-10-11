@@ -284,10 +284,8 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 			"the next feed poll brings the answered question back until the agent has seen tool_result", chatFile)
 	}
 
-	// The answer to a question codex did not wait for goes as a message and
-	// stands as one; every other answer sets the mark.
 	for _, want := range []string{
-		`: mark(answered(live, use, Date.now(), ask.at)))}`,
+		`mark(answered(live, use, Date.now(), ask.at, goesOn));`,
 		`onAnswered=${() => mark(answered(live, ""))}`,
 	} {
 		if !strings.Contains(body, want) {

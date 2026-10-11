@@ -3,7 +3,7 @@
 // holds a project's live sessions as rows and its last conversation, and the
 // list puts first what needs the person, then what is working, then the rest.
 
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { ago, plural, since, tokens } from "../../format.js";
@@ -21,6 +21,7 @@ import { kinLabel, kinOf, layoutOf, openedLabel, outsideNote, placeOf } from "./
 import { useFolds } from "./folds.js";
 import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, noTurn, shownName, spoke } from "../../agent.js";
 import { modelTitle } from "../chat/head.js";
+import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
 
 // The order of the list: who waits for the person, who works, who is quiet.
@@ -37,8 +38,11 @@ const ABOUT_MIN = 12;
 // stateOf says what a live session is doing, in the words and the tone of the
 // row that shows it: since is all that follows the state on one line, and
 // when and work are its two halves — since when, and what runs in the
-// background — for a row that gives each a line of its own.
-export function stateOf(s) {
+// background — for a row that gives each a line of its own. A question or a
+// permission answered from this page no longer has the session waiting,
+// whatever the snapshot has not caught up with yet (see shown in answered.js).
+export function stateOf(row) {
+    const s = shown(row);
     if (s.ask) {
         const more = s.ask.count > 1 ? `${s.ask.count} ${plural(s.ask.count, "question", "questions")}` : "";
         return { tone: "wait", text: `asks you${s.ask.header ? ` · ${s.ask.header}` : ""}`, since: more, when: more, work: "" };
@@ -56,6 +60,15 @@ export function stateOf(s) {
     if (s.noRequests) return { tone: "idle", text: "no requests yet", since: work, when: "", work };
     const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
     return { tone: "idle", text: "idle", since: [when, work].filter(Boolean).join(" · "), when, work };
+}
+
+// useAnswers redraws a list of sessions when an answer from this page marks a
+// session answered, or the mark goes: the list stands beside the conversation
+// at a desk, and the row should stop waiting with the head of it, not at the
+// next snapshot.
+export function useAnswers() {
+    const [, redraw] = useState(0);
+    useEffect(() => listen(() => redraw((n) => n + 1)), []);
 }
 
 // stopsOf names what a close or a restart of a live session ends with it: its
@@ -254,7 +267,7 @@ export function waitsOf(kids) {
     const waiting = kids.filter((s) => stateOf(s).tone === "wait");
     if (waiting.length === 0) return "";
     if (waiting.length > 1) return `${waiting.length} wait for you`;
-    return `${shownName(waiting[0])} ${waiting[0].ask ? "asks you" : "waits"}`;
+    return `${shownName(waiting[0])} ${shown(waiting[0]).ask ? "asks you" : "waits"}`;
 }
 
 // closedRow is the latest closed conversation of a session, by its name, among
