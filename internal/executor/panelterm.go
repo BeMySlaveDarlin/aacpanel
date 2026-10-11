@@ -132,11 +132,19 @@ func panelTerms(ctx context.Context) ([]action.Term, error) {
 	return list, nil
 }
 
-// noTmuxServer tells a server that is not running, or was never started, from
-// a failure: either way there are no terminals.
+// noTmuxServer tells a server that is not running, was never started, or went
+// while it was asked from a failure: either way there is nothing on it.
+//
+// A server goes by itself once its last session is closed and its last client
+// has left, and a client that dialled it in that last moment sits in the queue
+// of a socket nobody accepts from any more: the server's exit drops it, and
+// tmux answers "server exited unexpectedly". The terminals listed right after
+// the last one was closed meet exactly that, in a few lists out of a hundred on
+// a busy host.
 func noTmuxServer(err error) bool {
 	msg := err.Error()
-	return strings.Contains(msg, "no server running") || strings.Contains(msg, "error connecting to")
+	return strings.Contains(msg, "no server running") || strings.Contains(msg, "error connecting to") ||
+		strings.Contains(msg, "server exited unexpectedly")
 }
 
 // findPanelTerm finds a terminal of the panel by its id: the id has the form

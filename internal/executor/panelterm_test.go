@@ -223,11 +223,12 @@ func TestPanelTermsWithoutAServerAreNone(t *testing.T) {
 	for _, said := range []string{
 		"no server running on /tmp/tmux-1000/aacpanel-term",
 		"error connecting to /tmp/tmux-1000/aacpanel-term (No such file or directory)",
+		"server exited unexpectedly",
 	} {
 		failingTmux(t, said)
 		list, err := panelTerms(t.Context())
 		if err != nil || len(list) != 0 {
-			t.Errorf("%q: %v, %v — a server nobody started yet is no terminals, not a failure", said, list, err)
+			t.Errorf("%q: %v, %v — a server nobody started yet, or one that went as it was asked, is no terminals, not a failure", said, list, err)
 		}
 	}
 
