@@ -165,7 +165,7 @@ func TestThePanelStopsTheObserverOfAThreadOfCodex(t *testing.T) {
 // Losing a letter transport must not leave the work running, or report that
 // the waiting session learned of its end.
 func TestAPanelStopSaysWhenTheSessionCannotTakeLetters(t *testing.T) {
-	for _, transport := range []string{"tmux", "old holder", "failed letter"} {
+	for _, transport := range []string{"missing tmux pane", "old holder", "failed letter"} {
 		t.Run(transport, func(t *testing.T) {
 			f := onTheStream(t, false)
 			e := New(nil, "")
@@ -180,7 +180,8 @@ func TestAPanelStopSaysWhenTheSessionCannotTakeLetters(t *testing.T) {
 			id := onlyEntry(t, dir, "")
 			alarm := onlyEntry(t, filepath.Join(filepath.Dir(dir), "alarms"), ".json")
 			switch transport {
-			case "tmux":
+			case "missing tmux pane":
+				fakeTmux(t, nil, "")
 				if err := os.Remove(stream.StatePath(streamSID)); err != nil {
 					t.Fatal(err)
 				}
@@ -202,7 +203,7 @@ func TestAPanelStopSaysWhenTheSessionCannotTakeLetters(t *testing.T) {
 				if err != nil || !strings.Contains(detail, "the session was not notified") {
 					t.Errorf("%s: %q, %v", item.kind, detail, err)
 				}
-				if transport == "tmux" && !strings.Contains(detail, "tmux") {
+				if transport == "missing tmux pane" && !strings.Contains(detail, "tmux") {
 					t.Errorf("the answer hides the transport: %s", detail)
 				}
 			}

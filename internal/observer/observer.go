@@ -175,6 +175,8 @@ type Owner struct {
 	PID          int    `json:"pid,omitempty"`
 	Start        string `json:"procStart,omitempty"`
 	Codex        bool   `json:"codex,omitempty"`
+	// A stream owner keeps requiring its holder if that holder disappears.
+	Tmux bool `json:"tmux,omitempty"`
 }
 
 // Same says whether two owners are one session.

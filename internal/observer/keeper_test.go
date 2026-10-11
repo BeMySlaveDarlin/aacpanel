@@ -89,6 +89,7 @@ type fakeOwners struct {
 	alive   bool
 	unknown bool
 	refuse  error
+	wakeErr error
 	wakes   []string
 	from    []string
 }
@@ -110,7 +111,7 @@ func (f *fakeOwners) Wake(_ context.Context, _ Owner, from, text string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.wakes, f.from = append(f.wakes, text), append(f.from, from)
-	return nil
+	return f.wakeErr
 }
 
 func (f *fakeOwners) got() []string {
@@ -462,6 +463,62 @@ func TestACodexDaemonsAbsenceIsBoundedForObserversAndAlarms(t *testing.T) {
 			}
 			if !units.wasStopped(v.Unit) {
 				t.Error("the expired observer's command still runs")
+			}
+		})
+	}
+}
+
+// A dialog refusal uses the same budget as every failed delivery. Lines and
+// a due ring stay pending until delivery succeeds or the attempt limit is
+// spent; a failure never counts as a wake the session received.
+func TestRefusedWakesKeepTheirLinesAndRingsUntilTheAttemptLimit(t *testing.T) {
+	for _, recover := range []bool{false, true} {
+		name := "the dialog stays open"
+		if recover {
+			name = "the composer comes back"
+		}
+		t.Run(name, func(t *testing.T) {
+			k, owners, clock, _ := alarmed(t)
+			owners.wakeErr = errors.New("the dialog has the keyboard")
+			if _, err := k.SetAlarm(t.Context(), lab, AlarmAsk{Name: "poll", Every: "1m"}); err != nil {
+				t.Fatal(err)
+			}
+			var ring *ringing
+			for _, r := range k.alarms {
+				ring = r
+			}
+			clock.move(time.Minute)
+			due := ring.rec.Next
+			w := &watch{rec: Record{Owner: ring.rec.Owner, Spec: Spec{Name: "ci", Wake: EveryLine}},
+				batch: []string{"the run finished"}, end: &Ending{}}
+			for attempt := 1; attempt < wakeTries; attempt++ {
+				k.wake(t.Context(), w, &w.rec, true)
+				k.lookAtAlarm(t.Context(), ring)
+				if w.tries != attempt || w.rec.Woken != 0 || !w.rec.LastWake.IsZero() || w.rec.Ended != nil ||
+					!slices.Equal(w.batch, []string{"the run finished"}) {
+					t.Fatalf("attempt %d consumed the refused observer wake: %+v", attempt, w)
+				}
+				if ring.tries != attempt || ring.rec.Rang != 0 || !ring.rec.LastRing.IsZero() || !ring.rec.Next.Equal(due) {
+					t.Fatalf("attempt %d consumed the refused ring: %+v", attempt, ring)
+				}
+			}
+			if recover {
+				owners.wakeErr = nil
+			}
+			k.wake(t.Context(), w, &w.rec, true)
+			k.lookAtAlarm(t.Context(), ring)
+			if w.tries != 0 || len(w.batch) != 0 || w.rec.Ended == nil || ring.tries != 0 || !ring.rec.Next.After(due) {
+				t.Fatal("the last attempt did not retire the wake and move the repeat on")
+			}
+			want := 0
+			if recover {
+				want = 1
+			}
+			if w.rec.Woken != want || ring.rec.Rang != want || w.rec.LastWake.IsZero() == recover || ring.rec.LastRing.IsZero() == recover {
+				t.Errorf("received wakes: observer %d, alarm %d; want %d", w.rec.Woken, ring.rec.Rang, want)
+			}
+			if len(owners.got()) != 2*wakeTries {
+				t.Errorf("the two wakes made %d attempts, want %d", len(owners.got()), 2*wakeTries)
 			}
 		})
 	}

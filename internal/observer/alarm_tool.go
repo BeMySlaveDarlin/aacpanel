@@ -39,8 +39,7 @@ func alarmSetDescription(busy string) string {
 		"it is back, and says it is late. It does not outlive this session: when the session closes or starts " +
 		"again, its alarms end, and a session started again sets its own. A repeat is " + spanWords(EveryMin) +
 		" apart at least, the first ring " + fmt.Sprint(AheadDays) + " days ahead at most, and a session keeps " +
-		fmt.Sprint(AlarmsPerSession) + " alarms. Only a session on the stream or a thread of codex is woken: a " +
-		"session in tmux is refused, with the reason."
+		fmt.Sprint(AlarmsPerSession) + " alarms. " + wakeTransports
 }
 
 // The list's and the cancel's own words to the model.

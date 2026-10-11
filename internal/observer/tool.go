@@ -50,13 +50,16 @@ func startDescription(busy string) string {
 		"session's PATH and nothing else of its environment, and its output goes to a log observer_tail reads. " +
 		"It is held to a few hundred megabytes and a twentieth of a core: it is for a command that waits and " +
 		"polls (gh run watch, tail -F with grep, a loop of curl and sleep), not for a build. A session keeps " +
-		fmt.Sprint(PerSession) + " observers at most. Only a session on the stream or a thread of codex is " +
-		"woken: a session in tmux is refused, with the reason."
+		fmt.Sprint(PerSession) + " observers at most. " + wakeTransports
 }
 
 const (
-	claudeBusy = "a busy session reads it once its turn is over."
-	codexBusy  = "a busy thread reads it at the next step of the turn that runs."
+	claudeBusy     = "on the stream, a busy session reads it once its turn is over."
+	codexBusy      = "a busy thread reads it at the next step of the turn that runs."
+	wakeTransports = "A stream session takes the letter through its holder, a codex thread through its daemon. " +
+		"In tmux the panel types the wake, with its origin, into the composer after reading the pane. " +
+		"An open dialog or an unreadable screen gets no keys: the wake is refused and follows the bounded " +
+		"failed-wake retries. A stream holder that cannot take letters requires a session restart."
 )
 
 // The tools' own words to the model, the start's aside.

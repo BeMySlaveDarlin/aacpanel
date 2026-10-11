@@ -1419,23 +1419,31 @@ without prompts, and nobody is there to let it through, so the holder names
 the session's own class — bypass for one that runs tools without asking, plan
 mode entered from it among them, prompting otherwise. A thread of codex gets it
 through its daemon, as a letter of another session goes: into the turn that
-runs, and as a turn of its own on a free thread. **A session in tmux is
-refused**: a terminal takes a wake only as keys, and its model reads keys as
-its person's words. So is a session on the stream whose holder was started
-before holders took letters; its restart brings it, and its observers would
-end with that restart anyway.
+runs, and as a turn of its own on a free thread. **In tmux the letter is typed
+into the composer**, with its origin written before the envelope so the model
+knows the person did not type it. Control characters in command output are
+written as visible escapes so a log cannot become terminal keys. The executor
+uses the composer's typing path and its decision about which screen owns the
+keyboard. It reads the pane before every write, including clearing the line
+and pressing Enter after the text:
+an open permission, selector, question or plan approval gets no keys. An
+unreadable screen is refused too. A refusal follows the keeper's existing
+failed-wake path: the wake stays pending, each failure spends an attempt, and
+after ten failed attempts its lines or ring are dropped with a log entry. A
+session on the stream whose holder cannot take letters is refused at the
+start; restarting the session brings a holder that can.
 
 **An observer ends with the session that started it.** It belongs to the
 process of a claude, by its pid and the start of it, and to the thread of a
 codex; the executor looks at every observer each second, and three looks in a
 row that find its session gone stop the unit and take its directory away.
 That is one rule for every way a session ends: a close, a restart, the restart
-past the context cap, a move to tmux, a holder that died — each leaves no
-holder of that process, or another process under the name — and a thread the
-panel closed or its daemon let go. A session started again knows nothing of
-what the one before it waited for, and a command nobody waits on is a process
-left on the host. A thread of codex whose daemon is down cannot be told from
-one that is gone, so its observers wait for at most one hour. The first look
+past the context cap, a move between tmux and the stream, a holder that died —
+each leaves no process or stream holder, or another process under the name —
+and a thread the panel closed or its daemon let go. A session started again
+knows nothing of what the one before it waited for, and a command nobody waits
+on is a process left on the host. A thread of codex whose daemon is down cannot
+be told from one that is gone, so its observers wait for at most one hour. The first look
 that reaches that limit stops them and records why in the executor's journal.
 The start of the absence is kept on disk: restarting the executor does not
 renew the hour. A daemon that answers again clears the deadline; until it
@@ -1450,10 +1458,10 @@ rings it from the same look that reads the logs of the observers, once a
 second, with the same letter, signed by the alarm and carrying the note the
 session left itself. `alarm_list` and `alarm_cancel` read and end the alarms
 of the session that calls them and no other's. The three go through the
-observers' socket and the same check of the caller — only a session on the
-stream or a thread of codex, a session in tmux and an old holder refused for
-the same reasons — and are allowed without asking: they run nothing and touch
-only what the session set.
+observers' socket and the same check of the caller — a session on the stream,
+one in tmux or a thread of codex, with an old stream holder refused — and are
+allowed without asking: they run nothing and touch only what the session set.
+The same composer check and failed-wake retries govern a ring typed into tmux.
 
 **An alarm outlives the executor, not its session.** Each alarm is a file
 under `~/.local/state/aacpanel/alarms/`, beside the directories of the
@@ -1495,10 +1503,10 @@ end with it. A press ends one through an action of the executor,
 only for the conversation of the session the action names. The session gets
 one letter saying which observer was stopped or which alarm was cancelled
 from the panel, through the same path as a wake. A stop by the session's own
-tool sends no letter. A session in tmux, an old holder or a failed delivery
-still leaves the work ended; the action's answer says the session was not
-notified. A thread of codex has the same list behind a chip
-of its own, shown while it has something to list.
+tool sends no letter. A tmux dialog, an old holder or a failed delivery still
+leaves the work ended; the action's answer says the session was not notified.
+A thread of codex has the same list behind a chip of its own, shown while it
+has something to list.
 
 ---
 
