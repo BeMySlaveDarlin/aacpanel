@@ -8,6 +8,15 @@ import (
 	"time"
 )
 
+// patient is a client of the stand that gives the executor the minute a
+// client takes by default. The tests here ask what fits in one request of the
+// socket, and the stand's few seconds would time instead how fast a loaded
+// runner encodes and parses tens of megabytes: how long the executor waits for
+// the bytes of a request is the server's to say, and its own tests say it.
+func patient(s *stand) *Client {
+	return NewClient(s.socket, time.Minute)
+}
+
 // A batch at its ceiling with a copy for the feed beside every file still
 // fits in one request of the socket.
 func TestSocketCarriesBiggestPackWithCopies(t *testing.T) {
@@ -31,7 +40,7 @@ func TestSocketCarriesBiggestPackWithCopies(t *testing.T) {
 		files = append(files, File{Name: fmt.Sprintf("IMG_%04d.HEIC", i), Data: data, Preview: preview})
 	}
 	req := Request{ID: "a1", Kind: SessionFile, Target: "aacpanel", Files: files}
-	resp, err := stand.client.Do(context.Background(), req)
+	resp, err := patient(stand).Do(context.Background(), req)
 	if err != nil {
 		t.Fatalf("a batch with copies at the ceiling does not pass through the socket: %v", err)
 	}
@@ -66,7 +75,7 @@ func TestSocketCarriesBiggestFile(t *testing.T) {
 		data[i] = byte(i)
 	}
 	req := Request{ID: "a1", Kind: SessionFile, Target: "aacpanel", Files: []File{{Name: "big.bin", Data: data}}}
-	resp, err := stand.client.Do(context.Background(), req)
+	resp, err := patient(stand).Do(context.Background(), req)
 	if err != nil {
 		t.Fatalf("a file at the size limit does not pass through the socket: %v", err)
 	}

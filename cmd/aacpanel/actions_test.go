@@ -55,7 +55,11 @@ func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExe
 		}
 	}()
 
-	return action.NewClient(sock, 5*time.Second), f
+	// The client keeps the service's own budget. The fake stands for the
+	// executor, and a shorter one would time how fast a loaded runner
+	// encodes and parses a batch of tens of megabytes rather than what the
+	// service makes of it.
+	return action.NewClient(sock, execTimeout), f
 }
 
 func post(t *testing.T, srv *Server, body string) *httptest.ResponseRecorder {
@@ -474,43 +478,10 @@ func TestRunActionCarriesEveryFileToExecutor(t *testing.T) {
 	}
 }
 
-func TestRunActionSendsBiggestPack(t *testing.T) {
-	client, fake := startFakeExec(t, action.Response{OK: true})
-	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
-
-	const parts = 4
-	items := make([]string, 0, parts)
-	for i := range parts {
-		raw := make([]byte, action.FilesBytesMax/parts)
-		for j := range raw {
-			raw[j] = byte(i + j)
-		}
-		items = append(items, `{"name":"part`+strconv.Itoa(i)+`.bin","data":"`+
-			base64.StdEncoding.EncodeToString(raw)+`"}`)
-	}
-	body := `{"kind":"session.file","target":"aacpanel","params":{"files":[` + strings.Join(items, ",") + `]}}`
-	if w := post(t, srv, body); w.Code != http.StatusOK {
-		t.Fatalf("a batch at the weight ceiling was rejected: status %d, body %s", w.Code, w.Body.String())
-	}
-	select {
-	case got := <-fake.got:
-		if len(got.Files) != parts {
-			t.Fatalf("%d attachments out of %d reached the executor", len(got.Files), parts)
-		}
-		total := 0
-		for _, f := range got.Files {
-			total += len(f.Data)
-		}
-		if total != action.FilesBytesMax {
-			t.Errorf("%d bytes out of %d arrived", total, action.FilesBytesMax)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("the executor did not get the request")
-	}
-}
-
-// The copies for the feed ride beside the files: a batch at its ceiling with
-// a copy at its own beside every file is still taken.
+// A batch at its ceiling — as many files as travel at once, weighing all a
+// batch may — is taken, and the copies for the feed ride beside the files: a
+// copy at its own ceiling beside every file does not count against the
+// weight of the batch.
 func TestRunActionSendsBiggestPackWithCopies(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
@@ -537,10 +508,15 @@ func TestRunActionSendsBiggestPackWithCopies(t *testing.T) {
 		if len(got.Files) != action.FilesMax {
 			t.Fatalf("%d attachments out of %d reached the executor", len(got.Files), action.FilesMax)
 		}
+		total := 0
 		for i, f := range got.Files {
+			total += len(f.Data)
 			if string(f.Preview) != string(previews[i]) {
 				t.Errorf("the copy of %s arrived damaged: %d bytes", f.Name, len(f.Preview))
 			}
+		}
+		if total != action.FilesBytesMax {
+			t.Errorf("%d bytes out of %d arrived", total, action.FilesBytesMax)
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("the executor did not get the request")

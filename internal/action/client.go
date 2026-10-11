@@ -1,6 +1,7 @@
 package action
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -226,6 +227,16 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 		return Response{}, err
 	}
 
+	// The request is encoded before the socket is dialled. A batch of photos
+	// is tens of megabytes of JSON, and the executor waits readIdle for the
+	// first bytes from the moment it takes the connection: encoding after the
+	// dial spends that wait on work of the client's own, and on a loaded host
+	// spends all of it.
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(req); err != nil {
+		return Response{}, fmt.Errorf("encoding the request: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -240,7 +251,7 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 		conn.SetDeadline(deadline)
 	}
 
-	if err := json.NewEncoder(conn).Encode(req); err != nil {
+	if _, err := conn.Write(payload.Bytes()); err != nil {
 		return Response{}, fmt.Errorf("sending the request: %w", err)
 	}
 	if half, ok := conn.(*net.UnixConn); ok {

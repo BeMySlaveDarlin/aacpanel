@@ -401,6 +401,89 @@ func TestQuietConnectionGetsNoAnswer(t *testing.T) {
 	}
 }
 
+// shortIdle cuts the executor's wait for the next bytes of a request for one
+// test. It goes before newStand, so the stand is gone before the wait is put
+// back.
+func shortIdle(t *testing.T, idle time.Duration) {
+	t.Helper()
+	prev := readIdle
+	readIdle = idle
+	t.Cleanup(func() { readIdle = prev })
+}
+
+// A request is read for as long as its bytes keep coming, however long that
+// takes all told: a batch at the ceiling taken in on a loaded host arrives
+// over more than the wait for the next bytes, and is not cut halfway.
+func TestServerReadsARequestThatKeepsComing(t *testing.T) {
+	shortIdle(t, 200*time.Millisecond)
+	s := newStand(t, okExecutor("the container is stopped"))
+
+	payload, err := json.Marshal(request("req-12", ContainerStop, "shop"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.DialTimeout("unix", s.socket, time.Second)
+	if err != nil {
+		t.Fatalf("connecting: %v", err)
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	began := time.Now()
+	for i, b := range payload {
+		if _, err := conn.Write([]byte{b}); err != nil {
+			t.Fatalf("the executor let go of a request still coming, %d bytes of %d in %s: %v",
+				i, len(payload), time.Since(began).Round(time.Millisecond), err)
+		}
+		time.Sleep(4 * time.Millisecond)
+	}
+	if took := time.Since(began); took <= readIdle {
+		t.Fatalf("the request came in %s, within one wait of %s: the test proves nothing", took, readIdle)
+	}
+	conn.(*net.UnixConn).CloseWrite()
+
+	var resp Response
+	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+		t.Fatalf("the answer: %v", err)
+	}
+	if !resp.OK || resp.Detail != "the container is stopped" {
+		t.Fatalf("a request that kept coming was not run: %+v", resp)
+	}
+}
+
+// A client that went quiet halfway is let go one wait after its last bytes,
+// with an answer that says the request was not read, and nothing is run.
+func TestServerLetsGoOfAClientThatWentQuiet(t *testing.T) {
+	shortIdle(t, 200*time.Millisecond)
+	s := newStand(t, okExecutor(""))
+
+	payload, err := json.Marshal(request("req-13", ContainerStop, "shop"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.DialTimeout("unix", s.socket, time.Second)
+	if err != nil {
+		t.Fatalf("connecting: %v", err)
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	if _, err := conn.Write(payload[:len(payload)/2]); err != nil {
+		t.Fatalf("sending: %v", err)
+	}
+	began := time.Now()
+	var resp Response
+	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+		t.Fatalf("the executor held on to a quiet client for %s: %v", time.Since(began).Round(time.Millisecond), err)
+	}
+	if resp.OK || !strings.Contains(resp.Error, "not parsed") {
+		t.Errorf("half a request got %+v instead of a refusal to read it", resp)
+	}
+	if n := s.calls.Load(); n != 0 {
+		t.Errorf("half a request was run %d times", n)
+	}
+}
+
 func TestClientReportsUnavailable(t *testing.T) {
 	client := NewClient(filepath.Join(t.TempDir(), "missing.sock"), time.Second)
 

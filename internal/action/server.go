@@ -16,7 +16,6 @@ import (
 
 const (
 	maxRequest    = UploadBytesMax/3*4 + 64<<10
-	readTimeout   = 5 * time.Second
 	writeTimeout  = 5 * time.Second
 	resultTTL     = 10 * time.Minute
 	socketMode    = 0o600
@@ -172,9 +171,8 @@ func (s *Server) Run(ctx context.Context, ln net.Listener) error {
 func (s *Server) serve(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
-	conn.SetReadDeadline(time.Now().Add(readTimeout))
 	var req Request
-	if err := json.NewDecoder(io.LimitReader(conn, maxRequest)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(idleReader{conn}, maxRequest)).Decode(&req); err != nil {
 		if errors.Is(err, io.EOF) {
 			return
 		}
@@ -389,6 +387,23 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 	}
 	close(cur.done)
 	return cur.resp
+}
+
+// readIdle is how long the executor waits for the next bytes of a request.
+var readIdle = 5 * time.Second
+
+// idleReader reads a request with a deadline that moves on with every read:
+// readIdle is a pause between bytes, not a ceiling on the whole request. A
+// batch of photos with their copies is some sixty megabytes of JSON, and on a
+// loaded host taking it in outlasts any fixed window a short request needs: a
+// window counted from the connection cuts the batch halfway, and the service
+// is left with a broken pipe for a request the executor was still reading. A
+// client that went quiet is let go all the same, readIdle after its last bytes.
+type idleReader struct{ conn net.Conn }
+
+func (r idleReader) Read(p []byte) (int, error) {
+	r.conn.SetReadDeadline(time.Now().Add(readIdle))
+	return r.conn.Read(p)
 }
 
 func (s *Server) reply(conn net.Conn, resp Response) {
