@@ -2,11 +2,13 @@
 // sessions of every contour shown under a heading with its limit, and the
 // closed conversations of all of them on a shelf of their own below.
 //
-// Live and closed stand apart. A contour holds its live sessions only, one
-// row each, in an order that does not follow their state: the keys 1–9 name
-// places, and a place that moved whenever a session started or stopped
-// working could not be learned. What waits for the person is said by its row
-// and counted in the heading of its contour.
+// Live and closed stand apart. A contour holds its live sessions only, in
+// blocks of their projects as the phone has them — a heading for every
+// project, the only session of one included, and a row a session under it —
+// in an order that does not follow their state: a place that moved whenever
+// a session started or stopped working could not be learned, and the eye and
+// the arrow keys go down the column by those places. What waits for the
+// person is said by its row and counted in the heading of its contour.
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
@@ -22,7 +24,7 @@ import { contoursOf, personalOf } from "../screens/sessions/map.js";
 import { kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../agent.js";
-import { aboutOf, closedRow, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
+import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
 import { effortName, modeLoud, modeName, usualMode } from "../screens/chat/picker.js";
@@ -113,10 +115,9 @@ function levelOf(full) {
 // for all of it drops them from the end, whole. It opens with who runs the
 // session and on which model, the agent in its hue. The share of the context
 // stands right after its tokens, in the tone of how full it is; a share the
-// session cannot know yet is left out rather than guessed. The group of the
-// project comes after them: the column is narrow, and the name of a row
-// mostly says its project already.
-export function factsOf(s, group, usual = "default") {
+// session cannot know yet is left out rather than guessed. The project and
+// its group are said by the heading the row stands under, not here.
+export function factsOf(s, usual = "default") {
     const out = [];
     const say = (text, level = "", agent = "") => out.push({ text, level, agent });
     say(agentName(s), "", agentKey(s));
@@ -131,7 +132,6 @@ export function factsOf(s, group, usual = "default") {
         say(`${tokens(s.tokens)}${of}`);
         if (s.limitKnown !== false && !s.noRequests) say(pct(s.pct || 0), levelOf(s.pct || 0));
     }
-    if (group && group.toLowerCase() !== String(s.session || "").toLowerCase()) say(group);
     const up = age(s.startedAt);
     if (up) say(`up ${up}`);
     if (s.compacts > 0) say(`${s.compacts} ${plural(s.compacts, "compaction", "compactions")}`);
@@ -143,7 +143,6 @@ export function factsOf(s, group, usual = "default") {
 function GhostLine({ task }) {
     return html`
         <div class="dksess dklive dkghost" role="status">
-            <span class="dkkey"></span>
             <span class="dksessmain">
                 <span class="dkname">${task.target}</span>
             </span>
@@ -156,14 +155,14 @@ function GhostLine({ task }) {
     `;
 }
 
-// SessionLine is one live session: its key, name and the marks of what is
-// unusual about it, with the one thing done to it besides opening in the
-// corner on the line of the name; its state in the words of the phone; the
-// quiet line of what it runs on, how full its context is among it. A session
-// another opened stands a step in under it, on the line of the branch (branch
-// "mid" or "last"), with a key of its own; one whose parent stands elsewhere
-// says which session opened it (from).
-function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid = false, branch = "", from = "" }) {
+// SessionLine is one live session: its name and the marks of what is unusual
+// about it, with the one thing done to it besides opening in the corner on
+// the line of the name; its state in the words of the phone; the quiet line
+// of what it runs on, how full its context is among it. A session another
+// opened stands a step in under it, on the line of the branch (branch "mid"
+// or "last"), a row like any other; one whose parent stands elsewhere says
+// which session opened it (from).
+function SessionLine({ s, usual, current, onPick, exec, wait, kid = false, branch = "", from = "" }) {
     const run = useAction();
     const closing = wait ? wait.of("close", s.session) : null;
     const restarting = wait ? wait.of("restart", s.session) : null;
@@ -176,7 +175,7 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
     const tone = busy ? "off" : state.tone;
     const said = closing ? "closing" : restarting ? "restarting" : state.text;
     const since = busy ? `${held(busy)} s` : state.since;
-    const facts = factsOf(s, group, usual);
+    const facts = factsOf(s, usual);
     // What a close or a restart ends with the session, said before the press;
     // a codex thread says what a close does to it instead.
     const lost = stopsOf(s);
@@ -193,7 +192,6 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
             style=${s.noRequests ? undefined : `--fill:${Math.min(100, full)}%`}
             onClick=${() => onPick({ name: s.session, id: s.sessionId })}
         >
-            <span class="dkkey">${index >= 0 && index < 9 ? index + 1 : ""}</span>
             <span class="dksessmain">
                 <span class="dkname" title=${shownName(s) !== s.session ? s.session : undefined}>${shownName(s)}</span>
                 ${s.home && html`<span class="dkhome">home</span>`}
@@ -259,7 +257,8 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
 
 // OpenedFold heads the sessions a session had the panel open, as the phone's
 // does: how many and who of them waits, and the dots of their states while it
-// is closed. A closed fold takes the keys of its sessions with it.
+// is closed. The arrow keys pass the sessions of a closed fold by: they go
+// down the rows the column shows.
 function OpenedFold({ kids, open, onToggle }) {
     const waits = waitsOf(kids);
     return html`
@@ -466,29 +465,63 @@ function NewSession({ name, entry, snapshot, exec }) {
     `;
 }
 
+// ProjectHead names the project the rows under it belong to: its name, the
+// group of the map it stands in, and a new session in it, the way the plus of
+// the contour starts one. The home session and a session no project of the
+// map holds have no plus: the host has one home session, and the other has no
+// project to start a session in.
+function ProjectHead({ block, exec }) {
+    const run = useAction();
+    const p = block.project;
+    const ready = knows(exec, "session.open");
+    return html`
+        <div class="dkproj">
+            <span class="dkprojname">${block.name}</span>
+            ${block.group && html`<span class="dkprojgroup">${block.group}</span>`}
+            ${p && !block.home && html`
+                <button class="dkprojnew" type="button" disabled=${!ready}
+                        aria-label=${`a new session in project ${block.name}`}
+                        data-tip=${ready ? `A new session in ${block.name}` : whyNot(exec, "session.open")}
+                        data-tipside="left"
+                        onClick=${() => run("session.open", p.session || p.name, { project: p.id })}><${Icon.plus} /></button>
+            `}
+        </div>
+    `;
+}
+
 // ContourSection is one contour in the column: its heading with how many of
-// its sessions wait for the person, the way to a new one and the limit; its
-// live sessions with the sessions they opened and the runs they started under
-// them, and the sessions being raised in it.
-function ContourSection({ name, entry, list, live, archive, folded, onFold, ghosts, limits, map, place, snapshot, current, onPick, keyOf, exec, wait }) {
-    const rows = layoutOf(list, live, folded);
+// its sessions wait for the person, the way to a new one and the limit; then
+// its projects, each under a heading of its own, with their live sessions,
+// the sessions those opened and the runs they started under them, and the
+// sessions being raised in them. blocks holds the projects as the column lays
+// them out, with the rows of each.
+function ContourSection({ name, entry, list, blocks, archive, onFold, limits, map, snapshot, current, onPick, exec, wait }) {
     const waits = list.filter((s) => stateOf(s).tone === "wait").length;
-    const line = (s, kid = false, branch = "", from = "") => {
-        const found = s.project === undefined ? place(s.cwd) : s.project;
-        return html`<${SessionLine}
-            key=${s.session}
-            s=${s}
-            group=${found ? found.group : ""}
-            usual=${usualMode(snapshot && snapshot.profiles, s.profile)}
-            current=${current}
-            onPick=${onPick}
-            index=${kid ? 99 : keyOf(s)}
-            exec=${exec}
-            wait=${wait}
-            kid=${kid}
-            branch=${branch}
-            from=${from}
-        />`;
+    const line = (s, kid = false, branch = "", from = "") => html`<${SessionLine}
+        key=${s.session}
+        s=${s}
+        usual=${usualMode(snapshot && snapshot.profiles, s.profile)}
+        current=${current}
+        onPick=${onPick}
+        exec=${exec}
+        wait=${wait}
+        kid=${kid}
+        branch=${branch}
+        from=${from}
+    />`;
+    const row = (e) => {
+        switch (e.kind) {
+        case "fold":
+            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} open=${e.open}
+                                      onToggle=${() => onFold(e.parent.session)} />`;
+        case "runs":
+            return html`<${KinFold} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
+        case "stub":
+            return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(archive, e.parent)}
+                                      onPick=${onPick} />`;
+        default:
+            return line(e.s, false, e.branch || "", e.from || "");
+        }
     };
     return html`
         <section>
@@ -502,22 +535,12 @@ function ContourSection({ name, entry, list, live, archive, folded, onFold, ghos
                 <${NewSession} name=${name} entry=${entry} snapshot=${snapshot} exec=${exec} />
                 <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
             </div>
-            ${rows.map((e) => {
-                switch (e.kind) {
-                case "fold":
-                    return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} open=${e.open}
-                                              onToggle=${() => onFold(e.parent.session)} />`;
-                case "runs":
-                    return html`<${KinFold} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
-                case "stub":
-                    return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(archive, e.parent)}
-                                              onPick=${onPick} />`;
-                default:
-                    return line(e.s, false, e.branch || "", e.from || "");
-                }
-            })}
-            ${ghosts.map((task) => html`<${GhostLine} key=${`+${task.target}`} task=${task} />`)}
-            ${rows.length === 0 && ghosts.length === 0 && html`<p class="dkempty">nothing live</p>`}
+            ${blocks.flatMap(({ block, rows }) => [
+                html`<${ProjectHead} key=${`head:${block.key}`} block=${block} exec=${exec} />`,
+                ...rows.map(row),
+                ...block.ghosts.map((task) => html`<${GhostLine} key=${`+${task.target}`} task=${task} />`),
+            ])}
+            ${blocks.length === 0 && html`<p class="dkempty">nothing live</p>`}
         </section>
     `;
 }
@@ -605,30 +628,6 @@ function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec })
     `;
 }
 
-function groupOf(profiles) {
-    const map = new Map();
-    for (const p of (profiles && profiles.profiles) || []) {
-        for (const g of p.groups || []) {
-            for (const pr of g.projects || []) {
-                if (pr.path) map.set(pr.path, { contour: p.name || p.profile, group: g.name, project: pr.name });
-            }
-        }
-    }
-    return (cwd) => {
-        if (!cwd) return null;
-        if (map.has(cwd)) return map.get(cwd);
-        let best = null;
-        let bestLen = 0;
-        for (const [path, found] of map) {
-            if (cwd.startsWith(`${path}/`) && path.length > bestLen) {
-                best = found;
-                bestLen = path.length;
-            }
-        }
-        return best;
-    };
-}
-
 // sectionOfTask finds the contour a session is being raised in: by the project
 // it was opened from, then by its name among the projects of the map; one the
 // map does not know stands in the first contour shown.
@@ -644,7 +643,7 @@ function sectionOfTask(task, map, sections) {
     return sections[0] || "";
 }
 
-export function SessionColumn({ snapshot, profiles, limits, current, currentId, onPick, picks, setPicks, onNames, onOrder, onArchive, exec, wait }) {
+export function SessionColumn({ snapshot, limits, current, currentId, onPick, picks, setPicks, onNames, onOrder, onArchive, exec, wait }) {
     const all = (snapshot && snapshot.sessions) || [];
     // A row stops waiting with the head of its conversation, not at the next
     // snapshot.
@@ -664,7 +663,6 @@ export function SessionColumn({ snapshot, profiles, limits, current, currentId, 
     const pageOf = (s) => where.get(s.session) || personal || contourName(s.profile);
     useEffect(() => { if (onNames) onNames(names); }, [names.join("\n")]);
 
-    const place = useMemo(() => groupOf(profiles), [profiles]);
     const ordered = useMemo(() => orderOf(all, map), [all, map]);
     const shown = picks.length ? ordered.filter((s) => picks.includes(pageOf(s))) : ordered;
 
@@ -688,17 +686,6 @@ export function SessionColumn({ snapshot, profiles, limits, current, currentId, 
         return [...wanted, ...[...byProfile.keys()].filter((n) => !wanted.includes(n))];
     }, [names.join("\n"), picks.join("\n"), byProfile]);
 
-    // The keys 1–9 name the rows in the order they stand, the sessions a
-    // session opened among them while their fold is open; a run has none.
-    const [folded, fold] = useFolds();
-    const flat = useMemo(() => sections.flatMap((n) => layoutOf(byProfile.get(n) || [], all, folded)
-        .filter((e) => e.kind === "row").map((e) => e.s)), [sections, byProfile, all, folded]);
-    const keyOf = (s) => flat.indexOf(s);
-
-    useEffect(() => {
-        if (onOrder) onOrder(flat.map((s) => ({ name: s.session, id: s.sessionId })));
-    }, [flat.map((s) => s.session).join("\n")]);
-
     const ghostsIn = new Map();
     for (const task of ghosts) {
         const name = sectionOfTask(task, map, sections);
@@ -706,9 +693,25 @@ export function SessionColumn({ snapshot, profiles, limits, current, currentId, 
         ghostsIn.get(name).push(task);
     }
 
+    // The rows of every contour as they stand: its projects in the order of
+    // the map, a block each as the phone lays them out, and in a block its
+    // live sessions with the sessions a session opened under it while their
+    // fold is open. The arrow keys go down the same rows, block after block;
+    // a run and a session still being raised are not among them.
+    const entryOf = (name) => map.find((p) => p.profile === name) || null;
+    const [folded, fold] = useFolds();
+    const blocksIn = new Map(sections.map((n) => [n, liveBlocksOf({
+        profile: entryOf(n), sessions: byProfile.get(n) || [], opening: ghostsIn.get(n) || [],
+    }).map((block) => ({ block, rows: layoutOf(block.live, all, folded) }))]));
+    const flat = [...blocksIn.values()].flat().flatMap((b) => b.rows)
+        .filter((e) => e.kind === "row").map((e) => e.s);
+
+    useEffect(() => {
+        if (onOrder) onOrder(flat.map((s) => ({ name: s.session, id: s.sessionId })));
+    }, [flat.map((s) => s.session).join("\n")]);
+
     // The shelf asks for every contour shown at once: those of the map by the
     // id of their entry, the rest by the name the collector knows them by.
-    const entryOf = (name) => map.find((p) => p.profile === name) || null;
     const ids = sections.map((n) => (entryOf(n) || {}).id).filter(Boolean);
     const others = sections.filter((n) => !(entryOf(n) || {}).id);
     const skip = all.map((s) => s.sessionId).filter(Boolean);
@@ -749,10 +752,9 @@ export function SessionColumn({ snapshot, profiles, limits, current, currentId, 
             <div class="dkscroll">
                 ${sections.map((name) => html`
                     <${ContourSection} key=${name} name=${name} entry=${entryOf(name)}
-                                       list=${byProfile.get(name) || []} live=${all} archive=${archive}
-                                       folded=${folded} onFold=${fold} ghosts=${ghostsIn.get(name) || []}
-                                       limits=${limits} map=${map} place=${place} snapshot=${snapshot}
-                                       current=${current} onPick=${onPick} keyOf=${keyOf}
+                                       list=${byProfile.get(name) || []} blocks=${blocksIn.get(name) || []}
+                                       archive=${archive} onFold=${fold} limits=${limits} map=${map}
+                                       snapshot=${snapshot} current=${current} onPick=${onPick}
                                        exec=${exec} wait=${wait} />
                 `)}
                 ${sections.length === 0 && ghosts.map((task) => html`<${GhostLine} key=${`+${task.target}`} task=${task} />`)}

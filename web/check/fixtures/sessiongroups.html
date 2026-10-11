@@ -2,11 +2,12 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{margin:0} .deskshell{position:static;height:900px} .dkbody{height:900px} .phone{width:390px;padding:.6rem 17px;display:flex;flex-direction:column;gap:.55rem}</style>
-<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <div class="deskshell"><div class="dkbody" id="desk"></div></div>
 <div class="phone" id="phone1"></div>
 <div class="phone" id="phone2"></div>
 <div class="phone" id="plain"></div>
+<div id="shell"></div>
 <script type="module">
 // The sessions a session had the panel open, in both lists. On the phone a
 // child stands in the block of its parent whatever its project, a step in
@@ -14,15 +15,19 @@
 // block to where the most pressing of the group puts it; the children of a
 // parent that closed stand under a stub of it that says when it closed; a
 // child whose parent lives in another contour stands on its own page, saying
-// which session opened it. In the desktop column the children keep keys of
-// their own while the fold is open and give them up when it is closed. A list
-// where nobody opened anybody shows none of it.
+// which session opened it. The desktop column lays every contour out in
+// blocks of its projects as the phone does, a heading over each, the only
+// session of a project included; the children keep rows of their own there
+// while the fold is open, and the arrow keys of the shell go down the rows
+// block after block, where a digit picks nothing. A list where nobody opened
+// anybody shows none of it.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { blocksOf, ProjectBlock } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const now = Date.now();
 const iso = (min) => new Date(now - min * 60e3).toISOString();
@@ -61,20 +66,20 @@ const archive = [
 ];
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/sessions/archive")) return json({ rows: archive, total: archive.length, limit: 30, offset: 0 });
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
 
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.open", "session.resume"] };
 const wrap = (node) => h(ToastHost, null, h(GateHost, null, node));
 let order = [];
 const picked = [];
+const snapshot = { at: now / 1000, sessions, profileMap, limits: null };
 render(wrap(h(SessionColumn, {
-    snapshot: { at: now / 1000, sessions, profileMap, limits: null }, profiles: { profiles: [] }, limits: null,
-    current: "", onPick(p) { picked.push(p); }, picks: [], setPicks() {}, onNames() {},
+    snapshot, limits: null, current: "", onPick(p) { picked.push(p); }, picks: [], setPicks() {}, onNames() {},
     onOrder(list) { order = list.map((s) => s.name); }, exec, wait: null,
 })), document.getElementById("desk"));
 
@@ -112,14 +117,20 @@ const phoneOf = (root) => Array.from(root.querySelectorAll(".pjblock")).map((blo
         return `${branch}${text(row.querySelector(".pjsess"))}${from ? ` (${from})` : ""}`;
     }),
 }));
-// deskOf reads the desktop column: its rows in order, with the key of each.
-const deskOf = () => Array.from(document.querySelectorAll("#desk .dkscroll > section .dkfold, #desk .dkscroll > section .dkstub, #desk .dkscroll > section .dksess.dklive"))
+// deskOf reads the desktop column: its rows in order — the heading of a
+// project as its name, its group and "+" for the way to a new session in it,
+// a fold, a stub or a session as on the phone.
+const deskOf = () => Array.from(document.querySelectorAll("#desk .dkscroll > section :is(.dkproj, .dkfold, .dkstub, .dksess.dklive)"))
     .map((row) => {
+        if (row.classList.contains("dkproj")) {
+            const plus = row.querySelector(".dkprojnew") ? " +" : "";
+            return `head: ${text(row.querySelector(".dkprojname"))} · ${text(row.querySelector(".dkprojgroup"))}${plus}`;
+        }
         if (row.classList.contains("dkfold")) return `fold: ${text(row)}`;
         if (row.classList.contains("dkstub")) return `stub: ${text(row)}`;
         const branch = row.classList.contains("dkbranch") ? (row.classList.contains("dkbranchend") ? "└ " : "├ ") : "";
         const from = text(row.querySelector(".dkfrom"));
-        return `${text(row.querySelector(".dkkey"))} ${branch}${text(row.querySelector(".dkname"))}${from ? ` (${from})` : ""}`;
+        return `${branch}${text(row.querySelector(".dkname"))}${from ? ` (${from})` : ""}`;
     });
 
 window.done = (async () => {
@@ -145,8 +156,8 @@ window.done = (async () => {
     out.stubOpens = { phone: opened.slice(), desk: picked.map((p) => ({ name: p.name, id: p.id, archived: Boolean(p.archived) })) };
 
     // A closed fold keeps who waits and the dots of the states, and on the
-    // desktop gives up the keys of its sessions; it stays closed for its
-    // parent, and opens again.
+    // desktop takes its sessions out of the way of the arrow keys; it stays
+    // closed for its parent, and opens again.
     phone1.querySelector(".pjfold").click();
     desk.querySelector(".dkfold").click();
     await until(() => !phone1.querySelector(".pjbranch .pjsess") || order.length < out.order.length);
@@ -159,6 +170,34 @@ window.done = (async () => {
     desk.querySelector(".dkfold").click();
     await until(() => order.length === out.order.length);
     out.orderOpen = order.slice();
+
+    // The shell over the same sessions, the last conversation of the first
+    // contour open: ArrowDown goes on to the row under it as the column
+    // stands, into the next contour and its block, a digit leaves the open one
+    // as it is, and ArrowUp goes back. Every key is pressed with the screen at
+    // rest, so a key the shell took shows on the row lit as open.
+    const shell = document.getElementById("shell");
+    const { DesktopShell } = await import("/src/desktop/shell.js");
+    render(wrap(h(DesktopShell, {
+        snapshot, tree: [], treeError: null, hostError: null, ageSec: 1, history: [], faults: [],
+        alerts: { kind: "ready", list: [], reload() {} }, openAlerts: 0, exec, onRefresh() {},
+        wait: { opening: () => [], of: () => null }, theme: "space", onTheme() {}, updateReady: false,
+        updating: false, onApplyUpdate() {}, route: { here: "", via: "", why: "", onRecheck() {}, onOpen() {} },
+        jump: { name: "shop", id: "id-shop" }, onJumped() {},
+    })), shell);
+    const lit = () => text(shell.querySelector(".dksess.dklive.on .dkname"));
+    await until(() => lit() === "shop");
+    await quiet();
+    const press = async (key) => {
+        if (document.activeElement) document.activeElement.blur();
+        window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+        await quiet();
+        return lit();
+    };
+    out.walk = [lit(), await press("ArrowDown")];
+    out.digit = await press("1");
+    out.back = await press("ArrowUp");
+    render(null, shell);
     return out;
 })();
 </script>

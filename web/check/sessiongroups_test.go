@@ -27,10 +27,16 @@ type groupBlock struct {
 // conversation; a child whose parent lives in another contour stands on its
 // own page and says which session opened it.
 //
-// In the desktop column the children keep keys of their own while the fold is
-// open, in the order the rows stand; closed, the fold keeps who waits and the
-// dots of the states, the keys close up behind it, and the fold stays closed
-// for its parent until it is opened again.
+// The desktop column lays a contour out in blocks of its projects as the
+// phone does, in the order of the map: a heading over every project, the
+// only session of one included, with its name, the group of the map and the
+// way to a new session in it; under it the rows, the children of a parent in
+// its block. The rows keep their places whatever the sessions do, so the
+// arrow keys of the shell go down them as they stand, block after block, the
+// children among them while the fold is open; closed, the fold keeps who
+// waits and the dots of the states, the arrow keys pass its children by, and
+// the fold stays closed for its parent until it is opened again. A digit
+// picks nothing.
 //
 // A list where nobody opened anybody shows none of it.
 func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
@@ -59,6 +65,9 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		OrderFolded []string     `json:"orderFolded"`
 		Kept        []string     `json:"kept"`
 		OrderOpen   []string     `json:"orderOpen"`
+		Walk        []string     `json:"walk"`
+		Digit       string       `json:"digit"`
+		Back        string       `json:"back"`
 	}
 	runWideFixture(t, "sessiongroups.html", &got)
 
@@ -80,15 +89,30 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		t.Errorf("a child stands with no line of the branch beside it (%q)", got.Guide)
 	}
 
-	desk := []string{"1 lead", "fold: opened 2 sessions· person asks you", "2 ├ person", "3 └ review the protocol",
-		"stub: docsclosed 40 min ago", "4 └ wiki", "5 shop", "6 rotation", "7 quotes (opened by lead)"}
+	desk := []string{
+		"head: lead · work +", "lead", "fold: opened 2 sessions· person asks you", "├ person", "└ review the protocol",
+		"head: wiki · work +", "stub: docsclosed 40 min ago", "└ wiki",
+		"head: shop · side +", "shop",
+		"head: rotation · trading +", "rotation",
+		"head: quotes · trading +", "quotes (opened by lead)",
+	}
 	if !reflect.DeepEqual(got.Desk, desk) {
 		t.Errorf("the desktop column reads\n%v\nexpected\n%v", got.Desk, desk)
 	}
 	order := []string{"lead", "person", "codex-5afc361b", "wiki", "shop", "rotation", "quotes"}
 	if !reflect.DeepEqual(got.Order, order) || !reflect.DeepEqual(got.OrderOpen, order) {
-		t.Errorf("the keys 1–9 name %v, and %v once the fold is opened again; expected the rows in the order they stand, %v",
+		t.Errorf("the arrow keys go down %v, and %v once the fold is opened again; expected the rows in the order they stand, %v",
 			got.Order, got.OrderOpen, order)
+	}
+	if walk := []string{"shop", "rotation"}; !reflect.DeepEqual(got.Walk, walk) {
+		t.Errorf("ArrowDown from shop lit %v, expected the row under it as the column stands, in the next contour: %v",
+			got.Walk, walk)
+	}
+	if got.Digit != "rotation" {
+		t.Errorf("a press of 1 on rotation left %q open — a digit picks no session", got.Digit)
+	}
+	if got.Back != "shop" {
+		t.Errorf("ArrowUp from rotation opened %q, expected the row above it, shop", got.Back)
 	}
 
 	if len(got.StubOpens.Phone) != 1 || got.StubOpens.Phone[0].Name != "docs" || got.StubOpens.Phone[0].ID != "d0" {
@@ -107,13 +131,14 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 	if strings.Join(got.PhoneDots, ",") != "wait,busy" {
 		t.Errorf("the closed fold shows the states %v, expected a dot for each child, in the order they were opened", got.PhoneDots)
 	}
-	deskFolded := []string{"1 lead", "fold: opened 2 sessions· person asks you", "stub: docsclosed 40 min ago",
-		"2 └ wiki", "3 shop", "4 rotation", "5 quotes (opened by lead)"}
+	deskFolded := []string{"head: lead · work +", "lead", "fold: opened 2 sessions· person asks you",
+		"head: wiki · work +", "stub: docsclosed 40 min ago", "└ wiki", "head: shop · side +", "shop",
+		"head: rotation · trading +", "rotation", "head: quotes · trading +", "quotes (opened by lead)"}
 	if !reflect.DeepEqual(got.DeskFolded, deskFolded) {
 		t.Errorf("the column with the fold closed reads\n%v\nexpected\n%v", got.DeskFolded, deskFolded)
 	}
 	if strings.Join(got.OrderFolded, ",") != "lead,wiki,shop,rotation,quotes" {
-		t.Errorf("with the fold closed the keys name %v: a hidden row keeps no key", got.OrderFolded)
+		t.Errorf("with the fold closed the arrow keys go down %v: a hidden row is passed by", got.OrderFolded)
 	}
 	if strings.Join(got.Kept, ",") != "lead" {
 		t.Errorf("the closed fold is kept as %v, expected by the name of its parent", got.Kept)

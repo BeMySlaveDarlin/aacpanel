@@ -208,7 +208,7 @@ const screen = () => ({
 const column = document.getElementById("column");
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     snapshot: { at: Date.now() / 1000, sessions: [claude, codex], profileMap: [], limits: null, host: { home: "/home/u" } },
-    profiles: { profiles: [] }, limits: null, current: "", currentId: "", onPick() {}, picks: [], setPicks() {},
+    limits: null, current: "", currentId: "", onPick() {}, picks: [], setPicks() {},
     onNames() {}, onOrder() {}, onArchive() {}, exec, wait: null,
 }))), column);
 const rowOf = (name) => {

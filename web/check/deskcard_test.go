@@ -55,8 +55,7 @@ type deskCard struct {
 	OrderAfter  string            `json:"orderAfter"`
 	Ghost       *struct {
 		Section string `json:"section"`
-		Key     string `json:"key"`
-		Last    bool   `json:"last"`
+		Head    string `json:"head"`
 		Say     string `json:"say"`
 	} `json:"ghost"`
 	Says        map[string]string        `json:"says"`
@@ -88,10 +87,12 @@ type deskCard struct {
 		ID       string `json:"id"`
 		Archived bool   `json:"archived"`
 	} `json:"pickedClosed"`
-	Plus       string           `json:"plus"`
-	Menu       []string         `json:"menu"`
-	Opened     []deskCardAction `json:"opened"`
-	OpenClosed *struct {
+	Plus          string           `json:"plus"`
+	Menu          []string         `json:"menu"`
+	Opened        []deskCardAction `json:"opened"`
+	ProjectPlus   string           `json:"projectPlus"`
+	ProjectOpened []deskCardAction `json:"projectOpened"`
+	OpenClosed    *struct {
 		Name   string `json:"name"`
 		Resume string `json:"resume"`
 		When   string `json:"when"`
@@ -135,17 +136,24 @@ func runDeskCard(t *testing.T) deskCard {
 	return deskCardRun.got
 }
 
-// The live sessions of a contour keep their places whatever they do: the order
-// is the order of the project map, the sessions no project holds after them,
-// and the keys 1–9 go down the column in that order. The collector lists the
-// sessions by how full they are, which changes by the minute; a key that
-// followed it would name another session every time the person looked.
+// The live sessions of a contour keep their places whatever they do: they
+// stand in blocks of their projects in the order of the project map, a
+// heading over every project with its group and the way to a new session in
+// it — none for the home session, whose host has one, and none for a session
+// no project holds — the sessions no project holds after them, and the arrow
+// keys go down the column in that order. A session being raised stands in the
+// block of its project, at the place the project has in the map. The
+// collector lists the sessions by how full they are, which changes by the
+// minute; a place that followed it would move every time the person looked,
+// and the eye and the arrow keys would lose the session they were on.
 func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	got := runDeskCard(t)
 
 	want := []deskCardSection{
-		{Name: "personal", Rows: []string{"1:aacpanel", "2:person", "3:helios", "4:scratch"}},
-		{Name: "Globex Group", Rows: []string{"5:shop", "6:api", "7:acme-fingerprint-rotation-review", ":shop-admin"}},
+		{Name: "personal", Rows: []string{"# aacpanel · Side +", "aacpanel", "# person · Side +", "person",
+			"# helios · Host", "helios", "# scratch · outside the map", "scratch"}},
+		{Name: "Globex Group", Rows: []string{"# shop · SHOP +", "shop", "# shop-admin · SHOP +", "shop-admin",
+			"# api · Platform +", "api", "# acme-fingerprint-rotation-review · outside the map", "acme-fingerprint-rotation-review"}},
 	}
 	check := func(when string, sections []deskCardSection) {
 		if len(sections) != len(want) {
@@ -161,11 +169,11 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	check("at first", got.Before)
 	check("a minute later, every state changed", got.After)
 	if got.OrderBefore != "aacpanel,person,helios,scratch,shop,api,acme-fingerprint-rotation-review" || got.OrderAfter != got.OrderBefore {
-		t.Errorf("the keys of the shell go %q, then %q — the same places the column shows, before and after", got.OrderBefore, got.OrderAfter)
+		t.Errorf("the arrow keys of the shell go %q, then %q — the same places the column shows, before and after", got.OrderBefore, got.OrderAfter)
 	}
-	if got.Ghost == nil || got.Ghost.Section != "Globex Group" || got.Ghost.Key != "" || !got.Ghost.Last ||
+	if got.Ghost == nil || got.Ghost.Section != "Globex Group" || got.Ghost.Head != "shop-admin" ||
 		!strings.HasPrefix(got.Ghost.Say, "starting on the host") {
-		t.Errorf("the console being raised stands as %+v: in the contour of its project, after the live ones, with no key", got.Ghost)
+		t.Errorf("the console being raised stands as %+v: in the contour and under the heading of its project", got.Ghost)
 	}
 }
 
@@ -228,18 +236,18 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 // it, in the hue of its agent, the model and its effort, the mode where it is
 // not the one the account starts in (a mode that stops the session asking is
 // said always), the context in tokens and right after them how full it is,
-// the group of its project unless it is the name, how long it has been up,
-// and its compactions. One line: what does not fit drops from the end, a
+// how long it has been up, and its compactions; the group of its project is
+// said by the heading over the row, not again on it. One line: what does not fit drops from the end, a
 // whole fact at a time. The share is quiet while there is room and loud when
 // the context is nearly spent.
 func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	got := runDeskCard(t)
 
 	for name, want := range map[string]string{
-		"aacpanel": "Claude|Opus 5.5 · Extra|418k of 1m|42%|Side|up 3 h|2 compactions",
-		"api":      "Claude|Opus 5.5 · Extra|Plan|370k of 1m|37%|Platform|up 3 h",
+		"aacpanel": "Claude|Opus 5.5 · Extra|418k of 1m|42%|up 3 h|2 compactions",
+		"api":      "Claude|Opus 5.5 · Extra|Plan|370k of 1m|37%|up 3 h",
 		"shop":     "Claude|Opus 5.5 · Extra|Bypass|260k of 1m|26%|up 3 h",
-		"helios":   "Claude|Opus 5.5 · Extra|100k of 1m|10%|Host|up 3 h",
+		"helios":   "Claude|Opus 5.5 · Extra|100k of 1m|10%|up 3 h",
 		"scratch":  "Claude|Opus 5.5 · Extra|50k of 1m|5%|up 3 h",
 	} {
 		f := got.Facts[name]
@@ -313,7 +321,9 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 // The plus in the heading of a contour, there without the pointer, starts a
 // new session in a project of its map: the projects drop from it grouped as the map groups them, the home
 // project left out while the home session lives, and a press sends the same
-// action the projects panel does, addressed by the id of the map entry.
+// action the projects panel does, addressed by the id of the map entry. The
+// plus in the heading of a project, there without the pointer too, sends the
+// same action for its own project.
 func TestDeskContourHeadingStartsASession(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -329,12 +339,21 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 	if id, ok := got.Opened[0].Params["project"].(float64); !ok || int(id) != 13 {
 		t.Errorf("the new session is addressed as %+v, expected the project of the map by its id", got.Opened[0].Params)
 	}
+	if got.ProjectPlus != "visible" {
+		t.Errorf("the plus of a project heading stands %q — it is there without the pointer", got.ProjectPlus)
+	}
+	if len(got.ProjectOpened) != 1 || got.ProjectOpened[0].Kind != "session.open" || got.ProjectOpened[0].Target != "person" {
+		t.Fatalf("a press on the plus of person sent %+v, expected one session.open", got.ProjectOpened)
+	}
+	if id, ok := got.ProjectOpened[0].Params["project"].(float64); !ok || int(id) != 12 {
+		t.Errorf("the session of the project heading is addressed as %+v, expected project 12 by its id", got.ProjectOpened[0].Params)
+	}
 }
 
 // The closed conversations of every contour shown stand on a shelf below all
 // of them: one request for all the contours, newest first, one per project
 // and none where nothing was said; each with its name, its contour, what it
-// was about and when, and no dot, key or bar. The time closes the first line
+// was about and when, and no dot or bar. The time closes the first line
 // and Resume the second, both on every row: what the conversation was about
 // gives way to them and nothing runs into them. The archive is a press away.
 func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
@@ -360,7 +379,7 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 		}
 		for _, row := range got.Shelf {
 			if row.Dot {
-				t.Errorf("%s on the shelf has a dot, key or bar — a closed conversation is quiet", row.Name)
+				t.Errorf("%s on the shelf has a dot or a bar — a closed conversation is quiet", row.Name)
 			}
 			if row.Resume == "none" || row.When == "" {
 				t.Errorf("%s on the shelf shows Resume %q and the time %q — both stand without the pointer", row.Name, row.Resume, row.When)
@@ -431,8 +450,8 @@ func TestClosedConversationTimeIsRelative(t *testing.T) {
 
 // The ground of a live row fills faintly as far as its context, in the colour
 // of its bar and over the bar's own columns, so the fill starts and ends where
-// the bar does: a fill measured against the whole row runs past the key column
-// the bar leaves out and ends short of the bar's end. The fill lies under the
+// the bar does: a fill measured against the whole row starts in the padding
+// the bar leaves out and ends off the bar's end. The fill lies under the
 // words and stays on the open row; a console still being raised has no
 // context and no fill.
 func TestDeskRowGroundFillsAsFarAsItsContext(t *testing.T) {

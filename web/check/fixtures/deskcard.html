@@ -20,8 +20,9 @@ html,body{margin:0}
 <div id="phone"></div>
 <script type="module">
 // The card of a session in the desktop column, with the right panel open:
-// live and closed apart. The live sessions of a contour keep their places and
-// keys whatever they do; the state is said in the words of the phone, with a
+// live and closed apart. The live sessions of a contour stand in blocks of
+// their projects, each under a heading with a way to a new session in it, and
+// keep their places whatever they do; the state is said in the words of the phone, with a
 // quiet line of what the session runs on under it, the share of its context
 // among it; the one action of a row stands on every row in its corner; the heading
 // counts who waits and opens a new session; the closed conversations stand on
@@ -137,7 +138,7 @@ const orders = [];
 let archiveOpened = 0;
 const column = (sessions, current, currentId = "") => render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     snapshot: { at: now / 1000, sessions, profileMap, limits, profiles: accounts, host: { home: "/home/u" } },
-    profiles: { profiles: [] }, limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
+    limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
     onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait,
 }))), document.getElementById("root"));
 
@@ -147,10 +148,15 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const words = (el) => (el ? Array.from(el.children).map(text).filter(Boolean).join(" ") : "");
 const root = () => document.getElementById("root");
 const rowOf = (name) => Array.from(root().querySelectorAll(".dklive")).find((r) => text(r.querySelector(".dkname")) === name);
+// lay reads every contour of the column: its name, how many wait, and its
+// rows in order — the heading of a project as "# name · group", with "+"
+// where it opens a new session, and a session by its name.
 const lay = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => ({
     name: text(sec.querySelector(".dkcontourname")),
     waits: text(sec.querySelector(".dkwaitn")),
-    rows: Array.from(sec.querySelectorAll(".dklive")).map((r) => `${text(r.querySelector(".dkkey"))}:${text(r.querySelector(".dkname"))}`),
+    rows: Array.from(sec.querySelectorAll(".dkproj, .dklive")).map((r) => (r.classList.contains("dkproj")
+        ? `# ${text(r.querySelector(".dkprojname"))} · ${text(r.querySelector(".dkprojgroup"))}${r.querySelector(".dkprojnew") ? " +" : ""}`
+        : text(r.querySelector(".dkname")))),
 }));
 const say = (name) => words(rowOf(name) && rowOf(name).querySelector(".dksay"));
 const facts = (name) => {
@@ -221,7 +227,7 @@ function hiding() {
                 continue;
             }
             const sel = rule.selectorText || "";
-            if (!/\.dkrowacts|\.dknew\b|\.dkresume|\.dkclwhen/.test(sel)) continue;
+            if (!/\.dkrowacts|\.dknew\b|\.dkprojnew|\.dkresume|\.dkclwhen/.test(sel)) continue;
             const st = rule.style;
             if (st.visibility === "hidden" || st.display === "none" || st.opacity === "0") out.push(sel);
         }
@@ -241,9 +247,11 @@ window.done = (async () => {
     out.orderBefore = orders[orders.length - 1];
     out.ghost = (() => {
         const g = root().querySelector(".dkghost");
-        const sec = g && g.closest("section");
-        return g ? { section: text(sec.querySelector(".dkcontourname")), key: text(g.querySelector(".dkkey")),
-                     last: g === Array.from(sec.querySelectorAll(".dklive")).pop(), say: words(g.querySelector(".dksay")) } : null;
+        if (!g) return null;
+        let head = g.previousElementSibling;
+        while (head && !head.classList.contains("dkproj")) head = head.previousElementSibling;
+        return { section: text(g.closest("section").querySelector(".dkcontourname")),
+                 head: text(head && head.querySelector(".dkprojname")), say: words(g.querySelector(".dksay")) };
     })();
     out.says = Object.fromEntries(["person", "aacpanel", "api", "shop", "helios"].map((n) => [n, say(n)]));
     out.tones = Object.fromEntries(["person", "aacpanel", "helios"].map((n) => [n, rowOf(n).dataset.tone]));
@@ -278,7 +286,7 @@ window.done = (async () => {
     out.shelf = Array.from(root().querySelectorAll(".dkshelf .dkclosed")).map((r) => ({
         name: text(r.querySelector(".dkclname")), contour: text(r.querySelector(".dkclcontour")),
         when: text(r.querySelector(".dkclwhen")), about: text(r.querySelector(".dkabout")),
-        dot: Boolean(r.querySelector(".dkdot, .dkkey, .dksessbar")),
+        dot: Boolean(r.querySelector(".dkdot, .dksessbar")),
         resume: getComputedStyle(r.querySelector(".dkresume")).display,
         bad: [
             hit(box(r.querySelector(".dkresume")), box(r.querySelector(".dkabout"))) && "Resume/about",
@@ -307,6 +315,22 @@ window.done = (async () => {
     if (ok) ok.click();
     await quiet();
     out.opened = sent.slice();
+
+    // The plus of a project heading starts a session in that project. The
+    // gate asks first, as it does for the plus of the contour: what is read is
+    // what went to the host once the person said yes.
+    sent.length = 0;
+    const ownHead = Array.from(root().querySelectorAll(".dkproj")).find((el) => text(el.querySelector(".dkprojname")) === "person");
+    const own = ownHead && ownHead.querySelector(".dkprojnew");
+    out.projectPlus = own ? getComputedStyle(own).visibility : "";
+    if (own) {
+        own.click();
+        for (let i = 0; i < 100 && !document.querySelector(".btnrow .btn.primary"); i++) await sleep(10);
+        const sure = document.querySelector(".btnrow .btn.primary");
+        if (sure) sure.click();
+        await quiet();
+    }
+    out.projectOpened = sent.slice();
 
     // A minute later: every state has changed, the list comes in another order.
     column(later, "aacpanel");

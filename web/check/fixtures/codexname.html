@@ -48,7 +48,7 @@ const exec = { available: true, kinds: ["session.send", "session.stop", "session
 const profileMap = [{ id: 4, profile: "Acme", name: "Acme",
     groups: [{ name: "Work", projects: [{ id: 7, name: "Admin", session: "admin", path: "/srv/admin" }] }] }];
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
-    snapshot: { at: 1, sessions, profileMap, limits: null }, profiles: { profiles: [] }, limits: null,
+    snapshot: { at: 1, sessions, profileMap, limits: null }, limits: null,
     current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`

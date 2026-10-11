@@ -104,38 +104,52 @@ export function aboutOf(row, project) {
     return "";
 }
 
-// blocksOf lays the sessions of a contour out as blocks of their projects:
-// every live session in the block of its project (a session no project holds
-// gets a block of its own), the sessions being raised beside them, and the
-// last conversation of a block with nothing live. A session another started —
-// opened through the panel or run inside its work — stands in the block of
-// the eldest of them, whatever its own project: the group is read as one, and
-// its block stands where the most pressing of the group puts it. A block with
-// a live session shows none of its past: the way into the project is the live
-// session, and a closed conversation beside it reads as that session.
-// Projects with nothing live come last and at most QUIET_MAX of them.
-export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) {
+// projectsIn lists the projects of a contour's map in its order, each with the
+// name of the group it stands in.
+function projectsIn(profile) {
+    const out = [];
+    for (const group of (profile && profile.groups) || []) {
+        for (const project of group.projects || []) out.push({ project, group: group.name });
+    }
+    return out;
+}
+
+// liveBlocksOf lays the live sessions of a contour out as blocks of their
+// projects, in the order of the map: every live session in the block of its
+// project, and a session being raised in the block of the project it is
+// raised in, at the place of the project whether anything there lives yet or
+// not; a session no project holds, or raised in no project, in a block of its
+// own after them.
+// A session another started — opened through the panel or run inside its
+// work — stands in the block of the eldest of them, whatever its own project:
+// the group is read as one. A block keeps its sessions in the order of the
+// list it is given, the ones another started after the rest; how they stand
+// is the business of the screen that draws them.
+export function liveBlocksOf({ profile, sessions = [], opening = [] }) {
     const { rootOf } = kinOf(sessions);
     const tops = sessions.filter((s) => rootOf(s) === s);
-    const projects = [];
-    for (const group of (profile && profile.groups) || []) {
-        for (const project of group.projects || []) projects.push({ project, group: group.name });
-    }
+    const projects = projectsIn(profile);
     const out = new Map();
     const put = (key, init) => {
-        if (!out.has(key)) out.set(key, { key, live: [], ghosts: [], past: null, home: false, ...init });
+        if (!out.has(key)) out.set(key, { key, live: [], ghosts: [], home: false, ...init });
         return out.get(key);
     };
 
     const claimed = new Set();
+    const raised = new Set();
     for (const { project, group } of projects) {
         const own = sessionsOf(project, tops);
-        if (own.length === 0) continue;
+        const ghosts = opening.filter((task) => !raised.has(task) && task.target === project.session);
+        if (own.length === 0 && ghosts.length === 0) continue;
         const block = put(`p${project.id}`, { name: project.name, group, project });
         for (const s of own) {
             block.live.push(s);
             block.home = block.home || Boolean(s.home);
             claimed.add(s.session);
+        }
+        for (const task of ghosts) {
+            block.ghosts.push(task);
+            raised.add(task);
         }
     }
     for (const s of tops) {
@@ -153,12 +167,25 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
         if (root !== s && blockOf.has(root.session)) blockOf.get(root.session).live.push(s);
     }
     for (const task of opening) {
-        const known = projects.find((p) => p.project.session === task.target);
-        const block = known
-            ? put(`p${known.project.id}`, { name: known.project.name, group: known.group, project: known.project })
-            : put(`s:${task.target}`, { name: task.target, group: "", project: null });
-        block.ghosts.push(task);
+        if (!raised.has(task)) put(`s:${task.target}`, { name: task.target, group: "", project: null }).ghosts.push(task);
     }
+    return [...out.values()];
+}
+
+// blocksOf lays the sessions of a contour out as the blocks of the list: the
+// live ones as liveBlocksOf has them, and the last conversation of a block
+// with nothing live. The block of a group of sessions stands where the most
+// pressing of the group puts it. A block with a live session shows none of
+// its past: the way into the project is the live session, and a closed
+// conversation beside it reads as that session. Projects with nothing live
+// come last and at most QUIET_MAX of them.
+export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) {
+    const projects = projectsIn(profile);
+    const out = new Map(liveBlocksOf({ profile, sessions, opening }).map((block) => [block.key, { ...block, past: null }]));
+    const put = (key, init) => {
+        if (!out.has(key)) out.set(key, { key, live: [], ghosts: [], past: null, home: false, ...init });
+        return out.get(key);
+    };
 
     const live = new Set(sessions.map((s) => s.sessionId).filter(Boolean));
     let quiet = 0;

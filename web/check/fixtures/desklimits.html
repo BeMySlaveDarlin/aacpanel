@@ -56,7 +56,7 @@ window.fetch = counted(async (url) => {
 });
 
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
-    snapshot: { at: now, sessions, profileMap, limits }, profiles: { profiles: [] }, limits,
+    snapshot: { at: now, sessions, profileMap, limits }, limits,
     current: "aacpanel", currentId: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {},
     exec: { available: true, kinds: ["session.resume", "session.close"] }, wait: null,
 }))), document.getElementById("root"));

@@ -231,15 +231,6 @@ export function DesktopShell({
 
             if (section !== "sessions" || order.length === 0) return;
 
-            if (e.key >= "1" && e.key <= "9") {
-                const target = order[Number(e.key) - 1];
-                if (target) {
-                    setChat(target);
-                    e.preventDefault();
-                }
-                return;
-            }
-
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 const at = order.findIndex((t) => chat && t.name === chat.name);
                 const step = e.key === "ArrowDown" ? 1 : -1;
@@ -285,7 +276,6 @@ export function DesktopShell({
         }
         return html`<${SessionColumn}
             snapshot=${snapshot}
-            profiles=${profiles}
             limits=${snapshot && snapshot.limits}
             current=${chat && chat.name}
             currentId=${chat && chat.id}

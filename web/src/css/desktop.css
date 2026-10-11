@@ -376,8 +376,8 @@
     }
 
 
-    /* A row of the column: the hotkey, the name and a mark of waiting, over a
-       thin bar of the context. The open row is the one row with a fill; the
+    /* A row of the column: a mark in a column of its own, the name and what
+       it says, over a thin bar. The open row is the one row with a fill; the
        rest sit on the page. */
     .dksess {
         position: relative;
@@ -427,7 +427,8 @@
 
     /* The sessions a session had the panel open, as on the phone: a fold
        under it, and the sessions a step in on the line of a branch. They keep
-       their names and keys — they are sessions like any other, not runs. */
+       their names and rows of their own — they are sessions like any other,
+       not runs. */
     .dkkin.dkfold { gap: .4rem; padding-left: .55rem; }
 
     .dkfoldtext { font-weight: 600; color: var(--ink-dim); }
@@ -495,10 +496,58 @@
 
     .dkstubnote { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--ink-faint); }
 
+    /* The heading of a project inside its contour: a quiet line in the ink
+       of the rows under it, the group of the map beside it, a plus at the
+       edge where the action of the rows stands. It is a label, not a band:
+       the contour above is the band. */
+    .dkproj {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        min-height: 1.75rem;
+        padding: .5rem .45rem .15rem .55rem;
+        border-bottom: var(--hair) solid var(--line);
+    }
+
+    /* The heading right under the band of the contour needs no air above. */
+    .dkcontour + .dkproj { padding-top: .35rem; }
+
+    .dkprojname {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: var(--mono);
+        font-size: var(--t-sm);
+        font-weight: 600;
+        color: var(--ink-dim);
+    }
+
+    .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
+
+    .dkprojnew {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 1.4rem;
+        height: 1.3rem;
+        margin-left: auto;
+        padding: 0;
+        border: 0;
+        border-radius: var(--r-small);
+        background: none;
+        color: var(--ink-faint);
+        cursor: pointer;
+    }
+
+    .dkprojnew:disabled { opacity: .45; cursor: default; }
+
+    .dkprojnew svg { width: var(--i-sm); height: var(--i-sm); }
+
     /* A session whose parent stands elsewhere says which session opened it,
        on a quiet line under the rest. */
     .dklive > .dkfrom {
-        grid-column: 2 / -1;
+        grid-column: 1 / -1;
         grid-row: 4;
         min-width: 0;
         overflow: hidden;
@@ -535,36 +584,28 @@
     .dksessbar.s3 i { background: var(--ctx-3); }
     .dksessbar.s4 i { background: var(--ctx-4); }
 
-    /* A live session of the column: its key in a column of its own; the name
-       with the marks of what is unusual about it, and the action of the row
-       in the corner beside it; its state in the words of the phone; a quiet
-       line of what it runs on under all of it, how full the context is among
-       it. The bar of its context runs along the bottom edge, and a session
-       that waits for the person has an edge of its own on the left. */
+    /* A live session of the column: the name with the marks of what is
+       unusual about it, and the action of the row in the corner beside it;
+       its state in the words of the phone; a quiet line of what it runs on
+       under all of it, how full the context is among it. The bar of its
+       context runs along the bottom edge, and a session that waits for the
+       person has an edge of its own on the left. */
     .dksess.dklive {
-        grid-template-columns: .8rem minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         gap: .1rem .45rem;
         padding: .4rem .45rem .5rem .55rem;
     }
 
-    .dklive > .dkkey { grid-column: 1; grid-row: 1; }
+    .dklive > .dksessmain { grid-column: 1; grid-row: 1; }
 
-    .dklive > .dksessmain { grid-column: 2; grid-row: 1; }
-
-    .dklive > .dksay { grid-column: 2 / -1; grid-row: 2; }
+    .dklive > .dksay { grid-column: 1 / -1; grid-row: 2; }
 
     .dksess.dklive.dkkid { padding-left: 1.4rem; }
 
     .dksess.dklive[data-tone="wait"] { box-shadow: inset 2px 0 0 var(--wait); }
 
     .dksess.dkghost { cursor: default; }
-
-    .dkkey {
-        font-family: var(--mono);
-        font-size: var(--t-xs);
-        color: var(--ink-faint);
-    }
 
     .dklive .dksessmain { gap: .35rem; min-width: 0; }
 
@@ -628,7 +669,7 @@
        a second line the row does not show, so the line gives way from its end
        a whole fact at a time rather than in the middle of one. */
     .dkdetail {
-        grid-column: 2 / -1;
+        grid-column: 1 / -1;
         grid-row: 3;
         display: flex;
         flex-wrap: wrap;
@@ -655,13 +696,14 @@
     /* The action of a row stands in its top right corner, on the line of the
        name and at the same place on every row, so the actions read down one
        edge; a long name or its marks give way to it. */
-    .dklive > .dkrowacts { grid-column: 3; grid-row: 1; justify-self: end; margin: 0; }
+    .dklive > .dkrowacts { grid-column: 2; grid-row: 1; justify-self: end; margin: 0; }
 
     .dklive > .dkrowacts .dkact { width: 1.7rem; height: 1.1rem; justify-content: end; }
 
     .dklive > .dkrowacts .dkact svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dksess.dklive > .dksessbar {
+        grid-column: 1 / -1;
         position: absolute;
         left: 0;
         right: 0;
@@ -682,7 +724,7 @@
 
     .dksess.dklive::before {
         content: "";
-        grid-column: 2 / -1;
+        grid-column: 1 / -1;
         position: absolute;
         top: 0;
         bottom: 0;
@@ -1941,7 +1983,7 @@
     .dkpickrow:hover { background: var(--glass); color: var(--ink); }
     .dksess:not(.on):not(.dkghost):hover { background: var(--glass); }
     .dkclosed:not(.on):hover { background: var(--glass); }
-    .dknew:hover, .dkshelfall:hover { color: var(--ink); background: var(--glass); }
+    .dknew:hover, .dkshelfall:hover, .dkprojnew:not(:disabled):hover { color: var(--ink); background: var(--glass); }
     .dknewrow:not(:disabled):hover { background: var(--glass); }
     .dkresume:not(.off):hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
     .dktr:hover .dkc-acts { opacity: 1; }
