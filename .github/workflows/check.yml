@@ -92,6 +92,11 @@ jobs:
           echo "passed:  $(grep -c '^--- PASS' /tmp/go-test.log || true)"
           echo "skipped: $(grep -c '^--- SKIP' /tmp/go-test.log || true)"
           echo
+          # What the run costs is read off the run: a package that grew shows
+          # here before the whole job is felt to be slow.
+          echo "the slowest packages:"
+          grep -E '^(ok|FAIL)[[:space:]]' /tmp/go-test.log | sort -t$'\t' -k3 -rn | head -n 5 || true
+          echo
           echo "why the skipped ones were skipped:"
           grep -B1 '^--- SKIP' /tmp/go-test.log \
             | grep -oE '[a-z_]+\.go:[0-9]+: .*' \

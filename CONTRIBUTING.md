@@ -82,6 +82,30 @@ others found:
 A red `make check` is a reason not to send the change, not a "we will fix it
 later".
 
+**The check has a budget, and a change pays for what it adds.** `make check`
+ends with the wall time of each of its parts, the longest first, `go test`
+prints the time of every package, and the workflow names its slowest packages
+in its summary: the cost of the check is read off the check itself, not kept
+in a text that goes stale. A change that adds tests pays for the time they add
+in the same change — before and after are two runs of the check, and the
+difference goes into the description. The ways to pay:
+
+- a new case of a screen goes into the fixture of that screen: a page that
+  several tests read runs once a run for every screen it is run on, and each
+  test reads its part of the answer;
+- a fixture waits on the screen, not on a guess: `quiet()` of
+  `web/check/fixtures/quiet.js` comes back once the fake host has answered,
+  the timers the page set for the next second have run and the screen stands
+  still, and a condition of its own is waited on with `until`. A pause of
+  milliseconds stays only where the time is the point — a lifetime, a probe
+  that nothing happened before a debounce;
+- a wait of the code under test is shortened for the tests rather than sat
+  out: `internal/executor/waits_test.go` takes a tenth of every wait of the
+  executor, and the scenes of the update fixture build the page with a grace
+  shorter than the panel's.
+
+A change that makes the check slower and says nothing about it is not done.
+
 **The same checks run on a push and on a pull request**, minus the ones that need
 a live host: the tests of `internal/executor` and `internal/launcher` skip
 themselves without tmux, konsole and a graphical session, and `agent-confined`
