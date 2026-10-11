@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-// copyCases are the cases the page copy shares with the delivery's
-// artifact-copy.py, which sends the same bytes on the same payload.
+// copyCases holds the fixture of page copy payload and wire format.
 type copyCases struct {
 	Cases []struct {
 		What       string  `json:"what"`

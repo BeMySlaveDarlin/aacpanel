@@ -16,8 +16,7 @@ import (
 	"aacpanel/internal/mcp"
 )
 
-// checklistCases are the cases the reminder shares with the delivery's
-// checklist-reminder.py, which answers the same stops the same way.
+// checklistCases holds the fixture of checklist reminders.
 type checklistCases struct {
 	Session string `json:"session"`
 	Place   string `json:"place"`

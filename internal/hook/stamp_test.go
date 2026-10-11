@@ -12,8 +12,7 @@ import (
 	"time"
 )
 
-// stampCases are the cases the stamp shares with the delivery's
-// prompt-stamp.py, which says the same to the byte. The numbers of the
+// stampCases holds the fixture of stamp output. The numbers of the
 // snapshots keep the form they are written in: python says 41 and 41.0
 // apart, and so must the snapshot the test writes.
 type stampCases struct {

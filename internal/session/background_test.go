@@ -8,8 +8,7 @@ import (
 	"time"
 )
 
-// shared are the cases the delivery's background.py runs too: one truth of
-// what is at work, for the script and for the tool.
+// shared holds the fixture of work counted for the hook and the tool.
 type shared struct {
 	Work []struct {
 		What    string          `json:"what"`

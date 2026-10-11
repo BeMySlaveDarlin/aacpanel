@@ -42,9 +42,8 @@ import (
 //
 // The claude whose turn ends is found up the chain of the hook's parents, by
 // the file it keeps of itself in its config directory, sessions/<pid>.json,
-// and only while that file is of the live process. The delivery's
-// checklist-reminder.py answers the same stops the same way; the two share
-// their cases in deploy/claude/testdata/checklist-reminder.json.
+// and only while that file is of the live process. The cases live in
+// deploy/claude/testdata/checklist-reminder.json.
 
 const (
 	// checklistTool is the checklist tool of the panel's server.

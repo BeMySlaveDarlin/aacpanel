@@ -12,9 +12,8 @@ import (
 // workflows and the commands and watchers it sent to the background. The
 // restart waits while any of that is at work; a wake-up the session set itself
 // runs nothing and is not waited for. The collector counts the work of every
-// session into its snapshot, and the delivery's background.py reads the same
-// counts the same way — the two share their cases in
-// deploy/claude/testdata/background.json.
+// session into its snapshot. The hook and the tool read those counts through
+// this package, covered by deploy/claude/testdata/background.json.
 
 // The collector reads the sessions every six seconds and writes them out on
 // its next five-second tick, so a snapshot on disk can be eleven seconds old.

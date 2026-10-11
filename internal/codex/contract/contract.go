@@ -836,11 +836,13 @@ type Report struct {
 	Gone      []Finding `json:"gone"`
 	Changed   []Finding `json:"changed"`
 	New       []Finding `json:"new"`
+	// Hooks is the live daemon's verdict, when checked by codex-contract.
+	Hooks []Finding `json:"hooks,omitempty"`
 }
 
 // Red says something the panel reads or sends is gone or changed.
 func (r Report) Red() bool {
-	for _, list := range [][]Finding{r.Gone, r.Changed, r.New} {
+	for _, list := range [][]Finding{r.Gone, r.Changed, r.New, r.Hooks} {
 		if slices.ContainsFunc(list, func(f Finding) bool { return f.Red }) {
 			return true
 		}
@@ -1020,7 +1022,10 @@ func (r Report) Text() string {
 	for _, list := range []struct {
 		name  string
 		found []Finding
-	}{{"gone", r.Gone}, {"changed", r.Changed}, {"new", r.New}} {
+	}{{"gone", r.Gone}, {"changed", r.Changed}, {"new", r.New}, {"hooks", r.Hooks}} {
+		if list.name == "hooks" && list.found == nil {
+			continue
+		}
 		if len(list.found) == 0 {
 			fmt.Fprintf(&b, "%s: nothing\n", list.name)
 			continue

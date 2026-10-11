@@ -32,8 +32,7 @@ import (
 // conversation: the close of a restart lets the session stop once more, and an
 // ask there would bring up a second session. The mark that the ask was sent
 // lives under the executor's state, a file a conversation in context-guard/,
-// the same files the delivery's context-guard.py keeps: a session moved from
-// one to the other is not asked twice. The two share their cases in
+// kept across updates so a conversation is not asked twice. The cases live in
 // deploy/claude/testdata/context-guard.json.
 
 const (

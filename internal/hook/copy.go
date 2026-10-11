@@ -22,8 +22,7 @@ import (
 // It answers PostToolUse on the Artifact tool and says nothing, sent or not:
 // a hook that prints on every publish turns into noise the session learns to
 // ignore. A panel that is down, or one not installed here, leaves the publish
-// exactly as it was. The delivery's artifact-copy.py sends the same bytes on
-// the same payload; the two share their cases in
+// exactly as it was. The payload and wire format are covered by
 // deploy/claude/testdata/artifact-copy.json.
 
 const copyTool = "Artifact"

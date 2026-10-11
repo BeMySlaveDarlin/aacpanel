@@ -9,8 +9,7 @@ import (
 	"aacpanel/internal/action"
 )
 
-// The cases the package shares with the delivery's guards.py, which reads
-// the same file the same way.
+// The fixture holds the file format both the writer and the hooks rely on.
 func TestTheSharedCasesOfThePlaces(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "claude", "testdata", "guards.json"))
 	if err != nil {

@@ -50,11 +50,13 @@ func refused(err error) bool {
 	return errors.As(err, &e)
 }
 
-// conn is one connection to a daemon: WebSocket over its unix socket, a
-// message a frame. Raw lines of JSON on that socket are dropped by the daemon.
+// conn routes the same JSON-RPC over the daemon's WebSocket or a private
+// app-server's stdio. The daemon socket itself accepts WebSocket frames only.
 type conn struct {
-	ws     *websocket.Conn
-	handle func(message)
+	receive    func() ([]byte, error)
+	write      func(context.Context, []byte) error
+	disconnect func()
+	handle     func(message)
 
 	next  atomic.Int64
 	mu    sync.Mutex
@@ -79,14 +81,22 @@ func dial(ctx context.Context, socket string, handle func(message)) (*conn, erro
 		return nil, err
 	}
 	ws.SetReadLimit(readLimit)
-	c := &conn{ws: ws, handle: handle, calls: map[int64]chan message{}, closed: make(chan struct{})}
+	c := &conn{
+		receive: func() ([]byte, error) {
+			_, body, err := ws.Read(context.Background())
+			return body, err
+		},
+		write:      func(ctx context.Context, body []byte) error { return ws.Write(ctx, websocket.MessageText, body) },
+		disconnect: func() { _ = ws.Close(websocket.StatusNormalClosure, "") },
+		handle:     handle, calls: map[int64]chan message{}, closed: make(chan struct{}),
+	}
 	go c.read()
 	return c, nil
 }
 
 func (c *conn) read() {
 	for {
-		_, data, err := c.ws.Read(context.Background())
+		data, err := c.receive()
 		if err != nil {
 			c.fail(err)
 			return
@@ -174,7 +184,7 @@ func (c *conn) send(ctx context.Context, msg map[string]any) error {
 	if err != nil {
 		return err
 	}
-	if err := c.ws.Write(ctx, websocket.MessageText, body); err != nil {
+	if err := c.write(ctx, body); err != nil {
 		select {
 		case <-c.closed:
 			return c.lost()
@@ -189,7 +199,7 @@ func (c *conn) send(ctx context.Context, msg map[string]any) error {
 func (c *conn) lost() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return fmt.Errorf("the connection to the codex daemon dropped: %w", c.err)
+	return fmt.Errorf("the connection to the codex app-server dropped: %w", c.err)
 }
 
 func (c *conn) down() bool {
@@ -202,6 +212,6 @@ func (c *conn) down() bool {
 }
 
 func (c *conn) close() {
-	_ = c.ws.Close(websocket.StatusNormalClosure, "")
+	c.disconnect()
 	c.fail(errors.New("closed by the panel"))
 }

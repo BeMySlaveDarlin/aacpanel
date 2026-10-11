@@ -22,6 +22,18 @@ call initialize
   send capabilities.optOutNotificationMethods[]
   read userAgent
 
+# The installed hooks: trust is decided by the live daemon, not by its client.
+call hooks/list
+  send cwds[]
+  read data[].cwd
+  read data[].errors[].path
+  read data[].errors[].message
+  read data[].hooks[].key
+  read data[].hooks[].handlerType: command
+  read data[].hooks[].command
+  read data[].hooks[].enabled
+  read data[].hooks[].trustStatus: trusted
+
 # The poll: the loaded threads and each one read.
 call thread/loaded/list
   send cursor

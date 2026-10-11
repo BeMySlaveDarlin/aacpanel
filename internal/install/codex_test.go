@@ -6,6 +6,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/codex/codextest"
+	"aacpanel/internal/contours"
 )
 
 // codexGolden are hooks of a hooks.json and the hash codex 0.162.1 answers
@@ -294,10 +297,16 @@ func TestATrustWrittenInAnotherFormIsLeftAlone(t *testing.T) {
 // The step of codex: a home host.env names or ~/.codex, wired in place, kept
 // aside before the first change, recorded, and taken out by the undo.
 func TestTheCodexStepWiresEveryHomeAndTheUndoTakesItOut(t *testing.T) {
-	g := newRig(t, homeFile(".codex/hooks.json", atlasCodex))
-	home := filepath.Join(g.home, ".codex")
+	srv := codextest.New(t)
+	t.Setenv("TMPDIR", srv.Home)
+	g := newRig(t)
+	g.m.Disk = srv.Home
+	g.in.S.was.host = map[string]string{contours.CodexHomesEnv: srv.Home}
+	home := srv.Home
+	g.write(codexHooksFile(home), atlasCodex, 0o600)
 	config := strings.ReplaceAll(atlasConfig, codexPath, codexHooksFile(home))
 	g.write(codexConfigFile(home), config, 0o600)
+	srv.Hooks(codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, false))
 	step := g.step("codex")
 	if step == nil {
 		t.Fatal("no step for the hooks of codex")
@@ -331,6 +340,111 @@ func TestTheCodexStepWiresEveryHomeAndTheUndoTakesItOut(t *testing.T) {
 	}
 	if got := g.read(codexConfigFile(home)); strings.Contains(got, "pre_tool_use") || !strings.Contains(got, "stop:0:0") {
 		t.Errorf("the undo left the trust as:\n%s", got)
+	}
+}
+
+// The daemon answers with its own trust verdict, independent of the hash
+// Verify can recompute from config.toml. Both the wiring step and the chain
+// used by install.sh check must turn red when that verdict changes.
+func TestTheCodexCheckAsksTheDaemonAboutTrust(t *testing.T) {
+	srv := codextest.New(t)
+	t.Setenv("TMPDIR", srv.Home)
+	g := newRig(t, answer("--kit", "+stamp"))
+	g.m.Disk = srv.Home
+	g.in.S.was.host = map[string]string{contours.CodexHomesEnv: srv.Home}
+	g.chainUp()
+	step := g.step("codex")
+	srv.Hooks(codexHookListing(srv.Home, g.in.execPath(), g.in.state(), "trusted", true, true))
+	if err := g.do(step); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, trust, reason string
+		enabled             bool
+	}{
+		{"matching formula", "trusted", "", true},
+		{"another formula", "modified", "codex does not trust hook prompt-stamp", true},
+		{"disabled", "trusted", "is disabled", false},
+		{"missing", "", "0 times, want once", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv.Hooks(codexHookListing(srv.Home, g.in.execPath(), g.in.state(), tc.trust, tc.enabled, true))
+			said := g.said()
+			for _, check := range []*Step{step, g.in.CheckStep()} {
+				err := check.Verify(g.r)
+				if tc.reason == "" {
+					if err != nil {
+						t.Fatalf("%s: %v; %v", check.ID, err, *said)
+					}
+					continue
+				}
+				if err == nil {
+					t.Fatalf("%s passed with %s", check.ID, tc.name)
+				}
+				text := err.Error() + strings.Join(*said, "\n")
+				if !strings.Contains(text, tc.reason) {
+					t.Fatalf("%s lacks %q: %s", check.ID, tc.reason, text)
+				}
+				if tc.trust == "modified" && !strings.Contains(text, "the trust formula changed?") {
+					t.Fatalf("%s has no diagnosis of a changed formula: %s", check.ID, text)
+				}
+			}
+		})
+	}
+	if len(srv.Calls("hooks/list")) != 9 {
+		t.Fatal("Verify and the check did not ask the daemon each time")
+	}
+}
+
+func codexHookListing(home, executor, state, trust string, enabled, stamp bool) map[string]any {
+	path := codexHooksFile(home)
+	hooks := []any{map[string]any{"key": path + ":pre_tool_use:0:0", "handlerType": "command",
+		"command": executor + " hook ask-hook", "enabled": true, "trustStatus": "trusted"}}
+	if stamp && trust != "" {
+		hooks = append(hooks, map[string]any{"key": path + ":user_prompt_submit:0:0", "handlerType": "command",
+			"command": "AACP_STATE_DIR=" + shellQuote(state) + " " + executor + " hook prompt-stamp", "enabled": enabled, "trustStatus": trust})
+	}
+	return map[string]any{"cwd": home, "hooks": hooks, "errors": []any{}, "warnings": []string{}}
+}
+
+func TestTheCodexCheckStartsAProgramWithoutADaemon(t *testing.T) {
+	g := newRig(t, answer("--kit", "+stamp"))
+	home := filepath.Join(g.root, "codex")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	g.in.S.was.host = map[string]string{contours.CodexHomesEnv: home}
+	g.chainUp()
+	step := g.step("codex")
+	g.m.Vars["AACP_CODEX"] = codextest.HooksProgram(t, codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, true))
+	if err := g.do(step); err != nil {
+		t.Fatal(err)
+	}
+	for _, trust := range []string{"trusted", "modified"} {
+		t.Run(trust, func(t *testing.T) {
+			g.m.Vars["AACP_CODEX"] = codextest.HooksProgram(t, codexHookListing(home, g.in.execPath(), g.in.state(), trust, true, true))
+			if trust == "modified" {
+				t.Setenv("PATH", filepath.Dir(g.m.Vars["AACP_CODEX"])+string(os.PathListSeparator)+os.Getenv("PATH"))
+				g.m.Vars["AACP_CODEX"] = ""
+			}
+			said := g.said()
+			for _, check := range []*Step{step, g.in.CheckStep()} {
+				err := check.Verify(g.r)
+				if trust == "trusted" && err != nil || trust == "modified" && err == nil {
+					t.Fatalf("%s with trust %s: %v; %v", check.ID, trust, err, *said)
+				}
+				text := strings.Join(*said, "\n")
+				if err != nil {
+					text += err.Error()
+				}
+				if !strings.Contains(text, "asked a codex app-server started for the check") {
+					t.Fatalf("%s does not name the server: %s", check.ID, text)
+				}
+				if trust == "modified" && !strings.Contains(text, "the trust formula changed?") {
+					t.Fatalf("%s has no diagnosis of a changed formula: %s", check.ID, text)
+				}
+			}
+		})
 	}
 }
 

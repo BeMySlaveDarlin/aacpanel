@@ -5,11 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/codex/codextest"
+	"aacpanel/internal/install"
 )
 
 // fakeCodex is a codex that says its version and writes, as its schema, the
 // file it is given: the reference, or the reference with a field taken away.
-func fakeCodex(t *testing.T, bundle []byte) string {
+func fakeCodex(t *testing.T, bundle []byte, stdio string) string {
 	t.Helper()
 	dir := t.TempDir()
 	src := filepath.Join(dir, "bundle.json")
@@ -18,6 +21,7 @@ func fakeCodex(t *testing.T, bundle []byte) string {
 	}
 	script := `#!/bin/sh
 if [ "$1" = "--version" ]; then echo "codex-cli 9.9.9"; exit 0; fi
+if [ "$1 $2" = "app-server --stdio" ]; then exec "` + stdio + `" "$@"; fi
 [ "$1 $2 $3" = "app-server generate-json-schema --experimental" ] || { echo "unexpected: $*" >&2; exit 3; }
 [ "$4" = "--out" ] || exit 3
 cp "` + src + `" "$5/codex_app_server_protocol.schemas.json"
@@ -38,26 +42,155 @@ func referenceBundle(t *testing.T) []byte {
 	return body
 }
 
-func TestTheReleaseOfTheReferenceHoldsAndExitsZero(t *testing.T) {
+func hookDaemon(t *testing.T) *codextest.Server {
+	t.Helper()
+	srv := codextest.New(t)
+	t.Setenv("CODEX_HOME", srv.Home)
+	const executor = "/home/u/bin/aacpanel-exec"
+	path := filepath.Join(srv.Home, "hooks.json")
+	hooks, _, _, err := install.WireCodex(nil, nil, path, install.Wiring{Exec: executor, Kit: []string{"relay", "stamp"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, hooks, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv.Hooks(map[string]any{"cwd": srv.Home, "errors": []any{}, "warnings": []string{}, "hooks": []any{
+		map[string]any{"key": path + ":pre_tool_use:0:0", "command": executor + " hook ask-hook",
+			"handlerType": "command", "enabled": true, "trustStatus": "trusted"},
+		map[string]any{"key": path + ":user_prompt_submit:0:0", "command": executor + " hook prompt-stamp",
+			"handlerType": "command", "enabled": true, "trustStatus": "trusted"},
+	}})
+	return srv
+}
+
+func TestTheReleaseAndHookTrustBothHaveToHold(t *testing.T) {
+	srv := hookDaemon(t)
 	t.Setenv("TMPDIR", t.TempDir())
-	if code := run(fakeCodex(t, referenceBundle(t)), "", true, false); code != 0 {
-		t.Fatalf("the release of the reference checked against it exits %d", code)
+	const executor = "/home/u/bin/aacpanel-exec"
+	path := filepath.Join(srv.Home, "hooks.json")
+	bin := fakeCodex(t, referenceBundle(t), "")
+	for _, tc := range []struct {
+		name, trust, reason string
+		enabled             bool
+		code                int
+	}{
+		{"trusted", "trusted", "present, trusted and enabled", true, 0},
+		{"another formula", "modified", "codex does not trust hook prompt-stamp", true, 1},
+		{"disabled", "trusted", "is disabled", false, 1},
+		{"missing", "", "0 times, want once", true, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			listed := []any{map[string]any{"key": path + ":pre_tool_use:0:0", "command": executor + " hook ask-hook",
+				"handlerType": "command", "enabled": true, "trustStatus": "trusted"}}
+			if tc.trust != "" {
+				listed = append(listed, map[string]any{"key": path + ":user_prompt_submit:0:0", "command": executor + " hook prompt-stamp",
+					"handlerType": "command", "enabled": tc.enabled, "trustStatus": tc.trust})
+			}
+			srv.Hooks(map[string]any{"cwd": srv.Home, "errors": []any{}, "warnings": []string{}, "hooks": listed})
+			out, err := os.CreateTemp(t.TempDir(), "report")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer out.Close()
+			saved := os.Stdout
+			os.Stdout = out
+			defer func() { os.Stdout = saved }()
+			if code := run(bin, "", true, false); code != tc.code {
+				t.Fatalf("contract exits %d, want %d", code, tc.code)
+			}
+			raw, err := os.ReadFile(out.Name())
+			if err != nil || !strings.Contains(string(raw), tc.reason) {
+				t.Fatalf("report lacks %q: %s (%v)", tc.reason, raw, err)
+			}
+			if !strings.Contains(string(raw), "asked the running daemon") {
+				t.Fatalf("report does not name the server: %s", raw)
+			}
+			if tc.trust == "modified" && !strings.Contains(string(raw), "the trust formula changed?") {
+				t.Fatalf("a changed formula has no diagnosis: %s", raw)
+			}
+			if tc.trust == "modified" {
+				root := t.TempDir()
+				ref := filepath.Join(root, "internal", "codex", "contract", "reference.json")
+				if err := os.MkdirAll(filepath.Dir(ref), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				for p, body := range map[string]string{filepath.Join(root, "go.mod"): "module probe\n", ref: "kept\n"} {
+					if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				t.Chdir(root)
+				if code := run(bin, "", false, true); code != 1 {
+					t.Fatalf("a release with broken hook trust was written: %d", code)
+				}
+				if body, err := os.ReadFile(ref); err != nil || string(body) != "kept\n" {
+					t.Fatalf("the reference changed: %s (%v)", body, err)
+				}
+			}
+		})
+	}
+	if len(srv.Calls("hooks/list")) != 5 {
+		t.Fatal("the contract did not ask the daemon on every check")
 	}
 }
 
 func TestAReleaseWithoutAFieldThePanelReadsExitsOne(t *testing.T) {
+	hookDaemon(t)
 	t.Setenv("TMPDIR", t.TempDir())
 	gone := strings.Replace(string(referenceBundle(t)), `"parentThreadId"`, `"parentThread"`, 1)
 	if gone == string(referenceBundle(t)) {
 		t.Fatal("the reference names no parentThreadId to take away")
 	}
-	bin := fakeCodex(t, []byte(gone))
+	bin := fakeCodex(t, []byte(gone), "")
 	if code := run(bin, "", true, false); code != 1 {
 		t.Fatalf("a release without a field the panel reads exits %d", code)
 	}
 	// Nor is it written as the reference.
 	if code := run(bin, "", true, true); code != 1 {
 		t.Fatalf("a release without a field the panel reads is written as the reference: %d", code)
+	}
+}
+
+func TestTheContractChecksHookTrustWithoutADaemon(t *testing.T) {
+	srv := hookDaemon(t)
+	srv.Close()
+	path := filepath.Join(srv.Home, "hooks.json")
+	bundle := referenceBundle(t)
+	// Neither PATH nor AACP_CODEX may replace the program selected by -codex.
+	t.Setenv("AACP_CODEX", "/missing/codex")
+	for _, trust := range []string{"trusted", "modified"} {
+		t.Run(trust, func(t *testing.T) {
+			stdio := codextest.HooksProgram(t, map[string]any{"cwd": srv.Home, "hooks": []any{
+				map[string]any{"key": path + ":pre_tool_use:0:0", "command": "/home/u/bin/aacpanel-exec hook ask-hook",
+					"handlerType": "command", "enabled": true, "trustStatus": "trusted"},
+				map[string]any{"key": path + ":user_prompt_submit:0:0", "command": "/home/u/bin/aacpanel-exec hook prompt-stamp",
+					"handlerType": "command", "enabled": true, "trustStatus": trust},
+			}})
+			bin := fakeCodex(t, bundle, stdio)
+			out, err := os.CreateTemp(t.TempDir(), "report")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer out.Close()
+			saved := os.Stdout
+			os.Stdout = out
+			defer func() { os.Stdout = saved }()
+			want := 0
+			if trust == "modified" {
+				want = 1
+			}
+			if code := run(bin, "", true, false); code != want {
+				t.Fatalf("trust %s: contract exits %d, want %d", trust, code, want)
+			}
+			raw, err := os.ReadFile(out.Name())
+			if err != nil || !strings.Contains(string(raw), "asked a codex app-server started for the check") {
+				t.Fatalf("report does not name the server: %s (%v)", raw, err)
+			}
+			if trust == "modified" && !strings.Contains(string(raw), "the trust formula changed?") {
+				t.Fatalf("a changed formula has no diagnosis: %s", raw)
+			}
+		})
 	}
 }
 

@@ -697,6 +697,9 @@
        "enum": [
         "hooks/list"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/HooksListParams"
       }
      }
     },
@@ -4077,6 +4080,178 @@
      "rateLimits"
     ],
     "title": "GetAccountRateLimitsResponse",
+    "type": "object"
+   },
+   "HookErrorInfo": {
+    "properties": {
+     "message": {
+      "type": "string"
+     },
+     "path": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "message",
+     "path"
+    ],
+    "type": "object"
+   },
+   "HookMetadata": {
+    "oneOf": [
+     {
+      "properties": {
+       "command": {
+        "type": "string"
+       },
+       "handlerType": {
+        "enum": [
+         "command"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "command",
+       "handlerType"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "handlerType": {
+        "enum": [
+         "mcpTool"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "handlerType",
+       "server",
+       "tool"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "handlerType": {
+        "enum": [
+         "prompt"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "handlerType"
+      ],
+      "title": "PromptHookMetadata",
+      "type": "object"
+     },
+     {
+      "properties": {
+       "handlerType": {
+        "enum": [
+         "agent"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "handlerType"
+      ],
+      "title": "AgentHookMetadata",
+      "type": "object"
+     }
+    ],
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "key": {
+      "type": "string"
+     },
+     "trustStatus": {
+      "$ref": "#/definitions/v2/HookTrustStatus"
+     }
+    },
+    "required": [
+     "currentHash",
+     "displayOrder",
+     "enabled",
+     "eventName",
+     "isManaged",
+     "key",
+     "source",
+     "sourcePath",
+     "timeoutSec",
+     "trustStatus"
+    ],
+    "type": "object"
+   },
+   "HookTrustStatus": {
+    "enum": [
+     "managed",
+     "untrusted",
+     "trusted",
+     "modified"
+    ],
+    "type": "string"
+   },
+   "HooksListEntry": {
+    "properties": {
+     "cwd": {
+      "type": "string"
+     },
+     "errors": {
+      "items": {
+       "$ref": "#/definitions/v2/HookErrorInfo"
+      },
+      "type": "array"
+     },
+     "hooks": {
+      "items": {
+       "$ref": "#/definitions/v2/HookMetadata"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "cwd",
+     "errors",
+     "hooks",
+     "warnings"
+    ],
+    "type": "object"
+   },
+   "HooksListParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "cwds": {
+      "description": "When empty, defaults to the current session working directory.",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "title": "HooksListParams",
+    "type": "object"
+   },
+   "HooksListResponse": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "data": {
+      "items": {
+       "$ref": "#/definitions/v2/HooksListEntry"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "data"
+    ],
+    "title": "HooksListResponse",
     "type": "object"
    },
    "LegacyAppPathString": {

@@ -37,10 +37,9 @@ import (
 // subagent would see itself and its neighbours in the list and stop what is
 // not its own.
 //
-// The marks live in the state directory, a file a conversation, the same
-// files the delivery's background-reminder.py keeps: a session moved from one
-// to the other keeps when each task was first seen. A file untouched for
-// keepMarks goes. The two share their cases in
+// The marks live in the state directory, a file a conversation. Their format
+// stays compatible across updates so each task keeps when it was first seen.
+// A file untouched for keepMarks goes. The cases live in
 // deploy/claude/testdata/background-reminder.json.
 
 const (

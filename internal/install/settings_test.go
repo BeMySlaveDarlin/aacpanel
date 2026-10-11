@@ -3,7 +3,6 @@ package install
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -369,14 +368,10 @@ func TestTheKitDecidesWhatStays(t *testing.T) {
 	}
 }
 
-// A hook whose script is gone must not hold the session: python on a missing
-// file exits 2, which claude reads as "do not stop" for Stop, "throw the
-// prompt away" for UserPromptSubmit and "refuse the call" for PreToolUse. The
-// command runs the script only where it is, and passes on what the script
-// says when it is there.
-func TestAHookWhoseScriptIsGoneHoldsNothing(t *testing.T) {
+// A missing executor must not hold a Stop or refuse a prompt or a tool call:
+// claude takes exit 2 for a blocking hook failure.
+func TestAHookWhoseExecutorIsGoneHoldsNothing(t *testing.T) {
 	clone := t.TempDir()
-	// The executor is not there either: its hooks exit 127 then.
 	w := Wiring{Clone: clone, Exec: filepath.Join(clone, "bin", "aacpanel-exec"), Kit: fullKit.Kit}
 	for _, h := range kitHooks {
 		cmd := exec.Command("sh", "-c", w.command(h))
@@ -384,21 +379,8 @@ func TestAHookWhoseScriptIsGoneHoldsNothing(t *testing.T) {
 		err := cmd.Run()
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.ExitCode() == 2 {
-			t.Errorf("%s on %s with its script gone: %v — expected an exit other than 0 and 2", h.Script, h.Event, err)
+			t.Errorf("%s on %s with its executor gone: %v — expected an exit other than 0 and 2", h.Hook, h.Event, err)
 		}
-	}
-	h := kitHook{Event: "Stop", Script: "deploy/claude/example.py"}
-	script := filepath.Join(clone, h.Script)
-	if err := os.MkdirAll(filepath.Dir(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(script, []byte("import sys\nsys.exit(2)\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	err := exec.Command("sh", "-c", w.command(h)).Run()
-	var exit *exec.ExitError
-	if !errors.As(err, &exit) || exit.ExitCode() != 2 {
-		t.Errorf("a script that asks to block came back as %v: the guard swallowed its word", err)
 	}
 }
 

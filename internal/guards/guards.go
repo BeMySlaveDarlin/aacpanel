@@ -1,9 +1,8 @@
 // Package guards is the context guard of every place the map knows, as the
 // executor keeps it on the host for the hooks of sessions: guards.tsv, and
 // the marker of a restart under way. The executor writes both; the context
-// guard and the prompt stamp read them — the executor's hooks through this
-// package, the delivery's scripts through guards.py, which reads the file by
-// the same rules. The two share their cases in deploy/claude/testdata/guards.json.
+// guard and the prompt stamp read them through this package. The file format
+// is covered by deploy/claude/testdata/guards.json.
 package guards
 
 import (
@@ -118,9 +117,8 @@ func Closest(body, dir string) (action.Guard, bool) {
 	return best, found
 }
 
-// lineBreak tells the characters guards.py splits the lines of the file at,
-// which are python's: a path holding one of them is two broken lines there,
-// and so it is here.
+// lineBreak keeps the file format's line separators: a path holding one of
+// them is two broken lines and must not be written as a guard.
 func lineBreak(r rune) bool {
 	switch r {
 	case '\n', '\r', '\v', '\f', 0x1c, 0x1d, 0x1e, 0x85, 0x2028, 0x2029:

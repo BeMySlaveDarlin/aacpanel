@@ -119,17 +119,18 @@ stream-contract:
 
 # The app-server protocol of the installed codex against what the panel reads
 # and sends of it. Not in check: codex is not on every machine. It spends
-# nothing — codex only writes the schema of its protocol — so it is run every
-# time the daemon has updated itself; CONTRACT_ARGS=-write takes the release as
+# nothing — codex writes its schema and lists its hooks without a thread,
+# through the daemon or a private stdio app-server if its socket is absent;
+# CODEX_HOME selects the home to check. CONTRACT_ARGS=-write takes the release as
 # the reference once the report is read.
 codex-contract:
 	go run ./cmd/codex-contract $(CONTRACT_ARGS)
 
-# Python scripts of the delivery (deploy/claude). Its own target rather than part
+# The stream contract's Python check (deploy/claude). Its own target rather than part
 # of agent-test, which has a different import root. In check because what breaks
 # here breaks silently.
 delivery-test:
-	python3 -m unittest discover -s deploy/claude -t deploy/claude -p 'test_*.py'
+	python3 -m unittest discover -s deploy/claude -t deploy/claude -p 'test_stream_contract.py'
 
 # Shell scripts have no tests, and static analysis is all that checks them before
 # the stand. A missing shellcheck is reported aloud rather than skipped quietly.

@@ -13,8 +13,7 @@ import (
 	"aacpanel/internal/session"
 )
 
-// guardCases are the cases the guard shares with the delivery's
-// context-guard.py, which answers the same stops the same way.
+// guardCases holds the fixture of context guard stops.
 type guardCases struct {
 	Project string         `json:"project"`
 	Guards  string         `json:"guards"`

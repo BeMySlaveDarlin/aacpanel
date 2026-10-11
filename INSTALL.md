@@ -1520,12 +1520,23 @@ either file when `config.toml` names the trust of `hooks.json` in another form,
 an inline table say.
 
 - **Done when** every home's `hooks.json` carries the hooks of the kit, each
-  trusted as it stands.
-- **Check.** The question hook runs once, and codex trusts it:
+  trusted and enabled as the daemon sees it.
+- **Check.** Verify and `./install.sh check` ask each home's running daemon
+  for `hooks/list`. If its socket is absent, they start `AACP_CODEX` (or `codex`
+  from `PATH`) as a private `app-server --stdio` with that `CODEX_HOME`, then
+  close it and wait for its exit. The context kills it at the deadline. The
+  verdict names which server answered. The question relay and every selected
+  optional hook must be listed with the installed command,
+  `trustStatus: "trusted"` and `enabled: true`. A missing hook fails the check; a trust mismatch names the
+  hook and asks whether the trust formula changed. A program that cannot start
+  is reported as such.
+  `CODEX_HOME=<codex home> make codex-contract` checks the same trust and the
+  installed release's protocol. Neither check opens a thread, spends tokens or
+  starts or stops the shared daemon.
 
   ```bash
   jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("hook ask-hook"))] | length' ~/.codex/hooks.json      # 1
-  grep -A1 'hooks.json:pre_tool_use:0:0' ~/.codex/config.toml                                                              # trusted_hash = "sha256:…"
+  ./install.sh check
   ```
 
 - **Manifest.** `codex	codex	<codex home>	hooks=<copy> config=<copy>`, `created`
@@ -1674,7 +1685,7 @@ missing MCP server fails to connect at every session start.
 
 1. In every account's `settings.json`: the question hook, the status line
    (put back the command after `AACP_STATUSLINE_NEXT=`, or remove the status
-   line), the hooks of `deploy/claude` and of `aacpanel-exec hook`, the rules
+   line), the hooks of `aacpanel-exec hook` and their older script forms, the rules
    allowing `mcp__aacpanel__*`. In every codex home: the same hooks of
    `hooks.json`, and their `[hooks.state."…/hooks.json:…"]` tables in
    `config.toml` — the trust of a hook of yours that moves up in `hooks.json`

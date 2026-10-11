@@ -113,6 +113,14 @@ func (in *Install) chain(r *Run) []chainLink {
 	out = append(out, in.databaseLink(r, local), in.containersLink(r, env), in.collectorLink(r), in.executorLink(r),
 		in.askLink())
 	out = append(out, in.wiringLink()...)
+	for _, home := range in.codexHomes() {
+		if source, err := in.verifyCodex(r, home); err != nil {
+			out = append(out, broken("Inspect /hooks in codex; make codex-contract checks hook trust against codex.",
+				"codex hooks in %s: %s", in.short(home), err))
+		} else {
+			out = append(out, pass("codex hooks in %s: %s; present, trusted and enabled", in.short(home), source))
+		}
+	}
 	out = append(out, in.mapLink(local))
 	if env["AACP_TAILSCALE"] == "1" {
 		out = append(out, in.tailnetLink(r))

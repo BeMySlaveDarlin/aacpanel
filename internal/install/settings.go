@@ -212,17 +212,17 @@ func writeString(b *bytes.Buffer, s string) {
 // ---- what the kit puts into the settings ----
 
 // kitHook is a hook of the kit: the event and the matcher it stands under,
-// and what it runs — the executor's hook of a name, or a script of the clone.
+// and the executor's hook it runs, with the script forms an update replaces.
 type kitHook struct {
 	Part    string
 	Event   string
 	Matcher string
 	// Hook is the executor's hook the entry runs, aacpanel-exec hook <Hook>;
-	// empty for a hook that is still a script of the clone.
+	// empty only for a retired hook, whose entry is removed.
 	Hook string
-	// Script is the script of the clone the hook runs, or whose work the
-	// executor's hook does. Its path within the clone tells the python forms
-	// of the entry — test -f <clone>/<script> && python3 <clone>/<script>,
+	// Script is only a migration recognizer. Its path within the clone
+	// tells the python forms of the entry — test -f <clone>/<script> &&
+	// python3 <clone>/<script>,
 	// with the state directory before python3 or without, and the bare
 	// python3 <clone>/<script> of a hand — from any clone.
 	Script  string
@@ -317,14 +317,7 @@ type Wiring struct {
 
 func (w Wiring) has(part string) bool { return slices.Contains(w.Kit, part) }
 
-// command is the command of a hook in the settings. It runs the script only
-// where the script is: python on a missing file exits 2, which for a Stop hook
-// means the session may not stop, for a prompt that it is thrown away and for
-// a tool call that it is refused — a clone moved or a script renamed would
-// hold every session of the account. Without the script the command exits 1,
-// an error claude reports and passes over.
-//
-// A hook of the executor needs no such check: an executor that is not there
+// command is the command of a hook in the settings. An executor that is not there
 // makes the shell exit 127, an error claude passes over, and the executor
 // itself exits 0 on anything it meets.
 func (w Wiring) command(h kitHook) string {
@@ -336,11 +329,7 @@ func (w Wiring) command(h kitHook) string {
 	if h.Args != "" {
 		args = " " + h.Args
 	}
-	if h.Hook != "" {
-		return state + w.Exec + " " + hook.Command + " " + h.Hook + args
-	}
-	script := filepath.Join(w.Clone, h.Script)
-	return "test -f " + script + " && " + state + "python3 " + script + args
+	return state + w.Exec + " " + hook.Command + " " + h.Hook + args
 }
 
 // runs tells whether a command runs the script: a word of it is the

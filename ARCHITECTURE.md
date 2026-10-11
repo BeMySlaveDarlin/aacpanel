@@ -206,7 +206,14 @@ and session model are kept by `aacpanel-exec statusline`, which passes the
 payload to the person's line through `AACP_STATUSLINE_NEXT`. codex runs the
 hooks it shares with claude from `hooks.json` in its
 home and only once they are trusted in its `config.toml`; the installer writes
-both (INSTALL.md, S12a).
+both (INSTALL.md, S12a). The wiring's verification and `./install.sh check`
+ask each home's daemon for `hooks/list`, with no thread: the installed entries
+must be present, trusted and enabled. Without its socket the check runs a
+private `codex app-server --stdio` with that `CODEX_HOME`, closes stdin after
+the answer and waits for its exit; the context kills it at the deadline. The
+program is `AACP_CODEX`, or `codex` from `PATH`. The report names the server
+used, and neither path starts or stops the shared daemon. Recomputing the
+installer's hash alone would miss a change to codex's trust formula.
 
 **The question socket.** The claude hook reports a session's question through
 `ask.sock`, and that one lives in the collector's separate runtime directory,
@@ -850,7 +857,7 @@ after the install pairs only by its account's name.
   release may drop a field the panel decodes, rename a status or require a new
   param without a word, and the panel would meet it as a zero or a refusal.
   `make codex-contract` has the installed codex write the schema of its
-  protocol — no daemon, no thread, no tokens — and walks it along
+  protocol — no thread, no tokens — and walks it along
   `internal/codex/contract/uses.txt`, every method, field and value the panel
   reads or sends, against the reference of the release last passed, kept in
   the tree cut to those places. What the panel uses that is gone or changed is
@@ -860,6 +867,12 @@ after the install pairs only by its account's name.
   rollout the feed reads, the state database of a home, the `_meta` codex adds
   to an MCP server's request and the words of a refusal are no part of the
   schema, and the check does not see them change.
+  The ordinary run also asks codex in `CODEX_HOME` (`~/.codex` by default)
+  for `hooks/list`, using the installer's check of the question relay and
+  installed optional hooks. With no daemon socket, it starts the same program
+  used for schema generation as a private stdio app-server for this call.
+  Missing, untrusted or disabled hooks are red: a changed trust formula must not silently stop delivery. A saved
+  `-schema` directory checks only the protocol and reports trust as unchecked.
 - **A daemon that moved past the reference is said once a release.** The
   daemon names the release it runs in the user agent of its answer to the
   handshake, and a daemon that updated itself comes back on a new connection,
@@ -1860,8 +1873,8 @@ name — and a conversation on the stream nobody said a word in starts anew. A r
 `continue` to spare itself the notes a fresh start wants first. Nothing is asked while the collector's snapshot shows the session's
 agents, workflows or background commands at work, since a restart ends them;
 the snapshot can be eleven seconds old, so work seen is read again in a
-snapshot written after the look began, the same rule and the same shared cases
-as the delivery's `background.py`. A session on the stream is closed only at
+snapshot written after the look began, through `internal/session`, which the
+context guard uses too. A session on the stream is closed only at
 the end of its turn, which cannot end while the call waits, so the panel's
 answer would come after the call: the tool waits three seconds and takes
 silence for a restart under way. `session_close` asks for `session.close` with

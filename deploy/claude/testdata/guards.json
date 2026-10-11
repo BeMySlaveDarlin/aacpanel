@@ -1,5 +1,5 @@
 {
-  "about": "The context guard of a directory, read from guards.tsv as the executor writes it: guards.py and the executor's package internal/guards both run these cases. file is the body of guards.tsv, null for no file; dirs maps a directory to [cap, restart] of the closest place above it, null for none.",
+  "about": "The context guard of a directory, read from guards.tsv as the executor writes it: the executor's package internal/guards runs these cases. file is the body of guards.tsv, null for no file; dirs maps a directory to [cap, restart] of the closest place above it, null for none.",
   "cases": [
     {"what": "the closest place above wins, and a place holds only what lies under it",
       "file": "/srv/proj/Globex\t70\t1\n/srv/proj/Globex/shop\t90\t0\n",

@@ -2,6 +2,7 @@ package install
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"unicode"
 
+	"aacpanel/internal/codex"
 	"aacpanel/internal/contours"
 )
 
@@ -536,6 +538,58 @@ func (in *Install) codexWired(home string) bool {
 	return err == nil && !changed
 }
 
+// CheckCodexHooks verifies the installed entries with the daemon's own
+// discovery and trust calculation. The relay is compulsory; the stamp is
+// checked when installed, since its part of the kit is optional. The same
+// check serves the installer and codex-contract, so a changed trust formula
+// cannot pass by agreeing with another copy of the installer's calculation.
+func CheckCodexHooks(ctx context.Context, program, home string, hooks []byte) (string, error) {
+	o, err := parseSettings(hooks)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", codexHooksFile(home), err)
+	}
+	var want []codex.HookCheck
+	relay := 0
+	for _, p := range codexPlaces(o, codexHooksFile(home)) {
+		for _, h := range kitHooks {
+			if !h.Codex || !h.owns(p.Entry.str("command")) {
+				continue
+			}
+			if p.Event != h.Event || p.Group.str("matcher") != h.Matcher {
+				return "", fmt.Errorf("codex hook %s has the wrong event or matcher in %s", h.Hook, codexHooksFile(home))
+			}
+			if h.Part == "relay" {
+				relay++
+			}
+			want = append(want, codex.HookCheck{Name: h.Hook, Key: p.Key, Command: p.Entry.str("command")})
+		}
+	}
+	if relay != 1 {
+		return "", fmt.Errorf("%s installs hook %s %d times, want once", codexHooksFile(home), askHook.Hook, relay)
+	}
+	return codex.CheckHooks(ctx, program, home, want)
+}
+
+func (in *Install) verifyCodex(r *Run, home string) (string, error) {
+	hooks, config, err := in.codexRead(home)
+	if err != nil {
+		return "", err
+	}
+	if _, _, changed, err := WireCodex(hooks, config, codexHooksFile(home), in.wiring()); err != nil || changed {
+		return "", &Failed{Diagnosis: codexConfigFile(home) + " does not trust the hooks of " + codexHooksFile(home) + " after the wiring",
+			Fix: []string{"/hooks in codex shows what it trusts; ./install.sh wires the home again."}}
+	}
+	program := in.M.Env("AACP_CODEX")
+	if program == "" {
+		program = "codex"
+	}
+	source, err := CheckCodexHooks(r.context(), program, home, hooks)
+	if err != nil {
+		return source, &Failed{Diagnosis: err.Error(), Fix: []string{"Inspect /hooks in codex; make codex-contract checks the installed release."}}
+	}
+	return source, nil
+}
+
 func (in *Install) codexStep() *Step {
 	return &Step{ID: "codex", Title: "Codex hooks",
 		Done: func(*Run) (bool, error) {
@@ -556,17 +610,11 @@ func (in *Install) codexStep() *Step {
 		},
 		Verify: func(r *Run) error {
 			for _, home := range in.codexHomes() {
-				hooks, config, err := in.codexRead(home)
+				source, err := in.verifyCodex(r, home)
 				if err != nil {
 					return err
 				}
-				if n, err := wiredHooks(hooks, askHook); err != nil || n != 1 {
-					return &Failed{Diagnosis: fmt.Sprintf("%s runs the question hook %d times after the wiring, not once", codexHooksFile(home), n)}
-				}
-				if _, _, changed, err := WireCodex(hooks, config, codexHooksFile(home), in.wiring()); err != nil || changed {
-					return &Failed{Diagnosis: codexConfigFile(home) + " does not trust the hooks of " + codexHooksFile(home) + " after the wiring",
-						Fix: []string{"/hooks in codex shows what it trusts; ./install.sh wires the home again."}}
-				}
+				r.Say(Pass, in.short(home)+" · "+source+": present, trusted and enabled")
 			}
 			return nil
 		},

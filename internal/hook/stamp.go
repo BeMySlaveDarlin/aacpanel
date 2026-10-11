@@ -29,15 +29,13 @@ import (
 // of the state directory, stamp-<conversation>.state, swept when another is
 // written after stampKeep untouched.
 //
-// The delivery's prompt-stamp.py says the same and keeps the same files: a
-// session moved from one to the other keeps its throttle. The two share their
-// cases in deploy/claude/testdata/prompt-stamp.json, and what they say is the
-// same to the byte. So the snapshot is read the way python reads JSON: true
+// The throttle's format stays compatible across updates. The cases in
+// deploy/claude/testdata/prompt-stamp.json hold the text to the byte. The
+// snapshot follows the collector's python JSON conventions: true
 // and false count as 1 and 0 where a number is looked for, a number is
 // rounded half to even, and a value said as it is — the limits of an
 // account — is said as python's str says it: 41 as 41, 41.0 as 41.0, null as
-// None. Where the script would fail on a value of a type it does not expect,
-// and say nothing at all, the stamp leaves out the line the value is for.
+// None. A value of an unexpected type leaves out only the line it is for.
 
 const (
 	batchInterval = 600       // seconds a stamp between prompts keeps quiet with nothing new

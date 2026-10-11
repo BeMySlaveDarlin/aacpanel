@@ -76,7 +76,7 @@ others found:
 | `test` | the Go tests with a substituted home directory |
 | `agent-test` | the collector's tests with a substituted state directory |
 | `agent-confined` | the same tests inside the restrictions of the collector's production unit |
-| `delivery-test` | the python deployment scripts |
+| `delivery-test` | the stream contract's Python check; delivery hooks are tested in Go |
 | `vuln` | `govulncheck ./...` |
 
 A red `make check` is a reason not to send the change, not a "we will fix it
@@ -124,7 +124,7 @@ make stream-contract # the stream protocol of the installed claude, before sessi
 make codex-contract  # the app-server protocol of the installed codex against what the panel reads and sends
 ```
 
-`make codex-contract` spends nothing: codex only writes the schema of its
+`make codex-contract` spends nothing: codex writes the schema of its
 protocol, and the check compares it with `internal/codex/contract/uses.txt` —
 every method, field and value the panel uses — and with the reference of the
 release it last passed, kept beside it. A field the panel decodes or sends that
@@ -133,12 +133,24 @@ notification is a warning. Once the report is read,
 `make codex-contract CONTRACT_ARGS=-write` takes the release as the reference —
 the release codex names as it writes its schema, so a directory handed over
 with `-schema` is refused there: it does not say which release wrote it.
+The ordinary run also asks codex in `CODEX_HOME` (`~/.codex` by default) for
+`hooks/list`: the question relay and every installed optional panel hook must
+be present, trusted and enabled. It uses the running daemon when its socket
+exists; otherwise the same program starts a private `app-server --stdio` for
+the check, then exits. The report names which path answered. No thread is
+loaded, no tokens are spent, and the shared daemon is never started or stopped.
+Missing, untrusted or disabled hooks are red with the hook's name. `-schema`
+checks only the saved protocol and explicitly reports that hook trust was not
+checked.
 A call added to `internal/codex` goes into `uses.txt` with it: a test of the
 package fails while the contract does not name a method the link uses.
 The panel asks for this check itself: a daemon that updated itself past the
 reference is a push, once a release. The reference it compares with is the
 one the executor was built with, so a reference written again counts once the
 executor is rebuilt.
+
+The delivery hooks run only as `aacpanel-exec hook <name>`. Their Go tests
+read the fixtures in `deploy/claude/testdata` directly, without Python.
 
 ---
 

@@ -13,8 +13,7 @@ import (
 	"time"
 )
 
-// shared are the cases the hook shares with the delivery's
-// background-reminder.py, which answers the same stops the same way.
+// shared holds the fixture of background reminders.
 type shared struct {
 	Session string                    `json:"session"`
 	T0      int64                     `json:"t0"`

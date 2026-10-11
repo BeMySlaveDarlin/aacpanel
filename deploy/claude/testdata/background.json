@@ -1,5 +1,5 @@
 {
-  "about": "What of a session is at work, read from the collector's snapshot: background.py and the panel's session_restart tool (internal/session) both run these cases. work is [agents, background tasks, workflows].",
+  "about": "What of a session is at work, read from the collector's snapshot: the panel's session_restart tool (internal/session) runs these cases. work is [agents, background tasks, workflows].",
   "work": [
     {
       "what": "agents and background commands are at work",

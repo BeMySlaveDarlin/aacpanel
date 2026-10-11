@@ -5,9 +5,11 @@
 //
 // The program is the one the executor starts: AACP_CODEX, or codex from PATH.
 // It writes the schema of its protocol, the experimental part with it — the
-// panel asks for that part at the handshake — and nothing else is run: no
-// daemon, no thread, no tokens. The report lists what is gone, what changed
-// and what is new against the reference in the tree.
+// panel asks for that part at the handshake — and asks codex in CODEX_HOME
+// (or ~/.codex) whether it trusts and enables the installed panel hooks. With
+// no daemon socket, the same program runs as a private stdio app-server for
+// the check. No thread is loaded and no tokens are spent. With -schema,
+// only the saved schema is checked; the live hook check is not run.
 //
 // Exit code 0 when nothing the panel reads or sends is gone or changed, 1 when
 // something is, 2 when the schema could not be had at all.
@@ -31,6 +33,7 @@ import (
 	"time"
 
 	"aacpanel/internal/codex/contract"
+	"aacpanel/internal/install"
 	"aacpanel/internal/webbuild"
 )
 
@@ -55,6 +58,7 @@ func main() {
 }
 
 func run(codex, schemaDir string, asJSON, write bool) int {
+	live := schemaDir == ""
 	panel, err := contract.Panel()
 	if err != nil {
 		return say(2, "the contract of the panel does not read: %v", err)
@@ -94,6 +98,17 @@ func run(codex, schemaDir string, asJSON, write bool) int {
 
 	report := contract.Check(cur, ref, panel)
 	report.Codex = version
+	if live {
+		f := contract.Finding{Place: "hooks/list", Detail: "the installed panel hooks are present, trusted and enabled"}
+		if source, err := checkHooks(codex); err != nil {
+			f.Detail, f.Red = err.Error(), true
+		} else {
+			f.Detail = source + "; " + f.Detail
+		}
+		report.Hooks = []contract.Finding{f}
+	} else {
+		report.Hooks = []contract.Finding{{Place: "hooks/list", Detail: "not checked: -schema checks only the saved protocol"}}
+	}
 	if asJSON {
 		out, _ := json.MarshalIndent(report, "", " ")
 		fmt.Println(string(out))
@@ -107,9 +122,31 @@ func run(codex, schemaDir string, asJSON, write bool) int {
 		return 0
 	}
 	if report.Red() {
-		return say(1, "the reference is left as it is: this release takes something the panel uses")
+		return say(1, "the reference is left as it is: the protocol or hook trust check failed")
 	}
 	return writeReference(cur, panel, version)
+}
+
+func checkHooks(program string) (string, error) {
+	home := os.Getenv("CODEX_HOME")
+	if home == "" {
+		userHome, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		home = filepath.Join(userHome, ".codex")
+	}
+	home, err := filepath.Abs(home)
+	if err != nil {
+		return "", err
+	}
+	hooks, err := os.ReadFile(filepath.Join(home, "hooks.json"))
+	if err != nil {
+		return "", fmt.Errorf("the installed codex hooks cannot be read: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), runWait)
+	defer cancel()
+	return install.CheckCodexHooks(ctx, program, home, hooks)
 }
 
 // generate has codex write the schema of its protocol and returns its version.

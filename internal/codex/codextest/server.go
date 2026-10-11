@@ -166,6 +166,9 @@ type Server struct {
 	off       map[string][]string
 	mcpStarts int
 	skills    []map[string]any
+	// hooks is the discovery result for hooks/list, set by a test without
+	// repeating the installer's calculation of trust.
+	hooks []map[string]any
 	// onLoad are the MCP servers as a thread the daemon loads now starts them,
 	// nil for those every thread has.
 	onLoad []map[string]any
@@ -240,6 +243,13 @@ func (s *Server) Catalogue(models ...Model) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.models = models
+}
+
+// Hooks sets the entries hooks/list returns, in the shape of the protocol.
+func (s *Server) Hooks(entries ...map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hooks = entries
 }
 
 // Lag makes the daemon answer the start of a turn — turn/start, a compaction
@@ -784,6 +794,9 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 			}
 		}
 		return map[string]any{"data": data, "nextCursor": nil}, nil, ""
+	}
+	if method == "hooks/list" {
+		return map[string]any{"data": append([]map[string]any{}, s.hooks...)}, nil, ""
 	}
 	if method == "model/list" {
 		return s.modelList(p.Cursor, p.IncludeHidden), nil, ""
