@@ -43,22 +43,33 @@ func withTools(config map[string]any) map[string]any {
 // names acme by.
 func onCodexContour(t *testing.T) (*codextest.Server, *Executor, *action.Project) {
 	t.Helper()
+	config := filepath.Join(t.TempDir(), ".claude-client")
+	return onCodexHome(t, "acme", config, "acme | /srv/acme/ | "+config+" | -\nalgo | /srv/algo/ | /srv/algo-config | -\n")
+}
+
+// onCodexHome starts a fake codex daemon in a home of the name given and an
+// executor linked to it, with the registry of the lines given — none for "" —
+// and returns the project of the claude config directory given that New
+// hands the executor.
+func onCodexHome(t *testing.T, name, config, registryLines string) (*codextest.Server, *Executor, *action.Project) {
+	t.Helper()
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	sessionFiles(t)
 	srv := codextest.New(t)
-	home := filepath.Join(t.TempDir(), "acme")
+	home := filepath.Join(t.TempDir(), name)
 	if err := os.Symlink(srv.Home, home); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(registry.CodexHomesEnv, home)
-	config := filepath.Join(t.TempDir(), ".claude-client")
-	reg := filepath.Join(t.TempDir(), "registry.conf")
-	body := "acme | /srv/acme/ | " + config + " | -\nalgo | /srv/algo/ | /srv/algo-config | -\n"
-	if err := os.WriteFile(reg, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
+	t.Setenv(registry.RegistryEnv, "")
+	if registryLines != "" {
+		reg := filepath.Join(t.TempDir(), "registry.conf")
+		if err := os.WriteFile(reg, []byte(registryLines), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(registry.RegistryEnv, reg)
 	}
-	t.Setenv(registry.RegistryEnv, reg)
 	root := t.TempDir()
 	dir := filepath.Join(root, "shop")
 	if err := os.Mkdir(dir, 0o755); err != nil {
@@ -149,6 +160,38 @@ func TestNewOfACodexProjectStartsAThreadInTheDaemonOfItsContour(t *testing.T) {
 	}
 	if n := len(srv.Calls("turn/start")); n != 1 {
 		t.Errorf("a project with no first message started a turn: %d turns", n)
+	}
+}
+
+// The codex home of an account no registry names is the one named after the
+// account, claude-work for ~/.claude-work, or after its contour on the map as
+// the installer names it, work: New of its project starts the thread in that
+// home, and a thread of its archive resumes there under the account's name.
+func TestTheCodexHomeOfAContourIsNamedAfterItsAccountOrItsMapName(t *testing.T) {
+	for _, name := range []string{"claude-work", "work"} {
+		t.Run(name, func(t *testing.T) {
+			config := filepath.Join(t.TempDir(), ".claude-work")
+			t.Setenv(registry.HomeEnv, config)
+			srv, e, p := onCodexHome(t, name, config, "")
+
+			detail, _, err := open(t, e, p, `{"agent":"codex"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n := len(srv.Calls("thread/start")); n != 1 ||
+				!strings.Contains(detail, "in the codex daemon of contour claude-work") {
+				t.Errorf("New in the home %s answered %q, %d threads started", name, detail, n)
+			}
+
+			const past = "019a2000-0000-7000-8000-00000000a1b2"
+			srv.Add(codextest.Thread{ID: past, CWD: p.Path, Model: "gpt-test", Created: 1791554348,
+				Status: "notLoaded"})
+			resume := action.Request{Kind: action.SessionResume, Target: "shop", Resume: past,
+				Agent: action.ResumeCodex, Contour: "claude-work"}
+			if _, _, err := e.Open(context.Background(), resume); err != nil {
+				t.Errorf("a thread of the home %s did not resume under the account's name: %v", name, err)
+			}
+		})
 	}
 }
 

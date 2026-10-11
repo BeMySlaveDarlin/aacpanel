@@ -915,13 +915,11 @@ func (s *Survey) mapQuestions() []Question {
 const recent = 14 * 24 * time.Hour
 
 // contourName is the suggested name of the contour of an account: the
-// personal one for ~/.claude, the rest by their directory.
+// personal one for ~/.claude, the rest by their directory. A codex home of
+// that name pairs with the account, so the rule is the one of package
+// contours.
 func contourName(dir, home string) string {
-	if contours.IsDefaultConfig(dir, home) {
-		return contours.Personal
-	}
-	name := strings.TrimPrefix(filepath.Base(dir), ".claude-")
-	name = strings.ToLower(strings.TrimPrefix(name, "."))
+	name := contours.SuggestedName(dir, home)
 	if checkName(name) != nil {
 		return "contour"
 	}

@@ -277,6 +277,46 @@ class Contours(unittest.TestCase):
         self.assertNotIn("codexHome", by["work"])
         self.assertNotIn("codexHome", by["personal"])
 
+    def account(self):
+        """Returns the config directory of an account no registry names, ~/.claude-work, in AACP_CLAUDE_HOME."""
+        work = os.path.join(self.root, ".claude-work")
+        os.makedirs(work)
+        os.environ["AACP_CLAUDE_HOME"] = os.pathsep.join([self.home, work])
+        self.addCleanup(os.environ.pop, "AACP_CLAUDE_HOME", None)
+        return work
+
+    def codex_home(self, *parts):
+        d = os.path.join(self.root, *parts)
+        os.makedirs(d)
+        return d
+
+    def test_a_codex_home_pairs_by_the_accounts_name_or_the_maps(self):
+        self.account()
+        personal = self.codex_home(".codex")
+        for name in ("claude-work", "work"):
+            with self.subTest(home=name):
+                home = self.codex_home(".codex-profiles", name)
+                self.codex_homes(personal, home)
+                self.assertEqual(contours.codex_homes(), [("personal", personal), ("claude-work", home)])
+                by = {p["name"]: p for p in contours.described()}
+                self.assertEqual(by["claude-work"].get("codexHome"), home,
+                                 "New of the contour does not offer codex in its home")
+                self.assertEqual(contours.codex_contour(home), "claude-work")
+
+    def test_of_two_codex_homes_of_one_contour_the_accounts_name_wins(self):
+        self.account()
+        by_map, by_account = self.codex_home("a", "work"), self.codex_home("b", "claude-work")
+        self.codex_homes(by_map, by_account)
+        self.assertEqual(contours.codex_homes(), [("work", by_map), ("claude-work", by_account)],
+                         "the home named after the account is not the contour's wherever it is listed")
+        by = {p["name"]: p for p in contours.described()}
+        self.assertEqual(by["claude-work"].get("codexHome"), by_account)
+
+        second = self.codex_home("b", "work")
+        self.codex_homes(by_map, second)
+        self.assertEqual(contours.codex_homes(), [("claude-work", by_map), ("work", second)],
+                         "of two homes named after the map the first listed is not the contour's")
+
     def rate(self, config, five, seven, at=None):
         import time
         with open(os.path.join(config, "rate-limits.json"), "w", encoding="utf-8") as f:

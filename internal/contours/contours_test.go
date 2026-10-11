@@ -3,6 +3,7 @@ package contours
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -181,6 +182,7 @@ func TestConfigDirsSayEachDirOnce(t *testing.T) {
 func TestCodexHomesDefaultToTheCodexDirectory(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv(RegistryEnv, "")
 	for _, value := range []string{"", "  "} {
 		t.Setenv(CodexHomesEnv, value)
 		got := CodexHomes()
@@ -197,6 +199,7 @@ func TestCodexHomesDefaultToTheCodexDirectory(t *testing.T) {
 func TestCodexHomesAreNamedLikeClaudeContours(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv(RegistryEnv, "")
 	t.Setenv(CodexHomesEnv, strings.Join([]string{
 		"~/.codex", "~/.codex-profiles/acme", "", filepath.Join(home, ".codex-work") + "/", "~/.codex/",
 	}, string(os.PathListSeparator)))
@@ -250,5 +253,84 @@ func TestTheCodexHomeOfAContourIsTheOneNamedAfterIt(t *testing.T) {
 	}
 	if got, _ := CodexHomeOf("~/.claude-profiles/algo"); got.Contour != "algo" {
 		t.Errorf("a contour with no codex home is named %q", got.Contour)
+	}
+}
+
+// accountsOf describes the claude accounts of a test: the config directories
+// in AACP_CLAUDE_HOME, and the registry of the lines given, none for "".
+func accountsOf(t *testing.T, home, registry string, configs ...string) {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv(HomeEnv, strings.Join(configs, string(os.PathListSeparator)))
+	if registry == "" {
+		t.Setenv(RegistryEnv, "")
+		return
+	}
+	reg := filepath.Join(home, "registry.conf")
+	if err := os.WriteFile(reg, []byte(registry), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(RegistryEnv, reg)
+}
+
+// A codex home pairs with the contour of a claude account by the account's
+// name, claude-work for ~/.claude-work, or by the name the installer gives
+// the contour on the map, work, and either way stands under the account's
+// name: New of the contour, the letter of its thread and the archive find it
+// the same.
+func TestACodexHomePairsByTheAccountsNameOrTheMaps(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, ".claude-work")
+	for _, name := range []string{"claude-work", "work"} {
+		accountsOf(t, home, "", filepath.Join(home, ".claude"), work)
+		dir := filepath.Join(home, ".codex-profiles", name)
+		t.Setenv(CodexHomesEnv, "~/.codex"+string(os.PathListSeparator)+dir)
+
+		want := []CodexHome{{Dir: filepath.Join(home, ".codex"), Contour: Personal}, {Dir: dir, Contour: "claude-work"}}
+		if got := CodexHomes(); !slices.Equal(got, want) {
+			t.Errorf("home %s: the homes are %+v, expected %+v", name, got, want)
+		}
+		if got, ok := CodexHomeOf(work); !ok || got.Dir != dir || got.Contour != "claude-work" {
+			t.Errorf("home %s: the codex home of %s is %+v (%v)", name, work, got, ok)
+		}
+		if got := CodexContour(dir); got != "claude-work" {
+			t.Errorf("home %s stands as contour %q", name, got)
+		}
+	}
+}
+
+// Two homes that claim one contour: the one named after the account wins
+// wherever it stands in the list, and of two named after the map the first
+// listed; the one left over stands as a contour of its own name. A home pairs
+// with one contour: named after one account and after the map's name of
+// another, it is the account's.
+func TestOfTwoCodexHomesOfOneContourTheAccountsNameWins(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, ".claude-work")
+	accountsOf(t, home, "", work)
+	byMap, byAccount := filepath.Join(home, "a", "work"), filepath.Join(home, "b", "claude-work")
+	t.Setenv(CodexHomesEnv, byMap+string(os.PathListSeparator)+byAccount)
+	want := []CodexHome{{Dir: byMap, Contour: "work"}, {Dir: byAccount, Contour: "claude-work"}}
+	if got := CodexHomes(); !slices.Equal(got, want) {
+		t.Errorf("a home named after the map before one named after the account: %+v, expected %+v", got, want)
+	}
+	if got, _ := CodexHomeOf(work); got.Dir != byAccount {
+		t.Errorf("the codex home of %s is %s, expected the one named after its account", work, got.Dir)
+	}
+
+	second := filepath.Join(home, "b", "work")
+	t.Setenv(CodexHomesEnv, byMap+string(os.PathListSeparator)+second)
+	want = []CodexHome{{Dir: byMap, Contour: "claude-work"}, {Dir: second, Contour: "work"}}
+	if got := CodexHomes(); !slices.Equal(got, want) {
+		t.Errorf("two homes named after the map: %+v, expected %+v", got, want)
+	}
+
+	accountsOf(t, home, "work | /srv/lab/ | ~/.claude-lab | -\n", work)
+	t.Setenv(CodexHomesEnv, byMap)
+	if got, _ := CodexHomeOf(filepath.Join(home, ".claude-lab")); got.Dir != byMap {
+		t.Errorf("the account named work has %+v, not the home named work", got)
+	}
+	if got, ok := CodexHomeOf(work); ok {
+		t.Errorf("the home of the account named work pairs with the contour the map calls work too: %+v", got)
 	}
 }

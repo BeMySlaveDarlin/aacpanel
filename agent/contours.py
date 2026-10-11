@@ -39,8 +39,18 @@ def codex_homes():
     """Returns the codex homes as pairs of contour name and directory, in the order named.
 
     A home is named the way a claude config directory is: ~/.codex is the
-    personal contour, any other by its last part without the leading dot, so
-    ~/.codex-profiles/work is work — the claude contour of the same name.
+    personal one, any other by its last part without the leading dot. It pairs
+    with the claude contour whose account bears that name —
+    ~/.codex-profiles/claude-work with the account of ~/.claude-work — and,
+    failing that, with the contour the installer puts on the map under that
+    name: ~/.codex-profiles/work with the same account, which the installer
+    offers to call work. Either way the home stands under the account's name,
+    so the archive, the runs and New of the contour find it the same.
+
+    A contour pairs with one home: the one named after the account wins over
+    the one named after the map, and of two of one name the first listed. A
+    home left over, like one that claims no contour, stands as a contour of
+    its own name. The executor pairs them by the same rule.
     """
     raw = os.environ.get(CODEX_ENV) or ""
     out = []
@@ -48,7 +58,44 @@ def codex_homes():
         d = os.path.expanduser(part.strip())
         if d and d not in out:
             out.append(d)
-    return [(_name_of(d, ".codex"), d) for d in out]
+    return list(zip(_paired([_name_of(d, ".codex") for d in out]), out))
+
+
+def _suggested_name(config_dir):
+    """Returns the name the installer offers for the contour of a claude config
+    directory on the map: personal for ~/.claude, any other its last part
+    without a leading .claude- or dot, in lower case — ~/.claude-work is work."""
+    name = os.path.basename(config_dir.rstrip("/")) or config_dir
+    if name == ".claude":
+        return PERSONAL
+    if name.startswith(".claude-"):
+        name = name[len(".claude-"):]
+    if name.startswith("."):
+        name = name[1:]
+    return name.lower()
+
+
+def _paired(names):
+    """Returns the contour each codex home of these names stands under, in their
+    order: every home named after an account first, wherever it is listed,
+    then the homes named after the map."""
+    accounts = [(name, _suggested_name(d)) for name, d, _ in _rows()]
+    own = {name for name, _ in accounts}
+    out, claimed = [None] * len(names), set()
+    for i, name in enumerate(names):
+        if name in own and name not in claimed:
+            out[i] = name
+            claimed.add(name)
+    for i, name in enumerate(names):
+        if out[i] is not None:
+            continue
+        account = next((a for a, suggested in accounts if suggested == name), None)
+        if account is not None and account not in claimed:
+            out[i] = account
+            claimed.add(account)
+        else:
+            out[i] = name
+    return out
 
 
 def codex_contour(home):
@@ -182,8 +229,8 @@ def _hooks_state(base, config_dir):
 
 
 def _codex_home_of(name):
-    """Returns the codex home named after a contour, the first one as the executor
-    takes it, or None where none is named or its directory is not there."""
+    """Returns the codex home that pairs with a contour, as the executor pairs it,
+    or None where none does or its directory is not there."""
     for contour, d in codex_homes():
         if contour == name:
             return d if os.path.isdir(d) else None

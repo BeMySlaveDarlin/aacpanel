@@ -140,7 +140,24 @@ type CodexHome struct {
 	Contour string
 }
 
-// CodexHomes returns the codex homes of the contours, ~/.codex when none is named.
+// CodexHomes returns the codex homes of the contours, ~/.codex when none is
+// named, each under the contour it pairs with.
+//
+// A home is named the way a claude config directory is — ~/.codex is the
+// personal one, any other its directory's name without the leading dot — and
+// pairs with the claude contour whose account bears that name, ContourOf's
+// name: ~/.codex-profiles/claude-work with the account of ~/.claude-work.
+// Failing that, it pairs with the contour the installer puts on the map under
+// that name, SuggestedName's: ~/.codex-profiles/work with the same account,
+// which the installer offers to call work. Either way the home stands under
+// the account's name, so the archive, the threads and New of the contour find
+// it the same.
+//
+// A contour pairs with one home. The home named after the account wins over
+// the one named after the map, and of two of one name the first listed; a home
+// left over, like one that claims no contour, stands as a contour of its own
+// name, paired with no account. The host does not read the map: a contour
+// renamed there after the install pairs only by its account's name.
 func CodexHomes() []CodexHome {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -153,30 +170,85 @@ func CodexHomes() []CodexHome {
 		}
 		raw = filepath.Join(home, ".codex")
 	}
-	var out []CodexHome
+	var dirs []string
 	for _, dir := range strings.Split(raw, string(os.PathListSeparator)) {
 		dir = strings.TrimSpace(dir)
 		if dir == "" {
 			continue
 		}
 		dir = filepath.Clean(expand(dir, home))
-		if slices.ContainsFunc(out, func(h CodexHome) bool { return h.Dir == dir }) {
+		if !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+		}
+	}
+	return paired(dirs, home)
+}
+
+// paired puts each codex home under the contour it pairs with, by the rule of
+// CodexHomes: every home named after an account first, whatever its place in
+// the list, then the homes named after the map.
+func paired(dirs []string, home string) []CodexHome {
+	var accounts, suggested []string
+	for _, dir := range ConfigDirs() {
+		accounts = append(accounts, ContourOf(dir))
+		suggested = append(suggested, SuggestedName(dir, home))
+	}
+	out := make([]CodexHome, len(dirs))
+	claimed := map[string]bool{}
+	for i, dir := range dirs {
+		out[i].Dir = dir
+		if name := codexName(dir); slices.Contains(accounts, name) && !claimed[name] {
+			out[i].Contour, claimed[name] = name, true
+		}
+	}
+	for i := range out {
+		if out[i].Contour != "" {
 			continue
 		}
-		out = append(out, CodexHome{Dir: dir, Contour: CodexContour(dir)})
+		name := codexName(out[i].Dir)
+		if at := slices.Index(suggested, name); at >= 0 && !claimed[accounts[at]] {
+			out[i].Contour, claimed[accounts[at]] = accounts[at], true
+			continue
+		}
+		out[i].Contour = name
 	}
 	return out
 }
 
-// CodexContour names the contour of a codex home the way a claude contour is
-// named by its config directory: the default one is the personal contour, any
-// other is its directory's name without the leading dot.
-func CodexContour(dir string) string {
+// codexName is the name of a codex home the way a claude contour is named by
+// its config directory: the default one is the personal contour, any other is
+// its directory's name without the leading dot.
+func codexName(dir string) string {
 	name := filepath.Base(dir)
 	if name == ".codex" {
 		return Personal
 	}
 	return strings.TrimLeft(name, ".")
+}
+
+// CodexContour names the contour of a codex home: the one it pairs with where
+// it is listed, and its own name otherwise — the contour a home of that
+// directory would stand as on its own.
+func CodexContour(dir string) string {
+	dir = filepath.Clean(dir)
+	for _, h := range CodexHomes() {
+		if h.Dir == dir {
+			return h.Contour
+		}
+	}
+	return codexName(dir)
+}
+
+// SuggestedName is the name the installer offers for the contour of a claude
+// config directory on the map: the personal contour for the default one, any
+// other its directory's name without a leading ".claude-" or dot, in lower
+// case — ~/.claude-work is work, where the account's own name is claude-work.
+func SuggestedName(dir, home string) string {
+	if IsDefaultConfig(dir, home) {
+		return Personal
+	}
+	name := strings.TrimPrefix(filepath.Base(dir), ".claude-")
+	return strings.ToLower(strings.TrimPrefix(name, "."))
 }
 
 // ContourOf names the contour of a claude config directory: as the registry
@@ -204,8 +276,8 @@ func ContourOf(configDir string) string {
 }
 
 // CodexHomeOf is the codex home of the contour a claude config directory
-// stands for: the home named after that contour. A contour without one has no
-// codex daemon for its projects.
+// stands for: the home that pairs with it, by the rule of CodexHomes. A
+// contour without one has no codex daemon for its projects.
 func CodexHomeOf(configDir string) (CodexHome, bool) {
 	contour := ContourOf(configDir)
 	for _, h := range CodexHomes() {

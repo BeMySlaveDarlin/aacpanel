@@ -44,7 +44,7 @@ var (
 func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexParams, warns []string) (string, string, error) {
 	home, ok := registry.CodexHomeOf(p.ConfigDir)
 	if !ok {
-		return "", "", fmt.Errorf("contour %s has no codex home — %s names none after it — so codex has no daemon "+
+		return "", "", fmt.Errorf("contour %s has no codex home — %s names none for it — so codex has no daemon "+
 			"to start a session of %s in", home.Contour, registry.CodexHomesEnv, p.Path)
 	}
 	link := e.codex.Home(home.Dir)
@@ -111,7 +111,7 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 func (e *Executor) codexResume(ctx context.Context, contour, threadID string) (string, string, error) {
 	link := e.codex.Contour(contour)
 	if link == nil {
-		return "", "", fmt.Errorf("contour %s has no codex home — %s names none after it — so the panel has no "+
+		return "", "", fmt.Errorf("contour %s has no codex home — %s names none for it — so the panel has no "+
 			"daemon to resume thread %s in", contour, registry.CodexHomesEnv, threadID)
 	}
 	if !link.Up() {

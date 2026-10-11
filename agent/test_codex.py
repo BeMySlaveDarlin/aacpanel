@@ -52,6 +52,13 @@ def put_env(test, name, value):
 
 
 class Homes(unittest.TestCase):
+    def setUp(self):
+        # A home pairs with the accounts of the machine: the test has none
+        # but the personal one.
+        self.addCleanup(setattr, contours, "REGISTRY", contours.REGISTRY)
+        contours.REGISTRY = ""
+        put_env(self, contours.HOME_ENV, None)
+
     def test_without_the_variable_the_home_is_the_personal_one(self):
         put_env(self, contours.CODEX_ENV, None)
         self.assertEqual(contours.codex_homes(), [("personal", os.path.expanduser("~/.codex"))])

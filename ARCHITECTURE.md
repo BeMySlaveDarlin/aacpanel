@@ -634,6 +634,21 @@ that wait for a person. The executor keeps one connection per home, WebSocket
 over the daemon's control socket, and dials again ten seconds after the socket
 appears or the connection drops — at once when an action waits for it.
 
+**A codex home pairs with one claude contour by its name.** A home is named
+the way a claude config directory is: `~/.codex` is the personal one, any other
+its directory's name without the leading dot. It pairs with the contour whose
+account bears that name — the registry's name, or the config directory's:
+`~/.claude-work` is `claude-work` — and, failing that, with the contour the
+installer puts on the map under that name: `work` for the same directory.
+Either way the home stands under the account's name, in the executor and the
+collector alike, so New of the contour, the archive, the runs of `codex exec`
+and the letters of its threads find the same home. A contour pairs with one
+home: the home named after the account wins over the one named after the map,
+and of two of one name the first listed in `AACP_CODEX_HOMES`; a home left over
+stands as a contour of its own name, paired with no account, and so does a home
+named after neither. The host does not read the map, so a contour renamed there
+after the install pairs only by its account's name.
+
 - **The threads are read, not followed.** Every two seconds the executor lists
   the loaded threads and reads each one, and writes a state file per thread in
   the holders' directory: the claude holder's summary plus `agent: "codex"`,
@@ -708,7 +723,7 @@ appears or the connection drops — at once when an action waits for it.
   names codex — when it went out and came back, the directory, the description,
   whether it went to the background and the paths the command names, never the
   command — and looks for the threads of `source = 'exec'` in the state
-  database of the codex home named after the session's contour, or of
+  database of the codex home paired with the session's contour, or of
   `~/.codex`, where codex writes when no home is named, for a contour with none
   of its own. A thread is a call's when it was made in the call's directory or
   below it, or in one the command names (a task's directory under
@@ -778,8 +793,8 @@ appears or the connection drops — at once when an action waits for it.
   sheet of a question shows, for one left out could be required, and a request
   in a mode the panel does not know. The question of plan mode is an experimental part of the protocol.
 - **New of a project whose agent is codex, or with Codex picked on its sheet,
-  starts a thread in the daemon of the project's contour**, the home named
-  after the contour; a contour without one is refused with that reason. The
+  starts a thread in the daemon of the project's contour**, the home paired
+  with the contour; a contour without one is refused with that reason. The
   panel starts the thread with `thread/start` in the project's directory,
   with the model, the effort, the approvals and
   the sandbox of the map where it chose them, and the panel's MCP server
@@ -836,7 +851,7 @@ appears or the connection drops — at once when an action waits for it.
   The collector reads the threads of every codex home off its state database
   and from no rollout — the rollouts of a busy home run to gigabytes, nearly
   all of them runs of `codex exec` — and puts them among the conversations of
-  claude of the contour the home is named after, by the time of their last
+  claude of the contour the home pairs with, by the time of their last
   change. Only the conversations of a person stand there: a thread started in
   codex's terminal or by a client of the daemon, the panel among them. A run
   of `codex exec` stands among the agents of the claude session that started
