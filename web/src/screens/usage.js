@@ -156,7 +156,7 @@ function Limits({ limits }) {
                 </div>
             `)}
             ${known.some((c) => c.codex) && html`
-                <p class="hint ulimitnote">codex shows its week; the share is renewed while the panel holds a thread of the contour</p>
+                <p class="hint ulimitnote">codex shows its week; the share is renewed every five minutes while the codex daemon of the contour runs</p>
             `}
         </section>
     `;

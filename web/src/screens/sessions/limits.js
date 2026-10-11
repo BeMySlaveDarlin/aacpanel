@@ -103,7 +103,7 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
         claudeOld && (codex
             ? `claude's numbers are from ${agoText(c.ageSec)}: they are renewed when a claude session of the contour answers`
             : `the numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers`),
-        codexOld && `codex's numbers are from ${agoText(codex.ageSec)}: they are renewed while the panel holds a thread of the contour`,
+        codexOld && `codex's numbers are from ${agoText(codex.ageSec)}: they are renewed every five minutes while the codex daemon of the contour runs`,
     ].filter(Boolean);
     const claudeWord = html`<span class="agentword" data-agent="claude">Claude</span>`;
     const codexWord = html`<span class="agentword" data-agent="codex">Codex</span>`;

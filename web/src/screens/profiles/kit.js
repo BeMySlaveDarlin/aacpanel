@@ -22,7 +22,8 @@ export function keysOf(params, agent) {
 }
 
 // What the Codex tab says in place of the command the Claude tab shows.
-export const CODEX_LAUNCH = "launching codex from the panel comes with the codex stream mode";
+export const CODEX_LAUNCH = "New starts a thread in the codex daemon of the contour, with what is chosen below; "
+    + "config.toml of the contour's codex home decides the rest";
 
 // useAgentTab holds which agent's tab is open: the one the owner starts, and
 // the one it is switched to, until the person opens the other.

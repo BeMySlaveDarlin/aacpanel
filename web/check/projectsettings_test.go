@@ -186,7 +186,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 
 // A project whose contour starts codex opens on the Codex tab: the common
 // keys stand above both tabs, the codex keys under their own, and the line in
-// place of the command says when codex is launched from the panel. What a
+// place of the command says what New starts codex with. What a
 // phone does not choose is not offered — never asking, the sandbox off — and
 // one the map stores is said. The model is picked from the daemon's list, and
 // the efforts offered are the chosen model's. The command of claude is under
@@ -227,7 +227,8 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if want := "Agent|First message|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
 		t.Errorf("the rows are %v, meant %s", got.Rows, want)
 	}
-	if got.Soon != "launching codex from the panel comes with the codex stream mode" || got.LineInCodex {
+	if got.Soon != "New starts a thread in the codex daemon of the contour, with what is chosen below; "+
+		"config.toml of the contour's codex home decides the rest" || got.LineInCodex {
 		t.Errorf("the Codex tab says %q and shows the command of claude: %v", got.Soon, got.LineInCodex)
 	}
 	if got.AgentFrom != "Codex — the contour" {

@@ -663,9 +663,15 @@ appears or the connection drops — at once when an action waits for it.
 - **A thread codex runs in a terminal of the panel lives in tmux.** The executor
   reads the panes of the user's tmux at every poll and finds the one the
   launcher started codex in on the thread by the command tmux keeps for it, the
-  way a close finds it; the row of such a thread says `tmux` and names the tmux
-  session, and a thread the daemon alone holds says `stream`, since it is
-  reached through the panel as a session on the stream is.
+  way a close finds it; the row of such a thread in the snapshot says `tmux`
+  and names the tmux session, and a thread the daemon alone holds says
+  `stream`, since it is reached through the panel as a session on the stream
+  is. The mark the screen puts on the session goes by the daemon instead:
+  `daemon` for every thread a daemon serves, in tmux or not — the panel
+  reaches either only through the daemon and offers it no terminal to watch,
+  no window and no move — and `outside` for a codex no daemon serves. The
+  desktop's list of sessions alone reads the snapshot's word and marks a
+  thread in tmux `tmux`, as it marks a claude session there.
 - **A codex no daemon serves is found by its process.** The collector, which
   can read the environment of the user's processes where the executor cannot,
   looks for processes named `codex` and passes by the daemon, its clients
@@ -821,10 +827,33 @@ appears or the connection drops — at once when an action waits for it.
 - **A close lets the thread go.** The turn that runs is interrupted, the panel
   stops holding the thread and leaves it, and the tmux session whose pane the
   launcher started with codex resuming that thread is killed by its exact
-  name. The thread is not archived: the daemon unloads it once no client is
-  left, its rollout stays, and the panel shows it no more unless another client
-  starts a turn in it. **A restart is refused**: the daemon keeps the thread,
-  and no process of the panel's is there to start again.
+  name. The thread is not archived in codex: the daemon unloads it once no
+  client is left, its rollout stays, and it leaves the list of sessions —
+  unless another client starts a turn in it — for the archive of its contour,
+  where Resume brings it back. **A restart is refused**: the daemon keeps the
+  thread, and no process of the panel's is there to start again.
+- **A thread that is over stands in the archive, and Resume joins it again.**
+  The collector reads the threads of every codex home off its state database
+  and from no rollout — the rollouts of a busy home run to gigabytes, nearly
+  all of them runs of `codex exec` — and puts them among the conversations of
+  claude of the contour the home is named after, by the time of their last
+  change. Only the conversations of a person stand there: a thread started in
+  codex's terminal or by a client of the daemon, the panel among them. A run
+  of `codex exec` stands among the agents of the claude session that started
+  it, a subagent's thread is part of its parent's turn, a thread a person
+  archived in codex leaves the panel's archive as a deleted claude transcript
+  does, and a thread on the list of sessions is left out of it. The row keeps
+  no words of the conversation: it reads by the name the panel gave the thread
+  while codex still calls it by it and by its directory otherwise, and says
+  the model, the effort, when it ran and the tokens it spent; it opens the
+  feed of the rollout. Resume (`session.resume` with `agent: codex`, the
+  thread and the contour of its home) takes no project — the daemon knows
+  where the thread ran — and the panel joins the thread in the daemon of that
+  contour with `thread/resume` and holds it as a thread it started: it is a
+  live session again, `codex-<8 hex>`, and nothing runs until it is written
+  to. No daemon is started for it, since a resume brings back what a person
+  had: a home whose daemon is down is refused with the way back in codex's
+  own terminal, and a subagent's thread as a part of its parent's turn.
 - **Only what the protocol does is done.** A message starts a turn on a free
   thread, and so does a letter of another session, in its envelope; a stop interrupts the turn — the inner turn of a review, which the
   daemon names when it refuses the root one — Esc declines what waits, a file
@@ -983,11 +1012,14 @@ start alone — the map stays as it was, and the next New offers the project's
 agent again. Codex is offered switched off, with the reason, where the
 contour has no codex home (`codexHome` of the contour in the map, from the
 collector) or the project is not on the map, and the service refuses codex for
-a session the map does not hold and any agent for a resume, whose conversation
-is claude's. A restart of a claude session of a project whose agent is codex
-is refused: a codex thread does not take the place of a claude conversation. A
-conversation resumed or moved between tmux and the stream is claude's and goes
-on.
+a session the map does not hold. A resume goes on with what the archive row
+names rather than with what the project starts: a conversation of claude, or a
+thread of codex with `agent: codex` and the contour of its home, which takes no
+project, as "Codex sessions" says; any other agent named for a resume is
+refused. A restart of a claude session of a project whose agent is codex is
+refused: a codex thread does not take the place of a claude conversation. A
+claude conversation resumed or moved between tmux and the stream stays
+claude's and goes on.
 
 **Effective values carry their layer.** A project's value comes from the
 project, its contour, the account, the panel's own default or claude
@@ -1124,7 +1156,8 @@ the main checkout — the agent reads that off the worktree's `.git` file, since
 the service does not see the disk. The climb stops below a project root: a
 project that is a root itself, like the home directory, holds the machine's own
 session, and taking it for the owner of whatever lies under it would start that
-in another account.
+in another account. A thread of codex looks for no project at all: the daemon
+of its home knows where it ran, as "Codex sessions" says.
 
 **Kinds are split by intent, not by convenience.** Answering a question and
 dismissing a question are different actions, because their consequences differ.

@@ -867,11 +867,15 @@ taken from them — without a registry a contour's paths are typed by hand.
 `AACP_CODEX_HOMES` names the codex accounts the panel watches, joined by `:`
 like the claude ones; unset, it is `~/.codex`. No question asks for it: a
 machine with codex in another `CODEX_HOME` adds the directory by hand. The
-panel shows the conversations of the daemon codex starts in each of them, under
-the contour named the way a claude account is — `~/.codex` is the personal one,
-any other directory its name without the leading dot. New of a project whose
-agent is codex starts in the home named after the project's contour, and a
-contour with no home of its own is refused.
+panel shows the conversations of each of them under the contour named the way
+a claude account is — `~/.codex` is the personal one, any other directory its
+name without the leading dot. New of a project whose agent is codex starts in
+the home of the same name as the contour of the project's claude account, and
+a contour with no home of its own is refused. That name is the account's, not
+the label the map gives the contour: the registry's name where the registry
+holds the account, the directory's otherwise — `~/.claude-work` is
+`claude-work`, so its home is a directory named `claude-work`. The executor
+and the collector read the key, each at its start.
 
 `AACP_CODEX` names the codex program the panel starts the daemon of a home and
 codex in tmux with; unset, it is `codex` from the executor's `PATH`. The panel
