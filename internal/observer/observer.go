@@ -218,6 +218,8 @@ type Record struct {
 	Spec    Spec      `json:"spec"`
 	Owner   Owner     `json:"owner"`
 	Started time.Time `json:"started"`
+	// UnknownSince bounds a codex daemon's absence across executor restarts.
+	UnknownSince time.Time `json:"unknownSince,omitzero"`
 	// Inode and Offset are where the reading of the log stands: the file by
 	// its inode, since a full one is moved aside, and the first byte of it
 	// not read yet. Only whole lines are read past.

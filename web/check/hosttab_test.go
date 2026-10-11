@@ -21,6 +21,7 @@ type hostPage struct {
 	Stacks     int      `json:"stacks"`
 	Grid       bool     `json:"grid"`
 	Entries    int      `json:"entries"`
+	Records    []string `json:"records"`
 }
 
 // hostLayer is a page the host menu opened over the screen.
@@ -163,6 +164,12 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		}
 		if j.Entries != 3 {
 			t.Errorf("the journal page shows %d entries, expected 3", j.Entries)
+		}
+		records := strings.Join(j.Records, "\n")
+		for _, want := range []string{"Start an observer lab", "observer ci started: gh run watch 123 in /srv/proj", "Set an alarm codex-0000abcd", "alarm poll set: first ring at 2026-10-12T09:00:00Z, every 10m0s"} {
+			if !strings.Contains(records, want) {
+				t.Errorf("the journal does not show %q: %s", want, records)
+			}
 		}
 	})
 

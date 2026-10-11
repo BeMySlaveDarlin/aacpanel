@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/hostcfg"
 )
 
@@ -132,6 +133,9 @@ type answer struct {
 	// Contour is the account of the map the panel ran the action in, where it
 	// names one.
 	Contour string
+	// Logged is explicit: an old service or an unavailable database cannot
+	// be mistaken for a completed journal write.
+	Logged bool
 }
 
 // act asks the panel to run an action on this machine, waiting for its answer
@@ -164,6 +168,7 @@ func (h Host) act(ctx context.Context, kind, target string, params map[string]an
 		Detail  string `json:"detail"`
 		Error   string `json:"error"`
 		Contour string `json:"contour"`
+		Logged  bool   `json:"logged"`
 	}
 	_ = json.Unmarshal(raw, &reply)
 	if resp.StatusCode != http.StatusOK {
@@ -176,5 +181,25 @@ func (h Host) act(ctx context.Context, kind, target string, params map[string]an
 		}
 		return answer{Said: said}, nil
 	}
-	return answer{Taken: true, Said: reply.Detail, Contour: reply.Contour}, nil
+	return answer{Taken: true, Said: reply.Detail, Contour: reply.Contour, Logged: reply.Logged}, nil
+}
+
+// RecordWork uses the tools' ordinary action path after the executor accepted
+// the work. Its failure is a missing record, never a reason to start again.
+func (h Host) RecordWork(ctx context.Context, kind action.Kind, target string, record action.WorkRecord) error {
+	if err := record.Validate(kind, target); err != nil {
+		return err
+	}
+	got, err := h.act(ctx, string(kind), target, record.Params(), letterWait)
+	switch {
+	case err != nil:
+		return err
+	case got.Late:
+		return errors.New("the panel did not confirm the journal write before the timeout")
+	case !got.Taken:
+		return errors.New(got.Said)
+	case !got.Logged:
+		return errors.New("the panel did not confirm a journal record")
+	}
+	return nil
 }

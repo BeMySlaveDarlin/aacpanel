@@ -3,8 +3,10 @@ package action
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // ErrBadRequest means the request is not acceptable.
@@ -14,6 +16,44 @@ func (e ErrBadRequest) Error() string { return e.msg }
 
 func badRequest(format string, args ...any) error {
 	return ErrBadRequest{msg: fmt.Sprintf(format, args...)}
+}
+
+// Validate checks a completed-work record without admitting its kind to the
+// executor's protocol. A timestamp may be in the past: the work has started.
+func (r WorkRecord) Validate(kind Kind, target string) error {
+	if !RecordOnly(kind) {
+		return badRequest("action %s is not a work record", kind)
+	}
+	if target == "" || len(target) > targetMax || !safeUUID(r.From) {
+		return badRequest("a work record needs the calling session's name and conversation")
+	}
+	if err := safeTarget(target); err != nil {
+		return err
+	}
+	if err := safeSessionName(r.Name); err != nil {
+		return badRequest("the work record needs a valid observer or alarm name: %v", err)
+	}
+	if kind == ObserverStart {
+		if strings.TrimSpace(r.Command) == "" || r.At != "" || r.Every != "" {
+			return badRequest("an observer record needs its command and no alarm schedule")
+		}
+		if !filepath.IsAbs(r.Cwd) || len(r.Cwd) > pathMax {
+			return badRequest("an observer record needs its absolute working directory")
+		}
+		return nil
+	}
+	if r.Command != "" || r.Cwd != "" {
+		return badRequest("an alarm record carries no command or working directory")
+	}
+	if _, err := time.Parse(time.RFC3339, r.At); err != nil {
+		return badRequest("an alarm record needs the first ring as an RFC 3339 moment")
+	}
+	if r.Every != "" {
+		if span, err := time.ParseDuration(r.Every); err != nil || span <= 0 {
+			return badRequest("an alarm record's period must be a positive duration")
+		}
+	}
+	return nil
 }
 
 // Validate checks the request before it reaches anything that executes.

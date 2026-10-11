@@ -37,11 +37,11 @@ localStorage.setItem("aacpanel.tab", "containers");
 const now = Date.now();
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const actions = [
-    { id: 41, kind: "container.restart", target: "shop-web", result: "ok", ts: new Date(now - 4 * 60e3).toISOString(),
+    { id: 41, kind: "observer.start", target: "lab", detail: "observer ci started: gh run watch 123 in /srv/proj", result: "ok", ts: new Date(now - 4 * 60e3).toISOString(),
       device_name: "phone", duration_ms: 2300 },
     { id: 40, kind: "stack.up", target: "chat-bridge", result: "failed", error: "port 8080 is taken",
       ts: new Date(now - 50 * 60e3).toISOString(), device_name: "laptop", duration_ms: 900 },
-    { id: 39, kind: "container.stop", target: "lab-worker", result: "ok", ts: new Date(now - 3 * 3600e3).toISOString(),
+    { id: 39, kind: "alarm.set", target: "codex-0000abcd", detail: "alarm poll set: first ring at 2026-10-12T09:00:00Z, every 10m0s", result: "ok", ts: new Date(now - 3 * 3600e3).toISOString(),
       device_name: "phone", duration_ms: 1200 },
 ];
 window.fetch = counted(async (url) => {
@@ -172,6 +172,7 @@ const look = (name) => {
         stacks: page ? page.querySelectorAll(".stack").length : 0,
         grid: Boolean(page && page.querySelector(".mgrid")),
         entries: page ? page.querySelectorAll(".entry").length : 0,
+        records: page ? Array.from(page.querySelectorAll(".entry")).map(text) : [],
     };
 };
 // layer reads a page the host menu opened over the screen.

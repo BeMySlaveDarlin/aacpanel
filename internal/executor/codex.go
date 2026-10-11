@@ -164,7 +164,7 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 	case action.ObserverStop:
 		return e.observerStop(ctx, th.Name, th.ID, req.Work)
 	case action.AlarmCancel:
-		return e.alarmCancel(th.Name, th.ID, req.Work)
+		return e.alarmCancel(ctx, th.Name, th.ID, req.Work)
 	case action.SecretPut:
 		return codexSecretPut(ctx, th, req.Secret)
 	case action.SessionClose:

@@ -94,6 +94,11 @@ const (
 	ObserverStop Kind = "observer.stop"
 	// AlarmCancel cancels an alarm of the panel a session set, by its id.
 	AlarmCancel Kind = "alarm.cancel"
+	// ObserverStart and AlarmSet record work a session already started over
+	// the observers' private socket. They are deliberately absent from Kinds:
+	// the service must never gain a way to start an arbitrary host command.
+	ObserverStart Kind = "observer.start"
+	AlarmSet      Kind = "alarm.set"
 
 	// WindowClose closes the windows attached to a session on the host.
 	WindowClose Kind = "window.close"
@@ -133,3 +138,28 @@ var Kinds = []Kind{
 
 // Valid reports whether the executor knows this kind of action.
 func Valid(k Kind) bool { return slices.Contains(Kinds, k) }
+
+// RecordOnly identifies facts the service journals without calling the executor.
+func RecordOnly(k Kind) bool { return k == ObserverStart || k == AlarmSet }
+
+// WorkRecord is what a session reports after its private socket call succeeds.
+// From is the calling conversation, as on a letter; the target is its name.
+type WorkRecord struct {
+	From    string `json:"from"`
+	Name    string `json:"name"`
+	Command string `json:"command,omitempty"`
+	Cwd     string `json:"cwd,omitempty"`
+	At      string `json:"at,omitempty"`
+	Every   string `json:"every,omitempty"`
+}
+
+// Params keeps the record in the same shape as the other action parameters.
+func (r WorkRecord) Params() map[string]any {
+	p := map[string]any{"from": r.From, "name": r.Name}
+	for key, value := range map[string]string{"command": r.Command, "cwd": r.Cwd, "at": r.At, "every": r.Every} {
+		if value != "" {
+			p[key] = value
+		}
+	}
+	return p
+}

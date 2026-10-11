@@ -11,6 +11,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/observer"
+	"aacpanel/internal/stream"
 )
 
 // heldUnits stands in for the user's manager: a unit starts as nothing and is
@@ -60,7 +61,7 @@ func onlyEntry(t *testing.T, dir, suffix string) string {
 // cancels its alarm: the executor finds the conversation the session runs and
 // asks the keeper that holds them, by the id the collector read them under.
 func TestThePanelStopsTheObserverAndCancelsTheAlarmOfASessionOnTheStream(t *testing.T) {
-	onTheStream(t, false)
+	f := onTheStream(t, false)
 	e := New(nil, "")
 	k, units, dir := keptBy(t, e)
 	ctx := context.Background()
@@ -78,7 +79,7 @@ func TestThePanelStopsTheObserverAndCancelsTheAlarmOfASessionOnTheStream(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail != "observer ci of demo stopped, with its command" || !units.wasStopped(observer.Unit(id)) {
+	if detail != "observer ci of demo stopped, with its command; the session was notified by letter" || !units.wasStopped(observer.Unit(id)) {
 		t.Errorf("the stop said %q, the unit stopped %v", detail, units.wasStopped(observer.Unit(id)))
 	}
 
@@ -87,12 +88,38 @@ func TestThePanelStopsTheObserverAndCancelsTheAlarmOfASessionOnTheStream(t *test
 	}
 	alarm := onlyEntry(t, filepath.Join(filepath.Dir(dir), "alarms"), ".json")
 	detail, err = e.Execute(ctx, action.Request{Kind: action.AlarmCancel, Target: "demo", Work: &action.Work{ID: alarm}})
-	if err != nil || detail != "alarm standup of demo cancelled" {
+	if err != nil || detail != "alarm standup of demo cancelled; the session was notified by letter" {
 		t.Errorf("the cancel said %q, %v", detail, err)
 	}
 	if _, err := e.Execute(ctx, action.Request{Kind: action.AlarmCancel, Target: "demo",
 		Work: &action.Work{ID: alarm}}); err == nil {
 		t.Error("an alarm cancelled once was cancelled again")
+	}
+	for _, kind := range []string{"observer", "alarm"} {
+		if kind == "observer" {
+			if _, err := k.Start(ctx, streamCaller, observer.Spec{Name: "self", Command: "true", Dir: t.TempDir(), Wake: observer.AtExit}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := k.Stop(ctx, streamCaller, "self"); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			if _, err := k.SetAlarm(ctx, streamCaller, observer.AlarmAsk{Name: "self", In: "10m"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := k.CancelAlarm(ctx, streamCaller, "self"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	letters := f.asked()
+	if len(letters) != 2 {
+		t.Fatalf("the holder got %d letters, want one per panel action: %+v", len(letters), letters)
+	}
+	for i, want := range []string{"observer ci was stopped from the panel.", "alarm standup was cancelled from the panel."} {
+		if letters[i].Op != stream.OpLetter || !strings.Contains(letters[i].Text, want) {
+			t.Errorf("letter %d: %+v", i, letters[i])
+		}
 	}
 }
 
@@ -114,5 +141,77 @@ func TestThePanelStopsTheObserverOfAThreadOfCodex(t *testing.T) {
 	}
 	if !strings.HasPrefix(detail, "observer deploy of ") || !units.wasStopped(observer.Unit(id)) {
 		t.Errorf("the stop said %q, the unit stopped %v", detail, units.wasStopped(observer.Unit(id)))
+	}
+	caller := observer.Caller{Conversation: codexThread, Codex: true, Home: srv.Home}
+	if _, err := k.SetAlarm(ctx, caller, observer.AlarmAsk{Name: "poll", Every: "10m"}); err != nil {
+		t.Fatal(err)
+	}
+	alarm := onlyEntry(t, filepath.Join(filepath.Dir(dir), "alarms"), ".json")
+	if _, err := e.Execute(ctx, action.Request{Kind: action.AlarmCancel, Target: codexName, Work: &action.Work{ID: alarm}}); err != nil {
+		t.Fatal(err)
+	}
+	turns := append(srv.Calls("turn/start"), srv.Calls("turn/steer")...)
+	if len(turns) != 2 {
+		t.Fatalf("the thread got %d letters: %+v", len(turns), turns)
+	}
+	for i, want := range []string{"observer deploy was stopped from the panel.", "alarm poll was cancelled from the panel."} {
+		_, _, body, _, _ := envelopeIn(t, turnText(t, turns[i]))
+		if body != want {
+			t.Errorf("letter %d: %q, want %q", i, body, want)
+		}
+	}
+}
+
+// Losing a letter transport must not leave the work running, or report that
+// the waiting session learned of its end.
+func TestAPanelStopSaysWhenTheSessionCannotTakeLetters(t *testing.T) {
+	for _, transport := range []string{"tmux", "old holder", "failed letter"} {
+		t.Run(transport, func(t *testing.T) {
+			f := onTheStream(t, false)
+			e := New(nil, "")
+			k, units, dir := keptBy(t, e)
+			ctx := t.Context()
+			if _, err := k.Start(ctx, streamCaller, observer.Spec{Name: "ci", Command: "true", Dir: t.TempDir(), Wake: observer.AtExit}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := k.SetAlarm(ctx, streamCaller, observer.AlarmAsk{Name: "poll", Every: "10m"}); err != nil {
+				t.Fatal(err)
+			}
+			id := onlyEntry(t, dir, "")
+			alarm := onlyEntry(t, filepath.Join(filepath.Dir(dir), "alarms"), ".json")
+			switch transport {
+			case "tmux":
+				if err := os.Remove(stream.StatePath(streamSID)); err != nil {
+					t.Fatal(err)
+				}
+				procFS(t, fakeProc{pid: 5001, comm: "claude", ppid: 1, cwd: "/opt/x", start: "5555", args: []string{"claude", "-n", "demo", "--session-id", streamSID}})
+			case "old holder":
+				f.mu.Lock()
+				f.state.Protocol = stream.LettersSince - 1
+				f.mu.Unlock()
+			case "failed letter":
+				f.mu.Lock()
+				f.fails = map[string]string{stream.OpLetter: "letter refused"}
+				f.mu.Unlock()
+			}
+			for _, item := range []struct {
+				kind action.Kind
+				id   string
+			}{{action.ObserverStop, id}, {action.AlarmCancel, alarm}} {
+				detail, err := e.Execute(ctx, action.Request{Kind: item.kind, Target: "demo", Work: &action.Work{ID: item.id}})
+				if err != nil || !strings.Contains(detail, "the session was not notified") {
+					t.Errorf("%s: %q, %v", item.kind, detail, err)
+				}
+				if transport == "tmux" && !strings.Contains(detail, "tmux") {
+					t.Errorf("the answer hides the transport: %s", detail)
+				}
+			}
+			if !units.wasStopped(observer.Unit(id)) {
+				t.Error("the observer unit still runs")
+			}
+			if transport != "failed letter" && len(f.asked()) != 0 {
+				t.Errorf("a letter went to %s: %+v", transport, f.asked())
+			}
+		})
 	}
 }

@@ -160,6 +160,8 @@ type Alarm struct {
 	Every time.Duration `json:"every,omitempty"`
 	Owner Owner         `json:"owner"`
 	Set   time.Time     `json:"set"`
+	// UnknownSince bounds a codex daemon's absence across executor restarts.
+	UnknownSince time.Time `json:"unknownSince,omitzero"`
 	// Next is the moment it rings next. A ring moves it on by Every past the
 	// moment of the ring.
 	Next time.Time `json:"next"`
@@ -360,19 +362,23 @@ func (k *Keeper) lookAtAlarm(ctx context.Context, r *ringing) {
 	if !kept {
 		return
 	}
-	alive, known := k.owners.Alive(rec.Owner)
-	if known && !alive {
-		r.gone++
-		if r.gone >= goneSteps {
-			k.dropAlarm(r, "its session ended")
-		}
+	alive, why := k.ownerStatus(rec.Owner, &r.gone, &rec.UnknownSince)
+	if why != "" {
+		k.dropAlarm(r, why)
 		return
 	}
-	r.gone = 0
+	if rec.UnknownSince != r.rec.UnknownSince {
+		k.mu.Lock()
+		r.rec = rec
+		k.mu.Unlock()
+		if err := writeAlarm(k.alarmDir, rec); err != nil {
+			log.Printf("alarm %s: the owner's availability was not written: %v", rec.Name, err)
+		}
+	}
 	now := k.now()
 	// A thread whose daemon is not read yet is rung once it is: a ring it
 	// cannot take would be tried away.
-	if !known || now.Before(rec.Next) {
+	if !alive || now.Before(rec.Next) {
 		return
 	}
 	var next time.Time

@@ -4,14 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/session"
 )
 
 func observed(t *testing.T, command string) string {
@@ -90,6 +95,37 @@ func TestTheLogIsReadOnAcrossTheMoveOfAFullFile(t *testing.T) {
 // the model as its own error.
 func TestTheToolsReachTheKeeperForTheSessionCalling(t *testing.T) {
 	quick(t)
+	var recordMu sync.Mutex
+	type entry struct {
+		Kind   action.Kind
+		Target string
+		Params action.WorkRecord
+	}
+	var records []entry
+	recordStatus := http.StatusOK
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/actions" {
+			http.NotFound(w, r)
+			return
+		}
+		var rec entry
+		if err := json.NewDecoder(r.Body).Decode(&rec); err != nil {
+			t.Error(err)
+		}
+		recordMu.Lock()
+		records = append(records, rec)
+		status := recordStatus
+		recordMu.Unlock()
+		w.WriteHeader(status)
+		if status == http.StatusOK {
+			fmt.Fprint(w, `{"ok":true,"logged":true}`)
+		} else {
+			fmt.Fprint(w, `{"error":"database unavailable","logged":false}`)
+		}
+	}))
+	defer panel.Close()
+	t.Setenv(session.PanelEnv, panel.URL)
+
 	socket, err := os.MkdirTemp("", "o")
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +140,11 @@ func TestTheToolsReachTheKeeperForTheSessionCalling(t *testing.T) {
 	k := NewKeeper(filepath.Join(t.TempDir(), "observers"), units, owners)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	go k.Serve(ctx, ln)
+	served := make(chan struct{})
+	go func() {
+		k.Serve(ctx, ln)
+		close(served)
+	}()
 	keeping(t, k)
 
 	work := t.TempDir()
@@ -171,14 +211,70 @@ func TestTheToolsReachTheKeeperForTheSessionCalling(t *testing.T) {
 		!strings.Contains(text, "note: Wake up.") {
 		t.Errorf("the list of alarms is %q", text)
 	}
+	alarms, err := k.Alarms(ctx, lab)
+	if err != nil || len(alarms) != 1 {
+		t.Fatalf("alarms before the cancel: %+v, %v", alarms, err)
+	}
+	recordMu.Lock()
+	got := append([]entry{}, records...)
+	recordMu.Unlock()
+	if len(got) != 2 {
+		t.Fatalf("successful starts made %d records; lists, refusals and stops must make none: %+v", len(got), got)
+	}
+	if got[0].Kind != action.ObserverStart || got[0].Target != "lab" || got[0].Params.From != lab.Conversation || got[0].Params.Name != "pwd" || got[0].Params.Command != `pwd; echo "$PATH"; sleep 30` || got[0].Params.Cwd != filepath.Join(work, "sub") {
+		t.Errorf("observer record: %+v", got[0])
+	}
+	if got[1].Kind != action.AlarmSet || got[1].Target != "lab" || got[1].Params.From != lab.Conversation || got[1].Params.Name != "nap" || got[1].Params.At != alarms[0].Next.Format(time.RFC3339) || got[1].Params.Every != "" {
+		t.Errorf("alarm record: %+v", got[1])
+	}
 	if text, failed := call(AlarmCancelName, `{"name":"nap"}`); failed || text != "Alarm nap cancelled: it rings no more." {
 		t.Errorf("the cancel answered %q", text)
 	}
 	if text, _ := call(AlarmListName, `{}`); text != "This session has no alarms." {
 		t.Errorf("the list after the cancel is %q", text)
 	}
+	codexBind := func() (mcp.Binding, error) {
+		return mcp.Binding{SessionID: "019a1f00-0000-7000-8000-00000000abcd", Name: "codex-0000abcd", Codex: true, Place: mcp.Place{ConfigDir: "/home/u/.codex", Dir: work}}, nil
+	}
+	for _, tool := range CodexTools(path) {
+		if tool.Name != AlarmSetName {
+			continue
+		}
+		text, failed := tool.Call(ctx, codexBind, json.RawMessage(`{"name":"codex.poll","every":"10m"}`))
+		if failed || !strings.Contains(text, "Written to the panel's journal.") {
+			t.Fatalf("codex set: %s", text)
+		}
+	}
+	recordMu.Lock()
+	rec := records[len(records)-1]
+	recordStatus = http.StatusServiceUnavailable
+	recordMu.Unlock()
+	if rec.Target != "codex-0000abcd" || rec.Params.From != "019a1f00-0000-7000-8000-00000000abcd" || rec.Params.Name != "codex.poll" || rec.Params.Every != "10m0s" {
+		t.Errorf("codex record: %+v", rec)
+	}
+	for _, item := range []struct{ tool, args string }{
+		{StartName, `{"name":"unlogged","command":"sleep 30","wake":"exit"}`},
+		{AlarmSetName, `{"name":"unlogged","every":"10m"}`},
+	} {
+		text, failed := call(item.tool, item.args)
+		if failed || !strings.Contains(text, "started, not written to the panel's journal: database unavailable") {
+			t.Errorf("a failed record changed the successful start: %q, failed %v", text, failed)
+		}
+	}
+	if list, err := k.List(ctx, lab); err != nil || len(list) != 1 {
+		t.Errorf("a failed journal write undid the observer: %+v, %v", list, err)
+	}
+	if list, err := k.Alarms(ctx, lab); err != nil || len(list) != 1 {
+		t.Errorf("a failed journal write undid the alarm: %+v, %v", list, err)
+	}
+	if text, failed := call(StopName, `{"name":"unlogged"}`); failed {
+		t.Fatal(text)
+	}
+	if text, failed := call(AlarmCancelName, `{"name":"unlogged"}`); failed {
+		t.Fatal(text)
+	}
 	cancel()
-	time.Sleep(20 * time.Millisecond)
+	<-served
 	if text, failed := call(ListName, `{}`); !failed || !strings.Contains(text, "does not answer") {
 		t.Errorf("a call with no executor answered %q", text)
 	}

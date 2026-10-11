@@ -608,3 +608,41 @@ func TestWhatStopsAnOpenIsTheToolsError(t *testing.T) {
 		t.Errorf("the panel was asked %d times, only by the open it refused", n)
 	}
 }
+
+// A successful HTTP answer is not enough: the service must confirm that the
+// journal kept the record, or the tool must name the missing write.
+func TestWorkRecordingRequiresThePanelsJournalConfirmation(t *testing.T) {
+	for _, c := range []struct {
+		status     int
+		body, want string
+	}{
+		{http.StatusOK, `{"ok":true,"logged":true}`, ""},
+		{http.StatusOK, `{"ok":true,"logged":false}`, "did not confirm a journal record"},
+		{http.StatusOK, `{"ok":true}`, "did not confirm a journal record"},
+		{http.StatusServiceUnavailable, `{"error":"database unavailable"}`, "database unavailable"},
+	} {
+		p, url := startPanel(t, c.status, c.body)
+		h := Host{Panel: url}
+		record := action.WorkRecord{From: mine, Name: "ci", Command: "gh run watch 123", Cwd: "/srv/proj"}
+		err := h.RecordWork(t.Context(), action.ObserverStart, "lab", record)
+		if c.want == "" && err != nil || c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)) {
+			t.Errorf("%s: %v, want %q", c.body, err, c.want)
+		}
+		calls := p.calls()
+		if len(calls) != 1 || calls[0]["kind"] != "observer.start" || calls[0]["target"] != "lab" || !reflect.DeepEqual(calls[0]["params"], record.Params()) {
+			t.Errorf("record request: %+v", calls)
+		}
+		if err := h.RecordWork(t.Context(), action.ObserverStop, "lab", record); err == nil {
+			t.Error("an executable action went as a record")
+		}
+		if len(p.calls()) != 1 {
+			t.Error("invalid work was sent to the panel")
+		}
+	}
+	h := Host{Panel: "http://127.0.0.1:1"}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := h.RecordWork(ctx, action.ObserverStart, "lab", action.WorkRecord{From: mine, Name: "ci", Command: "true", Cwd: "/srv/proj"}); err == nil {
+		t.Error("a cancelled journal request succeeded")
+	}
+}

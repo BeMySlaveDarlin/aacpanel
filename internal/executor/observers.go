@@ -112,7 +112,20 @@ func (o observerOwners) Wake(ctx context.Context, owner observer.Owner, from, te
 	if !ok {
 		return fmt.Errorf("session %s is not live", owner.Session)
 	}
-	_, err := streamAsk(ctx, s, stream.Request{Op: stream.OpLetter, Text: letterEnvelope("", from, text)})
+	if !onStream(s) {
+		return fmt.Errorf("session %s is in tmux and cannot take letters", owner.Session)
+	}
+	if start, ok := procStart(owner.PID); !ok || start != owner.Start {
+		return fmt.Errorf("the process of session %s changed", owner.Session)
+	}
+	st, err := streamState(ctx, s)
+	if err != nil {
+		return err
+	}
+	if st.Protocol < stream.LettersSince {
+		return fmt.Errorf("the holder of session %s cannot take letters; restart the session", owner.Session)
+	}
+	_, err = streamAsk(ctx, s, stream.Request{Op: stream.OpLetter, Text: letterEnvelope("", from, text)})
 	return err
 }
 
@@ -231,22 +244,22 @@ func (e *Executor) observerStop(ctx context.Context, session, conversation strin
 	if work == nil {
 		return "", fmt.Errorf("it is not said which observer of %s to stop", session)
 	}
-	v, err := e.Observers().StopFor(ctx, conversation, work.ID)
+	v, notice, err := e.Observers().StopFor(ctx, conversation, work.ID)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("observer %s of %s stopped, with its command", v.Name, session), nil
+	return fmt.Sprintf("observer %s of %s stopped, with its command; %s", v.Name, session, notice), nil
 }
 
 // alarmCancel cancels an alarm of a session at a press in the panel, as
 // alarm_cancel does.
-func (e *Executor) alarmCancel(session, conversation string, work *action.Work) (string, error) {
+func (e *Executor) alarmCancel(ctx context.Context, session, conversation string, work *action.Work) (string, error) {
 	if work == nil {
 		return "", fmt.Errorf("it is not said which alarm of %s to cancel", session)
 	}
-	v, err := e.Observers().CancelFor(conversation, work.ID)
+	v, notice, err := e.Observers().CancelFor(ctx, conversation, work.ID)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("alarm %s of %s cancelled", v.Name, session), nil
+	return fmt.Sprintf("alarm %s of %s cancelled; %s", v.Name, session, notice), nil
 }

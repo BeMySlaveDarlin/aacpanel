@@ -1,8 +1,10 @@
 package observer
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -83,24 +85,25 @@ func (f *fakeUnits) wasStopped(unit string) bool {
 // fakeOwners stands in for the sessions of the machine: one session, alive
 // while alive says so, that keeps every letter it is given.
 type fakeOwners struct {
-	mu     sync.Mutex
-	alive  bool
-	refuse error
-	wakes  []string
-	from   []string
+	mu      sync.Mutex
+	alive   bool
+	unknown bool
+	refuse  error
+	wakes   []string
+	from    []string
 }
 
 func (f *fakeOwners) Resolve(_ context.Context, c Caller) (Owner, error) {
 	if f.refuse != nil {
 		return Owner{}, f.refuse
 	}
-	return Owner{Session: "lab", Conversation: c.Conversation, PID: c.PID, Start: "77"}, nil
+	return Owner{Session: "lab", Conversation: c.Conversation, PID: c.PID, Start: "77", Codex: c.Codex}, nil
 }
 
 func (f *fakeOwners) Alive(Owner) (bool, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.alive, true
+	return f.alive, !f.unknown
 }
 
 func (f *fakeOwners) Wake(_ context.Context, _ Owner, from, text string) error {
@@ -357,5 +360,109 @@ func TestASessionReadsAndStopsItsOwnObservers(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 		t.Errorf("a stopped observer left %v", entries)
+	}
+}
+
+// Unknown owners get one hour, including across an executor restart. A
+// daemon that answers again clears the deadline; each absence has its own.
+func TestACodexDaemonsAbsenceIsBoundedForObserversAndAlarms(t *testing.T) {
+	var journal bytes.Buffer
+	before := log.Writer()
+	log.SetOutput(&journal)
+	t.Cleanup(func() { log.SetOutput(before) })
+	for _, scene := range []string{"expired", "exact hour", "executor restarted", "daemon returned", "second absence"} {
+		t.Run(scene, func(t *testing.T) {
+			k, owners, clock, dir := alarmed(t)
+			ctx := t.Context()
+			caller := Caller{Conversation: lab.Conversation, Codex: true}
+			units := k.runner.(*fakeUnits)
+			v, err := k.Start(ctx, caller, Spec{Name: "ci", Command: "sleep 300", Dir: t.TempDir(), Wake: AtExit})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = units.Stop(context.Background(), v.Unit) })
+			if _, err := k.SetAlarm(ctx, caller, AlarmAsk{Name: "poll", Every: "10m"}); err != nil {
+				t.Fatal(err)
+			}
+			owners.mu.Lock()
+			owners.unknown = true
+			owners.mu.Unlock()
+			k.look(ctx)
+			clock.move(59 * time.Minute)
+			k.look(ctx)
+			assertKept := func(want int) {
+				t.Helper()
+				observers, err := k.List(ctx, caller)
+				if err != nil || len(observers) != want {
+					t.Errorf("observers: %+v, %v; want %d", observers, err, want)
+				}
+				alarms, err := k.Alarms(ctx, caller)
+				if err != nil || len(alarms) != want || len(files(dir)) != want {
+					t.Errorf("alarms: %+v, %v; files %v; want %d", alarms, err, files(dir), want)
+				}
+				entries, err := os.ReadDir(dir)
+				if err != nil || len(entries) != want {
+					t.Errorf("observer directories: %v, %v; want %d", entries, err, want)
+				}
+			}
+			assertKept(1)
+			if len(owners.got()) != 0 {
+				t.Fatal("a wake was tried while the daemon was unavailable")
+			}
+			if scene == "executor restarted" {
+				k = NewKeeper(dir, units, owners)
+				k.now = clock.now
+				k.Load(ctx)
+			}
+			if scene == "daemon returned" || scene == "second absence" {
+				// Wait for the real command's pid, so a synthetic hour does
+				// not turn its ordinary startup into a lost unit.
+				entries, _ := os.ReadDir(dir)
+				waitFor(t, "the observer to start", func() bool { alive, _ := running(filepath.Join(dir, entries[0].Name())); return alive })
+				owners.mu.Lock()
+				owners.unknown = false
+				owners.mu.Unlock()
+				k.look(ctx)
+				if len(owners.got()) != 1 {
+					t.Fatalf("the due alarm was not delivered after reconnection: %v", owners.got())
+				}
+				// Reload also checks the cleared deadline reached the disk.
+				k = NewKeeper(dir, units, owners)
+				k.now = clock.now
+				k.Load(ctx)
+				if scene == "second absence" {
+					owners.mu.Lock()
+					owners.unknown = true
+					owners.mu.Unlock()
+					k.look(ctx)
+					clock.move(59 * time.Minute)
+					k.look(ctx)
+					assertKept(1)
+				} else {
+					clock.move(2 * time.Minute)
+					k.look(ctx)
+					assertKept(1)
+					return
+				}
+			}
+			advance := 2 * time.Minute
+			if scene == "exact hour" {
+				advance = time.Minute
+			}
+			journal.Reset()
+			clock.move(advance)
+			k.look(ctx)
+			assertKept(0)
+			k.look(ctx)
+			for _, work := range []string{"observer ci", "alarm poll"} {
+				want := work + " of lab is gone: its codex daemon was unavailable for one hour"
+				if strings.Count(journal.String(), want) != 1 {
+					t.Errorf("the journal must name each expiry once: %s", journal.String())
+				}
+			}
+			if !units.wasStopped(v.Unit) {
+				t.Error("the expired observer's command still runs")
+			}
+		})
 	}
 }

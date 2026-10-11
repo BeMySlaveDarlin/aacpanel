@@ -464,20 +464,19 @@ export const ACTIONS = {
         done: (target) => `Background work in ${target} stopped`,
         ok: "Stop",
     },
-    // An observer and an alarm of the panel end at the host, and the session
-    // is not told: it waits on for a letter that does not come, unless the
-    // person tells it.
+    // The stop ends the work even when its session cannot take a letter;
+    // the action answer says whether the notification reached it.
     "observer.stop": {
         title: (target, params) => `Stop the observer${params && params.name ? ` ${params.name}` : ""} in ${target}?`,
-        effect: "Its command stops and its log goes with it. The session gets no more letters from it and is not "
-            + "told it was stopped: if it waits for one, tell it. Only the session can start it again",
+        effect: "Its command stops and its log goes with it. The session gets a letter saying it was stopped. "
+            + "A session in tmux or with an old holder cannot take it; the answer says so. Only the session can start it again",
         done: (target, params) => `Observer${params && params.name ? ` ${params.name}` : ""} stopped in ${target}`,
         ok: "Stop",
     },
     "alarm.cancel": {
         title: (target, params) => `Cancel the alarm${params && params.name ? ` ${params.name}` : ""} in ${target}?`,
-        effect: "It rings no more. The session is not told it was cancelled: if it waits for the ring, tell it. "
-            + "Only the session can set it again",
+        effect: "It rings no more. The session gets a letter saying it was cancelled. "
+            + "A session in tmux or with an old holder cannot take it; the answer says so. Only the session can set it again",
         done: (target, params) => `Alarm${params && params.name ? ` ${params.name}` : ""} cancelled in ${target}`,
         ok: "Cancel the alarm",
     },
@@ -1030,6 +1029,9 @@ const NAMES = {
     "session.escape": "Free the composer",
     "task.stop": "Stop background work",
     "agent.stop": "Stop subagent",
+    // Sessions record starts after the private socket accepts them; no screen starts them.
+    "observer.start": "Start an observer",
+    "alarm.set": "Set an alarm",
     "observer.stop": "Stop an observer",
     "alarm.cancel": "Cancel an alarm",
     "session.file": "Send file",

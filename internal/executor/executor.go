@@ -210,7 +210,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 			return "", err
 		}
 		if req.Kind == action.AlarmCancel {
-			return e.alarmCancel(s.Name, s.SessionID, req.Work)
+			return e.alarmCancel(ctx, s.Name, s.SessionID, req.Work)
 		}
 		return e.observerStop(ctx, s.Name, s.SessionID, req.Work)
 	case action.WindowOpen:

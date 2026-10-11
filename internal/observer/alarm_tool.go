@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/mcp"
 )
 
@@ -105,7 +106,7 @@ func setAlarm(ctx context.Context, path string, bind mcp.Bind, raw json.RawMessa
 	if err := strictly(raw, &args); err != nil {
 		return "No alarm was set: the arguments are not the tool's (" + err.Error() + ").", true
 	}
-	c, _, err := callerOf(bind)
+	c, b, err := callerOf(bind)
 	if err != nil {
 		return "No alarm was set: " + err.Error() + ".", true
 	}
@@ -115,10 +116,16 @@ func setAlarm(ctx context.Context, path string, bind mcp.Bind, raw json.RawMessa
 	}
 	v := reply.Alarm
 	if v == nil {
-		return "The executor set the alarm and said nothing of it: alarm_list shows it.", false
+		return "The executor set the alarm and said nothing of it: alarm_list shows it. " +
+			"The work started, not written to the panel's journal: the executor supplied no schedule.", false
 	}
-	return fmt.Sprintf("Alarm %s set: it %s. This session gets a letter from it when it rings, and "+
-		"alarm_cancel %s ends it.", v.Name, ringWords(*v, time.Now()), v.Name), false
+	record := action.WorkRecord{Name: v.Name, At: v.Next.Format(time.RFC3339)}
+	if v.Every > 0 {
+		record.Every = v.Every.String()
+	}
+	text := fmt.Sprintf("Alarm %s set: it %s. This session gets a letter from it when it rings, and "+
+		"alarm_cancel %s ends it.", v.Name, ringWords(*v, time.Now()), v.Name)
+	return journalWork(ctx, b, action.AlarmSet, record, text), false
 }
 
 func listAlarms(ctx context.Context, path string, bind mcp.Bind) (string, bool) {

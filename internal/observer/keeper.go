@@ -64,6 +64,9 @@ var (
 // The bounds of one wake: the lines it quotes and how much of each. What is
 // past them is counted and left in the log for observer_tail.
 const (
+	// A daemon that cannot answer cannot confirm a thread is gone either.
+	// Bound that uncertainty so nobody waits on abandoned work forever.
+	ownerWait   = time.Hour
 	wakeLines   = 20
 	wakeLineMax = 400
 	// endLines is how much of the log the end of an observer that waits for
@@ -354,20 +357,23 @@ func (k *Keeper) lookAt(ctx context.Context, w *watch) {
 	if !k.kept(w) {
 		return
 	}
-	alive, known := k.owners.Alive(w.rec.Owner)
-	if known && !alive {
-		w.gone++
-		if w.gone >= goneSteps {
-			k.endHeld(ctx, w, "its session ended")
-			return
-		}
-	} else {
-		w.gone = 0
-	}
-	if w.rec.Ended != nil {
+	rec := w.rec
+	alive, why := k.ownerStatus(rec.Owner, &w.gone, &rec.UnknownSince)
+	if why != "" {
+		k.endHeld(ctx, w, why)
 		return
 	}
-	rec := w.rec
+	if rec.UnknownSince != w.rec.UnknownSince {
+		k.mu.Lock()
+		w.rec = rec
+		k.mu.Unlock()
+		if err := writeRecord(w.dir, rec); err != nil {
+			log.Printf("observer %s: the owner's availability was not written: %v", rec.Spec.Name, err)
+		}
+	}
+	if !alive || rec.Ended != nil {
+		return
+	}
 	if w.end == nil {
 		w.end = k.ended(w)
 	}
@@ -398,6 +404,34 @@ func (k *Keeper) lookAt(ctx context.Context, w *watch) {
 			log.Printf("observer %s: the record was not written: %v", rec.Spec.Name, err)
 		}
 	}
+}
+
+// ownerStatus pauses work while its owner cannot be reached. UnknownSince
+// is kept in the record: restarting the executor cannot buy another hour.
+func (k *Keeper) ownerStatus(owner Owner, gone *int, unknownSince *time.Time) (alive bool, why string) {
+	alive, known := k.owners.Alive(owner)
+	if !known {
+		*gone = 0
+		if owner.Codex {
+			if unknownSince.IsZero() {
+				*unknownSince = k.now()
+			}
+			if k.now().Sub(*unknownSince) >= ownerWait {
+				return false, "its codex daemon was unavailable for one hour"
+			}
+		}
+		return false, ""
+	}
+	*unknownSince = time.Time{}
+	if alive {
+		*gone = 0
+		return true, ""
+	}
+	*gone++
+	if *gone >= goneSteps {
+		return false, "its session ended"
+	}
+	return false, ""
 }
 
 // kept says whether the keeper still keeps an observer: a stop may have

@@ -1361,6 +1361,11 @@ that only for a live session it finds itself. The start is not allowed without
 asking: it runs a command on the host, and claude asks the person first as it
 asks before a command of the shell. The list, the tail and the stop touch only
 what the session started and are allowed.
+The action journal names the session and its observer's name, command and
+directory, or its alarm's name and first ring and period. The session's MCP
+server records a successful start through `/api/actions` as `observer.start`
+or `alarm.set` without execution: recording travels beside the private start
+so the service gains no way to run its command.
 
 **An observer runs in a unit of its own, and outlives the executor.** The unit
 runs the executor's own binary in its observing mode, which runs the command
@@ -1416,9 +1421,12 @@ past the context cap, a move to tmux, a holder that died — each leaves no
 holder of that process, or another process under the name — and a thread the
 panel closed or its daemon let go. A session started again knows nothing of
 what the one before it waited for, and a command nobody waits on is a process
-left on the host. The price: a thread of codex whose daemon is down cannot be
-told from one that is gone, and its observers run on until the daemon is back
-and says.
+left on the host. A thread of codex whose daemon is down cannot be told from
+one that is gone, so its observers wait for at most one hour. The first look
+that reaches that limit stops them and records why in the executor's journal.
+The start of the absence is kept on disk: restarting the executor does not
+renew the hour. A daemon that answers again clears the deadline; until it
+answers, wakes wait without spending delivery attempts.
 
 **An alarm is a moment to be woken at.** A session that has to come back to
 something later — a run to look at in ten minutes, a queue to look at every
@@ -1447,7 +1455,8 @@ start of it, the thread of a codex — and the same three looks that find it
 gone take its alarms away, so a close, a restart and the restart past the
 context cap end every alarm of the session. The price: a session started
 again to go on with its conversation sets its alarms anew. A thread whose
-daemon is not read yet is not rung until it is.
+daemon is not read yet is not rung until it is, and its alarms are removed
+with a line in the executor's journal after the same one-hour limit.
 
 **An alarm is bounded so a session cannot spam itself.** A repeat is a minute
 apart at least: a ring is a turn of the session's model, and a session that
@@ -1470,8 +1479,12 @@ among the background tasks, under names of their own in the snapshot, so a
 restart, which waits for the session's own work, does not wait for them: they
 end with it. A press ends one through an action of the executor,
 `observer.stop` or `alarm.cancel`, by the id the collector read it under and
-only for the conversation of the session the action names; the session is not
-told, and the gate says so. A thread of codex has the same list behind a chip
+only for the conversation of the session the action names. The session gets
+one letter saying which observer was stopped or which alarm was cancelled
+from the panel, through the same path as a wake. A stop by the session's own
+tool sends no letter. A session in tmux, an old holder or a failed delivery
+still leaves the work ended; the action's answer says the session was not
+notified. A thread of codex has the same list behind a chip
 of its own, shown while it has something to list.
 
 ---

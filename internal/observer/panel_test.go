@@ -31,20 +31,20 @@ func TestThePanelStopsAnObserverOfTheSessionItNames(t *testing.T) {
 	}
 	id := entries[0].Name()
 
-	if _, err := k.StopFor(context.Background(), "0f1e2d3c-0000-4000-8000-000000000000", id); err == nil {
+	if _, _, err := k.StopFor(context.Background(), "0f1e2d3c-0000-4000-8000-000000000000", id); err == nil {
 		t.Fatal("the observer of one session was stopped by a press on the screen of another")
 	}
 	if units.wasStopped(Unit(id)) {
 		t.Fatal("a refused stop stopped the unit")
 	}
-	if _, err := k.StopFor(context.Background(), lab.Conversation, "00000000000000ff"); err == nil {
+	if _, _, err := k.StopFor(context.Background(), lab.Conversation, "00000000000000ff"); err == nil {
 		t.Error("an observer the keeper does not hold was stopped")
 	}
-	v, err := k.StopFor(context.Background(), lab.Conversation, id)
+	v, notice, err := k.StopFor(context.Background(), lab.Conversation, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Name != "ci" || !units.wasStopped(Unit(id)) {
+	if notice != "the session was notified by letter" || v.Name != "ci" || !units.wasStopped(Unit(id)) {
 		t.Errorf("the stop said %+v, the unit stopped %v", v, units.wasStopped(Unit(id)))
 	}
 	if _, err := os.Stat(filepath.Join(dir, id)); !os.IsNotExist(err) {
@@ -53,7 +53,7 @@ func TestThePanelStopsAnObserverOfTheSessionItNames(t *testing.T) {
 	if list, _ := k.List(context.Background(), lab); len(list) != 0 {
 		t.Errorf("the session still lists %+v", list)
 	}
-	if _, err := k.StopFor(context.Background(), lab.Conversation, id); err == nil {
+	if _, _, err := k.StopFor(context.Background(), lab.Conversation, id); err == nil {
 		t.Error("a second press stopped the observer once more")
 	}
 }
@@ -62,7 +62,6 @@ func TestThePanelStopsAnObserverOfTheSessionItNames(t *testing.T) {
 // names, and the alarm is gone from the disk and rings no more.
 func TestThePanelCancelsAnAlarmOfTheSessionItNames(t *testing.T) {
 	k, owners, clock, dir := alarmed(t)
-	keeping(t, k)
 	if _, err := k.SetAlarm(context.Background(), lab, AlarmAsk{Name: "standup", Every: "10m"}); err != nil {
 		t.Fatal(err)
 	}
@@ -72,21 +71,22 @@ func TestThePanelCancelsAnAlarmOfTheSessionItNames(t *testing.T) {
 	}
 	id := strings.TrimSuffix(kept[0], ".json")
 
-	if _, err := k.CancelFor("0f1e2d3c-0000-4000-8000-000000000000", id); err == nil {
+	if _, _, err := k.CancelFor(context.Background(), "0f1e2d3c-0000-4000-8000-000000000000", id); err == nil {
 		t.Fatal("the alarm of one session was cancelled by a press on the screen of another")
 	}
-	v, err := k.CancelFor(lab.Conversation, id)
+	v, notice, err := k.CancelFor(context.Background(), lab.Conversation, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Name != "standup" || len(files(dir)) != 0 {
+	if notice != "the session was notified by letter" || v.Name != "standup" || len(files(dir)) != 0 {
 		t.Errorf("the cancel said %+v and left %v", v, files(dir))
 	}
 	clock.move(11 * time.Minute)
-	if n := still(owners); n != 0 {
+	k.look(context.Background())
+	if n := len(owners.got()); n != 1 {
 		t.Errorf("a cancelled alarm rang %d times", n)
 	}
-	if _, err := k.CancelFor(lab.Conversation, id); err == nil {
+	if _, _, err := k.CancelFor(context.Background(), lab.Conversation, id); err == nil {
 		t.Error("a second press cancelled the alarm once more")
 	}
 }

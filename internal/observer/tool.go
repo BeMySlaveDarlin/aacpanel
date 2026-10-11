@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/session"
 )
 
 // The tools' names on the panel's server: the model calls them
@@ -216,12 +218,28 @@ func start(ctx context.Context, path string, bind mcp.Bind, raw json.RawMessage)
 		return "No observer was started: " + err.Error(), true
 	}
 	v := reply.Observer
+	text := "The executor started the observer and said nothing of it: observer_list shows it."
 	if v == nil {
-		return "The executor started the observer and said nothing of it: observer_list shows it.", false
+		return journalWork(ctx, b, action.ObserverStart, action.WorkRecord{Name: spec.Name, Command: spec.Command, Cwd: spec.Dir}, text), false
 	}
-	return fmt.Sprintf("Observer %s started: `%s` in %s, %s; lines are gathered for %d s. It runs in unit %s. "+
+	text = fmt.Sprintf("Observer %s started: `%s` in %s, %s; lines are gathered for %d s. It runs in unit %s. "+
 		"This session gets a letter from it when it wakes, and observer_tail %s reads what the command printed.",
-		v.Name, oneLine(v.Command, 200), v.Dir, wakeWords(*v), v.Gather, v.Unit, v.Name), false
+		v.Name, oneLine(v.Command, 200), v.Dir, wakeWords(*v), v.Gather, v.Unit, v.Name)
+	return journalWork(ctx, b, action.ObserverStart, action.WorkRecord{Name: v.Name, Command: v.Command, Cwd: v.Dir}, text), false
+}
+
+// The command goes only over the private socket. This second call records a
+// fact: losing the panel must not turn a successful start into another start.
+func journalWork(ctx context.Context, b mcp.Binding, kind action.Kind, record action.WorkRecord, text string) string {
+	record.From = b.SessionID
+	name := b.Name
+	if name == "" {
+		name = b.SessionID
+	}
+	if err := session.Here().RecordWork(ctx, kind, name, record); err != nil {
+		return text + "\nThe work started, not written to the panel's journal: " + err.Error()
+	}
+	return text + "\nWritten to the panel's journal."
 }
 
 func list(ctx context.Context, path string, bind mcp.Bind) (string, bool) {

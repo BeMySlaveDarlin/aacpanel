@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -1480,5 +1481,96 @@ func TestTheAnswersOfACodexSessionSayTheyAreCodexs(t *testing.T) {
 		if !strings.Contains(rec.Body.String(), `"agent":"codex"`) {
 			t.Errorf("%s answers %s", path, rec.Body.String())
 		}
+	}
+}
+
+// A record comes after work started over the private socket. Even with an
+// executor available, recording it must neither repeat nor execute that work.
+func TestBackgroundWorkRecordsReachTheJournalWithoutExecutingPG(t *testing.T) {
+	db := journalDB(t)
+	client, exec := startFakeExec(t, action.Response{OK: true, Detail: "must not execute"})
+	srv := &Server{auth: &auth.Service{}, exec: client, db: db}
+	from := "66666666-6666-4666-8666-666666666666"
+	cases := []struct {
+		kind   action.Kind
+		target string
+		record action.WorkRecord
+	}{
+		{action.ObserverStart, "lab", action.WorkRecord{From: from, Name: "ci.watch", Command: "gh run watch 123", Cwd: "/srv/proj"}},
+		{action.AlarmSet, "lab", action.WorkRecord{From: from, Name: "once", At: "2026-10-12T09:00:00+03:00"}},
+		{action.AlarmSet, "codex-0000abcd", action.WorkRecord{From: "019a1f00-0000-7000-8000-00000000abcd", Name: "poll", At: "2026-10-12T09:00:00Z", Every: "10m0s"}},
+	}
+	send := func(kind action.Kind, target string, params map[string]any, local bool) *httptest.ResponseRecorder {
+		t.Helper()
+		raw, err := json.Marshal(map[string]any{"kind": kind, "target": target, "params": params})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := httptest.NewRequest(http.MethodPost, "/api/actions", strings.NewReader(string(raw)))
+		if local {
+			r = r.WithContext(context.WithValue(r.Context(), localKey{}, true))
+		}
+		w := httptest.NewRecorder()
+		srv.runAction(w, r, true)
+		return w
+	}
+	var lastID int64
+	for _, c := range cases {
+		if action.Valid(c.kind) {
+			t.Errorf("record-only kind %s is advertised as executable", c.kind)
+		}
+		if err := (action.Request{ID: "record", Kind: c.kind, Target: c.target}).Validate(); err == nil {
+			t.Errorf("the executor protocol accepts %s", c.kind)
+		}
+		w := send(c.kind, c.target, c.record.Params(), true)
+		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"logged":true`) {
+			t.Fatalf("record %s: %d %s", c.kind, w.Code, w.Body.String())
+		}
+		list, err := db.Actions(t.Context(), store.ActionsReq{Limit: 1})
+		if err != nil || len(list) != 1 {
+			t.Fatalf("journal: %+v, %v", list, err)
+		}
+		row := list[0]
+		lastID = row.ID
+		if row.Kind != string(c.kind) || row.Target != c.target || row.DeviceName != "this machine" || row.Result != store.ActionOK || !sameParams(row.Params, c.record.Params()) {
+			t.Errorf("record lost its caller or work: %+v", row)
+		}
+		for _, value := range []string{c.record.From, c.record.Name, c.record.Command, c.record.Cwd, c.record.At, c.record.Every} {
+			if value != "" && !strings.Contains(row.Detail, value) {
+				t.Errorf("the journal screen cannot show %q: %s", value, row.Detail)
+			}
+		}
+	}
+	if got := len(exec.got); got != 0 {
+		t.Fatalf("recording work called the executor %d times", got)
+	}
+	if w := send(action.ObserverStart, "lab", cases[0].record.Params(), false); w.Code != http.StatusForbidden {
+		t.Errorf("public listener accepted a work record: %d %s", w.Code, w.Body.String())
+	}
+	for _, bad := range []action.WorkRecord{
+		{Name: "ci", Command: "true", Cwd: "/srv/proj"},
+		{From: from, Name: "ci", Cwd: "/srv/proj"},
+		{From: from, Name: "ci", Command: "true"},
+	} {
+		if w := send(action.ObserverStart, "lab", bad.Params(), true); w.Code != http.StatusBadRequest {
+			t.Errorf("bad record accepted: %+v, %d %s", bad, w.Code, w.Body.String())
+		}
+	}
+	if w := send(action.AlarmSet, "lab", map[string]any{"from": from, "name": "poll", "at": "tomorrow"}, true); w.Code != http.StatusBadRequest {
+		t.Errorf("invalid moment accepted: %d %s", w.Code, w.Body.String())
+	}
+	if list, err := db.Actions(t.Context(), store.ActionsReq{Limit: 1}); err != nil || len(list) != 1 || list[0].ID != lastID {
+		t.Errorf("refused requests left records: %+v, %v", list, err)
+	}
+	srv.exec = nil
+	if w := send(action.ObserverStart, "lab", cases[0].record.Params(), true); w.Code != http.StatusOK {
+		t.Errorf("recording needs an executor: %d %s", w.Code, w.Body.String())
+	}
+	srv.db = nil
+	if w := send(action.ObserverStart, "lab", cases[0].record.Params(), true); w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), `"logged":false`) {
+		t.Errorf("a missing database was not reported: %d %s", w.Code, w.Body.String())
+	}
+	if got := len(exec.got); got != 0 {
+		t.Errorf("a failed record called the executor %d times", got)
 	}
 }

@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"aacpanel/internal/action"
 )
@@ -19,6 +21,30 @@ const (
 type countingReader struct {
 	from io.Reader
 	read int64
+}
+
+func workRecordFromParams(kind action.Kind, target string, params map[string]any) (action.WorkRecord, string, error) {
+	var record action.WorkRecord
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return record, "", err
+	}
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&record); err != nil {
+		return record, "", fmt.Errorf("the work record was not parsed: %w", err)
+	}
+	if err := record.Validate(kind, target); err != nil {
+		return record, "", err
+	}
+	if kind == action.ObserverStart {
+		return record, fmt.Sprintf("observer %s started: %s in %s (session %s)", record.Name, record.Command, record.Cwd, record.From), nil
+	}
+	detail := fmt.Sprintf("alarm %s set: first ring at %s", record.Name, record.At)
+	if record.Every != "" {
+		detail += ", every " + record.Every
+	}
+	return record, detail + " (session " + record.From + ")", nil
 }
 
 func (c *countingReader) Read(p []byte) (int, error) {

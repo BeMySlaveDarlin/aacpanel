@@ -57,11 +57,6 @@ func (s *Server) codexOutOfReach(target string) string {
 }
 
 func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
-	if s.exec == nil {
-		http.Error(w, "the executor is not configured: actions are unavailable", http.StatusServiceUnavailable)
-		return
-	}
-
 	var body struct {
 		Kind   string         `json:"kind"`
 		Target string         `json:"target"`
@@ -78,6 +73,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	}
 
 	req := action.Request{Kind: action.Kind(body.Kind), Target: body.Target}
+	if action.RecordOnly(req.Kind) {
+		s.recordWork(w, r, req.Kind, req.Target, body.Params)
+		return
+	}
+	if s.exec == nil {
+		http.Error(w, "the executor is not configured: actions are unavailable", http.StatusServiceUnavailable)
+		return
+	}
 
 	if action.TermKind(req.Kind) && !term {
 		http.Error(w, "the terminals are not served on this listener", http.StatusNotFound)
@@ -444,19 +447,12 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 
-	deviceID := s.auth.CurrentDevice(r)
 	deviceName := s.deviceName(r)
 
 	var journalID int64
 	var logged bool
 	if s.db != nil {
-		id, err := s.db.LogAttempt(r.Context(), store.Action{
-			DeviceID:   deviceRef(deviceID),
-			DeviceName: deviceName,
-			Kind:       body.Kind,
-			Target:     body.Target,
-			Params:     params,
-		})
+		id, err := s.logActionAttempt(r, body.Kind, body.Target, params)
 		if err != nil {
 			log.Printf("action log: %v", err)
 		} else {
@@ -527,6 +523,43 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		out["session"] = resp.Session
 	}
 	writeJSON(w, out)
+}
+
+func (s *Server) logActionAttempt(r *http.Request, kind, target string, params map[string]any) (int64, error) {
+	if s.db == nil {
+		return 0, errors.New("the database is not configured")
+	}
+	var deviceID int64
+	if s.auth != nil {
+		deviceID = s.auth.CurrentDevice(r)
+	}
+	return s.db.LogAttempt(r.Context(), store.Action{DeviceID: deviceRef(deviceID), DeviceName: s.deviceName(r),
+		Kind: kind, Target: target, Params: params})
+}
+
+// These requests describe work already accepted by the private observers'
+// socket. They share the action journal, but cannot cross the action socket:
+// that would give the service a way to run the recorded command on the host.
+func (s *Server) recordWork(w http.ResponseWriter, r *http.Request, kind action.Kind, target string, params map[string]any) {
+	if local, _ := r.Context().Value(localKey{}).(bool); !local {
+		http.Error(w, "work records are accepted only on the local listener", http.StatusForbidden)
+		return
+	}
+	record, detail, err := workRecordFromParams(kind, target, params)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id, err := s.logActionAttempt(r, string(kind), target, record.Params())
+	if err == nil {
+		err = s.db.LogResult(r.Context(), id, store.ActionOutcome{Result: store.ActionOK, Detail: detail})
+	}
+	if err != nil {
+		log.Printf("work record: %v", err)
+		writeStatusJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "the journal record was not completed: " + err.Error(), "logged": false})
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "detail": detail, "logged": true})
 }
 
 func (s *Server) apiSessionPermission(w http.ResponseWriter, r *http.Request) {
