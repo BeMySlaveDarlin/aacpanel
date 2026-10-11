@@ -144,7 +144,12 @@ func TestAMessageGoesBehindTheOnesThatWait(t *testing.T) {
 	if sent, err := l.Send(ctx, threadA, Message{ID: "older", Text: "older"}); err != nil || sent.Place != 1 {
 		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
 	}
-	until(t, "the link to join the busy thread", func() bool { return srv.Subscribed(threadA) })
+	// The daemon counts the subscription before join returns and the poll
+	// tries the queue. With polling paused, only that poll's final save writes
+	// the busy state; enqueue still writes the idle state read at the start.
+	stateSays(t, threadA, "the busy state after joining the thread", func(st State) bool {
+		return st.Busy && st.Queue == 1
+	})
 	// The compaction ends with no word to the link: the queue has not gone on yet.
 	srv.Drop(threadA)
 	srv.Set(threadA, "idle")
@@ -172,7 +177,10 @@ func TestAFreedThreadTakesItsQueueAtOnce(t *testing.T) {
 	if sent, err := l.Send(ctx, threadA, Message{Text: "next"}); err != nil || sent.Place != 1 {
 		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
 	}
-	until(t, "the link to join the busy thread", func() bool { return srv.Subscribed(threadA) })
+	// Wait past join and drain so only the notification can wake the queue.
+	stateSays(t, threadA, "the busy state after joining the thread", func(st State) bool {
+		return st.Busy && st.Queue == 1
+	})
 	srv.Set(threadA, "idle")
 	until(t, "the queue to go once the thread is free", func() bool { return len(srv.Calls("turn/start")) == 1 })
 }
