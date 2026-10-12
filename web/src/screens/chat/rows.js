@@ -11,6 +11,7 @@ import { plural, stopwatch } from "../../format.js";
 import { resend } from "./again.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, HandedFiles, SentCard } from "./files.js";
+import { bare } from "./feed.js";
 import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
@@ -157,10 +158,15 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     const handed = mine ? (item.files || []) : [];
     const brought = sent.length > 0 || handed.length > 0;
     const said = brought ? withoutSentPaths(item.text, [...sent, ...handed]) : item.text;
+    // A local row may show attachment names while its actual message is empty.
+    // Transcript rows carry the harness's image chips and saved file paths.
+    const copied = mine ? bare(item.sent ?? said) : "";
     return html`
         ${sent.length > 0 && html`<${Shots} shots=${sent} session=${session} id=${id} pos=${item.pos} />`}
         ${(said || !brought || failed) && html`
             <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}>
+                ${copied !== "" && html`<button class="cmdcopy msgcopy" type="button" aria-label="copy the message"
+                                        data-md=${copied}>${Icon.copy()}</button>`}
                 ${render(said, { breaks: mine })}
                 ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} />`}
                 ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
@@ -295,6 +301,9 @@ function Letter({ item }) {
                 <span class="sentico">${MAIL_ICONS[kind]()}</span>
                 <span class="sentlabel">${MAIL_LABEL[kind][out ? 1 : 0]}</span>
                 ${lost && html`<span class="mletterlost" title=${item.undelivered}>not delivered</span>`}
+                ${item.role === "mail" && Boolean(item.text && item.text.trim()) && html`
+                    <button class="cmdcopy msgcopy" type="button" aria-label="copy the letter"
+                            data-md=${item.text}>${Icon.copy()}</button>`}
                 ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
             </div>
             ${who && html`<div class="mletterwho" title=${item.from || ""}>${who}</div>`}

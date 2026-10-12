@@ -33,6 +33,11 @@
     padding: .5rem .75rem;
 }
 
+.msg.me:has(> .msgcopy) { position: relative; padding-right: 2.8rem; }
+.msg.me > .msgcopy { position: absolute; top: .25rem; right: .25rem; }
+.mletter .msgcopy { flex: none; margin-left: auto; }
+.mletter .msgcopy + .sentat { margin-left: 0; }
+
 .mearlier {
     align-self: center;
     font-size: var(--t-xs);

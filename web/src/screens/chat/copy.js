@@ -4,7 +4,7 @@ import { bytes } from "../../format.js";
 
 // fromClick handles a click on the copy button and reports whether there was one.
 export function fromClick(event, toast) {
-    const btn = event.target.closest && event.target.closest(".mdcopy");
+    const btn = event.target.closest && event.target.closest(".mdcopy, .msgcopy");
     if (!btn) return false;
 
     if (btn.dataset.md) {

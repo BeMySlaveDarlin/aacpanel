@@ -14,6 +14,20 @@ import (
 	esbuild "github.com/evanw/esbuild/pkg/api"
 )
 
+func TestAPersonsMessageCopiesThroughTheFeed(t *testing.T) {
+	var got struct {
+		Copy struct {
+			Button bool   `json:"button"`
+			Text   string `json:"text"`
+			Toast  string `json:"toast"`
+		} `json:"copy"`
+	}
+	runFixture(t, "feed.html", &got)
+	if !got.Copy.Button || got.Copy.Text != "hello there, run the checks again" || got.Copy.Toast != "Copied" {
+		t.Errorf("the person's message did not copy through the feed: %+v", got.Copy)
+	}
+}
+
 func TestViewerCopyTellsWhatItCopied(t *testing.T) {
 	type pick struct {
 		Text  string `json:"text"`

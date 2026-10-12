@@ -6,6 +6,20 @@ import (
 	"testing"
 )
 
+func TestACodexMessageCopiesThroughTheFeed(t *testing.T) {
+	var got struct {
+		Copy struct {
+			Button bool   `json:"button"`
+			Text   string `json:"text"`
+			Toast  string `json:"toast"`
+		} `json:"copy"`
+	}
+	runFixture(t, "codexfeed.html", &got)
+	if !got.Copy.Button || got.Copy.Text != "Propose a plan for the indentation." || got.Copy.Toast != "Copied" {
+		t.Errorf("the person's message in a codex feed did not copy: %+v", got.Copy)
+	}
+}
+
 // What codex alone writes stands in its feed as cards, not as answers: a
 // question of plan mode with the note beside its pick, and one put away as
 // refused; the plan read whole; a review begun as a line and ended with its

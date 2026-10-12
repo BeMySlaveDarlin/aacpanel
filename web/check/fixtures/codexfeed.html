@@ -58,6 +58,10 @@ const thread = {
 };
 setLiveSessions([thread]);
 const root = document.getElementById("root");
+const copied = [];
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: (text) => { copied.push(text); return Promise.resolve(); },
+} });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (ok) => {
@@ -118,6 +122,12 @@ window.done = (async () => {
         const b = row.querySelector(".xrbody");
         out.opened = { expanded: row.getAttribute("aria-expanded"), clamped: b.scrollHeight > b.clientHeight + 1 };
     }
+    const copy = root.querySelector(".msg.me .msgcopy");
+    if (copy) {
+        copy.click();
+        await until(() => copied.length === 1 && text(root.querySelector(".toast.on .tmain")) === "Copied");
+    }
+    out.copy = { button: Boolean(copy), text: copied[0], toast: text(root.querySelector(".toast.on .tmain")) };
     return out;
 })();
 </script>

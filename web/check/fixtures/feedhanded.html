@@ -13,7 +13,8 @@ import { Row } from "/src/screens/chat/rows.js";
 import { Look } from "/src/screens/chat/look.js";
 import { rows, weld } from "/src/screens/chat/feed.js";
 import { FeedGrid } from "/src/screens/chat/timeline.js";
-import { ToastHost } from "/src/ui/toasts.js";
+import { ToastHost, useToast } from "/src/ui/toasts.js";
+import { fromClick } from "/src/screens/chat/copy.js";
 
 const at = "2026-10-03T17:57:57Z";
 const files = "/home/dev/.local/share/aacpanel-exec/files";
@@ -23,6 +24,10 @@ const logs = `${files}/20261003-175757-3d4e5f-logs.tar.gz`;
 const board = `${files}/20261003-175757-ab12cd-board.png`;
 const notes = `${files}/20261003-175757-cd34ef-notes.zip`;
 const typed = "/srv/proj/shop/docs/diag.txt";
+const copied = [];
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: (text) => { copied.push(text); return Promise.resolve(); },
+} });
 const png = Uint8Array.from(atob(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="),
     (c) => c.charCodeAt(0));
@@ -53,6 +58,14 @@ const items = [
       files: [{ path: notes, name: "notes.zip", size: 900 }] },
     { role: "ai", text: "The board is read.", pos: 60, at },
     { role: "me", text: `and the old one is here\n${typed}`, pos: 70, at },
+    { role: "me", text: "**Keep the source**\n\nRun `make check`.\n  Keep this indentation.", pos: 80, at },
+    { role: "me", text: "[Image #1] [Image #2] inspect both pictures", pos: 90, at },
+    { role: "me", text: "notes.zip", sent: "", state: "queued", pos: 100, at },
+    { role: "me", text: "[Image #1]", pos: 110, at },
+    // The collector separates the envelope into the role and sender; text
+    // holds the whole letter, including the part its closed card folds away.
+    { role: "mail", source: "session", from: "build-agent", pos: 120, at,
+      text: "**Checks passed.**\n\nKeep `make check` in the report.\n\nThe full letter ends here." },
 ];
 
 const opened = [];
@@ -63,9 +76,14 @@ const onFile = (file) => {
     opened.push(file.path);
     render(html`<${ToastHost}><${Look} session="shop" id="" look=${{ kind: "file", ...file }} /><//>`, sheet);
 };
-render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${false}
-    row=${(item) => html`<${Row} item=${item} session="shop" id="" onFile=${onFile} />`} /></div>`,
-    document.getElementById("root"));
+function Feed() {
+    const toast = useToast();
+    return html`<div class="chatfeed" onClick=${(event) => fromClick(event, toast)}>
+        <${FeedGrid} rows=${rows(weld(items))} wide=${matchMedia("(min-width:1100px)").matches}
+            row=${(item) => html`<${Row} item=${item} session="shop" id="" onFile=${onFile} />`} />
+    </div>`;
+}
+render(html`<${ToastHost}><${Feed} /><//>`, document.getElementById("root"));
 
 const until = async (ok, ms = 3000) => {
     const end = performance.now() + ms;
@@ -86,7 +104,8 @@ const under = (list, bubble) => Boolean(list && bubble) && box(list).top >= box(
     && Math.abs(box(list).right - box(bubble).right) <= 1;
 
 (async () => {
-    await until(() => document.querySelectorAll("#root .feedrow.r-me").length === 4
+    await document.fonts.ready;
+    await until(() => document.querySelectorAll("#root .feedrow.r-me").length === 8
         && loaded(document.querySelector("#root .mshot img")));
     const [captioned, alone, pictured, typedRow] = Array.from(document.querySelectorAll("#root .feedrow.r-me"));
     const bubble = captioned.querySelector(".msg.me");
@@ -119,10 +138,36 @@ const under = (list, bubble) => Boolean(list && bubble) && box(list).top >= box(
         title: text(sheet.querySelector(".chatwho h2")),
         body: text(sheet.querySelector(".callbody")),
     };
+    render(null, sheet);
+
+    const own = Array.from(document.querySelectorAll("#root .feedrow.r-me"));
+    const letter = document.querySelector("#root .mletter");
+    const copies = [];
+    for (const row of [captioned, pictured, typedRow, own[4], own[5], letter]) {
+        const button = row.querySelector(".msgcopy");
+        const before = copied.length;
+        const record = { button: Boolean(button) };
+        if (button) {
+            const b = box(button), parent = box(button.closest(".msg, .mletter"));
+            const style = getComputedStyle(button);
+            record.visible = style.visibility === "visible" && Number(style.opacity) > 0 && b.width > 0 && b.height > 0;
+            record.inside = b.left >= parent.left && b.right <= parent.right && b.top >= parent.top && b.bottom <= parent.bottom;
+            record.hovered = button.matches(":hover");
+            record.label = button.getAttribute("aria-label");
+            button.querySelector("svg").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await until(() => copied.length > before && text(document.querySelector("#root .toast.on .tmain")) === "Copied");
+            record.text = copied[before];
+            record.toast = text(document.querySelector("#root .toast.on .tmain"));
+        }
+        copies.push(record);
+    }
 
     window.done = {
         feed,
         look,
+        copies,
+        emptyCopies: [alone, own[6], own[7]].map((row) => row.querySelectorAll(".msgcopy").length),
+        letterClosed: !letter.classList.contains("open"),
         asked: asked.filter((u) => !u.startsWith("/api/chat/image?")),
     };
 })();

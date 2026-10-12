@@ -37,7 +37,59 @@ type feedHandedShot struct {
 		Title  string   `json:"title"`
 		Body   string   `json:"body"`
 	} `json:"look"`
-	Asked []string `json:"asked"`
+	Asked  []string `json:"asked"`
+	Copies []struct {
+		Button  bool   `json:"button"`
+		Visible bool   `json:"visible"`
+		Inside  bool   `json:"inside"`
+		Hovered bool   `json:"hovered"`
+		Label   string `json:"label"`
+		Text    string `json:"text"`
+		Toast   string `json:"toast"`
+	} `json:"copies"`
+	EmptyCopies  []int `json:"emptyCopies"`
+	LetterClosed bool  `json:"letterClosed"`
+}
+
+// Copying keeps the source markup and typed paths, leaves the panel's file
+// paths and image chips out, and takes the whole letter from a folded card.
+func testFeedMessagesCopyTheirText(t *testing.T, run func(*testing.T, string, any)) {
+	var got feedHandedShot
+	run(t, "feedhanded.html", &got)
+	want := []string{
+		"the measurements from the boss",
+		"and the board",
+		"and the old one is here\n/srv/proj/shop/docs/diag.txt",
+		"**Keep the source**\n\nRun `make check`.\n  Keep this indentation.",
+		"inspect both pictures",
+		"**Checks passed.**\n\nKeep `make check` in the report.\n\nThe full letter ends here.",
+	}
+	if len(got.Copies) != len(want) {
+		t.Fatalf("%d copy cases, want %d", len(got.Copies), len(want))
+	}
+	for i, text := range want {
+		c := got.Copies[i]
+		if !c.Button || !c.Visible || !c.Inside || c.Hovered || c.Label == "" {
+			t.Errorf("copy button %d must be visible inside its message without hovering: %+v", i, c)
+		}
+		if c.Text != text || c.Toast != "Copied" {
+			t.Errorf("copy %d put %q on the clipboard with toast %q, want %q and Copied", i, c.Text, c.Toast, text)
+		}
+	}
+	if !reflect.DeepEqual(got.EmptyCopies, []int{0, 0, 0}) {
+		t.Errorf("attachment-only messages offer copy buttons: %v", got.EmptyCopies)
+	}
+	if !got.LetterClosed {
+		t.Error("copying the letter opened its card")
+	}
+}
+
+func TestFeedMessagesCopyTheirTextOnAPhone(t *testing.T) {
+	testFeedMessagesCopyTheirText(t, runFixture)
+}
+
+func TestFeedMessagesCopyTheirTextAtADesk(t *testing.T) {
+	testFeedMessagesCopyTheirText(t, runWideFixture)
 }
 
 const handedDir = "/home/dev/.local/share/aacpanel-exec/files"
