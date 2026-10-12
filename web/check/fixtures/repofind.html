@@ -42,73 +42,80 @@ window.fetch = async (url) => {
     return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
 };
 
+// The wide markup precedes the effect that binds Ctrl+K. Observe the binding
+// itself: a pause after seeing the markup guesses how soon that effect runs.
+let keysBound = false;
+const listen = window.addEventListener;
+window.addEventListener = function (type, ...args) {
+    listen.call(this, type, ...args);
+    if (type === "keydown") keysBound = true;
+};
+
 render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {} })), document.getElementById("root"));
 
 const sel = (q) => document.querySelector(q);
 const all = (q) => [...document.querySelectorAll(q)];
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(q, tries = 60) {
-    for (let i = 0; i < tries; i++) {
-        const el = sel(q);
-        if (el) return el;
+async function until(ok, what) {
+    for (let i = 0; i < 60; i++) {
+        if (ok()) return;
         await tick(30);
     }
-    return null;
+    throw new Error(`did not reach ${what}`);
 }
 const press = (key, on) => (on || window).dispatchEvent(
     new KeyboardEvent("keydown", { key, ctrlKey: key === "k", bubbles: true, cancelable: true }));
 
-async function type(text) {
+async function type(text, ready) {
     const box = sel(".cdfindin");
     if (!box) return;
     box.value = text;
     box.dispatchEvent(new Event("input", { bubbles: true }));
-    await tick(150);
+    await until(ready, `the results for ${text}`);
 }
 
 window.done = (async () => {
-    await until(".cdwide");
-    // The shape is on the screen one turn before it answers keys: preact runs
-    // its effects after the paint, and a fixture that presses on the sight of
-    // the markup presses into a screen that has not bound anything yet.
-    await tick(200);
+    await until(() => sel(".cdwide") && keysBound, "the finder key binding");
+    window.addEventListener = listen;
 
     const beforeKeys = Boolean(sel(".cdfind"));
     press("k");
-    await tick(90);
-    const opened = Boolean(await until(".cdfind"));
+    await until(() => sel(".cdfind"), "the open finder");
+    const opened = Boolean(sel(".cdfind"));
+    await until(() => sel(".cdfindin") && document.activeElement === sel(".cdfindin"), "the focused input");
     const focused = document.activeElement === sel(".cdfindin");
 
     // An empty box asks for nothing: the whole repository is not an answer to
     // a question nobody has typed yet.
     const askedEmpty = window.__asked.some((u) => u.includes("/api/repo/find"));
 
-    await type("env");
+    const found = () => all(".cdfindrow").length === FOUND.paths.length;
+    await type("env", found);
     const rows = all(".cdfindrow").map((r) => r.textContent.trim());
     const firstOn = all(".cdfindrow")[0] ? all(".cdfindrow")[0].classList.contains("on") : false;
 
     // Nothing matched is a sentence, not a blank panel.
-    await type("zzz");
+    await type("zzz", () => sel(".cdfindlist")?.textContent.includes("No name here carries that"));
     const emptySaid = (sel(".cdfindlist") || {}).textContent
         ? sel(".cdfindlist").textContent.includes("No name here carries that") : false;
 
-    await type("env");
+    await type("env", found);
     press("ArrowDown", sel(".cdfindin"));
-    await tick(60);
+    await until(() => all(".cdfindrow")[1]?.classList.contains("on"), "the second result picked");
     const secondOn = all(".cdfindrow")[1] ? all(".cdfindrow")[1].classList.contains("on") : false;
 
     press("Enter", sel(".cdfindin"));
-    await tick(150);
+    await until(() => !sel(".cdfind") && all(".cdtab").length === 2, "the picked file tab");
 
     const closed = !sel(".cdfind");
     const tabs = all(".cdtab").map((t) => t.textContent.replace("×", "").trim());
 
     // Escape leaves without opening anything.
     press("k");
-    await tick(90);
+    await until(() => sel(".cdfind"), "the reopened finder");
     const reopened = Boolean(sel(".cdfind"));
     press("Escape");
-    await tick(90);
+    await until(() => !sel(".cdfind"), "the dismissed finder");
     const escaped = !sel(".cdfind");
 
     return {
