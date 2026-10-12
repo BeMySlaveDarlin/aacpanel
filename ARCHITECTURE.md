@@ -211,8 +211,13 @@ ask each home's daemon for `hooks/list`, with no thread: the installed entries
 must be present, trusted and enabled. Without its socket the check runs a
 private `codex app-server --stdio` with that `CODEX_HOME`, closes stdin after
 the answer and waits for its exit; the context kills it at the deadline. The
-program is `AACP_CODEX`, or `codex` from `PATH`. The report names the server
-used, and neither path starts or stops the shared daemon. Recomputing the
+program is the installer's answer to "What starts codex?", saved as `AACP_CODEX`
+in `host.env` for the executor, updates and checks. Its default keeps that
+file's value, then tries the installer's `AACP_CODEX`, `PATH`, the standalone
+`~/.codex/packages/standalone/current/bin/codex` and `~/.local/bin/codex`, in
+that order. The question appears only with a codex home or a launcher found.
+The report names the server used, and neither path starts or stops the shared
+daemon. Recomputing the
 installer's hash alone would miss a change to codex's trust formula.
 
 **The question socket.** The claude hook reports a session's question through

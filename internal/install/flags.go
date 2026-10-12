@@ -41,6 +41,7 @@ var Flags = []Flag{
 	{Name: "--account", Takes: "DIR", Help: "a claude account the panel serves (CLAUDE_CONFIG_DIR); again for more", Many: true},
 	{Name: "--transport", Takes: "stream|tmux", Help: "how sessions are kept"},
 	{Name: "--claude-login", Takes: "[DIR=]now|later", Help: "sign in to an account that is not signed in, now or later", PerAccount: true},
+	{Name: "--codex", Takes: "PATH", Help: "what starts codex"},
 	{Name: "--kit", Takes: "PARTS|+PART,-PART", Help: "the kit: a list is the whole kit, +part and -part change the suggested one"},
 	{Name: "--ts-authkey-file", Takes: "FILE", Help: "a file holding the one-time Tailscale auth key; the key never goes on the command line"},
 	{Name: "--ts-hostname", Takes: "NAME", Help: "the node's name in the tailnet"},

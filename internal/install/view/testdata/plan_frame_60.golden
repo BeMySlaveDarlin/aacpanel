@@ -27,6 +27,8 @@
 │   claude ~/.local/bin/claude (command -v claude) ·       │
 │   sessions on the stream (recommended)                   │
 │   accounts ~/.claude (found)                             │
+│   codex ~/.codex/packages/standalone/current/bin/codex   │
+│   (the native installer)                                 │
 │   passkeys localhost (only this machine signs in with a  │
 │   passkey)                                               │
 │   cores No binding — the system picks the cores          │

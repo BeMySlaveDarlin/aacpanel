@@ -409,23 +409,62 @@ func codexHookListing(home, executor, state, trust string, enabled, stamp bool) 
 
 func TestTheCodexCheckStartsAProgramWithoutADaemon(t *testing.T) {
 	g := newRig(t, answer("--kit", "+stamp"))
-	home := filepath.Join(g.root, "codex")
-	if err := os.Mkdir(home, 0o700); err != nil {
+	home := filepath.Join(g.home, ".codex")
+	program := filepath.Join(home, "packages", "standalone", "current", "bin", "codex")
+	if err := os.MkdirAll(filepath.Dir(program), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	g.in.S.was.host = map[string]string{contours.CodexHomesEnv: home}
+	t.Setenv("PATH", "/usr/bin:/bin")
+	fixture := codextest.HooksProgram(t, codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, true))
+	if err := os.Symlink(fixture, program); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.in.S.Settle(BlockX); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := g.in.S.Value("codex"); got.Value != program {
+		t.Fatalf("the standalone program off PATH was not found: %+v", got)
+	}
+	g.write(filepath.Join(g.state, "host.env"), "", 0o644)
+	if err := g.do(g.step("hostenv")); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(g.read(filepath.Join(g.state, "host.env")), "AACP_CODEX="+program+"\n") {
+		t.Fatal("host.env does not name the standalone program")
+	}
 	g.chainUp()
 	step := g.step("codex")
-	g.m.Vars["AACP_CODEX"] = codextest.HooksProgram(t, codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, true))
+	// The answer is the program the plan promised, even if the installer's
+	// environment changes before the hooks are checked.
+	g.m.Vars["AACP_CODEX"] = "/missing/codex"
 	if err := g.do(step); err != nil {
 		t.Fatal(err)
 	}
+	// check and update rebuild the survey from host.env, without inheriting
+	// the process environment that happened to find codex during installation.
+	dotenv := filepath.Join(g.clone, ".env")
+	g.write(dotenv, g.read(dotenv)+"AACP_STATE_DIR="+g.state+"\n", 0o600)
+	f := g.in.S.Facts
+	f.StateDir, f.Mode = g.state, Upgrade
+	g.in.S = Kept(g.m, Inspection{Facts: f}, now)
+	if got, _ := g.in.S.Value("codex"); got.Value != program || got.Source != "current setting" {
+		t.Fatalf("check and update did not keep the saved program: %+v", got)
+	}
 	for _, trust := range []string{"trusted", "modified"} {
+		fixture := codextest.HooksProgram(t, codexHookListing(home, g.in.execPath(), g.in.state(), trust, true, true))
 		t.Run(trust, func(t *testing.T) {
-			g.m.Vars["AACP_CODEX"] = codextest.HooksProgram(t, codexHookListing(home, g.in.execPath(), g.in.state(), trust, true, true))
-			if trust == "modified" {
-				t.Setenv("PATH", filepath.Dir(g.m.Vars["AACP_CODEX"])+string(os.PathListSeparator)+os.Getenv("PATH"))
-				g.m.Vars["AACP_CODEX"] = ""
+			if trust == "trusted" {
+				if err := os.Remove(program); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(fixture, program); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				// An explicit answer must also reach the check rather than the
+				// discovered default or the value read from host.env.
+				q := find(t, g.in.S, BlockX, "codex")
+				g.in.S.Set(q, fixture, "you")
 			}
 			said := g.said()
 			for _, check := range []*Step{step, g.in.CheckStep()} {

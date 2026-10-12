@@ -200,10 +200,31 @@ func TestLANCertificateQuestionsFollowTheProvider(t *testing.T) {
 	}
 }
 
-// TestThePlanFrame holds the plan of the default path.
-func TestThePlanFrame(t *testing.T) {
+// The question and the plan share a run so the golden files hold the value
+// the person accepted all the way to the final review.
+func TestCodexAndThePlanOnTheScreen(t *testing.T) {
 	for _, width := range []int{80, 60} {
-		s := asked(desktop(), &install.Run{Yes: true}, fresh(), width)
+		m := desktop()
+		program := home + "/.codex/packages/standalone/current/bin/codex"
+		m.Stats[program] = install.Stat{Mode: 0o755}
+		s := asked(m, &install.Run{}, fresh(), width)
+		for keys := 0; s.m.stage == questioning && s.m.ask.block != install.BlockX && keys < 30; keys++ {
+			s.send(press("enter"))
+		}
+		if s.m.stage != questioning || s.m.ask.block != install.BlockX || len(s.m.ask.specs) != 1 {
+			t.Fatalf("codex did not get its own question: %s", ui.Strip(s.m.View().Content))
+		}
+		golden(t, "codex_"+strconv.Itoa(width), s.m.View().Content)
+		s.send(press("enter"))
+		if g, ok := s.m.s.Value("codex"); !ok || g.Value != program || s.m.ask.block != install.BlockK {
+			t.Fatalf("Enter did not accept the native program and move to the kit: %+v", g)
+		}
+		for keys := 0; s.m.stage == questioning && keys < 30; keys++ {
+			s.send(press("enter"))
+		}
+		if s.m.stage != proceeding {
+			t.Fatalf("the answers did not reach the plan: %s", ui.Strip(s.m.View().Content))
+		}
 		golden(t, "plan_frame_"+strconv.Itoa(width), planFrame(s.m.t, s.m.s, width))
 	}
 }

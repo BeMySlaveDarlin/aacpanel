@@ -369,6 +369,7 @@ taken over only with `--adopt` next to `--yes`.
 | `--display DISPLAY` | Which display do the windows open on? |
 | `--locale LOCALE` | Which locale do sessions run in? |
 | `--claude PATH` | What starts claude? |
+| `--codex PATH` | What starts codex, when its home or program is found? |
 | `--account DIR` | Which claude accounts does the panel serve? Again for more |
 | `--transport stream\|tmux` | How are sessions kept? |
 | `--claude-login [DIR=]now\|later` | Sign in to an account now? |
@@ -904,7 +905,12 @@ pairs with, and a contour with none is refused. The executor and the collector
 read the key, each at its start.
 
 `AACP_CODEX` names the codex program the panel starts the daemon of a home and
-codex in tmux with; unset, it is `codex` from the executor's `PATH`. The panel
+codex in tmux with. With a codex home or program found, the installer asks
+*What starts codex?* and writes the answer here. Its default keeps `host.env`,
+then tries the installer's `AACP_CODEX`, `PATH`,
+`~/.codex/packages/standalone/current/bin/codex` and `~/.local/bin/codex`, in
+that order. Checks and updates keep the same answer. Without this key the
+executor tries the standalone program, then its own `PATH`. The panel
 sets `CODEX_HOME` itself, so a wrapper that picks the home by the directory
 overrules it — on such a machine `AACP_CODEX` names the codex program itself,
 or a New waits for a daemon in a home that never gets one and says so.
@@ -1522,8 +1528,8 @@ an inline table say.
 - **Done when** every home's `hooks.json` carries the hooks of the kit, each
   trusted and enabled as the daemon sees it.
 - **Check.** Verify and `./install.sh check` ask each home's running daemon
-  for `hooks/list`. If its socket is absent, they start `AACP_CODEX` (or `codex`
-  from `PATH`) as a private `app-server --stdio` with that `CODEX_HOME`, then
+  for `hooks/list`. If its socket is absent, they start the program selected
+  by *What starts codex?* as a private `app-server --stdio` with that `CODEX_HOME`, then
   close it and wait for its exit. The context kills it at the deadline. The
   verdict names which server answered. The question relay and every selected
   optional hook must be listed with the installed command,

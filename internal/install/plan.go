@@ -246,6 +246,7 @@ func (s *Survey) values() []string {
 	}
 	add(s.shown("claude", "claude "), sessions)
 	add(s.shown("accounts", "accounts "))
+	add(s.shown("codex", "codex "))
 	host, why := s.PasskeyHome()
 	add("passkeys " + host + " (" + why + ")")
 	if s.Has("tailscale") {

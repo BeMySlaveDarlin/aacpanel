@@ -438,6 +438,8 @@ func blockOf(id string) BlockID {
 		return BlockC
 	case "login":
 		return BlockL
+	case "codex":
+		return BlockX
 	case "kit":
 		return BlockK
 	case "tlsdomain", "tlsemail", "tlsstate", "tlsprovider", "tlshook", "tlszone", "tlstoken", "tskey", "tsname", "lanaddr", "lancert", "domain", "bind", "passkey", "token", "term":

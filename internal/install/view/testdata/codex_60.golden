@@ -1,0 +1,14 @@
+
+────────────────────────────────────────────────────────────
+  ■ codex 
+
+ What starts codex?
+ The installer and the executor use this program even when
+ it is not on their PATH.
+
+ ❯ 1. ~/.codex/packages/standalone/current/bin/codex
+      Found outside PATH; the link is kept so codex updates
+      reach the panel.
+   2. Type a path.
+
+ Enter to select · ↑/↓ to navigate · Esc to go back

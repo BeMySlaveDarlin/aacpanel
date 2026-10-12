@@ -497,9 +497,13 @@ func tomlString(s string) string {
 // codexHomes are the homes of codex on the machine: those host.env lists,
 // or ~/.codex. A home that is not there has no codex to run the hooks.
 func (in *Install) codexHomes() []string {
-	home := in.home()
+	return in.S.codexHomes()
+}
+
+func (s *Survey) codexHomes() []string {
+	home := s.Facts.Account.Home
 	list := filepath.Join(home, ".codex")
-	if v, ok := in.S.before(HostEnvFile, contours.CodexHomesEnv); ok && strings.TrimSpace(v) != "" {
+	if v, ok := s.before(HostEnvFile, contours.CodexHomesEnv); ok && strings.TrimSpace(v) != "" {
 		list = v
 	}
 	var out []string
@@ -508,7 +512,7 @@ func (in *Install) codexHomes() []string {
 			continue
 		}
 		d = filepath.Clean(Expand(d, home))
-		if st, err := in.M.Stat(d); err == nil && st.Mode.IsDir() && !slices.Contains(out, d) {
+		if st, err := s.m.Stat(d); err == nil && st.Mode.IsDir() && !slices.Contains(out, d) {
 			out = append(out, d)
 		}
 	}
@@ -579,10 +583,7 @@ func (in *Install) verifyCodex(r *Run, home string) (string, error) {
 		return "", &Failed{Diagnosis: codexConfigFile(home) + " does not trust the hooks of " + codexHooksFile(home) + " after the wiring",
 			Fix: []string{"/hooks in codex shows what it trusts; ./install.sh wires the home again."}}
 	}
-	program := in.M.Env("AACP_CODEX")
-	if program == "" {
-		program = "codex"
-	}
+	program := in.S.valueOr("codex", "")
 	source, err := CheckCodexHooks(r.context(), program, home, hooks)
 	if err != nil {
 		return source, &Failed{Diagnosis: err.Error(), Fix: []string{"Inspect /hooks in codex; make codex-contract checks the installed release."}}

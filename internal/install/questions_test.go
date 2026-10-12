@@ -115,6 +115,108 @@ func TestTheQuestionsOfAFreshDesktop(t *testing.T) {
 	}
 }
 
+func TestCodexCommandComesFromTheMachineAndKeepsTheSavedChoice(t *testing.T) {
+	standalone := home + "/.codex/packages/standalone/current/bin/codex"
+	local := home + "/.local/bin/codex"
+	for _, c := range []struct {
+		name, saved, env, path, flag, want, source string
+		native, shim                               bool
+	}{
+		{name: "standalone", native: true, shim: true, want: standalone, source: "the native installer"},
+		{name: "local link", shim: true, want: local, source: "the native installer"},
+		{name: "PATH", native: true, shim: true, path: "/opt/bin/codex", want: "/opt/bin/codex", source: "command -v codex"},
+		{name: "environment", native: true, path: "/opt/bin/codex", env: "/opt/env/codex", want: "/opt/env/codex", source: "$AACP_CODEX"},
+		{name: "saved", native: true, path: "/opt/bin/codex", env: "/opt/env/codex", saved: "/opt/saved/codex", want: "/opt/saved/codex", source: "current setting"},
+		{name: "empty saved", native: true, saved: " ", want: standalone, source: "the native installer"},
+		{name: "flag", native: true, saved: "/opt/saved/codex", flag: "~/bin/my-codex", want: home + "/bin/my-codex", source: "flag"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m := desktop()
+			if c.native {
+				m.Stats[standalone] = Stat{Mode: 0o755}
+			}
+			if c.shim {
+				m.Stats[local] = Stat{Mode: 0o755}
+			}
+			if c.path != "" {
+				m.Path["codex"] = c.path
+			}
+			m.Vars["AACP_CODEX"] = c.env
+			if c.saved != "" {
+				m.Files[DefaultStateDir+"/host.env"] = "AACP_CODEX=" + c.saved + "\n"
+			}
+			r := &Run{Yes: true, Answers: map[string]string{}}
+			if c.flag != "" {
+				r.Answers["--codex"] = c.flag
+			}
+			s := survey(m, r)
+			answerAll(t, s)
+			g, ok := s.Value("codex")
+			if !ok || g.Value != c.want || g.Source != c.source {
+				t.Fatalf("codex = %+v, answered %v; want %s from %s", g, ok, c.want, c.source)
+			}
+			if !slices.Contains(s.HostEnv(), Var{Key: "AACP_CODEX", Value: c.want}) {
+				t.Fatalf("host.env does not carry %s", c.want)
+			}
+			if !strings.Contains(planText(s), "codex "+s.Facts.Short(c.want)+" ("+c.source+")") {
+				t.Fatalf("the plan does not name codex: %s", planText(s))
+			}
+			s.Clear(BlockX)
+			if _, ok := s.Value("codex"); ok {
+				t.Fatal("reviewing the codex block kept its old answer")
+			}
+		})
+	}
+}
+
+func TestCodexIsAskedOnlyWithAHomeOrAProgram(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		set  func(*fake)
+		ask  bool
+	}{
+		{"absent", func(*fake) {}, false},
+		{"not executable", func(m *fake) { m.Stats[home+"/.local/bin/codex"] = Stat{Mode: 0o644} }, false},
+		{"directory", func(m *fake) { m.Stats[home+"/.local/bin/codex"] = Stat{Mode: fs.ModeDir | 0o755} }, false},
+		{"personal home", func(m *fake) { m.Stats[home+"/.codex"] = Stat{Mode: fs.ModeDir | 0o700} }, true},
+		{"configured home", func(m *fake) {
+			m.Files[DefaultStateDir+"/host.env"] = contours.CodexHomesEnv + "=/srv/codex-work\n"
+			m.Stats["/srv/codex-work"] = Stat{Mode: fs.ModeDir | 0o700}
+		}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m := desktop()
+			c.set(m)
+			s := survey(m, &Run{Yes: true})
+			qs := s.Questions(BlockX)
+			if (len(qs) == 1) != c.ask {
+				t.Fatalf("codex questions: %+v, want one: %v", qs, c.ask)
+			}
+			if c.ask {
+				if !qs[0].Required || qs[0].Default != "" {
+					t.Fatalf("a home without a program invented an answer: %+v", qs[0])
+				}
+				if open, err := s.Settle(BlockX); err != nil || len(open) != 1 {
+					t.Fatalf("a missing program did not leave a question: %v, %v", ids(open), err)
+				}
+				if _, err := s.Answer(qs[0]); err == nil || !strings.Contains(err.Error(), "--codex") {
+					t.Fatalf("a missing program was not explained to a plain run: %v", err)
+				}
+			} else {
+				answerAll(t, s)
+				if _, ok := s.Value("codex"); ok || strings.Contains(planText(s), "codex ") {
+					t.Fatal("a machine without codex answered its question")
+				}
+				for _, v := range s.HostEnv() {
+					if v.Key == "AACP_CODEX" {
+						t.Fatal("a machine without codex writes its command")
+					}
+				}
+			}
+		})
+	}
+}
+
 // TestWithoutADisplayOnlyTheLocaleIsAsked: the windows need a display, the
 // locale is asked all the same.
 func TestWithoutADisplayOnlyTheLocaleIsAsked(t *testing.T) {
@@ -193,6 +295,7 @@ func TestTheCursorStandsOnTheEarlierAnswerOnlyWhenItsKeyIsThere(t *testing.T) {
 // flag stands for a question that is gone.
 func TestEveryQuestionHasAFlag(t *testing.T) {
 	m := desktop()
+	m.Path["codex"] = "/usr/bin/codex"
 	noClaude(m)
 	for _, name := range []string{"tmux", "jq", "docker"} {
 		delete(m.Path, name)

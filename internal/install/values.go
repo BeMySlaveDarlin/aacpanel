@@ -51,6 +51,9 @@ func (s *Survey) HostEnv() []Var {
 	if c := s.valueOr("claude", ""); c != "" {
 		out = append(out, Var{Key: "AACP_CLAUDE", Value: c})
 	}
+	if c := s.valueOr("codex", ""); c != "" {
+		out = append(out, Var{Key: "AACP_CODEX", Value: c})
+	}
 	roots := split(s.valueOr("roots", home))
 	var scan []string
 	for _, r := range roots {

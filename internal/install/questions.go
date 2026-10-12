@@ -23,6 +23,7 @@ const (
 	BlockB BlockID = "B" // session windows and the locale
 	BlockC BlockID = "C" // claude
 	BlockL BlockID = "L" // signing in to the accounts that are not
+	BlockX BlockID = "X" // codex, when installed
 	BlockK BlockID = "K" // the kit
 	BlockD BlockID = "D" // the ways in the kit checked
 	BlockT BlockID = "T" // whether to tune the rare settings
@@ -31,7 +32,7 @@ const (
 )
 
 // Blocks is the order of the run.
-var Blocks = []BlockID{BlockP, BlockA, BlockB, BlockC, BlockL, BlockK, BlockD, BlockT, BlockF, BlockM}
+var Blocks = []BlockID{BlockP, BlockA, BlockB, BlockC, BlockL, BlockX, BlockK, BlockD, BlockT, BlockF, BlockM}
 
 // Title heads the answers of the block in the feed.
 func (b BlockID) Title() string {
@@ -46,6 +47,8 @@ func (b BlockID) Title() string {
 		return "Claude"
 	case BlockL:
 		return "Sign in"
+	case BlockX:
+		return "Codex"
 	case BlockK:
 		return "Kit"
 	case BlockD:
@@ -186,6 +189,8 @@ func (s *Survey) questions(b BlockID) []Question {
 		qs = s.claude()
 	case BlockL:
 		qs = s.signIn()
+	case BlockX:
+		qs = s.codex()
 	case BlockK:
 		qs = s.kit()
 	case BlockD:
@@ -368,6 +373,47 @@ func (s *Survey) windows() []Question {
 	}
 	s.prefer(&display, HostEnvFile, hostcfg.DisplayEnv, "The current display.")
 	return []Question{terminal, auto, display, locale}
+}
+
+func (s *Survey) codex() []Question {
+	cmd := s.codexCommand()
+	if cmd.Value == "" && len(s.codexHomes()) == 0 {
+		return nil
+	}
+	q := Question{
+		ID: "codex", Tab: "codex", Prompt: "What starts codex?", Form: One,
+		Note: "The installer and the executor use this program even when it is not on their PATH.",
+		Own:  typePath, Flag: "--codex", Check: checkPaths, Writes: []Target{{HostEnvFile, "AACP_CODEX"}},
+	}
+	if cmd.Value != "" {
+		cmd.Label = s.Facts.Short(cmd.Value)
+		q.Options = []Option{cmd}
+	}
+	return []Question{q}
+}
+
+// codexCommand keeps the configured launcher ahead of discovery. The links
+// stay unresolved so an update reaches both the check and the executor;
+// neither can rely on the PATH of the person's next login.
+func (s *Survey) codexCommand() Option {
+	if v, ok := s.before(HostEnvFile, "AACP_CODEX"); ok && strings.TrimSpace(v) != "" {
+		return Option{Value: v, Source: "current setting", Detail: "The current command: a wrapper of your own stays."}
+	}
+	if v := strings.TrimSpace(s.m.Env("AACP_CODEX")); v != "" {
+		return Option{Value: v, Source: "$AACP_CODEX"}
+	}
+	if path, err := s.m.LookPath("codex"); err == nil {
+		return Option{Value: path, Source: "command -v codex"}
+	}
+	for _, path := range []string{
+		filepath.Join(s.Facts.Account.Home, ".codex", "packages", "standalone", "current", "bin", "codex"),
+		filepath.Join(s.Facts.Account.Home, ".local", "bin", "codex"),
+	} {
+		if st, err := s.m.Stat(path); err == nil && st.Mode.IsRegular() && st.Mode&0o111 != 0 {
+			return Option{Value: path, Source: "the native installer", Detail: "Found outside PATH; the link is kept so codex updates reach the panel."}
+		}
+	}
+	return Option{}
 }
 
 func (s *Survey) claude() []Question {
