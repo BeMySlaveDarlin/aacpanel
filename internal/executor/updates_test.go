@@ -42,6 +42,7 @@ func TestCodexUpdateInstallsChecksAndRestarts(t *testing.T) {
 	// drop those of threads their daemon has not loaded: on a machine with
 	// live codex helpers, the machine's own dir would lose their marks.
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	absentHome := filepath.Join(t.TempDir(), "offline")
 	schema, err := os.ReadFile("../codex/contract/reference.json")
 	if err != nil {
 		t.Fatal(err)
@@ -58,10 +59,10 @@ func TestCodexUpdateInstallsChecksAndRestarts(t *testing.T) {
 	busyDaemon.Agent("codex/1.0.0")
 	busyDaemon.Add(codextest.Thread{ID: codexThread, CWD: "/srv/work", Status: "active", Flags: []string{"waitingOnApproval"}})
 	busyDaemon.Running(codexThread, "working-turn")
-	homes := []string{idleDaemon.Home, busyDaemon.Home}
+	homes := []string{idleDaemon.Home, busyDaemon.Home, absentHome}
 	daemons := map[string]*codextest.Server{homes[0]: idleDaemon, homes[1]: busyDaemon}
 	ctx, cancel := context.WithCancel(t.Context())
-	e.codex = codex.Start(ctx, []registry.CodexHome{{Dir: homes[0], Contour: "personal"}, {Dir: homes[1], Contour: "work"}}, nil)
+	e.codex = codex.Start(ctx, []registry.CodexHome{{Dir: homes[0], Contour: "personal"}, {Dir: homes[1], Contour: "work"}, {Dir: absentHome, Contour: "offline"}}, nil)
 	t.Cleanup(func() { cancel(); e.codex.Wait() })
 	waitFor(t, "the idle daemon to be observed", func() bool {
 		n, err := e.codex.Home(homes[0]).RestartIdle(func() error { return nil })
@@ -71,6 +72,11 @@ func TestCodexUpdateInstallsChecksAndRestarts(t *testing.T) {
 		n, err := e.codex.Home(homes[1]).RestartIdle(func() error { return nil })
 		return err == nil && n == 1 && busyDaemon.Subscribed(codexThread)
 	})
+	// Hold the thread across restarts so its status changes reach the link
+	// as notifications, without waiting for the next periodic poll.
+	if _, err := e.codex.Home(homes[1]).Resume(ctx, codexThread); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv(registry.CodexHomesEnv, strings.Join(homes, string(os.PathListSeparator)))
 	t.Setenv("CODEX_HOME", "/a/contour/must/not/receive/packages")
 	t.Setenv("CODEX_INSTALL_DAEMON_ONLY", "1")
@@ -86,6 +92,7 @@ func TestCodexUpdateInstallsChecksAndRestarts(t *testing.T) {
 	t.Setenv(codexEnv, program)
 	fakeSystemdRun(t)
 
+	var hooksProgram string
 	for _, home := range homes {
 		packageRoot := filepath.Join(home, "packages", "app-server-daemon")
 		for _, release := range []string{"0.8.0", "0.9.0", "1.0.0"} {
@@ -94,14 +101,19 @@ func TestCodexUpdateInstallsChecksAndRestarts(t *testing.T) {
 		if err := os.Symlink("releases/1.0.0", filepath.Join(packageRoot, "current")); err != nil {
 			t.Fatal(err)
 		}
-		putUpdateFile(t, filepath.Join(home, "running-version"), "1.0.0", 0o600)
 		hooksPath := filepath.Join(home, "hooks.json")
 		hooks, _, _, err := install.WireCodex(nil, nil, hooksPath, install.Wiring{Exec: panelTools, Kit: []string{"relay"}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		putUpdateFile(t, hooksPath, string(hooks), 0o600)
-		daemons[home].Hooks(map[string]any{"cwd": home, "hooks": []any{map[string]any{"key": hooksPath + ":pre_tool_use:0:0", "command": panelTools + " hook ask-hook", "handlerType": "command", "enabled": true, "trustStatus": "trusted"}}})
+		entry := map[string]any{"cwd": home, "hooks": []any{map[string]any{"key": hooksPath + ":pre_tool_use:0:0", "command": panelTools + " hook ask-hook", "handlerType": "command", "enabled": true, "trustStatus": "trusted"}}}
+		if daemon := daemons[home]; daemon != nil {
+			putUpdateFile(t, filepath.Join(home, "running-version"), "1.0.0", 0o600)
+			daemon.Hooks(entry)
+		} else {
+			hooksProgram = codextest.HooksProgram(t, entry)
+		}
 	}
 	schemaPath := filepath.Join(t.TempDir(), "schema.json")
 	putUpdateFile(t, schemaPath, string(schema), 0o600)
@@ -147,7 +159,9 @@ cat > "$root/releases/$2/bin/codex" <<'PROGRAM'
 set -eu
 if [ "$1" = --version ]; then echo 'codex-cli %s'; exit; fi
 printf '%%s\n' "$*" >> %q
-if [ "$1 $2 $3" = 'app-server generate-json-schema --experimental' ]; then
+if [ "$1 $2" = 'app-server --stdio' ]; then
+ exec %q "$@"
+elif [ "$1 $2 $3" = 'app-server generate-json-schema --experimental' ]; then
  cp %q "$5/codex_app_server_protocol.schemas.json"
 elif [ "$1 $2 $3" = 'app-server daemon restart' ]; then
  "$CODEX_HOME/packages/app-server-daemon/current/bin/codex" --version > "$CODEX_HOME/running-version"
@@ -159,7 +173,7 @@ PROGRAM
 chmod +x "$root/releases/$2/bin/codex"
 ln -s "$root/releases/$2" "$root/next"
 mv -Tf "$root/next" "$root/current"
-`, filepath.Join(root, "bin"), version, root, version, logPath, schemaPath, source.URL+"/restart")
+`, filepath.Join(root, "bin"), version, root, version, logPath, hooksProgram, schemaPath, source.URL+"/restart")
 		default:
 			http.NotFound(w, r)
 		}
@@ -168,6 +182,24 @@ mv -Tf "$root/next" "$root/current"
 	was := codexSource
 	codexSource.channel, codexSource.installer = source.URL+"/channel", source.URL+"/installer"
 	t.Cleanup(func() { codexSource = was })
+	checkStopped := func(detail string, checks int) {
+		t.Helper()
+		state := readProgram("codex")
+		contour := registry.CodexContour(absentHome)
+		want := contour + ": daemon not running; no restart needed"
+		if !strings.Contains(detail, want) || !strings.Contains(state.Detail, want) || state.RestartPending[contour] != "" {
+			t.Fatalf("the stopped home is not reported: %s; %+v", detail, state)
+		}
+		for _, path := range []string{codex.SocketPath(absentHome), filepath.Join(absentHome, "running-version")} {
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Fatalf("the update started an absent daemon at %s: %v", path, err)
+			}
+		}
+		calls, err := os.ReadFile(hooksProgram + ".calls")
+		if err != nil || strings.Count(string(calls), "hooks/list\n") != checks {
+			t.Fatalf("the stopped home's hooks were not checked: %s (%v)", calls, err)
+		}
+	}
 	detail, err := e.Execute(context.Background(), req(action.CodexUpdate, "host"))
 	if err != nil {
 		t.Fatal(err)
@@ -182,7 +214,8 @@ mv -Tf "$root/next" "$root/current"
 	if len(state.RestartPending) != 1 || !strings.Contains(detail, "restart pending: 1 turns running") {
 		t.Fatalf("busy daemon is not pending: %+v; %s", state, detail)
 	}
-	for i, home := range homes {
+	checkStopped(detail, 1)
+	for i, home := range homes[:2] {
 		running, err := os.ReadFile(filepath.Join(home, "running-version"))
 		want := "9.9.9"
 		if i == 1 {
@@ -197,16 +230,20 @@ mv -Tf "$root/next" "$root/current"
 		n, err := e.codex.Home(homes[1]).RestartIdle(func() error { return nil })
 		return err == nil && n == 0
 	})
-	if _, err := e.Execute(context.Background(), req(action.CodexUpdate, "host")); err != nil {
+	detail, err = e.Execute(context.Background(), req(action.CodexUpdate, "host"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if state := readProgram("codex"); len(state.RestartPending) != 0 {
+	if state := readProgram("codex"); len(state.RestartPending) != 0 || state.UpdateError != "" {
 		t.Fatalf("idle daemon stayed pending: %+v", state)
 	}
+	checkStopped(detail, 2)
 	for _, home := range homes {
-		running, err := os.ReadFile(filepath.Join(home, "running-version"))
-		if err != nil || strings.TrimSpace(string(running)) != "9.9.9" {
-			t.Fatalf("idle daemon of %s runs %q: %v", home, running, err)
+		if home != absentHome {
+			running, err := os.ReadFile(filepath.Join(home, "running-version"))
+			if err != nil || strings.TrimSpace(string(running)) != "9.9.9" {
+				t.Fatalf("idle daemon of %s runs %q: %v", home, running, err)
+			}
 		}
 		entries, err := os.ReadDir(filepath.Join(home, "packages", "app-server-daemon", "releases"))
 		if err != nil || len(entries) != 2 || entries[0].Name() != "1.0.0" || entries[1].Name() != "9.9.9" {
@@ -224,9 +261,48 @@ mv -Tf "$root/next" "$root/current"
 		t.Fatalf("current version updated again: %v", err)
 	}
 
+	// A missing link alone says nothing about a daemon: only the missing
+	// socket lets an update leave the home stopped.
+	unlinked := New(nil, "")
+	if _, running, err := unlinked.restartCodex(ctx, program, absentHome); err != nil || running {
+		t.Fatalf("an absent daemon without a link needs a restart: %t, %v", running, err)
+	}
+	if _, running, err := unlinked.restartCodex(ctx, program, homes[0]); !running || err == nil || !strings.Contains(err.Error(), "daemon activity is not known") {
+		t.Fatalf("a live daemon without a link was treated as absent: %t, %v", running, err)
+	}
+
+	// Unknown activity still fails, but later homes get their packages,
+	// restarts and hook checks even when the first daemon cannot be restarted.
+	busyDaemon.Set(codexThread, "unknown")
+	waitFor(t, "the unknown status to reach the link", func() bool {
+		_, err := e.codex.Home(homes[1]).RestartIdle(func() error { return nil })
+		return err != nil
+	})
+	t.Setenv(registry.CodexHomesEnv, strings.Join([]string{homes[1], absentHome, homes[0]}, string(os.PathListSeparator)))
+	latest.Store("9.9.10")
+	if _, err := e.Execute(context.Background(), req(action.CodexUpdate, "host")); err == nil || !strings.Contains(err.Error(), "daemon activity is not known") {
+		t.Fatalf("a live daemon with unknown activity did not fail: %v", err)
+	}
+	state = readProgram("codex")
+	if len(state.RestartPending) != 1 || !strings.Contains(state.RestartPending[registry.CodexContour(homes[1])], "daemon activity is not known") || state.UpdateError == "" || state.Verdict != "passed" {
+		t.Fatalf("unknown activity lost its pending restart or failure: %+v", state)
+	}
+	checkStopped(state.Detail, 3)
+	for _, home := range homes {
+		if version, err := programVersion(ctx, daemonProgram(home)); err != nil || version != "9.9.10" {
+			t.Fatalf("the package of %s was not updated past the unknown daemon: %s, %v", home, version, err)
+		}
+	}
+	for home, want := range map[string]string{homes[0]: "9.9.10", homes[1]: "9.9.9"} {
+		running, err := os.ReadFile(filepath.Join(home, "running-version"))
+		if err != nil || strings.TrimSpace(string(running)) != want {
+			t.Fatalf("daemon of %s runs %q, want %s: %v", home, running, want, err)
+		}
+	}
+
 	// A release dropping a field the panel reads fails the shared checker. Its
 	// daemon never starts and the previous current link returns atomically.
-	latest.Store("9.9.10")
+	latest.Store("9.9.11")
 	var broken map[string]any
 	if err := json.Unmarshal(schema, &broken); err != nil {
 		t.Fatal(err)
@@ -242,13 +318,13 @@ mv -Tf "$root/next" "$root/current"
 		t.Fatal("a broken protocol was accepted")
 	}
 	state = readProgram("codex")
-	for _, home := range homes {
+	for home, want := range map[string]string{homes[0]: "9.9.10", homes[1]: "9.9.9"} {
 		running, _ := os.ReadFile(filepath.Join(home, "running-version"))
-		if strings.TrimSpace(string(running)) != "9.9.9" {
+		if strings.TrimSpace(string(running)) != want {
 			t.Fatalf("restarted an incompatible daemon of %s: %s", home, running)
 		}
 	}
-	if state.Version != "9.9.9" || state.CheckedVersion != "9.9.10" || state.Verdict != "failed" {
+	if state.Version != "9.9.10" || state.CheckedVersion != "9.9.11" || state.Verdict != "failed" {
 		t.Fatalf("broken update: %+v", state)
 	}
 }

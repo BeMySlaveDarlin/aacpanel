@@ -928,6 +928,9 @@ after the install pairs only by its account's name.
   packages and disables their latest-channel updater. This costs a package per
   home and its download. The panel restarts each idle daemon in its own transient
   unit, waits for its new version at the handshake, and checks its panel hooks.
+  A home without a control socket has no daemon to restart: the report names
+  it as not running, its next start takes the selected package, and its hooks
+  are checked with a private stdio app-server that exits after the check.
   The link's existing poll supplies the status of every loaded thread, including
   children. A running turn or unknown activity defers the restart; the host page
   names the pending contour and the next timer or button run tries again.

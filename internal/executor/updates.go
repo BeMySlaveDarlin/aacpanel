@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/codex"
 	"aacpanel/internal/codex/contract"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/install"
@@ -289,6 +290,7 @@ func (e *Executor) updateCodex(ctx context.Context) (string, error) {
 	// A daemon outlives the executor. Restart it through the same transient unit
 	// used for its first start, or it would inherit the executor's restrictions.
 	var failures []error
+	var stopped []string
 	state.RestartPending = map[string]string{}
 	for _, home := range registry.CodexHomes() {
 		packageRoot := filepath.Dir(filepath.Dir(filepath.Dir(daemonProgram(home.Dir))))
@@ -312,7 +314,7 @@ func (e *Executor) updateCodex(ctx context.Context) (string, error) {
 			failures = append(failures, err)
 			continue
 		}
-		busy, err := e.restartCodex(ctx, program, home.Dir)
+		busy, running, err := e.restartCodex(ctx, program, home.Dir)
 		if err != nil || busy > 0 {
 			detail := fmt.Sprintf("restart pending: %d turns running", busy)
 			if err != nil {
@@ -322,7 +324,9 @@ func (e *Executor) updateCodex(ctx context.Context) (string, error) {
 			state.RestartPending[home.Contour] = detail
 			continue
 		}
-		if link := e.codex.Home(home.Dir); link != nil {
+		if !running {
+			stopped = append(stopped, home.Contour)
+		} else if link := e.codex.Home(home.Dir); link != nil {
 			wait, cancel := context.WithTimeout(ctx, daemonWait)
 			err := link.ReadyVersion(wait, latest)
 			cancel()
@@ -346,6 +350,9 @@ func (e *Executor) updateCodex(ctx context.Context) (string, error) {
 		}
 	}
 	state.Detail = report.Text()
+	for _, contour := range stopped {
+		state.Detail += "\n" + contour + ": daemon not running; no restart needed"
+	}
 	if report.Red() {
 		state.Verdict = "failed"
 	}
@@ -356,14 +363,22 @@ func (e *Executor) updateCodex(ctx context.Context) (string, error) {
 	if err := errors.Join(failures...); err != nil {
 		return "", err
 	}
-	detail := "Codex " + latest + " updated; idle daemons restarted.\n" + report.Text()
+	detail := "Codex " + latest + " updated; idle daemons restarted.\n" + state.Detail
 	for contour, pending := range state.RestartPending {
 		detail += "\n" + contour + ": " + pending
 	}
 	return detail, nil
 }
 
-func (e *Executor) restartCodex(ctx context.Context, program, home string) (int, error) {
+func (e *Executor) restartCodex(ctx context.Context, program, home string) (busy int, running bool, err error) {
+	// The launcher also uses the home's control socket to decide whether a
+	// daemon exists. With no socket the next start takes the selected package;
+	// a link that has not polled a live daemon is still unsafe to restart.
+	if _, err := os.Stat(codex.SocketPath(home)); errors.Is(err, os.ErrNotExist) {
+		return 0, false, nil
+	} else if err != nil {
+		return 0, true, fmt.Errorf("restart pending: daemon control socket: %w", err)
+	}
 	restart := func() error {
 		args := daemonArgs(cleanEnv(os.Environ()), program, home, home, e.cores)
 		args[len(args)-1] = "restart"
@@ -375,9 +390,10 @@ func (e *Executor) restartCodex(ctx context.Context, program, home string) (int,
 		return nil
 	}
 	if link := e.codex.Home(home); link != nil {
-		return link.RestartIdle(restart)
+		busy, err := link.RestartIdle(restart)
+		return busy, true, err
 	}
-	return 0, errors.New("restart pending: daemon activity is not known")
+	return 0, true, errors.New("restart pending: daemon activity is not known")
 }
 
 // The native daemon owns a package in each home. Explicit releases clear its
