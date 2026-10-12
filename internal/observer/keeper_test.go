@@ -340,7 +340,8 @@ func TestASessionReadsAndStopsItsOwnObservers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "the log", func() bool { _, l, _ := k.Tail(ctx, lab, "tailing", 3); return len(l) == 3 })
+	// Three lines are there long before the fiftieth on a slow machine.
+	waitFor(t, "the log", func() bool { _, l, _ := k.Tail(ctx, lab, "tailing", 3); return len(l) == 3 && l[2] == "row 50" })
 	if _, lines, _ := k.Tail(ctx, lab, "tailing", 3); !slices.Equal(lines, []string{"row 48", "row 49", "row 50"}) {
 		t.Errorf("the tail is %q", lines)
 	}
