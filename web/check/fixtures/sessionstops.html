@@ -80,6 +80,8 @@ window.done = (async () => {
             const r = b.getBoundingClientRect();
             return { text: text(b), label: b.getAttribute("aria-label"), top: b.closest(".pjtop") === top
                     && r.top >= topBox.top && r.bottom <= topBox.bottom, width: r.width, disabled: b.disabled, icon: Boolean(b.querySelector("svg")), height: r.height,
+                line: card.querySelector(".pjsess").getBoundingClientRect().height,
+                reach: b.contains(document.elementFromPoint(r.left + r.width / 2, r.top - 5)),
                 clear: !words.some((w) => meets(r, w)), inside: r.left >= box.left && r.right <= box.right && r.bottom <= box.bottom,
                 hit: (() => { const a = b.getBoundingClientRect();
                     return b.contains(document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2)); })() };

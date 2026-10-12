@@ -658,23 +658,26 @@ button.pjstub { cursor: pointer; }
     color: var(--ink-dim);
 }
 .pjtag svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
-/* Each icon keeps a finger-sized target at the right edge of the name. */
-.pjacts { display: flex; flex: none; gap: .3rem; }
+/* The icons are marks of the name's line, no taller than it, so the card
+   keeps its height. A finger takes each past its edge: up and down to the
+   row's padding, and sideways to half the gap, never onto its neighbour. */
+.pjacts { display: flex; flex: none; gap: .5rem; }
 .pjact {
+    box-sizing: border-box;
     display: inline-flex;
     flex: none;
     align-items: center;
     justify-content: center;
-    width: 2.4rem;
-    height: 2.4rem;
-    padding: 0;
+    height: 1.15rem;
+    padding: 0 .3rem;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
     background: none;
     color: var(--crit);
     cursor: pointer;
 }
-.pjact svg { flex: none; width: var(--i-md); height: var(--i-md); }
+.pjact::before { content: ""; position: absolute; inset: -.45rem -.25rem; }
+.pjact svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
 .pjact:disabled { opacity: .45; cursor: default; }
 .pjpct { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
 .pjbusy {

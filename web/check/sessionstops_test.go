@@ -18,6 +18,8 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 			Disabled bool    `json:"disabled"`
 			Icon     bool    `json:"icon"`
 			Height   float64 `json:"height"`
+			Line     float64 `json:"line"`
+			Reach    bool    `json:"reach"`
 			Clear    bool    `json:"clear"`
 			Inside   bool    `json:"inside"`
 			Hit      bool    `json:"hit"`
@@ -52,8 +54,11 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 		var words []string
 		for _, b := range got.MobileActions[name] {
 			words = append(words, strings.TrimSuffix(b.Label, " session "+name))
-			if b.Text != "" || !b.Top || b.Disabled || !b.Icon || b.Height < 36 || b.Width < 36 || !b.Clear || !b.Inside || !b.Hit {
-				t.Errorf("%s: its action does not stand readable and reachable on its own: %+v", name, b)
+			if b.Text != "" || !b.Top || b.Disabled || !b.Icon || b.Height > b.Line+1 || !b.Reach || !b.Clear || !b.Inside || !b.Hit {
+				// The icon is no taller than the name's line, so the card keeps the
+				// height it had with one mark there; a finger still takes it past its
+				// edge.
+				t.Errorf("%s: its action does not stand small, readable and reachable on its own: %+v", name, b)
 			}
 		}
 		if strings.Join(words, ",") != labels {
