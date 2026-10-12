@@ -38,6 +38,10 @@ func TestCodexUpdateInstallsChecksAndRestarts(t *testing.T) {
 	e := New(nil, "")
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	// The links read the hold marks of their contour from the runtime dir and
+	// drop those of threads their daemon has not loaded: on a machine with
+	// live codex helpers, the machine's own dir would lose their marks.
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	schema, err := os.ReadFile("../codex/contract/reference.json")
 	if err != nil {
 		t.Fatal(err)
