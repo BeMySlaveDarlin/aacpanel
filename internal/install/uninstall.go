@@ -28,7 +28,7 @@ var Data = []Datum{
 	{"state", "The state directory", "the collector's snapshot, the questions of sessions, the index of conversations", "--purge-state"},
 	{"env", "The .env of the clone", "the secrets of the panel: without it a volume kept does not open", "--purge-env"},
 	{"files", "Files from the phone", "what a phone sent to sessions", "--purge-files"},
-	{"exec", "The executor's and the stream's state", "the guards of the map, the checklists, the answers to permissions", "--purge-exec"},
+	{"exec", "The executor's, stream's and browser's state", "the guards of the map, checklists, permission answers and browser sign-ins", "--purge-exec"},
 }
 
 // PurgeAll is the flag that chooses every datum.
@@ -251,7 +251,7 @@ func (rm *Removal) kept() []string {
 	if rm.stateOwned() {
 		out = append(out, rm.state())
 	}
-	for _, e := range rm.of(File) {
+	for _, e := range append(rm.of(File), rm.of(Dir)...) {
 		if metaHas(e.Meta, "data") && !rm.underState(e.Target) {
 			out = append(out, rm.short(e.Target))
 		}
@@ -378,6 +378,18 @@ func (rm *Removal) unwire(r *Run) error {
 // U3: the user's units, disabled and their files and links removed as
 // files, so they go even with the user's manager away.
 func (rm *Removal) units(r *Run) error {
+	hasBrowser := false
+	for _, e := range rm.of(Dir) {
+		if metaHas(e.Meta, "browser") {
+			hasBrowser = true
+			break
+		}
+	}
+	if hasBrowser {
+		if err := userctl(r, "stop", "aacpanel-browser-*.service"); err != nil {
+			return fail("the browser holders did not stop; their profile data stays", err)
+		}
+	}
 	if exec := filepath.Join(rm.home(), "bin", "aacpanel-exec"); fileThere(exec) {
 		out, _ := r.Exec(Cmd{Argv: []string{exec, "-sessions"}, Limit: 30 * time.Second})
 		if live := strings.TrimSpace(out); live != "" {
@@ -442,7 +454,7 @@ func (rm *Removal) files(r *Run) error {
 	dirs := rm.of(Dir)
 	for i := len(dirs) - 1; i >= 0; i-- {
 		e := dirs[i]
-		if e.Target == rm.Facts.InstallDir || metaHas(e.Meta, "cache") || rm.underState(e.Target) {
+		if e.Target == rm.Facts.InstallDir || metaHas(e.Meta, "cache") || metaHas(e.Meta, "data") || rm.underState(e.Target) {
 			continue
 		}
 		if err := undoDir(r, e); err != nil {
@@ -545,6 +557,15 @@ func (rm *Removal) data(r *Run) error {
 		r.Say(Pass, rm.short(rm.filesDir())+" deleted")
 	}
 	if rm.Purges("exec") {
+		for _, e := range rm.of(Dir) {
+			if metaHas(e.Meta, "browser") {
+				if err := os.RemoveAll(e.Target); err != nil {
+					return err
+				}
+				r.Say(Pass, rm.short(e.Target)+" deleted")
+			}
+		}
+
 		for _, name := range []string{"aacpanel", "aacpanel-stream"} {
 			p := filepath.Join(rm.home(), ".local", "state", name)
 			if err := os.RemoveAll(p); err != nil {

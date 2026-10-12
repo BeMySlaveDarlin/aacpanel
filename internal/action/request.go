@@ -7,7 +7,8 @@ import (
 
 // Request is what the service asks to be done.
 type Request struct {
-	ID string `json:"id"`
+	BrowserName string `json:"browserName,omitempty"`
+	ID          string `json:"id"`
 
 	Kind Kind `json:"kind"`
 

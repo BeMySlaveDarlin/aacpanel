@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -413,6 +415,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 
+	if action.BrowserKind(req.Kind) {
+		if req.Kind == action.BrowserCreate {
+			raw := make([]byte, 8)
+			rand.Read(raw)
+			req.Target = "b-" + hex.EncodeToString(raw)
+			req.BrowserName, _ = body.Params["name"].(string)
+		}
+	}
 	if action.TermKind(req.Kind) {
 		termParams, err := s.termRequest(r.Context(), &req, body.Target, body.Params)
 		if err != nil {
@@ -541,7 +551,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 	out := map[string]any{"ok": true, "detail": resp.Detail, "logged": logged}
-	if req.Kind == action.TermStart {
+	if req.Kind == action.TermStart || req.Kind == action.BrowserCreate {
 		out["id"] = req.Target
 	}
 	if contour != "" {
@@ -1145,7 +1155,7 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"available": true})
 		return
 	}
-	writeJSON(w, map[string]any{"available": true, "kinds": kinds})
+	writeJSON(w, map[string]any{"available": true, "kinds": kinds, "browser": s.browserEnabled(r.Context())})
 }
 
 // resumeTarget finds the conversation a resume is about and where it ran. The

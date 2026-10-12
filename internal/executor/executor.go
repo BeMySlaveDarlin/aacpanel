@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/browser"
 	"aacpanel/internal/codex"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/observer"
@@ -19,8 +20,10 @@ import (
 
 // Executor performs the fixed set of allowed host actions.
 type Executor struct {
-	docker *Docker
-	self   string
+	browserConfig browser.Config
+	browserMu     sync.Mutex
+	docker        *Docker
+	self          string
 
 	sendSignal func(pid int, sig syscall.Signal) error
 	poll       time.Duration
@@ -79,7 +82,7 @@ func (b *busy) give(name string) {
 
 // New creates an Executor for the given Docker client and self container name.
 func New(docker *Docker, self string) *Executor {
-	return &Executor{docker: docker, self: self}
+	return &Executor{docker: docker, self: self, browserConfig: browser.Load()}
 }
 
 // HoldTo has every unit the executor starts — a session, its window, a
@@ -94,13 +97,13 @@ func (e *Executor) HoldTo(cores string) *Executor {
 func (e *Executor) Kinds() []action.Kind {
 	sessions := sessionsPossible()
 	canOpen := launcher.WindowPossible()
-	if sessions && canOpen {
-		return action.Kinds
-	}
+
 	out := make([]action.Kind, 0, len(action.Kinds))
 	for _, k := range action.Kinds {
 		name := string(k)
 		switch {
+		case action.BrowserKind(k) && e.browserConfig.Check() != nil:
+			continue
 		case !sessions && strings.HasPrefix(name, "session."):
 			continue
 		case !sessions && strings.HasPrefix(name, "window."):
@@ -124,6 +127,9 @@ func (e *Executor) Kinds() []action.Kind {
 
 // Execute runs one action request and reports what happened.
 func (e *Executor) Execute(ctx context.Context, req action.Request) (string, error) {
+	if action.BrowserKind(req.Kind) {
+		return e.browserAction(ctx, req)
+	}
 	if req.Caller != "" {
 		if req.Kind != action.SessionClose {
 			return "", fmt.Errorf("only a child close takes a caller")

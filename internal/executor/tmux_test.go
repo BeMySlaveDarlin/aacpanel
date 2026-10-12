@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/browser"
 )
 
 func fakeTmux(t *testing.T, panes []string, screen string) string {
@@ -536,7 +537,7 @@ func hasKind(list []action.Kind, want action.Kind) bool {
 }
 
 func TestKindsDropSessionsWithoutTmux(t *testing.T) {
-	e := &Executor{}
+	e := &Executor{browserConfig: browser.Config{Enabled: true, Program: "/bin/true"}}
 
 	t.Run("tmux is there — the list is complete", func(t *testing.T) {
 		tmuxHere(t)
@@ -568,14 +569,14 @@ func TestKindsDropSessionsWithoutTmux(t *testing.T) {
 		if !hasKind(got, action.ProjectCreate) {
 			t.Error("project.create disappeared along with the sessions — there is nothing left to start a project with on such a machine")
 		}
-		if known := len(sessionKinds) + len(windowKinds) + len(workKinds) + len(termKinds) + 10; len(action.Kinds) != known {
+		if known := len(sessionKinds) + len(windowKinds) + len(workKinds) + len(termKinds) + 14; len(action.Kinds) != known {
 			t.Errorf("action.Kinds changed: it holds %d kinds while the test knows %d", len(action.Kinds), known)
 		}
 	})
 }
 
 func TestKindsAreRecountedOnEveryAsk(t *testing.T) {
-	e := &Executor{}
+	e := &Executor{browserConfig: browser.Config{Enabled: true, Program: "/bin/true"}}
 	bin := tmuxHere(t)
 	if len(e.Kinds()) != len(action.Kinds) {
 		t.Fatal("with a live tmux the list is already incomplete on the first question")

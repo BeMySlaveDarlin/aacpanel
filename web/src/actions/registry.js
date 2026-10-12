@@ -347,6 +347,32 @@ function sessionHint(one) {
 }
 
 export const ACTIONS = {
+    "browser.create": {
+        title: (target, params) => `Create browser profile “${params.name}”?`,
+        effect: "Cookies and sign-ins are kept in a separate profile on the host.",
+        done: () => "Browser profile created",
+        ok: "Create",
+    },
+    "browser.open": {
+        title: (target, params) => `Open browser profile “${params.name}”?`,
+        effect: "The browser starts on the host. Only one device can control this profile at a time.",
+        done: () => "Browser opened",
+        ok: "Open",
+    },
+    "browser.close": {
+        title: (target, params) => `Close browser profile “${params.name}”?`,
+        effect: "All tabs close. Cookies and saved sign-ins stay in the profile.",
+        done: () => "Browser closed",
+        ok: "Close",
+    },
+    "browser.delete": {
+        title: (target, params) => `Delete browser profile “${params.name}”?`,
+        effect: "All tabs close and the profile, including its cookies and saved sign-ins, is permanently deleted.",
+        done: () => "Browser profile deleted",
+        ok: "Delete",
+        danger: true,
+    },
+
     "codex.update": {
         title: () => "Update Codex?",
         effect: "The panel installs the current release and checks its protocol. Idle daemons restart; busy daemons wait until a later update check finds their turns finished.",
@@ -1068,6 +1094,10 @@ const NAMES = {
     "secret.drop": "Remove a secret",
     "window.open": "Open window",
     "window.close": "Close window",
+    "browser.create": "Create a browser profile",
+    "browser.open": "Open a browser",
+    "browser.close": "Close a browser",
+    "browser.delete": "Delete a browser profile",
     "term.start": "Start a terminal",
     "term.close": "Close a terminal",
     "term.rename": "Rename a terminal tab",

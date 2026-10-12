@@ -22,6 +22,10 @@
      live in tmux only (flag)
      · Which locale do sessions run in? → en_US.UTF-8 ($LANG, and in locale -a)
 
+⏺ Browser
+  ⎿  · Browser on this host, controlled from the panel? → Off (Recommended)
+     (default)
+
 ⏺ Claude
   ⎿  · What starts claude? → ~/.local/bin/claude (command -v claude)
      · Which claude accounts does the panel serve? → ~/.claude (found)

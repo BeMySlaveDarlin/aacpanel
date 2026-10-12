@@ -14,6 +14,7 @@ import { HeadLoad } from "./load.js";
 import { Devices } from "../screens/devices.js";
 import { Settings } from "../screens/settings.js";
 import { SessionColumn } from "./sessions.js";
+import { Browser } from "../screens/browser.js";
 import { TermsDesk } from "./terms.js";
 import { useTermAvailable } from "../screens/chat/term.js";
 import { StackColumn, ContainersCenter } from "./containers.js";
@@ -28,6 +29,7 @@ import { MAX, MIN, useScale } from "./scale.js";
 export const SECTIONS = [
     { id: "sessions", label: "Sessions", icon: Icon.sessions },
     { id: "terminals", label: "Terminals", icon: Icon.prompt },
+    { id: "browser", label: "Browser", icon: Icon.monitor },
     { id: "containers", label: "Containers", icon: Icon.containers },
     { id: "machine", label: "Machine", icon: Icon.cpu },
     { id: "devices", label: "Devices", icon: Icon.skill },
@@ -261,6 +263,7 @@ export function DesktopShell({
     useEffect(() => {
         if (section === "terminals" && term.known && !term.route) goSection("home");
     }, [section, term.known, term.route, goSection]);
+    useEffect(() => { if (section === "browser" && exec.browser === false) goSection("home"); }, [section, exec.browser, goSection]);
     useEffect(() => {
         if (!jump) return;
         openChat({ name: jump.name, id: jump.id });
@@ -314,6 +317,7 @@ export function DesktopShell({
                 cat=${cat}
             />`;
         }
+        if (section === "browser" && exec.browser) return html`<${Browser} exec=${exec} wide=${true} />`;
         if (section === "terminals") {
             return term.route
                 ? html`<${TermsDesk} snapshot=${snapshot} exec=${exec} open=${termOpen} onOpen=${setTermOpen} />`
@@ -355,7 +359,7 @@ export function DesktopShell({
     const chip = routeChip(route);
     const panels = PANELS[section] || [];
     const panelTitle = (panels.find((p) => p.id === panel) || {}).label || "";
-    const wide = section === "home" || section === "devices" || section === "alerts" || section === "terminals";
+    const wide = section === "home" || section === "devices" || section === "alerts" || section === "terminals" || section === "browser";
 
     return html`
         <div class="deskshell" ref=${shellRef}>
@@ -374,7 +378,7 @@ export function DesktopShell({
                     onClick=${() => goSection("home")}
                 ><${Icon.orbit} /></button>
                 <nav class="dkibs">
-                    ${SECTIONS.filter((it) => it.id !== "terminals" || term.route).map((it) => html`
+                    ${SECTIONS.filter((it) => (it.id !== "terminals" || term.route) && (it.id !== "browser" || exec.browser)).map((it) => html`
                         <${IconButton} key=${it.id} item=${it} active=${section === it.id} onClick=${() => goSection(it.id)} />
                     `)}
                 </nav>

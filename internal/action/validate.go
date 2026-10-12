@@ -70,12 +70,15 @@ func (r Request) Validate() error {
 	if r.Discover && r.Ask != AskMcp {
 		return badRequest("only the question of the MCP servers discovers them")
 	}
+	if r.BrowserName != "" && r.Kind != BrowserCreate {
+		return badRequest("only browser.create names a profile")
+	}
 	if r.Ask != "" {
 		if r.Kind != "" || r.Resume != "" || r.Secret != nil || r.Agent != "" {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
-		case AskKinds, AskTerms, AskSecrets, AskCodexModels:
+		case AskKinds, AskTerms, AskSecrets, AskCodexModels, AskBrowser:
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
@@ -552,6 +555,9 @@ func (r Request) Validate() error {
 			return badRequest("the project path %q is not absolute", r.Target)
 		}
 		return safePath(r.Target)
+	}
+	if BrowserKind(r.Kind) {
+		return validateBrowser(r)
 	}
 	if TermKind(r.Kind) {
 		return validateTerm(r)

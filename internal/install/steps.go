@@ -59,6 +59,9 @@ func (in *Install) Steps() []*Step {
 	if in.nativeInstalls() {
 		steps = append(steps, in.claudeInstallStep())
 	}
+	if in.S.valueOr("browser", "off") != "off" {
+		steps = append(steps, in.browserStateStep())
+	}
 	steps = append(steps, in.envFileStep(), in.execBuildStep(), in.execUnitStep(), in.codexTimerStep())
 	if in.S.Has("gc") {
 		steps = append(steps, in.gcTimerStep())

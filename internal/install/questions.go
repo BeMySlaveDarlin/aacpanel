@@ -21,6 +21,7 @@ const (
 	BlockP BlockID = "P" // prerequisites the machine lacks
 	BlockA BlockID = "A" // this machine
 	BlockB BlockID = "B" // session windows and the locale
+	BlockW BlockID = "W" // host browser
 	BlockC BlockID = "C" // claude
 	BlockL BlockID = "L" // signing in to the accounts that are not
 	BlockX BlockID = "X" // codex, when installed
@@ -32,7 +33,7 @@ const (
 )
 
 // Blocks is the order of the run.
-var Blocks = []BlockID{BlockP, BlockA, BlockB, BlockC, BlockL, BlockX, BlockK, BlockD, BlockT, BlockF, BlockM}
+var Blocks = []BlockID{BlockP, BlockA, BlockB, BlockW, BlockC, BlockL, BlockX, BlockK, BlockD, BlockT, BlockF, BlockM}
 
 // Title heads the answers of the block in the feed.
 func (b BlockID) Title() string {
@@ -43,6 +44,8 @@ func (b BlockID) Title() string {
 		return "This machine"
 	case BlockB:
 		return "Session windows"
+	case BlockW:
+		return "Browser"
 	case BlockC:
 		return "Claude"
 	case BlockL:
@@ -185,6 +188,8 @@ func (s *Survey) questions(b BlockID) []Question {
 		qs = s.thisMachine()
 	case BlockB:
 		qs = s.windows()
+	case BlockW:
+		qs = []Question{s.browserQuestion()}
 	case BlockC:
 		qs = s.claude()
 	case BlockL:

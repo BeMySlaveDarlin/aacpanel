@@ -5,6 +5,7 @@ import { Icon } from "./icons.js";
 export const TABS = [
     { id: "sessions", label: "Sessions", icon: Icon.sessions },
     { id: "terminals", label: "Terminals", icon: Icon.prompt },
+    { id: "browser", label: "Browser", icon: Icon.monitor },
     { id: "host", label: "Host", icon: Icon.cpu },
 ];
 
@@ -17,12 +18,12 @@ export const SECTIONS = [...TABS, ...PAGES];
 // Sessions and profiles stand left of the home button, the host and the
 // terminals right of it, each side in this order.
 const LEFT = ["sessions", "profiles"];
-const RIGHT = ["host", "terminals"];
+const RIGHT = ["host", "terminals", "browser"];
 
 // Nav draws the menu. A listener without the terminal has no terminals item:
 // a button there would open a screen with nothing behind it.
-export function Nav({ current, onSelect, home, terminals = true }) {
-    const items = SECTIONS.filter((section) => terminals || section.id !== "terminals");
+export function Nav({ current, onSelect, home, terminals = true, browser = false }) {
+    const items = SECTIONS.filter((section) => (terminals || section.id !== "terminals") && (browser || section.id !== "browser"));
     const button = (section) => html`
         <button
             key=${section.id}

@@ -13,6 +13,7 @@ import { Alerts } from "../screens/alerts.js";
 import { Host } from "../screens/host.js";
 import { Machine } from "../screens/machine.js";
 import { Sessions, sessionChips } from "../screens/sessions.js";
+import { Browser } from "../screens/browser.js";
 import { Terminals } from "../screens/terms.js";
 import { useTermAvailable } from "../screens/chat/term.js";
 import { Devices } from "../screens/devices.js";
@@ -122,6 +123,7 @@ export function MobileShell({
     useEffect(() => {
         if (tab === "terminals" && term.known && !term.route) goTab("host");
     }, [tab, term.known, term.route, goTab]);
+    useEffect(() => { if (tab === "browser" && exec.browser === false) goTab("host"); }, [tab, exec.browser, goTab]);
     useEffect(() => {
         if (!jump) return;
         goHome(jump.name, jump.id);
@@ -239,6 +241,7 @@ export function MobileShell({
                     current=${page || tab}
                     onSelect=${goNav}
                     terminals=${term.route}
+                    browser=${Boolean(exec.browser)}
                     home=${html`
                         <${HomeButton}
                             snapshot=${snapshot}
@@ -257,6 +260,7 @@ function Screen({
     tab, tree, snapshot, filter, onFilter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec,
     history, faults, onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm,
 }) {
+    if (tab === "browser" && exec.browser) return html`<${Browser} exec=${exec} onLayer=${onLayer} />`;
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
             exec=${exec} wait=${wait} faults=${faults} onLayer=${onLayer}

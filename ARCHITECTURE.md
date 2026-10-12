@@ -1355,6 +1355,7 @@ The list of actions is closed.
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
 | terminals of the panel | `term.start`, `term.close`, `term.rename`, `term.console` |
+| browser profiles | `browser.create`, `browser.open`, `browser.close`, `browser.delete` |
 | secrets | `secret.put`, `secret.drop` |
 
 What is deliberately not on the list: removing containers, images and volumes,
@@ -1821,6 +1822,77 @@ executor's own variables, and the collector, a system unit, does not see what
 is set for the user's manager alone: `AACP_FILES` goes into the host
 description, which both units read. A picture a call returned is in the
 transcript already, inside the result: the feed carries its place on the call.
+
+### The browser on the host
+
+The Browser screen controls a headless Chrome or Chromium on the host. It
+shows JPEG frames and sends typed pointer, touch, wheel, keyboard and text
+input. Each profile keeps its own cookies and sign-ins, tabs and history; it
+never imports the user's desktop browser. A lifecycle action goes through the
+same confirmation gate and append-only journal as every other host action.
+Page addresses and typed input are not journaled. While enabled, the service
+can control these signed-in web sessions and see their rendered pages and
+input. Keeping profile files off the service mount does not remove that web
+account authority.
+
+The executor advertises an explicit browser capability only when
+`AACP_BROWSER=1` and `AACP_CHROME` names an executable. The installer asks one
+question, Off by default, and writes only host.env. The service cannot enable
+it or select an executable. Restarting the executor after switching it off
+removes the bridge and stops surviving browser holders. An older executor
+without this capability has no browser navigation entry; the compatibility
+rule for other action kinds is unchanged.
+
+A profile has an opaque id below `$XDG_STATE_HOME/aacpanel/browser`, with
+`~/.local/state` as the XDG default. This directory must be outside the
+collector's state mount. Its private holder socket lives below
+`$XDG_RUNTIME_DIR/aacpanel-browser`, outside the mounted executor runtime
+directory. Only `browser.sock`, the executor's typed bridge, reaches the
+service. It accepts no paths, Chrome arguments or arbitrary CDP methods. The
+holder talks to Chrome through descriptors 3 and 4, with no debugging port.
+Profile names are labels, never paths; rooted operations refuse linked
+profile directories. Uninstall leaves profile data unless the executor,
+stream and browser state is selected for deletion.
+
+The address bar accepts http, https and about:blank. Before a page or an
+out-of-process frame runs, its CDP session blocks file requests and intercepts
+file choosers. Downloads are denied browser-wide. Ordinary in-page data and
+javascript links remain part of the web. Uploads, downloads, browser extension
+pages, a desktop password manager and a raw DevTools console are not exposed
+by the screen. JavaScript dialogs are dismissed.
+
+Network access is public internet only. A proxy inside the holder resolves a
+name, rejects a DNS answer containing a forbidden address, and dials the
+checked IP itself. It refuses loopback, private, link-local, CGNAT, multicast,
+unspecified and host-interface addresses, including their IPv6 forms. HTTP
+uses forwarding and HTTPS uses CONNECT; redirects pass the same check at
+connection time. Chrome has no proxy bypass, including loopback, QUIC is off,
+and WebRTC cannot use non-proxied UDP. The cost is no LAN browsing and reduced
+support for sites depending on direct UDP. This is the network boundary of a
+controlled browser, not a promise to contain a compromised Chrome process.
+
+At most two profiles run, with one controller for each. Each systemd user unit
+has MemoryMax=2G, MemorySwapMax=0, CPUQuota=200%, the configured CPU affinity,
+and KillMode=control-group. Leaving a screen stops its screencast; after thirty
+seconds with no viewer the holder closes Chrome. A hidden page releases its
+connection, and a disconnected viewer cannot keep an image queue alive.
+
+Rendering uses at most DPR 2 and JPEG quality 60. Desktop frames are
+downsampled to CSS dimensions. The holder acknowledges Chrome promptly and
+keeps one replaceable latest frame. At most twelve frames per second leave
+that slot, with one awaiting the viewer. SSE announces the frame sequence;
+the authenticated JPEG GET is the viewer's ACK. The service holds only that
+pending JPEG, and a slow viewer receives the newest static frame when it
+resumes. Image fetches follow the selected panel endpoint and its authenticated
+device; no browser response enters the service worker's offline cache. The
+viewer releases each image URL and preserves its aspect ratio, mapping input
+through the displayed image bounds. Native touch movements let the page handle
+both dragging controls and scrolling. A viewport generation rejects pointer
+input against an image from a prior size or tab. This bounds the WAN queue
+and avoids base64 there, but Chrome
+still renders and encodes while a slow viewer waits. The input composer sends
+committed Unicode text; actual phone keyboards, site logins and GPU costs need
+acceptance on the host.
 
 **A search of a conversation runs where the transcript lies.** The screen holds
 only the window of the feed it has loaded, and the service has no parser of

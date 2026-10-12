@@ -313,6 +313,17 @@ func (a *Service) CurrentDevice(r *http.Request) int64 {
 	return info.device
 }
 
+// CurrentStreamDevice follows the same credential order as VerifyStream.
+// EventSource cannot send a bearer header, so an alternate panel address
+// authenticates its stream with the query token of that same device.
+func (a *Service) CurrentStreamDevice(r *http.Request) int64 {
+	info, err := a.checkFrom(r, true)
+	if err != nil {
+		return 0
+	}
+	return info.device
+}
+
 type source int
 
 const (

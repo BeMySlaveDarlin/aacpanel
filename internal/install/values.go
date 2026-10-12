@@ -34,6 +34,14 @@ func (s *Survey) HostEnv() []Var {
 		{Key: hostcfg.HomeSessionEnv, Value: s.valueOr("home", "")},
 		{Key: hostcfg.LangEnv, Value: s.valueOr("locale", "")},
 	}
+	program := s.valueOr("browser", "off")
+	enabled := "0"
+	if program != "off" {
+		enabled = "1"
+	} else {
+		program = ""
+	}
+	out = append(out, Var{Key: "AACP_BROWSER", Value: enabled}, Var{Key: "AACP_CHROME", Value: program})
 	// No windows is an answer of its own: the empty template, and no
 	// display to open anything on.
 	terminal, display := s.valueOr("terminal", ""), ""

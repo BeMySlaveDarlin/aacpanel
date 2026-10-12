@@ -20,6 +20,7 @@ export function useExec() {
                 const body = await response.json();
                 setState({
                     available: Boolean(body.available),
+                    browser: body.browser === true,
                     reason: body.reason || "",
                     kinds: Array.isArray(body.kinds) && body.kinds.length ? body.kinds : null,
                 });

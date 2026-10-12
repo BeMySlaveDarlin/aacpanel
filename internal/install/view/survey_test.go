@@ -100,8 +100,8 @@ func TestEnterAllTheWay(t *testing.T) {
 		s.send(press("enter"))
 		keys++
 	}
-	if keys != 21 || s.m.status != 0 {
-		t.Errorf("the default path took %d keys and ended with %d, want 21 and 0; the feed:\n%s", keys, s.m.status, ui.Strip(strings.Join(s.feed, "\n")))
+	if keys != 22 || s.m.status != 0 {
+		t.Errorf("the default path took %d keys and ended with %d, want 22 and 0; the feed:\n%s", keys, s.m.status, ui.Strip(strings.Join(s.feed, "\n")))
 	}
 	feed := ui.Strip(strings.Join(s.feed, "\n"))
 	for _, want := range []string{"What does the panel call this machine? → lab", "Which display do the windows open on? → :0",
