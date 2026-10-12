@@ -434,8 +434,6 @@ func blockOf(id string) BlockID {
 		return BlockA
 	case "terminal", "auto", "display", "locale":
 		return BlockB
-	case "browser":
-		return BlockW
 	case "claude", "accounts", "transport":
 		return BlockC
 	case "login":

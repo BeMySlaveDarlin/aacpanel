@@ -20,12 +20,6 @@ var gateExports = map[string]bool{
 }
 
 var ceremonies = map[string]ceremony{
-	// Opening a profile passes the gate. Its attached controller carries only
-	// typed page input and viewport sizes; lifecycle actions remain gated.
-	"src/screens/browser/viewer.js": {
-		paths:   []string{"/api/browser/input?", "/api/browser/size?", "/api/browser/stream?", "/api/browser/frame?"},
-		methods: []string{"POST"},
-	},
 	"src/auth.js": {
 		paths:   []string{"/auth/passkey/", "/auth/token", "/auth/methods", "/logout", "/login"},
 		methods: []string{"POST"},

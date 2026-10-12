@@ -16,8 +16,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"aacpanel/internal/cdp"
 )
 
 // browser is one headless Chrome the fixtures of a run share. Starting Chrome
@@ -27,13 +25,16 @@ import (
 // over the debugging pipe: no port, nothing to install.
 type browser struct {
 	cmd     *exec.Cmd
-	pipe    *cdp.Pipe
+	toMu    sync.Mutex
+	to      io.WriteCloser
 	profile string
 
-	mu     sync.Mutex
-	pages  map[string]*page
-	dead   error
-	stderr *tailBuffer
+	mu      sync.Mutex
+	seq     int
+	waiting map[int]chan cdpMessage
+	pages   map[string]*page
+	dead    error
+	stderr  *tailBuffer
 	// disposeWait bounds the dispose of a run's browser context; zero is
 	// disposeBound.
 	disposeWait time.Duration
@@ -75,8 +76,6 @@ func (p *page) tell() {
 // note keeps what an event of the page's own session says.
 func (p *page) note(msg cdpMessage) {
 	switch msg.Method {
-	case "Page.domContentEventFired":
-		p.tell()
 	case "Runtime.exceptionThrown":
 		var ev struct {
 			ExceptionDetails struct {
@@ -103,7 +102,16 @@ func (p *page) note(msg cdpMessage) {
 	}
 }
 
-type cdpMessage = cdp.Message
+type cdpMessage struct {
+	ID        int             `json:"id,omitempty"`
+	Method    string          `json:"method,omitempty"`
+	Params    json.RawMessage `json:"params,omitempty"`
+	Result    json.RawMessage `json:"result,omitempty"`
+	SessionID string          `json:"sessionId,omitempty"`
+	Error     *struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+}
 
 // browsers are started on first use, a few for each kind of pointer: what the
 // page is told about its pointer is a flag of the process, not of a tab, and
@@ -228,8 +236,8 @@ func startBrowser(chrome, pointer string) (*browser, error) {
 		return nil, err
 	}
 	b := &browser{
-		profile: profile, stderr: &tailBuffer{limit: 8 << 10},
-		pages: map[string]*page{},
+		to: to, profile: profile, stderr: &tailBuffer{limit: 8 << 10},
+		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{},
 	}
 	b.cmd = exec.Command(chrome, "--headless=new", "--remote-debugging-pipe", "--user-data-dir="+profile,
 		"--password-store=basic", "--no-first-run", "--no-default-browser-check",
@@ -245,20 +253,35 @@ func startBrowser(chrome, pointer string) (*browser, error) {
 	}
 	_ = chromeIn.Close()
 	_ = chromeOut.Close()
-	b.attach(to, from)
+	go b.read(from)
 	return b, nil
 }
 
-func (b *browser) attach(to io.WriteCloser, from io.ReadCloser) {
-	b.pipe = cdp.New(to, from, func(msg cdp.Message) {
+func (b *browser) read(from io.ReadCloser) {
+	defer from.Close()
+	in := bufio.NewReader(from)
+	for {
+		raw, err := in.ReadBytes(0)
+		if err != nil {
+			b.fail(fmt.Errorf("Chrome closed the pipe: %v\n%s", err, b.stderr))
+			return
+		}
+		var msg cdpMessage
+		if json.Unmarshal(raw[:len(raw)-1], &msg) != nil {
+			continue
+		}
 		b.mu.Lock()
-		defer b.mu.Unlock()
-		if msg.SessionID != "" {
+		switch {
+		case msg.ID != 0:
+			if ch := b.waiting[msg.ID]; ch != nil {
+				delete(b.waiting, msg.ID)
+				ch <- msg
+			}
+		case msg.SessionID != "":
 			if p := b.pages[msg.SessionID]; p != nil {
 				p.note(msg)
 			}
-		}
-		if msg.Method == "Target.detachedFromTarget" {
+		case msg.Method == "Target.detachedFromTarget":
 			var ev struct {
 				SessionID string `json:"sessionId"`
 			}
@@ -268,8 +291,8 @@ func (b *browser) attach(to io.WriteCloser, from io.ReadCloser) {
 				p.tell()
 			}
 		}
-	})
-	go func() { <-b.pipe.Done(); b.fail(fmt.Errorf("Chrome closed the pipe: %v\n%s", b.pipe.Err(), b.stderr)) }()
+		b.mu.Unlock()
+	}
 }
 
 func (b *browser) fail(err error) {
@@ -277,6 +300,10 @@ func (b *browser) fail(err error) {
 	defer b.mu.Unlock()
 	if b.dead == nil {
 		b.dead = err
+	}
+	for id, ch := range b.waiting {
+		close(ch)
+		delete(b.waiting, id)
 	}
 }
 
@@ -288,9 +315,43 @@ func (b *browser) alive() error {
 
 // call sends one command and waits for its answer.
 func (b *browser) call(ctx context.Context, session, method string, params any) (json.RawMessage, error) {
-	var raw json.RawMessage
-	err := b.pipe.Call(ctx, session, method, params, &raw)
-	return raw, err
+	body, err := json.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan cdpMessage, 1)
+	b.mu.Lock()
+	if b.dead != nil {
+		b.mu.Unlock()
+		return nil, b.dead
+	}
+	b.seq++
+	id := b.seq
+	b.waiting[id] = ch
+	b.mu.Unlock()
+
+	line, _ := json.Marshal(cdpMessage{ID: id, Method: method, Params: body, SessionID: session})
+	b.toMu.Lock()
+	_, err = b.to.Write(append(line, 0))
+	b.toMu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case msg, ok := <-ch:
+		if !ok {
+			return nil, b.alive()
+		}
+		if msg.Error != nil {
+			return nil, fmt.Errorf("%s: %s", method, msg.Error.Message)
+		}
+		return msg.Result, nil
+	case <-ctx.Done():
+		b.mu.Lock()
+		delete(b.waiting, id)
+		b.mu.Unlock()
+		return nil, fmt.Errorf("%s: %w", method, ctx.Err())
+	}
 }
 
 // track starts keeping what the browser tells of the tab of a session.
@@ -375,7 +436,7 @@ func (b *browser) forget(session string) {
 }
 
 func (b *browser) close() {
-	_ = b.pipe.Close()
+	_ = b.to.Close()
 	if b.cmd.Process != nil {
 		_ = b.cmd.Process.Kill()
 		_ = b.cmd.Wait()
@@ -437,11 +498,6 @@ func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage,
 	}
 	defer close()
 	for {
-		// A module installs window.done before DOMContentLoaded. Waking on
-		// that event avoids paying a polling interval for every new fixture.
-		b.mu.Lock()
-		news := b.pages[session].news
-		b.mu.Unlock()
 		raw, err := b.pageCall(ctx, session, url, "Runtime.evaluate", map[string]any{
 			"expression": "window.done", "awaitPromise": true, "returnByValue": true})
 		if err != nil {
@@ -477,7 +533,6 @@ func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage,
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("the fixture did not finish in time: %w", ctx.Err())
-		case <-news:
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
@@ -606,9 +661,9 @@ func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = to.Close(); _ = fromChrome.Close(); _ = toChrome.Close() })
-	b := &browser{stderr: &tailBuffer{limit: 1 << 10},
-		pages: map[string]*page{}, disposeWait: 100 * time.Millisecond}
-	b.attach(to, from)
+	b := &browser{to: to, stderr: &tailBuffer{limit: 1 << 10},
+		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{}, disposeWait: 100 * time.Millisecond}
+	go b.read(from)
 	go func() {
 		in := bufio.NewReader(toChrome)
 		line, err := in.ReadBytes(0)

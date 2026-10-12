@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -47,7 +46,6 @@ type Server struct {
 	tokens       *auth.TokenLogin
 	exec         *action.Client
 	terms        *terminals
-	browsers     *browsers
 	chat         *chat.Client
 	shelf        *chat.ReviewShelf
 	paint        *repo.Cache
@@ -302,7 +300,6 @@ func run() error {
 		tokens:     tokens,
 		exec:       execClient,
 		terms:      newTerminals(termlink.NewClient(termSocket)),
-		browsers:   newBrowsers(filepath.Join(filepath.Dir(env("AACP_EXEC_SOCKET", "/run/aacpanel-exec/sock")), "browser.sock")),
 		chat:       chat.New(chatSocket),
 		shelf:      &chat.ReviewShelf{Socket: reviewSocket},
 		paint:      repo.NewCache(repo.CacheEntries),

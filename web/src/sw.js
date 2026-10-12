@@ -188,11 +188,6 @@ self.addEventListener("fetch", (event) => {
 
     const url = new URL(request.url);
 
-    // Browser responses belong to a live controller. A frame's sequence
-    // creates a unique URL, so caching would retain a history of signed-in
-    // pages and fill the device. This applies to alternate panel origins too.
-    if (url.pathname === "/api/browser" || url.pathname.startsWith("/api/browser/")) return;
-
     if (url.pathname === DOWNLOAD_URL || url.pathname === SEARCH_URL) return;
 
     if (request.headers.get("Accept") === "text/event-stream") return;

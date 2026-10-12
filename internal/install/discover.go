@@ -22,7 +22,6 @@ type Choice struct{ Value, Source string }
 // Found is what the questions offer as their options: everything here was
 // read off this machine, nothing is a default of the panel.
 type Found struct {
-	Browser   string
 	Host      string // the short host name
 	Terminals []Choice
 	Displays  []Choice
@@ -62,7 +61,6 @@ func Discover(m Machine, f Facts, certDirs []string) Found {
 	present, _ := m.ReadFile(filepath.Join(SysRoot, "devices/system/cpu/present"))
 	atom, _ := m.ReadFile(filepath.Join(SysRoot, "devices/cpu_atom/cpus"))
 	return Found{
-		Browser:   browserProgram(m),
 		Host:      shortHost(m),
 		Terminals: Terminals(m),
 		Displays:  Displays(m),

@@ -194,17 +194,6 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Kinds: s.kinds()}
 	}
 
-	if req.Ask == AskBrowser {
-		asker, ok := s.exec.(BrowserAsker)
-		if !ok {
-			return Failed(req.ID, errors.New("this executor has no browser"), 0)
-		}
-		status, err := asker.Browser(ctx)
-		if err != nil {
-			return Failed(req.ID, err, 0)
-		}
-		return Response{ID: req.ID, OK: true, Browser: &status}
-	}
 	if req.Ask == AskTerms {
 		asker, ok := s.exec.(TermsAsker)
 		if !ok {

@@ -166,25 +166,6 @@ func TestWorkerLetsTheSearchOfAConversationPastIt(t *testing.T) {
 	}
 }
 
-// Browser frames and state have no offline meaning. They must bypass both
-// same-origin caching and the alternate endpoint branch of the worker.
-func TestWorkerKeepsNoBrowserResponses(t *testing.T) {
-	paths := []string{"/api/browser", "/api/browser/stream?token=device", "/api/browser/frame?id=view&sequence=1", "/api/browser/input", "/api/browser/size"}
-	var requests []string
-	for _, path := range paths {
-		requests = append(requests, path, "https://near.example"+path)
-	}
-	got := runWorker(t, []swWorld{{Name: "live browser", Tell: true, Base: "https://near.example", Endpoints: []string{"https://near.example"}, Requests: requests}})[0]
-	for _, body := range got.Bodies {
-		if body != "past the worker" {
-			t.Fatalf("the worker retained a browser response: %+v", got)
-		}
-	}
-	if len(got.Asked) != 0 || len(got.Cached) != 0 || len(got.DataCached) != 0 {
-		t.Fatalf("browser requests entered the worker cache: %+v", got)
-	}
-}
-
 func TestChatImagesTravelAsBytes(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat.js")
 	made := strings.Count(src, "createObjectURL")
@@ -198,20 +179,18 @@ func TestChatImagesTravelAsBytes(t *testing.T) {
 }
 
 type swWorld struct {
-	Name      string   `json:"name"`
-	Keep      bool     `json:"keep"`
-	Tell      bool     `json:"tell"`
-	Base      string   `json:"base"`
-	Dead      []string `json:"dead"`
-	Requests  []string `json:"requests"`
-	Endpoints []string `json:"endpoints"`
+	Name     string   `json:"name"`
+	Keep     bool     `json:"keep"`
+	Tell     bool     `json:"tell"`
+	Base     string   `json:"base"`
+	Dead     []string `json:"dead"`
+	Requests []string `json:"requests"`
 }
 
 type swRun struct {
-	Asked      []string `json:"asked"`
-	Bodies     []string `json:"bodies"`
-	Cached     []string `json:"cached"`
-	DataCached []string `json:"dataCached"`
+	Asked  []string `json:"asked"`
+	Bodies []string `json:"bodies"`
+	Cached []string `json:"cached"`
 }
 
 // builtWorker bundles the service worker the way the release does: the worker
@@ -319,11 +298,6 @@ for (const w of worlds) {
             fn({ data: { type: "BASE", base: w.base }, waitUntil: (p) => waits.push(p) });
         }
     }
-    if (w.endpoints) {
-        for (const fn of handlers.message || []) {
-            fn({ data: { type: "ENDPOINTS", origins: w.endpoints }, waitUntil: p => waits.push(p) });
-        }
-    }
     const bodies = [];
     for (const path of w.requests) {
         let answer = null;
@@ -336,10 +310,7 @@ for (const w of worlds) {
         bodies.push(answer ? await (await answer).text() : "past the worker");
     }
     await Promise.all(waits);
-    out.push({ asked, bodies,
-        cached: [...(store.get("aacpanel-shell-test") || new Map()).keys()],
-        dataCached: [...(store.get("aacpanel-data") || new Map()).keys()],
-    });
+    out.push({ asked, bodies, cached: [...(store.get("aacpanel-shell-test") || new Map()).keys()] });
 }
 process.stdout.write(JSON.stringify(out));
 `

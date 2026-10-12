@@ -1,7 +1,6 @@
 package action
 
 import (
-	"aacpanel/internal/browserlink"
 	"errors"
 	"time"
 )
@@ -18,9 +17,8 @@ const (
 
 // Response is what came out.
 type Response struct {
-	Browser *browserlink.Status `json:"browser,omitempty"`
-	ID      string              `json:"id"`
-	OK      bool                `json:"ok"`
+	ID string `json:"id"`
+	OK bool   `json:"ok"`
 
 	Error string `json:"error,omitempty"`
 	// Lookup codes survive the executor socket so callers need not parse

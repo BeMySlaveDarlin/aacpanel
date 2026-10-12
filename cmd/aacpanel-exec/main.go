@@ -18,8 +18,6 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
-	"aacpanel/internal/browser"
-	"aacpanel/internal/browserlink"
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/executor"
 	"aacpanel/internal/hook"
@@ -70,7 +68,6 @@ func main() {
 		"start a terminal of the panel from the task on stdin: a shell in tmux on the panel's own socket. "+
 			"Like -launch, it is called by the executor through systemd-run: a tmux server started inside the "+
 			"executor would give every shell its sandbox and die with its restart")
-	browserHold := flag.String("browser-hold", "", "hold one panel browser profile in its private unit")
 	hold := flag.Bool("hold", false,
 		"hold a claude session on the stream protocol from the task on stdin, until it ends. "+
 			"Not a panel action: the launcher starts it in place of a tmux server")
@@ -113,15 +110,6 @@ func main() {
 		os.Exit(runObserver(*observe))
 	}
 
-	if *browserHold != "" {
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-		defer stop()
-		if err := browser.Hold(ctx, browser.Load(), *browserHold); err != nil {
-			log.Print(err)
-			os.Exit(1)
-		}
-		return
-	}
 	if *hold {
 		os.Exit(runHold())
 	}
@@ -393,9 +381,6 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 		log.Printf("session terminal: %s", termSocket)
 	}
 
-	if err := exec.StartBrowsers(ctx, socket); err != nil {
-		log.Printf("browser: %v", err)
-	}
 	go keepLimits(ctx)
 	exec.StartCodex(ctx)
 	go exec.KeepPrograms(ctx)
@@ -403,12 +388,14 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 
 	kinds := exec.Kinds()
 	log.Printf("listening on %s, actions allowed: %d of %d", socket, len(kinds), len(action.Kinds))
-	if reason := shortListReason(kinds); reason != "" {
-		log.Print(reason)
+	if len(kinds) < len(action.Kinds) {
+		log.Printf("no tmux — actions over panel sessions are not announced: "+
+			"install tmux, the list is recounted on every question, restarting is not needed (%d actions hidden)",
+			len(action.Kinds)-len(kinds))
 	}
 	log.Printf("docker %s, the panel container %q is not shut down from here", dockerHost, self)
 	if cores != "" {
-		log.Printf("sessions, terminals, browsers and observers run on cores %s (%s)", cores, hostcfg.CoresEnv)
+		log.Printf("sessions, terminals and observers run on cores %s (%s)", cores, hostcfg.CoresEnv)
 	} else {
 		log.Print("sessions, terminals and observers run where the system puts them")
 	}
@@ -460,14 +447,6 @@ func keepLimits(ctx context.Context) {
 }
 
 type audited struct{ next action.Executor }
-
-func (a audited) Browser(ctx context.Context) (browserlink.Status, error) {
-	asker, ok := a.next.(action.BrowserAsker)
-	if !ok {
-		return browserlink.Status{}, fmt.Errorf("this executor has no browser")
-	}
-	return asker.Browser(ctx)
-}
 
 // Kinds reports which action kinds the wrapped executor can run.
 func (a audited) Kinds() []action.Kind {

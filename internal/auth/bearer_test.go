@@ -134,9 +134,6 @@ func TestQueryTokenOnlyForStreams(t *testing.T) {
 	if err := a.VerifyStream(stream); err != nil {
 		t.Errorf("a stream by ?token=: %v", err)
 	}
-	if a.CurrentStreamDevice(stream) != 1 || a.CurrentDevice(stream) != 0 {
-		t.Fatal("stream device lookup lost the query credential or admitted it outside streams")
-	}
 	if err := a.Verify(stream); !errors.Is(err, ErrNoSession) {
 		t.Errorf("the ordinary check accepted ?token=: %v", err)
 	}

@@ -33,7 +33,6 @@ var Flags = []Flag{
 	{Name: "--home-session", Takes: "NAME", Help: "the name of the machine's own claude session"},
 	{Name: "--projects-root", Takes: "DIR", Help: "where projects live; again for more", Many: true},
 	{Name: "--state-dir", Takes: "DIR", Help: "where the panel keeps its state"},
-	{Name: "--browser", Takes: "off|PATH", Help: "host browser, off by default; otherwise the absolute Chrome or Chromium executable"},
 	{Name: "--terminal", Takes: "TEMPLATE", Help: "how a window to a session opens, like 'gnome-terminal --'"},
 	{Name: "--window-on-start", Takes: "yes|no", Help: "open a window when a session starts"},
 	{Name: "--display", Takes: "DISPLAY", Help: "the display windows open on, like :0"},
