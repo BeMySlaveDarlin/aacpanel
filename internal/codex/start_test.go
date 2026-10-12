@@ -3,9 +3,12 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +35,83 @@ func params(t *testing.T, raw json.RawMessage) map[string]any {
 
 // polls lets the link read the daemon a few rounds.
 func polls() { time.Sleep(8 * pollEvery) }
+
+func TestAPollKeepsAThreadOpenedAfterItsLoadedList(t *testing.T) {
+	for _, resume := range []bool{false, true} {
+		t.Run(fmt.Sprintf("resume=%t", resume), func(t *testing.T) {
+			t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			srv := codextest.New(t)
+			srv.Add(idle(threadA))
+			srv.Add(idle(threadB))
+			l := NewLink(srv.Home, "acme")
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			socket, err := filepath.EvalSymlinks(srv.Socket())
+			if err != nil {
+				t.Fatal(err)
+			}
+			c, err := dial(ctx, socket, l.handle)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.close()
+			if _, err := initialize(ctx, c); err != nil {
+				t.Fatal(err)
+			}
+			l.conn = c
+			if err := l.poll(ctx, c); err != nil {
+				t.Fatal(err)
+			}
+			srv.Unload(threadB)
+			listed, release := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			unblock := func() { once.Do(func() { close(release) }) }
+			defer unblock()
+			// The terminal lookup follows the loaded list, with the subscription
+			// guard released. Hold the poll there while another action opens a thread.
+			l.terminals = func(ctx context.Context, ids []string) (map[string]string, error) {
+				close(listed)
+				select {
+				case <-release:
+					return nil, nil
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			}
+			done := make(chan error, 1)
+			go func() { done <- l.poll(ctx, c) }()
+			select {
+			case <-listed:
+			case <-ctx.Done():
+				t.Fatal("the poll did not finish its loaded list")
+			}
+			id := threadB
+			if resume {
+				_, err = l.Resume(ctx, id)
+			} else {
+				id, err = l.Start(ctx, Begin{CWD: "/srv/proj", Name: "helper", Hold: true})
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			unblock()
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			links := &Links{list: []*Link{l}}
+			if got := links.Find(SessionName(id)); len(got) != 1 {
+				t.Fatalf("the older poll lost the opened thread %s: %v", id, got)
+			}
+			if _, _, ok := stateOf(t, id); !ok {
+				t.Fatal("the older poll removed the opened thread's state")
+			}
+			if !resume && len(links.Find(SessionName(threadB))) != 0 {
+				t.Fatal("the poll kept a thread that was unloaded before its list")
+			}
+		})
+	}
+}
 
 // A thread starts in the directory with only what the map chose: a choice
 // left empty is not sent, so the config.toml of the home decides it.

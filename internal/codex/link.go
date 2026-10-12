@@ -309,6 +309,10 @@ type thread struct {
 	parent string
 	// written is the state last written, without its time.
 	written []byte
+	// seenAt is when the daemon last told of the thread. A poll lets go only
+	// what it has not heard of since its list of loaded threads: a thread
+	// started or resumed after that list is not on it, and is no less alive.
+	seenAt time.Time
 }
 
 // Link is the connection to the daemon of one codex home.
@@ -646,6 +650,7 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 	l.mu.Lock()
 	l.activity = nil
 	l.mu.Unlock()
+	listed := time.Now()
 	ids, err := loaded(ctx, c)
 	if err == nil {
 		l.unloaded(ids)
@@ -702,7 +707,7 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 		l.extras(ctx, c, id)
 		l.save(id)
 	}
-	l.drop(live)
+	l.drop(live, listed)
 	return nil
 }
 
@@ -760,6 +765,9 @@ func (l *Link) seen(info threadInfo, asked time.Time) bool {
 		info.Name = t.info.Name
 	}
 	t.info = info
+	if asked.After(t.seenAt) {
+		t.seenAt = asked
+	}
 	if t.info.Status.Type != "active" {
 		l.pending[info.ID] = slices.DeleteFunc(l.pending[info.ID], func(r Request) bool {
 			return r.Since.Before(asked)
@@ -1149,16 +1157,16 @@ func write(path string, body []byte) error {
 
 // drop forgets the threads the daemon no longer has loaded, and the requests
 // of threads that are not on the map — a subagent's thread asks too.
-func (l *Link) drop(live map[string]bool) {
+func (l *Link) drop(live map[string]bool, listed time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for id := range l.threads {
-		if !live[id] {
+	for id, t := range l.threads {
+		if !live[id] && !t.seenAt.After(listed) {
 			l.remove(id)
 		}
 	}
 	for id := range l.pending {
-		if !live[id] {
+		if !live[id] && l.threads[id] == nil {
 			delete(l.pending, id)
 		}
 	}
