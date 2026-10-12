@@ -22,7 +22,7 @@ import {
 
 // Terminals renders the tab. want is a terminal another screen sent here —
 // the button of a session opens the terminal of its project this way.
-export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
+export function Terminals({ snapshot, exec, onLayer, want, onWanted, onSession }) {
     const { terms, error, reload } = useTerms();
     const acts = useTermActs(exec, reload);
     const home = homeOf(snapshot, terms);
@@ -45,6 +45,7 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
 
     const show = (target) => {
         if (!target) return;
+        if (target.session) { onSession({ name: target.session, id: target.sessionId }); return; }
         pick(pageOf(pages, target.place));
         setOpen(target);
     };
@@ -103,7 +104,7 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
                             setContour(pageBy(key).contour);
                             setPicking(true);
                         }}
-                        onOpen=${(t) => show({ id: t.id, place: t.place })}
+                        onOpen=${show}
                         onClose=${closing.press}
                     />
                 `}
@@ -181,9 +182,9 @@ function TermLayer({ open, places, acts, onOpen, onNew, onBack }) {
             current=${open.id}
             acts=${acts}
             going=${closing.going}
-            onPick=${(it) => onOpen({ id: it.id, place: open.place })}
+            onPick=${onOpen}
             onClose=${closing.press}
-            onNew=${() => onNew(open.place)}
+            onNew=${t.foreign ? null : () => onNew(open.place)}
         />
         <${Term} key=${open.id} term=${open.id} />
         <${Sheet} open=${Boolean(what)} onClose=${done} inner

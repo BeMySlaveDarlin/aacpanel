@@ -887,3 +887,65 @@ func TestTerminalsOutsideTheMapStandOnThePersonalContour(t *testing.T) {
 			got.Unmarked.Home, got.Unmarked.Loose)
 	}
 }
+
+// Both shells reuse their existing fixture page for the panel, foreign and
+// Claude rows, including the action gate and the destination of a press.
+func TestTerminalsIncludeForeignServersAndOpenClaudeAsASession(t *testing.T) {
+	for _, wide := range []bool{false, true} {
+		t.Run(fmt.Sprintf("wide=%v", wide), func(t *testing.T) {
+			var got struct {
+				Error   string `json:"error"`
+				Foreign struct {
+					Rows []struct {
+						Name, Mark string
+						Foreign    bool
+					} `json:"rows"`
+					Stream             string `json:"stream"`
+					NewTab, Window     bool
+					Menu               []string
+					Confirmed          string
+					ClosedBefore       int
+					Closed             termAction
+					ClaudeConfirmed    string
+					ClaudeClosedBefore int
+					ClaudeClose        termAction
+					SessionScreen      bool
+					RawClaude          int
+				} `json:"foreign"`
+			}
+			if wide {
+				runWideFixture(t, "termsdesk.html", &got)
+			} else {
+				runFixture(t, "termsphone.html", &got)
+			}
+			if got.Error != "" {
+				t.Fatal(got.Error)
+			}
+			f := got.Foreign
+			if len(f.Rows) != 4 {
+				t.Fatalf("rows: %+v", f.Rows)
+			}
+			marks := []string{"", "tmux", "tmux · ops", "Claude · shop"}
+			for i, row := range f.Rows {
+				if row.Mark != marks[i] || row.Foreign != (i > 0) {
+					t.Errorf("row %d: %+v", i, row)
+				}
+			}
+			if f.Stream != "/api/term/stream?term=tm-"+strings.Repeat("b", 64) {
+				t.Errorf("foreign attach: %q", f.Stream)
+			}
+			if f.NewTab || f.Window || (!wide && !equalStrings(f.Menu, []string{"Close tab"})) {
+				t.Errorf("foreign controls: new=%v window=%v menu=%v", f.NewTab, f.Window, f.Menu)
+			}
+			if f.Confirmed != "Close logs?" || f.ClosedBefore != 0 || f.Closed.Kind != "tmux.close" || f.Closed.Target != "tm-"+strings.Repeat("b", 64) {
+				t.Errorf("foreign close: %+v", f)
+			}
+			if f.ClaudeConfirmed != "Close session shop?" || f.ClaudeClosedBefore != 0 || f.ClaudeClose.Kind != "session.close" || f.ClaudeClose.Target != "shop" {
+				t.Errorf("Claude close: %+v", f)
+			}
+			if !f.SessionScreen || f.RawClaude != 0 {
+				t.Errorf("Claude press: session screen=%v raw attaches=%d", f.SessionScreen, f.RawClaude)
+			}
+		})
+	}
+}

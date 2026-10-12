@@ -190,3 +190,17 @@
 }
 
 .tjump svg { color: var(--accent); }
+
+/* A foreign terminal names its server; a Claude row names the conversation
+   it opens so a raw shell is never promised there. */
+.tcard.foreign { border-style: dashed; }
+.tcardkind {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    color: var(--accent);
+    font-size: var(--t-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tcardwhen { grid-column: 3; grid-row: 1; }

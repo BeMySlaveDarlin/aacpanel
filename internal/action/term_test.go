@@ -53,6 +53,7 @@ func TestTermRequestsAreValidated(t *testing.T) {
 		{ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "make check"},
 		{ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: strings.Repeat("ü", TermNameMax)},
 		{Ask: AskTerms},
+		{ID: "a1", Kind: TmuxClose, Target: "tm-" + strings.Repeat("a", 64)},
 	}
 	for _, r := range good {
 		if err := r.Validate(); err != nil {
@@ -60,23 +61,28 @@ func TestTermRequestsAreValidated(t *testing.T) {
 		}
 	}
 	bad := map[string]Request{
-		"a session name for an id":  {ID: "a1", Kind: TermClose, Target: "shop"},
-		"an id in capitals":         {ID: "a1", Kind: TermConsole, Target: "t-1A2B3C4D"},
-		"a start without a place":   {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d"},
-		"a relative place":          {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d", Place: "srv/proj"},
-		"a place climbing out":      {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d", Place: "/srv/proj/../../etc"},
-		"a place with a semicolon":  {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d", Place: "/srv/proj;rm"},
-		"a place for another kind":  {ID: "a1", Kind: TermClose, Target: "t-1a2b3c4d", Place: "/srv/proj/shop"},
-		"a place for a session":     {ID: "a1", Kind: SessionClose, Target: "shop", Place: "/srv/proj/shop"},
-		"an empty name":             {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d"},
-		"a blank name":              {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "  "},
-		"a name too long":           {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: strings.Repeat("x", TermNameMax+1)},
-		"a name with an escape":     {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "red \x1b[31m"},
-		"a name over two lines":     {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "one\ntwo"},
-		"a name that is not UTF-8":  {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "a\xffb"},
-		"a name for a close":        {ID: "a1", Kind: TermClose, Target: "t-1a2b3c4d", Rename: "build"},
-		"the list asked for one":    {Ask: AskTerms, Target: "t-1a2b3c4d"},
-		"text typed into a console": {ID: "a1", Kind: TermConsole, Target: "t-1a2b3c4d", Text: "rm -rf ~"},
+		"a path for a tmux id":         {ID: "a1", Kind: TmuxClose, Target: "/tmp/tmux/default"},
+		"a panel id for foreign close": {ID: "a1", Kind: TmuxClose, Target: "t-1a2b3c4d"},
+		"uppercase tmux id":            {ID: "a1", Kind: TmuxClose, Target: "tm-" + strings.Repeat("A", 64)},
+		"nonhex tmux id":               {ID: "a1", Kind: TmuxClose, Target: "tm-" + strings.Repeat("z", 64)},
+		"foreign rename":               {ID: "a1", Kind: TermRename, Target: "tm-" + strings.Repeat("a", 64), Rename: "name"},
+		"a session name for an id":     {ID: "a1", Kind: TermClose, Target: "shop"},
+		"an id in capitals":            {ID: "a1", Kind: TermConsole, Target: "t-1A2B3C4D"},
+		"a start without a place":      {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d"},
+		"a relative place":             {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d", Place: "srv/proj"},
+		"a place climbing out":         {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d", Place: "/srv/proj/../../etc"},
+		"a place with a semicolon":     {ID: "a1", Kind: TermStart, Target: "t-1a2b3c4d", Place: "/srv/proj;rm"},
+		"a place for another kind":     {ID: "a1", Kind: TermClose, Target: "t-1a2b3c4d", Place: "/srv/proj/shop"},
+		"a place for a session":        {ID: "a1", Kind: SessionClose, Target: "shop", Place: "/srv/proj/shop"},
+		"an empty name":                {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d"},
+		"a blank name":                 {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "  "},
+		"a name too long":              {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: strings.Repeat("x", TermNameMax+1)},
+		"a name with an escape":        {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "red \x1b[31m"},
+		"a name over two lines":        {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "one\ntwo"},
+		"a name that is not UTF-8":     {ID: "a1", Kind: TermRename, Target: "t-1a2b3c4d", Rename: "a\xffb"},
+		"a name for a close":           {ID: "a1", Kind: TermClose, Target: "t-1a2b3c4d", Rename: "build"},
+		"the list asked for one":       {Ask: AskTerms, Target: "t-1a2b3c4d"},
+		"text typed into a console":    {ID: "a1", Kind: TermConsole, Target: "t-1a2b3c4d", Text: "rm -rf ~"},
 	}
 	for name, r := range bad {
 		if err := r.Validate(); err == nil {

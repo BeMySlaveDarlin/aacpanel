@@ -115,6 +115,8 @@ const (
 	TermStart Kind = "term.start"
 	// TermClose kills a terminal of the panel with whatever runs in it.
 	TermClose Kind = "term.close"
+	// TmuxClose closes a foreign terminal found again by its opaque id.
+	TmuxClose Kind = "tmux.close"
 	// TermRename gives a terminal of the panel a name of the person's own in
 	// place of the command it runs.
 	TermRename Kind = "term.rename"
@@ -142,7 +144,7 @@ var Kinds = []Kind{
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
-	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, SecretPut, SecretDrop,
+	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop,
 }
 
 // Valid reports whether the executor knows this kind of action.

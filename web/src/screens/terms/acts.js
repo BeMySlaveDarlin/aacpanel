@@ -14,7 +14,7 @@ import { afterClose } from "./places.js";
 function newestIn(terms, place) {
     let best = null;
     for (const t of terms || []) {
-        if (samePlace(t.place, place) && (!best || (t.created || 0) > (best.created || 0))) best = t;
+        if (!t.foreign && !t.session && samePlace(t.place, place) && (!best || (t.created || 0) > (best.created || 0))) best = t;
     }
     return best;
 }
@@ -28,12 +28,16 @@ export function useTermActs(exec, reload) {
     const can = {
         start: knows(exec, "term.start"),
         close: knows(exec, "term.close"),
+        foreignClose: knows(exec, "tmux.close"),
+        sessionClose: knows(exec, "session.close"),
         rename: knows(exec, "term.rename"),
         console: knows(exec, "term.console"),
     };
     const why = {
         start: whyNot(exec, "term.start"),
         close: whyNot(exec, "term.close"),
+        foreignClose: whyNot(exec, "tmux.close"),
+        sessionClose: whyNot(exec, "session.close"),
         rename: whyNot(exec, "term.rename"),
         console: whyNot(exec, "term.console"),
     };
@@ -55,7 +59,11 @@ export function useTermActs(exec, reload) {
     };
 
     const close = async (t) => {
-        const result = await run("term.close", t.id, { id: t.id });
+        const result = t.session
+            ? await run("session.close", t.session, {})
+            : t.foreign
+                ? await run("tmux.close", t.id, { id: t.id })
+                : await run("term.close", t.id, { id: t.id });
         if (result.ok) await reload();
         return result.ok;
     };
@@ -74,7 +82,9 @@ export function useTermActs(exec, reload) {
         return result.ok;
     };
 
-    return { can, why, start, close, rename, window };
+    const closeKey = (t) => t.session ? "sessionClose" : t.foreign ? "foreignClose" : "close";
+    return { can, why, start, close, rename, window,
+        canClose: (t) => can[closeKey(t)], whyClose: (t) => why[closeKey(t)] };
 }
 
 // useTabClose is the closing of terminals by their ×: the tabs of the open
@@ -94,13 +104,13 @@ export function useTabClose({ acts, entry, open = null, onOpen, onBack, ask }) {
     const closed = (gone) => {
         if (!open || gone.id !== open.id) return;
         const next = afterClose(entry, gone);
-        if (next) onOpen({ id: next.id, place: open.place });
+        if (next) onOpen(next);
         else onBack();
     };
 
     const press = async (t) => {
         if (going.includes(t.id)) return;
-        if (runs(t)) {
+        if (!t.session && (t.foreign || runs(t))) {
             ask(t);
             return;
         }

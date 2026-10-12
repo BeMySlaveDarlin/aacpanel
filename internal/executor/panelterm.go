@@ -2,11 +2,14 @@ package executor
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"aacpanel/internal/action"
@@ -19,8 +22,8 @@ import (
 const panelTermSocket = "aacpanel-term"
 
 // panelTmux is the tmux server the terminals of the panel live on: a socket of
-// their own, apart from the sessions the panel starts, so that what is listed
-// there is what the panel started and nothing else.
+// their own, apart from the sessions the panel starts. Only terminals with
+// the panel's id and place get its rename and desktop window controls.
 var panelTmux tmuxServer = panelTermSocket
 
 // termNameOption keeps the name a person gave a terminal; without one the
@@ -56,15 +59,21 @@ const termLastRunes = 160
 // terminal without one rather than holding up the list.
 var termCaptureTimeout = time.Second
 
-// Terms lists the terminals of the panel, each with the last line on its
-// screen.
+// Terms lists every live server the user owns. Only the panel's own terminals
+// get a screen preview: a host with many unrelated sessions costs one list per
+// server, not a capture per terminal.
 func (e *Executor) Terms(ctx context.Context) ([]action.Term, error) {
-	list, err := panelTerms(ctx)
+	entries, err := tmuxTerms(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for i := range list {
-		list[i].Last = termLast(ctx, list[i].ID)
+	list := make([]action.Term, 0, len(entries))
+	for _, entry := range entries {
+		t := entry.Term
+		if !t.Foreign {
+			t.Last = termLast(ctx, t.ID)
+		}
+		list = append(list, t)
 	}
 	return list, nil
 }
@@ -205,6 +214,9 @@ func (e *Executor) termClose(ctx context.Context, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := refuseClaudeTerm(ctx, panelTmux, t.ID); err != nil {
+		return "", err
+	}
 	if _, err := panelTmux.run(ctx, "kill-session", "-t", "="+t.ID); err != nil {
 		return "", fmt.Errorf("terminal %s did not close: %w", t.ID, err)
 	}
@@ -231,4 +243,185 @@ func (e *Executor) termConsole(ctx context.Context, id string) (string, error) {
 		return "", err
 	}
 	return e.openWindowTo(ctx, panelTmux, t.Place, t.ID)
+}
+
+// A tmux id binds a session to this incarnation of its server. Names and even
+// tmux session ids can be reused after a server exits; the socket inode, server pid and
+// session creation time keep a stale card from closing the replacement.
+type listedTerm struct {
+	action.Term
+	server tmuxServer
+	target string
+	panes  map[int]string
+}
+
+var termListTimeout = time.Second
+
+// The pane pids cover every window, including inactive ones. Matching the live
+// session processes through their parents costs no further tmux calls.
+var allTermFormat = strings.Join([]string{
+	"#{session_name}", "#{session_created}", "#{session_activity}", "#{session_attached}",
+	"#{" + launcher.TermPlaceOption + "}", "#{" + termNameOption + "}", "#{window_name}",
+	"#{session_id}", "#{pane_current_path}", "#{W:#{P:#{pane_pid} }}", "#{pid}", "#{pane_current_command}",
+}, "\t")
+
+func tmuxTerms(ctx context.Context) ([]listedTerm, error) {
+	base := os.Getenv("TMUX_TMPDIR")
+	if base == "" {
+		base = "/tmp"
+	}
+	dir := filepath.Join(base, fmt.Sprintf("tmux-%d", os.Getuid()))
+	info, err := os.Lstat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() || !ownedTmuxEntry(info) {
+		return nil, fmt.Errorf("the user's tmux directory is not an owned directory")
+	}
+	sockets, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var list []listedTerm
+	for _, socket := range sockets {
+		info, err := socket.Info()
+		if err != nil || info.Mode()&os.ModeSocket == 0 || !ownedTmuxEntry(info) {
+			continue
+		}
+		server := tmuxServer(socket.Name())
+		callCtx, cancel := context.WithTimeout(ctx, termListTimeout)
+		out, err := server.run(callCtx, "list-sessions", "-F", allTermFormat)
+		cancel()
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(out, "\n") {
+			f := strings.SplitN(line, "\t", 12)
+			if len(f) != 12 {
+				continue
+			}
+			created, _ := strconv.ParseInt(f[1], 10, 64)
+			activity, _ := strconv.ParseInt(f[2], 10, 64)
+			clients, _ := strconv.Atoi(f[3])
+			st := info.Sys().(*syscall.Stat_t)
+			digest := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%d:%d:%s\x00%s\x00%s", server, st.Dev, st.Ino, f[10], f[7], f[1])))
+			term := action.Term{ID: fmt.Sprintf("tm-%x", digest), Foreign: true, Server: socket.Name(),
+				Name: f[0], Place: f[8], Command: f[11], Busy: termBusy(f[11]),
+				Created: created, Activity: activity, Clients: clients}
+			if server == panelTmux && action.TermID(f[0]) && f[4] != "" {
+				term.ID, term.Foreign, term.Server, term.Place, term.Name = f[0], false, "", f[4], f[5]
+				if term.Name == "" {
+					term.Name = f[6]
+				}
+			}
+			panes := map[int]string{}
+			for _, field := range strings.Fields(f[9]) {
+				if pid, err := strconv.Atoi(field); err == nil {
+					panes[pid] = f[7]
+				}
+			}
+			list = append(list, listedTerm{Term: term, server: server, target: f[7], panes: panes})
+		}
+	}
+	sessions, err := terminalSessions()
+	if err != nil {
+		return nil, err
+	}
+	panes := map[int]string{}
+	for i := range list {
+		for pid := range list[i].panes {
+			panes[pid] = strconv.Itoa(i)
+		}
+	}
+	for _, session := range sessions {
+		if target, found := paneUp(panes, session.PID); found {
+			i, _ := strconv.Atoi(target)
+			if list[i].Session == "" {
+				list[i].Session, list[i].SessionID = session.Name, session.SessionID
+			}
+		}
+	}
+	return list, nil
+}
+
+func ownedTmuxEntry(info os.FileInfo) bool {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	return ok && st.Uid == uint32(os.Getuid()) && info.Mode()&os.ModeSymlink == 0
+}
+
+// An absent sessions directory means no sessions; an unreadable one must not
+// turn a Claude session into a terminal that can be killed without its close.
+func terminalSessions() ([]liveSession, error) {
+	var list []liveSession
+	for _, dir := range sessionsDirs() {
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, session := range sessionsFromDir(dir, entries) {
+			if !onStream(session) {
+				list = append(list, session)
+			}
+		}
+	}
+	return list, nil
+}
+
+func findTmuxTerm(ctx context.Context, id string) (listedTerm, error) {
+	if !action.TmuxID(id) {
+		return listedTerm{}, fmt.Errorf("invalid tmux terminal id")
+	}
+	list, err := tmuxTerms(ctx)
+	if err != nil {
+		return listedTerm{}, err
+	}
+	for _, t := range list {
+		if t.ID == id {
+			return t, nil
+		}
+	}
+	return listedTerm{}, fmt.Errorf("the tmux terminal is no longer listed")
+}
+
+func (e *Executor) tmuxClose(ctx context.Context, id string) (string, error) {
+	t, err := findTmuxTerm(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if t.Session != "" {
+		return "", fmt.Errorf("Claude session %s must be closed through session.close", t.Session)
+	}
+	if _, err := t.server.run(ctx, "kill-session", "-t", t.target); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("terminal %s on %s is closed", t.Name, t.Server), nil
+}
+
+func refuseClaudeTerm(ctx context.Context, server tmuxServer, name string) error {
+	sessions, err := terminalSessions()
+	if err != nil {
+		return err
+	}
+	if len(sessions) == 0 {
+		return nil
+	}
+	panes, err := server.panes(ctx)
+	if err != nil {
+		return err
+	}
+	for _, session := range sessions {
+		if target, found := paneUp(panes, session.PID); found && tmuxSessionOf(target) == name {
+			return fmt.Errorf("Claude session %s must be closed through session.close", session.Name)
+		}
+	}
+	return nil
 }

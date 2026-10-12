@@ -514,7 +514,7 @@ var windowKinds = []action.Kind{action.WindowOpen, action.WindowClose}
 
 var workKinds = []action.Kind{action.TaskStop, action.AgentStop, action.ObserverStop, action.AlarmCancel}
 
-var termKinds = []action.Kind{action.TermStart, action.TermClose, action.TermRename, action.TermConsole}
+var termKinds = []action.Kind{action.TermStart, action.TermClose, action.TermRename, action.TermConsole, action.TmuxClose}
 
 func tmuxHere(t *testing.T) string {
 	t.Helper()

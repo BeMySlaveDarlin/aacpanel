@@ -2,41 +2,47 @@ package action
 
 import (
 	"context"
+	"encoding/hex"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
-// AskTerms asks for the terminals of the panel.
+// AskTerms asks for the live tmux terminals of the user.
 const AskTerms = "terms"
 
 // TermNameMax is how long a name given to a terminal of the panel may be, in characters.
 const TermNameMax = 40
 
-// Term is one terminal of the panel: a shell in a tmux session on the panel's
-// own socket. Created and Activity are unix seconds, as tmux keeps them.
+// Term is a live tmux session. Foreign terminals carry an opaque id, their
+// server name, and the panel session they belong to when one is known.
+// Created and Activity are unix seconds, as tmux keeps them.
 type Term struct {
-	ID       string `json:"id"`
-	Place    string `json:"place"`
-	Name     string `json:"name"`
-	Command  string `json:"command"`
-	Activity int64  `json:"activity"`
-	Created  int64  `json:"created"`
-	Clients  int    `json:"clients"`
-	Busy     bool   `json:"busy,omitempty"`
-	Last     string `json:"last,omitempty"`
+	Foreign   bool   `json:"foreign,omitempty"`
+	Server    string `json:"server,omitempty"`
+	Session   string `json:"session,omitempty"`
+	SessionID string `json:"sessionId,omitempty"`
+	ID        string `json:"id"`
+	Place     string `json:"place"`
+	Name      string `json:"name"`
+	Command   string `json:"command"`
+	Activity  int64  `json:"activity"`
+	Created   int64  `json:"created"`
+	Clients   int    `json:"clients"`
+	Busy      bool   `json:"busy,omitempty"`
+	Last      string `json:"last,omitempty"`
 }
 
-// TermsAsker is an executor that lists the terminals of the panel.
+// TermsAsker is an executor that lists the user's live tmux terminals.
 type TermsAsker interface {
 	Terms(ctx context.Context) ([]Term, error)
 }
 
-// TermKind reports whether an action is about a terminal of the panel. Those
+// TermKind reports whether an action is about a tmux terminal. Those
 // are raw input into a shell of the machine, so they live only where the
 // terminal does.
 func TermKind(k Kind) bool {
-	return k == TermStart || k == TermClose || k == TermRename || k == TermConsole
+	return k == TermStart || k == TermClose || k == TermRename || k == TermConsole || k == TmuxClose
 }
 
 // TermID reports whether s is the id of a terminal of the panel: "t-" and
@@ -52,6 +58,17 @@ func TermID(s string) bool {
 		}
 	}
 	return true
+}
+
+// TmuxID accepts only the digest the executor gives an enumerated terminal.
+// Its contents never become a socket path or a tmux target.
+func TmuxID(s string) bool {
+	rest, ok := strings.CutPrefix(s, "tm-")
+	if !ok || len(rest) != 64 || rest != strings.ToLower(rest) {
+		return false
+	}
+	_, err := hex.DecodeString(rest)
+	return err == nil
 }
 
 func safeTermName(name string) error {
@@ -73,6 +90,12 @@ func safeTermName(name string) error {
 }
 
 func validateTerm(r Request) error {
+	if r.Kind == TmuxClose {
+		if !TmuxID(r.Target) {
+			return badRequest("%q is not the id of a listed tmux terminal", r.Target)
+		}
+		return nil
+	}
 	if !TermID(r.Target) {
 		return badRequest("%q is not the id of a terminal of the panel", r.Target)
 	}

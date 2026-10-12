@@ -21,16 +21,17 @@ export function TermCard({ t, acts, going = [], onOpen, onClose }) {
     const busy = runs(t);
     return html`
         <div class="tcardcell" role="presentation">
-            <button class=${`tcard${busy ? " running" : ""}`} type="button" onClick=${() => onOpen(t)}
+            <button class=${`tcard${busy ? " running" : ""}${t.foreign ? " foreign" : ""}`} type="button" onClick=${() => onOpen(t)}
                     aria-label=${`terminal ${tabName(t)}${busy ? ", something runs in it" : ""}`}>
                 <span class=${`tdot${busy ? " run" : ""}`}></span>
                 <span class="tcardname">${tabName(t)}</span>
+                ${(t.foreign || t.session) && html`<span class="tcardkind">${t.session ? "Claude · " + t.session : "tmux"}${t.server && t.server !== "default" ? " · " + t.server : ""}</span>`}
                 <span class="tcardwhen">${typed(t.activity)}</span>
                 ${t.last && html`<span class="tcardlast">${t.last}</span>`}
             </button>
             <button type="button" class="tcardx" aria-label=${`close ${tabName(t)}`}
-                    disabled=${!acts.can.close || going.includes(t.id)}
-                    title=${acts.can.close ? undefined : acts.why.close}
+                    disabled=${!acts.canClose(t) || going.includes(t.id)}
+                    title=${acts.canClose(t) ? undefined : acts.whyClose(t)}
                     onClick=${() => onClose(t)}>
                 ${Icon.close()}
             </button>
@@ -84,17 +85,17 @@ export function TermTabs({ tabs, current, acts, going = [], onPick, onClose, onN
                             <span class="ttabname">${tabName(t)}</span>
                         </button>
                         <button type="button" class="ttabx" aria-label=${`close ${tabName(t)}`}
-                                disabled=${!acts.can.close || going.includes(t.id)}
-                                title=${acts.can.close ? undefined : acts.why.close}
+                                disabled=${!acts.canClose(t) || going.includes(t.id)}
+                                title=${acts.canClose(t) ? undefined : acts.whyClose(t)}
                                 onClick=${() => onClose(t)}>
                             ${Icon.close()}
                         </button>
                     </span>
                 `;
             })}
-            <button type="button" class=${`${one} tadd`} aria-label="a new tab in this place" onClick=${onNew}>
+            ${onNew && html`<button type="button" class=${`${one} tadd`} aria-label="a new tab in this place" onClick=${onNew}>
                 ${Icon.plus()}
-            </button>
+            </button>`}
         </div>
     `;
 }
@@ -157,12 +158,12 @@ export function TabMenu({ t, acts, onLook, onNew, onDone }) {
         <div class="cmdsheet tools">
             <div class="shead cmdtitle"><span class="cmdhead toolname">${tabName(t)}</span></div>
             <ul class="mcplist toollist">
-                ${row(Icon.monitor, "Open in a window", `on ${hostLabel()}: the same tmux, the same shell`,
+                ${!t.foreign && row(Icon.monitor, "Open in a window", `on ${hostLabel()}: the same tmux, the same shell`,
                     () => acts.window(t), acts.can.console ? "" : acts.why.console)}
-                ${row(Icon.pencil, "Rename tab", "", () => onLook("rename"), acts.can.rename ? "" : acts.why.rename)}
-                ${row(Icon.plus, "New tab here", "", onNew, acts.can.start ? "" : acts.why.start)}
+                ${!t.foreign && row(Icon.pencil, "Rename tab", "", () => onLook("rename"), acts.can.rename ? "" : acts.why.rename)}
+                ${!t.foreign && row(Icon.plus, "New tab here", "", onNew, acts.can.start ? "" : acts.why.start)}
                 ${row(Icon.close, "Close tab", "ends the shell and what runs in it", () => onLook("close"),
-                    acts.can.close ? "" : acts.why.close, true)}
+                    acts.canClose(t) ? "" : acts.whyClose(t), true)}
             </ul>
         </div>
     `;
@@ -230,10 +231,10 @@ export function CloseTab({ t, acts, onClosed, onDone }) {
                 The shell of the tab ends, and whatever runs in it ends with it: a command half done stays half
                 done. Nothing on the panel brings the tab back.
             </div>
-            ${!acts.can.close && html`<p class="cmdnote">${acts.why.close}</p>`}
+            ${!acts.canClose(t) && html`<p class="cmdnote">${acts.whyClose(t)}</p>`}
             <div class="btnrow">
                 <button class="btn" type="button" onClick=${onDone}>Cancel</button>
-                <button class="btn danger" type="button" disabled=${!acts.can.close || busy} onClick=${close}>
+                <button class="btn danger" type="button" disabled=${!acts.canClose(t) || busy} onClick=${close}>
                     Close tab
                 </button>
             </div>

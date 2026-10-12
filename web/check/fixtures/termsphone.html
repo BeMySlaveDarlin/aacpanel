@@ -17,6 +17,7 @@ import { html } from "/src/html.js";
 import { MobileShell } from "/src/mobile/shell.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { foreignTerms } from "/check/fixtures/termsforeign.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 // A frame to look at: #shot=A stops the walk where the artboard stands.
@@ -90,7 +91,7 @@ window.fetch = counted(async (url, init) => {
                 .sort((a, b) => a.place.localeCompare(b.place) || a.created - b.created);
             return json({ ok: true, detail: "", logged: true, id });
         }
-        if (body.kind === "term.close") {
+        if (body.kind === "term.close" || body.kind === "tmux.close") {
             if (held) await held.answered;
             terms = terms.filter((t) => t.id !== p.id);
         }
@@ -545,6 +546,18 @@ window.done = (async () => {
         out.cards.unknown = all(".tcardx").map((b) => ({
             name: b.getAttribute("aria-label"), disabled: b.disabled, title: b.getAttribute("title") || "",
         }));
+        out.foreign = await foreignTerms({
+            asked, streams, until, pause, wide: false,
+            reset: (rows) => {
+                terms = rows;
+                snapshot.sessions = [{ session: "shop", sessionId: "s1", transport: "tmux", status: "idle", pct: 12,
+                    cwd: "/srv/proj/shop", tokensIn: 1000, tokensOut: 100,
+                    project: { id: 11, name: "shop", path: "/srv/proj/shop", group: "Side" } }];
+                render(null, document.getElementById("root"));
+                localStorage.setItem("aacpanel.terms.shown", JSON.stringify(["/srv/proj/shop"]));
+                mount({ ...exec, kinds: [...exec.kinds, "tmux.close", "session.close"] });
+            },
+        });
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

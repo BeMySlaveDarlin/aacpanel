@@ -239,6 +239,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.termStart(ctx, req.Target, req.Place)
 	case action.TermClose:
 		return e.termClose(ctx, req.Target)
+	case action.TmuxClose:
+		return e.tmuxClose(ctx, req.Target)
 	case action.TermRename:
 		return e.termRename(ctx, req.Target, req.Rename)
 	case action.TermConsole:

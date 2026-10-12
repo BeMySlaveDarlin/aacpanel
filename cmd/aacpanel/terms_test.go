@@ -18,37 +18,42 @@ import (
 )
 
 func TestTermStreamAttachesToATerminalByItsID(t *testing.T) {
-	screen, feed := io.Pipe()
-	t.Cleanup(func() { feed.Close() })
-	opener := &screenOpener{screen: &fakeScreen{out: screen}}
-	srv := termStand(t, opener)
-	web := httptest.NewServer(srv.routes(srv.localGate()))
-	t.Cleanup(func() {
-		web.CloseClientConnections()
-		web.Close()
-	})
+	for _, id := range []string{"t-1a2b3c4d", "tm-" + strings.Repeat("a", 64)} {
+		t.Run(id, func(t *testing.T) {
+			screen, feed := io.Pipe()
+			t.Cleanup(func() { feed.Close() })
+			opener := &screenOpener{screen: &fakeScreen{out: screen}}
+			srv := termStand(t, opener)
+			web := httptest.NewServer(srv.routes(srv.localGate()))
+			t.Cleanup(func() {
+				web.CloseClientConnections()
+				web.Close()
+			})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		web.URL+"/api/term/stream?term=t-1a2b3c4d&cols=90&rows=30", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("the stream did not open: %v", err)
-	}
-	defer resp.Body.Close()
-	if ev := readEvent(t, bufio.NewReader(resp.Body)); ev.event != "ready" {
-		t.Fatalf("the first event was %q: %s", ev.event, ev.data)
-	}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+				web.URL+"/api/term/stream?term="+id+"&cols=90&rows=30", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("the stream did not open: %v", err)
+			}
+			defer resp.Body.Close()
+			if ev := readEvent(t, bufio.NewReader(resp.Body)); ev.event != "ready" {
+				t.Fatalf("the first event was %q: %s", ev.event, ev.data)
+			}
 
-	if got := opener.askedTerm(); got != "t-1a2b3c4d" {
-		t.Errorf("the executor was asked for terminal %q", got)
-	}
-	if target, cols, rows := opener.asked(); target != "" || cols != 90 || rows != 30 {
-		t.Errorf("session %q %dx%d was asked for — the id went as the name of a session", target, cols, rows)
+			if got := opener.askedTerm(); got != id {
+				t.Errorf("the executor was asked for terminal %q", got)
+			}
+			if target, cols, rows := opener.asked(); target != "" || cols != 90 || rows != 30 {
+				t.Errorf("session %q %dx%d was asked for — the id went as the name of a session", target, cols, rows)
+			}
+
+		})
 	}
 }
 
@@ -81,6 +86,7 @@ func TestTermsAreListedWithLabelsByPlaceAndAge(t *testing.T) {
 			Activity: 1790700500, Created: 1790695000, Busy: true, Last: "GET /api/cart 200"},
 		{ID: "t-1a2b3c4d", Place: "/srv/proj/shop", Name: "make check", Command: "make",
 			Activity: 1790700000, Created: 1790690000, Clients: 1, Busy: true, Last: "ok   shop/store  15.90s"},
+		{ID: "tm-" + strings.Repeat("a", 64), Foreign: true, Server: "ops", Session: "shop", SessionID: "conversation-id", Place: "/work", Name: "work", Command: "claude"},
 		{ID: "t-00c0ffee", Place: "/home/u", Name: "bash", Command: "bash",
 			Activity: 1790680500, Created: 1790680000},
 	}})
@@ -94,7 +100,8 @@ func TestTermsAreListedWithLabelsByPlaceAndAge(t *testing.T) {
 	want := `{"terms":[` +
 		`{"id":"t-00c0ffee","place":"/home/u","label":"Home","name":"bash","command":"bash","activity":1790680500,"created":1790680000,"clients":0,"busy":false,"last":""},` +
 		`{"id":"t-1a2b3c4d","place":"/srv/proj/shop","label":"shop","name":"make check","command":"make","activity":1790700000,"created":1790690000,"clients":1,"busy":true,"last":"ok   shop/store  15.90s"},` +
-		`{"id":"t-0000beef","place":"/srv/proj/shop","label":"shop","name":"logs","command":"tail","activity":1790700500,"created":1790695000,"clients":0,"busy":true,"last":"GET /api/cart 200"}` +
+		`{"id":"t-0000beef","place":"/srv/proj/shop","label":"shop","name":"logs","command":"tail","activity":1790700500,"created":1790695000,"clients":0,"busy":true,"last":"GET /api/cart 200"},` +
+		`{"foreign":true,"server":"ops","session":"shop","sessionId":"conversation-id","id":"tm-` + strings.Repeat("a", 64) + `","place":"/work","label":"work","name":"work","command":"claude","activity":0,"created":0,"clients":0,"busy":false,"last":""}` +
 		`]}`
 	if got := strings.TrimSpace(rec.Body.String()); got != want {
 		t.Errorf("the list is\n%s\ninstead of\n%s", got, want)
@@ -204,6 +211,7 @@ func TestTermActionsCarryTheIDAndTheName(t *testing.T) {
 		name string
 	}{
 		{`{"kind":"term.close","target":"t-1a2b3c4d","params":{"id":"t-1a2b3c4d"}}`, action.TermClose, ""},
+		{`{"kind":"tmux.close","target":"tm-` + strings.Repeat("a", 64) + `"}`, action.TmuxClose, ""},
 		{`{"kind":"term.console","target":"t-1a2b3c4d"}`, action.TermConsole, ""},
 		{`{"kind":"term.rename","target":"t-1a2b3c4d","params":{"id":"t-1a2b3c4d","name":"make check"}}`, action.TermRename, "make check"},
 	} {
@@ -211,7 +219,11 @@ func TestTermActionsCarryTheIDAndTheName(t *testing.T) {
 			t.Fatalf("%s: status %d, %s", c.body, w.Code, w.Body.String())
 		}
 		got := <-exec.got
-		if got.Kind != c.kind || got.Target != "t-1a2b3c4d" || got.Rename != c.name || got.Place != "" {
+		wantID := "t-1a2b3c4d"
+		if c.kind == action.TmuxClose {
+			wantID = "tm-" + strings.Repeat("a", 64)
+		}
+		if got.Kind != c.kind || got.Target != wantID || got.Rename != c.name || got.Place != "" {
 			t.Errorf("%s went to the executor as %+v", c.body, got)
 		}
 	}
@@ -266,6 +278,7 @@ func TestTermActionsExistOnlyWhereTheTerminalDoes(t *testing.T) {
 	bodies := []string{
 		`{"kind":"term.start","params":{"place":"/home/u"}}`,
 		`{"kind":"term.close","target":"t-1a2b3c4d"}`,
+		`{"kind":"tmux.close","target":"tm-` + strings.Repeat("a", 64) + `"}`,
 		`{"kind":"term.rename","target":"t-1a2b3c4d","params":{"name":"build"}}`,
 		`{"kind":"term.console","target":"t-1a2b3c4d"}`,
 	}

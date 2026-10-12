@@ -316,7 +316,7 @@ export function DesktopShell({
         }
         if (section === "terminals") {
             return term.route
-                ? html`<${TermsDesk} snapshot=${snapshot} exec=${exec} open=${termOpen} onOpen=${setTermOpen} />`
+                ? html`<${TermsDesk} snapshot=${snapshot} exec=${exec} open=${termOpen} onOpen=${setTermOpen} onSession=${openChat} />`
                 : null;
         }
         if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${goBack} /></div>`;

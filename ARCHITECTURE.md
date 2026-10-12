@@ -1371,7 +1371,7 @@ The list of actions is closed.
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
-| terminals of the panel | `term.start`, `term.close`, `term.rename`, `term.console` |
+| terminals | `term.start`, `term.close`, `term.rename`, `term.console`, `tmux.close` |
 | secrets | `secret.put`, `secret.drop` |
 
 What is deliberately not on the list: removing containers, images and volumes,
@@ -1379,8 +1379,8 @@ What is deliberately not on the list: removing containers, images and volumes,
 
 **A terminal of the panel is the owner's shell on a tmux server of its own.**
 It lives on the socket `tmux -L aacpanel-term`, apart from the sessions the
-panel starts and from the servers tests start, so the list there is what the
-panel opened and nothing else. It opens only in a place: the home directory or the
+panel starts. Its id and place distinguish it from other sessions on that
+server. It opens only in a place: the home directory or the
 directory of a project of the map. The service takes the place from that list,
 never from a string on the phone, and the executor checks again that it is a
 directory whose real path lies inside the home directory or a project root. The
@@ -1390,6 +1390,24 @@ shell as keystrokes, over the same bridge as the session terminal, and on the
 same listeners only. The first terminal starts the server from a unit of its
 own, as a session does: started inside the executor, every shell would inherit
 its sandbox and die with its restart.
+
+**Terminals lists every live tmux server of the user.** The executor reads
+`tmux-<uid>` under `TMUX_TMPDIR` or `/tmp`, accepts only sockets owned by the
+user and never follows a socket symlink. Dead and unresponsive servers are
+left out; each server gets a bounded `list-sessions` call, and only terminals
+created by the panel get a captured preview. Foreign rows name their server
+and offer attach and confirmed close, while the panel's terminals keep their
+rename and desktop window controls.
+
+The service passes an opaque id, never a socket path or tmux target. The id
+binds the server's socket identity and process id to the tmux session id and
+creation time. Attach and `tmux.close` enumerate again and refuse an id
+absent from that list. This costs another listing at each operation and keeps
+a stale card from addressing a different session after a server restart.
+Live Claude processes are matched to the panes of every window using the
+panel's session files, not names or foreground commands. Their rows open the
+session screen and close through `session.close`; both terminal close actions
+refuse to kill a tmux session that contains one.
 
 **Every unit the executor starts runs on the cores of the machine
 description.** A session — the launcher's unit, which keeps the tmux server or

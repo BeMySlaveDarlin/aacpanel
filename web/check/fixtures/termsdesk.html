@@ -15,6 +15,7 @@ import { html } from "/src/html.js";
 import { DesktopShell } from "/src/desktop/shell.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { foreignTerms } from "/check/fixtures/termsforeign.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
@@ -67,7 +68,7 @@ window.fetch = counted(async (url, init) => {
     if (u === "/api/actions" && init && init.method === "POST") {
         const body = JSON.parse(init.body);
         asked.push(body);
-        if (body.kind === "term.close") {
+        if (body.kind === "term.close" || body.kind === "tmux.close") {
             if (held) await held.answered;
             terms = terms.filter((t) => t.id !== body.params.id);
         }
@@ -356,6 +357,18 @@ window.done = (async () => {
         await until(() => closes().some((a) => a.params.id === "t-h2") && !cardOf("Home", "htop") && !sheet());
         Object.assign(out.cards.running, {
             closes: closes().filter((a) => a.params.id === "t-h2").length, gone: !cardOf("Home", "htop"), opened: opened(),
+        });
+        out.foreign = await foreignTerms({
+            asked, streams, until, pause, wide: true,
+            reset: (rows) => {
+                terms = rows;
+                snapshot.sessions = [{ session: "shop", sessionId: "s1", transport: "tmux", status: "idle", pct: 12,
+                    cwd: "/srv/proj/shop", tokensIn: 1000, tokensOut: 100,
+                    project: { id: 11, name: "shop", path: "/srv/proj/shop", group: "Side" } }];
+                render(null, document.getElementById("root"));
+                localStorage.setItem("aacpanel.terms.shown", JSON.stringify(["/srv/proj/shop"]));
+                mount({ ...exec, kinds: [...exec.kinds, "tmux.close", "session.close"] });
+            },
         });
     } catch (err) {
         out.error = String((err && err.stack) || err);

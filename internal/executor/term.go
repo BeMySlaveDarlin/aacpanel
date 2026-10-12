@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/termlink"
 )
@@ -46,6 +47,16 @@ func (o *TermOpener) Open(ctx context.Context, target string, cols, rows uint16)
 // OpenTerm attaches to a terminal of the panel, found by its id among those on
 // the panel's own tmux server.
 func (o *TermOpener) OpenTerm(ctx context.Context, id string, cols, rows uint16) (termlink.Terminal, error) {
+	if action.TmuxID(id) {
+		t, err := findTmuxTerm(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if t.Session != "" {
+			return nil, fmt.Errorf("open Claude session %s through its session screen", t.Session)
+		}
+		return bridge(ctx, t.server, t.target+":", fmt.Sprintf("terminal %s on %s", t.Name, t.Server), cols, rows)
+	}
 	t, err := findPanelTerm(ctx, id)
 	if err != nil {
 		return nil, err

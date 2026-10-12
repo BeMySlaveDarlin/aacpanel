@@ -19,23 +19,27 @@ import (
 // homeLabel is what the home directory is called in the list of terminals.
 const homeLabel = "Home"
 
-// termRow is a terminal of the panel as the screen lists it: busy while
+// termRow is a tmux terminal as the screen lists it: busy while
 // something other than the shell runs in it, and last the last line on its
 // screen.
 type termRow struct {
-	ID       string `json:"id"`
-	Place    string `json:"place"`
-	Label    string `json:"label"`
-	Name     string `json:"name"`
-	Command  string `json:"command"`
-	Activity int64  `json:"activity"`
-	Created  int64  `json:"created"`
-	Clients  int    `json:"clients"`
-	Busy     bool   `json:"busy"`
-	Last     string `json:"last"`
+	Foreign   bool   `json:"foreign,omitempty"`
+	Server    string `json:"server,omitempty"`
+	Session   string `json:"session,omitempty"`
+	SessionID string `json:"sessionId,omitempty"`
+	ID        string `json:"id"`
+	Place     string `json:"place"`
+	Label     string `json:"label"`
+	Name      string `json:"name"`
+	Command   string `json:"command"`
+	Activity  int64  `json:"activity"`
+	Created   int64  `json:"created"`
+	Clients   int    `json:"clients"`
+	Busy      bool   `json:"busy"`
+	Last      string `json:"last"`
 }
 
-// apiTerms lists the terminals of the panel, grouped by place and in the order
+// apiTerms lists the user's tmux terminals, grouped by place and in the order
 // they were started within one.
 func (s *Server) apiTerms(w http.ResponseWriter, r *http.Request) {
 	if s.exec == nil {
@@ -58,6 +62,7 @@ func (s *Server) apiTerms(w http.ResponseWriter, r *http.Request) {
 	rows := make([]termRow, 0, len(list))
 	for _, t := range list {
 		rows = append(rows, termRow{
+			Foreign: t.Foreign, Server: t.Server, Session: t.Session, SessionID: t.SessionID,
 			ID: t.ID, Place: t.Place, Label: placeLabel(places, t.Place), Name: t.Name,
 			Command: t.Command, Activity: t.Activity, Created: t.Created, Clients: t.Clients,
 			Busy: t.Busy, Last: t.Last,

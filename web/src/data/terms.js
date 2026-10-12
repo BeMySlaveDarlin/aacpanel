@@ -63,7 +63,7 @@ export function samePlace(a, b) {
 export function latestIn(terms, place) {
     let best = null;
     for (const t of terms || []) {
-        if (!samePlace(t.place, place)) continue;
+        if (t.foreign || t.session || !samePlace(t.place, place)) continue;
         if (!best || (t.activity || 0) > (best.activity || 0)) best = t;
     }
     return best;

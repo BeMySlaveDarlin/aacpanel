@@ -196,6 +196,7 @@ export function MobileShell({
                     terms=${term.route}
                     wantTerm=${wantTerm}
                     onWantedTerm=${() => setWantTerm(null)}
+                    onSession=${(target) => goHome(target.name, target.id)}
                     onTerm=${term.route ? goTerm : null}
                 onUsage=${() => setPage("usage")} />`}
             </main>
@@ -255,7 +256,7 @@ export function MobileShell({
 
 function Screen({
     tab, tree, snapshot, filter, onFilter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec,
-    history, faults, onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm,
+    history, faults, onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm, onSession,
 }) {
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
@@ -264,7 +265,7 @@ function Screen({
     }
     if (tab === "terminals" && terms) {
         return html`<${Terminals} snapshot=${snapshot} exec=${exec} onLayer=${onLayer}
-            want=${wantTerm} onWanted=${onWantedTerm} />`;
+            want=${wantTerm} onWanted=${onWantedTerm} onSession=${onSession} />`;
     }
     return html`<${Host} tree=${tree} treeError=${treeError} filter=${filter} onFilter=${onFilter} query=${query}
         open=${open} onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec}

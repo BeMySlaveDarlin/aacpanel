@@ -19,7 +19,7 @@ import { CloseTab, NewButton, PlaceHead, PlacePicker, TermCard, TermTabs } from 
 
 // TermsDesk is the centre of the section. open is the terminal on screen,
 // kept by the shell so a terminal sent here from a conversation opens at once.
-export function TermsDesk({ snapshot, exec, open, onOpen }) {
+export function TermsDesk({ snapshot, exec, open, onOpen, onSession }) {
     const { terms, error, reload } = useTerms();
     const acts = useTermActs(exec, reload);
     const home = homeOf(snapshot, terms);
@@ -33,6 +33,9 @@ export function TermsDesk({ snapshot, exec, open, onOpen }) {
     const [asking, setAsking] = useState("");
     const about = asking ? (terms || []).find((t) => t.id === asking) : null;
     const closing = useTabClose({ acts, ask: (t) => setAsking(t.id) });
+
+    const show = (t) => t.session
+        ? onSession({ name: t.session, id: t.sessionId }) : onOpen(t);
 
     const startIn = async (place) => {
         setPicking(false);
@@ -80,7 +83,7 @@ export function TermsDesk({ snapshot, exec, open, onOpen }) {
                             ? html`<p class="empty">No terminals here yet.</p>`
                             : it.terms.map((t) => html`
                                 <${TermCard} key=${t.id} t=${t} acts=${acts} going=${closing.going}
-                                             onOpen=${() => onOpen({ id: t.id, place: it.place })}
+                                             onOpen=${show}
                                              onClose=${closing.press} />
                             `);
                     }}
@@ -118,13 +121,13 @@ function DeskTerm({ open, places, acts, onOpen, onNew, onBack }) {
                         <span class="chev back">${Icon.chevron()}</span>${entry.label}
                     </button>
                     <${TermTabs} wide tabs=${tabs} current=${open.id} acts=${acts} going=${closing.going}
-                                 onPick=${(it) => onOpen({ id: it.id, place: open.place })}
+                                 onPick=${onOpen}
                                  onClose=${closing.press}
-                                 onNew=${() => onNew(open.place)} />
+                                 onNew=${t.foreign ? null : () => onNew(open.place)} />
                     <span class="tgrow"></span>
-                    <button class="btn" type="button" disabled=${!acts.can.console}
+                    ${!t.foreign && html`<button class="btn" type="button" disabled=${!acts.can.console}
                             data-tip=${acts.can.console ? "A window on the desktop of the machine, on the same tmux" : acts.why.console}
-                            onClick=${() => acts.window(t)}>Open in a window</button>
+                            onClick=${() => acts.window(t)}>Open in a window</button>`}
                 </div>
             </div>
             <${Term} key=${open.id} term=${open.id} />

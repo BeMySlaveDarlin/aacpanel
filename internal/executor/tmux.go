@@ -104,8 +104,8 @@ func (p tmuxPane) screen(ctx context.Context) (string, bool) {
 // sessionServers are the servers of tmux a session of claude is looked for on:
 // the user's own, where the panel starts its sessions, and the one of the
 // panel's terminals, where a person may type claude into a shell. A server on a
-// socket of any other name is out of the panel's reach, and so is a claude in
-// it.
+// socket of any other name is outside session controls. The Terminals list
+// enumerates those servers separately and attaches only by an id it issued.
 func sessionServers() []tmuxServer {
 	return []tmuxServer{userTmux, panelTmux}
 }

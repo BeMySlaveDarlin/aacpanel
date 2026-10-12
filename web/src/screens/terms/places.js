@@ -51,11 +51,12 @@ export function placesOf(terms, home) {
 // tabs and the open one. A terminal just started may be ahead of the list, and
 // it stands as a tab of its own until the list catches up.
 export function tabsOf(places, open) {
-    const entry = places.find((p) => samePlace(p.place, open.place))
+    const place = places.find((p) => samePlace(p.place, open.place))
         || { place: open.place, label: baseName(open.place), terms: [] };
-    const tabs = entry.terms.some((t) => t.id === open.id)
-        ? entry.terms
-        : [...entry.terms, { id: open.id, place: open.place, name: "" }];
+    const current = place.terms.find((t) => t.id === open.id) || open;
+    const terms = place.terms.filter((t) => !t.session && Boolean(t.foreign) === Boolean(current.foreign));
+    const entry = { ...place, terms };
+    const tabs = terms.some((t) => t.id === open.id) ? terms : [...terms, { ...open, name: open.name || "" }];
     return { entry, tabs, t: tabs.find((it) => it.id === open.id) };
 }
 

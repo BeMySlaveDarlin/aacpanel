@@ -225,6 +225,7 @@ var instantActions = map[string]bool{
 	// answer would be the same question twice.
 	"term.start":   true,
 	"term.close":   true,
+	"tmux.close":   true,
 	"term.rename":  true,
 	"term.console": true,
 }
@@ -246,6 +247,7 @@ var instantExecActions = map[string]bool{
 	"secret.put":         true,
 	"term.start":         true,
 	"term.close":         true,
+	"tmux.close":         true,
 	"term.rename":        true,
 	"term.console":       true,
 }

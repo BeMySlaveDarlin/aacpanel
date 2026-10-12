@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -46,6 +48,7 @@ func failingTmux(t *testing.T, said string) {
 }
 
 func TestPanelTermsAreListedFromTheirOwnSocket(t *testing.T) {
+	termSocket(t, string(panelTmux))
 	stub := newTmuxStub(t, nil, "")
 	stub.reply("list-sessions", strings.Join([]string{
 		shopTerm,
@@ -55,7 +58,7 @@ func TestPanelTermsAreListedFromTheirOwnSocket(t *testing.T) {
 		"t-1A2B3C4D\t1790680000\t1790680500\t0\t/home/u\t\tbash\tbash",
 	}, "\n")+"\n")
 
-	list, err := (&Executor{}).Terms(t.Context())
+	list, err := panelTerms(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,6 +88,11 @@ func TestPanelTermsAreListedFromTheirOwnSocket(t *testing.T) {
 // screen of any other.
 func screensTmux(t *testing.T, sessions []string, screens map[string]string, hang ...string) string {
 	t.Helper()
+	termSocket(t, string(panelTmux))
+	for i := range sessions {
+		fields := strings.SplitN(sessions[i], "\t", panelTermFields)
+		sessions[i] = strings.Join(fields[:7], "\t") + fmt.Sprintf("\t$%d\t/srv/proj/shop\t\t1\t", i) + fields[7]
+	}
 	dir := t.TempDir()
 	log := filepath.Join(dir, "argv")
 	write := func(name, body string) {
@@ -634,3 +642,224 @@ func TestLivePanelTerminalHoldsWhatIsTypedIntoIt(t *testing.T) {
 		t.Errorf("what was typed into terminal %s is in %q on %s", id, pane.Target, pane.Server)
 	}
 }
+
+// termSocket gives the fake command an owned socket to discover without ever
+// looking in the user's real tmux directory. Its path must fit a Unix socket.
+func termSocket(t *testing.T, name string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "tx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Setenv("TMUX_TMPDIR", dir)
+	t.Setenv(sessionsEnv, t.TempDir())
+	sockets := filepath.Join(dir, fmt.Sprintf("tmux-%d", os.Getuid()))
+	if err := os.Mkdir(sockets, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(sockets, name)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	return path
+}
+
+func TestTmuxTermsDiscoverOwnedServersAndResolveOnlyLiveIDs(t *testing.T) {
+	ownPanelTmux(t)
+	sessionFiles(t)
+	e := &Executor{}
+	start := func(server tmuxServer, name string) {
+		t.Helper()
+		if _, err := server.run(t.Context(), "-f", "/dev/null", "new-session", "-d", "-s", name, "/bin/sh"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start("default", "same")
+	start("x", "same")
+	t.Cleanup(func() { tmuxServer("x").run(context.Background(), "kill-server") })
+	if _, err := launcher.Term(launcher.TermSpec{Dir: t.TempDir(), Session: "t-0a1b2c3d", Socket: string(panelTmux)}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(os.Getenv("TMUX_TMPDIR"), fmt.Sprintf("tmux-%d", os.Getuid()))
+	dead := filepath.Join(dir, "dead")
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: dead, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener.SetUnlinkOnClose(false)
+	listener.Close()
+	if err := os.Symlink(filepath.Join(dir, "x"), filepath.Join(dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "file"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	list, err := e.Terms(t.Context())
+	if err != nil || len(list) != 3 {
+		t.Fatalf("terminals: %+v (%v)", list, err)
+	}
+	byServer := map[string]action.Term{}
+	for _, term := range list {
+		byServer[term.Server] = term
+	}
+	for _, name := range []string{"default", "x"} {
+		term := byServer[name]
+		if !term.Foreign || term.Last != "" || term.Name != "same" || !action.TmuxID(term.ID) {
+			t.Errorf("%s: %+v", name, term)
+		}
+		found, err := findTmuxTerm(t.Context(), term.ID)
+		if err != nil || found.Server != name {
+			t.Fatalf("id did not resolve: %+v %v", found, err)
+		}
+	}
+	if byServer["default"].ID == byServer["x"].ID {
+		t.Fatal("equal session names on different servers share an id")
+	}
+	if byServer[""].ID != "t-0a1b2c3d" || byServer[""].Foreign {
+		t.Fatal("the panel terminal lost its identity")
+	}
+	for _, id := range []string{"tm-" + strings.Repeat("0", 64), "../x", "same", "tm-not-hex"} {
+		if _, err := e.tmuxClose(t.Context(), id); err == nil {
+			t.Errorf("forged id %q closed a terminal", id)
+		}
+		if term, err := NewTermOpener().OpenTerm(t.Context(), id, 60, 20); err == nil {
+			term.Close()
+			t.Errorf("forged id %q attached", id)
+		}
+	}
+	// A bridge types into the foreign server selected by the enumerated id.
+	term, err := NewTermOpener().OpenTerm(t.Context(), byServer["x"].ID, 60, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer term.Close()
+	seen := make(chan bool, 1)
+	go func() {
+		var out strings.Builder
+		buf := make([]byte, 4096)
+		for {
+			n, err := term.Read(buf)
+			out.Write(buf[:n])
+			if strings.Contains(out.String(), "foreign-42") {
+				seen <- true
+				return
+			}
+			if err != nil {
+				seen <- false
+				return
+			}
+		}
+	}()
+	if _, err := term.Write([]byte("echo foreign-$((6*7))\r")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case ok := <-seen:
+		if !ok {
+			t.Error("the foreign terminal did not answer")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the foreign bridge did not type")
+	}
+	term.Close()
+	if _, err := e.Execute(t.Context(), req(action.TmuxClose, byServer["x"].ID)); err != nil {
+		t.Fatal(err)
+	}
+	start("x", "same")
+	if _, err := findTmuxTerm(t.Context(), byServer["x"].ID); err == nil {
+		t.Error("a vanished id resolved to a replacement server")
+	}
+	if _, err := tmuxServer("default").run(t.Context(), "has-session", "-t", "=same"); err != nil {
+		t.Fatal("closing x also closed default")
+	}
+}
+
+func TestTmuxTermsFindClaudeInInactivePanesAndRefuseBareClose(t *testing.T) {
+	ownPanelTmux(t)
+	for _, server := range []tmuxServer{"default", panelTmux} {
+		name := "arbitrary-name"
+		if server == panelTmux {
+			name = "t-0a1b2c3d"
+		}
+		if _, err := server.run(t.Context(), "-f", "/dev/null", "new-session", "-d", "-s", name, "/bin/sh"); err != nil {
+			t.Fatal(err)
+		}
+		pidText, err := server.run(t.Context(), "display-message", "-p", "-t", "="+name+":", "#{pane_pid}")
+		if err != nil {
+			t.Fatal(err)
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(pidText))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := server.run(t.Context(), "new-window", "-t", "="+name, "/bin/sh"); err != nil {
+			t.Fatal(err)
+		}
+		if server == panelTmux {
+			if _, err := server.run(t.Context(), "set-option", "-t", "="+name+":", launcher.TermPlaceOption, "/srv/proj/shop"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		procFS(t, fakeProc{pid: 800001, ppid: pid, comm: "claude", start: "1000"})
+		sessionFiles(t, fakeSession{pid: 800001, name: "known-conversation", start: "1000", sid: "conversation-id"})
+		list, err := (&Executor{}).Terms(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var found action.Term
+		for _, term := range list {
+			if term.Session == "known-conversation" {
+				found = term
+			}
+		}
+		if found.ID == "" || found.SessionID != "conversation-id" {
+			t.Fatalf("Claude not recognized by its pane: %+v", list)
+		}
+		kind := action.TmuxClose
+		if !found.Foreign {
+			kind = action.TermClose
+		}
+		if _, err := (&Executor{}).Execute(t.Context(), req(kind, found.ID)); err == nil || !strings.Contains(err.Error(), "session.close") {
+			t.Fatalf("Claude accepted bare close: %v", err)
+		}
+		if _, err := server.run(t.Context(), "has-session", "-t", "="+name); err != nil {
+			t.Fatal("Claude's tmux session was killed")
+		}
+	}
+}
+
+func TestTmuxListingBoundsAServerAndRejectsForeignOwnership(t *testing.T) {
+	path := termSocket(t, "hang")
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stat := *info.Sys().(*syscall.Stat_t)
+	stat.Uid++
+	if ownedTmuxEntry(tmuxOtherOwner{info, &stat}) {
+		t.Fatal("a socket owned by another user was accepted")
+	}
+	bin := filepath.Join(t.TempDir(), "tmux")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 10\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(tmuxEnv, bin)
+	quickWaits(t, &termListTimeout)
+	began := time.Now()
+	if list, err := (&Executor{}).Terms(t.Context()); err != nil || len(list) != 0 {
+		t.Fatalf("hung server: %+v %v", list, err)
+	}
+	if time.Since(began) > time.Second {
+		t.Fatal("a hung server held the listing")
+	}
+}
+
+type tmuxOtherOwner struct {
+	os.FileInfo
+	stat *syscall.Stat_t
+}
+
+func (s tmuxOtherOwner) Sys() any { return s.stat }

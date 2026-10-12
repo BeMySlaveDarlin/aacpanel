@@ -93,7 +93,7 @@ func (s *Server) apiTermStream(w http.ResponseWriter, r *http.Request) {
 	case name != "" && term != "":
 		http.Error(w, "both a session and a terminal are named: the terminal attaches to one", http.StatusBadRequest)
 		return
-	case term != "" && !action.TermID(term):
+	case term != "" && !action.TermID(term) && !action.TmuxID(term):
 		http.Error(w, fmt.Sprintf("%q is not the id of a terminal of the panel", term), http.StatusBadRequest)
 		return
 	}

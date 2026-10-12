@@ -618,6 +618,11 @@ export const ACTIONS = {
         effect: "The shell of the tab ends, and whatever runs in it ends with it.",
         done: () => "The tab is closed",
     },
+    "tmux.close": {
+        instant: true,
+        effect: "The tmux session ends, and whatever runs in it ends with it.",
+        done: () => "The tmux terminal is closed",
+    },
     "term.rename": {
         instant: true,
         effect: "The tab keeps the name given instead of the command running in it; what runs is not touched.",
@@ -1070,6 +1075,7 @@ const NAMES = {
     "window.close": "Close window",
     "term.start": "Start a terminal",
     "term.close": "Close a terminal",
+    "tmux.close": "Close a tmux terminal",
     "term.rename": "Rename a terminal tab",
     "term.console": "Open a terminal in a window",
     "device.revoke": "Revoke device",
