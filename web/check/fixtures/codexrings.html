@@ -14,7 +14,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
-import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
+import { LiveLines } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -41,8 +41,7 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
-                                           onOpen=${(n) => opened.push({ name: n })} onMore=${() => {}} /></section>
-    <${SessionSheet} session=${codex} exec=${exec} onClose=${() => {}} onOpen=${() => {}} />
+                                           onOpen=${(n) => opened.push({ name: n })} exec=${exec} /></section>
 `)), document.getElementById("phone"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -72,7 +71,6 @@ window.done = (async () => {
     row.click();
     out.phoneName = text(document.querySelector("#phone .pjsess"));
     document.querySelector("#phone .pjopen").click();
-    out.sheetName = text(document.querySelector(".pjsheetname"));
     out.opened = opened.map((o) => o.name);
     return out;
 })();

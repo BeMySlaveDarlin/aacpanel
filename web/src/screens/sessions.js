@@ -11,7 +11,7 @@ import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
 import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
-import { blocksOf, ProjectBlock, RANK, SessionSheet, useAnswers } from "./sessions/blocks.js";
+import { blocksOf, ProjectBlock, RANK, useAnswers } from "./sessions/blocks.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
@@ -217,9 +217,7 @@ const SECTIONS = [
 ];
 
 function Page({ name, profile, limits, stale, sessions, everyone, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
-    const [acting, setActing] = useState("");
     const blocks = blocksOf({ profile, sessions, recent, opening });
-    const acted = acting ? sessions.find((s) => s.session === acting) || null : null;
     const toProject = (project, group) => onProject({ ...project, profile: name, contour: profile ? profile.id : 0, group });
     return html`
         <${ProfileLimits} limits=${limits} profile=${name} contour=${profile ? profile.id : 0} stale=${stale} />
@@ -235,7 +233,7 @@ function Page({ name, profile, limits, stale, sessions, everyone, opening, recen
                     ${list.map((block) => html`
                         <${ProjectBlock} key=${block.key} block=${block} exec=${exec} wait=${wait} notes=${notes}
                                          live=${everyone} past=${recent}
-                                         onOpen=${onChat} onMore=${(s) => setActing(s.session)} onProject=${toProject} />
+                                         onOpen=${onChat} onProject=${toProject} />
                     `)}
                 `;
             })}
@@ -249,7 +247,6 @@ function Page({ name, profile, limits, stale, sessions, everyone, opening, recen
                 <span class="chev">${Icon.chevron()}</span>
             </button>
         `}
-        <${SessionSheet} session=${acted} exec=${exec} onClose=${() => setActing("")} onOpen=${onChat} />
     `;
 }
 

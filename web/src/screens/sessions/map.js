@@ -14,7 +14,7 @@ import { knows, whyNot } from "../../exec.js";
 import { inOrder, sessionsOf } from "./of.js";
 
 export { sessionsOf };
-import { GhostLine, LiveLines, PastLine, SessionSheet } from "./blocks.js";
+import { GhostLine, LiveLines, PastLine } from "./blocks.js";
 import { useSessionsArchive } from "../../history.js";
 import { spoke } from "../../agent.js";
 import { ProjectDoor } from "../profiles/door.js";
@@ -184,7 +184,6 @@ const PROJECT_PAGE = 10;
 export function Project({ project, sessions, notes, exec, wait, onBack, onChat }) {
     useBackClose(true, onBack);
     const [settings, setSettings] = useState(false);
-    const [acting, setActing] = useState("");
     const [shown, setShown] = useState(PROJECT_PAGE);
 
     const run = useAction();
@@ -196,7 +195,6 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
     const archive = past.kind === "ready" ? past.archive : null;
     const live = new Set(own.map((s) => s.sessionId).filter(Boolean));
     const earlier = ((archive && archive.rows) || []).filter((row) => spoke(row) && !live.has(row.sessionId));
-    const acted = acting ? own.find((s) => s.session === acting) || null : null;
     if (settings) return html`<${ProjectDoor} id=${project.id} sessions=${sessions} onClose=${() => setSettings(false)} />`;
     return html`
         <${BackHead} onBack=${onBack} label="to the projects">
@@ -224,7 +222,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
         <section class="pjblock">
             <div class="pjhead"><span class="pjname">live</span><span class="pjgroup">${own.length || ""}</span></div>
             <${LiveLines} list=${own} live=${sessions} notes=${notes} wait=${wait} onOpen=${onChat}
-                          onMore=${(x) => setActing(x.session)} />
+                          exec=${exec} />
             ${opening && html`<${GhostLine} task=${opening} />`}
             ${own.length === 0 && !opening && html`<p class="pjempty">There are no sessions of this project right now.</p>`}
         </section>
@@ -242,6 +240,5 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
                 </button>
             `}
         </section>
-        <${SessionSheet} session=${acted} exec=${exec} onClose=${() => setActing("")} onOpen=${onChat} />
     `;
 }

@@ -84,19 +84,17 @@ func TestACodexRunStandsAmongTheAgentsAndOpensItsThread(t *testing.T) {
 }
 
 type codexOutsideShot struct {
-	Place       string `json:"place"`
-	DaemonPlace string `json:"daemonPlace"`
-	Sheet       []struct {
-		Text string `json:"text"`
-		Note string `json:"note"`
-	} `json:"sheet"`
+	Place       string   `json:"place"`
+	DaemonPlace string   `json:"daemonPlace"`
+	Actions     int      `json:"actions"`
+	Opens       bool     `json:"opens"`
 	OwnTools    []string `json:"ownTools"`
 	OwnNote     string   `json:"ownNote"`
 	DaemonTools []string `json:"daemonTools"`
 }
 
-// A codex running on its own is only read: its sheet opens the conversation
-// and says why it offers nothing more, a busy one included, and the tools of
+// A codex running on its own is only read: its card opens the conversation
+// and offers no actions, a busy one included, and the tools of
 // its conversation are where it lives and its id. A thread of a daemon keeps
 // its stop and its close.
 func TestACodexOfItsOwnIsOnlyRead(t *testing.T) {
@@ -106,15 +104,8 @@ func TestACodexOfItsOwnIsOnlyRead(t *testing.T) {
 	if got.Place != "outside" || got.DaemonPlace != "daemon" {
 		t.Errorf("a codex of its own lives %q, a thread of a daemon %q", got.Place, got.DaemonPlace)
 	}
-	var lines []string
-	for _, l := range got.Sheet {
-		lines = append(lines, l.Text)
-	}
-	if strings.Join(lines, " | ") != "Open the conversation | Outside the panel" {
-		t.Errorf("the sheet of a codex of its own offers %v", lines)
-	}
-	if len(got.Sheet) == 2 && !strings.Contains(got.Sheet[1].Note, "no daemon the panel is a client of") {
-		t.Errorf("the sheet says %q of where it lives", got.Sheet[1].Note)
+	if got.Actions != 0 || !got.Opens {
+		t.Errorf("the outside card has %d actions and opens %v", got.Actions, got.Opens)
 	}
 	if strings.Join(got.OwnTools, " | ") != "Outside the panel | Copy the session ID" ||
 		!strings.Contains(got.OwnNote, "cannot write to it") {

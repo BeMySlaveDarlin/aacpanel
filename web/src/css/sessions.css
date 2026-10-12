@@ -453,11 +453,11 @@ span.pjname { cursor: default; }
 }
 .pjrow > .ctxbar.edge { top: auto; bottom: 0; }
 /* The row of a live session opens with a line of its own across the whole
-   width: the name, and the pair of marks at the right edge. Under it stand two
-   columns — what the session says on the left, and on the right only how full
-   it is, at the foot of the row. The pair stays off the lines under the name,
+   width: the name, and where the session lives at the right edge. Under it
+   stand two columns — what the session says on the left, and on the right
+   how full it is, level with the last words. The place stays off those lines,
    so they give up to the right no more than the figure takes: the checklist
-   and the line of the model keep the width the pair would have cost them. */
+   and the line of the model keep the width the place would have cost them. */
 .pjrow.pjcard {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -466,17 +466,17 @@ span.pjname { cursor: default; }
     padding: .45rem .75rem;
 }
 .pjtop { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: .5rem; }
-/* A name too long for its line wraps under itself, never under the pair: the
+/* A name too long for its line wraps under itself, never under the place: the
    end of a name is often what tells two sessions of one project apart, so it
-   is not cut. The pair keeps the top of the name's first line, and its marks
-   are as tall as that line within a pixel, so the two read level. */
+   is not cut. The place keeps the top of the name's first line and is as tall
+   as that line within a pixel, so the two read level. */
 .pjtop > .pjsess { flex: 1; min-width: 0; }
 .pjcard > .pjopen { padding: 0; }
 .pjcard > .pjpct { align-self: end; }
 /* The whole row opens the conversation, not only its words: the open button
    reaches over the row, and the buttons in the row stand above it. */
 .pjopen::after { content: ""; position: absolute; inset: 0; }
-.pjmore, .pjresume { position: relative; z-index: 1; }
+.pjend, .pjresume { position: relative; z-index: 1; }
 /* The runs a session started inside its work: a fold under it, and the runs
    themselves a step in when it is open. */
 .pjrow.pjkid { padding-left: 1.6rem; }
@@ -638,21 +638,14 @@ button.pjstub { cursor: pointer; }
 .pj-idle { color: var(--ink-faint); font-weight: 500; }
 .pj-idle .pjdot { background: var(--ok); opacity: .75; }
 /* Who runs a session, as the word that opens the line of its model — on its
-   row, in its sheet and under the name in its conversation: in the hue of
+   row and under the name in its conversation: in the hue of
    its agent and a step heavier than the quiet words after it. */
 .agentword { font-weight: 600; color: var(--word-claude); }
 .agentword[data-agent="codex"] { color: var(--word-codex); }
-/* Where the session lives and the button of what can be done to it, side by
-   side at the right edge of the name's line. The pair is no taller than that
-   line and the figure in the corner no taller than the last line on the left,
-   so neither makes the row taller. */
-.pjpair { flex: none; display: flex; align-items: center; gap: .25rem; }
-/* Where a session lives and the button of what can be done to it are one
-   kind of mark: the same height, edge, corners, type and padding, so the two
-   read as a pair. One is a word and the other a button, and only the button
-   answers a finger; a tap on the word opens the conversation like the rest
-   of the row. */
-.pjtag, .pjmore {
+/* Where the session lives stays beside its name; a tap on this mark opens
+   the conversation like the rest of the card. */
+.pjtag {
+    flex: none;
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
@@ -668,15 +661,33 @@ button.pjstub { cursor: pointer; }
     line-height: 1;
     color: var(--ink-dim);
 }
-.pjtag svg, .pjmore svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
-/* The button takes a finger past its box: up to the edge of the row and right
-   to its side, but not left onto the mark beside it. */
-.pjmore { cursor: pointer; }
-.pjmore::before { content: ""; position: absolute; inset: -.45rem -.75rem -.05rem 0; }
+.pjtag svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
+/* The actions keep their own row below the words, with enough room for a
+   finger, even when the name or checklist takes the whole card width. */
+.pjends { grid-column: 1 / -1; display: flex; gap: .5rem; margin-top: .3rem; }
+.pjend {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .3rem;
+    min-height: 1.95rem;
+    padding: 0 .65rem;
+    border-radius: var(--r-pill);
+    border: var(--hair) solid var(--line);
+    background: none;
+    font: inherit;
+    font-size: var(--t-xs);
+    font-weight: 600;
+    color: var(--crit);
+    cursor: pointer;
+}
+.pjend svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
+.pjend:disabled { opacity: .45; cursor: default; }
 .pjpct { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
 .pjbusy {
     position: absolute;
     inset: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -729,29 +740,3 @@ button.pjstub { cursor: pointer; }
 }
 .pjlink .chev { margin-left: auto; }
 .pjempty { margin: 0; padding: .6rem .75rem; border-top: var(--hair) solid var(--line); font-size: var(--t-sm); color: var(--ink-faint); }
-
-/* What can be done to a session from the list: each line says what follows. */
-.pjsheet { display: flex; flex-direction: column; }
-.pjsheethead { display: flex; flex-direction: column; gap: .15rem; padding: 0 .2rem .6rem; }
-.pjsheetname { font-size: var(--t-base); font-weight: 600; color: var(--ink); }
-.pjsheetsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
-.pjact {
-    display: flex;
-    align-items: center;
-    gap: .75rem;
-    min-height: 3.25rem;
-    padding: .55rem .2rem;
-    border: 0;
-    border-top: var(--hair) solid var(--line);
-    background: none;
-    font: inherit;
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-.pjact:disabled { opacity: .5; cursor: default; }
-.pjacticon svg { width: var(--i-md); height: var(--i-md); color: var(--ink-dim); }
-.pjactbody { display: flex; flex-direction: column; gap: .1rem; }
-.pjactbody b { font-size: var(--t-md); font-weight: 600; color: var(--ink); }
-.pjactbody span { font-size: var(--t-xs); color: var(--ink-faint); }
-.pjact.pjdanger b, .pjact.pjdanger .pjacticon svg { color: var(--crit); }

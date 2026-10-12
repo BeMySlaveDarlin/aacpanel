@@ -8,18 +8,15 @@ import { useEffect, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { ago, plural, since, tokens } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { Sheet } from "../../ui/sheet.js";
 import { ContextBar } from "../../ui/bar.js";
 import { waitText } from "../../ui/waits.js";
 import { useAction } from "../../actions/gate.js";
-import { hostLabel } from "../../actions/registry.js";
 import { knows, whyNot } from "../../exec.js";
-import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
 import { inOrder, sessionsOf } from "./of.js";
-import { kinLabel, kinOf, layoutOf, openedLabel, outsideNote, placeOf } from "./kin.js";
+import { kinLabel, kinOf, layoutOf, openedLabel, placeOf } from "./kin.js";
 import { useFolds } from "./folds.js";
-import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, noTurn, shownName, spoke } from "../../agent.js";
+import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../../agent.js";
 import { modelTitle } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
@@ -238,7 +235,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
 
 // ProjectBlock is one project: its name, a new session in it, and its live
 // sessions or, with none, its last conversation.
-export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onMore, onProject }) {
+export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onProject }) {
     const run = useAction();
     const project = block.project;
     const canNew = project && !block.home;
@@ -261,7 +258,7 @@ export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onM
                 `}
             </div>
             <${LiveLines} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
-                          onOpen=${onOpen} onMore=${onMore} />
+                          onOpen=${onOpen} exec=${exec} />
             ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
             ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
         </section>
@@ -275,11 +272,11 @@ export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onM
 // stand under what is left of it. live is every live session the screen
 // knows of, and past the closed conversations it has read: they tell a parent
 // alive elsewhere from one that closed, and when it closed.
-export function LiveLines({ list, live = null, past = [], notes, wait, onOpen, onMore }) {
+export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen }) {
     const [folded, fold] = useFolds();
     const line = (s, kid = false, branch = "", from = "") => html`
         <${LiveLine} key=${s.session} session=${s} kid=${kid} branch=${branch} from=${from}
-                     notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
+                     notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} exec=${exec} />
     `;
     return layoutOf(list, live, folded).map((e) => {
         switch (e.kind) {
@@ -367,20 +364,29 @@ function KinFold({ kids, line }) {
 // on which model and when it last asked, and what runs in its background. On
 // a phone one line holds no more than one of these: the state is read whole,
 // the checklist cut at its end. Every row opens with the name of its session,
-// the only session of its project included, and two marks of one kind stand
-// level with the name at the right edge — where the session lives and the
-// button of what can be done to it. How full the session is stands in the
-// bottom right corner of the row, level with the last line on the left, so
+// the only session of its project included, and where it lives stands level
+// with the name at the right edge. Restart and Close have a line below the
+// words so they take no room from them. The home session is never closed,
+// codex refuses a restart, and a session outside the panel is only read.
+// How full the session is stands level with the last line on the left, so
 // the lines under the name give up to the right no more than that figure. A
 // session another opened stands a step in under it, on the line of the branch
 // (branch "mid" or "last"); one whose parent stands elsewhere says which
 // session opened it (from).
-export function LiveLine({ session, kid = false, branch = "", from = "", notes, wait, onOpen, onMore }) {
+export function LiveLine({ session, kid = false, branch = "", from = "", notes, wait, exec, onOpen }) {
+    const run = useAction();
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
     const closing = wait ? wait.of("close", session.session) : null;
     const restarting = wait ? wait.of("restart", session.session) : null;
     const busy = closing || restarting;
+    const codex = isCodex(session);
+    const canRestart = knows(exec, "session.restart");
+    const canClose = knows(exec, "session.close");
+    const lost = stopsOf(session);
+    const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
+    const restartNote = ends("a new session with an empty context; this one stays in the archive");
+    const closeNote = codex ? CODEX_CLOSE : ends("the conversation stays in the archive");
     const place = placeOf(session);
     const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, daemon: Icon.plug }[place];
     // The quiet line opens with who runs the session, in the hue of its agent.
@@ -391,11 +397,7 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
         <div class=${`pjrow pjcard${kid ? " pjkid" : ""}${branch ? ` pjbranch${branch === "last" ? " pjbranchend" : ""}` : ""}`}>
             <div class="pjtop">
                 <span class="pjsess">${shownName(session)}</span>
-                <span class="pjpair">
-                    <span class="pjtag">${tag()}${place}</span>
-                    <button class="pjmore" type="button" aria-label=${`what to do with session ${session.session}`}
-                            onClick=${() => onMore(session)}>${Icon.more()}</button>
-                </span>
+                <span class="pjtag">${tag()}${place}</span>
             </div>
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
                     onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
@@ -410,6 +412,22 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
                 ${from && html`<span class="pjfrom">opened by <b>${from}</b></span>`}
             </button>
             <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
+            ${!session.outside && html`
+                <div class="pjends">
+                    ${!codex && html`
+                        <button class="pjend" type="button" disabled=${!canRestart || Boolean(busy)}
+                                aria-label=${`restart session ${session.session}`}
+                                title=${busy ? "the session is already closing or restarting" : canRestart ? restartNote : whyNot(exec, "session.restart")}
+                                onClick=${() => run("session.restart", session.session, {})}>${Icon.refresh()}Restart</button>
+                    `}
+                    ${!session.home && html`
+                        <button class="pjend" type="button" disabled=${!canClose || Boolean(busy)}
+                                aria-label=${`close session ${session.session}`}
+                                title=${busy ? "the session is already closing or restarting" : canClose ? closeNote : whyNot(exec, "session.close")}
+                                onClick=${() => run("session.close", session.session, {})}>${Icon.close()}Close</button>
+                    `}
+                </div>
+            `}
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
         </div>
@@ -476,95 +494,3 @@ function spanOf(from, to) {
     if (sec < 86400) return `${Math.round(sec / 3600)} h`;
     return `${Math.floor(sec / 86400)} d`;
 }
-
-// SessionSheet is what can be done to a live session from the list, each line
-// with what follows from it; the gate asks before anything that ends work.
-export function SessionSheet({ session, exec, onClose, onOpen }) {
-    const run = useAction();
-    const name = session ? session.session : "";
-    const codex = isCodex(session);
-    // A codex thread moves nowhere: the panel does not ask where it could go.
-    const way = useSwitchWay(codex ? "" : name, session ? session.transport : "");
-    if (!session) return html`<${Sheet} open=${false} onClose=${onClose} label="session actions"><//>`;
-    const stream = session.transport === "stream";
-    const act = (fn) => async () => { onClose(); await fn(); };
-    const open = act(async () => onOpen && onOpen(session.session, session.sessionId));
-    const lines = [];
-    lines.push({ key: "open", icon: Icon.feed(), text: "Open the conversation", note: "the feed of this session",
-        press: open });
-    // A claude the panel did not start is only read: nothing else is offered.
-    if (session.outside) {
-        lines.push({ key: "outside", icon: Icon.exit(), text: "Outside the panel", note: outsideNote(session), why: "",
-            press: null });
-    }
-    // A codex thread is offered what the host does for it and nothing more:
-    // what it asks is answered on the card in its conversation, its turn is
-    // stopped from here, and it closes like any other session. One running on
-    // its own is only read, as a claude outside the panel is.
-    if (codex && !session.outside) {
-        if (session.status === "waiting") {
-            lines.push({ key: "permit", icon: Icon.hand(), text: "Answer what it asks",
-                note: "codex waits for a yes or a no — the card is in the conversation", press: open });
-        }
-        lines.push({ key: "stop", icon: Icon.stopsquare(), text: "Stop the turn", danger: true,
-            note: "codex breaks off the turn it is running; the thread stays",
-            why: noTurn(session) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop")),
-            press: act(async () => run("session.stop", name, {})) });
-    }
-    // Only a claude the panel started moves and gets a window.
-    const reach = !session.outside && !codex;
-    if (reach && (way.to === "console" || way.to === "stream")) {
-        const to = way.to;
-        lines.push({ key: "move", icon: to === "stream" ? Icon.feed() : Icon.terminal(),
-            text: to === "stream" ? "Move to the stream" : "Move to tmux",
-            note: "the same conversation, resumed there; between turns only",
-            why: whyNot(exec, "session.switch"),
-            press: act(async () => moveSession({ run, exec, name, to })) });
-    }
-    if (!stream && reach) {
-        lines.push({ key: "window", icon: Icon.monitor(), text: `Open a window on ${hostLabel()}`,
-            note: "a terminal on the host's desktop",
-            why: knows(exec, "window.open") ? "" : whyNot(exec, "window.open"),
-            press: act(async () => run("window.open", name, {})) });
-    }
-    // The home session is the one the panel lives beside: it is restarted from
-    // scratch and never closed, the way the panel never stops its own container.
-    // A codex thread says what a close does to it rather than what it does to
-    // a claude.
-    const lost = stopsOf(session);
-    const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
-    const restartLine = session.home && {
-        key: "restart", icon: Icon.refresh(), text: "Restart", danger: true,
-        note: ends("a new session with an empty context; this one stays in the archive"),
-        why: knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart"),
-        press: act(async () => run("session.restart", name, {})),
-    };
-    const closeLine = !session.home && {
-        key: "close", icon: Icon.close(), text: "Close", danger: true,
-        note: codex ? CODEX_CLOSE : ends("the conversation stays in the archive"),
-        why: knows(exec, "session.close") ? "" : whyNot(exec, "session.close"),
-        press: act(async () => run("session.close", name, {})),
-    };
-    if (!session.outside) lines.push(restartLine || closeLine);
-    return html`
-        <${Sheet} open=${true} onClose=${onClose} label=${`actions of session ${name}`}>
-            <div class="pjsheet">
-                <div class="pjsheethead">
-                    <span class="pjsheetname">${shownName(session, name)}</span>
-                    <span class="pjsheetsub"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${[
-                        session.model ? session.model.replace(/^claude-/, "") : "", session.effort || "",
-                        session.noRequests ? "" : `${Math.round(session.pct || 0)}%`, placeOf(session),
-                    ].filter(Boolean).map((part) => ` · ${part}`).join("")}</span>
-                </div>
-                ${lines.map((l) => html`
-                    <button key=${l.key} class=${`pjact${l.danger ? " pjdanger" : ""}`} type="button"
-                            disabled=${Boolean(l.why) || !l.press} onClick=${l.press}>
-                        <span class="pjacticon">${l.icon}</span>
-                        <span class="pjactbody"><b>${l.text}</b><span>${l.why || l.note}</span></span>
-                    </button>
-                `)}
-            </div>
-        <//>
-    `;
-}
-

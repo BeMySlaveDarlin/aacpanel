@@ -42,7 +42,7 @@ const blocks = blocksOf({ profile: null, sessions: rows });
 
 render(
     h(ToastHost, null, h(GateHost, null, blocks.map((block) =>
-        h(ProjectBlock, { key: block.key, block, exec, onOpen: () => {}, onMore: () => {} })))),
+        h(ProjectBlock, { key: block.key, block, exec, onOpen: () => {} })))),
     document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -77,7 +77,7 @@ window.done = (async () => {
             // The checklist stops short of the figure in the corner and lies
             // under the pair on the name's line, not beside it.
             checklistInside: Boolean(b) && b.right <= block.querySelector(".pjpct").getBoundingClientRect().left + 0.5
-                && [".pjtag", ".pjmore"].every((sel) => b.top >= block.querySelector(sel).getBoundingClientRect().bottom - 0.5),
+                && [".pjtag"].every((sel) => b.top >= block.querySelector(sel).getBoundingClientRect().bottom - 0.5),
         };
     }
     out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;

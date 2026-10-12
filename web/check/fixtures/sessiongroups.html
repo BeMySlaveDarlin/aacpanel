@@ -88,7 +88,7 @@ const page = (id, contour, list) => {
     const blocks = blocksOf({ profile: profileMap.find((p) => p.id === contour), sessions: list });
     render(wrap(html`${blocks.map((block) => html`
         <${ProjectBlock} key=${block.key} block=${block} exec=${exec} live=${sessions} past=${archive}
-                         onOpen=${(name, sid) => opened.push({ name, id: sid })} onMore=${() => {}} />
+                         onOpen=${(name, sid) => opened.push({ name, id: sid })} />
     `)}`), document.getElementById(id));
 };
 page("phone1", 1, sessions.filter((s) => s.contour === 1));

@@ -34,7 +34,7 @@ const pressed = [];
 render(
     h(ToastHost, null, h(GateHost, null, blocks.map((block) =>
         h(ProjectBlock, { key: block.key, block, exec,
-            onOpen: (name) => pressed.push(`open:${name}`), onMore: (s) => pressed.push(`more:${s.session}`) })))),
+            onOpen: (name) => pressed.push(`open:${name}`) })))),
     document.getElementById("root"));
 
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
@@ -78,7 +78,6 @@ window.done = (async () => {
         const tag = block.querySelector(".pjtag");
         const box = tag.getBoundingClientRect();
         const pct = block.querySelector(".pjpct").getBoundingClientRect();
-        const more = block.querySelector(".pjmore").getBoundingClientRect();
         const said = block.querySelector(".pjtext");
         const rc = block.querySelector(".pjstate .pjremote");
         const name = block.querySelector(".pjsess");
@@ -99,19 +98,15 @@ window.done = (async () => {
                 return Number(n.fontWeight) >= 600 && parseFloat(n.fontSize) > parseFloat(w.fontSize) && n.color !== w.color;
             })(),
             nameLines: lines(name),
-            // The name on the first line of the row, the pair beside it and
+            // The name on the first line of the row, the place beside it and
             // level with it, everything else under both.
             nameBeside: Boolean(nameBox) && nameBox.right <= box.left && nameBox.bottom <= open.top + 1
-                && Math.abs(box.top + box.height / 2 - nameMid) <= 1 && Math.abs(more.top + more.height / 2 - nameMid) <= 1,
+                && Math.abs(box.top + box.height / 2 - nameMid) <= 1,
             workBelow: below(block.querySelector(".pjwork"), block.querySelector(".pjsince")),
             ...agentOf(block.querySelector(".pjsince")),
             tapPct: tapAt(block.querySelector(".pjpct")),
             tapTag: tapAt(tag),
             tapRC: tapAt(rc),
-            tapMore: tapAt(block.querySelector(".pjmore")),
-            // The corner of the row over the button: a finger that lands a
-            // little past the dots still reaches them.
-            tapCorner: tapPoint(Math.min(more.right + 6, row.right - 2), Math.max(more.top - 4, row.top + 2)),
             name: block.querySelector(".pjname").textContent.trim(),
             rc: rc ? rc.textContent.trim() : "",
             rcElsewhere: Array.from(rowEl.querySelectorAll("*")).some((el) => el !== rc && el.children.length === 0 && el.textContent.trim() === "RC"),
@@ -120,7 +115,7 @@ window.done = (async () => {
             // What the lines under the name give up on the right: the figure
             // and the gap to it, no more.
             leftGives: Math.round(pct.left - open.right),
-            marksInside: [box, more, pct].every((m) => m.right <= row.right && m.bottom <= row.bottom - 4),
+            marksInside: [box, pct].every((m) => m.right <= row.right && m.bottom <= row.bottom - 4),
             pctAddsHeight: Math.round(pct.bottom - open.bottom),
             overflow: document.scrollingElement.scrollWidth - window.innerWidth,
         };

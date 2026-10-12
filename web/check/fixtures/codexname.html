@@ -53,7 +53,7 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
-                                           onOpen=${() => {}} onMore=${() => {}} /></section>
+                                           onOpen=${() => {}} /></section>
 `)), document.getElementById("phone"));
 render(h(ToastHost, null, h(GateHost, null, h(Chat, {
     name: unnamed.session, id: unnamed.sessionId, live: unnamed, exec, snapshot: { sessions }, onBack() {},

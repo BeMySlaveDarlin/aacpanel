@@ -11,7 +11,7 @@
 // its project — a project of two, a claude session and a codex thread on the
 // daemon, and a project of two whose first is in tmux with a task in its
 // background and no checklist, and whose second has a name too long for one
-// line beside the pair.
+// line beside the place.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -51,7 +51,7 @@ const blocks = blocksOf({ profile, sessions: rows });
 
 render(
     h(ToastHost, null, h(GateHost, null, blocks.map((block) =>
-        h(ProjectBlock, { key: block.key, block, exec, onOpen: () => {}, onMore: () => {} })))),
+        h(ProjectBlock, { key: block.key, block, exec, onOpen: () => {} })))),
     document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -108,10 +108,8 @@ window.done = (async () => {
         const saidBox = said.getBoundingClientRect();
         const lived = card.querySelector(".pjlived");
         const tag = card.querySelector(".pjtag");
-        const more = card.querySelector(".pjmore");
         const pct = card.querySelector(".pjpct");
         const tagBox = tag.getBoundingClientRect();
-        const moreBox = more.getBoundingClientRect();
         const pctBox = pct.getBoundingClientRect();
         const word = Array.from(state.children).find((el) => text(el) === "RC");
         const wordBox = word ? word.getBoundingClientRect() : null;
@@ -120,16 +118,16 @@ window.done = (async () => {
         const lastBox = last.getBoundingClientRect();
         const checklist = card.querySelector(".pjchecklist");
         const checklistBox = checklist ? checklist.getBoundingClientRect() : null;
-        const marks = [tag, more, pct].map((el) => el.getBoundingClientRect());
+        const marks = [tag, pct].map((el) => el.getBoundingClientRect());
         const label = open.getAttribute("aria-label");
         out.cards[label.slice(label.lastIndexOf(" ") + 1)] = {
             name: text(name),
             nameLines: lines(name),
             nameCut: cut(name),
-            // The pair beside the name: the name stops short of the place,
-            // and neither of the two lies on the other.
+            // The place beside the name: the name stops short of the place,
+            // and stays clear of it.
             nameGives: nameBox ? round(tagBox.left - nameBox.right) : -1,
-            nameClear: Boolean(nameBox) && [tagBox, moreBox].every((m) => !meets(nameBox, m)),
+            nameClear: Boolean(nameBox) && [tagBox].every((m) => !meets(nameBox, m)),
             stateReads: reads(state),
             stateLines: lines(said),
             rc: word ? {
@@ -139,23 +137,19 @@ window.done = (async () => {
                 ...drawn(word),
             } : null,
             rcPlates: card.querySelectorAll(".pjrc").length,
-            rcInMarks: [tag, more, pct].some((el) => text(el).includes("RC")),
+            rcInMarks: [tag, pct].some((el) => text(el).includes("RC")),
             mark: text(tag),
             tag: drawn(tag),
-            more: drawn(more),
-            // The pair on one line, the place first, level with the first
+            // The place level with the first
             // line of the name and over the state.
-            pairLevel: round(Math.abs(mid(tagBox) - mid(moreBox))),
-            pairGap: round(moreBox.left - tagBox.right),
-            pairOff: round(Math.abs(mid(tagBox) - nameMid)),
-            pairOverState: round(saidBox.top - Math.max(tagBox.bottom, moreBox.bottom)),
-            pairRight: round(inner.right - moreBox.right),
-            // How much taller the name's line is for the pair beside it.
-            pairAddsHeight: nameBox ? round(Math.max(tagBox.bottom, moreBox.bottom) - nameBox.bottom) : 0,
+            tagOff: round(Math.abs(mid(tagBox) - nameMid)),
+            tagOverState: round(saidBox.top - tagBox.bottom),
+            tagRight: round(inner.right - tagBox.right),
+            // How much taller the name's line is for the place beside it.
+            tagAddsHeight: nameBox ? round(tagBox.bottom - nameBox.bottom) : 0,
             pct: text(pct),
             pctRight: round(inner.right - pctBox.right),
-            pctBottom: round(inner.bottom - pctBox.bottom),
-            pctUnder: round(pctBox.top - Math.max(tagBox.bottom, moreBox.bottom)),
+            pctUnder: round(pctBox.top - tagBox.bottom),
             pctLevel: round(Math.abs(mid(pctBox) - mid(lastBox))),
             last: last.className,
             leftGives: round(pctBox.left - openBox.right),
@@ -165,11 +159,11 @@ window.done = (async () => {
             checklistLines: lines(checklist),
             checklistCut: cut(checklist),
             checklistClear: Boolean(checklist) && marks.every((m) => !meets(checklistBox, m)),
-            // The checklist against the room the pair would have left it on
-            // the state's line: how far past the start of the pair it runs, and
+            // The checklist against the room the place would have left it on
+            // the state's line: how far past the start of the place it runs, and
             // how far short of the figure it stops.
             checklistWidth: checklistBox ? round(checklistBox.width) : 0,
-            checklistPastPair: checklistBox ? round(checklistBox.right - (tagBox.left - gap)) : 0,
+            checklistPastTag: checklistBox ? round(checklistBox.right - (tagBox.left - gap)) : 0,
             checklistShort: checklistBox ? round(pctBox.left - gap - checklistBox.right) : 0,
             since: text(card.querySelector(".pjsince")),
             sinceLines: lines(card.querySelector(".pjsince")),

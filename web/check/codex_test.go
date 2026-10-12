@@ -36,7 +36,7 @@ const (
 // asks, and a close. Everything claude's — its pickers, the commands, the
 // shell, the terminal, the move, the window, Remote Control, the name, the
 // restart — is not there, and the screen does not ask the host about any of it. The close says what it
-// does to codex wherever it is offered: the desktop row, the phone's sheet and
+// does to codex wherever it is offered: the desktop row, the phone's card and
 // the session panel, and the sheet of the gate behind each of them, which has
 // no kill under it — the host does not kill codex.
 func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
@@ -44,25 +44,23 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	var got struct {
-		DeskMarks   []string    `json:"deskMarks"`
-		DeskFacts   []string    `json:"deskFacts"`
-		DeskAgent   agentWord   `json:"deskAgent"`
-		DeskActs    []rowAct    `json:"deskActs"`
-		DeskSay     string      `json:"deskSay"`
-		ClaudeMarks []string    `json:"claudeMarks"`
-		ClaudeAgent agentWord   `json:"claudeAgent"`
-		ClaudeActs  int         `json:"claudeActs"`
-		PhoneTags   []string    `json:"phoneTags"`
-		PhoneState  string      `json:"phoneState"`
-		PhoneSince  string      `json:"phoneSince"`
-		PhoneAgents []agentWord `json:"phoneAgents"`
-		SheetSub    string      `json:"sheetSub"`
-		SheetAgent  agentWord   `json:"sheetAgent"`
-		Sheet       []struct {
+		DeskMarks    []string    `json:"deskMarks"`
+		DeskFacts    []string    `json:"deskFacts"`
+		DeskAgent    agentWord   `json:"deskAgent"`
+		DeskActs     []rowAct    `json:"deskActs"`
+		DeskSay      string      `json:"deskSay"`
+		ClaudeMarks  []string    `json:"claudeMarks"`
+		ClaudeAgent  agentWord   `json:"claudeAgent"`
+		ClaudeActs   int         `json:"claudeActs"`
+		PhoneTags    []string    `json:"phoneTags"`
+		PhoneState   string      `json:"phoneState"`
+		PhoneSince   string      `json:"phoneSince"`
+		PhoneAgents  []agentWord `json:"phoneAgents"`
+		PhoneActions []struct {
 			Text string `json:"text"`
 			Note string `json:"note"`
 			Off  bool   `json:"off"`
-		} `json:"sheet"`
+		} `json:"phoneActions"`
 		HeadMarks   []string        `json:"headMarks"`
 		HeadSub     string          `json:"headSub"`
 		HeadAgent   agentWord       `json:"headAgent"`
@@ -177,24 +175,11 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the header of the conversation carries the marks %v beside the name", got.HeadMarks)
 	}
 
-	// The phone's sheet: open it, answer it, stop its turn, close it —
-	// nothing else.
-	var sheet []string
-	for _, l := range got.Sheet {
-		sheet = append(sheet, l.Text)
-		if l.Off {
-			t.Errorf("the sheet line %q is off for a waiting codex thread", l.Text)
-		}
-		if l.Text == "Close" {
-			saysCodexClose(t, "the close on the phone's sheet", l.Note)
-		}
-	}
-	if strings.Join(sheet, ",") != "Open the conversation,Answer what it asks,Stop the turn,Close" {
-		t.Errorf("the phone's sheet of a waiting codex thread offers %v", sheet)
-	}
-	codexWord("the line under the name in the sheet", got.SheetAgent)
-	if !strings.HasPrefix(got.SheetSub, "Codex · gpt-6-astra ·") || !strings.HasSuffix(got.SheetSub, "· daemon") {
-		t.Errorf("the sheet says %q under the name, expected who runs it on which model, and where it lives last", got.SheetSub)
+	// A codex card closes the thread; restarting it is refused by the host.
+	if len(got.PhoneActions) != 1 || got.PhoneActions[0].Text != "Close" || got.PhoneActions[0].Off {
+		t.Errorf("the phone's card offers %+v, expected Close alone", got.PhoneActions)
+	} else {
+		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[0].Note)
 	}
 
 	// The conversation: the feed and its files, no terminal, no move.
@@ -266,7 +251,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	// kill under it, and the press sends the close of the thread.
 	for where, sheet := range map[string]*gateSheet{
 		"the session panel": got.PanelCloseSheet, "the desktop row": got.DeskCloseSheet,
-		"the phone's sheet": got.PhoneCloseSheet,
+		"the phone's card": got.PhoneCloseSheet,
 	} {
 		checkCodexCloseSheet(t, where, name, sheet)
 	}

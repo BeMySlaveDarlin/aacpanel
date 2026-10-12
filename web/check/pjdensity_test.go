@@ -9,8 +9,8 @@ import (
 // The phone's list of a contour holds its blocks close: a block a few pixels
 // from the next, a section heading near what it heads, the head and the last
 // conversation of a block no taller than a line and its padding, a live row
-// no taller than its three lines — the name, the state and who runs it — and
-// its padding, while a button still takes a finger.
+// no taller than its three lines, its action row and their padding, while
+// a button still takes a finger.
 func TestThePhoneListHasNoSpansBetweenItsBlocks(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
@@ -46,8 +46,8 @@ func TestThePhoneListHasNoSpansBetweenItsBlocks(t *testing.T) {
 	if got.Past > 50 {
 		t.Errorf("the last conversation of a block is %d px tall", got.Past)
 	}
-	if got.Live > 72 {
-		t.Errorf("a live row of a block is %d px tall — more than its three lines and its padding", got.Live)
+	if got.Live > 110 {
+		t.Errorf("a live row of a block is %d px tall — more than its words, action row and padding", got.Live)
 	}
 	if got.Button < 28 {
 		t.Errorf("the resume button is %d px tall — too small for a finger", got.Button)

@@ -9,8 +9,8 @@ import (
 // At a desk each contour's heading carries claude's two rings and, beside
 // them, codex's week in codex's own hue, and the details under them name every
 // window; a contour codex alone spent in has codex's ring alone. A codex
-// thread with a title is listed by it on the desk, on the phone and in its
-// sheet, while a press still opens it by its address.
+// thread with a title is listed by it on the desk and on the phone, while a
+// press still opens it by its address.
 func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
@@ -32,7 +32,6 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 			Tip  string `json:"tip"`
 		} `json:"deskName"`
 		PhoneName string   `json:"phoneName"`
-		SheetName string   `json:"sheetName"`
 		Opened    []string `json:"opened"`
 	}
 	runWideFixture(t, "codexrings.html", &got)
@@ -57,8 +56,8 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	if got.DeskName.Text != "Cart flakes" || got.DeskName.Tip != "codex-5afc361b" {
 		t.Errorf("the desk lists the thread as %+v, expected its title with its address in the tip", got.DeskName)
 	}
-	if got.PhoneName != "Cart flakes" || got.SheetName != "Cart flakes" {
-		t.Errorf("the phone lists the thread as %q and its sheet as %q", got.PhoneName, got.SheetName)
+	if got.PhoneName != "Cart flakes" {
+		t.Errorf("the phone lists the thread as %q", got.PhoneName)
 	}
 	if strings.Join(got.Opened, ",") != "codex-5afc361b,codex-5afc361b" {
 		t.Errorf("the presses opened %v, expected the thread by its address", got.Opened)

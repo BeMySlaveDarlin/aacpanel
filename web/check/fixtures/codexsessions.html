@@ -9,7 +9,7 @@
 <script type="module">
 // A codex thread beside a claude session: named Codex, in a hue of its own, at
 // the head of the line of its model on both lists and in the header of its
-// conversation, living on the daemon, offered on the phone's sheet only what
+// conversation, living on the daemon, offered on the phone's card only what
 // the host does for it, and in its conversation a composer with codex's own
 // band — the paperclip, how it thinks and what it may do — and nothing of
 // claude's around it: no commands, no shell, no terminal, no move, no window,
@@ -21,7 +21,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
-import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
+import { LiveLines } from "/src/screens/sessions/blocks.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
@@ -78,8 +78,7 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
-                                           onOpen=${() => {}} onMore=${() => {}} /></section>
-    <${SessionSheet} session=${codex} exec=${exec} onClose=${() => {}} onOpen=${() => {}} />
+                                           onOpen=${() => {}} exec=${exec} /></section>
 `)), document.getElementById("phone"));
 render(h(ToastHost, null, h(GateHost, null, h(Chat, {
     name: codex.session, id: codex.sessionId, live: working, exec, snapshot: { sessions }, onBack() {}, onUsage() {},
@@ -154,11 +153,8 @@ window.done = (async () => {
     out.phoneState = text(phoneRow.querySelector(".pjstate"));
     out.phoneSince = text(phoneRow.querySelector(".pjsince"));
     out.phoneAgents = phoneRows.map((r) => agentOf(r.querySelector(".pjsince")));
-    if (!await until(() => document.querySelector(".pjsheet .pjact"))) throw new Error("the sheet did not open");
-    out.sheetSub = text(document.querySelector(".pjsheetsub"));
-    out.sheetAgent = agentOf(document.querySelector(".pjsheetsub"));
-    out.sheet = Array.from(document.querySelectorAll(".pjsheet .pjact"))
-        .map((b) => ({ text: text(b.querySelector("b")), note: text(b.querySelector(".pjactbody span")), off: b.disabled }));
+    out.phoneActions = Array.from(phoneRow.querySelectorAll(".pjend"))
+        .map((b) => ({ text: text(b), note: b.title, off: b.disabled }));
 
     if (!await until(() => chat.querySelector(".composer textarea"))) throw new Error("the composer did not show");
     out.headMarks = names(chat, ".dkheadtop .dkmark");
@@ -251,15 +247,14 @@ window.done = (async () => {
         out.panelCloseSheet = await closeSheet(chat);
     }
 
-    // The close of the desktop row and of the phone's sheet, each through
+    // The close of the desktop row and of the phone's card, each through
     // its own gate.
     const deskClose = deskRow.querySelector('.dkrowacts .dkact[aria-label^="close session"]');
     if (deskClose) {
         deskClose.click();
         out.deskCloseSheet = await closeSheet(desk);
     }
-    const phoneClose = Array.from(document.querySelectorAll(".pjsheet .pjact"))
-        .find((b) => text(b.querySelector("b")) === "Close");
+    const phoneClose = phoneRow.querySelector('[aria-label^="close session"]');
     if (phoneClose) {
         phoneClose.click();
         out.phoneCloseSheet = await closeSheet(phone);

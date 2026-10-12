@@ -28,10 +28,10 @@ const blocks = [
 const exec = { available: true, kinds: ["session.open", "session.resume"] };
 render(h(ToastHost, null, h(GateHost, null, html`
     <div class="grouphead pjsection">working<span class="pjcount">1</span></div>
-    <${ProjectBlock} block=${blocks[0]} exec=${exec} wait=${null} notes=${null} checked=${null} onOpen=${() => {}} onMore=${() => {}} onProject=${() => {}} />
+    <${ProjectBlock} block=${blocks[0]} exec=${exec} wait=${null} notes=${null} checked=${null} onOpen=${() => {}} onProject=${() => {}} />
     <div class="grouphead pjsection">quiet</div>
     ${blocks.slice(1).map((b) => html`<${ProjectBlock} key=${b.key} block=${b} exec=${exec} wait=${null} notes=${null} checked=${null}
-                                                      onOpen=${() => {}} onMore=${() => {}} onProject=${() => {}} />`)}
+                                                      onOpen=${() => {}} onProject=${() => {}} />`)}
 `)), document.getElementById("root"));
 
 window.done = (async () => {

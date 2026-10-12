@@ -67,15 +67,12 @@ func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 		PhoneFold     string   `json:"phoneFold"`
 		PhoneTags     []string `json:"phoneTags"`
 		PhoneOpen     []string `json:"phoneOpen"`
-		Sheet         []struct {
-			Text string `json:"text"`
-			Off  bool   `json:"off"`
-		} `json:"sheet"`
-		Tabs     []string `json:"tabs"`
-		Place    string   `json:"place"`
-		Composer bool     `json:"composer"`
-		Note     string   `json:"note"`
-		Panel    []string `json:"panel"`
+		OutsideActs   int      `json:"outsideActs"`
+		Tabs          []string `json:"tabs"`
+		Place         string   `json:"place"`
+		Composer      bool     `json:"composer"`
+		Note          string   `json:"note"`
+		Panel         []string `json:"panel"`
 	}
 	runWideFixture(t, "outsidesessions.html", &got)
 
@@ -102,12 +99,8 @@ func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 	if len(got.PhoneOpen) != 4 {
 		t.Errorf("the open fold on the phone shows %v", got.PhoneOpen)
 	}
-	var sheet []string
-	for _, l := range got.Sheet {
-		sheet = append(sheet, l.Text)
-	}
-	if strings.Join(sheet, ",") != "Open the conversation,Outside the panel" || got.Sheet[0].Off || !got.Sheet[1].Off {
-		t.Errorf("the phone's sheet of a run offers %+v — only opening it, and why nothing else", got.Sheet)
+	if got.OutsideActs != 0 {
+		t.Errorf("the phone offers %d actions on sessions outside the panel", got.OutsideActs)
 	}
 
 	for _, tab := range got.Tabs {

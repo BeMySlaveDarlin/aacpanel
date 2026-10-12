@@ -15,7 +15,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
-import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
+import { LiveLines } from "/src/screens/sessions/blocks.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -48,8 +48,7 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} checked=${null} wait=${null}
-                                           onOpen=${() => {}} onMore=${() => {}} /></section>
-    <${SessionSheet} session=${sessions[1]} exec=${exec} onClose=${() => {}} onOpen=${() => {}} />
+                                           onOpen=${() => {}} exec=${exec} /></section>
 `)), document.getElementById("phone"));
 render(h(ToastHost, null, h(GateHost, null, h(Chat, {
     name: "rotation-25", id: "k1", live: sessions[1], exec, snapshot: { sessions }, onBack() {}, onUsage() {},
@@ -85,7 +84,8 @@ window.done = (async () => {
     phone.querySelector(".pjkin").click();
     await quiet();
     out.phoneOpen = names(phone, ".pjblock .pjrow .pjsess");
-    out.sheet = Array.from(document.querySelectorAll(".pjsheet .pjact")).map((b) => ({ text: text(b.querySelector("b")), off: b.disabled }));
+    out.outsideActs = [...phone.querySelectorAll(".pjcard")].filter((r) => text(r.querySelector(".pjtag")) === "outside")
+        .reduce((n, r) => n + r.querySelectorAll(".pjend, .pjmore").length, 0);
 
     for (let i = 0; i < 40 && !chat.querySelector(".outsidenote"); i++) await sleep(50);
     out.tabs = names(chat, ".dktabs .dktab");

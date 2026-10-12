@@ -1399,9 +1399,11 @@ says. A session whose working directory belongs to a project
 of the map comes back as that project: its launch, its contour, and the
 message after a restart as its first — a restart without them would bring it up
 in another setup, possibly under another account. A session no project holds
-is restarted only if it is the host's main one. The button is on the main
-session; a project session asks for its own restart through the local listener,
-naming its conversation, which is how the context guard brings it back.
+is restarted only if it is the host's main one. The phone's live cards offer
+Restart and Close directly, with Restart alone on the main session, Close
+alone for codex and neither for a session outside the panel. A project session
+can also ask for its own restart through the local listener, naming its
+conversation, which is how the context guard brings it back.
 
 **A conversation is resumed where it ran, with the parameters of the project
 it belongs to.** Its transcript is kept by the directory it ran in, so a

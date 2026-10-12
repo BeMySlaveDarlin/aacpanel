@@ -5,21 +5,9 @@ import (
 	"testing"
 )
 
-// On the phone every live session says where it lives on its row — the feed or
-// the console. The row opens with the name of the session, and beside it at
-// the right edge, level with it, stand where the session lives and the button
-// of what can be done to it; how full the session is stands at the foot of the
-// row on the right, and Remote Control, for a session that has it up, is a word
-// on the state's line rather than a mark. The lines under the name give up on
-// the right no more than the figure, so who runs the session on which model
-// and since when stands on one line, and the figure runs no further down than
-// the lines on the left, so it never makes the row taller. A long name fits
-// its line beside the pair on a phone. A tap anywhere on the row opens the
-// conversation, the marks and the word of Remote Control included, but on the
-// row's button of what can be done to it — and a little past its dots — which
-// opens that. The state stands whole, and under it, on a line of its own, who
-// runs the session — the word of its agent first; what runs in its background
-// stands on a third line.
+// The phone's card keeps the name, place, state, model and background work
+// readable above its action row. Tapping the place, percentage or Remote
+// Control opens the conversation just as tapping the words does.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
 		Name          string `json:"name"`
@@ -40,8 +28,6 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		TapPct        string `json:"tapPct"`
 		TapTag        string `json:"tapTag"`
 		TapRC         string `json:"tapRC"`
-		TapMore       string `json:"tapMore"`
-		TapCorner     string `json:"tapCorner"`
 		RC            string `json:"rc"`
 		RCElsewhere   bool   `json:"rcElsewhere"`
 		Shown         bool   `json:"shown"`
@@ -87,9 +73,6 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 			t.Errorf("%s: a tap on the percentage opens %q, on where it lives %q, on Remote Control %q — the whole row opens the conversation",
 				session, c.TapPct, c.TapTag, c.TapRC)
 		}
-		if c.TapMore != "more:"+session || c.TapCorner != "more:"+session {
-			t.Errorf("%s: a tap on the button of what can be done does %q, and just past its dots %q", session, c.TapMore, c.TapCorner)
-		}
 		wantState, wantSince, wantWork := "idle", "Claude · Opus 5.5 · 2 min ago", ""
 		switch {
 		case session == "aacpanel":
@@ -111,7 +94,7 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 				"and stands bolder, larger and in another ink than the line under the state", session)
 		}
 		if !c.NameBeside || c.NameLines != 1 {
-			t.Errorf("%s: the name stands beside the pair and level with it %v, on %d lines — it opens the row and fits one", session, c.NameBeside, c.NameLines)
+			t.Errorf("%s: the name stands beside the place and level with it %v, on %d lines — it opens the row and fits one", session, c.NameBeside, c.NameLines)
 		}
 		if c.Work != wantWork || (wantWork != "" && !c.WorkBelow) {
 			t.Errorf("%s: the line of what runs in the background reads %q (under who runs it %v), expected %q",
