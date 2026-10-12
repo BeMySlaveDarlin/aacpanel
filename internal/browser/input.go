@@ -93,6 +93,8 @@ func (b *chrome) input(ctx context.Context, i browserlink.Input) error {
 		}
 		return call("Page.navigateToHistoryEntry", map[string]int{"entryId": h.Entries[n].ID})
 	case "new-tab":
+		// A URL passed to createTarget can load before auto-attachment. Start
+		// blank so the holder installs identity and guards before navigation.
 		var result struct {
 			TargetID string `json:"targetId"`
 		}

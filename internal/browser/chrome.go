@@ -38,7 +38,10 @@ type chrome struct {
 	cancel     context.CancelFunc
 	mu         sync.Mutex
 	castMu     sync.Mutex
+	targets    map[string]string
 	tabs       map[string]tabSession
+	version    string
+	language   string
 	current    string
 	size       browserlink.Size
 	casting    bool
@@ -66,14 +69,16 @@ func startChrome(ctx context.Context, c Config, id string) (*chrome, error) {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	b := &chrome{
-		tabs:    make(map[string]tabSession),
-		changed: make(chan struct{}, 1),
-		events:  make(chan cdp.Message, 128),
-		failure: make(chan error, 1),
-		refused: make(chan string, 4),
-		ended:   make(chan error, 1),
-		cancel:  cancel,
-		proxy:   NewEgress(),
+		targets:  make(map[string]string),
+		tabs:     make(map[string]tabSession),
+		language: hostLanguage(),
+		changed:  make(chan struct{}, 1),
+		events:   make(chan cdp.Message, 128),
+		failure:  make(chan error, 1),
+		refused:  make(chan string, 4),
+		ended:    make(chan error, 1),
+		cancel:   cancel,
+		proxy:    NewEgress(),
 	}
 	b.server = &http.Server{
 		Handler:           b.proxy,
@@ -89,6 +94,9 @@ func startChrome(ctx context.Context, c Config, id string) (*chrome, error) {
 	args := []string{
 		"--headless=new",
 		"--remote-debugging-pipe",
+		// Headless enables webdriver even without --enable-automation. This
+		// browser is driven by the person viewing it, including during sign-in.
+		"--disable-blink-features=AutomationControlled",
 		"--user-data-dir=" + filepath.Join(dir, "data"),
 		"--password-store=basic",
 		"--no-first-run",
@@ -136,6 +144,17 @@ func startChrome(ctx context.Context, c Config, id string) (*chrome, error) {
 		return nil, err
 	}
 	go func() { b.ended <- b.cmd.Wait(); close(b.ended) }()
+	var version struct{ Product string }
+	if err = b.call(ctx, "", "Browser.getVersion", struct{}{}, &version); err == nil {
+		_, b.version, _ = strings.Cut(version.Product, "/")
+		if b.version == "" {
+			err = errors.New("the browser did not report its version")
+		}
+	}
+	if err != nil {
+		b.close()
+		return nil, err
+	}
 	go b.readEvents(ctx)
 	if err = b.call(
 		ctx,
@@ -259,6 +278,7 @@ func (b *chrome) readEvents(ctx context.Context) {
 func (b *chrome) detached(ctx context.Context, sid string) {
 	b.castMu.Lock()
 	defer b.castMu.Unlock()
+	delete(b.targets, sid)
 	b.mu.Lock()
 	selected := false
 	for id, tab := range b.tabs {
@@ -315,9 +335,9 @@ func (b *chrome) frame(m cdp.Message) {
 	b.mu.Unlock()
 }
 
-// New pages and out-of-process frames stay paused until the file guards are
-// installed. Installing them only on the first tab leaves popup requests free
-// to run before the holder sees their navigation.
+// New pages and out-of-process frames stay paused until the file guards and
+// viewer identity are installed. A popup's first request can choose a mobile
+// site or a sign-in flow before the holder sees its navigation.
 func (b *chrome) guardTarget(ctx context.Context, sid, id, kind string) {
 	if kind != "page" && kind != "iframe" {
 		if err := b.call(ctx, sid, "Runtime.runIfWaitingForDebugger", struct{}{}, nil); err != nil {
@@ -345,10 +365,22 @@ func (b *chrome) guardTarget(ctx context.Context, sid, id, kind string) {
 			return
 		}
 	}
+	// Resizing and attachment share the capture lock so a target cannot miss
+	// a viewer change between reading its size and joining the target set.
+	b.castMu.Lock()
+	defer b.castMu.Unlock()
+	b.mu.Lock()
+	size := b.size
+	b.mu.Unlock()
+	if err := b.emulate(ctx, sid, kind, size); err != nil {
+		b.fail(err)
+		return
+	}
 	if err := b.call(ctx, sid, "Runtime.runIfWaitingForDebugger", struct{}{}, nil); err != nil {
 		b.fail(err)
 		return
 	}
+	b.targets[sid] = kind
 	if kind == "page" {
 		b.mu.Lock()
 		b.tabs[id] = tabSession{id: sid, ready: true}
@@ -394,6 +426,10 @@ func (b *chrome) ready(ctx context.Context, id string) error {
 // Resizing invalidates coordinates of the previous image. Desktop capture
 // is downsampled to CSS pixels; a phone may request the bounded render scale.
 func (b *chrome) cast(ctx context.Context, size browserlink.Size) error {
+	// Attachment needs castMu to install emulation before publishing readiness.
+	if err := b.ready(ctx, ""); err != nil {
+		return err
+	}
 	b.castMu.Lock()
 	defer b.castMu.Unlock()
 	return b.castLocked(ctx, size)
@@ -422,11 +458,21 @@ func (b *chrome) castLocked(ctx context.Context, size browserlink.Size) error {
 	if err := size.Check(); err != nil {
 		return err
 	}
-	if err := b.ready(ctx, ""); err != nil {
-		return err
-	}
 	sid := b.session()
+	if sid == "" {
+		return errors.New("the browser has no selected tab")
+	}
 	b.call(ctx, sid, "Page.stopScreencast", struct{}{}, nil)
+	b.mu.Lock()
+	changed := b.size != size
+	b.mu.Unlock()
+	if changed {
+		for target, kind := range b.targets {
+			if err := b.emulate(ctx, target, kind, size); err != nil {
+				return err
+			}
+		}
+	}
 	b.mu.Lock()
 	b.size = size
 	b.generation++
@@ -436,19 +482,6 @@ func (b *chrome) castLocked(ctx context.Context, size browserlink.Size) error {
 		method string
 		params interface{}
 	}{
-		{
-			"Emulation.setDeviceMetricsOverride",
-			map[string]interface{}{
-				"width":             size.Width,
-				"height":            size.Height,
-				"deviceScaleFactor": size.DPR,
-				"mobile":            size.Mobile,
-			},
-		},
-		{
-			"Emulation.setTouchEmulationEnabled",
-			map[string]interface{}{"enabled": size.Mobile, "maxTouchPoints": 5},
-		},
 		{"Page.bringToFront", struct{}{}},
 		{
 			"Page.startScreencast",

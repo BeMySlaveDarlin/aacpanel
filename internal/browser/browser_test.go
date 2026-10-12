@@ -167,6 +167,7 @@ func testChrome(t *testing.T) (*chrome, context.Context) {
 }
 
 func TestChromeInputFramesAndExposureGuards(t *testing.T) {
+	t.Setenv("LC_ALL", "ru_RU.UTF-8")
 	b, ctx := testChrome(t)
 	sid := b.session()
 	call := func(method string, params interface{}, out interface{}) {
@@ -507,6 +508,7 @@ func TestChromeInputFramesAndExposureGuards(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("the download was not canceled")
 	}
+	t.Run("ViewerIdentity", func(t *testing.T) { checkViewerIdentity(t, b, ctx) })
 	call("Network.setCookies", map[string]interface{}{
 		"cookies": []map[string]interface{}{
 			{
@@ -571,7 +573,7 @@ func TestHolderHasOneControllerAndClosesAfterTheLastLeaves(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	ended := make(chan error, 1)
-	go func() { ended <- hold(ctx, c, id, 200*time.Millisecond) }()
+	go func() { ended <- hold(ctx, c, id, 50*time.Millisecond) }()
 	var first *browserlink.Link
 	until := time.NewTicker(10 * time.Millisecond)
 	defer until.Stop()

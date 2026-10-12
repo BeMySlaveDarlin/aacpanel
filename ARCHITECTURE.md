@@ -1861,6 +1861,16 @@ javascript links remain part of the web. Uploads, downloads, browser extension
 pages, a desktop password manager and a raw DevTools console are not exposed
 by the screen. JavaScript dialogs are dismissed.
 
+Each viewer supplies the page identity as well as its viewport: a phone gets
+Android Chrome, a desktop gets Linux Chrome. UA and client hints use the
+running browser's version, with no Headless brand, and the host locale supplies
+the accepted languages. Chrome's automation indicator is disabled for these
+human-controlled sessions. New tabs start blank; page and popup sessions stay
+paused until their identity and metrics are installed. A viewer changing device
+updates background tabs and out-of-process frames too, before further input.
+This aligns headers and navigator with the viewer; sites still decide which
+sign-in environments they accept.
+
 Network access is public internet only. A proxy inside the holder resolves a
 name, rejects a DNS answer containing a forbidden address, and dials the
 checked IP itself. It refuses loopback, private, link-local, CGNAT, multicast,
