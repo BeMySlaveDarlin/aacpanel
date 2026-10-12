@@ -624,7 +624,10 @@ func TestLivePanelTerminalHoldsWhatIsTypedIntoIt(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			if parent, ok := procParent(pid); ok && parent == shell {
+			// The shell has short-lived children of its own, and a fork shows the
+			// shell's name until it execs: only the sleep is what was typed.
+			comm, _ := os.ReadFile(filepath.Join("/proc", d.Name(), "comm"))
+			if parent, ok := procParent(pid); ok && parent == shell && strings.TrimSpace(string(comm)) == "sleep" {
 				typed = pid
 				break
 			}
