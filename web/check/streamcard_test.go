@@ -6,7 +6,7 @@ import (
 )
 
 // The phone's card keeps the name, place, state, model and background work
-// readable above its action row. Tapping the place, percentage or Remote
+// readable below its name and actions. Tapping the place, percentage or Remote
 // Control opens the conversation just as tapping the words does.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
@@ -94,7 +94,7 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 				"and stands bolder, larger and in another ink than the line under the state", session)
 		}
 		if !c.NameBeside || c.NameLines != 1 {
-			t.Errorf("%s: the name stands beside the place and level with it %v, on %d lines — it opens the row and fits one", session, c.NameBeside, c.NameLines)
+			t.Errorf("%s: the name stands beside the actions and level with them %v, on %d lines — it opens the row and fits one", session, c.NameBeside, c.NameLines)
 		}
 		if c.Work != wantWork || (wantWork != "" && !c.WorkBelow) {
 			t.Errorf("%s: the line of what runs in the background reads %q (under who runs it %v), expected %q",

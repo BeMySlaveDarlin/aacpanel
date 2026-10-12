@@ -46,7 +46,7 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
     window.done = {
         place: placeOf(own),
         daemonPlace: placeOf(daemon),
-        actions: document.querySelectorAll("#own .pjend, #own .pjmore").length,
+        actions: document.querySelectorAll("#own .pjact, #own .pjmore").length,
         opens: Boolean(document.querySelector("#own .pjopen")),
         ownTools: Array.from(document.querySelectorAll("#ownTools .toollabel")).map(text),
         ownNote: text(document.querySelector("#ownTools .toolnote")),

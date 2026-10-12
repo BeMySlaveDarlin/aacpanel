@@ -82,7 +82,7 @@ window.done = (async () => {
         const rc = block.querySelector(".pjstate .pjremote");
         const name = block.querySelector(".pjsess");
         const nameBox = name ? name.getBoundingClientRect() : null;
-        const nameMid = nameBox ? nameBox.top + parseFloat(getComputedStyle(name).lineHeight) / 2 : NaN;
+        const acts = rowEl.querySelector(".pjacts").getBoundingClientRect();
         return {
             state: text(said),
             stateCut: cut(said),
@@ -98,10 +98,9 @@ window.done = (async () => {
                 return Number(n.fontWeight) >= 600 && parseFloat(n.fontSize) > parseFloat(w.fontSize) && n.color !== w.color;
             })(),
             nameLines: lines(name),
-            // The name on the first line of the row, the place beside it and
-            // level with it, everything else under both.
-            nameBeside: Boolean(nameBox) && nameBox.right <= box.left && nameBox.bottom <= open.top + 1
-                && Math.abs(box.top + box.height / 2 - nameMid) <= 1,
+            // Only the name yields space to the actions in the top corner.
+            nameBeside: Boolean(nameBox) && nameBox.right <= acts.left && nameBox.bottom <= open.top + 1
+                && Math.abs(acts.top + acts.height / 2 - nameBox.top - nameBox.height / 2) <= 1,
             workBelow: below(block.querySelector(".pjwork"), block.querySelector(".pjsince")),
             ...agentOf(block.querySelector(".pjsince")),
             tapPct: tapAt(block.querySelector(".pjpct")),

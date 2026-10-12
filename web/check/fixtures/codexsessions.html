@@ -153,8 +153,8 @@ window.done = (async () => {
     out.phoneState = text(phoneRow.querySelector(".pjstate"));
     out.phoneSince = text(phoneRow.querySelector(".pjsince"));
     out.phoneAgents = phoneRows.map((r) => agentOf(r.querySelector(".pjsince")));
-    out.phoneActions = Array.from(phoneRow.querySelectorAll(".pjend"))
-        .map((b) => ({ text: text(b), note: b.title, off: b.disabled }));
+    out.phoneActions = Array.from(phoneRow.querySelectorAll(".pjact"))
+        .map((b) => ({ text: text(b), label: b.getAttribute("aria-label"), note: b.title, off: b.disabled }));
 
     if (!await until(() => chat.querySelector(".composer textarea"))) throw new Error("the composer did not show");
     out.headMarks = names(chat, ".dkheadtop .dkmark");

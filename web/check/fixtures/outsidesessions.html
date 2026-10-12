@@ -85,7 +85,7 @@ window.done = (async () => {
     await quiet();
     out.phoneOpen = names(phone, ".pjblock .pjrow .pjsess");
     out.outsideActs = [...phone.querySelectorAll(".pjcard")].filter((r) => text(r.querySelector(".pjtag")) === "outside")
-        .reduce((n, r) => n + r.querySelectorAll(".pjend, .pjmore").length, 0);
+        .reduce((n, r) => n + r.querySelectorAll(".pjact, .pjmore").length, 0);
 
     for (let i = 0; i < 40 && !chat.querySelector(".outsidenote"); i++) await sleep(50);
     out.tabs = names(chat, ".dktabs .dktab");

@@ -12,6 +12,9 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	var got struct {
 		MobileActions map[string][]struct {
 			Text     string  `json:"text"`
+			Label    string  `json:"label"`
+			Top      bool    `json:"top"`
+			Width    float64 `json:"width"`
 			Disabled bool    `json:"disabled"`
 			Icon     bool    `json:"icon"`
 			Height   float64 `json:"height"`
@@ -39,8 +42,8 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	runFixture(t, "sessionstops.html", &got)
 
 	want := map[string]string{
-		"helios": "Restart", "lab": "Restart,Close", "quiet": "Restart,Close",
-		"codex-5afc361b": "Close", "outside": "",
+		"helios": "restart", "lab": "restart,close", "quiet": "restart,close",
+		"codex-5afc361b": "close", "outside": "",
 	}
 	if len(got.MobileActions) != len(want) {
 		t.Fatalf("the list has %d cards, expected %d", len(got.MobileActions), len(want))
@@ -48,8 +51,8 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	for name, labels := range want {
 		var words []string
 		for _, b := range got.MobileActions[name] {
-			words = append(words, b.Text)
-			if b.Disabled || !b.Icon || b.Height < 28 || !b.Clear || !b.Inside || !b.Hit {
+			words = append(words, strings.TrimSuffix(b.Label, " session "+name))
+			if b.Text != "" || !b.Top || b.Disabled || !b.Icon || b.Height < 36 || b.Width < 36 || !b.Clear || !b.Inside || !b.Hit {
 				t.Errorf("%s: its action does not stand readable and reachable on its own: %+v", name, b)
 			}
 		}

@@ -364,9 +364,9 @@ function KinFold({ kids, line }) {
 // on which model and when it last asked, and what runs in its background. On
 // a phone one line holds no more than one of these: the state is read whole,
 // the checklist cut at its end. Every row opens with the name of its session,
-// the only session of its project included, and where it lives stands level
-// with the name at the right edge. Restart and Close have a line below the
-// words so they take no room from them. The home session is never closed,
+// the only session of its project included, and Restart and Close at the
+// right edge. The name yields to the buttons; where the session lives follows
+// Remote Control on the state's line. The home session is never closed,
 // codex refuses a restart, and a session outside the panel is only read.
 // How full the session is stands level with the last line on the left, so
 // the lines under the name give up to the right no more than that figure. A
@@ -397,7 +397,22 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
         <div class=${`pjrow pjcard${kid ? " pjkid" : ""}${branch ? ` pjbranch${branch === "last" ? " pjbranchend" : ""}` : ""}`}>
             <div class="pjtop">
                 <span class="pjsess">${shownName(session)}</span>
-                <span class="pjtag">${tag()}${place}</span>
+                ${!session.outside && html`
+                    <div class="pjacts">
+                        ${!codex && html`
+                            <button class="pjact" type="button" disabled=${!canRestart || Boolean(busy)}
+                                    aria-label=${`restart session ${session.session}`}
+                                    title=${busy ? "the session is already closing or restarting" : canRestart ? restartNote : whyNot(exec, "session.restart")}
+                                    onClick=${() => run("session.restart", session.session, {})}>${Icon.refresh()}</button>
+                        `}
+                        ${!session.home && html`
+                            <button class="pjact" type="button" disabled=${!canClose || Boolean(busy)}
+                                    aria-label=${`close session ${session.session}`}
+                                    title=${busy ? "the session is already closing or restarting" : canClose ? closeNote : whyNot(exec, "session.close")}
+                                    onClick=${() => run("session.close", session.session, {})}>${Icon.close()}</button>
+                        `}
+                    </div>
+                `}
             </div>
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
                     onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
@@ -405,6 +420,7 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
                     ${lived && html`<span class="pjlived">${lived}</span>`}
                     ${session.remote && html`<span class="pjremote" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+                    <span class="pjtag">${tag()}${place}</span>
                 </span>
                 ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
@@ -412,22 +428,6 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
                 ${from && html`<span class="pjfrom">opened by <b>${from}</b></span>`}
             </button>
             <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
-            ${!session.outside && html`
-                <div class="pjends">
-                    ${!codex && html`
-                        <button class="pjend" type="button" disabled=${!canRestart || Boolean(busy)}
-                                aria-label=${`restart session ${session.session}`}
-                                title=${busy ? "the session is already closing or restarting" : canRestart ? restartNote : whyNot(exec, "session.restart")}
-                                onClick=${() => run("session.restart", session.session, {})}>${Icon.refresh()}Restart</button>
-                    `}
-                    ${!session.home && html`
-                        <button class="pjend" type="button" disabled=${!canClose || Boolean(busy)}
-                                aria-label=${`close session ${session.session}`}
-                                title=${busy ? "the session is already closing or restarting" : canClose ? closeNote : whyNot(exec, "session.close")}
-                                onClick=${() => run("session.close", session.session, {})}>${Icon.close()}Close</button>
-                    `}
-                </div>
-            `}
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
         </div>

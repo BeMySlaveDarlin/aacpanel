@@ -72,11 +72,14 @@ window.done = (async () => {
         const card = row(s.session);
         card.scrollIntoView({block: "center"});
         const box = card.getBoundingClientRect();
-        const words = [".pjtop", ".pjopen", ".pjpct"].map((sel) => card.querySelector(sel).getBoundingClientRect());
-        const buttons = [...card.querySelectorAll(".pjend")];
+        const words = [".pjsess", ".pjopen", ".pjpct"].map((sel) => card.querySelector(sel).getBoundingClientRect());
+        const buttons = [...card.querySelectorAll(".pjact")];
+        const top = card.querySelector(".pjtop");
+        const topBox = top.getBoundingClientRect();
         out.mobileActions[s.session] = buttons.map((b) => {
             const r = b.getBoundingClientRect();
-            return { text: text(b), disabled: b.disabled, icon: Boolean(b.querySelector("svg")), height: r.height,
+            return { text: text(b), label: b.getAttribute("aria-label"), top: b.closest(".pjtop") === top
+                    && r.top >= topBox.top && r.bottom <= topBox.bottom, width: r.width, disabled: b.disabled, icon: Boolean(b.querySelector("svg")), height: r.height,
                 clear: !words.some((w) => meets(r, w)), inside: r.left >= box.left && r.right <= box.right && r.bottom <= box.bottom,
                 hit: (() => { const a = b.getBoundingClientRect();
                     return b.contains(document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2)); })() };
@@ -85,7 +88,7 @@ window.done = (async () => {
         card.querySelector(".pjopen").click();
     }
     out.opened = [...opened];
-    out.more = phone.querySelectorAll(".pjmore").length;
+    out.more = phone.querySelectorAll(".pjmore, .pjends, .pjend").length;
     out.overflow = document.scrollingElement.scrollWidth - innerWidth;
     for (const [name, kind] of [["lab", "restart"], ["lab", "close"], ["helios", "restart"], ["codex-5afc361b", "close"]]) {
         const before = sent.length;
@@ -103,10 +106,13 @@ window.done = (async () => {
     for (const [name, kind] of [["helios", "restart"], ["lab", "close"], ["quiet", "close"]]) out.tips[name] = tip(`${kind} session ${name}`);
     mount({ available: true, kinds: [] });
     await until(() => button("lab", "close").disabled && button("lab", "restart").disabled);
-    out.unavailable = [...row("lab").querySelectorAll(".pjend")].map((b) => ({ off: b.disabled, why: b.title }));
-    mount(exec, { of: (kind, name) => name === "lab" && kind === "restart" ? { since: 1 } : null, opening: () => [] });
-    await until(() => row("lab").querySelector(".pjbusy"));
-    out.busy = [...row("lab").querySelectorAll(".pjend")].every((b) => b.disabled);
+    out.unavailable = [...row("lab").querySelectorAll(".pjact")].map((b) => ({ off: b.disabled, why: b.title }));
+    out.busy = true;
+    for (const kind of ["restart", "close"]) {
+        mount(exec, { of: (act, name) => name === "lab" && act === kind ? { since: 1 } : null, opening: () => [] });
+        await until(() => text(row("lab").querySelector(".pjbusy")) === (kind === "restart" ? "restarting" : "closing"));
+        out.busy = out.busy && [...row("lab").querySelectorAll(".pjact")].every((b) => b.disabled);
+    }
     render(null, phone);
     mount();
     await until(() => phone.querySelectorAll(".pjcard").length === sessions.length);

@@ -57,9 +57,10 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		PhoneSince   string      `json:"phoneSince"`
 		PhoneAgents  []agentWord `json:"phoneAgents"`
 		PhoneActions []struct {
-			Text string `json:"text"`
-			Note string `json:"note"`
-			Off  bool   `json:"off"`
+			Text  string `json:"text"`
+			Label string `json:"label"`
+			Note  string `json:"note"`
+			Off   bool   `json:"off"`
 		} `json:"phoneActions"`
 		HeadMarks   []string        `json:"headMarks"`
 		HeadSub     string          `json:"headSub"`
@@ -176,7 +177,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	}
 
 	// A codex card closes the thread; restarting it is refused by the host.
-	if len(got.PhoneActions) != 1 || got.PhoneActions[0].Text != "Close" || got.PhoneActions[0].Off {
+	if len(got.PhoneActions) != 1 || got.PhoneActions[0].Text != "" || got.PhoneActions[0].Label != "close session codex-5afc361b" || got.PhoneActions[0].Off {
 		t.Errorf("the phone's card offers %+v, expected Close alone", got.PhoneActions)
 	} else {
 		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[0].Note)

@@ -452,12 +452,9 @@ span.pjname { cursor: default; }
     border-top: var(--hair) solid var(--line);
 }
 .pjrow > .ctxbar.edge { top: auto; bottom: 0; }
-/* The row of a live session opens with a line of its own across the whole
-   width: the name, and where the session lives at the right edge. Under it
-   stand two columns — what the session says on the left, and on the right
-   how full it is, level with the last words. The place stays off those lines,
-   so they give up to the right no more than the figure takes: the checklist
-   and the line of the model keep the width the place would have cost them. */
+/* The name and its actions take the whole first line. Under them the state
+   includes where the session lives; the figure keeps the bottom right corner
+   beside the last words, leaving the checklist as much width as it can. */
 .pjrow.pjcard {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -465,18 +462,16 @@ span.pjname { cursor: default; }
     gap: .12rem .5rem;
     padding: .45rem .75rem;
 }
-.pjtop { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: .5rem; }
-/* A name too long for its line wraps under itself, never under the place: the
-   end of a name is often what tells two sessions of one project apart, so it
-   is not cut. The place keeps the top of the name's first line and is as tall
-   as that line within a pixel, so the two read level. */
-.pjtop > .pjsess { flex: 1; min-width: 0; }
+.pjtop { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; }
+/* The buttons keep their touch targets when a name is long: only the name
+   gives up width, and its full value stays in the conversation's label. */
+.pjtop > .pjsess { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pjcard > .pjopen { padding: 0; }
 .pjcard > .pjpct { align-self: end; }
 /* The whole row opens the conversation, not only its words: the open button
    reaches over the row, and the buttons in the row stand above it. */
 .pjopen::after { content: ""; position: absolute; inset: 0; }
-.pjend, .pjresume { position: relative; z-index: 1; }
+.pjact, .pjresume { position: relative; z-index: 1; }
 /* The runs a session started inside its work: a fold under it, and the runs
    themselves a step in when it is open. */
 .pjrow.pjkid { padding-left: 1.6rem; }
@@ -642,10 +637,11 @@ button.pjstub { cursor: pointer; }
    its agent and a step heavier than the quiet words after it. */
 .agentword { font-weight: 600; color: var(--word-claude); }
 .agentword[data-agent="codex"] { color: var(--word-codex); }
-/* Where the session lives stays beside its name; a tap on this mark opens
-   the conversation like the rest of the card. */
+/* The place follows Remote Control on the state's line without raising it;
+   a tap on the chip opens the conversation like the rest of the card. */
 .pjtag {
     flex: none;
+    margin-top: .02rem;
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
@@ -662,27 +658,24 @@ button.pjstub { cursor: pointer; }
     color: var(--ink-dim);
 }
 .pjtag svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
-/* The actions keep their own row below the words, with enough room for a
-   finger, even when the name or checklist takes the whole card width. */
-.pjends { grid-column: 1 / -1; display: flex; gap: .5rem; margin-top: .3rem; }
-.pjend {
+/* Each icon keeps a finger-sized target at the right edge of the name. */
+.pjacts { display: flex; flex: none; gap: .3rem; }
+.pjact {
     display: inline-flex;
+    flex: none;
     align-items: center;
     justify-content: center;
-    gap: .3rem;
-    min-height: 1.95rem;
-    padding: 0 .65rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
     background: none;
-    font: inherit;
-    font-size: var(--t-xs);
-    font-weight: 600;
     color: var(--crit);
     cursor: pointer;
 }
-.pjend svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
-.pjend:disabled { opacity: .45; cursor: default; }
+.pjact svg { flex: none; width: var(--i-md); height: var(--i-md); }
+.pjact:disabled { opacity: .45; cursor: default; }
 .pjpct { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
 .pjbusy {
     position: absolute;

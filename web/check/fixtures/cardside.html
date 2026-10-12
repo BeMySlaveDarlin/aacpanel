@@ -1,17 +1,17 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<style>html,body{margin:0} #root{width:390px;box-sizing:border-box;padding:0 15px}</style>
+<style>html,body{margin:0} #root{width:390px;max-width:100%;box-sizing:border-box;padding:0 15px}</style>
 <div id="root" class="pfcol"></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// The right side of live cards on a phone 390 px wide: one on the stream with
+// Live cards on phones 390 and 360 px wide: one on the stream with
 // Remote Control up and a long step of its checklist, one with Remote Control
 // up, a checklist and two tasks in its background — each the only session of
 // its project — a project of two, a claude session and a codex thread on the
 // daemon, and a project of two whose first is in tmux with a task in its
 // background and no checklist, and whose second has a name too long for one
-// line beside the place.
+// line beside its actions.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -28,7 +28,7 @@ const steps = (done, total, step) => ({
 });
 const base = { tokens: 184000, limit: 1000000, limitKnown: true, messages: 42, model: "claude-opus-5-5", status: "idle" };
 const rows = [
-    { ...base, session: "aacpanel", sessionId: "a", transport: "stream", pct: 78, remote: "https://claude.ai/code/session_01abc",
+    { ...base, session: "aacpanel", sessionId: "a", status: "busy", transport: "stream", pct: 78, remote: "https://claude.ai/code/session_01abc",
       startedAt: ago(15 * 60 + 40), lastRequestAt: ago(5),
       checklist: steps(2, 6, "the owner takes the codex screen and the sheet of a thread, both on the phone") },
     { ...base, session: "atlas", sessionId: "b", transport: "stream", pct: 64, remote: "https://claude.ai/code/session_02def",
@@ -46,7 +46,7 @@ const profile = { groups: [
     { name: "Infra", projects: [project(1, "aacpanel"), project(2, "atlas")] },
     { name: "Sites", projects: [project(3, "shop"), project(4, "blog")] },
 ] };
-const exec = { available: true, kinds: ["session.close", "session.open"] };
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.open"] };
 const blocks = blocksOf({ profile, sessions: rows });
 
 render(
@@ -88,10 +88,7 @@ const reads = (line) => Array.from(line.children)
     })
     .filter(Boolean).join(" ").replace(/·\s*/g, "· ").replace(/\s+/g, " ");
 
-window.done = (async () => {
-    await until(() => document.querySelectorAll(".pjcard .pjtag").length === rows.length);
-    await document.fonts.ready;
-    await until(() => document.fonts.status === "loaded");
+function measure() {
     const out = { cards: {} };
     for (const card of document.querySelectorAll(".pjcard")) {
         const row = card.getBoundingClientRect();
@@ -102,7 +99,8 @@ window.done = (async () => {
         const openBox = open.getBoundingClientRect();
         const name = card.querySelector(".pjsess");
         const nameBox = name ? name.getBoundingClientRect() : null;
-        const nameMid = nameBox ? nameBox.top + parseFloat(getComputedStyle(name).lineHeight) / 2 : NaN;
+        const actions = card.querySelector(".pjacts");
+        const actionsBox = actions.getBoundingClientRect();
         const state = card.querySelector(".pjstate");
         const said = card.querySelector(".pjtext");
         const saidBox = said.getBoundingClientRect();
@@ -124,10 +122,11 @@ window.done = (async () => {
             name: text(name),
             nameLines: lines(name),
             nameCut: cut(name),
-            // The place beside the name: the name stops short of the place,
-            // and stays clear of it.
-            nameGives: nameBox ? round(tagBox.left - nameBox.right) : -1,
-            nameClear: Boolean(nameBox) && [tagBox].every((m) => !meets(nameBox, m)),
+            nameGives: nameBox ? round(actionsBox.left - nameBox.right) : -1,
+            nameClear: Boolean(nameBox) && !meets(nameBox, actionsBox),
+            actionsRight: round(inner.right - actionsBox.right),
+            actionsOnLine: Boolean(nameBox) && Math.abs(mid(nameBox) - mid(actionsBox)) < 1,
+            nameEllipsis: getComputedStyle(name).textOverflow === "ellipsis",
             stateReads: reads(state),
             stateLines: lines(said),
             rc: word ? {
@@ -140,20 +139,19 @@ window.done = (async () => {
             rcInMarks: [tag, pct].some((el) => text(el).includes("RC")),
             mark: text(tag),
             tag: drawn(tag),
-            // The place level with the first
-            // line of the name and over the state.
-            tagOff: round(Math.abs(mid(tagBox) - nameMid)),
-            tagOverState: round(saidBox.top - tagBox.bottom),
-            tagRight: round(inner.right - tagBox.right),
-            // How much taller the name's line is for the place beside it.
-            tagAddsHeight: nameBox ? round(tagBox.bottom - nameBox.bottom) : 0,
+            tagInState: tag.parentElement === state && state.lastElementChild === tag,
+            tagAfterLast: tag.previousElementSibling === (word || lived || said)
+                && tagBox.left >= (wordBox || lived?.getBoundingClientRect() || saidBox).right,
+            tagOff: round(Math.abs(mid(tagBox) - mid(saidBox))),
+            tagAddsHeight: round(tagBox.height - saidBox.height),
             pct: text(pct),
             pctRight: round(inner.right - pctBox.right),
             pctUnder: round(pctBox.top - tagBox.bottom),
             pctLevel: round(Math.abs(mid(pctBox) - mid(lastBox))),
             last: last.className,
             leftGives: round(pctBox.left - openBox.right),
-            clear: left.every((el) => marks.every((m) => !meets(el.getBoundingClientRect(), m))),
+            clear: left.every((el) => !meets(el.getBoundingClientRect(), pctBox))
+                && [...state.children].filter((el) => el !== tag).every((el) => !meets(el.getBoundingClientRect(), tagBox)),
             addsHeight: round(pctBox.bottom - openBox.bottom),
             checklist: text(checklist),
             checklistLines: lines(checklist),
@@ -170,7 +168,21 @@ window.done = (async () => {
             work: text(card.querySelector(".pjwork")),
         };
     }
-    out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
+    const root = document.getElementById("root");
+    out.overflow = root.scrollWidth - root.clientWidth;
     return out;
+}
+
+window.done = (async () => {
+    await until(() => document.querySelectorAll(".pjcard .pjtag").length === rows.length);
+    await document.fonts.ready;
+    const views = {};
+    const root = document.getElementById("root");
+    for (const width of [390, 360]) {
+        root.style.width = `${width}px`;
+        views[width] = measure();
+    }
+    root.style.width = "390px";
+    return views;
 })();
 </script>
