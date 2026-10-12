@@ -72,13 +72,13 @@ func TestUnarrivedRowsAreTheOnesTheFeedHasNotEchoed(t *testing.T) {
 
 	screen := screenSrc(t, "src/screens/chat.js")
 	for _, want := range []struct{ code, harm string }{
-		{"const pending = unarrived(local, state.items);", "the rows to draw are not read at render time"},
-		{"tail=${away ? [] : pending.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`",
+		{"const pending = unarrived(settled, state.items);", "the rows to draw are not read at render time"},
+		{"tail=${away ? [] : waiting.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`",
 			"the feed draws the rows straight from the state — a row the transcript echoed stays on screen for a frame, " +
 				"twice — or under a key of another kind, or not set as a row of the feed at all; or it draws them under " +
 				"a window away from the end, where they do not belong"},
 		{"<${Row} item=${row} />", "a pending row is not drawn as a row of the feed"},
-		{"setLocal((was) => unarrived(was, state.items));", "the echoed rows never leave the state"},
+		{"setLocal((was) => unarrived(queuedLocal(was, queue), state.items));", "the echoed rows never leave the state"},
 	} {
 		if !strings.Contains(screen, want.code) {
 			t.Errorf("chat.js has no %q — %s", want.code, want.harm)
@@ -87,7 +87,7 @@ func TestUnarrivedRowsAreTheOnesTheFeedHasNotEchoed(t *testing.T) {
 	if strings.Contains(screen, "${local.map(") {
 		t.Error("chat.js draws local rows straight from the state, next to the ones already read as pending")
 	}
-	if !strings.Contains(screen, "if (box && atEnd) box.scrollTop = box.scrollHeight;\n    }, [pending.length]);") {
+	if !strings.Contains(screen, "if (box && atEnd) box.scrollTop = box.scrollHeight;\n    }, [waiting.length]);") {
 		t.Error("chat.js does not take the feed to its end when a row is sent — the message stands under the edge until the echo comes, and the feed jumps to it then")
 	}
 

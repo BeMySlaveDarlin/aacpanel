@@ -74,6 +74,59 @@ export function unarrived(local, items) {
     return local.filter((row) => !arrived(items, row));
 }
 
+// queuedRows joins the transcript to the owner's queue. Claude does not keep
+// the input UUID in queued_command records, so only an exact fingerprint of
+// the full input and a unique occurrence after it was sent may supply an ID.
+// Repeated, ambiguous words keep no cancel button: it could cancel a neighbour.
+export function queuedRows(items, queue, taken = new Set()) {
+    if (!queue) return items;
+    const matches = (item, message) => item.role === "me"
+        && item.fingerprint && item.fingerprint === message.fingerprint
+        && (!message.since || Date.parse(item.at) >= Date.parse(message.since));
+    const withdrawn = [...(queue.withdrawn || [])];
+    return items.map((item) => {
+        if (item.role !== "me" || !item.fingerprint) return item;
+        const waiting = queue.messages.filter((message) => matches(item, message));
+        const message = waiting.length === 1 && items.filter((row) => matches(row, waiting[0])).length === 1
+            ? waiting[0] : null;
+        const mark = withdrawn.indexOf(item.fingerprint);
+        // The transcript settles pending input at an assistant record; the
+        // holder knows whether that input was actually taken. A withdrawn
+        // fingerprint can also belong to an older copy outside this window.
+        const gone = (message && taken.has(message.messageId))
+            || (!waiting.length && (mark >= 0 || item.state === "withdrawn"));
+        if (mark >= 0 && !waiting.length) withdrawn.splice(mark, 1);
+        return { ...item, state: gone ? "withdrawn" : waiting.length ? "queued" : undefined,
+            messageId: message && !gone ? message.messageId : undefined };
+    });
+}
+
+// queuedLocal settles an optimistic row once a queue that held it lets it go.
+// A snapshot from before the send cannot pronounce a new message delivered.
+export function queuedLocal(local, queue) {
+    if (!queue) return local;
+    return local.map((row) => {
+        if (!row.messageId) return row;
+        if (queue.messages.some((message) => message.messageId === row.messageId)) {
+            return row.queueSeen ? row : { ...row, queueSeen: true };
+        }
+        return row.queueSeen && row.state === "queued" ? { ...row, state: undefined } : row;
+    });
+}
+
+// Codex writes no transcript row until a turn takes the input. Its outbox is
+// the feed's waiting tail on every device, including a freshly opened page.
+export function outboxRows(queue, local, taken, items) {
+    return (queue ? queue.messages : []).filter((message) => message.text !== undefined
+        && !taken.has(message.messageId)
+        && !local.some((row) => row.messageId ? row.messageId === message.messageId : sameReply(message.text, row))
+        && !items.some((item) => item.role === "me" && !item.cut && !item.state
+            && item.text === message.text.trim() && Date.parse(item.at) >= Date.parse(message.since)))
+        .map((message) => ({ role: "me", key: `queue-${message.messageId || message.since}`, at: message.since,
+            messageId: message.messageId, text: [message.text, ...(message.images || [])].filter(Boolean).join("\n"),
+            state: "queued" }));
+}
+
 // merge inserts newly arrived items into the feed.
 export function merge(items, incoming) {
     if (!incoming.length) return items;

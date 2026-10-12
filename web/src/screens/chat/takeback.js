@@ -31,7 +31,9 @@ export function TakeBack({ row, name, exec, onGone, onEdit }) {
 
     return html`
         <div class="mqueue">
-            <button class="btn" type="button" disabled=${busy} onClick=${() => take(true)}>edit</button>
+            <button class="btn" type="button" disabled=${busy || row.cut}
+                    title=${row.cut ? "The full message is not loaded; take it back to withdraw it." : undefined}
+                    onClick=${() => take(true)}>edit</button>
             <button class="btn" type="button" disabled=${busy} onClick=${() => take(false)}>take back</button>
         </div>
         ${fail && html`<p class="mwait crit mqueuefail">${fail}</p>`}

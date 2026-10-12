@@ -344,10 +344,19 @@ type Summary struct {
 	Effort    string    `json:"effort,omitempty"`
 	Waiting   []string  `json:"waiting"`
 	Queue     int       `json:"queue"`
-	Tasks     int       `json:"tasks"`
+	// Queued names the messages still cancellable without putting their words
+	// in the state file. The transcript does not retain their input UUIDs.
+	Queued []QueueRef `json:"queued"`
+	Tasks  int        `json:"tasks"`
 	// Compacting is when a compaction started, while it runs.
 	Compacting *time.Time `json:"compacting,omitempty"`
 	Updated    time.Time  `json:"updated"`
+}
+
+type QueueRef struct {
+	MessageID   string    `json:"messageId"`
+	Fingerprint string    `json:"fingerprint"`
+	Since       time.Time `json:"since"`
 }
 
 // Controls are the control requests a holder passes on to claude. The list

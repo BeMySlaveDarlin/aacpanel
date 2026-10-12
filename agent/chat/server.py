@@ -352,13 +352,18 @@ def _answer(request):
 
 
 def held_by(session):
-    """Returns the observers and the alarms a conversation asked the panel for, as lists of its state.
+    """Returns the conversation's observers, alarms and input queue from their owners.
 
     A list goes only when it holds something: most conversations ask the
     panel for neither, and the screen reads an absent list as an empty one.
+    An input queue also goes when empty: that update settles waiting messages.
     """
     lists = {"observers": observers.of(session), "alarms": observers.alarms_of(session)}
-    return {key: found for key, found in lists.items() if found}
+    found = {key: value for key, value in lists.items() if value}
+    queue = held.queue(session)
+    if queue is not None:
+        found["queue"] = queue
+    return found
 
 
 def codex_runs_of(session):

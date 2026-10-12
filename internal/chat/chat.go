@@ -31,6 +31,8 @@ type Item struct {
 	Dir    string     `json:"dir,omitempty"`
 	Count  int        `json:"count,omitempty"`
 	Tokens int        `json:"tokens,omitempty"`
+	// The full queued input, identified before the display text is shortened.
+	Fingerprint string `json:"fingerprint,omitempty"`
 	// Undelivered is why a letter sent reached nobody, in claude's words.
 	Undelivered string `json:"undelivered,omitempty"`
 	// How long a turn or a background task took, and how loud a line is.
@@ -282,12 +284,28 @@ type Work struct {
 	Docs      []Doc       `json:"docs,omitempty"`
 	Sent      []Sent      `json:"sent,omitempty"`
 	Checklist *Checklist  `json:"checklist,omitempty"`
+	Queue     *InputQueue `json:"queue,omitempty"`
 	// Observers are the commands the session handed the panel to watch with
 	// observer_start, the oldest first, and Alarms the moments it set with
 	// alarm_set, the soonest first: the executor keeps them, and the
 	// collector reads them from where it keeps them.
 	Observers []WorkObserver `json:"observers,omitempty"`
 	Alarms    []WorkAlarm    `json:"alarms,omitempty"`
+}
+
+// InputQueue is separate from transcript rows: taking a message back changes
+// the owner's queue even when the transcript has nothing new to say.
+type InputQueue struct {
+	Messages  []QueuedMessage `json:"messages"`
+	Withdrawn []string        `json:"withdrawn"`
+}
+
+type QueuedMessage struct {
+	MessageID   string   `json:"messageId"`
+	Fingerprint string   `json:"fingerprint,omitempty"`
+	Since       string   `json:"since"`
+	Text        *string  `json:"text,omitempty"`
+	Images      []string `json:"images,omitempty"`
 }
 
 // WorkAlarm is one alarm of a session: its name and the note it left itself,

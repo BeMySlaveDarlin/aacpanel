@@ -153,7 +153,34 @@ class Checklist(Runtime):
         self.follow()
         self.keep_checklist()
         state = chat.answer({"session": THREAD, "limit": 50, "state": True}).get("state")
-        self.assertEqual(state, {"tasks": [], "agents": [], "checklist": CHECKLIST})
+        self.assertEqual(state, {"tasks": [], "agents": [], "checklist": CHECKLIST,
+                                 "queue": {"messages": [], "withdrawn": []}})
+
+
+class InputQueue(Runtime):
+    def test_the_outbox_reaches_the_feed_without_a_rollout_message(self):
+        self.follow(queue=1)
+        path = os.path.join(held.stream_dir(), "codex-outbox", "work", THREAD + ".json")
+        os.makedirs(os.path.dirname(path))
+        message = {"id": "input-id", "text": "check this", "images": ["/srv/files/shot.png"],
+                   "since": "2026-10-09T12:00:07Z"}
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"queue": [message]}, f)
+        reply = chat.answer({"session": THREAD, "limit": 50, "state": True})
+        self.assertEqual(reply["state"]["queue"]["messages"], [
+            {"messageId": message["id"], "text": message["text"], "images": message["images"],
+             "since": message["since"]}])
+        self.assertFalse(any(row.get("text") == "check this" for row in reply["items"]))
+        os.remove(path)
+        self.assertEqual(chat.answer({"session": THREAD, "state": True})["state"]["queue"]["messages"], [])
+
+    def test_an_unreadable_outbox_is_not_reported_as_an_empty_queue(self):
+        self.follow(queue=1)
+        path = os.path.join(held.stream_dir(), "codex-outbox", "work", THREAD + ".json")
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("{")
+        self.assertIsNone(held.queue(THREAD))
 
 
 class Rows(Runtime):
@@ -1159,14 +1186,16 @@ class Asks(Runtime):
     def test_the_feed_carries_the_question_the_thread_waits_on(self):
         self.follow(waiting=["AskUserQuestion"], ask=self.ASK)
         reply = chat.answer({"session": THREAD, "limit": 50, "state": True})
-        self.assertEqual(reply.get("state"), {"tasks": [], "agents": [], "ask": self.ASK})
+        self.assertEqual(reply.get("state"), {"tasks": [], "agents": [], "ask": self.ASK,
+                                              "queue": {"messages": [], "withdrawn": []}})
         self.assertEqual(ctx.codex_sessions()[0]["waitingFor"], "input needed")
         self.assertNotIn("ask", ctx.codex_sessions()[0], "the words of a question stay out of the snapshot")
 
     def test_a_thread_that_asks_nothing_has_a_state_without_a_question(self):
         self.follow(ask={"questions": []})
         reply = chat.answer({"session": THREAD, "limit": 50, "state": True})
-        self.assertEqual(reply.get("state"), {"tasks": [], "agents": []},
+        self.assertEqual(reply.get("state"), {"tasks": [], "agents": [],
+                                              "queue": {"messages": [], "withdrawn": []}},
                          "a question answered leaves the screen only when a state without it comes")
         self.assertNotIn("state", chat.answer({"session": THREAD, "limit": 50}), "a state not asked for")
 

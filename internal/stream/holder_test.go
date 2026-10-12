@@ -559,6 +559,7 @@ func TestAMessageWaitsInTheQueueUntilClaudeTakesItUp(t *testing.T) {
 	}
 	r.ask(Request{Op: OpSend, Text: "hello"})
 	r.waitFor("the queue to empty", func(s State) bool { return len(s.Queue) == 0 && !s.Busy })
+	r.summary(func(s Summary) bool { return s.Queued != nil && len(s.Queued) == 0 })
 	if !strings.Contains(r.received(), first.UUID) {
 		t.Error("the message went to claude without the id the panel knows it by")
 	}
@@ -705,6 +706,10 @@ func TestAMessageTakenBackLeavesTheQueue(t *testing.T) {
 	if reply := r.ask(Request{Op: OpSend, Text: "slow", UUID: id}); !reply.OK || reply.UUID != id {
 		t.Fatalf("send: %+v", reply)
 	}
+	sum := r.summary(func(s Summary) bool { return len(s.Queued) == 1 })
+	if q := sum.Queued[0]; q.MessageID != id || q.Fingerprint != Fingerprint("slow") || q.Since.IsZero() {
+		t.Fatalf("the collector cannot identify the waiting message: %+v", q)
+	}
 	reply := r.ask(Request{Op: OpControl, Subtype: "cancel_async_message", Fields: map[string]any{"message_uuid": id}})
 	if !reply.OK || !strings.Contains(string(reply.Response), `"cancelled":true`) {
 		t.Fatalf("cancel: %+v", reply)
@@ -712,6 +717,7 @@ func TestAMessageTakenBackLeavesTheQueue(t *testing.T) {
 	if s := r.state(); len(s.Queue) != 0 {
 		t.Errorf("a message claude took back is still in the holder's queue: %+v", s.Queue)
 	}
+	r.summary(func(s Summary) bool { return s.Queued != nil && len(s.Queued) == 0 })
 	raw, err := os.ReadFile(WithdrawnPath(r.spec.SessionID))
 	if err != nil || !strings.Contains(string(raw), Fingerprint("slow")) || strings.Contains(string(raw), "slow") {
 		t.Errorf("the message taken back is not marked for the feed by its fingerprint alone: %v %s", err, raw)

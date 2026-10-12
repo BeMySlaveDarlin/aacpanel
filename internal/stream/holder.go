@@ -1052,6 +1052,10 @@ func (h *Holder) saveSummary() {
 		Protocol: s.Protocol, Name: s.Name, SessionID: s.SessionID, PID: s.PID, Holder: s.Holder,
 		Started: s.Started, Busy: s.Busy, Model: s.Model, Mode: s.Mode, Effort: s.Effort, Waiting: []string{},
 		Queue: len(s.Queue), Tasks: len(s.Tasks), Compacting: s.Compacting, Updated: time.Now(),
+		Queued: []QueueRef{},
+	}
+	for _, q := range s.Queue {
+		sum.Queued = append(sum.Queued, QueueRef{MessageID: q.UUID, Fingerprint: Fingerprint(q.Text), Since: q.Since})
 	}
 	for _, p := range s.Pending {
 		sum.Waiting = append(sum.Waiting, p.Tool)

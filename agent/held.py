@@ -259,6 +259,46 @@ def fingerprint(text):
     return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()[:32]
 
 
+def queue(sid):
+    """Returns the cancellable input from its owner, or None when it is unknown.
+
+    Claude's summary carries only fingerprints; its transcript supplies the
+    words. Codex has no rollout record until delivery, so its pending words
+    come from the outbox the executor already keeps on disk.
+    """
+    data = summary(sid)
+    if data is None:
+        return None
+    if data.get("agent") != "codex":
+        messages = data.get("queued")
+        if not isinstance(messages, list):
+            return None
+        return {"messages": messages, "withdrawn": withdrawn(sid)}
+    contour = data.get("contour")
+    if not named(contour):
+        return None
+    path = os.path.join(stream_dir(), "codex-outbox", contour, sid + ".json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            outbox = json.load(f)
+    except FileNotFoundError:
+        outbox = {"queue": []}
+    except (OSError, ValueError):
+        return None
+    waiting = outbox.get("queue") if isinstance(outbox, dict) else None
+    if not isinstance(waiting, list):
+        return None
+    messages = []
+    for row in waiting:
+        if not isinstance(row, dict):
+            continue
+        text = row.get("text") or ""
+        images = row.get("images") or []
+        messages.append({"messageId": row.get("id") or "", "text": text,
+                         "since": row.get("since") or "", "images": images})
+    return {"messages": messages, "withdrawn": []}
+
+
 def withdrawn(sid):
     """Returns the fingerprints of the messages taken back from the queue, with repeats."""
     if not named(sid):
@@ -271,8 +311,8 @@ def mark_withdrawn(items, sid):
 
     The transcript writes the same record for a message read and for one taken
     back, and the feed would show it as sent. A message sent twice and taken
-    back once has only its first copy marked. A message cut for the feed is not
-    matched: its fingerprint is of the whole.
+    back once has only its first copy marked. A cut message needs the fingerprint
+    its queue record kept before truncation; a partial text cannot identify it.
     """
     left = {}
     for mark in withdrawn(sid):
@@ -281,8 +321,8 @@ def mark_withdrawn(items, sid):
         return items
     out = []
     for item in items:
-        if item.get("role") == "me" and not item.get("cut") and isinstance(item.get("text"), str):
-            mark = fingerprint(item["text"])
+        if item.get("role") == "me" and isinstance(item.get("text"), str):
+            mark = item.get("fingerprint") or (fingerprint(item["text"]) if not item.get("cut") else None)
             if left.get(mark):
                 left[mark] -= 1
                 item = {**item, "state": "withdrawn"}

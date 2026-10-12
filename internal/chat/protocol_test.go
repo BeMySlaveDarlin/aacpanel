@@ -10,7 +10,7 @@ func TestReplyKeepsEveryFieldAgentSends(t *testing.T) {
 		"ok": true,
 		"session": "567f4d24-cd5f-48fa-bdc1-04c89d203494",
 		"items": [
-			{"role": "me", "text": "hi", "at": "2026-08-24T10:00:00Z", "pos": 10, "state": "queued", "cut": true},
+			{"role": "me", "text": "hi", "at": "2026-08-24T10:00:00Z", "pos": 10, "state": "queued", "cut": true, "fingerprint": "input-hash"},
 			{"role": "me", "text": "the task is on the screen\n/home/dev/.local/share/aacpanel-exec/files/20260920-100000-ab12cd-shot.png",
 			 "at": "2026-08-24T10:00:00Z", "pos": 12,
 			 "shots": [{"upload": "20260920-100000-ab12cd-shot.png",
@@ -237,6 +237,7 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 		"session": "567f4d24-cd5f-48fa-bdc1-04c89d203494",
 		"items": [], "total": 0, "moreBefore": false, "first": null, "last": null,
 		"state": {
+			"queue": {"messages": [{"messageId": "message-id", "fingerprint": "input-hash", "since": "2026-08-25T10:00:00Z", "text": "waiting", "images": ["/srv/proj/shot.png"]}], "withdrawn": ["withdrawn-hash"]},
 			"tasks": [{"id": "b0g4knhe1", "text": "Waiting for CI", "at": "2026-08-25T10:00:00Z", "kind": "bash", "event": "2026-08-25T10:19:00Z", "line": "gh run watch 4211"},
 			          {"id": "wakeup", "text": "watching CI", "at": "2026-08-25T10:01:00Z", "kind": "wake", "due": "2026-08-25T10:21:00Z"}],
 			"agents": [{"name": "audit-rules", "text": "rules audit", "at": "2026-08-25T10:00:00Z",
@@ -299,6 +300,9 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 	}
 	if reply.State == nil {
 		t.Fatal("the session state does not parse at all")
+	}
+	if q := reply.State.Queue; q == nil || len(q.Messages) != 1 || q.Messages[0].MessageID != "message-id" || q.Messages[0].Fingerprint != "input-hash" || q.Messages[0].Text == nil || *q.Messages[0].Text != "waiting" || len(q.Messages[0].Images) != 1 || len(q.Withdrawn) != 1 {
+		t.Fatalf("the queue did not cross the socket: %+v", q)
 	}
 	if len(reply.State.Tasks) != 2 || len(reply.State.Agents) != 3 {
 		t.Fatalf("the state arrived incomplete: %+v", *reply.State)

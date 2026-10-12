@@ -16,7 +16,7 @@ import { ContextBar } from "../../ui/bar.js";
 import { Ask } from "../ask.js";
 import { Permit } from "./permit.js";
 import { ago, tokens } from "../../format.js";
-import { closed, lastPos, rows, runCalls, turnCalls, unarrived, weld } from "./feed.js";
+import { closed, lastPos, outboxRows, queuedLocal, queuedRows, rows, runCalls, turnCalls, unarrived, weld } from "./feed.js";
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { FindBar, useFeedFind } from "./find.js";
 import { agentFeedId, SubChat } from "./subchat.js";
@@ -103,6 +103,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // would replace.
     const [secrets, setSecrets] = useState(null);
     const [local, setLocal] = useState([]);
+    const [taken, setTaken] = useState(new Set());
     const [, redraw] = useState(0);
     const answer = recall(name);
     const mark = (next) => {
@@ -198,6 +199,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         setSub(null);
         setSecrets(null);
         setLocal([]);
+        setTaken(new Set());
         setFiles([]);
         setCalls(null);
         setLook(null);
@@ -214,11 +216,22 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // The rows still on their way are what the feed draws after its items;
     // the ones the transcript has echoed leave the state afterwards, and the
     // screen never shows a message twice in between.
-    const pending = unarrived(local, state.items);
+    const queue = state.work && state.work.queue;
+    const settled = queuedLocal(local, queue);
+    const pending = unarrived(settled, state.items);
+    const waiting = [...pending, ...outboxRows(queue, pending, taken, state.items)];
     useEffect(() => {
-        if (pending.length === local.length) return;
-        setLocal((was) => unarrived(was, state.items));
-    }, [state.items, local]);
+        if (pending.length === local.length && pending.every((row, i) => row === local[i])) return;
+        setLocal((was) => unarrived(queuedLocal(was, queue), state.items));
+    }, [state.items, local, queue]);
+
+    const queueTools = (row) => row.state === "queued" && live && parts.takesBack && html`
+        <${TakeBack} row=${row} name=${name} exec=${exec}
+                     onGone=${() => {
+                         setTaken((was) => new Set([...was, row.messageId]));
+                         setLocal((was) => was.filter((item) => item.messageId !== row.messageId));
+                     }}
+                     onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />`;
 
     // A row just sent grows the feed the way a new item does, and a feed at
     // its end follows it the same way — or the message stands under the edge
@@ -226,7 +239,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     useEffect(() => {
         const box = feedRef.current;
         if (box && atEnd) box.scrollTop = box.scrollHeight;
-    }, [pending.length]);
+    }, [waiting.length]);
 
     const liveStatus = live ? live.status : "";
     const liveWait = (live && live.waitingFor) || "";
@@ -307,10 +320,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                  onConversation=${openTalk} />`;
     }
 
-    const feed = weld(state.items);
+    const feed = weld(queuedRows(state.items, queue, taken));
     // What the feed draws: the tail, or a window away from the end of the
     // conversation. The work under the feed is always the tail's.
-    const drawn = away ? weld(shown) : feed;
+    const drawn = away ? weld(queuedRows(shown, queue, taken)) : feed;
     // The checklist of the work: on a phone a line over the composer, at a
     // desk a block at the top of the timeline column, where the room is.
     const checklist = (state.work && state.work.checklist) || null;
@@ -426,7 +439,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             ${state.kind === "fresh" && html`
                 <p class="empty">The conversation has not started yet — the feed appears with the first message.</p>
             `}
-            ${state.kind === "ready" && state.items.length === 0 && html`
+            ${state.kind === "ready" && state.items.length === 0 && waiting.length === 0 && html`
                 <p class="empty">Nothing has been said in this conversation yet.</p>
             `}
             ${more && html`
@@ -456,14 +469,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         ? openAgent({ id: task.id, name: task.name, kind: "background" })
                         : setLook({ kind: "task", id: task.id, text: task.name }))}
                     onAgent=${openAgent}
-                />`}
-                tail=${away ? [] : pending.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
+                />${queueTools(item)}`}
+                tail=${away ? [] : waiting.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
                     <${Row} item=${row} />
-                    ${row.state === "queued" && live && parts.takesBack && html`
-                        <${TakeBack} row=${row} name=${name} exec=${exec}
-                                     onGone=${(key) => setLocal((was) => was.filter((l) => l.key !== key))}
-                                     onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />
-                    `}
+                    ${queueTools(row)}
                 ` }))}
             />
             ${later && html`<div class="mlater" ref=${bottomRef}>there is more below</div>`}

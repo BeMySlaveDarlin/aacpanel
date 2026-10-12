@@ -72,6 +72,34 @@ class Summary(Runtime):
         self.assertIsNone(held.waiting_for({}))
 
 
+class InputQueue(Runtime):
+    def test_the_stream_queue_names_the_full_input_without_its_words(self):
+        text = "check the image\n/srv/files/shot.png"
+        message = {"messageId": "input-id", "fingerprint": held.fingerprint(text),
+                   "since": "2026-08-25T10:00:00Z"}
+        self.hold(SID, 4321, queued=[message])
+        self.assertEqual(held.queue(SID)["messages"], [message])
+        for record in ({"type": "attachment", "attachment": {"type": "queued_command", "prompt": text}},
+                       {"type": "queue-operation", "operation": "enqueue", "content": text}):
+            row = chat.parse(record, 10, pending=chat.Pending())[0]
+            self.assertEqual(row["fingerprint"], message["fingerprint"])
+            self.assertEqual(row["state"], "queued")
+        self.hold(SID, 4321, queued=[])
+        self.assertEqual(held.queue(SID)["messages"], [], "an empty queue must reach the feed too")
+
+    def test_a_cut_message_keeps_the_fingerprint_of_the_full_input(self):
+        text = "x" * (chat.MAX_TEXT + 100)
+        row = chat.parse({"type": "attachment", "attachment": {"type": "queued_command", "prompt": text}},
+                         10, pending=chat.Pending())[0]
+        self.assertTrue(row["cut"])
+        self.assertEqual(row["fingerprint"], held.fingerprint(text))
+        self.assertNotEqual(row["fingerprint"], held.fingerprint(row["text"]))
+
+    def test_a_holder_without_queue_details_does_not_claim_nothing_waits(self):
+        self.hold(SID, 4321, queue=1)
+        self.assertIsNone(held.queue(SID))
+
+
 class LiveStream(Runtime):
     """A real process whose command line says -p, the way claude on the stream does."""
 
@@ -279,6 +307,12 @@ class Withdrawn(unittest.TestCase):
     def test_the_fingerprint_is_the_holders(self):
         # The holder writes it in Go; the same constant stands in its test.
         self.assertEqual(held.fingerprint("  slow  "), "5e0cf7bd1dfa3831788b0cf6dedcdd22")
+
+    def test_a_cut_message_is_withdrawn_by_its_full_input_fingerprint(self):
+        self.withdraw("the full message")
+        row = {"role": "me", "text": "the full", "cut": True, "state": "queued",
+               "fingerprint": held.fingerprint("the full message")}
+        self.assertEqual(held.mark_withdrawn([row], SID)[0]["state"], "withdrawn")
 
     def test_nothing_taken_back_changes_nothing(self):
         items = [{"role": "me", "text": "hi", "pos": 1}]

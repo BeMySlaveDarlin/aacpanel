@@ -1,50 +1,47 @@
 package check
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
-// A message sent to a busy session on the stream waits in its queue with a way
-// back: edit takes it back into the composer, take back drops it, and a message
-// the session read before the press stays, with the line saying so.
-func TestAQueuedMessageOnTheStreamCanBeTakenBack(t *testing.T) {
-	var got struct {
-		Tools         int    `json:"tools"`
-		Composer      string `json:"composer"`
-		RowsAfterEdit int    `json:"rowsAfterEdit"`
-		Withdrawn     string `json:"withdrawnStamp"`
-		Fail          string `json:"fail"`
-		RowsAfterRead int    `json:"rowsAfterRead"`
-		Sent          []struct {
-			Kind   string         `json:"kind"`
-			Params map[string]any `json:"params"`
-		} `json:"sent"`
-	}
-	runFixture(t, "takeback.html", &got)
-
-	if got.Tools != 1 {
-		t.Fatalf("%d queue controls under one queued message", got.Tools)
-	}
-	if got.Composer != "run the e2e suite too" || got.RowsAfterEdit != 0 {
-		t.Errorf("edit left %q in the composer and %d queued rows", got.Composer, got.RowsAfterEdit)
-	}
-	if !strings.Contains(got.Withdrawn, "taken back") {
-		t.Errorf("the message the transcript still carries is not shown as taken back: %q", got.Withdrawn)
-	}
-	if !strings.Contains(got.Fail, "already delivered") || got.RowsAfterRead != 1 {
-		t.Errorf("a message already read: line %q, %d rows left", got.Fail, got.RowsAfterRead)
-	}
-	var ids []string
-	for _, s := range got.Sent {
-		id, _ := s.Params["messageId"].(string)
-		if id == "" {
-			t.Errorf("%s went without the id of its message: %+v", s.Kind, s.Params)
-		}
-		ids = append(ids, s.Kind+":"+id)
-	}
-	if len(got.Sent) != 4 || !strings.HasPrefix(ids[1], "session.unqueue:") ||
-		strings.TrimPrefix(ids[1], "session.unqueue:") != strings.TrimPrefix(ids[0], "session.send:") {
-		t.Errorf("the take-back does not name the message that was sent: %v", ids)
+// A row remains cancellable across the local/feed handoff and a reload, and
+// the owner's queue settles its state without another transcript record.
+func TestAQueuedMessageKeepsItsControlsUntilTheOwnerTakesIt(t *testing.T) {
+	for _, screen := range []struct{ name, size, pointer string }{
+		{"phone", phoneScreen, phonePointer}, {"desk", deskScreen, deskPointer},
+	} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got struct {
+				Results []struct {
+					Agent                                                                  string `json:"agent"`
+					Local, Transition, Reload, OwnerWins, Edit, Withdrawn, Race, Delivered bool
+					Sent                                                                   []struct {
+						Kind   string `json:"kind"`
+						Params struct {
+							MessageID string `json:"messageId"`
+						} `json:"params"`
+					} `json:"sent"`
+				} `json:"results"`
+				Ambiguous, Old, File, Repeated bool
+			}
+			runFixtureOn(t, "takeback.html", screen.size, screen.pointer, &got)
+			if len(got.Results) != 2 {
+				t.Fatalf("both agents must be exercised: %+v", got)
+			}
+			for _, r := range got.Results {
+				for name, ok := range map[string]bool{"local": r.Local, "transition": r.Transition,
+					"reload": r.Reload, "owner still waiting": r.OwnerWins, "edit": r.Edit, "withdrawn": r.Withdrawn, "delivery race": r.Race,
+					"delivered": r.Delivered} {
+					if !ok {
+						t.Errorf("%s: %s lost the controls or left a stale queued row", r.Agent, name)
+					}
+				}
+				if len(r.Sent) != 3 || r.Sent[1].Kind != "session.unqueue" || r.Sent[0].Params.MessageID == "" ||
+					r.Sent[1].Params.MessageID != r.Sent[0].Params.MessageID || r.Sent[2].Params.MessageID != "delivered-input" {
+					t.Errorf("%s: take back did not name the owner's message: %+v", r.Agent, r.Sent)
+				}
+			}
+			if !got.Ambiguous || !got.Old || !got.File || !got.Repeated {
+				t.Errorf("ambiguous or old input acquired a neighbour's ID, or files lost theirs: %+v", got)
+			}
+		})
 	}
 }

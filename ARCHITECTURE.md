@@ -555,6 +555,17 @@ the holder keeps the fingerprints of the messages taken back — hashes, not
 words — in a file that outlives it, and the feed shows those as taken back,
 live and in the archive alike.
 
+The feed's queue state travels independently of transcript rows: delivery or
+withdrawal can change it without a byte being appended to the transcript.
+The holder's summary names pending inputs by UUID, time and fingerprint, with
+no words. A queued transcript row carries the fingerprint of its full input,
+before truncation. Claude's queue records do not retain the input UUID, so the
+screen joins only an exact fingerprint with a unique occurrence after the send;
+ambiguous repeats offer no cancellation of a guessed message. This keeps edit
+and take back on a row after its local copy gives way and after a page reload.
+An input with file paths has the same identity. A truncated row can be taken
+back, but cannot be edited from an incomplete copy of its words.
+
 **An answered permission stays in the feed as a card**, drawn like an
 answered question. On the stream a permission is a request and a reply, and
 the transcript gets the call and its result with nothing of the question
@@ -1088,6 +1099,12 @@ after the install pairs only by its account's name.
   let go is not the panel's to bring back. A message the daemon refuses to
   start a turn with is dropped with a line in the executor's log rather than
   held in front of the rest.
+- **Waiting input is read from the outbox by the collector.** Codex writes no
+  rollout row until a turn takes the message. The feed carries the outbox as
+  queue state, including each message's ID, so a reload or a second device
+  keeps its edit and take back buttons. Removal from the outbox removes the
+  waiting row. A file send carries no message ID in the action protocol, so
+  codex's outbox can show it waiting but cannot offer cancellation by ID.
 - **The model, the effort, the permissions and the plan of a running thread
   change for its next turns** (`session.set`), with `thread/settings/update`.
   A model and an effort are held to the catalogue of the home's daemon first:

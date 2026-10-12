@@ -2,6 +2,7 @@
 import html
 import re
 
+import held
 import sesstate
 from sesstate.feed import TURN_ENDS
 
@@ -334,7 +335,7 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return [{"role": "note", "text": shown, "at": at, "pos": pos}]
         body, trimmed = cut(shown, MAX_TEXT)
         item = {"role": "me", "text": body, "cut": trimmed, "at": at,
-                "pos": pos, "state": "queued"}
+                "pos": pos, "state": "queued", "fingerprint": held.fingerprint(record.get("content") or "")}
         if pending is not None:
             pending.enqueue(item)
         return [item]
@@ -498,6 +499,7 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                               if isinstance(b, dict) and b.get("type") == "text")
         else:
             text = prompt if isinstance(prompt, str) else ""
+        fingerprint = held.fingerprint(text)
         text = strip_panel_note(unwrap_pasted(text.strip()))
         if not text and not shots:
             return []
@@ -520,7 +522,7 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return [{"role": "note", "text": shown, "at": at, "pos": pos}]
         body, trimmed = cut(shown, MAX_TEXT)
         item = {"role": "me", "text": body, "cut": trimmed, "at": at, "pos": pos,
-                "state": "queued"}
+                "state": "queued", "fingerprint": fingerprint}
         if pending is not None:
             pending.enqueue(item)
         out.append(item)
