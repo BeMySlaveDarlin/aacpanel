@@ -25,8 +25,8 @@ func NewReport(s *Survey, r *Run, took time.Duration) Report {
 	if s != nil {
 		short = s.Facts.Short
 	}
-	for _, e := range r.ChangedInRun() {
-		name := short(e.Target)
+	for _, change := range r.Changes() {
+		name := short(change)
 		if !slices.Contains(rep.Changed, name) {
 			rep.Changed = append(rep.Changed, name)
 		}

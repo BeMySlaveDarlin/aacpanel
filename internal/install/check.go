@@ -113,6 +113,9 @@ func (in *Install) chain(r *Run) []chainLink {
 	out = append(out, in.databaseLink(r, local), in.containersLink(r, env), in.collectorLink(r), in.executorLink(r),
 		in.askLink())
 	out = append(out, in.wiringLink()...)
+	for _, warning := range in.S.onboardingMind() {
+		out = append(out, chainLink{mark: Warn, text: warning})
+	}
 	for _, home := range in.codexHomes() {
 		if source, err := in.verifyCodex(r, home); err != nil {
 			out = append(out, broken("Inspect /hooks in codex; make codex-contract checks hook trust against codex.",

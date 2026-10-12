@@ -38,4 +38,9 @@
 │   panel's default)                                       │
 │   repo ~/aacpanel (the clone) · uid 1000 gid 1000 (id)   │
 │   secrets: made once on this machine, never shown        │
+│ Mind                                                     │
+│   · claude onboarding is incomplete in ~/.claude: tmux   │
+│     sessions stop on the first-run screen; stream        │
+│     sessions work. Run /home/u/.local/bin/claude once in │
+│     a terminal.                                          │
 ╰──────────────────────────────────────────────────────────╯

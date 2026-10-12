@@ -356,6 +356,7 @@ func (in *Install) execUnitStep() *Step {
 				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "restart", execService}, Limit: time.Minute}); err != nil {
 					return in.execDiagnosis(r, err)
 				}
+				r.Change(execService + " restarted")
 			}
 			return nil
 		},
@@ -671,17 +672,20 @@ func (in *Install) stackStep() *Step {
 			// the time of the build, and the id of the image changes with it:
 			// a build all from the cache would have up recreate the panel on
 			// every run. Without the attestation the same tree keeps its id.
-			for _, c := range []Cmd{
-				{Argv: in.docker(append(build, "aacpanel")...), Env: []string{"BUILDX_NO_DEFAULT_ATTESTATIONS=1"}},
-				{Argv: in.docker("compose", "up", "-d")},
-			} {
-				c.Dir = in.clone()
-				if _, err := r.Exec(c); err != nil {
-					why, fix := stackDiagnosis(err)
-					return fail(why, err, fix...)
-				}
+			before, _ := in.imageID(r, Project+"-aacpanel")
+			if _, err := r.Exec(Cmd{Argv: in.docker(append(build, "aacpanel")...), Dir: in.clone(),
+				Env: []string{"BUILDX_NO_DEFAULT_ATTESTATIONS=1"}}); err != nil {
+				why, fix := stackDiagnosis(err)
+				return fail(why, err, fix...)
 			}
-			return nil
+			after, err := in.imageID(r, Project+"-aacpanel")
+			if err != nil {
+				return fail("the rebuilt image could not be inspected", err)
+			}
+			if after != before {
+				r.Change("aacpanel image rebuilt for commit " + in.rev())
+			}
+			return in.composeUp(r)
 		},
 		Verify: func(r *Run) error {
 			_, env, err := in.readEnv(r)
@@ -692,6 +696,54 @@ func (in *Install) stackStep() *Step {
 		},
 		Undo: UndoKind,
 	}
+}
+
+func (in *Install) imageID(r *Run, ref string) (string, error) {
+	out, err := r.Exec(Cmd{Argv: in.docker("image", "inspect", "--format", "{{.Id}}", ref), Limit: time.Minute})
+	return strings.TrimSpace(out), err
+}
+
+// composeUp compares container identity and start time: compose can keep,
+// recreate or start a container, and its progress text is not that contract.
+func (in *Install) composeUp(r *Run, services ...string) error {
+	_, env, err := in.readEnv(r)
+	if err != nil {
+		return err
+	}
+	names := stackContainers(env)
+	instances := func() (map[string][]string, error) {
+		out, err := r.Exec(Cmd{Argv: in.docker(append([]string{"inspect", "-f", "{{.Name}} {{.Id}} {{.State.StartedAt}}"}, names...)...), Limit: time.Minute})
+		seen := map[string][]string{}
+		for _, line := range strings.Split(out, "\n") {
+			if fields := strings.Fields(line); len(fields) == 3 {
+				seen[strings.TrimPrefix(fields[0], "/")] = fields[1:]
+			}
+		}
+		return seen, err
+	}
+	before, _ := instances()
+	_, err = r.Exec(Cmd{Argv: in.docker(append([]string{"compose", "up", "-d"}, services...)...), Dir: in.clone()})
+	after, inspectErr := instances()
+	for _, name := range names {
+		a, b := before[name], after[name]
+		switch {
+		case len(b) == 0 || slices.Equal(a, b):
+		case len(a) == 0:
+			r.Change(name + " container created")
+		case a[0] != b[0]:
+			r.Change(name + " container recreated")
+		default:
+			r.Change(name + " container started")
+		}
+	}
+	if err != nil {
+		why, fix := stackDiagnosis(err)
+		return fail(why, err, fix...)
+	}
+	if inspectErr != nil {
+		return fail("the containers could not be inspected after compose up", inspectErr)
+	}
+	return nil
 }
 
 // recordPulls records the images of the stack that are not on the machine
@@ -814,11 +866,7 @@ func (in *Install) appRoleStep() *Step {
 			if err := writeFile(in.dotEnvPath(), out, 0o600); err != nil {
 				return err
 			}
-			if _, err := r.Exec(Cmd{Argv: in.docker("compose", "up", "-d", "aacpanel"), Dir: in.clone()}); err != nil {
-				why, fix := stackDiagnosis(err)
-				return fail(why, err, fix...)
-			}
-			return nil
+			return in.composeUp(r, "aacpanel")
 		},
 		Verify: func(r *Run) error {
 			_, env, err := in.readEnv(r)
@@ -989,14 +1037,19 @@ func (in *Install) collectorStep() *Step {
 			}
 			if in.agentStarted {
 				r.Say(Pass, in.agent()+" started in the root part, on this tree")
+				r.Change(in.agent() + " started")
 				return r.Record(Rev, in.rev(), "")
 			}
 			in.restarted = r.clock().Now()
 			if err := r.Record(Rev, in.rev(), "asked="+strconv.FormatInt(in.restarted.Unix(), 10)); err != nil {
 				return err
 			}
-			return r.AsRoot("Root command", "Restarts the collector, which runs from the clone: "+in.agent()+".",
-				"restart-agent", "--user", in.user())
+			if err := r.AsRoot("Root command", "Restarts the collector, which runs from the clone: "+in.agent()+".",
+				"restart-agent", "--user", in.user()); err != nil {
+				return err
+			}
+			r.Change(in.agent() + " restarted")
+			return nil
 		},
 		Verify: func(r *Run) error {
 			if in.restarted.IsZero() {

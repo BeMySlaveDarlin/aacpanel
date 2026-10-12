@@ -2,6 +2,7 @@ package install
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"net/netip"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"aacpanel/internal/contours"
 )
 
 // Choice is a value found on the machine and where it was found, for a
@@ -252,6 +255,26 @@ func Expand(path, home string) string {
 type ClaudeHome struct {
 	Dir      string
 	SignedIn bool // a login is stored there
+}
+
+// claudeConfigFile is beside the default home, but inside an explicit
+// CLAUDE_CONFIG_DIR. Reading the other file mistakes a working account for new.
+func claudeConfigFile(dir, home string) string {
+	if contours.IsDefaultConfig(dir, home) {
+		return filepath.Join(home, ".claude.json")
+	}
+	return filepath.Join(dir, ".claude.json")
+}
+
+func needsOnboarding(m Machine, dir, home string) bool {
+	if !exists(m, filepath.Join(dir, ".credentials.json")) {
+		return false
+	}
+	raw, err := m.ReadFile(claudeConfigFile(dir, home))
+	var config struct {
+		Completed bool `json:"hasCompletedOnboarding"`
+	}
+	return err != nil || json.Unmarshal(raw, &config) != nil || !config.Completed
 }
 
 // accountMarkers are what claude puts into its configuration directory

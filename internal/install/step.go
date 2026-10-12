@@ -113,6 +113,7 @@ type Run struct {
 
 	step     *Step
 	changed  []Entry
+	changes  []string
 	gone     []string
 	kept     []string
 	later    []string
@@ -122,6 +123,23 @@ type Run struct {
 // Kept are the titles of the steps whose check found the machine done:
 // what the run left as it was.
 func (r *Run) Kept() []string { return append([]string(nil), r.kept...) }
+
+// Change names work done on an existing installation too: the manifest
+// keeps ownership for uninstall, so a rebuild or restart adds no line there.
+func (r *Run) Change(text string) {
+	if slices.Contains(r.changes, text) {
+		return
+	}
+	r.changes = append(r.changes, text)
+	title := ""
+	if r.step != nil {
+		title = r.step.Title
+	}
+	r.emit(Event{Type: Changed, Title: title, Text: text})
+}
+
+// Changes are what this run changed, including work without a new manifest line.
+func (r *Run) Changes() []string { return slices.Clone(r.changes) }
 
 // TookAway notes what a step took off the machine, its lines dropped from
 // the manifest with it: a change of the run all the same, and the report
@@ -211,7 +229,10 @@ func (r *Run) Record(kind Kind, target, meta string) error {
 		return fmt.Errorf("the manifest did not take %s %s: %w", kind, target, err)
 	}
 	r.changed = append(r.changed, e)
-	r.emit(Event{Type: Changed, Title: r.step.Title, Text: target})
+	// Rev is a restart checkpoint, not a change to the machine by itself.
+	if kind != Rev {
+		r.Change(target)
+	}
 	return nil
 }
 
@@ -251,8 +272,8 @@ func (r *Run) MakeDir(path string, perm os.FileMode) error {
 	return os.Mkdir(path, perm)
 }
 
-// ChangedInRun is what this run recorded, in order: the summary a stop or
-// a Ctrl+C prints.
+// ChangedInRun keeps the manifest entries separate from the report: the
+// root step uses their kinds to decide which services it must restart.
 func (r *Run) ChangedInRun() []Entry { return append([]Entry(nil), r.changed...) }
 
 // Do takes a step through its contract: nothing if it is done, else Apply

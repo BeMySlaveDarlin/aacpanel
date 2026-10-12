@@ -263,6 +263,14 @@ func TestHostEnvIsEditedInPlaceOnlyWhereTheAnswersDiffer(t *testing.T) {
 	if !g.already(g.step("hostenv")) {
 		t.Error("a second run changed host.env again")
 	}
+	g.r.changes = nil
+	g.write(path, strings.ReplaceAll(after, "AACP_HOST=lab2", "AACP_HOST=other"), 0o644)
+	if err := g.do(g.step("hostenv")); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(g.r.Changes(), []string{path}) || len(g.lines()) != 1 {
+		t.Errorf("an owned host.env update: changes %q, manifest %q", g.r.Changes(), g.lines())
+	}
 	// A key there but empty is an answer; a key missing is none.
 	g.write(path, strings.Replace(g.read(path), "AACP_TERMINAL=\n", "", 1), 0o644)
 	if g.in.hostEnvHolds() {
@@ -635,11 +643,12 @@ func TestTheExecutorIsReplacedByARenameAndOnlyWhenItChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	g.in.execChanged = false
+	g.r.changes = nil
 	g.goBuild("first")
 	if err := g.do(g.step("exec-build")); err != nil {
 		t.Fatal(err)
 	}
-	if g.in.execChanged || len(g.lines()) != 2 {
+	if g.in.execChanged || len(g.lines()) != 2 || len(g.r.Changes()) != 0 {
 		t.Errorf("the same build replaced the binary: changed %v, manifest %q", g.in.execChanged, g.lines())
 	}
 	if _, err := os.Stat(bin + ".new"); !errors.Is(err, fs.ErrNotExist) {
@@ -654,6 +663,9 @@ func TestTheExecutorIsReplacedByARenameAndOnlyWhenItChanged(t *testing.T) {
 	}
 	if len(g.lines()) != 2 {
 		t.Errorf("a rebuild of the installer's own binary added lines: %q", g.lines())
+	}
+	if !slices.Equal(g.r.Changes(), []string{bin}) {
+		t.Errorf("the replacement is absent from changes: %q", g.r.Changes())
 	}
 }
 
@@ -713,6 +725,14 @@ func TestTheExecutorsUnitIsInstalledEnabledAndStarted(t *testing.T) {
 	g.says([]string{"systemctl", "--user", "is-active", "aacpanel-exec.service"}, "active\n")
 	if !g.already(g.step("exec-unit")) {
 		t.Error("an executor in place was restarted")
+	}
+	g.r.changes = nil
+	g.in.execChanged = true
+	if err := g.do(g.step("exec-unit")); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(g.r.Changes(), []string{"aacpanel-exec.service restarted"}) || !slices.Equal(g.lines(), want) {
+		t.Errorf("a restart of an owned unit: changes %q, manifest %q", g.r.Changes(), g.lines())
 	}
 }
 
@@ -945,6 +965,10 @@ func (g *rig) stackUp() {
 	g.says([]string{"docker", "image", "inspect", "--format", "{{.Id}}", "tecnativa/docker-socket-proxy:0.3.0"}, "sha256:1\n")
 	g.says([]string{"docker", "compose", "build", "aacpanel"}, "#13 naming to docker.io/library/aacpanel-aacpanel done\n")
 	g.says([]string{"docker", "compose", "up", "-d"}, " Container aacpanel  Started\n")
+	g.says([]string{"docker", "image", "inspect", "--format", "{{.Id}}", "aacpanel-aacpanel"}, "sha256:panel\n")
+	g.says([]string{"docker", "inspect", "-f", "{{.Name}} {{.Id}} {{.State.StartedAt}}",
+		"aacpanel", "aacpanel-db", "aacpanel-socket-proxy"},
+		"/aacpanel panel-id earlier\n/aacpanel-db db-id earlier\n/aacpanel-socket-proxy proxy-id earlier\n")
 	g.fails([]string{"docker", "volume", "inspect", DBVolume}, "Error: No such volume: "+DBVolume)
 	g.fails([]string{"docker", "volume", "inspect", TSVolume}, "Error: No such volume: "+TSVolume)
 	g.says([]string{"docker", "inspect", "-f", "{{.State.Health.Status}}", "aacpanel-db"}, "healthy\n")
@@ -1003,6 +1027,70 @@ func TestTheStackIsRecordedBeforeItComesUp(t *testing.T) {
 	}
 	if !slices.Contains(g.m.Ran, "docker compose build --build-arg SKIP_VULNCHECK=1 aacpanel") {
 		t.Errorf("--skip-vulncheck did not reach the build: %q", g.m.Ran)
+	}
+}
+
+func TestAnUpdateReportsWhatComposeChanged(t *testing.T) {
+	for _, tc := range []struct {
+		name, image, container, started, pulled string
+		want                                    []string
+	}{
+		{"new-commit", "sha256:new", "new-container", "later", "sha256:db",
+			[]string{"aacpanel image rebuilt for commit 9e8d7c6", "aacpanel container recreated"}},
+		{"cached", "sha256:old", "old-container", "earlier", "sha256:db", nil},
+		{"configuration", "sha256:old", "new-container", "later", "sha256:db", []string{"aacpanel container recreated"}},
+		{"stopped", "sha256:old", "old-container", "later", "sha256:db", []string{"aacpanel container started"}},
+		{"pulled", "sha256:old", "old-container", "earlier", "sha256:db-new", []string{"postgres:18-alpine image pulled"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := newRig(t)
+			g.stackUp()
+			g.says([]string{"docker", "compose", "config", "--images", "socket-proxy", "aacpanel-db"},
+				"tecnativa/docker-socket-proxy:0.3.0\npostgres:18-alpine\n")
+			image := []string{"docker", "image", "inspect", "--format", "{{.Id}}", "aacpanel-aacpanel"}
+			db := []string{"docker", "image", "inspect", "--format", "{{.Id}}", "postgres:18-alpine"}
+			containers := []string{"docker", "inspect", "-f", "{{.Name}} {{.Id}} {{.State.StartedAt}}",
+				"aacpanel", "aacpanel-db", "aacpanel-socket-proxy"}
+			g.says(image, "sha256:old")
+			g.says(db, "sha256:db")
+			g.says(containers, "/aacpanel old-container earlier\n/aacpanel-db db-container earlier\n/aacpanel-socket-proxy proxy-container earlier")
+			if err := g.do(g.step("compose")); err != nil {
+				t.Fatal(err)
+			}
+			manifest := g.lines()
+			g.r.changes = nil
+			g.r.changed = nil
+			g.in.S.Facts.Version = "9e8d7c6"
+			g.says([]string{"docker", "compose", "pull", "socket-proxy", "aacpanel-db"}, "")
+			g.m.Effects[Command("docker", "compose", "pull", "socket-proxy", "aacpanel-db")] = func(Cmd) error {
+				g.says(db, tc.pulled)
+				return nil
+			}
+			g.m.Effects[Command("docker", "compose", "build", "aacpanel")] = func(Cmd) error {
+				g.says(image, tc.image)
+				return nil
+			}
+			g.m.Effects[Command("docker", "compose", "up", "-d")] = func(Cmd) error {
+				g.says(containers, "/aacpanel "+tc.container+" "+tc.started+
+					"\n/aacpanel-db db-container earlier\n/aacpanel-socket-proxy proxy-container earlier")
+				return nil
+			}
+			var events []string
+			g.r.Sink = func(e Event) {
+				if e.Type == Changed {
+					events = append(events, e.Text)
+				}
+			}
+			if err := Perform(g.r, []*Step{g.in.updateStep(), g.step("compose")}); err != nil {
+				t.Fatal(err)
+			}
+			if got := NewReport(g.in.S, g.r, time.Second).Changed; !slices.Equal(got, tc.want) {
+				t.Errorf("the update reports %q, want %q", got, tc.want)
+			}
+			if !slices.Equal(events, tc.want) || !slices.Equal(g.lines(), manifest) {
+				t.Errorf("live changes %q; manifest before %q, after %q", events, manifest, g.lines())
+			}
+		})
 	}
 }
 
@@ -1125,6 +1213,7 @@ func TestTheCollectorRestartsOnANewTreeAndNotAfterItsFirstStart(t *testing.T) {
 		t.Error("the same tree restarted the collector")
 	}
 	g.in.agentStarted = false
+	g.r.changes = nil
 	g.in.S.Facts.Version = "9e8d7c6"
 	restart := []string{"sudo", "-n", "bash", filepath.Join(g.clone, "deploy/install/root.sh"), "restart-agent", "--user", "u"}
 	g.says(restart, "root.sh: systemctl restart aacpanel-agent@u.service\n")
@@ -1142,13 +1231,20 @@ func TestTheCollectorRestartsOnANewTreeAndNotAfterItsFirstStart(t *testing.T) {
 	if !g.already(g.step("collector-restart")) {
 		t.Error("a collector restarted on this tree was restarted again")
 	}
+	if got := NewReport(g.in.S, g.r, time.Second).Changed; !slices.Equal(got, []string{"aacpanel-agent@u.service restarted"}) {
+		t.Errorf("the collector restart is reported as %q", got)
+	}
 	// A restart that did not go through — said no to, or cut short — leaves
 	// the collector older than the ask, and the next run restarts it; one an
 	// administrator ran after the stop leaves it younger, and the run goes on.
 	g.in.S.Facts.Version = "2222222"
+	g.r.changes = nil
 	g.fails(restart, "sudo: a password is required")
 	if err := g.do(g.step("collector-restart")); err == nil {
 		t.Fatal("a restart that failed passed")
+	}
+	if len(g.r.Changes()) != 0 {
+		t.Errorf("a failed restart claims changes: %q", g.r.Changes())
 	}
 	now := g.clock.Now().Unix()
 	g.says([]string{"systemctl", "show", "-p", "MainPID", "--value", "aacpanel-agent@u.service"}, "4242\n")

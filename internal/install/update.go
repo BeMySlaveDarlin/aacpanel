@@ -134,12 +134,33 @@ func (in *Install) updateStep() *Step {
 			if in.S.Has("tailscale") {
 				services = append(services, "tailscale")
 			}
+			refs, err := r.Exec(Cmd{Argv: in.docker(append([]string{"compose", "config", "--images"}, services...)...), Dir: in.clone(), Limit: time.Minute})
+			if err != nil {
+				return fail("docker compose config --images fails", err)
+			}
+			before := map[string]string{}
+			for _, ref := range strings.Fields(refs) {
+				if ref != Project+"-aacpanel" {
+					before[ref], _ = in.imageID(r, ref)
+				}
+			}
 			if _, err := r.Exec(Cmd{Argv: in.docker(append([]string{"compose", "pull"}, services...)...), Dir: in.clone()}); err != nil {
 				why, fix := stackDiagnosis(err)
 				if why == "docker compose failed" {
 					why = "docker compose pull failed: the registry did not answer"
 				}
 				return fail(why, err, fix...)
+			}
+			for _, ref := range strings.Fields(refs) {
+				if old, pulled := before[ref]; pulled {
+					id, err := in.imageID(r, ref)
+					if err != nil {
+						return fail("the pulled image "+ref+" could not be inspected", err)
+					}
+					if id != old {
+						r.Change(ref + " image pulled")
+					}
+				}
 			}
 			r.Say(Pass, "pulled: "+strings.Join(services, ", "))
 			if in.UpdatedFrom != "" {

@@ -251,13 +251,9 @@ func changedLine(names []string) string {
 	return strings.Join(names, " · ")
 }
 
-// targets are the targets of what a run that is over recorded.
+// targets are what the run changed, including updates to things it owns.
 func targets(r *install.Run) []string {
-	var names []string
-	for _, e := range r.ChangedInRun() {
-		names = append(names, e.Target)
-	}
-	return names
+	return r.Changes()
 }
 
 // closingLines are the last words of a run of the steps, by how it ended,

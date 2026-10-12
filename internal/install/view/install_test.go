@@ -14,6 +14,30 @@ import (
 	"aacpanel/internal/install/ui"
 )
 
+func TestTheUpdateReportNamesChangesAndAnUnchangedRun(t *testing.T) {
+	r := &install.Run{}
+	for _, changed := range []bool{false, true} {
+		if changed {
+			r.Change("aacpanel image rebuilt for commit 9e8d7c6")
+			r.Change("aacpanel container recreated")
+		}
+		for _, width := range []int{60, 80} {
+			frame := ui.Strip(reportFrame(ui.NewTheme(false), install.NewReport(nil, r, time.Second), "Updated", width))
+			if strings.Contains(frame, "nothing: the machine had it all") == changed {
+				t.Fatalf("changed %v: %s", changed, frame)
+			}
+			if changed {
+				for _, want := range []string{"aacpanel image rebuilt for commit 9e8d7c6", "aacpanel container recreated"} {
+					text := strings.Join(strings.Fields(strings.ReplaceAll(frame, "│", "")), " ")
+					if !strings.Contains(text, want) {
+						t.Errorf("the report lost %q: %s", want, frame)
+					}
+				}
+			}
+		}
+	}
+}
+
 // installing drives install on the screen with --yes up to the plan, whose
 // Enter begins the steps.
 func installing(t *testing.T, steps ...*install.Step) *screen {
@@ -118,6 +142,7 @@ func TestCtrlCStopsAfterTheStepAtWork(t *testing.T) {
 			if err := r.Record(install.Dir, "/srv/made", "created"); err != nil {
 				return err
 			}
+			r.Change("aacpanel image rebuilt for commit 9e8d7c6")
 			<-release
 			return nil
 		}},
@@ -131,7 +156,8 @@ func TestCtrlCStopsAfterTheStepAtWork(t *testing.T) {
 	s.pump(t, func() bool { return s.m.stage == over })
 	feed := s.text()
 	if followed || s.m.status != 130 || !strings.Contains(feed, `Interrupted after "Panel stack"`) ||
-		!strings.Contains(feed, "Changed so far in this run: /srv/made") {
+		!strings.Contains(feed, "Changed so far in this run: /srv/made") ||
+		!strings.Contains(strings.Join(strings.Fields(feed), " "), "aacpanel image rebuilt for commit 9e8d7c6") {
 		t.Errorf("status %d, the next step ran: %v; the feed:\n%s", s.m.status, followed, feed)
 	}
 }

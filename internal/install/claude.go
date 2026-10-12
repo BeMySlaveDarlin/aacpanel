@@ -117,10 +117,7 @@ func (in *Install) wiring() Wiring {
 // reads without CLAUDE_CONFIG_DIR — naming ~/.claude there would make
 // claude keep a second file inside it.
 func (in *Install) mcpFile(dir string) string {
-	if contours.IsDefaultConfig(dir, in.home()) {
-		return filepath.Join(in.home(), ".claude.json")
-	}
-	return filepath.Join(dir, ".claude.json")
+	return claudeConfigFile(dir, in.home())
 }
 
 // accountEnv is the environment claude runs in for an account: its
@@ -447,6 +444,19 @@ func undoMCP(r *Run, e Entry) error {
 		return nil
 	}
 	return err
+}
+
+// Credentials copied onto a machine let stream sessions run, but leave
+// interactive claude at its first-run screen. Only the person completes it.
+func (s *Survey) onboardingMind() []string {
+	var out []string
+	for _, dir := range split(s.valueOr("accounts", "")) {
+		if needsOnboarding(s.m, dir, s.Facts.Account.Home) {
+			out = append(out, "claude onboarding is incomplete in "+s.Facts.Short(dir)+
+				": tmux sessions stop on the first-run screen; stream sessions work. Run "+s.signInLine(dir)+" once in a terminal.")
+		}
+	}
+	return out
 }
 
 // signInMind are the accounts the person left to sign in to later.

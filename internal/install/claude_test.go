@@ -9,6 +9,81 @@ import (
 	"testing"
 )
 
+func TestOnboardingIsAWarningInThePlanAndCheck(t *testing.T) {
+	for _, account := range []string{".claude", ".claude-work", "accounts/work"} {
+		t.Run(account, func(t *testing.T) {
+			g := newRig(t, answer("--account", "~/"+account))
+			g.chainUp()
+			for _, tc := range []struct {
+				name, config string
+				credentials  bool
+				warn         bool
+			}{
+				{"missing", "", true, true},
+				{"missing-key", `{}`, true, true},
+				{"incomplete", `{"hasCompletedOnboarding":false}`, true, true},
+				{"completed", `{"hasCompletedOnboarding":true}`, true, false},
+				{"invalid", `{"hasCompletedOnboarding":`, true, true},
+				{"no-credentials", `{}`, false, false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					dir := filepath.Join(g.home, account)
+					file := filepath.Join(dir, ".claude.json")
+					other := filepath.Join(g.home, ".claude.json")
+					command := "CLAUDE_CONFIG_DIR=~/" + account + " /usr/bin/claude"
+					if account == ".claude" {
+						file, other = other, file
+						command = "/usr/bin/claude"
+					}
+					// A completed file at the other location must not hide the
+					// first-run screen in the file this contour actually reads.
+					g.write(other, `{"hasCompletedOnboarding":true}`, 0o600)
+					if tc.config == "" {
+						if err := removeIfThere(file); err != nil {
+							t.Fatal(err)
+						}
+					} else {
+						g.write(file, tc.config, 0o600)
+					}
+					if err := removeIfThere(filepath.Join(dir, ".credentials.json")); err != nil {
+						t.Fatal(err)
+					}
+					if tc.credentials {
+						g.write(filepath.Join(dir, ".credentials.json"), `{"secret":"keep-private"}`, 0o600)
+					}
+					want := "claude onboarding is incomplete in ~/" + account +
+						": tmux sessions stop on the first-run screen; stream sessions work. Run " + command + " once in a terminal."
+					plan := g.in.S.Plan()
+					if got := slices.ContainsFunc(plan, func(row PlanRow) bool { return strings.Contains(row.Text, want) }); got != tc.warn {
+						t.Errorf("plan warning = %v, want %v: %+v", got, tc.warn, plan)
+					}
+					// Keep the check's wiring valid without touching onboarding.
+					wired, _, err := Wire([]byte("{}"), g.in.wiring())
+					if err != nil {
+						t.Fatal(err)
+					}
+					g.write(filepath.Join(dir, "settings.json"), string(wired), 0o600)
+					before, beforeErr := os.ReadFile(file)
+					lines := g.said()
+					if err := g.do(g.in.CheckStep()); err != nil {
+						t.Fatalf("onboarding must not fail check: %v", err)
+					}
+					if got := slices.Contains(*lines, "⚠ "+want); got != tc.warn {
+						t.Errorf("check warning = %v, want %v: %q", got, tc.warn, *lines)
+					}
+					after, afterErr := os.ReadFile(file)
+					if string(before) != string(after) || (beforeErr == nil) != (afterErr == nil) || len(g.lines()) != 0 {
+						t.Error("the warning changed the account or the manifest")
+					}
+					if strings.Contains(strings.Join(*lines, "\n"), "keep-private") {
+						t.Error("the warning exposed credentials")
+					}
+				})
+			}
+		})
+	}
+}
+
 // claudeMachine answers claude mcp the way claude does: add writes the
 // entry into the file of the account its environment names — .claude.json
 // in CLAUDE_CONFIG_DIR, or beside ~/.claude without it — and remove takes

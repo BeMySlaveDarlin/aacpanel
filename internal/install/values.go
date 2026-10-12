@@ -215,7 +215,8 @@ func (s *Survey) Mind() []string {
 	if want, asked := s.Token(); asked && !want {
 		out = append(out, "A phone cannot sign in over the home network: without a domain or Tailscale the passkeys live at localhost, and there is no token.")
 	}
-	return append(out, s.signInMind()...)
+	out = append(out, s.signInMind()...)
+	return append(out, s.onboardingMind()...)
 }
 
 // Closing is what the end of an install says of the answers: where the

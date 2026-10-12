@@ -173,6 +173,7 @@ func (in *Install) backup(path string) (string, error) {
 // or found and kept aside for the undo. Later runs change their own file.
 func (in *Install) touch(r *Run, kind Kind, path, extra string) error {
 	if r.Recorded(kind, path) {
+		r.Change(path)
 		return nil
 	}
 	meta := "created"
