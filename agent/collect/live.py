@@ -338,7 +338,7 @@ def sessions():
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))
             busy = state.snapshot() if state else None
             if state and sid:
-                asked.BOOK.answered(sid, set(state.answered), state.ended, state.prompted)
+                asked.BOOK.answered(sid, set(state.answered), state.ended, state.prompted, state.heard)
             ask = asked.BOOK.of(sid) if sid else None
             # The row names the question by the id its answer goes under: a
             # screen that answered it stops saying the session asks before

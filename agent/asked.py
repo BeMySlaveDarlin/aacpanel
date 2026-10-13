@@ -24,6 +24,11 @@ MAX_REQUEST = 64 * 1024
 
 MAX_AGE = 24 * 3600
 
+# How long a question that came while the conversation stood idle is kept
+# before it is taken for one claude asked on the side: the transcript of a
+# turn that did start is written by then.
+IDLE_GRACE = 5
+
 
 def _short(text, limit=MAX_TEXT):
     return " ".join(str(text or "").split())[:limit]
@@ -148,7 +153,7 @@ class Book:
                 return None
         return gone
 
-    def answered(self, session, tool_ids, ended="", prompted=""):
+    def answered(self, session, tool_ids, ended="", prompted="", heard="", now=None):
         """Drops the question that has been answered or that the turn outlived.
 
         A turn does not end while its question waits: the answer comes back to
@@ -159,13 +164,20 @@ class Book:
         the keys would go into the composer. A prompt sent after the question
         says the same: a real question holds the turn, so a new message means
         it was never on the screen — claude asks one of its own on the side,
-        for the suggestion of the next prompt, and no transcript records it."""
+        for the suggestion of the next prompt, and no transcript records it.
+        Nor is a question real that came after the end of the turn while the
+        conversation has written nothing since: a question of the model comes
+        in a turn, and the turn writes its prompt before the model asks
+        anything. heard is the last time the conversation or one of its
+        agents wrote; IDLE_GRACE gives a slow write of the transcript time
+        to land before an idle conversation is taken for one."""
         with self._lock:
             ask = self._asks.get(session)
             if not ask:
                 return False
             done = bool(ask.get("toolUseId")) and ask["toolUseId"] in tool_ids
-            if not (done or _outlived(ask.get("at"), ended) or _outlived(ask.get("at"), prompted)):
+            idle = _asked_idle(ask.get("at"), ended, heard, time.time() if now is None else now)
+            if not (done or idle or _outlived(ask.get("at"), ended) or _outlived(ask.get("at"), prompted)):
                 return False
             before = dict(self._asks)
             self._asks.pop(session, None)
@@ -219,6 +231,18 @@ def _outlived(asked_at, ended):
     before, so only a later second counts."""
     start, end = _moment(asked_at), _moment(ended)
     return start is not None and end is not None and end > start
+
+
+def _asked_idle(asked_at, ended, heard, now):
+    """Says whether a question came while the conversation stood idle.
+
+    It came after the end of the turn, in a later second, nothing has been
+    written since that end, and IDLE_GRACE has passed since it came. A last
+    write not known says nothing of the kind."""
+    start, end = _moment(asked_at), _moment(ended)
+    if start is None or end is None or start <= end or not heard:
+        return False
+    return str(heard) <= str(ended) and now - start >= IDLE_GRACE
 
 
 BOOK = Book()

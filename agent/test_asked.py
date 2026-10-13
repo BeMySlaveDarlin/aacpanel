@@ -149,6 +149,34 @@ class Store(unittest.TestCase):
         self.assertTrue(self.book.answered(ask["sessionId"], set(), "2026-09-27T09:19:34.735Z", "2026-09-27T09:21:02.410Z"))
         self.assertIsNone(self.book.of(ask["sessionId"]))
 
+    def test_a_question_that_came_while_the_conversation_stood_idle_goes(self):
+        # The side question came a few seconds after the turn ended, and the
+        # conversation wrote nothing since: no turn was running to ask it.
+        ask = asked.clean(PROBE)
+        ask["at"] = "2026-10-13T15:33:05Z"
+        self.book.put(ask)
+        ended = "2026-10-13T15:32:56.410Z"
+        came = asked._moment(ask["at"])
+        self.assertFalse(self.book.answered(ask["sessionId"], set(), ended, "", ended, now=came + 1),
+                         "the question went before the transcript had time to land")
+        self.assertTrue(self.book.answered(ask["sessionId"], set(), ended, "", ended, now=came + asked.IDLE_GRACE))
+        self.assertIsNone(self.book.of(ask["sessionId"]))
+
+    def test_a_question_of_a_turn_that_started_after_the_end_stays(self):
+        # A turn started by a notification writes before the model asks: the
+        # question is real, though no prompt of the person came.
+        ask = asked.clean(PROBE)
+        ask["at"] = "2026-10-13T15:40:12Z"
+        self.book.put(ask)
+        came = asked._moment(ask["at"])
+        for heard in ("2026-10-13T15:40:02.118Z", "2026-10-13T15:40:12.900Z"):
+            self.assertFalse(self.book.answered(ask["sessionId"], set(), "2026-10-13T15:32:56.410Z", "", heard,
+                                                now=came + 60),
+                             f"the question went though the conversation wrote at {heard}")
+        self.assertFalse(self.book.answered(ask["sessionId"], set(), "", "", "", now=came + 60),
+                         "the question of a first turn went")
+        self.assertIsNotNone(self.book.of(ask["sessionId"]))
+
     def test_a_turn_end_before_the_question_keeps_it(self):
         ask = asked.clean(PROBE)
         ask["at"] = "2026-09-26T15:42:30Z"

@@ -340,7 +340,7 @@ def _answer(request):
             found = ctx.with_codex_runs(found, codex_runs_of(session),
                                         codex_runs_over(state, path, live=bool(place)))
             if session:
-                asked.BOOK.answered(session, set(state.answered), state.ended, state.prompted)
+                asked.BOOK.answered(session, set(state.answered), state.ended, state.prompted, state.heard)
             ask = asked.BOOK.of(session)
             if ask:
                 found = {**found, "ask": ask}
