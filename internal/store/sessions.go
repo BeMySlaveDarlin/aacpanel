@@ -259,27 +259,32 @@ func (s *Store) SessionResume(ctx context.Context, hostID int, name string) (ses
 	return "", "", nil
 }
 
-// SessionResumeAt returns where a conversation ran, found by its own identifier
-// rather than by the name it shared with others.
-func (s *Store) SessionResumeAt(ctx context.Context, hostID int, sessionID string) (cwd string, err error) {
+// SessionResumeAt returns where a conversation ran and the name it ran under
+// last, found by its own identifier rather than by the name it shared with
+// others.
+func (s *Store) SessionResumeAt(ctx context.Context, hostID int, sessionID string) (cwd, name string, err error) {
 	pool, err := s.Pool()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	for _, table := range []string{"sessions_1m", "sessions_1h"} {
-		var dir *string
-		q := `SELECT (array_agg(cwd ORDER BY bucket DESC) FILTER (WHERE cwd IS NOT NULL))[1]
+		var dir, named *string
+		q := `SELECT (array_agg(cwd ORDER BY bucket DESC) FILTER (WHERE cwd IS NOT NULL))[1],
+		             (array_agg(name ORDER BY bucket DESC))[1]
 		      FROM ` + table + `
 		      WHERE host_id = $1 AND session_id = $2`
-		if err := pool.QueryRow(ctx, q, hostID, sessionID).Scan(&dir); err != nil {
+		if err := pool.QueryRow(ctx, q, hostID, sessionID).Scan(&dir, &named); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				continue
 			}
-			return "", Unavailable(err)
+			return "", "", Unavailable(err)
 		}
 		if dir != nil && *dir != "" {
-			return *dir, nil
+			if named != nil {
+				name = *named
+			}
+			return *dir, name, nil
 		}
 	}
-	return "", nil
+	return "", "", nil
 }

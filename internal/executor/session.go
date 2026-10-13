@@ -108,19 +108,30 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 		return "", "", err
 	}
 	detail := describeConsole(rep)
-	if owner.Conversation != "" {
-		key, err := processOwnerKey(rep.Agent)
-		if err == nil {
-			err = stream.KeepOwner(key, owner)
-		}
-		if err != nil {
-			return detail, rep.Session, fmt.Errorf("session %s started, but its opening session was not recorded: %w", rep.Session, err)
-		}
+	if err := keepOwner(rep, owner); err != nil {
+		return detail, rep.Session, err
 	}
 	if granted {
 		detail += "; trust for directory " + p.Path + " was granted by the panel — claude itself never asked about it"
 	}
 	return detail, rep.Session, nil
+}
+
+// keepOwner records the conversation that asked for the session just
+// started, by its claude process: the right to close it and the reports go to
+// that conversation, not to a later session of the same name.
+func keepOwner(rep launcher.Report, owner stream.SessionOwner) error {
+	if owner.Conversation == "" {
+		return nil
+	}
+	key, err := processOwnerKey(rep.Agent)
+	if err == nil {
+		err = stream.KeepOwner(key, owner)
+	}
+	if err != nil {
+		return fmt.Errorf("session %s started, but its opening session was not recorded: %w", rep.Session, err)
+	}
+	return nil
 }
 
 func chooseProject(target string, want *action.Project) (project, error) {
@@ -211,6 +222,10 @@ func (e *Executor) sessionResume(ctx context.Context, target, resume string, wan
 	if err := historymove.Pending(registry.ConfigDirs(), p.Path); err != nil {
 		return "", err
 	}
+	owner, err := e.openingSession(p.OpenedBy)
+	if err != nil {
+		return "", err
+	}
 
 	if p.FromMap {
 		if _, err := trustProjectFor(p); err != nil {
@@ -221,7 +236,8 @@ func (e *Executor) sessionResume(ctx context.Context, target, resume string, wan
 	if err != nil {
 		return "", err
 	}
-	return describeConsole(rep) + ", resumed conversation " + resume, nil
+	detail := describeConsole(rep) + ", resumed conversation " + resume
+	return detail, keepOwner(rep, owner)
 }
 
 func projects() ([]project, error) {

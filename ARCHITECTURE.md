@@ -1782,10 +1782,16 @@ a fold that is open until the person closes it: the children are the work in
 view, and the block stands where the most pressing of the group puts it. The
 link is by name, not by conversation: a restart starts another conversation
 under the same name, and a restart or a move of the child starts its next
-process with the parent again, as the snapshot holds it. A resume from the
-archive does not: a conversation brought back from there is the person's, and a
-claude session and a codex thread alike come back with no parent — the executor
-takes the parent of a codex thread off the disk as it resumes it. A child whose parent
+process with the parent again, as the snapshot holds it. The person's Resume
+from the archive does not: a conversation the person brings back from there is
+the person's, and a claude session and a codex thread alike come back with no
+parent — the executor takes the parent of a codex thread off the disk as it
+resumes it. A resume a session asks for through `session_open` goes by the rule
+of an open: the session that asks is the parent while it lives in the project
+the conversation ran in, a directory it names is only checked to be of that
+project, and the conversation comes back under the name it ran under unless the
+session gives another. A conversation that lives is not resumed: a second
+process would write into the same transcript. A child whose parent
 closed stands under a stub of the parent that says when it closed and opens its
 conversation; one whose parent lives in another contour stands on its own page
 and says which session opened it. Every process the launcher starts drops the
@@ -2124,7 +2130,12 @@ project holds is refused rather than looked up by the name, since the panel
 would know neither the account to open it in nor its launch parameters, and
 the answer names the contour, so the session can tell its person which account
 the new one spends. The calling session names itself, and the new one is shown
-as its child when the two are of one project. The tool has no first message of
+as its child when the two are of one project. With `resume` it asks for
+`session.resume` of a closed claude conversation instead: the conversation
+goes on where it ran, with the launch of the map, under the name it ran under
+unless one is given and under the caller by the same rule — so a session that
+hands out work brings a step of it back as its own child, not around the
+panel. The tool has no first message of
 its own for the reason a letter is a kind of its own: words typed into a
 session its model takes for its
 person's, so work goes to the new session as a letter once it is up. The open

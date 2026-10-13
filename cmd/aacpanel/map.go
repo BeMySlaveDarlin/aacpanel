@@ -253,6 +253,26 @@ func (s *Server) projectIn(ctx context.Context, dir string) (*action.Project, ma
 	return want, found, nil
 }
 
+// resumeProject finds the project of the map a conversation is resumed as, by
+// the directory it ran in, and checks the directory a session names for the
+// resume against it: the conversation goes on where it ran, and a directory of
+// another project would name a project it is not of.
+func (s *Server) resumeProject(ctx context.Context, params map[string]any, cwd, target, dir string) (*action.Project, mapProject, error) {
+	want, found, err := s.launchProject(ctx, params, cwd, target)
+	if err != nil || dir == "" {
+		return want, found, err
+	}
+	_, named, err := s.projectIn(ctx, dir)
+	if err != nil {
+		return nil, mapProject{}, err
+	}
+	if want == nil || named.project.ID != found.project.ID {
+		return nil, mapProject{}, fmt.Errorf("the conversation ran in %s, outside project %q of %s: it goes on only in "+
+			"the project it ran in", cwd, named.project.Name, dir)
+	}
+	return want, found, nil
+}
+
 // launchOf is what the executor is handed to start a session of a project
 // found on the map: where it runs, under the project's session name, with the
 // launch parameters of its account and its own.
@@ -492,11 +512,12 @@ func projectFromParams(params map[string]any) (int, error) {
 
 // openDir is the directory a session is opened in, where the request names
 // one: a session opening another names the directory, the screens name the
-// project by its id, and a resume runs where its conversation ran. A directory
+// project by its id, and a resume runs where its conversation ran — a
+// directory a session names for it is only checked against that. A directory
 // and an id at once would leave the project to a guess.
 func openDir(kind action.Kind, params map[string]any) (string, error) {
 	raw, ok := params["path"]
-	if kind != action.SessionOpen || !ok || raw == nil {
+	if (kind != action.SessionOpen && kind != action.SessionResume) || !ok || raw == nil {
 		return "", nil
 	}
 	dir, ok := raw.(string)
@@ -509,23 +530,42 @@ func openDir(kind action.Kind, params map[string]any) (string, error) {
 	return dir, nil
 }
 
-// parentFromParams is the session a session.open is asked by, as session_open
-// names its caller: the new session is shown under it while the two are of
-// one project. Empty for an open a person asked for, and an open that is not
-// session.open has no parent.
+// parentFromParams is the session a session.open or a session.resume is asked
+// by, as session_open names its caller: the session is shown under it while
+// the two are of one project. Empty for an open or a resume a person asked
+// for, and no other action has a parent this way.
 func parentFromParams(kind action.Kind, params map[string]any) (string, error) {
 	raw, ok := params["parent"]
 	if !ok || raw == nil {
 		return "", nil
 	}
 	parent, isText := raw.(string)
-	if kind != action.SessionOpen || !isText || strings.TrimSpace(parent) == "" {
-		return "", fmt.Errorf("the session that opens this one did not arrive as a name of a session.open")
+	if (kind != action.SessionOpen && kind != action.SessionResume) || !isText || strings.TrimSpace(parent) == "" {
+		return "", fmt.Errorf("the session that opens this one did not arrive as a name of a session.open or a " +
+			"session.resume")
 	}
 	if err := action.ValidParent(parent); err != nil {
 		return "", err
 	}
 	return parent, nil
+}
+
+// resumeName is the name a resume session_open asks for comes back under:
+// the one the session gives, or empty for the one the conversation ran under,
+// which the archive knows. named tells such a resume from the Resume of the
+// screens, which sends no name and comes back under the project's session
+// name, as New brings one up.
+func resumeName(kind action.Kind, params map[string]any) (name string, named bool, err error) {
+	raw, ok := params["name"]
+	if !ok || raw == nil {
+		return "", false, nil
+	}
+	name, isText := raw.(string)
+	if kind != action.SessionResume || !isText {
+		return "", false, fmt.Errorf("the name to resume the session under did not arrive as a name of a " +
+			"session.resume")
+	}
+	return strings.TrimSpace(name), true, nil
 }
 
 // agentFromParams is the agent a New names for this start over the project's

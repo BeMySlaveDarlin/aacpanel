@@ -20,7 +20,8 @@ const OpenName = "session_open"
 // OpenInstructions is the tool's line in the server's word to every session
 // that has it.
 const OpenInstructions = "When the person asks for a new session («открой сессию в …», «подними сессию»), " +
-	"and only then, use session_open."
+	"and only then, use session_open; its resume brings a closed conversation back, under this session when it is " +
+	"of this project."
 
 // helperCycle is shared by the three tools so each names the whole channel.
 const helperCycle = " Open with agent codex, then send the task with send_to_session: its last message comes back " +
@@ -29,9 +30,12 @@ const helperCycle = " Open with agent codex, then send the task with send_to_ses
 
 // OpenDescription is the tool's own word to the model.
 const OpenDescription = "Opens a session in dir: a project of the map, a directory inside it or a worktree of it; " +
-	"a directory outside the map is not opened. The account and launch come from the map, with agent and Codex " +
-	"model, effort, sandbox and writableRoots overriding this start alone. A Codex helper lives in the daemon, " +
-	"with no first message, approvalPolicy never, and workspace-write with network on unless read-only is chosen. " +
+	"a directory outside the map is not opened. With resume, the id of a closed Claude conversation, it goes on " +
+	"with that conversation where it ran, under the caller by the same one-project rule and under the name it had " +
+	"unless name is given; dir is then optional and must be of the same project. The account and launch come " +
+	"from the map, with agent and Codex model, effort, sandbox and writableRoots overriding this start alone. " +
+	"A Codex helper lives in the daemon, with no first message, approvalPolicy never, and workspace-write with " +
+	"network on unless read-only is chosen. " +
 	"Extra writable roots are absolute host paths; no host-specific caches are added implicitly. Only on the " +
 	"person's word: opening spends the account's limits. Tell the person its name and account. The tool takes " +
 	"no task text: send the parent's task as a letter immediately after a Codex open returns; for Claude wait " +
@@ -77,15 +81,19 @@ func CodexOpen(h Host) mcp.Tool {
 
 // openSchema takes no first message: words the tool typed into the new
 // session would reach its model as its person's. Codex choices belong to this
-// start alone, leaving the project's launch on the map intact.
+// start alone, leaving the project's launch on the map intact. A resume needs
+// no directory, since the conversation goes on where it ran, so the schema
+// requires nothing and the call checks that it names dir or resume.
 func openSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"dir": map[string]any{"type": "string", "minLength": 1,
-				"description": "The absolute directory to open the session in: a project of the map, a directory inside one or a worktree of one."},
+				"description": "The absolute directory to open the session in: a project of the map, a directory inside one or a worktree of one. Needed unless resume is given."},
 			"name": map[string]any{"type": "string",
-				"description": "The name of the new session. Left out, the project's session name from the map; when a live session answers to the name, the panel takes a free one."},
+				"description": "The name of the new session. Left out, the project's session name from the map, or for resume the name the conversation had; when a live session answers to the name, the panel takes a free one."},
+			"resume": map[string]any{"type": "string",
+				"description": "The id of a closed Claude conversation to go on with instead of a new one. No agent or Codex options with it."},
 			"agent": map[string]any{"type": "string", "enum": []string{schema.AgentClaude, schema.AgentCodex},
 				"description": "The agent to start: claude or codex. Left out, the project's agent from the map. codex starts only where the project's account has a codex home on this machine."},
 			"model":   map[string]any{"type": "string", "description": "Codex model for this start; otherwise the map's."},
@@ -94,16 +102,16 @@ func openSchema() map[string]any {
 			"writableRoots": map[string]any{"type": "array", "items": map[string]any{"type": "string"},
 				"description": "Extra absolute host directories writable by this Codex helper; only with workspace-write."},
 		},
-		"required":             []string{"dir"},
 		"additionalProperties": false,
 	}
 }
 
 func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
-		Dir   string `json:"dir"`
-		Name  string `json:"name"`
-		Agent string `json:"agent"`
+		Dir    string `json:"dir"`
+		Name   string `json:"name"`
+		Agent  string `json:"agent"`
+		Resume string `json:"resume"`
 		action.CodexLaunch
 	}
 	if len(raw) > 0 {
@@ -120,13 +128,32 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 	if hasCodex && args.Agent == schema.AgentClaude {
 		return "Nothing was opened: model, effort, sandbox and writableRoots are Codex options.", true
 	}
-	if !filepath.IsAbs(args.Dir) {
+	kind := action.SessionOpen
+	if args.Resume != "" {
+		if args.Agent != "" || hasCodex {
+			return "Nothing was opened: resume goes on with a Claude conversation as the map launches it; agent, " +
+				"model, effort, sandbox and writableRoots are for a new session.", true
+		}
+		kind = action.SessionResume
+		probe := action.Request{ID: "open", Kind: kind, Target: "open", Resume: args.Resume}
+		if err := probe.Validate(); err != nil {
+			return "Nothing was opened: " + err.Error() + ".", true
+		}
+	} else if args.Dir == "" {
+		return "Nothing was opened: name dir, the directory of a project of the map to open a session in, or " +
+			"resume, the conversation to go on with.", true
+	}
+	if args.Dir != "" && !filepath.IsAbs(args.Dir) {
 		return fmt.Sprintf("Nothing was opened: dir %q is not an absolute directory — name the directory of a "+
 			"project of the map.", args.Dir), true
 	}
 	if args.Name != "" {
+		at := args.Dir
+		if at == "" {
+			at = "/"
+		}
 		req := action.Request{ID: "open", Kind: action.SessionOpen, Target: args.Name,
-			Project: &action.Project{Path: args.Dir, Session: args.Name}}
+			Project: &action.Project{Path: at, Session: args.Name}}
 		if err := req.Validate(); err != nil {
 			return "Nothing was opened: " + err.Error() + ".", true
 		}
@@ -135,7 +162,16 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 		return fmt.Sprintf("Nothing was opened: agent %q is neither %s nor %s.", args.Agent, schema.AgentClaude,
 			schema.AgentCodex), true
 	}
-	params := map[string]any{"path": args.Dir}
+	params := map[string]any{}
+	if args.Dir != "" {
+		params["path"] = args.Dir
+	}
+	// The name goes along even when empty: it tells the panel the resume is a
+	// session's, which keeps the name the conversation had, from the Resume of
+	// the screens, which comes back under the project's session name.
+	if kind == action.SessionResume {
+		params["session"], params["name"] = args.Resume, args.Name
+	}
 	if args.Agent != "" {
 		params["agent"] = args.Agent
 	}
@@ -148,7 +184,7 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 	if hasCodex {
 		params["codex"] = args.CodexLaunch
 	}
-	got, err := h.act(ctx, string(action.SessionOpen), args.Name, params, openWait)
+	got, err := h.act(ctx, string(kind), args.Name, params, openWait)
 	switch {
 	case err != nil:
 		return "Nothing was opened: " + err.Error() + ".", true
@@ -158,7 +194,11 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 	case !got.Taken:
 		return "Nothing was opened: " + got.Said, true
 	}
-	return "The panel opened a session in " + args.Dir + ", account " + orUnknown(got.Contour) + ": " + got.Said +
+	what := "opened a session in " + args.Dir
+	if kind == action.SessionResume {
+		what = "resumed conversation " + args.Resume
+	}
+	return "The panel " + what + ", account " + orUnknown(got.Contour) + ": " + got.Said +
 		". Tell the person its name and account. A Codex thread can take send_to_session immediately; for Claude " +
 		"wait until it shows in that tool's list. Reports go only to the opening conversation, while it lives " +
 		"on the Claude stream or in a Codex daemon; tmux and gone parents get none." + helperCycle, false

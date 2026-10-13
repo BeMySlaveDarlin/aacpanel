@@ -44,15 +44,15 @@ func (s *Server) liveProject(ctx context.Context, name string) (host.LiveSession
 	return live, &found, nil
 }
 
-// openedUnder is the parent a session opened in a project of the map stands
-// under: the session that asked for the open, while it lives in that same
-// project, and none otherwise. The open goes on either way: where the new
-// session stands in a list is no reason to refuse it.
+// openedUnder is the parent a session opened or resumed in a project of the
+// map stands under: the session that asked for it, while it lives in that same
+// project, and none otherwise. The start goes on either way: where the session
+// stands in a list is no reason to refuse it.
 func (s *Server) openedUnder(ctx context.Context, parent string, found mapProject) string {
 	_, at, err := s.liveProject(ctx, parent)
 	if err != nil || at == nil || at.project.ID != found.project.ID {
-		log.Printf("session.open: %s asks for a session of project %q from outside it, and the new session stands "+
-			"on its own", parent, found.project.Name)
+		log.Printf("%s asks for a session of project %q from outside it, and that session stands on its own",
+			parent, found.project.Name)
 		return ""
 	}
 	return parent

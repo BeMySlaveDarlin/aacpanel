@@ -465,9 +465,10 @@ func TestTheLinesOfTheToolsAreShort(t *testing.T) {
 
 // Opening a session asks the person, as claude asks of any tool: a new session
 // starts work in its account and spends its limits. The tool says when to
-// reach for it in the server's word, and it takes a directory, a name and the
-// agent to start, never words for the new session, which its model would take
-// for its person's.
+// reach for it in the server's word, and it takes a directory, a name, the
+// agent to start and a conversation to resume, never words for the new
+// session, which its model would take for its person's. Nothing is required
+// by the schema: a resume needs no directory, and the call checks the rest.
 func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
 	tool := Open(Host{})
 	if tool.Allowed {
@@ -496,9 +497,10 @@ func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
 		schema.Additional == nil || *schema.Additional {
 		t.Fatalf("the schema of %s is %s", tool.Name, raw)
 	}
-	if len(schema.Properties) != 7 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
-		len(schema.Required) != 1 || schema.Required[0] != "dir" {
-		t.Errorf("%s takes %s: a directory it needs, a name and an agent it may have, nothing more", tool.Name, raw)
+	if len(schema.Properties) != 8 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
+		schema.Properties["resume"] == nil || len(schema.Required) != 0 {
+		t.Errorf("%s takes %s: a directory or a conversation, a name and an agent it may have, nothing more",
+			tool.Name, raw)
 	}
 	var agent struct {
 		Enum []string `json:"enum"`
@@ -556,6 +558,57 @@ func TestAnOpenNamesTheDirectoryToThePanel(t *testing.T) {
 	}
 }
 
+// A resume goes to the panel as session.resume with the conversation and its
+// caller as parent and opener, as an open goes, and with the name even when
+// the model gives none: an empty one leaves the session the name it ran under.
+// A directory goes only where the model names one, for the panel to check
+// against the project the conversation ran in. An agent and Codex options are
+// a new start's, and are refused before the panel is asked.
+func TestAResumeGoesOnWithTheConversationUnderTheCaller(t *testing.T) {
+	p, url := startPanel(t, http.StatusOK,
+		`{"ok":true,"detail":"session task-7 started, resumed conversation `+other+`","contour":"work","logged":true}`)
+	h := hostWith(t, "", url)
+
+	said, failed := call(t, Open(h), boundAs("lead", mine), map[string]any{"resume": other})
+	if failed || !strings.Contains(said, "resumed conversation "+other) || !strings.Contains(said, "account work") {
+		t.Fatalf("the resume answered %q (error %v)", said, failed)
+	}
+	call(t, Open(h), boundAs("lead", mine), map[string]any{"resume": other, "dir": "/srv/proj/lab", "name": "task-8"})
+	call(t, Open(h), lost, map[string]any{"resume": other})
+	for args, says := range map[string]string{
+		`{"resume":"` + other + `","agent":"codex"}`:  "for a new session",
+		`{"resume":"` + other + `","agent":"claude"}`: "for a new session",
+		`{"resume":"` + other + `","effort":"high"}`:  "for a new session",
+		`{"resume":"` + other + `","dir":"srv/lab"}`:  "not an absolute directory",
+		`{"resume":"` + other + `","name":"a:b"}`:     "forbidden character",
+		`{"resume":"the last one"}`:                   "uuid",
+	} {
+		said, failed := Open(h).Call(t.Context(), boundAs("lead", mine), []byte(args))
+		if !failed || !strings.Contains(said, says) || !strings.HasPrefix(said, "Nothing was opened") {
+			t.Errorf("%s answered %q (error %v), meant an error saying %q", args, said, failed, says)
+		}
+	}
+
+	asked := p.calls()
+	if len(asked) != 3 {
+		t.Fatalf("the panel was asked %v", asked)
+	}
+	for i, want := range []struct {
+		target string
+		params map[string]any
+	}{
+		{"", map[string]any{"session": other, "name": "", "parent": "lead", "openedBy": mine}},
+		{"task-8", map[string]any{"session": other, "name": "task-8", "path": "/srv/proj/lab", "parent": "lead",
+			"openedBy": mine}},
+		{"", map[string]any{"session": other, "name": ""}},
+	} {
+		if asked[i]["kind"] != "session.resume" || asked[i]["target"] != want.target ||
+			!reflect.DeepEqual(asked[i]["params"], want.params) {
+			t.Errorf("call %d asked the panel %v, meant %q with %v", i, asked[i], want.target, want.params)
+		}
+	}
+}
+
 // A panel that does not answer within the wait may be opening the session all
 // the same: the answer says so, and that a second open is not to be tried
 // blindly.
@@ -587,7 +640,7 @@ func TestWhatStopsAnOpenIsTheToolsError(t *testing.T) {
 		args  any
 		says  string
 	}{
-		"no directory":           {url, map[string]any{}, "not an absolute directory"},
+		"no directory":           {url, map[string]any{}, "or resume, the conversation to go on with"},
 		"a relative directory":   {url, map[string]any{"dir": "srv/proj/lab"}, "not an absolute directory"},
 		"a name with a colon":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab:two"}, "forbidden character"},
 		"a name with a slash":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab/two"}, "contains /"},

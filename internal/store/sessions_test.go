@@ -412,22 +412,25 @@ func TestSessionResumeLookupPG(t *testing.T) {
 	})
 
 	t.Run("an identifier says which of them, and where it ran", func(t *testing.T) {
-		cwd, err := s.SessionResumeAt(ctx, hostID, "cccccccc-0000-0000-0000-000000000003")
+		cwd, name, err := s.SessionResumeAt(ctx, hostID, "cccccccc-0000-0000-0000-000000000003")
 		if err != nil {
 			t.Fatal(err)
 		}
 		if want := "/srv/proj/Lab/api"; cwd != want {
 			t.Errorf("directory %q, %q was expected — the identifier points at one conversation and only one", cwd, want)
 		}
+		if name != "api" {
+			t.Errorf("name %q, the conversation ran as api", name)
+		}
 	})
 
 	t.Run("an identifier this machine never saw is a refusal, not the freshest one", func(t *testing.T) {
-		cwd, err := s.SessionResumeAt(ctx, hostID, "eeeeeeee-0000-0000-0000-000000000005")
+		cwd, name, err := s.SessionResumeAt(ctx, hostID, "eeeeeeee-0000-0000-0000-000000000005")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if cwd != "" {
-			t.Errorf("directory %q came out of nowhere", cwd)
+		if cwd != "" || name != "" {
+			t.Errorf("directory %q and name %q came out of nowhere", cwd, name)
 		}
 	})
 

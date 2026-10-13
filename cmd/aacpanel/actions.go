@@ -117,7 +117,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 
-	var cwd string
+	var cwd, ranAs string
 	// A thread of codex is resumed in the daemon of its home, which knows where
 	// it ran: the archive row names the thread and the contour of its home, and
 	// no project is looked for — the thread is the daemon's, not a launch of
@@ -136,12 +136,21 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				action.ResumeCodex+": no other agent", http.StatusBadRequest)
 			return
 		}
-		sessionID, dir, err := s.resumeTarget(r, body.Target, body.Params)
+		sessionID, dir, archived, err := s.resumeTarget(r, body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		cwd = dir
+		// A conversation that lives is written to, not resumed: a second
+		// process on it would write into the same transcript.
+		if s.host != nil {
+			if live, ok := s.host.LiveSessionOf(sessionID); ok {
+				http.Error(w, fmt.Sprintf("conversation %s runs in live session %s: write to that session instead of "+
+					"resuming it", sessionID, live.Name), http.StatusConflict)
+				return
+			}
+		}
+		cwd, ranAs = dir, archived
 		req.Resume, req.Target = sessionID, filepath.Base(strings.TrimRight(dir, "/"))
 	}
 
@@ -339,6 +348,11 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	// names itself as well, as the parent the new session is shown under while
 	// the two are of one project.
 	//
+	// A session resuming a conversation names the parent the same way, and
+	// the name it comes back under: its own, or else the one it ran under. The
+	// directory, where it names one, is only checked against the project the
+	// conversation ran in.
+	//
 	// New may name the agent to start for this once, over the project's own:
 	// the agent is a key of the launch, so the rest of the launch stays the
 	// map's and each agent reads only its own keys from it.
@@ -361,11 +375,19 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		name, named, err := resumeName(req.Kind, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		var want *action.Project
 		var found mapProject
-		if dir != "" {
+		switch {
+		case req.Kind == action.SessionResume:
+			want, found, err = s.resumeProject(r.Context(), body.Params, cwd, req.Target, dir)
+		case dir != "":
 			want, found, err = s.projectIn(r.Context(), dir)
-		} else {
+		default:
 			want, found, err = s.launchProject(r.Context(), body.Params, cwd, req.Target)
 		}
 		if err != nil {
@@ -373,11 +395,19 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			return
 		}
 		if want != nil {
-			if dir != "" {
+			if req.Kind == action.SessionOpen && dir != "" {
 				if req.Target == "" {
 					req.Target = want.Session
 				}
 				want.Session, body.Target = req.Target, req.Target
+			}
+			if named {
+				if name == "" {
+					name = ranAs
+				}
+				if name != "" {
+					want.Session, req.Target, body.Target = name, name, name
+				}
 			}
 			req.Project, contour = want, found.profile.Name
 			params = map[string]any{"project": found.project.ID, "path": want.Path}
@@ -1148,40 +1178,40 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"available": true, "kinds": kinds})
 }
 
-// resumeTarget finds the conversation a resume is about and where it ran. The
-// screen knows which row was pressed and says so by its identifier; the name is
-// the older way in and cannot tell two conversations apart when two contours
-// hold a project of the same name.
-func (s *Server) resumeTarget(r *http.Request, name string, params map[string]any) (sessionID, cwd string, err error) {
+// resumeTarget finds the conversation a resume is about, where it ran and the
+// name it ran under. The screen knows which row was pressed and says so by its
+// identifier; the name is the older way in and cannot tell two conversations
+// apart when two contours hold a project of the same name.
+func (s *Server) resumeTarget(r *http.Request, name string, params map[string]any) (sessionID, cwd, ranAs string, err error) {
 	if s.db == nil {
-		return "", "", errors.New("the conversation cannot be resumed: the database is not configured")
+		return "", "", "", errors.New("the conversation cannot be resumed: the database is not configured")
 	}
 	hostID, err := s.db.HostID(r.Context(), s.hostName)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	if id, _ := params["session"].(string); strings.TrimSpace(id) != "" {
 		id = strings.TrimSpace(id)
-		cwd, err = s.db.SessionResumeAt(r.Context(), hostID, id)
+		cwd, ranAs, err = s.db.SessionResumeAt(r.Context(), hostID, id)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 		if cwd == "" {
-			return "", "", fmt.Errorf("conversation %q is not in the archive of this machine", id)
+			return "", "", "", fmt.Errorf("conversation %q is not in the archive of this machine", id)
 		}
-		return id, cwd, nil
+		return id, cwd, ranAs, nil
 	}
 
 	sessionID, cwd, err = s.db.SessionResume(r.Context(), hostID, name)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if sessionID == "" {
-		return "", "", fmt.Errorf("there is no conversation of session %q to resume", name)
+		return "", "", "", fmt.Errorf("there is no conversation of session %q to resume", name)
 	}
 	if cwd == "" {
-		return "", "", fmt.Errorf("the directory of session %q is not known — it cannot be resumed", name)
+		return "", "", "", fmt.Errorf("the directory of session %q is not known — it cannot be resumed", name)
 	}
-	return sessionID, cwd, nil
+	return sessionID, cwd, name, nil
 }

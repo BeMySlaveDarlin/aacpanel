@@ -24,6 +24,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/stream"
 )
 
 type fakeDocker struct {
@@ -1574,6 +1575,38 @@ func TestSessionResume(t *testing.T) {
 		if !strings.Contains(string(raw), `"parent":"lead"`) {
 			t.Errorf("the launcher was called with %q — the new session would not stand under the one that opened it",
 				string(raw))
+		}
+	})
+
+	t.Run("a resume at the word of a session stands under it and is owned by it", func(t *testing.T) {
+		trustFile(t, map[string]bool{dir: true})
+		log := fakeLauncher(t, ok)
+		t.Setenv("XDG_STATE_HOME", t.TempDir())
+		const opener = "66666666-6666-4666-8666-666666666666"
+		procFS(t, fakeProc{pid: 5001, comm: "claude", ppid: 1, start: "5555", args: []string{"claude", "-n", "lead"}},
+			fakeProc{pid: ok.Agent, comm: "claude", ppid: 1, start: "7777", args: []string{"claude"}})
+		sessionFiles(t, fakeSession{pid: 5001, name: "lead", start: "5555", sid: opener})
+		e, _ := newTest(t, "")
+
+		resumed := project()
+		resumed.Parent, resumed.OpenedBy = "lead", opener
+		if _, err := e.Execute(ctx, openWith(action.SessionResume, resumed, uuid)); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(raw), `"parent":"lead"`) || !strings.Contains(string(raw), `"resume":"`+uuid+`"`) {
+			t.Errorf("the launcher was called with %q — the resumed session would not stand under the one that "+
+				"asked for it", string(raw))
+		}
+		key, err := processOwnerKey(ok.Agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := stream.OwnerOf(key); got.Name != "lead" || got.Conversation != opener {
+			t.Errorf("the resumed session is owned by %+v: its opener could not close it", got)
 		}
 	})
 
