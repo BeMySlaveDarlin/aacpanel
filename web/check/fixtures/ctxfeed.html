@@ -1,0 +1,447 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>
+html,body{margin:0}
+#app .deskshell{position:static;height:900px}
+#app .dkbody{height:900px}
+#narrow{position:fixed;left:0;bottom:0;width:900px;height:160px;border:0;opacity:0;pointer-events:none}
+#phone{width:390px}
+</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="app"></div>
+<div id="phone"></div>
+<iframe id="narrow"></iframe>
+<script type="module">
+// The menus of the feed and of the terminals at a desk, in the real screens
+// under the one host: a model's answer, the person's message, a message in
+// the queue, one that did not go out, a letter, a path in the words of an
+// answer, a file and a picture; the cards and the tabs of terminals, of a
+// session among them. What each menu holds, what its items send against the
+// buttons that send the same, that a path inside a message takes the click
+// before the message, that a selection keeps the browser's menu, that a
+// message on the phone or on a narrow screen is never the panel's, and the
+// two buttons that say why they cannot be pressed instead of hiding it.
+import { h, render } from "preact";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { TermsDesk } from "/src/desktop/terms.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { MenuHost } from "/src/desktop/menu.js";
+import { attachTips } from "/src/desktop/tip.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const started = Date.now() - 600000;
+const at = (n) => new Date(started + n * 1000).toISOString();
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+// A picture of one dot: what the tile of a picture fetches.
+const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="), (c) => c.charCodeAt(0));
+
+const answer = "The fix is in `web/src/x.js`.\nSecond line of the answer.\nThird line.";
+const items = [
+    { role: "ai", pos: 10, at: at(1), text: answer, files: [{ path: "/srv/proj/notes.txt", name: "notes.txt", size: 12 }] },
+    { role: "me", pos: 20, at: at(2), text: "please **check** it" },
+    { role: "mail", pos: 30, at: at(3), text: "a letter from next door\nwith two lines", from: "helios", source: "session" },
+    ...["m5", "m6", "m7"].map((id, i) => ({ role: "me", pos: 50 + i, at: at(5 + i), text: `queued ${id}`,
+        state: "queued", fingerprint: `hash-${id}` })),
+    { role: "shots", pos: 60, shots: [{ index: 0, media: "image/png" }] },
+];
+const queue = { messages: ["m5", "m6", "m7"].map((id, i) => ({ messageId: id, since: at(4 + i), fingerprint: `hash-${id}` })),
+    withdrawn: [] };
+
+const now = Math.floor(Date.now() / 1000);
+const T = (id, o) => ({ id, place: "/srv/proj", label: "proj", activity: now - 60, created: now - 600, clients: 0, ...o });
+let terms = [
+    T("t-idle", { name: "zsh", command: "zsh" }),
+    T("t-run", { name: "make", command: "make", busy: true, activity: now - 5 }),
+    T("tm-fx", { name: "work", command: "bash", foreign: true, server: "default" }),
+    T("tm-sx", { name: "pane", command: "claude", foreign: true, server: "default", busy: true, session: "acme", sessionId: "s1" }),
+];
+
+const sent = [];
+const copied = [];
+const saved = [];
+const sessions = [];
+let refuseSend = false;
+window.fetch = counted(async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 60, total: items.length, moreBefore: false,
+        state: { tasks: [], agents: [], queue } });
+    if (u.startsWith("/api/chat/image")) return new Response(png, { status: 200, headers: { "Content-Type": "image/png" } });
+    if (u.startsWith("/api/chat/file?")) return json({ name: "notes.txt", size: 12, text: "hello notes\n", next: 0 });
+    if (u === "/api/exec") return json({ available: true, kinds: ["session.send", "session.escape", "session.unqueue"] });
+    if (u === "/api/term") return json({ available: true });
+    if (u === "/api/terms") return json({ terms });
+    if (u.startsWith("/api/term/")) return json({});
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 30, offset: 0 });
+    if (u === "/api/actions") {
+        const body = JSON.parse(init.body);
+        sent.push(body);
+        if (body.kind === "session.send" && refuseSend) {
+            refuseSend = false;
+            return json({ error: "a screen of its own holds the keyboard: nothing was typed" }, 409);
+        }
+        if (body.kind === "term.start") {
+            terms = [...terms, T("t-new", { name: "zsh", command: "zsh", created: now })];
+            return json({ ok: true, id: "t-new" });
+        }
+        return json({ ok: true, logged: true });
+    }
+    return new Response("", { status: 404 });
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t) => { copied.push(t); } } });
+// A save is a press on a link with a download name: the page keeps where it
+// led and under what name, and goes nowhere.
+document.addEventListener("click", (e) => {
+    const link = e.target instanceof Element ? e.target.closest("a[download]") : null;
+    if (!link) return;
+    saved.push({ href: link.getAttribute("href"), name: link.getAttribute("download") });
+    e.preventDefault();
+}, true);
+
+const live = { status: "busy", transport: "stream", pct: 12, cwd: "/srv/proj", sessionId: "s1" };
+const chatExec = { available: true, kinds: ["session.send", "session.unqueue", "session.stop", "session.escape"] };
+const termExec = { available: true, kinds: ["term.start", "term.close", "tmux.close", "term.rename", "term.console", "session.close"] };
+// A host that knows neither a window nor a new session: the two buttons
+// that say why.
+const oldExec = { available: true, kinds: ["term.start", "term.close", "term.rename", "session.close"] };
+
+// Shell is the frame of the desktop shell with its one host: a body with the
+// column of sessions on the left, or one the centre takes whole.
+function Shell({ full, children }) {
+    const shell = useRef(null);
+    const tip = useRef(null);
+    useEffect(() => attachTips(shell.current, tip.current), []);
+    return html`
+        <div class="deskshell" ref=${shell}>
+            <${MenuHost}>
+                <div class="dktip" ref=${tip} role="tooltip"></div>
+                <div class=${`dkbody${full ? " full" : ""}`}>${full ? "" : html`<aside class="dkleft"></aside>`}${children}</div>
+            <//>
+        </div>
+    `;
+}
+function Terms({ exec }) {
+    const [open, setOpen] = useState(null);
+    return html`<${TermsDesk} snapshot=${{ profileMap: [], host: { home: "/home/u" }, sessions: [] }} exec=${exec}
+                              open=${open} onOpen=${setOpen} onSession=${(t) => sessions.push(t)} />`;
+}
+const app = document.getElementById("app");
+const mount = (node, full = false) => render(h(ToastHost, null, h(GateHost, null, h(Shell, { full }, node))), app);
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const until = async (fn, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (performance.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await frame();
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel, from = document) => Array.from(from.querySelectorAll(sel));
+const menuNode = () => document.querySelector(".ctxmenu");
+const rightClick = (el, extra = {}) => {
+    const r = el.getBoundingClientRect();
+    const x = Math.round(r.left + Math.min(20, r.width / 2));
+    const y = Math.round(r.top + Math.min(10, r.height / 2));
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: x, clientY: y }));
+    const ev = new PointerEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: x, clientY: y, ...extra });
+    el.dispatchEvent(ev);
+    return ev;
+};
+const read = () => (menuNode() ? Array.from(menuNode().children).map((el) => (el.getAttribute("role") === "separator"
+    ? "|" : `${el.getAttribute("aria-disabled") === "true" ? "~" : ""}${text(el.querySelector(".pkname"))}`)) : null);
+const itemOf = (label) => (menuNode() ? all('[role="menuitem"]', menuNode()).find((el) => text(el.querySelector(".pkname")) === label) : null);
+// open opens the menu of an element and answers what it holds and what it is.
+const open = async (el) => {
+    rightClick(el);
+    await until(menuNode);
+    await quiet();
+    return { label: menuNode() ? menuNode().getAttribute("aria-label") : "", list: read() };
+};
+const shut = async () => {
+    if (!menuNode()) return;
+    (document.activeElement || document.body).dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    await until(() => !menuNode());
+};
+const confirmSel = ".sheet.on .btnrow .btn.primary, .sheet.on .btnrow .btn.danger";
+// press chooses an item and, where the gate asks, says yes; it answers what
+// went to the host.
+const press = async (label) => {
+    const before = sent.length;
+    const item = itemOf(label);
+    if (!item) return `no item ${label}`;
+    item.click();
+    const yes = await until(() => sent.length > before || document.querySelector(confirmSel), 1500);
+    if (yes instanceof Element) yes.click();
+    await until(() => sent.length > before, 1500);
+    await until(() => !document.querySelector(".sheet.on"), 1500);
+    return sent.slice(before);
+};
+// choose chooses an item that sends nothing and waits for the screen.
+const choose = async (label) => {
+    const item = itemOf(label);
+    if (!item) return `no item ${label}`;
+    item.click();
+    await quiet();
+    return "";
+};
+// press1 presses what is there: a step whose element did not come leaves its
+// answer empty, and the test that reads it says what is missing.
+const press1 = (el) => { if (el) el.click(); };
+const area = () => document.querySelector("textarea");
+const clearArea = async () => {
+    const el = area();
+    el.value = "";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+};
+const bubble = (sel, words) => all(sel).find((el) => text(el).includes(words));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = {};
+
+    // The feed.
+    mount(html`<section class="dkcenter dkchat"><${Chat} name="acme" id="s1" live=${live} exec=${chatExec}
+                                                        onBack=${() => {}} onUsage=${() => {}} /></section>`);
+    await until(() => area() && bubble(".msg.ai", "Second line") && all(".msg.queued").length === 3 && document.querySelector(".mshot img"));
+    await quiet();
+    const ai = bubble(".msg.ai", "Second line");
+    const mine = bubble(".msg.me", "please");
+
+    out.answer = await open(ai);
+    await choose("Copy");
+    out.answerCopied = copied.at(-1);
+    await open(ai);
+    await choose("Quote in the composer");
+    out.quoted = area().value;
+    await clearArea();
+
+    out.mine = await open(mine);
+    await choose("Copy");
+    out.mineCopied = copied.at(-1);
+    await open(mine);
+    await choose("Edit");
+    out.edited = area().value;
+    await clearArea();
+
+    // The queue: the menu of one message takes it back, the button of
+    // another takes it back too, and the menu of a third edits it.
+    const queued = (id) => bubble(".msg.queued", `queued ${id}`);
+    out.queued = await open(queued("m5"));
+    out.takenByMenu = await press("Take back");
+    await until(() => !queued("m5"));
+    await quiet();
+    out.afterTakeBack = area().value;
+    const row6 = queued("m6");
+    const tools6 = all(".mqueue").find((tools) => row6.compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const backButton = tools6 ? all(".btn", tools6).find((b) => text(b) === "take back") : null;
+    const before6 = sent.length;
+    if (backButton) backButton.click();
+    await until(() => sent.length > before6);
+    out.takenByButton = sent.slice(before6);
+    await open(queued("m7"));
+    out.editedQueued = await press("Edit");
+    await quiet();
+    out.editedQueuedText = area().value;
+    await clearArea();
+
+    // A message that did not go out: its menu offers what its row offers.
+    refuseSend = true;
+    const field = area();
+    field.value = "again please";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await until(() => document.querySelector("button.iconbtn.accent") && !document.querySelector("button.iconbtn.accent").disabled);
+    document.querySelector("button.iconbtn.accent").click();
+    await until(() => document.querySelector(".msg.failed .magain"));
+    await quiet();
+    out.failed = await open(document.querySelector(".msg.failed"));
+    await until(() => itemOf("Esc and send again") && itemOf("Esc and send again").getAttribute("aria-disabled") !== "true");
+    out.failedList = read();
+    out.sentAgain = await press("Esc and send again");
+    // The feed follows the message sent again, and a menu opened while it
+    // moves would go down with it: the next one waits for the feed to stand.
+    await quiet();
+
+    // The letter, as its head copies it.
+    const letter = document.querySelector(".mletter");
+    out.letter = await open(letter);
+    await choose("Copy");
+    out.letterCopied = copied.at(-1);
+    out.letterHead = letter.querySelector(".msgcopy").dataset.md;
+
+    // A path in the words of the answer: its menu, not the answer's.
+    const path = ai.querySelector(".path");
+    out.path = await open(path);
+    await choose("Copy the path");
+    out.pathCopied = copied.at(-1);
+    await open(path);
+    press1(itemOf("Open"));
+    await until(() => document.querySelector('.sheet.on[aria-label="project file"]'));
+    out.pathOpened = text(document.querySelector('.sheet.on[aria-label="project file"] h2'));
+    press1(document.querySelector(".sheet.on .sheetclose"));
+    await until(() => !document.querySelector(".sheet.on"));
+    // A selection inside the message keeps the browser's menu.
+    document.getSelection().selectAllChildren(ai.querySelector("p") || ai);
+    let ev = rightClick(ai);
+    await frame();
+    out.selection = { prevented: ev.defaultPrevented, menu: Boolean(menuNode()) };
+    document.getSelection().removeAllRanges();
+
+    // The file of the answer: opened, its path, saved as the viewer saves it.
+    const file = ai.querySelector(".mfile");
+    out.file = await open(file);
+    await choose("Download");
+    out.fileSaved = saved.at(-1) || null;
+    await open(file);
+    press1(itemOf("Open"));
+    await until(() => document.querySelector(".sheet.on a.filecopy[download]"));
+    const viewerSave = document.querySelector(".sheet.on a.filecopy[download]");
+    out.viewerSave = viewerSave ? { href: viewerSave.getAttribute("href"), name: viewerSave.getAttribute("download") } : null;
+    press1(document.querySelector(".sheet.on .sheetclose"));
+    await until(() => !document.querySelector(".sheet.on"));
+
+    // The picture: saved as its viewer saves it.
+    const shot = document.querySelector(".mshot");
+    out.shot = await open(shot);
+    await choose("Download");
+    out.shotSaved = saved.at(-1) || null;
+    await open(shot);
+    press1(itemOf("Open"));
+    await until(() => document.querySelector(".pv .pvget"));
+    const photoSave = document.querySelector(".pv .pvget");
+    out.photoSave = photoSave ? { href: photoSave.getAttribute("href"), name: photoSave.getAttribute("download") } : null;
+    press1(document.querySelector('.pv .pback'));
+    await until(() => !document.querySelector(".pv"));
+
+    // On the phone no host stands, and a message there is never the panel's.
+    render(h(ToastHost, null, h(GateHost, null, h(Row, { item: items[0], session: "acme", id: "s1" }))),
+        document.getElementById("phone"));
+    await until(() => document.querySelector("#phone .msg"));
+    ev = rightClick(document.querySelector("#phone .msg"));
+    await frame();
+    out.phone = { prevented: ev.defaultPrevented, menu: Boolean(menuNode()) };
+
+    // Terminals.
+    mount(html`<${Terms} exec=${termExec} />`, true);
+    await until(() => all(".tcard").length === 4);
+    await quiet();
+    const card = (name) => all(".tcard").find((c) => text(c.querySelector(".tcardname")) === name);
+    out.termIdle = await open(card("zsh"));
+    out.window = await press("Open in a window");
+    await open(card("zsh"));
+    press1(itemOf("Rename…"));
+    await until(() => document.querySelector(".sheet.on .rnname"));
+    const name = document.querySelector(".sheet.on .rnname");
+    out.renameValue = name ? name.value : "";
+    if (name) {
+        name.value = "build";
+        name.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    await quiet();
+    const beforeRename = sent.length;
+    press1(document.querySelector(".sheet.on .btnrow .btn.primary"));
+    await until(() => sent.length > beforeRename && !document.querySelector(".sheet.on"));
+    out.renamed = sent.slice(beforeRename);
+    out.termForeign = await open(card("work"));
+    await shut();
+    out.termSession = await open(card("pane"));
+    await choose("Open");
+    out.sessionOpened = sessions.at(-1) || null;
+    await open(card("pane"));
+    out.sessionClosed = await press("Close");
+    // A terminal where something runs asks before it closes, from the menu
+    // as from its ×.
+    out.termRun = await open(card("make"));
+    const beforeRun = sent.length;
+    press1(itemOf("Close"));
+    await until(() => document.querySelector(".sheet.on .tclose"));
+    out.runAsks = { asked: Boolean(document.querySelector(".sheet.on .tclose")), sentBefore: sent.length - beforeRun };
+    press1(document.querySelector(".sheet.on .tclose .btn.danger"));
+    await until(() => sent.length > beforeRun && !document.querySelector(".sheet.on"));
+    out.runClosed = sent.slice(beforeRun);
+    // A new tab in the place of a card, and the tabs of the terminal it opens.
+    await open(card("zsh"));
+    out.newTab = await press("New tab here");
+    await until(() => document.querySelector(".dkterm .ttabsdesk"));
+    await quiet();
+    const tab = (label) => all(".dkterm [role=tab]").find((t) => text(t) === label);
+    out.tabs = all(".dkterm [role=tab]").map(text);
+    out.tabMenu = await open(tab("zsh"));
+    await shut();
+    // The window of the open terminal, pressed: the same call as the menu's.
+    const windowButton = all(".dkterm .btn").find((b) => text(b) === "Open in a window");
+    const beforeWindow = sent.length;
+    press1(windowButton);
+    await until(() => sent.length > beforeWindow);
+    out.windowByButton = sent.slice(beforeWindow);
+    out.windowByMenu = out.window;
+
+    // A host that knows no window: the button says why, takes the focus and
+    // the tip, and a press sends nothing.
+    render(null, app);
+    mount(html`<${Terms} exec=${oldExec} />`, true);
+    await until(() => all(".tcard").length > 0);
+    press1(card("zsh"));
+    await until(() => all(".dkterm .btn").some((b) => text(b) === "Open in a window"));
+    await quiet();
+    const off = (button) => {
+        const before = sent.length;
+        button.focus();
+        const focused = document.activeElement === button;
+        button.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+        const tip = document.querySelector(".dktip.on");
+        button.click();
+        return { aria: button.getAttribute("aria-disabled") || "", disabled: button.disabled, focused,
+            tip: tip ? text(tip) : "", opacity: Number(getComputedStyle(button).opacity), before };
+    };
+    const windowOff = off(all(".dkterm .btn").find((b) => text(b) === "Open in a window"));
+    await quiet();
+    out.windowOff = { ...windowOff, sent: sent.length - windowOff.before, sheet: Boolean(document.querySelector(".sheet.on")) };
+
+    // The plus of a project, on a host that cannot open a session.
+    const snapshot = {
+        at: now, profiles: [{ name: "personal", auth: "builtin" }], host: { home: "/home/u" },
+        profileMap: [{ id: 3, profile: "personal", groups: [{ name: "Side", projects: [{ id: 11, name: "proj", session: "proj", path: "/srv/proj" }] }] }],
+        sessions: [{ session: "proj", sessionId: "s9", profile: "personal", contour: 3, project: { id: 11, name: "proj", path: "/srv/proj" },
+            transport: "stream", status: "idle", pct: 5, cwd: "/srv/proj" }],
+    };
+    mount(html`<${SessionColumn} snapshot=${snapshot} limits=${null} current="" currentId="" onPick=${() => {}}
+        picks=${[]} setPicks=${() => {}} onNames=${() => {}} onOrder=${() => {}} onArchive=${() => {}}
+        exec=${oldExec} wait=${{ opening: () => [], of: () => null }} />`, true);
+    await until(() => document.querySelector(".dkprojnew"));
+    await quiet();
+    const plusOff = off(document.querySelector(".dkprojnew"));
+    await quiet();
+    out.plusOff = { ...plusOff, sent: sent.length - plusOff.before, sheet: Boolean(document.querySelector(".sheet.on")) };
+
+    // A screen narrower than the shell: the host stands, and a message is
+    // still not the panel's.
+    const narrow = document.getElementById("narrow");
+    narrow.srcdoc = `<!doctype html><script type="importmap">${document.querySelector('script[type="importmap"]').textContent}<\/script>
+<div id="n"></div>
+<script type="module">
+import { h, render } from "preact";
+import { MenuHost } from "/src/desktop/menu.js";
+import { Row } from "/src/screens/chat/rows.js";
+render(h(MenuHost, null, h(Row, { item: { role: "ai", pos: 1, text: "an answer on a narrow screen" }, session: "acme", id: "s1" })),
+    document.getElementById("n"));
+<\/script>`;
+    const inner = await until(() => narrow.contentWindow && narrow.contentWindow.document.querySelector(".msg") && narrow.contentWindow);
+    const msg = inner.document.querySelector(".msg");
+    const e = new inner.PointerEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: 5, clientY: 5 });
+    msg.dispatchEvent(e);
+    await frame();
+    out.narrow = { width: inner.innerWidth, prevented: e.defaultPrevented, menu: Boolean(inner.document.querySelector(".ctxmenu")) };
+    return out;
+})();
+</script>

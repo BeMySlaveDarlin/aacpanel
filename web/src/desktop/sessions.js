@@ -501,11 +501,11 @@ function ProjectHead({ block, entry, exec, onTerm, onSettings }) {
             <span class="dkprojname">${block.name}</span>
             ${block.group && html`<span class="dkprojgroup">${block.group}</span>`}
             ${start && html`
-                <button class="dkprojnew" type="button" disabled=${!ready}
+                <button class="dkprojnew" type="button" aria-disabled=${ready ? undefined : "true"}
                         aria-label=${`a new session in project ${block.name}`}
                         data-tip=${ready ? `A new session in ${block.name}` : whyNot(exec, "session.open")}
                         data-tipside="left"
-                        onClick=${start}><${Icon.plus} /></button>
+                        onClick=${() => ready && start()}><${Icon.plus} /></button>
             `}
         </div>
     `;

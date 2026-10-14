@@ -17,7 +17,9 @@ export const MenuContext = createContext(null);
 
 // useMenu returns menuOf(Body, props, label) — the handler that opens the
 // menu Body draws with props, or undefined for an object with no menu — and
-// null where no host stands, where the browser keeps its own menu.
+// null where no host stands, where the browser keeps its own menu. The
+// handler takes the event, and the element of the object where it is not the
+// one the handler is set on.
 export function useMenu() {
     const host = useContext(MenuContext);
     return host ? host.menuOf : null;

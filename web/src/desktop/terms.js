@@ -84,7 +84,8 @@ export function TermsDesk({ snapshot, exec, open, onOpen, onSession }) {
                             : it.terms.map((t) => html`
                                 <${TermCard} key=${t.id} t=${t} acts=${acts} going=${closing.going}
                                              onOpen=${show}
-                                             onClose=${closing.press} />
+                                             onClose=${closing.press}
+                                             onNew=${startIn} />
                             `);
                     }}
                 />
@@ -125,9 +126,9 @@ function DeskTerm({ open, places, acts, onOpen, onNew, onBack }) {
                                  onClose=${closing.press}
                                  onNew=${t.foreign ? null : () => onNew(open.place)} />
                     <span class="tgrow"></span>
-                    ${!t.foreign && html`<button class="btn" type="button" disabled=${!acts.can.console}
+                    ${!t.foreign && html`<button class="btn" type="button" aria-disabled=${acts.can.console ? undefined : "true"}
                             data-tip=${acts.can.console ? "A window on the desktop of the machine, on the same tmux" : acts.why.console}
-                            onClick=${() => acts.window(t)}>Open in a window</button>`}
+                            onClick=${() => acts.can.console && acts.window(t)}>Open in a window</button>`}
                 </div>
             </div>
             <${Term} key=${open.id} term=${open.id} />

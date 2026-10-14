@@ -305,7 +305,8 @@ window.done = (async () => {
     itemOf("Open").click();
     await until(() => !anyMenu());
     out.chosen = { open: Boolean(anyMenu()), picked: picked[picked.length - 1], focusRow: document.activeElement === helios };
-    // A wheel, a column scrolled, the window left or resized take it down.
+    // A wheel, a scroll that moves the row, the window left or resized take
+    // it down; a scroll somewhere else leaves it standing.
     const takenBy = async (act) => {
         rightClick(aac, 300, 200);
         await until(menuNode);
@@ -313,12 +314,30 @@ window.done = (async () => {
         await until(() => !anyMenu());
         return !anyMenu();
     };
+    const column = aac.closest(".dkscroll");
+    column.style.height = "120px";
+    const other = document.createElement("div");
+    other.style.cssText = "position:fixed;right:0;top:0;width:40px;height:40px;overflow:auto";
+    other.innerHTML = '<div style="height:400px"></div>';
+    document.body.append(other);
+    rightClick(aac, 300, 200);
+    await until(menuNode);
+    other.scrollTop = 20;
+    await until(() => other.scrollTop > 0);
+    await frame();
+    await frame();
+    out.stays = { open: Boolean(anyMenu()), scrolled: other.scrollTop };
+    await shut();
     out.gone = {
         wheel: await takenBy(() => document.body.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 40 }))),
-        scroll: await takenBy(() => document.querySelector(".dkscroll").dispatchEvent(new Event("scroll"))),
+        scroll: await takenBy(() => { column.scrollTop = 30; }),
         blur: await takenBy(() => window.dispatchEvent(new Event("blur"))),
         resize: await takenBy(() => window.dispatchEvent(new Event("resize"))),
     };
+    column.scrollTop = 0;
+    column.style.height = "";
+    other.remove();
+    await quiet();
 
     // Where the browser keeps its own menu.
     const probe = document.querySelector(".probe");

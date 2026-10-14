@@ -84,7 +84,11 @@ type ctxMenu struct {
 		Picked   string `json:"picked"`
 		FocusRow bool   `json:"focusRow"`
 	} `json:"chosen"`
-	Gone     map[string]bool      `json:"gone"`
+	Gone  map[string]bool `json:"gone"`
+	Stays struct {
+		Open     bool `json:"open"`
+		Scrolled int  `json:"scrolled"`
+	} `json:"stays"`
 	Native   map[string]ctxNative `json:"native"`
 	Keyboard struct {
 		Prevented bool     `json:"prevented"`
@@ -167,9 +171,9 @@ func near(a, b int) bool {
 // A right click opens the menu with its corner at the point; near the bottom
 // it goes up from the point, and in the corner of the window it is kept
 // inside. Escape, a press outside and the item chosen take it down, each
-// giving the focus back to the row, and so do a wheel, a scrolled column and
-// the window left or resized; a right click elsewhere opens the menu of what
-// it was made on, there.
+// giving the focus back to the row, and so do a wheel, a scroll that moves
+// the row and the window left or resized, while a scroll elsewhere leaves it;
+// a right click elsewhere opens the menu of what it was made on, there.
 func TestTheRightClickMenuOpensAtThePointAndStaysInside(t *testing.T) {
 	got := ctxMenuPage(t)
 	const margin = 8
@@ -204,6 +208,13 @@ func TestTheRightClickMenuOpensAtThePointAndStaysInside(t *testing.T) {
 		if !got.Gone[by] {
 			t.Errorf("the menu stayed through a %s: the page moved or left from under it", by)
 		}
+	}
+	if got.Stays.Scrolled == 0 {
+		t.Fatal("the panel at the right did not scroll: the case of a scroll elsewhere proves nothing")
+	}
+	if !got.Stays.Open {
+		t.Error("a scroll of the panel at the right took down the menu of a row it did not move: " +
+			"a feed that follows what the model writes would take every menu down")
 	}
 	if got.Chosen.Open || got.Chosen.Picked != "helios" || !got.Chosen.FocusRow {
 		t.Errorf("choosing Open: menu still open %v, opened %q (expected helios), focus back on the row %v",

@@ -22,7 +22,7 @@ import { FindBar, useFeedFind } from "./find.js";
 import { agentFeedId, SubChat } from "./subchat.js";
 import { RepoView } from "../repo/view.js";
 import { onShelf, sealed, signal } from "../repo/notes.js";
-import { Row } from "./rows.js";
+import { FeedWrites, Row } from "./rows.js";
 import { callsOf, FeedGrid } from "./timeline.js";
 import { CommandSheet } from "./command.js";
 import { ShellSheet } from "./shell.js";
@@ -48,6 +48,7 @@ import { DeskHead } from "./deskhead.js";
 import { MoveScreen } from "./switch.js";
 import { outsideNote } from "../sessions/kin.js";
 import { TakeBack } from "./takeback.js";
+import { usePathMenu } from "./feedmenu.js";
 import { Term } from "./term.js";
 import { TermJump } from "../terms/jump.js";
 import { useViewing } from "../../viewing.js";
@@ -225,13 +226,27 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         setLocal((was) => unarrived(queuedLocal(was, queue), state.items));
     }, [state.items, local, queue]);
 
-    const queueTools = (row) => row.state === "queued" && live && parts.takesBack && html`
-        <${TakeBack} row=${row} name=${name} exec=${exec}
-                     onGone=${() => {
-                         setTaken((was) => new Set([...was, row.messageId]));
-                         setLocal((was) => was.filter((item) => item.messageId !== row.messageId));
-                     }}
-                     onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />`;
+    // Words of the feed put back into the composer to be written again: a
+    // message taken back from the queue, or one written before.
+    const putBack = (text) => setInsert({ key: Date.now(), text, message: true });
+    // What takes a message back from the queue of the session, under it and
+    // in its menu alike.
+    const queueOf = (row) => (row.state === "queued" && live && parts.takesBack ? {
+        name, exec, onEdit: putBack,
+        onGone: () => {
+            setTaken((was) => new Set([...was, row.messageId]));
+            setLocal((was) => was.filter((item) => item.messageId !== row.messageId));
+        },
+    } : null);
+    const queueTools = (row) => {
+        const queue = queueOf(row);
+        return queue && html`<${TakeBack} row=${row} ...${queue} />`;
+    };
+    // What the rows of the feed lend their menus: the words of a message go
+    // into the composer only where there is a composer to take them.
+    const lent = live && !live.outside ? { quote: takeQuote, edit: putBack, queueOf } : { queueOf };
+    const openPath = (path) => setLook({ kind: "file", path });
+    const pathMenu = usePathMenu(openPath);
 
     // A row just sent grows the feed the way a new item does, and a feed at
     // its end follows it the same way — or the message stands under the edge
@@ -426,8 +441,9 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 if (codecopy.fromClick(event, toast)) return;
                 if (codecopy.fromInline(event)) return;
                 const hit = event.target.closest && event.target.closest(".path");
-                if (hit) setLook({ kind: "file", path: hit.dataset.path });
+                if (hit) openPath(hit.dataset.path);
             }}
+            onContextMenuCapture=${pathMenu}
             onScroll=${onScroll}
         >
             ${state.kind === "loading" && html`<p class="hint">Reading the conversation…</p>`}
@@ -446,35 +462,37 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 <div class="mearlier" ref=${topRef}>there is more above</div>
             `}
             ${state.note && html`<p class="hint warn">${state.note}</p>`}
-            <${FeedGrid}
-                rows=${rows(drawn, pending, goesOn && asksTurn && Boolean(live) && !live.outside)}
-                wide=${wide}
-                checklist=${checklist}
-                onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
-                row=${(item, n) => html`<${Row}
-                    key=${`${item.pos}-${n}`}
-                    item=${item}
-                    session=${name}
-                    id=${id}
-                    copies=${copies}
-                    onPage=${(card) => setLook({ kind: "artifact", card })}
-                    onFile=${(file) => setLook({ kind: "file", ...file })}
-                    onBrief=${openBrief}
-                    briefs=${briefs}
-                    secrets=${secrets}
-                    onSecret=${live && !live.outside ? openSecret : null}
-                    onCommand=${(row) => setLook({ kind: "command", item: row })}
-                    onShell=${(row) => setLook({ kind: "shell", item: row })}
-                    onTask=${(task) => (task.agent
-                        ? openAgent({ id: task.id, name: task.name, kind: "background" })
-                        : setLook({ kind: "task", id: task.id, text: task.name }))}
-                    onAgent=${openAgent}
-                />${queueTools(item)}`}
-                tail=${away ? [] : waiting.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
-                    <${Row} item=${row} />
-                    ${queueTools(row)}
-                ` }))}
-            />
+            <${FeedWrites.Provider} value=${lent}>
+                <${FeedGrid}
+                    rows=${rows(drawn, pending, goesOn && asksTurn && Boolean(live) && !live.outside)}
+                    wide=${wide}
+                    checklist=${checklist}
+                    onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
+                    row=${(item, n) => html`<${Row}
+                        key=${`${item.pos}-${n}`}
+                        item=${item}
+                        session=${name}
+                        id=${id}
+                        copies=${copies}
+                        onPage=${(card) => setLook({ kind: "artifact", card })}
+                        onFile=${(file) => setLook({ kind: "file", ...file })}
+                        onBrief=${openBrief}
+                        briefs=${briefs}
+                        secrets=${secrets}
+                        onSecret=${live && !live.outside ? openSecret : null}
+                        onCommand=${(row) => setLook({ kind: "command", item: row })}
+                        onShell=${(row) => setLook({ kind: "shell", item: row })}
+                        onTask=${(task) => (task.agent
+                            ? openAgent({ id: task.id, name: task.name, kind: "background" })
+                            : setLook({ kind: "task", id: task.id, text: task.name }))}
+                        onAgent=${openAgent}
+                    />${queueTools(item)}`}
+                    tail=${away ? [] : waiting.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
+                        <${Row} item=${row} />
+                        ${queueTools(row)}
+                    ` }))}
+                />
+            <//>
             ${later && html`<div class="mlater" ref=${bottomRef}>there is more below</div>`}
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} away=${away} />`}
         </div>

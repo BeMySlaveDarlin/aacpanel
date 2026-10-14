@@ -4,6 +4,7 @@ import { useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { Chips } from "../../ui/chips.js";
 import { Icon } from "../../ui/icons.js";
+import { MenuItem, MenuList, useMenu, useMenuSheet } from "../../ui/menu.js";
 import { hostLabel } from "../../actions/registry.js";
 import { runs, tabName, typed } from "../../data/terms.js";
 
@@ -16,12 +17,18 @@ export const NAME_MAX = 40;
 // in a cell without a role of its own, so the list holds the cards themselves
 // and the × is not inside the card: pressing it never opens the terminal. As
 // on a tab, the × of a card whose close is on its way stays down, and every ×
-// is down when the executor cannot close a terminal, saying why.
-export function TermCard({ t, acts, going = [], onOpen, onClose }) {
+// is down when the executor cannot close a terminal, saying why. At a desk
+// the card has the menu of a terminal; onNew starts another in its place.
+export function TermCard({ t, acts, going = [], onOpen, onClose, onNew }) {
+    const menu = useMenu();
     const busy = runs(t);
     return html`
         <div class="tcardcell" role="presentation">
             <button class=${`tcard${busy ? " running" : ""}${t.foreign ? " foreign" : ""}`} type="button" onClick=${() => onOpen(t)}
+                    onContextMenu=${menu && menu(TermMenu, {
+                        t, acts, going, onOpen: () => onOpen(t), onClose: () => onClose(t),
+                        onNew: onNew ? () => onNew(t.place) : null,
+                    }, `terminal ${tabName(t)}`)}
                     aria-label=${`terminal ${tabName(t)}${busy ? ", something runs in it" : ""}`}>
                 <span class=${`tdot${busy ? " run" : ""}`}></span>
                 <span class="tcardname">${tabName(t)}</span>
@@ -68,8 +75,9 @@ export function NewButton({ onNew }) {
 // its own, so the list holds the tabs themselves and no button sits inside
 // another. going are the ids of the tabs whose close is on its way: their ×
 // stays down, as every × does when the executor cannot close a tab, saying
-// why.
+// why. At a desk a tab has the menu of a terminal.
 export function TermTabs({ tabs, current, acts, going = [], onPick, onClose, onNew, wide = false }) {
+    const menu = useMenu();
     const box = wide ? "dktabs ttabsdesk" : "ttabs";
     const one = wide ? "dktab" : "ttab";
     return html`
@@ -80,7 +88,10 @@ export function TermTabs({ tabs, current, acts, going = [], onPick, onClose, onN
                     <span key=${t.id} class=${`ttabcell${on ? " on" : ""}`} role="presentation">
                         <button type="button" role="tab" class=${`${one}${on ? " on" : ""}`}
                                 aria-selected=${on ? "true" : "false"}
-                                onClick=${() => !on && onPick(t)}>
+                                onClick=${() => !on && onPick(t)}
+                                onContextMenu=${menu && menu(TermMenu, {
+                                    t, acts, going, onOpen: () => !on && onPick(t), onClose: () => onClose(t), onNew,
+                                }, `terminal ${tabName(t)}`)}>
                             ${runs(t) && html`<span class="tdot run"></span>`}
                             <span class="ttabname">${tabName(t)}</span>
                         </button>
@@ -167,6 +178,31 @@ export function TabMenu({ t, acts, onLook, onNew, onDone }) {
             </ul>
         </div>
     `;
+}
+
+// TermMenu is the menu of a terminal at a desk, on its card and on its tab:
+// what its card and its tab do, and what the phone's menu of a tab does. A
+// terminal of a session opens and closes as the session; a tmux the panel did
+// not start is opened and closed and nothing more, as on the phone. The close
+// goes the way the × goes: a terminal where something runs asks first.
+function TermMenu({ t, acts, going, onOpen, onClose, onNew }) {
+    const sheet = useMenuSheet();
+    const own = !t.session && !t.foreign;
+    const closeWhy = going.includes(t.id) ? "the terminal is closing already"
+        : acts.canClose(t) ? "" : acts.whyClose(t);
+    const rename = () => sheet("rename the tab", (close) => html`<${RenameTab} t=${t} acts=${acts} onDone=${close} />`);
+    return html`<${MenuList} groups=${[
+        [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
+        [
+            own && html`<${MenuItem} key="window" label="Open in a window" note=${`on ${hostLabel()}`}
+                                     off=${acts.can.console ? "" : acts.why.console} onPick=${() => acts.window(t)} />`,
+            own && html`<${MenuItem} key="rename" label="Rename…" off=${acts.can.rename ? "" : acts.why.rename}
+                                     onPick=${rename} />`,
+            own && onNew && html`<${MenuItem} key="new" label="New tab here" off=${acts.can.start ? "" : acts.why.start}
+                                              onPick=${onNew} />`,
+        ],
+        [html`<${MenuItem} key="close" label="Close" off=${closeWhy} onPick=${onClose} />`],
+    ]} />`;
 }
 
 // RenameTab takes the name a tab keeps instead of the command running in it.

@@ -1,14 +1,18 @@
 // Feed entries: what a row of the conversation looks like.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { createContext } from "preact";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { useAction } from "../../actions/gate.js";
-import { knows, useExec, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { dedent, leadOf, render } from "../../md.js";
 import { plural, stopwatch } from "../../format.js";
-import { resend } from "./again.js";
+import { resend, useSendAgain } from "./again.js";
+import { MessageMenu, LetterMenu } from "./feedmenu.js";
+import { saverOf } from "./look.js";
+import { quoteOf } from "./quote.js";
+import { takesBack } from "./takeback.js";
+import { useMenu } from "../../ui/menu.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, HandedFiles, SentCard } from "./files.js";
 import { bare } from "./feed.js";
@@ -21,10 +25,18 @@ import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
 import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
 
+// FeedWrites is what the screen of a feed lends its messages for their
+// menus: quote(text) and edit(text) put words into the composer, where
+// one stands under the feed, and queueOf(row) is what takes a message back
+// from the queue of the session (see useTakeBack), or null.
+export const FeedWrites = createContext(null);
+
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
 export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret }) {
+    const menu = useMenu();
+    const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
         return html`<${Shots} shots=${item.shots} session=${session} id=${id} pos=${item.pos} />`;
     }
@@ -111,7 +123,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     }
 
     if (item.role === "sent") {
-        return html`<${SentCard} item=${item} onOpen=${onFile} />`;
+        return html`<${SentCard} item=${item} onOpen=${onFile} onSave=${saverOf(session, id)} />`;
     }
 
     if (item.role === "command") {
@@ -161,22 +173,44 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     // A local row may show attachment names while its actual message is empty.
     // Transcript rows carry the harness's image chips and saved file paths.
     const copied = mine ? bare(item.sent ?? said) : "";
+    const save = saverOf(session, id);
     return html`
         ${sent.length > 0 && html`<${Shots} shots=${sent} session=${session} id=${id} pos=${item.pos} />`}
         ${(said || !brought || failed) && html`
-            <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}>
+            <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}
+                 onContextMenu=${menu && messageMenu(menu, writes, item, mine ? copied : String(said || ""), again)}>
                 ${copied !== "" && html`<button class="cmdcopy msgcopy" type="button" aria-label="copy the message"
                                         data-md=${copied}>${Icon.copy()}</button>`}
                 ${render(said, { breaks: mine })}
-                ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} />`}
+                ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} onSave=${save} />`}
                 ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
                 ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}
                 ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} />`}
             </div>
         `}
-        ${handed.length > 0 && html`<${HandedFiles} files=${handed} onOpen=${onFile} />`}
+        ${handed.length > 0 && html`<${HandedFiles} files=${handed} onOpen=${onFile} onSave=${save} />`}
         ${mine && (wait || item.at) && html`<div class="mstamp">${wait || stampText(item.at)}</div>`}
     `;
+}
+
+// messageMenu is the handler that opens the menu of a bubble, md being the
+// message as markdown: copied whole and, where a composer stands under the
+// feed, quoted there the way a quote of a selection goes, and a message of
+// the person's written again from its words; a message waiting in the queue
+// is edited or taken back as its buttons do, and one that did not go out
+// offers what its row offers. Nothing for a bubble with none of it.
+function messageMenu(menu, writes, item, md, again) {
+    const mine = item.role === "me";
+    const failed = item.state === "failed";
+    const queue = mine && item.state === "queued" && writes.queueOf ? writes.queueOf(item) : null;
+    const takes = queue && takesBack(item, queue.exec) ? { ...queue, row: item } : null;
+    const second = again && item.done ? { again, onDone: item.done } : null;
+    if (!md && !takes && !second) return undefined;
+    return menu(MessageMenu, {
+        md, queue: takes, again: second,
+        quote: !failed && md && writes.quote ? () => writes.quote(quoteOf(md)) : null,
+        edit: mine && !failed && md && writes.edit ? () => writes.edit(md) : null,
+    }, mine ? "your message" : "the answer");
 }
 
 // withoutSentPaths returns the words of a message without the lines naming the
@@ -188,43 +222,9 @@ function withoutSentPaths(text, files) {
 }
 
 // SendAgain stands under a message a session refused because a screen of its
-// own held the keyboard. It does the two steps the refusal asks for: Esc, and
-// then the same message once more. They stay two steps, because the second one
-// is the ordinary send — the panel has one way of sending a message, not two.
-//
-// The Esc is not a blind key. The host reads the screen first, presses nothing
-// while the composer is free, and refuses when what it found is a screen Esc
-// does not close — and that refusal is shown here instead of being followed by
-// a message typed into whatever stands there now.
+// own held the keyboard, and makes the second attempt (see useSendAgain).
 function SendAgain({ again, onDone }) {
-    const run = useAction();
-    const exec = useExec();
-    const [going, setGoing] = useState(false);
-    const [fail, setFail] = useState("");
-    // Both steps are asked for before the button offers itself: a host that
-    // knows one and not the other would press Esc and type nothing after it,
-    // leaving the session on a screen the person never opened.
-    const ready = knows(exec, "session.escape") && knows(exec, "session.send");
-    const why = whyNot(exec, "session.escape") || whyNot(exec, "session.send");
-
-    const press = async () => {
-        setGoing(true);
-        setFail("");
-        const freed = await run("session.escape", again.name, {});
-        if (!freed.ok) {
-            setGoing(false);
-            setFail(freed.error || "the composer did not come back");
-            return;
-        }
-        const sent = await run("session.send", again.name, { text: again.text });
-        setGoing(false);
-        if (!sent.ok) {
-            setFail(sent.error || "it did not go out the second time either");
-            return;
-        }
-        onDone({ state: "queued", error: undefined });
-    };
-
+    const { ready, why, going, fail, press } = useSendAgain(again, onDone);
     return html`
         <div class="magain">
             <button class="btn" type="button" disabled=${going || !ready}
@@ -275,8 +275,10 @@ const MAIL_WORD = { session: "letter", agent: "letter", hook: "letter", wake: "p
 
 // A letter sent is drawn when it is sent, and whether it reached anyone comes
 // later, from claude's answer: one that reached nobody says so on its head and
-// gives claude's reason once opened.
+// gives claude's reason once opened. A letter copied by its head is copied by
+// its menu as well.
 function Letter({ item }) {
+    const menu = useMenu();
     const [open, setOpen] = useState(false);
     const cap = useRef(null);
     const [clamped, setClamped] = useState(false);
@@ -295,13 +297,15 @@ function Letter({ item }) {
     const more = text.trim() !== lead.trim() || clamped || Boolean(lost);
     const who = kind === "hook" || kind === "wake" || kind === "task" ? "" : (item.whoName || item.from || MAIL_WHO[kind]);
     const word = MAIL_WORD[kind];
+    const copies = item.role === "mail" && Boolean(item.text && item.text.trim());
     return html`
-        <div class=${`sent mletter k-${kind}${out ? " out" : ""}${open ? " open" : ""}`}>
+        <div class=${`sent mletter k-${kind}${out ? " out" : ""}${open ? " open" : ""}`}
+             onContextMenu=${menu && copies && menu(LetterMenu, { text: item.text }, "the letter")}>
             <div class="senthead">
                 <span class="sentico">${MAIL_ICONS[kind]()}</span>
                 <span class="sentlabel">${MAIL_LABEL[kind][out ? 1 : 0]}</span>
                 ${lost && html`<span class="mletterlost" title=${item.undelivered}>not delivered</span>`}
-                ${item.role === "mail" && Boolean(item.text && item.text.trim()) && html`
+                ${copies && html`
                     <button class="cmdcopy msgcopy" type="button" aria-label="copy the letter"
                             data-md=${item.text}>${Icon.copy()}</button>`}
                 ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}

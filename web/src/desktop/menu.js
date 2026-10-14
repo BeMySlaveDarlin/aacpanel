@@ -27,14 +27,14 @@ const NATIVE = "input, textarea, select, [contenteditable], .termwrap, .xterm";
 // it apart by this button alone: the right button is 2.
 const KEYBOARD = -1;
 
-// native says whether a right click stays the browser's.
-function native(event) {
+// native says whether a right click on the object el stays the browser's.
+function native(event, el) {
     if (event.shiftKey) return true;
     if (!window.matchMedia(WIDE).matches) return true;
     const target = event.target instanceof Element ? event.target : null;
     if (target && target.closest(NATIVE)) return true;
     const sel = document.getSelection();
-    return Boolean(sel && !sel.isCollapsed && sel.rangeCount > 0 && sel.getRangeAt(0).intersectsNode(event.currentTarget));
+    return Boolean(sel && !sel.isCollapsed && sel.rangeCount > 0 && sel.getRangeAt(0).intersectsNode(el));
 }
 
 // anchorOf says where the menu opens from: the point of a click, or the
@@ -76,18 +76,21 @@ export function MenuHost({ children }) {
         back();
     }, [back]);
 
-    const open = useCallback((event, Body, props, label) => {
-        if (event.defaultPrevented || native(event)) return;
+    // The object is the element whose handler took the click, or the one a
+    // handler names: a feed finds the path under the click among the words
+    // of a message it draws.
+    const open = useCallback((event, Body, props, label, el = event.currentTarget) => {
+        if (event.defaultPrevented || native(event, el)) return;
         event.preventDefault();
-        const el = event.currentTarget;
         from.current = el;
         seq.current += 1;
         setSpot(null);
-        setMenu({ Body, props, label, at: anchorOf(event, el), key: seq.current });
+        const box = el.getBoundingClientRect();
+        setMenu({ Body, props, label, at: anchorOf(event, el), was: { left: box.left, top: box.top }, key: seq.current });
     }, []);
 
     const menuOf = useCallback((Body, props, label) => (Body
-        ? (event) => open(event, Body, props, label)
+        ? (event, el) => open(event, Body, props, label, el)
         : undefined), [open]);
 
     const showSheet = useCallback((label, draw) => setSheet({ label, draw }), []);
@@ -118,6 +121,16 @@ export function MenuHost({ children }) {
         const away = (event) => {
             if (!node.current || !node.current.contains(event.target)) close();
         };
+        // A scroll takes the menu down once it has moved the object from
+        // under it. A feed follows what the model writes by scrolling itself,
+        // and a menu on a message that went down with every line written
+        // could not be read.
+        const moved = (event) => {
+            const el = from.current;
+            if (node.current && event.target instanceof Node && node.current.contains(event.target)) return;
+            const box = el && el.isConnected ? el.getBoundingClientRect() : null;
+            if (!box || Math.abs(box.left - menu.was.left) > 1 || Math.abs(box.top - menu.was.top) > 1) close();
+        };
         const keys = (event) => {
             const el = node.current;
             if (!el) return;
@@ -146,14 +159,14 @@ export function MenuHost({ children }) {
         };
         document.addEventListener("pointerdown", away, true);
         window.addEventListener("wheel", away, { capture: true, passive: true });
-        window.addEventListener("scroll", away, true);
+        window.addEventListener("scroll", moved, true);
         window.addEventListener("keydown", keys, true);
         window.addEventListener("blur", close);
         window.addEventListener("resize", close);
         return () => {
             document.removeEventListener("pointerdown", away, true);
             window.removeEventListener("wheel", away, { capture: true, passive: true });
-            window.removeEventListener("scroll", away, true);
+            window.removeEventListener("scroll", moved, true);
             window.removeEventListener("keydown", keys, true);
             window.removeEventListener("blur", close);
             window.removeEventListener("resize", close);

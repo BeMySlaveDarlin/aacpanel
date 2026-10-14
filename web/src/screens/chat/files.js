@@ -7,6 +7,8 @@ import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { bytes } from "../../format.js";
 import { render } from "../../md.js";
+import { useMenu } from "../../ui/menu.js";
+import { FileMenu } from "./feedmenu.js";
 import { stampText } from "./labels.js";
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i;
@@ -64,8 +66,10 @@ export function fileTag(file) {
 // A file the reader cannot open — one a session sent from outside the
 // directory of the conversation — is not a button: the reader holds every
 // file against that directory, and a tap would end in a refusal. The row
-// says so under the name instead of promising an opening.
-export function FileCard({ file, onOpen, tag }) {
+// says so under the name instead of promising an opening. A file that opens
+// has a menu at a desk; onSave saves it where the row knows its conversation.
+export function FileCard({ file, onOpen, onSave, tag }) {
+    const menu = useMenu();
     const image = isImage(file);
     const mark = tag
         ? html`<span class="mftag">${tag}</span>`
@@ -85,6 +89,7 @@ export function FileCard({ file, onOpen, tag }) {
     return html`
         <button class=${`mfile${tag ? " tagged" : ""}`} type="button"
                 onClick=${() => onOpen && onOpen(file)}
+                onContextMenu=${menu && onOpen && menu(FileMenu, { file, onOpen, onSave }, `file ${file.name}`)}
                 data-path=${file.path}
                 aria-label=${`open ${file.name}`}>
             ${mark}
@@ -97,7 +102,7 @@ export function FileCard({ file, onOpen, tag }) {
 // SentCard renders the files a call delivered to the human: the caption the
 // session gave them, then one row per file. Every row opens the file the same
 // way an attachment named in a reply does.
-export function SentCard({ item, onOpen }) {
+export function SentCard({ item, onOpen, onSave }) {
     const files = item.files || [];
     return html`
         <div class="sent">
@@ -110,7 +115,7 @@ export function SentCard({ item, onOpen }) {
             ${item.cut && html`<p class="hint warn">The caption is longer than shown — cut.</p>`}
             <div class="mflist">
                 ${files.map((file) => html`
-                    <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} tag=${fileTag(file)} />
+                    <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
                 `)}
             </div>
         </div>
@@ -120,18 +125,18 @@ export function SentCard({ item, onOpen }) {
 // HandedFiles renders the files the person sent with a message, under it and
 // on its side of the feed: one row per file with its type, as the files a
 // session delivers stand, and every row opens its file the same way.
-export function HandedFiles({ files, onOpen }) {
+export function HandedFiles({ files, onOpen, onSave }) {
     return html`
         <div class="mflist mfhanded">
             ${files.map((file) => html`
-                <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} tag=${fileTag(file)} />
+                <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
             `)}
         </div>
     `;
 }
 
 // FileAtts renders the attachments of one message as a capped list of rows.
-export function FileAtts({ files, onOpen }) {
+export function FileAtts({ files, onOpen, onSave }) {
     const list = files || [];
     const [all, setAll] = useState(false);
     const box = useRef(null);
@@ -150,7 +155,7 @@ export function FileAtts({ files, onOpen }) {
     return html`
         <div class="mfiles">
             <div ref=${box} class=${`mflist${all ? " mfopen" : ""}${more ? " mfmask" : ""}`}>
-                ${shown.map((file) => html`<${FileCard} key=${file.path} file=${file} onOpen=${onOpen} />`)}
+                ${shown.map((file) => html`<${FileCard} key=${file.path} file=${file} onOpen=${onOpen} onSave=${onSave} />`)}
             </div>
             ${rest > 0 && html`
                 <button class="mfmore" type="button" onClick=${() => setAll(!all)}

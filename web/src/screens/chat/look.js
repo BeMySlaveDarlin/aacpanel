@@ -59,6 +59,29 @@ function saveURL(base, path) {
     return `/api/chat/file/download?${base}&path=${encodeURIComponent(path)}`;
 }
 
+// baseOf is how the routes of the files of a conversation name it.
+function baseOf(session, id) {
+    return `session=${encodeURIComponent(session)}${idParam(id)}`;
+}
+
+// saveAs saves what an address holds under a name, the way a link with a
+// download name does when it is pressed: a menu has no link of its own.
+export function saveAs(href, name) {
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+}
+
+// saverOf is how a file of the conversation is saved where no viewer is open,
+// by the route the viewer saves it by; nothing without a session to ask.
+export function saverOf(session, id) {
+    if (!session) return null;
+    return (file) => saveAs(saveURL(baseOf(session, id), file.path), file.name);
+}
+
 // openURL is the file as the browser shows it rather than saves it: the same
 // route as saving, so the same check of the path against the directory of the
 // conversation, and the service worker lets it past the same way.
@@ -75,7 +98,7 @@ export function Look({ session, id, look, onBack }) {
     const observer = look.kind === "observer";
     const task = look.kind === "task" || observer;
     const file = look.kind === "file";
-    const base = `session=${encodeURIComponent(session)}${idParam(id)}`;
+    const base = baseOf(session, id);
 
     useBackClose(Boolean(onBack), onBack);
 

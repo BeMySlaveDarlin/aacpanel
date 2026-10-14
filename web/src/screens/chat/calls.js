@@ -5,6 +5,7 @@ import { useEffect, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { FileCard, fileOfCall } from "./files.js";
+import { saverOf } from "./look.js";
 import { Icon } from "../../ui/icons.js";
 import { idParam } from "./api.js";
 import { Shots, shotSrc, Thumb } from "./shots.js";
@@ -168,7 +169,7 @@ function CallView({ session, id, call, place, onBack, onFile, to }) {
             ${state.kind === "ready" && html`
                 <h3 class="callcap">what it was called with</h3>
                 ${onFile && fileOfCall(state.args) && html`
-                    <${FileCard} file=${fileOfCall(state.args)} onOpen=${onFile} />
+                    <${FileCard} file=${fileOfCall(state.args)} onOpen=${onFile} onSave=${saverOf(session, id)} />
                 `}
                 <pre class="callpre">${state.args || "no arguments"}</pre>
                 ${state.argsCut && html`<p class="hint warn">The arguments are longer than shown — cut.</p>`}

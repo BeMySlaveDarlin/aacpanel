@@ -564,7 +564,9 @@
         cursor: pointer;
     }
 
-    .dkprojnew:disabled { opacity: .45; cursor: default; }
+    /* A plus the host cannot press yet is dimmed and still takes the pointer
+       and the focus its tip, which says why, is read by. */
+    .dkprojnew[aria-disabled="true"] { opacity: .45; cursor: default; }
 
     .dkprojnew svg { width: var(--i-sm); height: var(--i-sm); }
 
@@ -2007,7 +2009,7 @@
     .dkpickrow:hover { background: var(--glass); color: var(--ink); }
     .dksess:not(.on):not(.dkghost):hover { background: var(--glass); }
     .dkclosed:not(.on):hover { background: var(--glass); }
-    .dknew:hover, .dkshelfall:hover, .dkprojnew:not(:disabled):hover { color: var(--ink); background: var(--glass); }
+    .dknew:hover, .dkshelfall:hover, .dkprojnew:not([aria-disabled="true"]):hover { color: var(--ink); background: var(--glass); }
     .dknewrow:not(:disabled):hover { background: var(--glass); }
     .dkresume:not(.off):hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
     .dktr:hover .dkc-acts { opacity: 1; }

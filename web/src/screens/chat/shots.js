@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { useMenu } from "../../ui/menu.js";
 import { idParam } from "./api.js";
+import { ShotMenu } from "./feedmenu.js";
 import { Photo, shotName } from "./photo.js";
 
 // shotSrc returns the address of one picture of the feed: a file the panel
@@ -73,13 +75,17 @@ export function Shots({ shots, session, id, pos }) {
     `;
 }
 
+// Shot is one tile; at a desk its menu opens the picture as a press does,
+// and saves it as the viewer does.
 function Shot({ src, name }) {
+    const menu = useMenu();
     const box = useRef(null);
     const { url, error } = usePicture(src, box);
     const [open, setOpen] = useState(false);
 
     return html`
         <button class="mshot" ref=${box} type="button" onClick=${() => setOpen(true)}
+                onContextMenu=${menu && menu(ShotMenu, { url, name, error, onOpen: () => setOpen(true) }, `picture ${name}`)}
                 aria-label=${`open attachment ${name}`}>
             ${url && html`<img src=${url} decoding="async" alt="attachment in the message" />`}
             ${error && html`<span class="mshotbad">✕</span>`}

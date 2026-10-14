@@ -189,7 +189,9 @@
     cursor: pointer;
 }
 
-.btn:disabled { opacity: .55; }
+/* A button that says why it cannot be pressed keeps the pointer its tip is
+   read by, and is dimmed as a disabled one is. */
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .55; }
 .btn.primary {
     background: var(--accent-bg);
     border-color: color-mix(in srgb, var(--accent) 45%, transparent);
