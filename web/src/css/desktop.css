@@ -199,8 +199,10 @@
     /* The menu of a right click (desktop/menu.js) is the model's menu fixed
        to the window: placed by script like the tip, above every column and
        popover and under the tip, which says why an item cannot be pressed.
-       The item the pointer or the keys stand on is lit, and the first nine
-       carry the digit that presses them. */
+       It opens over rows of text, so it frosts what it covers the way a
+       sheet does: through its glass alone the rows under it read between
+       its items. The item the pointer or the keys stand on is lit, and the
+       first nine carry the digit that presses them. */
     .pkmenu.ctxmenu {
         position: fixed;
         top: 0;
@@ -210,6 +212,8 @@
         max-height: calc(100vh - 16px);
         overflow-y: auto;
         counter-reset: ctxitem;
+        backdrop-filter: blur(26px) saturate(160%);
+        -webkit-backdrop-filter: blur(26px) saturate(160%);
     }
 
     .ctxmenu:focus { outline: none; }
