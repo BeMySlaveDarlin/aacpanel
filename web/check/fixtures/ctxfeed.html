@@ -65,6 +65,8 @@ let terms = [
 const sent = [];
 const copied = [];
 const saved = [];
+// The paths the file viewer asked the host for, in order.
+const asked = [];
 const sessions = [];
 let refuseSend = false;
 window.fetch = counted(async (url, init) => {
@@ -72,7 +74,10 @@ window.fetch = counted(async (url, init) => {
     if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 60, total: items.length, moreBefore: false,
         state: { tasks: [], agents: [], queue } });
     if (u.startsWith("/api/chat/image")) return new Response(png, { status: 200, headers: { "Content-Type": "image/png" } });
-    if (u.startsWith("/api/chat/file?")) return json({ name: "notes.txt", size: 12, text: "hello notes\n", next: 0 });
+    if (u.startsWith("/api/chat/file?")) {
+        asked.push(new URL(u, location.href).searchParams.get("path"));
+        return json({ name: "notes.txt", size: 12, text: "hello notes\n", next: 0 });
+    }
     if (u === "/api/exec") return json({ available: true, kinds: ["session.send", "session.escape", "session.unqueue"] });
     if (u === "/api/term") return json({ available: true });
     if (u === "/api/terms") return json({ terms });
@@ -284,10 +289,14 @@ window.done = (async () => {
     out.path = await open(path);
     await choose("Copy the path");
     out.pathCopied = copied.at(-1);
+    // What was opened is the path the viewer asks the host for: its title
+    // turns into the name the host answers with once the answer comes.
+    const asks = asked.length;
     await open(path);
     press1(itemOf("Open"));
+    await until(() => asked.length > asks);
+    out.pathOpened = asked.at(-1);
     await until(() => document.querySelector('.sheet.on[aria-label="project file"]'));
-    out.pathOpened = text(document.querySelector('.sheet.on[aria-label="project file"] h2'));
     press1(document.querySelector(".sheet.on .sheetclose"));
     await until(() => !document.querySelector(".sheet.on"));
     // A selection inside the message keeps the browser's menu.
