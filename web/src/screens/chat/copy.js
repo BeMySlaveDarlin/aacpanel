@@ -1,4 +1,4 @@
-// Copying from the feed and from the file viewer.
+// Copying from the feed, from the file viewer and from the lists.
 
 import { bytes } from "../../format.js";
 
@@ -83,6 +83,11 @@ export async function copyText(text, toast, title = "Copied", sub = lead(text)) 
     } catch (err) {
         toast("Could not copy", "the clipboard is unavailable", true);
     }
+}
+
+// copyName copies the name of a container, as the host calls it.
+export function copyName(name, toast) {
+    return copyText(name, toast, "Name copied", name);
 }
 
 function lead(text) {

@@ -1,4 +1,6 @@
 // The containers section: stacks on the left, the picked stack in the centre.
+// A right click on a stack or a container opens its menu: what its buttons
+// do, through the same code, and the name of a container to copy.
 import { useState } from "preact/hooks";
 
 import { html } from "../html.js";
@@ -6,6 +8,9 @@ import { Icon } from "../ui/icons.js";
 import { bytes, pct } from "../format.js";
 import { knows, whyNot } from "../exec.js";
 import { useAction } from "../actions/gate.js";
+import { MenuItem, MenuList, useMenu } from "../ui/menu.js";
+import { useToast } from "../ui/toasts.js";
+import { copyName } from "../screens/chat/copy.js";
 
 function stateWord(c) {
     if (c.state !== "running") return c.state === "exited" ? "stopped" : c.state;
@@ -33,6 +38,43 @@ function numClass(v, warn, crit) {
     return "";
 }
 
+// flipOf is what the last button of a container's row does: a running one
+// stops, any other starts.
+function flipOf(c) {
+    return c.state === "running" ? "container.stop" : "container.start";
+}
+
+// StackMenu brings the stack up or down as the buttons of its head and its
+// row do; down waits for something of it to run, as the row's button does.
+function StackMenu({ st, exec, act }) {
+    return html`<${MenuList} groups=${[[
+        html`<${MenuItem} key="up" label="Bring up" off=${whyNot(exec, "stack.up")}
+                          onPick=${() => act("stack.up", st.name)} />`,
+        html`<${MenuItem} key="down" label="Bring down"
+                          off=${whyNot(exec, "stack.down") || (st.running > 0 ? "" : "no container of the stack is running")}
+                          onPick=${() => act("stack.down", st.name)} />`,
+    ]]} />`;
+}
+
+// ContainerMenu is what the buttons of a container's row do, and its name to
+// copy, as the phone copies it.
+function ContainerMenu({ c, exec, act, onLogs }) {
+    const toast = useToast();
+    const flip = flipOf(c);
+    return html`<${MenuList} groups=${[
+        [
+            html`<${MenuItem} key="restart" label="Restart" off=${whyNot(exec, "container.restart")}
+                              onPick=${() => act("container.restart", c.name)} />`,
+            html`<${MenuItem} key="flip" label=${c.state === "running" ? "Stop" : "Start"} off=${whyNot(exec, flip)}
+                              onPick=${() => act(flip, c.name)} />`,
+        ],
+        [
+            onLogs && html`<${MenuItem} key="logs" label="Logs" onPick=${() => onLogs(c)} />`,
+            html`<${MenuItem} key="copy" label="Copy the name" onPick=${() => copyName(c.name, toast)} />`,
+        ],
+    ]} />`;
+}
+
 function Hp({ running, total }) {
     return html`
         <span class="dkhp">
@@ -45,9 +87,14 @@ function Hp({ running, total }) {
 
 export function StackColumn({ tree, current, onPick, exec, onDone }) {
     const run = useAction();
+    const menu = useMenu();
     const stacks = (tree && tree.stacks) || [];
     const running = stacks.filter((s) => s.running > 0).length;
     const can = knows(exec, "stack.down");
+    const act = async (kind, name) => {
+        const done = await run(kind, name, {});
+        if (done && done.ok && onDone) onDone();
+    };
 
     return html`
         <aside class="dkleft">
@@ -63,6 +110,7 @@ export function StackColumn({ tree, current, onPick, exec, onDone }) {
                         type="button"
                         style=${`--fill:${st.total ? Math.round((st.running / st.total) * 100) : 0}%`}
                         onClick=${() => onPick(st.name)}
+                        onContextMenu=${menu && menu(StackMenu, { st, exec, act }, `stack ${st.name}`)}
                     >
                         <span class=${`dkdot ${st.running > 0 ? "dkok" : "dkoff"} dkside`}></span>
                         <span class="dksessbody">
@@ -74,10 +122,9 @@ export function StackColumn({ tree, current, onPick, exec, onDone }) {
                                         class=${`dkact danger${can && st.running > 0 ? "" : " off"}`}
                                         data-tip=${can ? undefined : whyNot(exec, "stack.down")}
                                         data-tipside="left"
-                                        onClick=${async () => {
+                                        onClick=${() => {
                                             if (!can || st.running === 0) return;
-                                            const done = await run("stack.down", st.name, {});
-                                            if (done && done.ok && onDone) onDone();
+                                            act("stack.down", st.name);
                                         }}
                                     ><${Icon.stop} /></i>
                                 </span>
@@ -125,6 +172,7 @@ export function DockerUsage({ tree }) {
 
 export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, onLogs }) {
     const run = useAction();
+    const menu = useMenu();
     const stacks = (tree && tree.stacks) || [];
     const st = stacks.find((x) => x.name === stack) || stacks[0] || null;
     const list = (st && st.containers) || [];
@@ -187,6 +235,7 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                                 type="button"
                                 key=${c.id}
                                 onClick=${() => onPick(c.id)}
+                                onContextMenu=${menu && menu(ContainerMenu, { c, exec, act, onLogs }, `container ${c.name}`)}
                             >
                                 <span class="dkc-state">
                                     <i class=${`dkdot ${stateClass(c) === "bad" ? "dkbad" : stateClass(c) === "off" ? "dkoff" : "dkok"}`}></i>
@@ -211,12 +260,10 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                                         onClick=${() => onLogs && onLogs(c)}
                                     ><${Icon.list} /></i>
                                     <i
-                                        class=${`dkact${c.state === "running" ? " danger" : ""}${knows(exec, c.state === "running" ? "container.stop" : "container.start") ? "" : " off"}`}
-                                        data-tip=${knows(exec, c.state === "running" ? "container.stop" : "container.start")
-                                            ? undefined
-                                            : whyNot(exec, c.state === "running" ? "container.stop" : "container.start")}
+                                        class=${`dkact${c.state === "running" ? " danger" : ""}${knows(exec, flipOf(c)) ? "" : " off"}`}
+                                        data-tip=${knows(exec, flipOf(c)) ? undefined : whyNot(exec, flipOf(c))}
                                         data-tipside="left"
-                                        onClick=${() => act(c.state === "running" ? "container.stop" : "container.start", c.name)}
+                                        onClick=${() => act(flipOf(c), c.name)}
                                     >${c.state === "running" ? html`<${Icon.stop} />` : html`<${Icon.play} />`}</i>
                                 </span>
                             </button>

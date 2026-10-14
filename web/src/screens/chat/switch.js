@@ -39,11 +39,11 @@ export function blocked(live) {
 }
 
 // moveSession asks the executor to move a live session to where it can go,
-// with what stops on the way named for the sheet. A window asked for comes up
-// over tmux, where the session moves.
-export function moveSession({ run, exec, name, to, work, withWindow = false }) {
+// with what stops on the way named for the sheet: what the work of the open
+// conversation holds, or lost where the caller has only the snapshot's count
+// (stopsOf). A window asked for comes up over tmux, where the session moves.
+export function moveSession({ run, exec, name, to, work, lost = stops(work), withWindow = false }) {
     if (!knows(exec, "session.switch")) return;
-    const lost = stops(work);
     run("session.switch", name, { to, ...(withWindow ? { window: true } : {}), force: Boolean(lost), stops: lost });
 }
 

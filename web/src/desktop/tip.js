@@ -4,7 +4,8 @@
 // opacity of a dimmed button, is clipped by the scrolling column it sits in,
 // and has no way to learn where the screen ends. One node at the shell root
 // is dimmed by nothing, sits above every column, and is moved back inside
-// the viewport after measuring.
+// the viewport after measuring. The menu of a right click is moved back by
+// the same measure.
 
 // GAP is the distance between the element and its tip, MARGIN the least
 // distance the tip keeps from any edge of the viewport.
@@ -96,7 +97,28 @@ export function placeTip(at, size, left, vw, vh) {
         y = at.bottom + GAP;
         if (y + size.height > vh - MARGIN) y = at.top - GAP - size.height;
     }
-    x = Math.round(Math.min(Math.max(x, MARGIN), vw - MARGIN - size.width));
-    y = Math.round(Math.min(Math.max(y, MARGIN), vh - MARGIN - size.height));
-    return { x, y };
+    return inside(x, y, size, vw, vh);
+}
+
+// placeMenu returns where a menu of the given size opens from a box: its
+// corner at the bottom left of the box, so a point — a box of no size — has
+// the corner of the menu at the very point, as the browser's own menu does.
+// With no room below the menu goes up from the top of the box, with no room
+// on the right it ends at the right of the box, and either way it stays at
+// least MARGIN away from every edge of the viewport.
+export function placeMenu(at, size, vw, vh) {
+    let x = at.left;
+    let y = at.bottom;
+    if (y + size.height > vh - MARGIN) y = at.top - size.height;
+    if (x + size.width > vw - MARGIN) x = at.right - size.width;
+    return inside(x, y, size, vw, vh);
+}
+
+// inside moves a box of the given size at x, y the least it takes to keep it
+// MARGIN away from every edge of the viewport.
+function inside(x, y, size, vw, vh) {
+    return {
+        x: Math.round(Math.min(Math.max(x, MARGIN), vw - MARGIN - size.width)),
+        y: Math.round(Math.min(Math.max(y, MARGIN), vh - MARGIN - size.height)),
+    };
 }

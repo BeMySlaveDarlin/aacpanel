@@ -258,31 +258,50 @@ export function ToolRow({ icon, label, note = "", aside = "", off = "", stop = f
     `;
 }
 
+// copyId copies the id a session is found again by.
+export function copyId(id, toast) {
+    return copyText(id, toast, "Copied", "Session ID");
+}
+
+// resumeOf is the command that brings a conversation of claude back in a
+// terminal: in its directory, by its id; nothing without an id.
+export function resumeOf(id, cwd) {
+    return id ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
+}
+
+// copyResume copies that command.
+export function copyResume(command, toast) {
+    return copyText(command, toast, "Copied", "the resume command");
+}
+
+// renameWhy says why the session cannot be renamed from the panel, or
+// nothing when it can: only a session the panel holds on the stream is.
+export function renameWhy(live, exec) {
+    if (live.outside) return "the panel did not start this session and cannot rename it";
+    if (live.transport !== "stream") return "a session in tmux is renamed on its own screen, /rename with keys";
+    return knows(exec, "session.rename") ? "" : whyNot(exec, "session.rename");
+}
+
 // IdLine copies the id a session is found again by.
 export function IdLine({ id }) {
     const toast = useToast();
     if (!id) return null;
     return html`<${ToolRow} icon=${Icon.copy} label="Copy the session ID" aside=${id.slice(0, 8)}
-                            onPress=${() => copyText(id, toast, "Copied", "Session ID")} />`;
+                            onPress=${() => copyId(id, toast)} />`;
 }
 
 // SessionLines names the session and says how to find it again.
 function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
     const toast = useToast();
     const id = live.sessionId || "";
-    const resume = id ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
-    const renameWhy = live.outside
-        ? "the panel did not start this session and cannot rename it"
-        : live.transport !== "stream"
-        ? "a session in tmux is renamed on its own screen, /rename with keys"
-        : knows(exec, "session.rename") ? "" : whyNot(exec, "session.rename");
+    const resume = resumeOf(id, cwd);
     return html`
-        <${ToolRow} icon=${Icon.pencil} label="Rename…" off=${renameWhy} onPress=${() => { onDone(); onLook("rename"); }} />
+        <${ToolRow} icon=${Icon.pencil} label="Rename…" off=${renameWhy(live, exec)} onPress=${() => { onDone(); onLook("rename"); }} />
         <${ToolRow} icon=${Icon.info} label="Session info" note="the model, the context, the tokens in and out"
                     aside="/status" onPress=${() => { onDone(); onLook("status"); }} />
         <${IdLine} id=${id} />
         ${resume && html`<${ToolRow} icon=${Icon.copy} label="Copy the resume command" note=${`claude --resume ${id.slice(0, 8)}…`}
-                                     onPress=${() => copyText(resume, toast, "Copied", "the resume command")} />`}
+                                     onPress=${() => copyResume(resume, toast)} />`}
     `;
 }
 

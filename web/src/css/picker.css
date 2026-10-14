@@ -44,7 +44,9 @@
     cursor: pointer;
 }
 .pkrow:active { background: var(--surface-2); }
-.pkrow:disabled { cursor: default; opacity: .55; }
+/* A row of the right click's menu that cannot be pressed now is dimmed the
+   same way, yet keeps the pointer and the focus its tip is read by. */
+.pkrow:disabled, .pkrow[aria-disabled="true"] { cursor: default; opacity: .55; }
 .pkrow.on .pkname, .pkrow.on .pkdesc { color: var(--accent); }
 .pkbody { display: grid; gap: .1rem; flex: 1 1 auto; min-width: 0; }
 .pkname { font-size: var(--t-base); }
@@ -184,7 +186,7 @@
     background: none;
     gap: .55rem;
 }
-.pkmenu .pkrow:hover:not(:disabled) { background: var(--surface); }
+.pkmenu .pkrow:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--surface); }
 .pkmenu .pkname { font-size: var(--t-sm); }
 .pkmenu .pkdesc { font-size: var(--t-xs); color: var(--ink-faint); }
 .pkmenu .pkcheck { width: 16px; height: 16px; }

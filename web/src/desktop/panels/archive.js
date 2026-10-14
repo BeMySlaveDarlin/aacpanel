@@ -5,11 +5,13 @@ import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { ContourPick } from "../sessions.js";
 import { pct, plural, tokens } from "../../format.js";
-import { agentKey, agentName, codexResume, isCodex } from "../../agent.js";
+import { agentKey, agentName, isCodex } from "../../agent.js";
 import { knows, whyNot } from "../../exec.js";
 import { useAction } from "../../actions/gate.js";
+import { useMenu } from "../../ui/menu.js";
 import { ago, modelShort, useJSON } from "./util.js";
-import { sessionOf } from "../../screens/sessions/actions.js";
+import { resume, startIn } from "../../screens/sessions/actions.js";
+import { ClosedMenu } from "../sessionmenu.js";
 
 // How many conversations a contour shows at once. Contours are paged apart, so
 // the number is what fits beside its neighbours rather than what fits in the
@@ -42,11 +44,15 @@ function contourQuery(name, profiles) {
 
 // Row is one conversation of the archive. A thread of codex has no fill of its
 // context in the archive: it says the tokens it spent, and the word of its
-// agent before its model.
+// agent before its model. A right click opens the menu a closed conversation
+// has on the shelf.
 function Row({ r, exec, onOpen, run }) {
+    const menu = useMenu();
     const codex = isCodex(r);
+    const open = () => onOpen({ name: r.name, id: r.sessionId, archived: true, row: r });
     return html`
-        <div class="dkarch" onClick=${() => onOpen({ name: r.name, id: r.sessionId, archived: true, row: r })}>
+        <div class="dkarch" onClick=${open}
+             onContextMenu=${menu && menu(ClosedMenu, { row: r, exec, onOpen: open }, `conversation ${r.name}`)}>
             <span class="dkarchtop">
                 <span class="dkname" title=${r.cwd}>${r.name}</span>
                 <span class="dknum">${codex ? tokens(r.tokensUsed) : pct(r.pctMax)}</span>
@@ -63,7 +69,7 @@ function Row({ r, exec, onOpen, run }) {
                         class=${`dkact${knows(exec, "session.resume") ? "" : " off"}`}
                         data-tip=${knows(exec, "session.resume") ? undefined : whyNot(exec, "session.resume")}
                         data-tipside="left"
-                        onClick=${() => knows(exec, "session.resume") && run("session.resume", r.name, { session: r.sessionId, ...codexResume(r) })}
+                        onClick=${() => knows(exec, "session.resume") && resume(run, r)}
                     ><${Icon.resume} /></i>
                 `}
                 ${(r.project || projectOf(r)) && html`
@@ -71,8 +77,7 @@ function Row({ r, exec, onOpen, run }) {
                         class=${`dkact${knows(exec, "session.open") ? "" : " off"}`}
                         data-tip=${knows(exec, "session.open") ? undefined : whyNot(exec, "session.open")}
                         data-tipside="left"
-                        onClick=${() => knows(exec, "session.open") && run("session.open",
-                            sessionOf(r), r.project ? { project: r.project.id } : {})}
+                        onClick=${() => knows(exec, "session.open") && startIn(run, r)}
                     ><${Icon.plus} /></i>
                 `}
             </span>

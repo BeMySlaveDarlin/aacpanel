@@ -23,6 +23,7 @@ import { useToastHide } from "../ui/toasts.js";
 import { Home } from "./home.js";
 import { PANELS, RightPanel } from "./panels.js";
 import { MapSettings } from "./settings.js";
+import { MenuHost } from "./menu.js";
 import { MAX, MIN, useScale } from "./scale.js";
 
 export const SECTIONS = [
@@ -183,6 +184,11 @@ export function DesktopShell({
     // were left, for as long as the page lives.
     const [mapOpen, setMapOpen] = useState(false);
     const [mapAt, setMapAt] = useState(null);
+    // The menu of a project opens them on its page.
+    const openMapAt = useCallback((at) => {
+        setMapAt(at);
+        setMapOpen(true);
+    }, []);
     const [order, setOrder] = useState([]);
 
     const zoom = useScale();
@@ -280,6 +286,8 @@ export function DesktopShell({
             current=${chat && chat.name}
             currentId=${chat && chat.id}
             onPick=${setChat}
+            onTerm=${term.route ? openTerm : null}
+            onSettings=${openMapAt}
             picks=${picks}
             setPicks=${setPicks}
             onNames=${setNames}
@@ -357,108 +365,112 @@ export function DesktopShell({
     const panelTitle = (panels.find((p) => p.id === panel) || {}).label || "";
     const wide = section === "home" || section === "devices" || section === "alerts" || section === "terminals";
 
+    // The menu of the right click stands inside the shell, where the tips of
+    // its items are read.
     return html`
         <div class="deskshell" ref=${shellRef}>
-            <div class="dktip" ref=${tipRef} role="tooltip"></div>
-            <header class="dktop">
-                <button
-                    class="dkbrand"
-                    type="button"
-                    aria-label="Settings"
-                    onClick=${() => setSettings(true)}
-                >${(snapshot && snapshot.hostName) || "host"}<span class="caret">▾</span></button>
-                <button
-                    class=${`dklogo${section === "home" ? " on" : ""}`}
-                    type="button"
-                    aria-label="Home"
-                    onClick=${() => goSection("home")}
-                ><${Icon.orbit} /></button>
-                <nav class="dkibs">
-                    ${SECTIONS.filter((it) => it.id !== "terminals" || term.route).map((it) => html`
-                        <${IconButton} key=${it.id} item=${it} active=${section === it.id} onClick=${() => goSection(it.id)} />
-                    `)}
-                </nav>
-                ${panels.length > 0 && html`<span class="dksep"></span>`}
-                <nav class="dkibs">
-                    ${panels.map((it) => html`
+            <${MenuHost}>
+                <div class="dktip" ref=${tipRef} role="tooltip"></div>
+                <header class="dktop">
+                    <button
+                        class="dkbrand"
+                        type="button"
+                        aria-label="Settings"
+                        onClick=${() => setSettings(true)}
+                    >${(snapshot && snapshot.hostName) || "host"}<span class="caret">▾</span></button>
+                    <button
+                        class=${`dklogo${section === "home" ? " on" : ""}`}
+                        type="button"
+                        aria-label="Home"
+                        onClick=${() => goSection("home")}
+                    ><${Icon.orbit} /></button>
+                    <nav class="dkibs">
+                        ${SECTIONS.filter((it) => it.id !== "terminals" || term.route).map((it) => html`
+                            <${IconButton} key=${it.id} item=${it} active=${section === it.id} onClick=${() => goSection(it.id)} />
+                        `)}
+                    </nav>
+                    ${panels.length > 0 && html`<span class="dksep"></span>`}
+                    <nav class="dkibs">
+                        ${panels.map((it) => html`
+                            <${IconButton}
+                                key=${it.id}
+                                item=${it}
+                                active=${it.layer ? mapOpen : panel === it.id}
+                                onClick=${() => (it.layer ? setMapOpen(true) : setPanel((cur) => (cur === it.id ? null : it.id)))}
+                            />
+                        `)}
+                    </nav>
+                    <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
+                    <div class="dktopright">
+                        ${snapshot && snapshot.cookieInsecure && html`
+                            <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well" data-tipside="left">
+                                cookie without Secure
+                            </span>
+                        `}
+                        ${troubles.length > 0 && html`
+                            <span class="dkalert" data-tip=${troubles.join(" · ")} data-tipside="left">
+                                silent <b>${troubles.length}</b>
+                            </span>
+                        `}
+                        ${route && route.here && html`
+                            <button
+                                class=${`dkroute${chip.near ? " on" : ""}`}
+                                type="button"
+                                data-tip=${chip.tip}
+                                data-tipside="left"
+                                onClick=${route.onOpen}
+                            >${chip.text}</button>
+                        `}
+                        <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
+                        <${AlertsButton} count=${openAlerts} active=${section === "alerts"} onClick=${() => goSection("alerts")} />
                         <${IconButton}
-                            key=${it.id}
-                            item=${it}
-                            active=${it.layer ? mapOpen : panel === it.id}
-                            onClick=${() => (it.layer ? setMapOpen(true) : setPanel((cur) => (cur === it.id ? null : it.id)))}
+                            item=${{ label: theme === "sky" ? "Dark theme" : "Light theme", icon: theme === "sky" ? Icon.moon : Icon.sun }}
+                            active=${false}
+                            onClick=${onTheme}
                         />
-                    `)}
-                </nav>
-                <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
-                <div class="dktopright">
-                    ${snapshot && snapshot.cookieInsecure && html`
-                        <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well" data-tipside="left">
-                            cookie without Secure
-                        </span>
-                    `}
-                    ${troubles.length > 0 && html`
-                        <span class="dkalert" data-tip=${troubles.join(" · ")} data-tipside="left">
-                            silent <b>${troubles.length}</b>
-                        </span>
-                    `}
-                    ${route && route.here && html`
-                        <button
-                            class=${`dkroute${chip.near ? " on" : ""}`}
-                            type="button"
-                            data-tip=${chip.tip}
-                            data-tipside="left"
-                            onClick=${route.onOpen}
-                        >${chip.text}</button>
-                    `}
-                    <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
-                    <${AlertsButton} count=${openAlerts} active=${section === "alerts"} onClick=${() => goSection("alerts")} />
-                    <${IconButton}
-                        item=${{ label: theme === "sky" ? "Dark theme" : "Light theme", icon: theme === "sky" ? Icon.moon : Icon.sun }}
-                        active=${false}
-                        onClick=${onTheme}
-                    />
-                    <${IconButton} item=${{ label: "Sign out", icon: Icon.exit }} active=${false} onClick=${logout} />
-                </div>
-            </header>
+                        <${IconButton} item=${{ label: "Sign out", icon: Icon.exit }} active=${false} onClick=${logout} />
+                    </div>
+                </header>
 
-            <div class=${`dkbody${panel ? " withpanel" : ""}${wide ? " full" : ""}`}>
-                ${!wide && left()}
-                ${center()}
-                ${panel && !wide && html`
-                    <${RightPanel}
-                        tab=${panel}
-                        title=${panelTitle}
-                        profiles=${profiles}
-                        names=${names}
-                        archPicks=${archPicks}
-                        setArchPicks=${setArchPicks}
-                        container=${container}
+                <div class=${`dkbody${panel ? " withpanel" : ""}${wide ? " full" : ""}`}>
+                    ${!wide && left()}
+                    ${center()}
+                    ${panel && !wide && html`
+                        <${RightPanel}
+                            tab=${panel}
+                            title=${panelTitle}
+                            profiles=${profiles}
+                            names=${names}
+                            archPicks=${archPicks}
+                            setArchPicks=${setArchPicks}
+                            container=${container}
+                            exec=${exec}
+                            onOpen=${openChat}
+                            onClose=${() => setPanel(null)}
+                        />
+                    `}
+                </div>
+
+                ${settings && html`<${Settings} onClose=${() => setSettings(false)} exec=${exec} />`}
+
+                ${mapOpen && html`
+                    <${MapSettings}
+                        picks=${picks}
+                        last=${mapAt}
                         exec=${exec}
-                        onOpen=${openChat}
-                        onClose=${() => setPanel(null)}
+                        sessions=${snapshot && snapshot.sessions}
+                        onPick=${setMapAt}
+                        onClose=${() => setMapOpen(false)}
                     />
                 `}
-            </div>
 
-            ${settings && html`<${Settings} onClose=${() => setSettings(false)} exec=${exec} />`}
-
-            ${mapOpen && html`
-                <${MapSettings}
-                    picks=${picks}
-                    last=${mapAt}
-                    exec=${exec}
-                    sessions=${snapshot && snapshot.sessions}
-                    onPick=${setMapAt}
-                    onClose=${() => setMapOpen(false)}
-                />
-            `}
-
-            ${updateReady && html`
-                <div class="update" role="status">
-                    <span>${updating ? "Updating…" : "A new version is ready"}</span>
-                    <button type="button" disabled=${updating} onClick=${onApplyUpdate}>update</button>
-                </div>
-            `}
+                ${updateReady && html`
+                    <div class="update" role="status">
+                        <span>${updating ? "Updating…" : "A new version is ready"}</span>
+                        <button type="button" disabled=${updating} onClick=${onApplyUpdate}>update</button>
+                    </div>
+                `}
+            <//>
         </div>
     `;
 }

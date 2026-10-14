@@ -196,6 +196,30 @@
 
     .dktip.on { visibility: visible; }
 
+    /* The menu of a right click (desktop/menu.js) is the model's menu fixed
+       to the window: placed by script like the tip, above every column and
+       popover and under the tip, which says why an item cannot be pressed.
+       The item the pointer or the keys stand on is lit, and the first nine
+       carry the digit that presses them. */
+    .pkmenu.ctxmenu {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: auto;
+        z-index: 50;
+        max-height: calc(100vh - 16px);
+        overflow-y: auto;
+        counter-reset: ctxitem;
+    }
+
+    .ctxmenu:focus { outline: none; }
+
+    .ctxmenu .pkrow { counter-increment: ctxitem; }
+
+    .ctxmenu .pkrow:focus { outline: none; background: var(--surface); }
+
+    .ctxmenu .pkrow:nth-of-type(-n + 9) .pknum::before { content: counter(ctxitem); }
+
     .dkalert {
         font: 600 var(--t-sm)/1 var(--sans);
         color: var(--warn);

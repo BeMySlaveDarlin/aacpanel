@@ -95,13 +95,18 @@ func TestDesktopTipIsOneNodeKeptInsideTheViewport(t *testing.T) {
 	}
 
 	place := jsBlock(t, "src/desktop/tip.js", tip, "export function placeTip(")
+	// The clamp is one, shared with the menu of the right click.
+	clamp := jsBlock(t, "src/desktop/tip.js", tip, "function inside(")
 	for _, want := range []string{
 		"Math.min(Math.max(x, MARGIN), vw - MARGIN - size.width)",
 		"Math.min(Math.max(y, MARGIN), vh - MARGIN - size.height)",
 	} {
-		if !strings.Contains(place, want) {
-			t.Errorf("placeTip does not clamp with %q — the tip runs off the screen at that edge", want)
+		if !strings.Contains(clamp, want) {
+			t.Errorf("the clamp of the tip does not keep it with %q — the tip runs off the screen at that edge", want)
 		}
+	}
+	if !strings.Contains(place, "return inside(") {
+		t.Error("placeTip does not end in the clamp — the tip runs off the screen at the edges")
 	}
 	if !strings.Contains(place, "if (x < MARGIN) x = at.right + GAP") {
 		t.Error("a left-side tip with no room on the left does not move to the right — it is squeezed against the edge over the button")

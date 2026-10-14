@@ -8,10 +8,11 @@ import { useToast } from "../../ui/toasts.js";
 import { latestIn, list } from "../../data/terms.js";
 import { useTermActs } from "./acts.js";
 
-// TermJump asks the host for its terminals at the press rather than keeping
-// them fresh behind every conversation: a list read a minute ago would start
-// a second shell beside one opened since.
-export function TermJump({ place, exec, onTerm }) {
+// useTermJump asks the host for its terminals at the press rather than
+// keeping them fresh behind every conversation: a list read a minute ago
+// would start a second shell beside one opened since. press opens the
+// terminal of the place; busy is true while it is being found or started.
+export function useTermJump(place, exec, onTerm) {
     const acts = useTermActs(exec, list);
     const toast = useToast();
     const [busy, setBusy] = useState(false);
@@ -33,8 +34,14 @@ export function TermJump({ place, exec, onTerm }) {
         if (target) onTerm(target);
     };
 
+    return { busy, press };
+}
+
+// TermJump is that terminal as a button of the conversation.
+export function TermJump({ place, exec, onTerm }) {
+    const jump = useTermJump(place, exec, onTerm);
     return html`
-        <button class="wchip tjump" type="button" disabled=${busy} onClick=${press}
+        <button class="wchip tjump" type="button" disabled=${jump.busy} onClick=${jump.press}
                 aria-label="the terminal of the project: the one typed into last, or a new one">
             ${Icon.prompt()}
         </button>

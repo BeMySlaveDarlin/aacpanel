@@ -30,12 +30,18 @@ const FIND_FROM = 5;
 
 // startOf says where the columns open: where they were left while that is
 // still on the map, else the first contour the sessions column shows, else
-// the first contour of the map; nothing on a map with no contour at all.
+// the first contour of the map; nothing on a map with no contour at all. A
+// place that names a project and not its group — the menu of a project in
+// the sessions column, which knows the groups by name alone — opens on the
+// group that holds the project.
 export function startOf(profiles, last, picks) {
     const list = profiles || [];
     const contour = last ? list.find((p) => p.id === last.contour) : null;
     if (contour) {
-        const group = last.group ? (contour.groups || []).find((g) => g.id === last.group) : null;
+        const groups = contour.groups || [];
+        const group = last.group
+            ? groups.find((g) => g.id === last.group)
+            : last.project ? groups.find((g) => (g.projects || []).some((p) => p.id === last.project)) : null;
         const project = group && last.project ? (group.projects || []).find((p) => p.id === last.project) : null;
         const at = { contour: contour.id };
         if (group) at.group = group.id;

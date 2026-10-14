@@ -11,6 +11,7 @@ import { Trouble } from "../ui/trouble.js";
 import { SegBar } from "../ui/bar.js";
 import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
+import { copyName } from "./chat/copy.js";
 
 const NO_STACK = "no stack";
 const NO_STACK_LABEL = "No stack";
@@ -207,15 +208,6 @@ function meta(c) {
 function hit(stack, c, needle) {
     if (!needle) return true;
     return stack.name.toLowerCase().includes(needle) || c.name.toLowerCase().includes(needle);
-}
-
-async function copyName(name, toast) {
-    try {
-        await navigator.clipboard.writeText(name);
-        toast("Name copied", name);
-    } catch (err) {
-        toast("Could not copy", "the clipboard is unavailable", true);
-    }
 }
 
 function Details({ container, exec, onCopy, onLogs, onRun }) {

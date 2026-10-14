@@ -1,0 +1,505 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>
+html,body{margin:0}
+#app .deskshell{position:static;height:900px}
+#app .dkbody{height:450px}
+#narrow{position:fixed;left:0;bottom:0;width:900px;height:120px;border:0;opacity:0;pointer-events:none}
+</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="app"></div>
+<iframe id="narrow"></iframe>
+<script type="module">
+// The menu of the right click at a desk: one host in the shell, the menus of
+// a live session, a thread of codex, a session the panel did not start, a
+// closed conversation on the shelf and in the archive, a project's heading, a
+// stack and a container. Where it opens — at the point, kept inside the
+// window, anchored to the row when the keyboard asks — how it closes and
+// gives the focus back, where the browser keeps its own menu, what its items
+// are and what they send through the gate, against the buttons that send the
+// same.
+//
+// A menu the keyboard asks for is sent by Chrome as a contextmenu with button
+// -1, no button held and the point at the middle of the focused element, with
+// no Shift even for Shift+F10; the right button is 2. The page sends both as
+// Chrome does.
+import { h, render } from "preact";
+import { useEffect, useRef } from "preact/hooks";
+import { html } from "/src/html.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { ContainersCenter, StackColumn } from "/src/desktop/containers.js";
+import { Archive } from "/src/desktop/panels/archive.js";
+import { MenuHost } from "/src/desktop/menu.js";
+import { startOf } from "/src/desktop/settings.js";
+import { attachTips } from "/src/desktop/tip.js";
+import { MenuItem, MenuList, useMenu } from "/src/ui/menu.js";
+import { GateHost } from "/src/actions/gate.js";
+import { Icon } from "/src/ui/icons.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const now = Date.now();
+const iso = (min) => new Date(now - min * 60e3).toISOString();
+const P = (id, name, path) => ({ id, name, session: name, path });
+const projects = { 11: P(11, "aacpanel", "/srv/aacpanel"), 13: P(13, "blog", "/srv/blog"), 14: P(14, "helios", "/home/u") };
+const profileMap = [{ id: 3, profile: "personal", name: "personal", groups: [
+    { name: "Side", projects: [projects[11], projects[13]] },
+    { name: "Host", projects: [projects[14]] },
+] }];
+const S = (o) => ({
+    profile: "personal", contour: 3, transport: "stream", model: "claude-opus-5-5", limit: 1000000, limitKnown: true,
+    startedAt: iso(60), lastRequestAt: iso(2), mode: "auto", pct: 20, tokens: 200000, sessionId: `id-${o.session}`,
+    cwd: o.project ? o.project.path : `/srv/${o.session}`, ...o,
+});
+const sessions = [
+    S({ session: "aacpanel", project: { ...projects[11], group: "Side" }, status: "busy", work: { agents: 2 } }),
+    S({ session: "helios", project: { ...projects[14], group: "Host" }, home: true, status: "idle" }),
+    S({ session: "scratch", project: null, transport: "tmux", status: "idle" }),
+    S({ session: "ext", project: null, outside: true, status: "idle" }),
+    S({ session: "codex-1", project: { ...projects[13], group: "Side" }, agent: "codex", title: "cx-thread", status: "busy",
+        sessionId: "th-cx" }),
+];
+const closed = (o) => ({ model: "claude-opus-5-5", pctMax: 30, startedAt: iso(o.min + 60), lastAt: iso(o.min), messages: 4,
+    profile: "personal", prompts: ["the archive pages of the blog, newest first"], ...o });
+const archive = [
+    closed({ sessionId: "c-blog", name: "blog", project: { ...projects[13], group: "Side" }, cwd: "/srv/blog", min: 30 }),
+    closed({ sessionId: "c-cx", name: "drafts", agent: "codex", project: { ...projects[13], group: "Side" }, cwd: "/srv/blog",
+        min: 90, tokensUsed: 5000, messages: 0 }),
+];
+const tree = { running: 1, total: 2, stacks: [{ name: "shop", running: 1, total: 2, hasStats: true, cpu: 1, mem: 64 << 20,
+    containers: [
+        { id: "c1", name: "shop-web", service: "web", state: "running", status: "Up 2 hours", hasStats: true, cpu: 1, mem: 32 << 20 },
+        { id: "c2", name: "shop-db", service: "db", state: "exited", status: "Exited (0) 3 hours ago" },
+    ] }] };
+// The host knows every kind the menus press but Remote Control and the
+// restart of a container: those two are dimmed, and say why.
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.resume", "session.open",
+    "session.switch", "session.rename", "session.stop", "window.open", "window.close", "term.start",
+    "container.stop", "container.start", "stack.up", "stack.down"] };
+
+const sent = [];
+const copied = [];
+const picked = [];
+const terms = [];
+const settings = [];
+const logs = [];
+// The answer of where scratch can move is held until the page lets it go:
+// the menu shows the move dimmed while it waits.
+let letScratch = null;
+const scratchAnswer = new Promise((resolve) => { letScratch = resolve; });
+const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (url, init) => {
+    const u = String(url);
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true });
+    }
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: archive, total: archive.length, limit: 30, offset: 0 });
+    if (u.startsWith("/api/session/switch")) {
+        const name = new URL(u, location.origin).searchParams.get("name");
+        if (name === "aacpanel") return json({ to: "console" });
+        if (name === "scratch") return json(await scratchAnswer);
+        return json({ to: "", reason: "the project does not live on the stream" });
+    }
+    if (u.startsWith("/api/session/window")) return json({ state: "closed" });
+    if (u === "/api/terms") return json({ terms: [{ id: "t-aac", place: "/srv/aacpanel", activity: 9 }] });
+    return new Response("", { status: 404 });
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: async (t) => { copied.push(t); },
+} });
+
+// Probe is an object of the page's own with a menu over a field, an editable
+// block, a terminal and words to select: what the host leaves to the browser
+// inside an object that has a menu.
+function ProbeMenu() {
+    return html`<${MenuList} groups=${[[html`<${MenuItem} key="a" label="Probe" onPick=${() => picked.push("probe")} />`]]} />`;
+}
+function Probe() {
+    const menu = useMenu();
+    return html`
+        <div class="probe" tabindex="0" onContextMenu=${menu && menu(ProbeMenu, {}, "probe")}>
+            <span class="probewords">words to select and copy</span>
+            <input class="probein" value="typed" />
+            <div class="probeedit" contenteditable="true">edited</div>
+            <div class="termwrap"><div class="xterm">$ ls</div></div>
+        </div>
+    `;
+}
+
+const snapshot = { at: now / 1000, sessions, profileMap, profiles: [{ name: "personal", auth: "builtin" }], host: { home: "/home/u" } };
+const wait = { opening: () => [], of: () => null };
+
+function Shell() {
+    const shell = useRef(null);
+    const tip = useRef(null);
+    useEffect(() => attachTips(shell.current, tip.current), []);
+    return html`
+        <div class="deskshell" ref=${shell}>
+            <${MenuHost}>
+                <div class="dktip" ref=${tip} role="tooltip"></div>
+                <div class="dkbody withpanel">
+                    <${SessionColumn} snapshot=${snapshot} limits=${null} current="" currentId=""
+                        onPick=${(t) => picked.push(t.name)} onTerm=${(t) => terms.push(t)}
+                        onSettings=${(at) => settings.push(at)} picks=${[]} setPicks=${() => {}}
+                        onNames=${() => {}} onOrder=${() => {}} onArchive=${() => {}} exec=${exec} wait=${wait} />
+                    <${ContainersCenter} tree=${tree} stack="shop" current=${null} onPick=${() => {}} exec=${exec}
+                        onDone=${() => {}} onLogs=${(c) => logs.push(c.name)} />
+                    <aside class="dkright">
+                        <${Archive} profiles=${null} names=${[]} picks=${[]} setPicks=${() => {}}
+                            onOpen=${(t) => picked.push(`archive:${t.name}`)} exec=${exec} />
+                    </aside>
+                </div>
+                <div class="dkbody">
+                    <${StackColumn} tree=${tree} current="shop" onPick=${() => {}} exec=${exec} onDone=${() => {}} />
+                    <section class="dkcenter"><${Probe} /></section>
+                </div>
+            <//>
+        </div>
+    `;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Shell))), document.getElementById("app"));
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const until = async (fn, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (performance.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await frame();
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const menuNode = () => document.querySelector(".ctxmenu");
+const anyMenu = menuNode;
+const rowOf = (name) => Array.from(document.querySelectorAll(".dklive")).find((r) => text(r.querySelector(".dkname")) === name);
+const headOf = (name) => Array.from(document.querySelectorAll(".dkproj")).find((r) => text(r.querySelector(".dkprojname")) === name);
+const contOf = (name) => Array.from(document.querySelectorAll(".dkcont")).find((r) => text(r.querySelector(".dkc-name")) === name);
+const stackRow = () => document.querySelectorAll(".dkbody")[1].querySelector(".dksess");
+const box = (el) => {
+    const r = el.getBoundingClientRect();
+    return { left: Math.round(r.left), top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom) };
+};
+
+// The right button as the browser presses it: down, then the menu event.
+const rightClick = (el, x, y, extra = {}) => {
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 2, buttons: 2,
+        clientX: x, clientY: y, pointerType: "mouse", ...extra }));
+    const ev = new PointerEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, buttons: 2,
+        clientX: x, clientY: y, pointerType: "mouse", ...extra });
+    el.dispatchEvent(ev);
+    return ev;
+};
+// The menu key on the focused element, as Chrome sends it.
+const keyMenu = (el) => {
+    el.focus();
+    el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "F10", shiftKey: true }));
+    const r = el.getBoundingClientRect();
+    const ev = new PointerEvent("contextmenu", { bubbles: true, cancelable: true, button: -1, buttons: 0,
+        clientX: Math.round(r.left + r.width / 2), clientY: Math.round(r.top + r.height / 2), pointerType: "mouse" });
+    el.dispatchEvent(ev);
+    return ev;
+};
+const key = (k, extra = {}) => (document.activeElement || document.body).dispatchEvent(
+    new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: k, ...extra }));
+
+// read lists the items of the open menu: a dimmed one marked ~, a line |.
+const read = () => {
+    const m = menuNode();
+    if (!m) return null;
+    return Array.from(m.children).map((el) => (el.getAttribute("role") === "separator"
+        ? "|"
+        : `${el.getAttribute("aria-disabled") === "true" ? "~" : ""}${text(el.querySelector(".pkname"))}`));
+};
+const itemOf = (label) => (menuNode() ? Array.from(menuNode().querySelectorAll('[role="menuitem"]'))
+    .find((el) => text(el.querySelector(".pkname")) === label) : null);
+const about = (label) => {
+    const el = itemOf(label);
+    return el ? { note: text(el.querySelector(".pkdesc")), tip: el.getAttribute("data-tip") || "",
+        off: el.getAttribute("aria-disabled") === "true", opacity: Number(getComputedStyle(el).opacity) } : null;
+};
+const focused = () => text(document.activeElement && document.activeElement.querySelector
+    && document.activeElement.querySelector(".pkname"));
+// openOn opens the menu of an object near its left edge and waits for it;
+// settle waits for what it asks the host as well — the menu of a live session
+// of claude asks where it can move and whether a window shows it.
+const openOn = async (el, settle = false) => {
+    const r = el.getBoundingClientRect();
+    rightClick(el, Math.round(r.left + 20), Math.round(r.top + r.height / 2));
+    await until(menuNode);
+    if (settle) await quiet();
+};
+const confirmSel = ".sheet.on .btnrow .btn.primary, .sheet.on .btnrow .btn.danger";
+const shut = async () => {
+    if (anyMenu()) key("Escape");
+    await until(() => !anyMenu());
+};
+// confirmClick presses a button or an item and, where the gate asks, says
+// yes; it answers what went to the host.
+const confirmClick = async (el) => {
+    if (!el) return null;
+    const before = sent.length;
+    el.click();
+    const yes = await until(() => sent.length > before || document.querySelector(confirmSel), 1500);
+    if (yes instanceof Element) yes.click();
+    await until(() => sent.length > before, 1500);
+    await until(() => !document.querySelector(".sheet.on"), 1500);
+    return sent.length > before ? sent[sent.length - 1] : null;
+};
+const press = (label) => confirmClick(itemOf(label));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    await until(() => document.querySelector(".dkshelf .dkclosed") && document.querySelector(".dkarch") && rowOf("aacpanel"));
+    await quiet();
+    const out = { vw: innerWidth, vh: innerHeight };
+    const aac = rowOf("aacpanel");
+    const helios = rowOf("helios");
+
+    // At the point, and closed by Escape with the focus back on the row.
+    let ev = rightClick(aac, 300, 200);
+    await until(menuNode);
+    out.atPoint = { prevented: ev.defaultPrevented, menu: box(menuNode()), label: menuNode().getAttribute("aria-label"),
+        focus: focused() };
+    await quiet();
+    out.lists = { aacpanel: read() };
+    out.about = { move: about("Move to tmux"), remote: about("Turn Remote Control on"), restart: about("Restart the session"),
+        close: about("Close the session") };
+    // The reason of a dimmed item is read on its tip, as on the buttons.
+    itemOf("Turn Remote Control on").dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    const tip = document.querySelector(".dktip.on");
+    out.tipShown = tip ? text(tip) : "";
+    // A dimmed item takes the press and does nothing: the menu stays.
+    const sentBefore = sent.length;
+    itemOf("Turn Remote Control on").click();
+    await quiet();
+    out.dimmedPress = { open: Boolean(menuNode()), sent: sent.length - sentBefore };
+    key("Escape");
+    await until(() => !anyMenu());
+    out.escape = { open: Boolean(anyMenu()), focusRow: document.activeElement === aac };
+
+    // Near the bottom edge it opens upward from the point; in the corner it is
+    // kept inside the window.
+    rightClick(aac, 300, innerHeight - 40);
+    await until(menuNode);
+    await quiet();
+    out.nearBottom = box(menuNode());
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, buttons: 1 }));
+    await until(() => !anyMenu());
+    out.outside = { open: Boolean(anyMenu()), focusRow: document.activeElement === aac };
+    rightClick(aac, innerWidth - 3, innerHeight - 3);
+    await until(menuNode);
+    await quiet();
+    out.corner = box(menuNode());
+    // A right click elsewhere opens there, the menu of what it was made on.
+    ev = rightClick(helios, 320, 260);
+    await until(() => menuNode() && menuNode().getAttribute("aria-label") === "session helios");
+    out.elsewhere = { prevented: ev.defaultPrevented, menu: box(menuNode()), label: menuNode().getAttribute("aria-label"),
+        count: document.querySelectorAll(".ctxmenu").length };
+    await quiet();
+    out.lists.helios = read();
+    // Choosing an item does it, takes the menu down and gives the focus back.
+    itemOf("Open").click();
+    await until(() => !anyMenu());
+    out.chosen = { open: Boolean(anyMenu()), picked: picked[picked.length - 1], focusRow: document.activeElement === helios };
+    // A wheel, a column scrolled, the window left or resized take it down.
+    const takenBy = async (act) => {
+        rightClick(aac, 300, 200);
+        await until(menuNode);
+        act();
+        await until(() => !anyMenu());
+        return !anyMenu();
+    };
+    out.gone = {
+        wheel: await takenBy(() => document.body.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 40 }))),
+        scroll: await takenBy(() => document.querySelector(".dkscroll").dispatchEvent(new Event("scroll"))),
+        blur: await takenBy(() => window.dispatchEvent(new Event("blur"))),
+        resize: await takenBy(() => window.dispatchEvent(new Event("resize"))),
+    };
+
+    // Where the browser keeps its own menu.
+    const probe = document.querySelector(".probe");
+    // A menu is drawn a moment after the click: whether one came is read on
+    // the next frame.
+    const native = async (ev) => {
+        await frame();
+        return { prevented: ev.defaultPrevented, menu: Boolean(anyMenu()) };
+    };
+    out.native = {};
+    out.native.shift = await native(rightClick(aac, 300, 200, { shiftKey: true }));
+    out.native.input = await native(rightClick(probe.querySelector(".probein"), 600, 600));
+    out.native.editable = await native(rightClick(probe.querySelector(".probeedit"), 600, 600));
+    out.native.terminal = await native(rightClick(probe.querySelector(".xterm"), 600, 600));
+    document.getSelection().selectAllChildren(probe.querySelector(".probewords"));
+    out.native.selection = await native(rightClick(probe, 600, 600));
+    document.getSelection().removeAllRanges();
+    out.native.noMenu = await native(rightClick(headOf("scratch"), 100, 100));
+    // The same object without a selection, a field or Shift is the panel's.
+    out.native.control = await native(rightClick(probe.querySelector(".probewords"), 600, 600));
+    await shut();
+
+    // The keyboard: the menu stands under the row, not at the middle of it.
+    // The keys the menu takes reach nothing else of the page — the shell
+    // listens on the window for the arrows and Escape of its own.
+    const leaked = [];
+    const listen = (e) => leaked.push(e.key);
+    window.addEventListener("keydown", listen);
+    ev = keyMenu(aac);
+    await until(menuNode);
+    await quiet();
+    out.keyboard = { prevented: ev.defaultPrevented, menu: box(menuNode()), row: box(aac), first: focused() };
+    const walk = [];
+    for (const k of ["ArrowDown", "ArrowDown", "ArrowUp", "End", "ArrowDown", "Home", "ArrowUp"]) {
+        key(k);
+        walk.push(focused());
+    }
+    out.keyboard.walk = walk;
+    key("Home");
+    key("Enter");
+    await until(() => !anyMenu());
+    out.keyboard.enter = { open: Boolean(anyMenu()), picked: picked[picked.length - 1], focusRow: document.activeElement === aac };
+    window.removeEventListener("keydown", listen);
+    // The F10 that asked for the menu is the browser's to hear, before it opens.
+    out.keyboard.leaked = leaked.filter((k) => k !== "F10");
+    keyMenu(aac);
+    await until(menuNode);
+    await quiet();
+    const labels = read().filter((l) => l !== "|");
+    const digit = labels.indexOf("Stop the turn") + 1;
+    const stopsBefore = sent.length;
+    key(String(digit));
+    await until(() => !anyMenu() && sent.length > stopsBefore);
+    out.keyboard.digit = { digit, sent: sent[sent.length - 1] || null, open: Boolean(anyMenu()) };
+
+    // The menus of every object, and what their items send.
+    const scratch = rowOf("scratch");
+    await openOn(scratch, false);
+    await until(() => about("Move to the stream"));
+    out.scratchAsking = { list: read(), move: about("Move to the stream") };
+    letScratch({ to: "stream" });
+    await until(() => about("Move to the stream") && !about("Move to the stream").off);
+    await quiet();
+    out.lists.scratch = read();
+    out.about.rename = about("Rename…");
+    out.moved = await press("Move to the stream");
+
+    await openOn(rowOf("ext"));
+    out.lists.ext = read();
+    await shut();
+    await openOn(rowOf("cx-thread"));
+    out.lists.codex = read();
+    out.about.codexClose = about("Close the session");
+    await shut();
+    await openOn(document.querySelector(".dkshelf .dkclosed"));
+    out.lists.closed = read();
+    out.resumed = await press("Resume");
+    out.resumedByButton = await confirmClick(document.querySelector(".dkshelf .dkclosed .dkresume"));
+    const archRows = Array.from(document.querySelectorAll(".dkarch"));
+    await openOn(archRows[0]);
+    out.lists.archive = read();
+    out.archiveNew = await press("New session in the project");
+    out.archiveNewByButton = await confirmClick(archRows[0].querySelectorAll(".dkacts .dkact")[1]);
+    await openOn(archRows[1]);
+    out.lists.archiveCodex = read();
+    await shut();
+
+    await openOn(headOf("aacpanel"));
+    out.lists.project = read();
+    out.projectNew = await press("New session");
+    out.projectNewByButton = await confirmClick(headOf("aacpanel").querySelector(".dkprojnew"));
+    await openOn(headOf("aacpanel"));
+    itemOf("Settings of the project").click();
+    await until(() => settings.length > 0);
+    out.settings = settings[settings.length - 1] || null;
+    // The settings of the map open on the page of the project it names.
+    out.settingsStart = startOf([{ id: 3, name: "personal", groups: [
+        { id: 7, name: "Side", projects: [{ id: 11 }, { id: 13 }] },
+        { id: 8, name: "Host", projects: [{ id: 14 }] },
+    ] }], settings[settings.length - 1], []);
+    await openOn(headOf("helios"));
+    out.lists.projectHome = read();
+    await shut();
+
+    await openOn(aac, true);
+    itemOf("Terminal of the project").click();
+    await until(() => terms.length > 0);
+    out.terminal = terms[terms.length - 1] || null;
+    await openOn(aac);
+    itemOf("Copy the session ID").click();
+    await until(() => copied.length > 0);
+    await openOn(aac);
+    itemOf("Copy the resume command").click();
+    await until(() => copied.length > 1);
+    out.copied = copied.slice();
+    await openOn(aac);
+    itemOf("Rename…").click();
+    await until(() => document.querySelector(".sheet.on .rnname"));
+    out.rename = { value: document.querySelector(".sheet.on .rnname").value, menu: Boolean(anyMenu()) };
+    Array.from(document.querySelectorAll(".sheet.on .btnrow .btn")).find((b) => text(b) === "Cancel").click();
+    await until(() => !document.querySelector(".sheet.on"));
+    out.rename.focusRow = document.activeElement === aac;
+    await openOn(aac);
+    out.restarted = await press("Restart the session");
+    await openOn(aac);
+    out.closedByMenu = await press("Close the session");
+    out.closedByButton = await confirmClick(aac.querySelector(".dkrowacts .dkact"));
+
+    await openOn(contOf("shop-web"));
+    out.lists.running = read();
+    out.about.containerRestart = about("Restart");
+    out.stopped = await press("Stop");
+    out.stoppedByButton = await confirmClick(contOf("shop-web").querySelectorAll(".dkc-acts .dkact")[2]);
+    await openOn(contOf("shop-db"));
+    out.lists.exited = read();
+    out.started = await press("Start");
+    const flip = contOf("shop-db").querySelectorAll(".dkc-acts .dkact")[2];
+    out.startedByButton = await confirmClick(flip);
+    // A stopped container starts from the play icon, not a red stop.
+    const play = document.createElement("div");
+    render(h("i", null, Icon.play()), play);
+    out.playIcon = { danger: flip.classList.contains("danger"),
+        play: flip.querySelector("path").getAttribute("d") === play.querySelector("path").getAttribute("d") };
+    await openOn(contOf("shop-db"));
+    itemOf("Logs").click();
+    await until(() => logs.length > 0);
+    out.logs = logs.slice();
+
+    await openOn(stackRow());
+    out.lists.stack = read();
+    out.downed = await press("Bring down");
+    out.downedByButton = await confirmClick(stackRow().querySelector(".dkrowacts .dkact"));
+
+    // A screen narrower than the shell keeps the browser's menu; the same
+    // page wide enough takes the panel's.
+    const narrow = document.getElementById("narrow");
+    narrow.srcdoc = `<!doctype html><script type="importmap">${document.querySelector('script[type="importmap"]').textContent}<\/script>
+<div id="n"></div>
+<script type="module">
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { MenuHost } from "/src/desktop/menu.js";
+import { MenuItem, MenuList, useMenu } from "/src/ui/menu.js";
+function Body() { return html\`<\${MenuList} groups=\${[[html\`<\${MenuItem} key="a" label="A" onPick=\${() => {}} />\`]]} />\`; }
+function Obj() { const menu = useMenu(); return html\`<div class="obj" onContextMenu=\${menu && menu(Body, {}, "obj")}>object</div>\`; }
+render(html\`<\${MenuHost}><\${Obj} /><//>\`, document.getElementById("n"));
+<\/script>`;
+    const inner = await until(() => narrow.contentWindow && narrow.contentWindow.document.querySelector(".obj")
+        && narrow.contentWindow);
+    const tryIn = () => {
+        const obj = inner.document.querySelector(".obj");
+        const e = new inner.PointerEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: 5, clientY: 5 });
+        obj.dispatchEvent(e);
+        return { width: inner.innerWidth, prevented: e.defaultPrevented };
+    };
+    out.narrow = tryIn();
+    await frame();
+    out.narrow.menu = Boolean(inner.document.querySelector(".ctxmenu"));
+    narrow.style.width = "1200px";
+    await until(() => inner.innerWidth === 1200);
+    out.wideFrame = tryIn();
+    return out;
+})();
+</script>
