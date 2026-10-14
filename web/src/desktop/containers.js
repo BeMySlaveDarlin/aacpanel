@@ -211,13 +211,13 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                                         onClick=${() => onLogs && onLogs(c)}
                                     ><${Icon.list} /></i>
                                     <i
-                                        class=${`dkact danger${knows(exec, c.state === "running" ? "container.stop" : "container.start") ? "" : " off"}`}
+                                        class=${`dkact${c.state === "running" ? " danger" : ""}${knows(exec, c.state === "running" ? "container.stop" : "container.start") ? "" : " off"}`}
                                         data-tip=${knows(exec, c.state === "running" ? "container.stop" : "container.start")
                                             ? undefined
                                             : whyNot(exec, c.state === "running" ? "container.stop" : "container.start")}
                                         data-tipside="left"
                                         onClick=${() => act(c.state === "running" ? "container.stop" : "container.start", c.name)}
-                                    ><${Icon.stop} /></i>
+                                    >${c.state === "running" ? html`<${Icon.stop} />` : html`<${Icon.play} />`}</i>
                                 </span>
                             </button>
                         `)}
