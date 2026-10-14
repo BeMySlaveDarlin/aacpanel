@@ -327,8 +327,7 @@ func TestBackgroundTerminalsAreCountedListedAndStopped(t *testing.T) {
 // The methods of the background terminals are experimental: a daemon that
 // dropped them is not asked at every poll, and the refusal says what it is.
 func TestADaemonWithoutBackgroundTerminalsIsNotAskedAgain(t *testing.T) {
-	srv, l := linked(t, idle(threadA))
-	srv.Refuse("thread/backgroundTerminals/list")
+	srv, l := linkedRefusing(t, []string{"thread/backgroundTerminals/list"}, idle(threadA))
 	// A thread that runs has its extras read at every poll.
 	srv.Running(threadA, "turn-x")
 	until(t, "the state file", written(t, threadA))
@@ -624,8 +623,7 @@ func TestATerminalOfThePanelIsOnTheState(t *testing.T) {
 func TestANewConnectionAsksAgainWhatTheOldDaemonDidNotKnow(t *testing.T) {
 	th := idle(threadA)
 	th.Processes = []map[string]any{{"processId": "71", "command": "sleep 300", "cwd": "/srv/proj"}}
-	srv, _ := linked(t, th)
-	srv.Refuse("thread/backgroundTerminals/list")
+	srv, _ := linkedRefusing(t, []string{"thread/backgroundTerminals/list"}, th)
 	until(t, "the state file", written(t, threadA))
 	time.Sleep(5 * pollEvery)
 	if st, _, _ := stateOf(t, threadA); st.Processes != nil {

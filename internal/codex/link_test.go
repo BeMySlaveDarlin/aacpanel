@@ -33,11 +33,22 @@ const (
 // an executor to a state directory of its own.
 func linked(t *testing.T, threads ...codextest.Thread) (*codextest.Server, *Link) {
 	t.Helper()
+	return linkedRefusing(t, nil, threads...)
+}
+
+// linkedRefusing is linked to a daemon that refuses the given methods from
+// its first call: a refusal set once the link runs comes after its first poll
+// on a fast runner and before it on a slow one.
+func linkedRefusing(t *testing.T, refused []string, threads ...codextest.Thread) (*codextest.Server, *Link) {
+	t.Helper()
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	srv := codextest.New(t)
 	for _, th := range threads {
 		srv.Add(th)
+	}
+	for _, method := range refused {
+		srv.Refuse(method)
 	}
 	l := NewLink(srv.Home, "acme")
 	running(t, l)
