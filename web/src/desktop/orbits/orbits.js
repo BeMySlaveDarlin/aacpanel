@@ -128,16 +128,18 @@ function countsOf(graph) {
     return { live, contours, busy, wait };
 }
 
-// paletteOf reads the colours of the scene from the styles, where the theme
-// sets them.
+// paletteOf reads the colours of the scene from the panel's own tokens, so a
+// theme recolours the graph as it does every other screen: the wait is the
+// panel's gold, the busy its accent, and a context near the cap takes the top
+// step of the context scale.
 function paletteOf(el) {
     const css = getComputedStyle(el);
     const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
     return {
-        ink: v("--orb-ink", "#e6dccb"),
-        wait: v("--orb-wait", "#ef8a55"),
-        busy: v("--orb-busy", "#fffaf0"),
-        cap: v("--orb-cap", "#ffffff"),
+        ink: v("--ink", "#eef1ff"),
+        wait: v("--wait", "#e3c97a"),
+        busy: v("--accent", "#63a8ff"),
+        cap: v("--ctx-4", "#b98cff"),
     };
 }
 

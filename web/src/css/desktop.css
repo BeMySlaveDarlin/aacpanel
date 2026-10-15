@@ -1600,29 +1600,15 @@
     }
 
     /* The graph of the sessions (desktop/orbits). The scene is drawn on a
-       canvas in these colours, set here so a theme sets them like every
-       other: sand on the dark page, umber on the sky. The one warm colour is
-       the waiting session's, and it is ember rather than the gold of a wait
-       elsewhere in the panel: gold stands too close to the sand of the
-       scene to be the first thing seen. */
+       canvas in the panel's tokens, read from the styles, so a theme
+       recolours it like every other screen. */
     .dkorbits {
-        --orb-ink: #e6dccb;
-        --orb-wait: #ef8a55;
-        --orb-busy: #fffaf0;
-        --orb-cap: #ffffff;
         display: flex;
         flex-direction: column;
         min-width: 0;
         min-height: 0;
         font-family: var(--sans);
         user-select: none;
-    }
-
-    :root.sky .dkorbits {
-        --orb-ink: #4b3d2a;
-        --orb-wait: #b04f1c;
-        --orb-busy: #0f2338;
-        --orb-cap: #0f2338;
     }
 
     .dkorbhead {
@@ -1642,7 +1628,7 @@
 
     .dkorbbusy { color: var(--ink); }
 
-    .dkorbwait { color: var(--orb-wait); }
+    .dkorbwait { color: var(--wait); }
 
     .dkorbacts { margin-left: auto; align-self: center; display: flex; gap: .4rem; }
 
@@ -1725,7 +1711,7 @@
 
     .dkorbtip span { color: var(--ink-dim); }
 
-    .dkorbtip .dkorbwait { color: var(--orb-wait); }
+    .dkorbtip .dkorbwait { color: var(--wait); }
 
     .dkorbtip em { font-style: normal; color: var(--ink-faint); }
 
