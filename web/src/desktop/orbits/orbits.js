@@ -1,7 +1,9 @@
 // The graph of the live sessions at the top of the home screen, a galaxy:
 // every contour a system round a star of its own, every project with a live
-// session an orbit round the star, every session a planet on the orbit of its
-// project at the angle of its last request, the sessions it opened its moons.
+// session an orbit round the star — the small and quiet inside, the large and
+// lively outside, every orbit leaning its own way — every session a planet on
+// the orbit of its project at the angle of its last request, the sessions it
+// opened its moons.
 // The systems stand in depth, the liveliest in front when the page opens; a
 // click on a star, or the wheel with Shift, brings another forward. A click on
 // a planet opens the session as its row in the column opens it, a right click
@@ -17,9 +19,9 @@
 // the size, a turn, a move — and not on every frame: a home screen left open
 // all day should cost nothing while nothing moves. Only the turning of its
 // own, switched on by the person, draws frame after frame, and it stops while
-// the page is hidden; a system coming forward glides there in a moment, or
-// stands there at once where the system asks for less motion, as the turn
-// starts off there too.
+// the page is hidden; a system coming forward, or an orbit a snapshot moves
+// in or out, glides there in a moment, or stands there at once where the
+// system asks for less motion, as the turn starts off there too.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -32,7 +34,7 @@ import { contourOfLive } from "../../screens/sessions/map.js";
 import { pageNames } from "../../screens/sessions/pages.js";
 import { useMenu } from "../../ui/menu.js";
 import { liveMenuOf } from "../sessionmenu.js";
-import { BACK, FLAT, HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, slotsFor, tiltOf, zoomAt } from "./space.js";
+import { BACK, FLAT, HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, placeOrbit, slotsFor, tiltOf, zoomAt } from "./space.js";
 import { HALO, drawKey, drawScene, overlap } from "./scene.js";
 
 // PAD keeps the scene off the edges of its canvas: [top, right, bottom, left].
@@ -93,13 +95,17 @@ function short(min) {
 
 // graphOf lays out the live sessions of a snapshot. A contour is a system,
 // its sessions as the column of sessions holds them: an orbit for every
-// project with a live session, in the order of the map, and the sessions of
-// no project on an orbit of their own outside them; on an orbit the sessions
-// nobody opened, and every other session a moon of the one that opened it.
+// project with a live session, and the sessions of no project on an orbit of
+// their own; on an orbit the sessions nobody opened, and every other session
+// a moon of the one that opened it. The orbits go out from the star by their
+// weight — the sessions of a project with their moons, a busy one pulling
+// once more and a waiting one twice — and orbits of equal weight keep the
+// order before had them in (from orbitsIn of the graph before), new ones the
+// order of the map: a snapshot moves an orbit only when the weights reorder.
 // Every session carries what its mark says — its name, its context, its
 // background work, and its state in the words of its row: stateOf, so the
 // graph waits on a question exactly when the row does.
-export function graphOf(snapshot) {
+export function graphOf(snapshot, before = null) {
     const sessions = (snapshot && snapshot.sessions) || [];
     const map = (snapshot && snapshot.profileMap) || [];
     const now = snapshot && snapshot.at ? snapshot.at * 1000 : Date.now();
@@ -121,7 +127,8 @@ export function graphOf(snapshot) {
         const here = new Set(list.map((s) => s.session));
         for (const s of list) {
             const parent = s.parent && here.has(s.parent.session) ? s.parent.session : null;
-            facts.set(s.session, { parent, idle: idleOf(s, now) });
+            const tone = stateOf(s).tone;
+            facts.set(s.session, { parent, idle: idleOf(s, now), pull: tone === "wait" ? 2 : tone === "busy" ? 1 : 0 });
         }
         const { rootOf } = kinOf(list);
         const orbits = [];
@@ -139,7 +146,9 @@ export function graphOf(snapshot) {
             });
         }
         if (outside.length) orbits.push({ key: "outside", name: "outside the map", keys: outside, label: true });
-        plan.push({ name, orbits });
+        const was = (before && before.get(name)) || [];
+        const rank = (o) => (was.includes(o.key) ? was.indexOf(o.key) : was.length);
+        plan.push({ name, orbits: orbits.sort((a, b) => rank(a) - rank(b)) });
     }
     const laid = layout(plan, facts);
     const orbitName = new Map();
@@ -182,6 +191,12 @@ export function graphOf(snapshot) {
         };
     });
     return { systems, nodes };
+}
+
+// orbitsIn is the order of the orbits of every system of a graph, from the
+// star out: what the next snapshot keeps for orbits of equal weight.
+export function orbitsIn(graph) {
+    return new Map(graph.systems.map((s) => [s.name, s.orbits.map((o) => o.key)]));
 }
 
 // orderOf is the order of the systems in depth when the page opens and on
@@ -422,7 +437,12 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     useAnswers();
     const menu = useMenu();
     const tones = ((snapshot && snapshot.sessions) || []).map((s) => stateOf(s).tone).join();
-    const graph = useMemo(() => graphOf(snapshot), [snapshot, tones]);
+    const orbitsBefore = useRef(null);
+    const graph = useMemo(() => {
+        const next = graphOf(snapshot, orbitsBefore.current);
+        orbitsBefore.current = orbitsIn(next);
+        return next;
+    }, [snapshot, tones]);
     const counts = countsOf(graph);
 
     const stage = useRef(null);
@@ -432,7 +452,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     const live = useRef({
         view: { ...HOME }, zoom: 1, pan: { x: 0, y: 0 }, size: null, lens: null,
         hits: [], taken: [], sides: new Map(), settle: true, drag: null, frame: 0, spin: 0, zoomed: 0,
-        order: null, front: null, places: new Map(), glide: 0, next: 0,
+        order: null, front: null, places: new Map(), glide: 0, next: 0, shapes: new Map(), reshape: 0,
     });
     const [tip, setTip] = useState(null);
     const [auto, setAuto] = useState(() => !window.matchMedia(REDUCE).matches);
@@ -525,6 +545,46 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     const bringRef = useRef(bring);
     bringRef.current = bring;
 
+    // reshape carries the orbits of a new snapshot from where they were drawn
+    // to where it puts them — an orbit that moves out or in, a band that
+    // widens — gliding there, or at once where less motion is asked for.
+    const reshape = (next) => {
+        const st = live.current;
+        cancelAnimationFrame(st.reshape);
+        st.reshape = 0;
+        const all = next.systems.flatMap((sys) => sys.orbits.map((o) => ({ key: `${sys.name}/${o.key}`, o })));
+        const kept = () => {
+            st.shapes = new Map(all.map(({ key, o }) => [key, { R: o.R, tilt: o.tilt }]));
+        };
+        const moves = all
+            .map(({ key, o }) => ({ o, from: st.shapes.get(key), to: { R: o.R, tilt: o.tilt } }))
+            .filter((m) => m.from && (m.from.R !== m.to.R || m.from.tilt.inc !== m.to.tilt.inc || m.from.tilt.node !== m.to.tilt.node));
+        if (moves.length === 0 || window.matchMedia(REDUCE).matches) {
+            kept();
+            return;
+        }
+        const t0 = performance.now();
+        const step = (t) => {
+            const k = Math.min(1, (t - t0) / GLIDE);
+            const e = 1 - (1 - k) ** 3;
+            const by = (u, v) => u + (v - u) * e;
+            for (const m of moves) {
+                m.o.R = by(m.from.R, m.to.R);
+                m.o.tilt = { inc: by(m.from.tilt.inc, m.to.tilt.inc), node: by(m.from.tilt.node, m.to.tilt.node) };
+                placeOrbit(m.o);
+            }
+            kept();
+            if (k < 1) {
+                st.reshape = requestAnimationFrame(step);
+                paintRef.current(false);
+            } else {
+                st.reshape = 0;
+                paintRef.current(true);
+            }
+        };
+        step(t0);
+    };
+
     // The canvas follows its box and the density of the screen.
     useEffect(() => {
         const el = stage.current;
@@ -550,6 +610,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     useEffect(() => {
         keepOrder(live.current, graph);
         live.current.lens = null;
+        reshape(graph);
         request();
     }, [graph, theme]);
 
@@ -592,6 +653,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     useEffect(() => () => {
         cancelAnimationFrame(live.current.frame);
         cancelAnimationFrame(live.current.glide);
+        cancelAnimationFrame(live.current.reshape);
     }, []);
 
     // The wheel scales the picture round the pointer; with Shift it brings

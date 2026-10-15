@@ -1,12 +1,13 @@
 // The drawing of the galaxy of sessions on a canvas. Every contour is a
-// system in a hue of its own: a star, the orbits of its projects as
-// hairlines, a dotted stalk down to the floor that tells how deep it stands.
+// system in a hue of its own: a star, the orbits of its projects as hairlines
+// barely there, a dotted stalk down to the floor that tells how deep it
+// stands.
 // A session is a planet lit in part, as a moon in its phase: the lit share is
 // how much of its context it has used. The marks keep their colours of state
 // — the accent of a session at work in a small steady glow, the gold of a
 // session waiting for the person, the top of the context scale near the cap
 // — and the one wide light stands behind the session that has waited longest.
-import { SPAN, TAU, at, add, worldOf } from "./space.js";
+import { SPAN, TAU, at, add, inclined, onOrbit, worldOf } from "./space.js";
 
 // NEAR is where the lit part takes the tone of the cap and the frame says the
 // number: a session past it is a turn or two of a long task from the cap.
@@ -23,6 +24,11 @@ const BEADS = 9;
 export const HALO = 6;
 const GLOW = 150;
 const REACH = [8, 22, 40, 62, 90];
+
+// The orbits are barely there: ORBIT[1] on the half of an orbit nearer the
+// eye, ORBIT[0] on the far half — enough to follow an orbit round and see
+// which way it leans, never a line that rivals a mark.
+export const ORBIT = [0.05, 0.08];
 const TAG_PAD = [2, 5];
 
 // rgba is a colour of the palette at an opacity. The palette is written in
@@ -408,23 +414,24 @@ export function drawScene(ctx, W, H, pr, scene) {
             ring.push(pr([foot[0] + Math.cos((i / 32) * TAU) * 22, floor, foot[2] + Math.sin((i / 32) * TAU) * 22]));
         }
         line(ctx, ring, s.tint, () => 0.28);
-        // The orbits, fainter where the dial ends.
+        // The orbits, each in its lean.
+        const orbit = (points, centre, colour) => line(ctx, points, colour, (a, b) => ((a.z + b.z) / 2 < centre.z ? ORBIT[1] : ORBIT[0]));
         for (const o of s.orbits) {
             const points = [];
-            for (let i = 0; i <= 120; i++) points.push(plane(at((i / 120) * TAU, o.R)));
-            line(ctx, points, s.tint, (a, b, i) => ((i - 0.5) / 120 * TAU > SPAN ? 0.12 : 0.36) * fade((a.z + b.z) / 2));
+            for (let i = 0; i <= 120; i++) points.push(plane(onOrbit(o, (i / 120) * TAU)));
+            orbit(points, star, s.tint);
         }
         // The meridian of now, from the star to the front of the outer orbit.
         const outer = s.orbits[s.orbits.length - 1];
         ctx.setLineDash([2, 3]);
-        line(ctx, [star, plane(at(0, outer.R + 14))], s.tint, () => 0.4);
+        line(ctx, [star, plane(onOrbit({ ...outer, R: outer.R + 14 }, 0))], s.tint, () => 0.4);
         ctx.setLineDash([]);
         // The orbits of the moons.
         for (const n of s.members) {
             if (n.kids.length === 0) continue;
             const points = [];
-            for (let i = 0; i <= 40; i++) points.push(plane(add(n.w, at((i / 40) * TAU, n.orbit))));
-            line(ctx, points, pal.ink, (a, b) => 0.2 * fade((a.z + b.z) / 2));
+            for (let i = 0; i <= 40; i++) points.push(plane(add(n.w, inclined(n.lean, at((i / 40) * TAU, n.orbit)))));
+            orbit(points, plane(n.w), pal.ink);
         }
         // The star: larger and brighter the more alive its contour is.
         const sr = starSize(s.live) * u;
@@ -454,7 +461,7 @@ export function drawScene(ctx, W, H, pr, scene) {
         // stands in the empty end of the dial.
         for (const o of s.orbits) {
             if (!o.label) continue;
-            const q = plane(at(SPAN + (TAU - SPAN) / 2, o.R));
+            const q = plane(onOrbit(o, SPAN + (TAU - SPAN) / 2));
             items.push({ key: `${s.name}/${o.key}`, x: q.x, y: q.y, r: 2 * u, pri: -100, from: star, quiet: behind(s.name),
                 lines: [{ t: o.name, f: type.tag, c: rgba(s.tint, 0.75) }] });
         }

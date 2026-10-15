@@ -30,8 +30,8 @@ import { html } from "/src/html.js";
 import { Home, PERIOD } from "/src/desktop/home.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { attachTips } from "/src/desktop/tip.js";
-import { between, graphOf, lensOf, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
-import { DAY, HOME, MOON, SPAN, TAU, ZOOM, at, boxOf, camera, dial, lensAt, orbitOf, slotsFor, worldOf } from "/src/desktop/orbits/space.js";
+import { between, graphOf, lensOf, orbitsIn, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
+import { DAY, HOME, INCLINE, MOON, SPAN, TAU, ZOOM, add, at, boxOf, camera, dial, inclined, lensAt, onOrbit, orbitOf, slotsFor, worldOf } from "/src/desktop/orbits/space.js";
 import { TOUCH, drawScene, starSize } from "/src/desktop/orbits/scene.js";
 import { periodRange } from "/src/data/usage.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -191,6 +191,18 @@ const starOf = (contour, front, order) => {
     const { places, pr, win } = viewOf(front, order);
     return win(pr(places.get(contour).c));
 };
+// extentOf is the box a system takes on the canvas: the disc of its radius
+// in its plane, and the orbits in their leans and every planet and moon as
+// they are drawn, wherever a lean takes them past the disc.
+const extentOf = (sys, place, pr) => {
+    const pts = [];
+    for (let i = 0; i < 48; i++) pts.push(pr(worldOf(place, at((i / 48) * TAU, sys.R))));
+    for (const o of sys.orbits) for (let i = 0; i < 48; i++) pts.push(pr(worldOf(place, onOrbit(o, (i / 48) * TAU))));
+    for (const n of sys.members) pts.push(pr(worldOf(place, n.w)));
+    const xs = pts.map((q) => q.x);
+    const ys = pts.map((q) => q.y);
+    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+};
 const pointer = (type, p, extra = {}) => {
     const ev = new PointerEvent(type, { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y,
         pointerType: "mouse", pointerId: 1, button: 0, buttons: type === "pointerup" ? 0 : 1, ...extra });
@@ -230,10 +242,10 @@ window.done = (async () => {
     const moonOf = (child, parent, depth) => {
         const kid = node(child).p;
         const up = node(parent).p;
-        const expect = at(dial(kid.idle), orbitOf(depth - 1)).map((v, i) => v + up.w[i]);
+        const expect = add(up.w, inclined(up.lean, at(dial(kid.idle), orbitOf(depth - 1))));
         return { depth: kid.depth, parent: kid.parent, system: kid.system,
             offBy: Math.max(...expect.map((v, i) => Math.abs(v - kid.w[i]))),
-            orbit: Math.round(Math.hypot(kid.w[0] - up.w[0], kid.w[2] - up.w[2])) };
+            orbit: Math.round(Math.hypot(kid.w[0] - up.w[0], kid.w[1] - up.w[1], kid.w[2] - up.w[2])) };
     };
     out.moon = moonOf("codex-1", "blog", 1);
     out.grandchild = moonOf("deep", "codex-1", 2);
@@ -242,6 +254,102 @@ window.done = (async () => {
     out.notes = node("blog").note;
     out.stars = [0, 1, 4].map((live) => starSize(live));
 
+    // The orbits of a contour go out by weight — the small and quiet inside,
+    // the large and lively outside — each as wide as its widest family, each
+    // leaning its own way, and barely there. The map has big, pair, solo and
+    // late in that order; big holds four sessions and a moon with a moon of
+    // its own, pair two, solo one, and late one that waits.
+    {
+        const Q = (id, name) => ({ id, name, session: name, path: `/srv/${name}`, group: "Work" });
+        const bigP = Q(41, "big");
+        const pairP = Q(42, "pair");
+        const soloP = Q(43, "solo");
+        const lateP = Q(44, "late");
+        const W1 = (session, project, status, min, parent) => S({ session, profile: "work", project, status,
+            lastRequestAt: iso(min), parent: parent ? { session: parent } : undefined });
+        const work = (extra = [], later = 0) => ({ at: Math.floor(now / 1000) + later * 60, sessions: [
+            ...["b1", "b2", "b3", "b4"].map((n, i) => W1(n, bigP, "idle", 10 + i * 7)),
+            W1("m1", null, "idle", 12, "b1"),
+            W1("m2", null, "idle", 14, "m1"),
+            W1("p1", pairP, "idle", 40),
+            W1("p2", pairP, "idle", 45),
+            W1("s1", soloP, "idle", 300),
+            W1("l1", lateP, "waiting", 3),
+            ...extra,
+        ], profileMap: [{ id: 9, profile: "work", default: true, groups: [{ name: "Work", projects: [bigP, pairP, soloP, lateP] }] }] });
+        const keys = (gr) => gr.systems[0].orbits.map((o) => o.key);
+        const gw = graphOf(work());
+        const sys = gw.systems[0];
+        const before = orbitsIn(gw);
+        const later = graphOf(work([W1("b5", bigP, "idle", 60)], 10), before);
+        out.weights = {
+            order: keys(gw),
+            weights: Object.fromEntries(sys.orbits.map((o) => [o.key, o.weight])),
+            bands: sys.orbits.map((o) => Math.round(o.band * 10) / 10),
+            radii: sys.orbits.map((o) => Math.round(o.R * 10) / 10),
+            // solo gains a session and weighs as pair does.
+            tieFresh: keys(graphOf(work([W1("s2", soloP, "idle", 200)]))),
+            tieKept: keys(graphOf(work([W1("s2", soloP, "idle", 200)]), before)),
+            later: keys(later),
+            // solo gains three at work and outweighs big.
+            reordered: keys(graphOf(work(["s2", "s3", "s4"].map((n) => W1(n, soloP, "busy", 1))), before)),
+        };
+        const lean = (t) => [deg(t.inc), deg(t.node)];
+        out.leans = {
+            range: [deg(INCLINE[0]), deg(INCLINE[1])],
+            first: Object.fromEntries(sys.orbits.map((o) => [o.key, lean(o.tilt)])),
+            later: Object.fromEntries(later.systems[0].orbits.map((o) => [o.key, lean(o.tilt)])),
+            moons: Object.fromEntries(["b1", "m1"].map((k) => [k, lean(gw.nodes.find((n) => n.s.session === k).p.lean)])),
+        };
+        // How the orbits are drawn, asked of the drawing: every segment of
+        // every orbit and moon orbit found among the strokes, and its opacity.
+        const Wd = 900;
+        const Hd = 420;
+        const sheet = document.createElement("canvas");
+        sheet.width = Wd;
+        sheet.height = Hd;
+        const cx = sheet.getContext("2d");
+        const segs = [];
+        let from = null;
+        let style = "";
+        const proto = CanvasRenderingContext2D.prototype;
+        const stroke = Object.getOwnPropertyDescriptor(proto, "strokeStyle");
+        Object.defineProperty(cx, "strokeStyle", { get: () => stroke.get.call(cx), set: (v) => { style = v; stroke.set.call(cx, v); } });
+        cx.moveTo = (x, y) => { from = { x, y }; proto.moveTo.call(cx, x, y); };
+        cx.lineTo = (x, y) => { segs.push({ a: from, b: { x, y }, style }); from = { x, y }; proto.lineTo.call(cx, x, y); };
+        const places = placesOf(gw, ["work"], "work");
+        const place = places.get("work");
+        const pr = camera(HOME, Wd, Hd, lensOf(gw, Wd, Hd));
+        drawScene(cx, Wd, Hd, pr, { ...sceneOf(gw, places, ["#6b9c83"]), pal: { ink: "#eef1ff", wait: "#e3c97a", busy: "#63a8ff", cap: "#b98cff" },
+            type: { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } },
+            sides: new Map(), settle: true });
+        const rings = [
+            ...sys.orbits.map((o) => ({ centre: pr(place.c), pts: Array.from({ length: 121 }, (_, i) => pr(worldOf(place, onOrbit(o, (i / 120) * TAU)))) })),
+            ...sys.members.filter((n) => n.kids.length > 0).map((n) => ({ centre: pr(worldOf(place, n.w)),
+                pts: Array.from({ length: 41 }, (_, i) => pr(worldOf(place, add(n.w, inclined(n.lean, at((i / 40) * TAU, n.orbit)))))) })),
+        ];
+        const same = (u, v) => Math.abs(u.x - v.x) < 0.01 && Math.abs(u.y - v.y) < 0.01;
+        const alphaOf = (st) => Number((/rgba\([^)]*,([\d.]+)\)/.exec(st) || [])[1]);
+        const near = [];
+        const far = [];
+        let wanted = 0;
+        for (const r of rings) {
+            for (let i = 1; i < r.pts.length; i++) {
+                wanted += 1;
+                const a = r.pts[i - 1];
+                const b = r.pts[i];
+                const seg = segs.find((x) => same(x.a, a) && same(x.b, b));
+                if (seg) ((a.z + b.z) / 2 < r.centre.z ? near : far).push(alphaOf(seg.style));
+            }
+        }
+        const mean = (l) => Math.round((l.reduce((x, y) => x + y, 0) / Math.max(1, l.length)) * 1000) / 1000;
+        out.orbitInk = { rings: rings.length, wanted, found: near.length + far.length, min: Math.min(...near, ...far),
+            max: Math.max(...near, ...far), near: mean(near), far: mean(far) };
+        // The planets of one orbit stand off the plane of the system: the
+        // galaxy has depth within a system too.
+        out.leans.heights = sys.orbits.map((o) => Math.round(Math.max(...o.planets.map((n) => Math.abs(n.w[1]))) * 10) / 10);
+    }
+
     // The galaxy, as the page opens: the liveliest in front, no system over
     // another, every one inside the box; an orbit says its project only where
     // its planets do not.
@@ -249,13 +357,8 @@ window.done = (async () => {
     {
         const box0 = stage().getBoundingClientRect();
         const { places, pr } = viewOf();
-        const boxes = g.systems.map((sys) => {
-            const pts = Array.from({ length: 32 }, (_, i) => pr(worldOf(places.get(sys.name), at((i / 32) * TAU, sys.R))));
-            const xs = pts.map((q) => q.x);
-            const ys = pts.map((q) => q.y);
-            return { name: sys.name, x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs),
-                h: Math.max(...ys) - Math.min(...ys), z: pr(places.get(sys.name).c).z };
-        });
+        const boxes = g.systems.map((sys) => ({ name: sys.name, ...extentOf(sys, places.get(sys.name), pr),
+            z: pr(places.get(sys.name).c).z }));
         out.galaxy = {
             covered: boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => a.x < b.x + b.w && b.x < a.x + a.w
                 && a.y < b.y + b.h && b.y < a.y + a.h).map((b) => `${a.name}/${b.name}`)),
@@ -437,6 +540,21 @@ window.done = (async () => {
     g2.zoomOff = Math.max(...NAMES.map(([, n]) => Math.hypot(
         mark(n).x - (ml.x + g2.zoomBy * (marks0[n].x - ml.x)), mark(n).y - (ml.y + g2.zoomBy * (marks0[n].y - ml.y)))));
     await quiet();
+    // And out: the picture shrinks round the pointer and the names crowd, and
+    // still every name rides with its mark while the wheel turns.
+    await resetView();
+    const at1 = besides();
+    stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 300, deltaMode: 0, clientX: m.x, clientY: m.y }));
+    await frames(2);
+    const shrunk = names();
+    const small = (n) => ({ x: shrunk[n].x - at1[n].x, y: shrunk[n].y - at1[n].y });
+    const by = Math.hypot(small("draft").x - small("notes").x, small("draft").y - small("notes").y)
+        / Math.hypot(marks0.draft.x - marks0.notes.x, marks0.draft.y - marks0.notes.y);
+    g2.zoomOutBy = by;
+    g2.zoomOutOff = Math.max(...NAMES.map(([, n]) => Math.hypot(
+        small(n).x - (ml.x + by * (marks0[n].x - ml.x)), small(n).y - (ml.y + by * (marks0[n].y - ml.y)))));
+    await quiet();
+    await resetView();
     // The zoom stops at its bounds, in and out.
     const toward = (n, k) => ({ x: m.x + k * (marks0[n].x + box.left - m.x), y: m.y + k * (marks0[n].y + box.top - m.y) });
     stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -100000, clientX: m.x, clientY: m.y }));
@@ -518,8 +636,7 @@ window.done = (async () => {
     {
         const pr = camera(HOME, W, H, lensOf(cg, W, H));
         const sys = cg.systems[0];
-        const ys = Array.from({ length: 32 }, (_, i) => pr(worldOf(cplaces.get(sys.name), at((i / 32) * TAU, sys.R))).y);
-        out.galaxy.alone = Math.round(((Math.max(...ys) - Math.min(...ys)) / H) * 100) / 100;
+        out.galaxy.alone = Math.round((extentOf(sys, cplaces.get(sys.name), pr).h / H) * 100) / 100;
     }
     const cx = sheet.getContext("2d");
     const pal = { ink: "#eef1ff", wait: "#e3c97a", busy: "#63a8ff", cap: "#b98cff" };
@@ -691,10 +808,8 @@ window.done = (async () => {
     const areasOf = (front, order) => {
         const { g: seen, places, pr } = viewOf(front, order);
         return Object.fromEntries(seen.systems.map((sys) => {
-            const pts = Array.from({ length: 32 }, (_, i) => pr(worldOf(places.get(sys.name), at((i / 32) * TAU, sys.R))));
-            const xs = pts.map((q) => q.x);
-            const ys = pts.map((q) => q.y);
-            return [sys.name, Math.round((Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)))];
+            const b = extentOf(sys, places.get(sys.name), pr);
+            return [sys.name, Math.round(b.w * b.h)];
         }));
     };
     const largest = async (front, planet, order) => {
@@ -786,6 +901,69 @@ window.done = (async () => {
         gal.five.front = (await tipAt(starOf("small", "small", order))) === "small" ? "small" : "?";
         gal.five.largest = await largest("small", "solo", order);
         gal.five.areas = areasOf("small", order);
+        snapshot = before;
+        show();
+        await quiet();
+        await resetView();
+    }
+    // A snapshot that reorders the orbits carries them there: over some
+    // frames where motion is welcome, at once where less is asked for. stray
+    // starts to wait and outweighs shop: shop goes in, stray out.
+    {
+        const order = orderOf(graphOf(snapshot));
+        await press(starOf("personal", order[0], order));
+        await rest();
+        const before = snapshot;
+        const waits = { ...snapshot, sessions: snapshot.sessions.map((x) => (x.session === "stray" ? { ...x, status: "waiting" } : x)) };
+        const shopIn = (snap) => {
+            const kept = snapshot;
+            snapshot = snap;
+            const spot = spotOf("shop", "personal", order);
+            snapshot = kept;
+            return spot;
+        };
+        const to = shopIn(waits);
+        const from = shopIn(before);
+        gal.orbitGlide = { moved: Math.round(Math.hypot(to.x - from.x, to.y - from.y)) };
+        lessMotion = false;
+        drawn0 = draws;
+        snapshot = waits;
+        show();
+        await frames(3);
+        gal.orbitGlide.midway = await tipAt(to);
+        await rest();
+        gal.orbitGlide.frames = draws - drawn0;
+        gal.orbitGlide.arrived = await tipAt(to);
+        lessMotion = true;
+        drawn0 = draws;
+        snapshot = before;
+        show();
+        await until(() => draws > drawn0);
+        await frames(8);
+        gal.orbitGlide.backDraws = draws - drawn0;
+        gal.orbitGlide.back = await tipAt(from);
+        await quiet();
+        // shop stops working and weighs as stray does: the drawing keeps the
+        // orbits where they were, rather than the order of the map, which
+        // would put shop back inside.
+        const box1 = stage().getBoundingClientRect();
+        const spotWith = (gr, name) => {
+            const pr = camera(HOME, box1.width, box1.height, lensOf(gr, box1.width, box1.height));
+            const n = gr.nodes.find((x) => x.s.session === name);
+            const q = pr(worldOf(placesOf(gr, order, "personal").get(n.p.system), n.p.w));
+            return { x: box1.left + q.x, y: box1.top + q.y };
+        };
+        const tie = { ...before, sessions: before.sessions.map((x) => (x.session === "shop" ? { ...x, status: "idle" } : x)) };
+        const kept = spotWith(graphOf(tie, orbitsIn(graphOf(before))), "shop");
+        const fresh = spotWith(graphOf(tie), "shop");
+        gal.orbitTie = { apart: Math.round(Math.hypot(kept.x - fresh.x, kept.y - fresh.y)) };
+        drawn0 = draws;
+        snapshot = tie;
+        show();
+        await until(() => draws > drawn0);
+        await quiet();
+        gal.orbitTie.kept = await tipAt(kept);
+        gal.orbitTie.fresh = await tipAt(fresh);
         snapshot = before;
         show();
         await quiet();

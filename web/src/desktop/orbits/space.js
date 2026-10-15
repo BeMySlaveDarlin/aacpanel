@@ -2,13 +2,15 @@
 // seen. Numbers in, numbers out: nothing here draws or reads the page.
 //
 // A contour is a system of its own: a star, and round it an orbit for every
-// project with a live session, in the order of the map. The sessions of a
-// project are the planets of its orbit, each at an angle that says how long
-// ago it last asked the model — the meridian of now runs to the front of
-// every system alike, the time goes clockwise from it. A session another one
-// opened is that one's moon, at the angle of its own last request, and its
-// own sessions are moons of the moon. The systems stand in depth, a galaxy:
-// one in front, drawn large, the others smaller behind it.
+// project with a live session — the small and quiet ones inside, the large
+// and lively further out, each orbit as wide as the widest family on it and
+// leaning its own way. The sessions of a project are the planets of its
+// orbit, each at an angle that says how long ago it last asked the model —
+// the meridian of now runs to the front of every system alike, the time goes
+// clockwise from it. A session another one opened is that one's moon, at the
+// angle of its own last request, and its own sessions are moons of the moon.
+// The systems stand in depth, a galaxy: one in front, drawn large, the others
+// smaller behind it.
 
 export const TAU = Math.PI * 2;
 
@@ -38,14 +40,21 @@ export function idleOf(s, now) {
 }
 
 // The orbits of a system, in the units of the scene; the camera fits them to
-// the canvas, so only their proportions count. The first orbit keeps STAR
-// clear for the star and its name; the next stands a STEP out at least, and
-// further where the moons of two neighbouring orbits would meet. ROOM is what
-// a planet needs along its orbit for its mark and its name.
-const STAR = 40;
-const ORBIT_STEP = 58;
-const ORBIT_GAP = 30;
+// the canvas, so only their proportions count. An orbit is a band as wide as
+// the widest family on it — a planet and its moons of every depth across —
+// and BAND for the marks and the names beside it; the first band starts STAR
+// out, clear of the star and its name, and every orbit runs down the middle
+// of its band. ROOM is what a planet needs along its orbit for its mark and
+// its name.
+const STAR = 25;
+const BAND = 58;
 const ROOM = 70;
+
+// Every orbit leans its own way, the orbit of a planet's moons too: by an
+// inclination within INCLINE about a line through the star at an angle of its
+// own, both drawn from the name of the orbit — the same in every snapshot, and
+// not two alike.
+export const INCLINE = [(5 * Math.PI) / 180, (25 * Math.PI) / 180];
 
 // MOON is the orbit of a planet's moons; a moon's own moons go on an orbit
 // smaller by MOON_SHRINK, so a grandchild stays inside its parent's reach.
@@ -63,23 +72,62 @@ export function add(p, q) {
     return [p[0] + q[0], p[1] + q[1], p[2] + q[2]];
 }
 
+// hashOf is a number in [0, 1) that a name and a salt always give.
+function hashOf(name, salt) {
+    let h = 2166136261 ^ salt;
+    for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619);
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+// leanOf is how the orbit of a name leans: its inclination inc and the angle
+// of the line it leans about, node.
+export function leanOf(name) {
+    return { inc: INCLINE[0] + (INCLINE[1] - INCLINE[0]) * hashOf(name, 1), node: TAU * hashOf(name, 2) };
+}
+
+// inclined turns a point of an orbit's flat circle about the line of the
+// lean by its inclination.
+export function inclined(t, p) {
+    const nx = Math.cos(t.node);
+    const nz = Math.sin(t.node);
+    const c = Math.cos(t.inc);
+    const s = Math.sin(t.inc);
+    const dot = nx * p[0] + nz * p[2];
+    return [
+        p[0] * c - nz * p[1] * s + nx * dot * (1 - c),
+        p[1] * c + (nz * p[0] - nx * p[2]) * s,
+        p[2] * c + nx * p[1] * s + nz * dot * (1 - c),
+    ];
+}
+
+// onOrbit is the point of orbit o at angle a, in the plane of its system.
+export function onOrbit(o, a) {
+    return inclined(o.tilt, at(a, o.R));
+}
+
 // orbitOf is the radius of the orbit a node of depth d keeps its moons on.
 export function orbitOf(depth) {
     return MOON * MOON_SHRINK ** depth;
 }
 
 // layout places the nodes of every system in the plane of its system.
-// systems lists the contours, each with its orbits from the innermost out:
-// { name, orbits: [{ key, name, keys }] }, keys being the planets of the
-// orbit; nodes maps the key of every session to { parent, idle }, parent the
-// key of the session that opened it within the same contour. It answers the
-// systems that have a planet, each with its radius R and its orbits with
-// theirs, and for every node its point in its system's plane (w), its angle,
-// its depth among moons, its moons and the radius of their orbit.
+// systems lists the contours, each with its orbits: { name, orbits: [{ key,
+// name, keys }] }, keys being the planets of the orbit; nodes maps the key of
+// every session to { parent, idle, pull }, parent the key of the session that
+// opened it within the same contour, pull how hard it draws its orbit out — a
+// session at work or waiting. An orbit weighs as many as the sessions of its
+// families, moons of every depth among them, and their pull; the lighter
+// stand inside, and orbits of equal weight keep the order they came in. It
+// answers the systems that have a planet, each with its radius R and its
+// orbits with theirs, their bands and leans, and for every node its point in
+// its system's plane (w), its angle, its depth among moons, its moons, the
+// radius of their orbit and its lean.
 export function layout(systems, nodes) {
     const placed = new Map();
     for (const [key, n] of nodes) {
-        placed.set(key, { key, parent: n.parent || null, idle: n.idle, ang: dial(n.idle), kids: [], depth: 0, w: null });
+        placed.set(key, { key, parent: n.parent || null, idle: n.idle, pull: n.pull || 0, ang: dial(n.idle), kids: [], depth: 0, w: null });
     }
     // A parent that is not live, or a chain of parents that comes back to the
     // node itself, leaves the node a planet: it has nobody to orbit.
@@ -94,18 +142,22 @@ export function layout(systems, nodes) {
             .map((o) => ({ ...o, planets: o.keys.map((k) => placed.get(k)).filter((n) => n && !n.parent) }))
             .filter((o) => o.planets.length > 0);
         if (orbits.length === 0) continue;
-        let r = 0;
-        orbits.forEach((o, i) => {
+        for (const o of orbits) {
             for (const p of o.planets) depthOf(p, 0);
             o.reach = Math.max(...o.planets.map(reach));
-            r = i === 0 ? STAR + o.reach + 14 : r + Math.max(ORBIT_STEP, orbits[i - 1].reach + o.reach + ORBIT_GAP);
-            o.R = r;
+            o.weight = o.planets.reduce((sum, p) => sum + weightOf(p), 0);
+        }
+        orbits.sort((a, b) => a.weight - b.weight);
+        let edge = STAR;
+        for (const o of orbits) {
+            o.band = 2 * o.reach + BAND;
+            o.R = edge + o.band / 2;
+            edge += o.band;
+            o.tilt = leanOf(`${sys.name}/${o.key}`);
             spread(o.planets, (a, b) => Math.max(ROOM + reach(a), ROOM + reach(b)) / o.R);
-            for (const p of o.planets) {
-                p.w = at(p.ang, o.R);
-                moons(p);
-            }
-        });
+            for (const p of o.planets) spreadMoons(p);
+            placeOrbit(o);
+        }
         const members = [];
         const gather = (n) => {
             n.system = sys.name;
@@ -136,7 +188,13 @@ function loops(n, placed) {
 function depthOf(n, depth) {
     n.depth = depth;
     n.orbit = orbitOf(depth);
+    n.lean = leanOf(`moons/${n.key}`);
     for (const k of n.kids) depthOf(k, depth + 1);
+}
+
+// weightOf is what a family weighs: a session apiece and their pull.
+function weightOf(n) {
+    return 1 + n.pull + n.kids.reduce((sum, k) => sum + weightOf(k), 0);
 }
 
 // reach is how far a node's moons, and theirs, stand from it.
@@ -145,12 +203,26 @@ function reach(n) {
     return n.orbit + Math.max(...n.kids.map(reach));
 }
 
-function moons(p) {
+function spreadMoons(p) {
     if (p.kids.length === 0) return;
     spread(p.kids, () => MOON_ROOM / p.orbit);
+    for (const k of p.kids) spreadMoons(k);
+}
+
+function moons(p) {
     for (const k of p.kids) {
-        k.w = add(p.w, at(k.ang, p.orbit));
+        k.w = add(p.w, inclined(p.lean, at(k.ang, p.orbit)));
         moons(k);
+    }
+}
+
+// placeOrbit puts the planets of an orbit, and their moons, where the
+// orbit's radius and lean say: on a new snapshot, and on every frame of an
+// orbit gliding to a new place.
+export function placeOrbit(o) {
+    for (const p of o.planets) {
+        p.w = onOrbit(o, p.ang);
+        moons(p);
     }
 }
 

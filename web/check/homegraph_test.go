@@ -27,8 +27,34 @@ type homeGraph struct {
 	MoonSizes  []float64          `json:"moonSizes"`
 	OrbitOf    map[string]string  `json:"orbitOf"`
 	Stars      []float64          `json:"stars"`
-	Order      []string           `json:"order"`
-	Galaxy     struct {
+	Weights    struct {
+		Order     []string       `json:"order"`
+		Weights   map[string]int `json:"weights"`
+		Bands     []float64      `json:"bands"`
+		Radii     []float64      `json:"radii"`
+		TieFresh  []string       `json:"tieFresh"`
+		TieKept   []string       `json:"tieKept"`
+		Later     []string       `json:"later"`
+		Reordered []string       `json:"reordered"`
+	} `json:"weights"`
+	Leans struct {
+		Range   []float64            `json:"range"`
+		First   map[string][]float64 `json:"first"`
+		Later   map[string][]float64 `json:"later"`
+		Moons   map[string][]float64 `json:"moons"`
+		Heights []float64            `json:"heights"`
+	} `json:"leans"`
+	OrbitInk struct {
+		Rings  int     `json:"rings"`
+		Wanted int     `json:"wanted"`
+		Found  int     `json:"found"`
+		Min    float64 `json:"min"`
+		Max    float64 `json:"max"`
+		Near   float64 `json:"near"`
+		Far    float64 `json:"far"`
+	} `json:"orbitInk"`
+	Order  []string `json:"order"`
+	Galaxy struct {
 		Covered    []string `json:"covered"`
 		Outside    []string `json:"outside"`
 		Nearest    string   `json:"nearest"`
@@ -71,6 +97,19 @@ type homeGraph struct {
 			Largest string         `json:"largest"`
 			Areas   map[string]int `json:"areas"`
 		} `json:"five"`
+		OrbitTie struct {
+			Apart int    `json:"apart"`
+			Kept  string `json:"kept"`
+			Fresh string `json:"fresh"`
+		} `json:"orbitTie"`
+		OrbitGlide struct {
+			Moved     int    `json:"moved"`
+			Midway    string `json:"midway"`
+			Frames    int    `json:"frames"`
+			Arrived   string `json:"arrived"`
+			Back      string `json:"back"`
+			BackDraws int    `json:"backDraws"`
+		} `json:"orbitGlide"`
 	} `json:"carousel"`
 	Phase map[string]json.RawMessage `json:"phase"`
 	Quiet struct {
@@ -123,6 +162,8 @@ type homeGraph struct {
 		ZoomBy       float64 `json:"zoomBy"`
 		ZoomKept     float64 `json:"zoomKept"`
 		ZoomOff      float64 `json:"zoomOff"`
+		ZoomOutBy    float64 `json:"zoomOutBy"`
+		ZoomOutOff   float64 `json:"zoomOutOff"`
 		ZoomIn       struct {
 			Bound float64 `json:"bound"`
 			Tip   string  `json:"tip"`
@@ -268,11 +309,11 @@ func int64ish(v float64) float64 {
 	return math.Round(v)
 }
 
-// A contour is a system: an orbit for every project with a live session, in
-// the order of the map rather than by what is busy, the equal sessions of a
-// project as planets of one orbit, the sessions of no project on an orbit of
-// their own outside the rest. An orbit names its project only where its
-// planets do not.
+// A contour is a system: an orbit for every project with a live session, the
+// equal sessions of a project as planets of one orbit, the sessions of no
+// project on an orbit of their own — here stray alone weighs less than shop at
+// work and stands inside it. An orbit names its project only where its planets
+// do not.
 func TestAContourIsASystemOfItsProjects(t *testing.T) {
 	got := runHomeGraph(t)
 
@@ -282,7 +323,7 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 		label   bool
 	}
 	want := map[string][]orbit{
-		"personal": {{"p11", "shop", false}, {"outside", "stray", true}},
+		"personal": {{"outside", "stray", true}, {"p11", "shop", false}},
 		"client":   {{"p21", "draft", true}, {"p22", "blog,notes", false}},
 		"lab":      {{"p31", "bench-1", false}},
 	}
@@ -299,8 +340,8 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 			last = o.R
 		}
 		if !reflect.DeepEqual(have, want[sys.Name]) {
-			t.Errorf("%s holds the orbits %v, want %v: an orbit a project in the order of the map, its sessions its "+
-				"planets, the moons off it, outside the map last", sys.Name, have, want[sys.Name])
+			t.Errorf("%s holds the orbits %v, want %v: an orbit a project, the lighter inside, its sessions its "+
+				"planets, the moons off it", sys.Name, have, want[sys.Name])
 		}
 	}
 	if !reflect.DeepEqual(names, []string{"personal", "client", "lab"}) {
@@ -621,6 +662,10 @@ func TestTheGraphIsHandledAsAMap(t *testing.T) {
 	if !g.WheelPrevent {
 		t.Error("the wheel over the graph scrolls the page as it zooms")
 	}
+	if math.Abs(g.ZoomOutBy-math.Exp(-0.45)) > 0.01 || g.ZoomOutOff > 1 {
+		t.Errorf("the wheel out scales the picture by %.3f (want %.3f) with the names up to %.2f px off their marks: "+
+			"the names crowd as the picture shrinks, and still every one rides with its mark", g.ZoomOutBy, math.Exp(-0.45), g.ZoomOutOff)
+	}
 	if math.Abs(g.ZoomBy-math.Exp(0.45)) > 0.01 || g.ZoomKept > 1 || g.ZoomOff > 1 {
 		t.Errorf("300 px of the wheel scaled the picture by %.3f (want %.3f), moved the mark under the pointer by %.2f px "+
 			"and the others up to %.2f px off the scale round it: the zoom keeps the point under the pointer, "+
@@ -697,5 +742,129 @@ func TestNamesBehindTheFrontStandClear(t *testing.T) {
 	if len(q.Front.Hidden) != 0 || q.Front.Clashes == 0 {
 		t.Errorf("the system in front hides the names %v (and writes %d over each other — the fixture is to be crowded)",
 			q.Front.Hidden, q.Front.Clashes)
+	}
+}
+
+// The orbits of a contour go out by weight: a session of the project apiece,
+// its moons of every depth among them, a busy one once more and a waiting one
+// twice. The small and quiet stand inside, the large and lively outside, each
+// orbit as wide as the widest family on it, and the next one out half its
+// band and half its own further. Orbits of equal weight keep the order they
+// were drawn in; a snapshot that leaves the order of the weights as it was
+// moves no orbit, one that changes it does.
+func TestTheOrbitsGoOutByWeight(t *testing.T) {
+	w := runHomeGraph(t).Weights
+	if want := []string{"p43", "p42", "p44", "p41"}; !reflect.DeepEqual(w.Order, want) {
+		t.Errorf("solo (one idle), pair (two), late (one waiting) and big (four and two moons) go out as %v, want %v: "+
+			"by weight, not by the map; weights %v", w.Order, want, w.Weights)
+	}
+	if want := map[string]int{"p43": 1, "p42": 2, "p44": 3, "p41": 6}; !reflect.DeepEqual(w.Weights, want) {
+		t.Errorf("the orbits weigh %v, want %v: a session apiece with its moons, a waiting one twice more", w.Weights, want)
+	}
+	if len(w.Bands) != 4 || len(w.Radii) != 4 || !(w.Bands[3] > w.Bands[0]) || w.Bands[0] != w.Bands[1] {
+		t.Fatalf("the bands are %v: the orbit of a family with moons is wider than one of lone planets", w.Bands)
+	}
+	for i := 1; i < 4; i++ {
+		if gap := w.Radii[i] - w.Radii[i-1]; math.Abs(gap-(w.Bands[i-1]+w.Bands[i])/2) > 0.15 {
+			t.Errorf("the orbit %d stands %v out from the one inside it, with bands %v and %v: the next orbit is half "+
+				"the band before and half its own further", i, gap, w.Bands[i-1], w.Bands[i])
+		}
+	}
+	if want := []string{"p42", "p43", "p44", "p41"}; !reflect.DeepEqual(w.TieFresh, want) {
+		t.Errorf("with nothing drawn before, pair and solo of equal weight stand %v: the order of the map, want %v", w.TieFresh, want)
+	}
+	if !reflect.DeepEqual(w.TieKept, w.Order) {
+		t.Errorf("solo grows to the weight of pair and the orbits go %v after %v: equal weights keep their places", w.TieKept, w.Order)
+	}
+	if !reflect.DeepEqual(w.Later, w.Order) {
+		t.Errorf("a later snapshot with the same order of weights draws the orbits %v after %v", w.Later, w.Order)
+	}
+	if want := []string{"p42", "p44", "p41", "p43"}; !reflect.DeepEqual(w.Reordered, want) {
+		t.Errorf("solo with three sessions at work outweighs big and the orbits go %v, want %v", w.Reordered, want)
+	}
+}
+
+// Every orbit leans its own way, between 5 and 25 degrees about a line of its
+// own, and so does the orbit of a planet's moons: the same in every snapshot,
+// and no two alike. The planets stand off the plane of their star.
+func TestEveryOrbitLeansItsOwnWay(t *testing.T) {
+	l := runHomeGraph(t).Leans
+	if len(l.Range) != 2 || l.Range[0] != 5 || l.Range[1] != 25 {
+		t.Errorf("the orbits lean between %v degrees, not 5 and 25", l.Range)
+	}
+	incs := map[float64]string{}
+	nodes := map[float64]string{}
+	all := map[string][]float64{}
+	for k, v := range l.First {
+		all["orbit "+k] = v
+	}
+	for k, v := range l.Moons {
+		all["moons of "+k] = v
+	}
+	if len(all) != 6 {
+		t.Fatalf("the leans of %d orbits came back, not four orbits and two of moons: %v", len(all), all)
+	}
+	for k, v := range all {
+		if len(v) != 2 || v[0] < 5 || v[0] > 25 {
+			t.Errorf("%s leans %v degrees", k, v)
+			continue
+		}
+		if other, ok := incs[v[0]]; ok {
+			t.Errorf("%s and %s lean by the same %v degrees", k, other, v[0])
+		}
+		if other, ok := nodes[v[1]]; ok {
+			t.Errorf("%s and %s lean about the same line, at %v degrees", k, other, v[1])
+		}
+		incs[v[0]] = k
+		nodes[v[1]] = k
+	}
+	if !reflect.DeepEqual(l.First, l.Later) {
+		t.Errorf("the orbits lean %v, and %v in a later snapshot: a lean is the orbit's own", l.First, l.Later)
+	}
+	for i, h := range l.Heights {
+		if h < 1 {
+			t.Errorf("the planets of orbit %d stand %v off the plane of their star: a leaning orbit takes them off it", i, h)
+		}
+	}
+}
+
+// The orbits, and the orbits of the moons, are barely there: hairlines at an
+// opacity of 0.05 to 0.08, the half nearer the eye the brighter.
+func TestTheOrbitsAreBarelyThere(t *testing.T) {
+	o := runHomeGraph(t).OrbitInk
+	if o.Rings != 6 || o.Found != o.Wanted || o.Wanted == 0 {
+		t.Fatalf("%d of %d segments of %d orbits found among the strokes: every orbit is drawn in its lean", o.Found, o.Wanted, o.Rings)
+	}
+	if o.Min < 0.05 || o.Max > 0.08 {
+		t.Errorf("the orbits are drawn at an opacity of %v to %v: barely there is 0.05 to 0.08", o.Min, o.Max)
+	}
+	if !(o.Near > o.Far) {
+		t.Errorf("the near half of the orbits is drawn at %v against %v for the far half: the near half is the brighter", o.Near, o.Far)
+	}
+}
+
+// A snapshot that moves an orbit in or out carries it there over some frames,
+// at once where less motion is asked for; one that leaves two orbits of equal
+// weight moves neither.
+func TestAnOrbitGlidesToItsNewPlace(t *testing.T) {
+	c := runHomeGraph(t).Carousel
+	g := c.OrbitGlide
+	if g.Moved < 40 {
+		t.Fatalf("shop moves %d px as its orbit goes in: the fixture is to move it further than a mark", g.Moved)
+	}
+	if g.Midway == "shop" || g.Arrived != "shop" || g.Frames < 6 {
+		t.Errorf("a few frames in, the tip at shop's new place says %q, %d frames later %q: shop glides in, not jumps", g.Midway, g.Frames, g.Arrived)
+	}
+	if g.Back != "shop" || g.BackDraws > 3 {
+		t.Errorf("where less motion is asked for, the snapshot back draws %d frames and shop's old place says %q: "+
+			"it is there at once", g.BackDraws, g.Back)
+	}
+	tie := c.OrbitTie
+	if tie.Apart < 40 {
+		t.Fatalf("shop's place by the order of the map stands %d px from its place kept: the fixture is to tell them apart", tie.Apart)
+	}
+	if tie.Kept != "shop" || tie.Fresh == "shop" {
+		t.Errorf("shop stops working and weighs as stray: its kept place says %q, its place by the map %q — "+
+			"orbits of equal weight stay where they were drawn", tie.Kept, tie.Fresh)
 	}
 }
