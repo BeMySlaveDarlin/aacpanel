@@ -1025,3 +1025,24 @@ func TestTheOrbitsTurnAsPlanetsDo(t *testing.T) {
 			"planets with moons", sp.OffBy, sp.Kept)
 	}
 }
+
+// The graph keeps the size of its box where the styles of the wide screen do
+// not reach — the wide shell drawn on a phone, as a page of the check does:
+// a canvas whose size were its pixels would grow with every frame drawn in
+// it, and a frame of a canvas a million pixels tall takes seconds.
+func TestTheGraphKeepsTheSizeOfItsBox(t *testing.T) {
+	var got struct {
+		Graph *struct {
+			Stage int `json:"stage"`
+			Keys  int `json:"keys"`
+		} `json:"graph"`
+	}
+	runFixture(t, "termsabsent.html", &got)
+	if got.Graph == nil {
+		t.Fatal("the wide shell drew no graph on its home")
+	}
+	if got.Graph.Stage > 400 || got.Graph.Keys > 64 {
+		t.Errorf("unstyled, the stage of the graph is %d px tall and a key of its legend %d px wide: each keeps the size "+
+			"of its box", got.Graph.Stage, got.Graph.Keys)
+	}
+}

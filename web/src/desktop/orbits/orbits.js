@@ -391,12 +391,15 @@ function Tip({ tip, front, onPlaced }) {
 
 // Key is the mark the legend names, drawn as the scene draws it: on a canvas
 // of its own, again when the theme or the scale changes it.
+const KEY_MAX = 32;
 function Key({ kind, theme }) {
     const ref = useRef(null);
     useEffect(() => {
         const el = ref.current;
         const draw = () => {
-            const size = el.getBoundingClientRect().width;
+            // No larger than KEY_MAX: a key its styles do not size takes the
+            // size of its pixels, and would grow with every time it is drawn.
+            const size = Math.min(el.getBoundingClientRect().width, KEY_MAX);
             const dpr = window.devicePixelRatio || 1;
             el.width = Math.round(size * dpr);
             el.height = Math.round(size * dpr);
@@ -625,8 +628,15 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             const dpr = window.devicePixelRatio || 1;
             const W = Math.max(10, box.width);
             const H = Math.max(10, box.height);
-            canvas.current.width = Math.round(W * dpr);
-            canvas.current.height = Math.round(H * dpr);
+            // The canvas is held to the box it was measured from: where the
+            // styles of the wide screen do not size it, its pixels would be
+            // its size, and the box would grow with every frame drawn in it.
+            const cv = canvas.current;
+            cv.style.display = "block";
+            cv.style.width = `${W}px`;
+            cv.style.height = `${H}px`;
+            cv.width = Math.round(W * dpr);
+            cv.height = Math.round(H * dpr);
             live.current.size = { W, H, dpr };
             live.current.lens = null;
             paintRef.current();

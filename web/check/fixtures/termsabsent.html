@@ -93,6 +93,13 @@ window.done = (async () => {
         out.deck = Boolean(document.querySelector("#chat .deck"));
         out.button = Boolean(document.querySelector("#chat .tjump"));
         out.emptyScreen = Boolean(document.querySelector(".tpage, .dkterms, .dkterm"));
+        // The graph of the wide screen's home, drawn on a phone where the
+        // wide screen's styles do not reach: its stage and the keys of its
+        // legend keep the size of their boxes.
+        const stage = document.querySelector("#desk .dkorbstage");
+        const keys = Array.from(document.querySelectorAll("#desk .dkorbkey"));
+        out.graph = stage ? { stage: Math.round(stage.getBoundingClientRect().height),
+            keys: Math.max(0, ...keys.map((k) => Math.round(k.getBoundingClientRect().width))) } : null;
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }
