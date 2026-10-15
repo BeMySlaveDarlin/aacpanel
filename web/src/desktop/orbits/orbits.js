@@ -1,14 +1,19 @@
 // The graph of the live sessions at the top of the home screen: every contour
 // a ring round the host, every session a mark on its ring at the angle of its
 // last request, the sessions it opened its moons. A click opens the session as
-// its row in the column opens it, a right click opens the same menu, a drag
-// turns the scene.
+// its row in the column opens it, a right click opens the same menu.
+//
+// It is handled as a map is: a drag moves the picture, the wheel scales it
+// round the pointer, and a drag with Shift or with the middle button turns
+// the scene. The wheel over the graph is the graph's, so the page does not
+// scroll under it there; Reset view brings back the turn, the place and the
+// scale it opened with.
 //
 // The scene is drawn when what it shows changes — the snapshot, the theme,
-// the size, a turn — and not on every frame: a home screen left open all day
-// should cost nothing while nothing moves. Only the turning of its own,
-// switched on by the person, draws frame after frame, and it stops while the
-// page is hidden. Where the system asks for less motion it starts off.
+// the size, a turn, a move — and not on every frame: a home screen left open
+// all day should cost nothing while nothing moves. Only the turning of its
+// own, switched on by the person, draws frame after frame, and it stops while
+// the page is hidden. Where the system asks for less motion it starts off.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -19,7 +24,7 @@ import { contourOfLive } from "../../screens/sessions/map.js";
 import { pageNames } from "../../screens/sessions/pages.js";
 import { useMenu } from "../../ui/menu.js";
 import { liveMenuOf } from "../sessionmenu.js";
-import { HOME, PITCH, camera, idleOf, layout, lensFor } from "./space.js";
+import { HOME, PITCH, camera, idleOf, layout, lensAt, lensFor, zoomAt } from "./space.js";
 import { HALO, drawKey, drawScene, overlap } from "./scene.js";
 
 // PAD keeps the scene off the edges of its canvas: [top, right, bottom, left].
@@ -37,12 +42,22 @@ const SPIN = 0.00007;
 // A press that travels further than this is a drag, not a click.
 const SLOP = 3;
 
-// The scale of the type against the root size of the interface: the names at
-// the size of the smallest text of the panel, the scale and the host twice as
-// large and thin. The marks are drawn for a root of UNIT_PX — the size the
-// interface opens on — and grow with it.
-const TAG_REM = 0.74;
-const BIG_REM = 1.4;
+// How much a pixel of the wheel scales the picture: a notch of a mouse wheel,
+// a hundred pixels, is about a seventh.
+const WHEEL = 0.0015;
+
+// How long the wheel rests before the zoom counts as done. While a move or a
+// zoom goes on no name changes its side; once it is done, a name the move
+// has brought onto another moves off it, once — as an answer to the gesture
+// rather than a jump some seconds later, with the next snapshot.
+const WHEEL_DONE = 250;
+
+// The scale of the type against the root size of the interface: the names a
+// step under the body text, read from across the desk without leaning in; the
+// scale and the host about twice as large and thin. The marks are drawn for a
+// root of UNIT_PX — the size the interface opens on — and grow with it.
+const TAG_REM = 0.86;
+const BIG_REM = 1.6;
 const UNIT_PX = 18;
 
 const REDUCE = "(prefers-reduced-motion: reduce)";
@@ -246,7 +261,7 @@ function Legend({ theme }) {
             ${KEYS.map(([kind, label]) => html`
                 <span key=${kind} class=${kind === "wait" ? "dkorbwait" : ""}><${Key} kind=${kind} theme=${theme} />${label}</span>
             `)}
-            <span class="dkorbhelp">drag to turn · click opens · right-click — menu</span>
+            <span class="dkorbhelp">drag to move · Shift-drag to turn · wheel to zoom · click opens · right-click — menu</span>
         </div>
     `;
 }
@@ -264,13 +279,21 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     const canvas = useRef(null);
     // What the drawing works from lives in a ref: a drag or a frame of the
     // turn redraws without a render of the component.
-    const live = useRef({ view: { ...HOME }, size: null, lens: null, hits: [], taken: [], drag: null, frame: 0, spin: 0 });
+    const live = useRef({
+        view: { ...HOME }, zoom: 1, pan: { x: 0, y: 0 }, size: null, lens: null,
+        hits: [], taken: [], sides: new Map(), settle: true, drag: null, frame: 0, spin: 0, zoomed: 0,
+    });
     const [tip, setTip] = useState(null);
     const [auto, setAuto] = useState(() => !window.matchMedia(REDUCE).matches);
 
-    const paint = () => {
+    // paint draws the scene as it stands. settle says the scene turned or
+    // changed, so a name its side has come to cover may move; a frame of a
+    // move or a zoom alone keeps every name where it was beside its mark.
+    const paint = (settle = true) => {
         const st = live.current;
         st.frame = 0;
+        const turned = settle || st.settle;
+        st.settle = false;
         const el = canvas.current;
         if (!el || !st.size || graph.rings.length === 0) return;
         const { W, H, dpr } = st.size;
@@ -280,7 +303,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         const ctx = el.getContext("2d");
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
-        const pr = camera(st.view, W, H, st.lens);
+        const pr = camera(st.view, W, H, lensAt(st.lens, st.zoom, st.pan));
         const drawn = drawScene(ctx, W, H, pr, {
             rings: graph.rings,
             nodes: graph.nodes,
@@ -288,6 +311,8 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             host: (snapshot && snapshot.hostName) || "host",
             pal: paletteOf(stage.current),
             type: typeOf(stage.current),
+            sides: st.sides,
+            settle: turned,
         });
         st.hits = drawn.hits;
         st.taken = drawn.taken;
@@ -296,10 +321,13 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     paintRef.current = paint;
     // A frame asked for draws what stands when it comes, not what stood when
     // it was asked: a new snapshot between the two is drawn, not lost.
-    const request = () => {
+    const request = (settle = true) => {
         const st = live.current;
-        if (!st.frame) st.frame = requestAnimationFrame(() => paintRef.current());
+        st.settle = st.settle || settle;
+        if (!st.frame) st.frame = requestAnimationFrame(() => paintRef.current(false));
     };
+    const requestRef = useRef(request);
+    requestRef.current = request;
 
     // The canvas follows its box and the density of the screen.
     useEffect(() => {
@@ -367,16 +395,54 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
 
     useEffect(() => () => cancelAnimationFrame(live.current.frame), []);
 
+    // The wheel scales the picture round the pointer. It is listened to by
+    // hand: a wheel the page may not cancel would scroll the page under the
+    // graph with every step of the zoom.
+    useEffect(() => {
+        const el = stage.current;
+        const wheel = (e) => {
+            const st = live.current;
+            e.preventDefault();
+            if (!st.size || !st.lens) return;
+            const box = el.getBoundingClientRect();
+            const px = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? st.size.H : 1;
+            const m = { x: e.clientX - box.left, y: e.clientY - box.top };
+            const c = { x: st.size.W / 2 + st.lens.ox, y: st.size.H / 2 + st.lens.oy };
+            const next = zoomAt(st.zoom, st.pan, Math.exp(-e.deltaY * px * WHEEL), m, c);
+            if (next.zoom === st.zoom) return;
+            st.zoom = next.zoom;
+            st.pan = next.pan;
+            hideRef.current();
+            requestRef.current(false);
+            clearTimeout(st.zoomed);
+            st.zoomed = setTimeout(() => requestRef.current(true), WHEEL_DONE);
+        };
+        el.addEventListener("wheel", wheel, { passive: false });
+        return () => {
+            el.removeEventListener("wheel", wheel);
+            clearTimeout(live.current.zoomed);
+        };
+    }, []);
+
     const point = (e) => {
         const box = stage.current.getBoundingClientRect();
         return { x: e.clientX - box.left, y: e.clientY - box.top };
     };
     const show = (h, at) => setTip(h ? { node: h.node, x: at.x, y: at.y } : null);
+    const hideRef = useRef(null);
+    hideRef.current = () => { if (tip) setTip(null); };
 
+    // A drag with the left button moves the picture; with Shift, or with the
+    // middle button, it turns the scene. The middle button's own scrolling of
+    // the page is turned down on the graph.
     const down = (e) => {
-        if (e.button !== 0) return;
+        if (e.button !== 0 && e.button !== 1) return;
+        if (e.button === 1) e.preventDefault();
         const st = live.current;
-        st.drag = { x: e.clientX, y: e.clientY, view: { ...st.view }, moved: false };
+        st.drag = {
+            x: e.clientX, y: e.clientY, button: e.button, turn: e.button === 1 || e.shiftKey,
+            view: { ...st.view }, pan: { ...st.pan }, moved: false,
+        };
         try {
             stage.current.setPointerCapture(e.pointerId);
         } catch {
@@ -391,10 +457,15 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             const dy = e.clientY - st.drag.y;
             if (!st.drag.moved && Math.abs(dx) + Math.abs(dy) <= SLOP) return;
             st.drag.moved = true;
-            const pitch = Math.max(PITCH[0], Math.min(PITCH[1], st.drag.view.pitch + dy * DRAG_PITCH));
-            st.view = { yaw: st.drag.view.yaw + dx * DRAG_YAW, pitch };
+            stage.current.classList.add("drag");
+            if (st.drag.turn) {
+                const pitch = Math.max(PITCH[0], Math.min(PITCH[1], st.drag.view.pitch + dy * DRAG_PITCH));
+                st.view = { yaw: st.drag.view.yaw + dx * DRAG_YAW, pitch };
+            } else {
+                st.pan = { x: st.drag.pan.x + dx, y: st.drag.pan.y + dy };
+            }
             if (tip) setTip(null);
-            request();
+            request(st.drag.turn);
             return;
         }
         const h = hitAt(st.hits, at.x, at.y);
@@ -404,7 +475,9 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         const st = live.current;
         const drag = st.drag;
         st.drag = null;
-        if (!drag || drag.moved) return;
+        stage.current.classList.remove("drag");
+        if (drag && drag.moved && !drag.turn) request(true);
+        if (!drag || drag.moved || drag.button !== 0) return;
         const at = point(e);
         const h = hitAt(st.hits, at.x, at.y);
         if (h) onSession({ name: h.node.s.session, id: h.node.s.sessionId });
@@ -420,7 +493,10 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         menu(...liveMenuOf(s, { exec, snapshot, wait, onOpen: open, onTerm }))(e, stage.current);
     };
     const reset = () => {
-        live.current.view = { ...HOME };
+        const st = live.current;
+        st.view = { ...HOME };
+        st.zoom = 1;
+        st.pan = { x: 0, y: 0 };
         request();
     };
     const placed = (el) => {
@@ -454,7 +530,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
                 onPointerDown=${down}
                 onPointerMove=${move}
                 onPointerUp=${up}
-                onPointerCancel=${() => { live.current.drag = null; }}
+                onPointerCancel=${() => { live.current.drag = null; stage.current.classList.remove("drag"); }}
                 onPointerLeave=${() => { if (!live.current.drag) setTip(null); }}
                 onContextMenu=${context}
             >

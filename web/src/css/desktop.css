@@ -1691,6 +1691,8 @@
 
     .dkorbstage.over { cursor: pointer; }
 
+    .dkorbstage.drag { cursor: grabbing; }
+
     .dkorbstage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 
     .dkorbempty {

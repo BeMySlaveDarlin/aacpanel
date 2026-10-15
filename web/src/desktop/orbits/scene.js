@@ -15,16 +15,18 @@ const NEAR = 62;
 const SCALE = [[60, "an hour"], [DAY, "a day"]];
 
 // Sizes of the marks in units of the scene: a unit is a pixel at the scale
-// the interface opens on, and grows with it as the type does. The hairlines
-// stay hairlines at any scale.
-const NODE_R = 2.6;
+// the interface opens on, and grows with it as the type does. A mark is large
+// enough to aim the pointer at and to read its arc without leaning in; the
+// rings stay hairlines at any scale.
+const NODE_R = 5;
 const MOON_R = NODE_R * 0.75;
-const ARC_GAP = 5;
-export const HALO = 5;
+const ARC_GAP = 7;
+const BEADS = 8;
+export const HALO = 6;
 const FAR = 0.35;
-const GLOW = 150;
-const REACH = [10, 22, 36];
-const TAG_PAD = [2, 4];
+const GLOW = 170;
+const REACH = [12, 28, 46];
+const TAG_PAD = [2, 5];
 
 // rgba is a colour of the palette at an opacity. The palette is written in
 // hex in the styles, so this is all the parsing it takes.
@@ -87,12 +89,41 @@ function caption(ctx, text, f, colour, x, y, align, taken) {
     taken.push({ x: x0 - 3, y: y - 2, w: w + 6, h: f.size * 1.3 + 3 });
 }
 
-// tags places the names of the nodes: the most wanted first, each where it
-// covers the least of what is drawn and named already, beside its node or on
-// a hairline leader further off.
-function tags(ctx, W, H, items, taken, discs, core, leader, u) {
+// The sides a name may stand on round its mark: the eight points of the
+// compass, fixed on the screen, at three distances. A side kept from one frame
+// to the next is the same side however the scene turns or moves.
+const SIDES = Array.from({ length: 8 }, (_, i) => [Math.cos((i * Math.PI) / 4), -Math.sin((i * Math.PI) / 4)]);
+
+// A name keeps its side while it covers no more than TOUCH of what is drawn
+// and named (in the weighted area clash counts), and leaves it only for a side
+// that clashes less than SWITCH of what it does now: a side a little better is
+// not worth the name jumping across its mark.
+export const TOUCH = 32;
+const SWITCH = 0.5;
+
+// clash is how much a name at rect covers: the edges of the canvas, the names
+// and captions placed before it, the marks.
+function clash(rect, W, H, taken, discs) {
+    let c = 0;
+    if (rect.x < 3 || rect.y < 3 || rect.x + rect.w > W - 3 || rect.y + rect.h > H - 3) c += 1e6;
+    for (const t of taken) c += overlap(rect, t) * 8;
+    for (const q of discs) c += overlap(rect, { x: q.x - q.r, y: q.y - q.r, w: q.r * 2, h: q.r * 2 }) * 5;
+    return c;
+}
+
+// tags places the names of the nodes, the most wanted first, each beside its
+// node or on a hairline leader further off. sides keeps where every name stood
+// the frame before: a name stays there while it covers nothing, and the side
+// is chosen anew — outward from the host first — only for a new name or one
+// its side has come to cover. Where nothing turns (settle false: the scene
+// only moved or grew) no name changes its side at all, and the names ride
+// with their marks. It answers every name with the side it took and how much
+// that covers, and, where it left one, the side it left and how much that
+// side covered.
+function tags(ctx, W, H, items, taken, discs, core, leader, u, sides, settle) {
     const pad = TAG_PAD.map((v) => v * u);
     const reach = REACH.map((v) => v * u);
+    const labels = [];
     items.sort((a, b) => b.pri - a.pri);
     for (const it of items) {
         let w = 0;
@@ -105,43 +136,50 @@ function tags(ctx, W, H, items, taken, discs, core, leader, u) {
         }
         const bw = w + pad[1] * 2;
         const bh = h + pad[0] * 2;
-        let ux = it.x - core.x;
-        let uy = it.y - core.y;
-        const ul = Math.hypot(ux, uy) || 1;
-        ux /= ul;
-        uy /= ul;
-        // Outward from the host first, then turning away from it, then the
-        // four plain sides.
-        const dirs = [];
-        for (const rot of [0, 0.5, -0.5, 1, -1, 1.6, -1.6, Math.PI]) {
-            const c = Math.cos(rot);
-            const s = Math.sin(rot);
-            dirs.push([ux * c - uy * s, ux * s + uy * c]);
-        }
-        dirs.push([1, 0], [-1, 0], [0, 1], [0, -1]);
-        let best = null;
-        let cost = Infinity;
-        for (const d of reach) {
-            for (let k = 0; k < dirs.length; k++) {
-                const [dx, dy] = dirs[k];
-                const px = it.x + dx * (it.r + d);
-                const py = it.y + dy * (it.r + d);
-                const x = dx >= 0.25 ? px : dx <= -0.25 ? px - bw : px - bw / 2;
-                const y = dy >= 0.6 ? py : dy <= -0.6 ? py - bh : py - bh / 2;
-                const rect = { x, y, w: bw, h: bh };
-                let c = k * 3 + d * 0.6;
-                if (x < 3 || y < 3 || x + bw > W - 3 || y + bh > H - 3) c += 1e6;
-                for (const t of taken) c += overlap(rect, t) * 8;
-                for (const q of discs) c += overlap(rect, { x: q.x - q.r, y: q.y - q.r, w: q.r * 2, h: q.r * 2 }) * 5;
-                if (c < cost) {
-                    cost = c;
-                    best = { rect, d };
+        const rectOf = (side) => {
+            const [dx, dy] = SIDES[side.dir];
+            const px = it.x + dx * (it.r + reach[side.reach]);
+            const py = it.y + dy * (it.r + reach[side.reach]);
+            const x = dx >= 0.25 ? px : dx <= -0.25 ? px - bw : px - bw / 2;
+            const y = dy >= 0.6 ? py : dy <= -0.6 ? py - bh : py - bh / 2;
+            return { x, y, w: bw, h: bh };
+        };
+        const kept = sides.get(it.key) || null;
+        let side = kept;
+        let left = null;
+        let covers = 0;
+        if (!kept || settle) {
+            const now = kept ? clash(rectOf(kept), W, H, taken, discs) : Infinity;
+            covers = now;
+            if (now > TOUCH) {
+                // Outward from the host is where a name reads as its mark's.
+                const out = Math.atan2(-(it.y - core.y), it.x - core.x);
+                let best = null;
+                let cost = Infinity;
+                for (let r = 0; r < reach.length; r++) {
+                    for (let dir = 0; dir < SIDES.length; dir++) {
+                        const turn = Math.abs(Math.atan2(Math.sin(out - (dir * Math.PI) / 4), Math.cos(out - (dir * Math.PI) / 4)));
+                        const cand = { dir, reach: r };
+                        const c = clash(rectOf(cand), W, H, taken, discs);
+                        const score = c + (turn / (Math.PI / 4)) * 3 + reach[r] * 0.6;
+                        if (score < cost) {
+                            cost = score;
+                            best = { side: cand, clash: c };
+                        }
+                    }
+                }
+                if (!kept || best.clash < now * SWITCH) {
+                    if (kept) left = { dir: kept.dir, reach: kept.reach, clash: now };
+                    side = best.side;
+                    covers = best.clash;
                 }
             }
         }
-        const R = best.rect;
+        sides.set(it.key, side);
+        const R = rectOf(side);
         taken.push(R);
-        if (best.d > reach[0] + 1) {
+        labels.push({ key: it.key, dir: side.dir, reach: side.reach, rect: R, clash: covers, left });
+        if (side.reach > 0) {
             const ex = clamp(it.x, R.x, R.x + R.w);
             const ey = clamp(it.y, R.y, R.y + R.h);
             const vx = ex - it.x;
@@ -160,6 +198,7 @@ function tags(ctx, W, H, items, taken, discs, core, leader, u) {
             y += l.f.size * 1.3;
         }
     }
+    return labels;
 }
 
 // The context of a session is a thin arc round its mark, from the top
@@ -168,21 +207,21 @@ function contextArc(ctx, q, n, r, f, pal, u = 1) {
     const a0 = -Math.PI / 2;
     const near = n.pct >= NEAR;
     ctx.lineCap = "butt";
-    ctx.strokeStyle = rgba(pal.ink, 0.1 * f);
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = rgba(pal.ink, 0.12 * f);
+    ctx.lineWidth = 1.2;
     circle(ctx, q.x, q.y, r);
     ctx.stroke();
-    ctx.strokeStyle = near ? rgba(pal.cap, f) : rgba(pal.ink, (n.pct >= 50 ? 0.8 : 0.4) * f);
-    ctx.lineWidth = near ? 1.8 : 1.2;
+    ctx.strokeStyle = near ? rgba(pal.cap, f) : rgba(pal.ink, (n.pct >= 50 ? 0.8 : 0.45) * f);
+    ctx.lineWidth = near ? 2.8 : 2;
     ctx.beginPath();
     ctx.arc(q.x, q.y, r, a0, a0 + (TAU * Math.min(100, n.pct)) / 100);
     ctx.stroke();
     const c = a0 + (TAU * CAP) / 100;
     ctx.strokeStyle = rgba(near ? pal.cap : pal.ink, (near ? 1 : 0.7) * f);
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(q.x + Math.cos(c) * (r - 2.5 * u), q.y + Math.sin(c) * (r - 2.5 * u));
-    ctx.lineTo(q.x + Math.cos(c) * (r + 3 * u), q.y + Math.sin(c) * (r + 3 * u));
+    ctx.moveTo(q.x + Math.cos(c) * (r - 3.5 * u), q.y + Math.sin(c) * (r - 3.5 * u));
+    ctx.lineTo(q.x + Math.cos(c) * (r + 4.5 * u), q.y + Math.sin(c) * (r + 4.5 * u));
     ctx.stroke();
 }
 
@@ -191,7 +230,7 @@ function contextArc(ctx, q, n, r, f, pal, u = 1) {
 // alarm a triangle.
 function beads(ctx, q, n, r, f, pal, u) {
     n.work.forEach((kind, i) => {
-        const a = Math.PI * 0.62 + i * 0.42;
+        const a = Math.PI * 0.62 + i * 0.4;
         bead(ctx, kind, q.x + Math.cos(a) * r, q.y + Math.sin(a) * r, f, pal, u);
     });
 }
@@ -199,20 +238,20 @@ function beads(ctx, q, n, r, f, pal, u) {
 function bead(ctx, kind, x, y, f, pal, u = 1) {
     ctx.fillStyle = rgba(pal.ink, 0.85 * f);
     ctx.strokeStyle = rgba(pal.ink, 0.85 * f);
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.3;
     if (kind === "agents") {
-        circle(ctx, x, y, 1.7 * u);
+        circle(ctx, x, y, 2.6 * u);
         ctx.fill();
     } else if (kind === "tasks") {
-        ctx.fillRect(x - 1.6 * u, y - 1.6 * u, 3.2 * u, 3.2 * u);
+        ctx.fillRect(x - 2.4 * u, y - 2.4 * u, 4.8 * u, 4.8 * u);
     } else if (kind === "observers") {
-        circle(ctx, x, y, 2 * u);
+        circle(ctx, x, y, 2.8 * u);
         ctx.stroke();
     } else {
         ctx.beginPath();
-        ctx.moveTo(x, y - 2.3 * u);
-        ctx.lineTo(x + 2.1 * u, y + 1.5 * u);
-        ctx.lineTo(x - 2.1 * u, y + 1.5 * u);
+        ctx.moveTo(x, y - 3.4 * u);
+        ctx.lineTo(x + 3.1 * u, y + 2.2 * u);
+        ctx.lineTo(x - 3.1 * u, y + 2.2 * u);
         ctx.closePath();
         ctx.fill();
     }
@@ -223,9 +262,9 @@ function mark(ctx, q, n, r, f, pal, u = 1) {
         circle(ctx, q.x, q.y, r + 0.8 * u);
         ctx.fillStyle = pal.wait;
         ctx.fill();
-        circle(ctx, q.x, q.y, r + 11 * u);
-        ctx.strokeStyle = rgba(pal.wait, 0.7);
-        ctx.lineWidth = 0.8;
+        circle(ctx, q.x, q.y, r + 15 * u);
+        ctx.strokeStyle = rgba(pal.wait, 0.75);
+        ctx.lineWidth = 1.2;
         ctx.stroke();
         return;
     }
@@ -242,16 +281,17 @@ function mark(ctx, q, n, r, f, pal, u = 1) {
 
 // drawKey draws the mark the legend names kind on a square canvas of size,
 // with the code the scene draws it with, so the legend cannot part from it.
-// The square is sixteen units across, whatever the size.
+// The square is sixteen units across, whatever the size, and the marks are
+// drawn to the size of an icon rather than their size on the scene.
 export function drawKey(ctx, kind, size, pal) {
     ctx.save();
     ctx.scale(size / 16, size / 16);
     const q = { x: 8, y: 8 };
     if (kind === "busy" || kind === "idle") {
-        mark(ctx, q, { tone: kind }, NODE_R + 0.8, 1, pal);
+        mark(ctx, q, { tone: kind }, 3.4, 1, pal);
     } else if (kind === "wait") {
-        // The ring of the scene stands eleven pixels out; here it is drawn in.
-        circle(ctx, q.x, q.y, NODE_R);
+        // The ring of the scene stands further out; here it is drawn in.
+        circle(ctx, q.x, q.y, 2.6);
         ctx.fillStyle = pal.wait;
         ctx.fill();
         circle(ctx, q.x, q.y, 6);
@@ -272,18 +312,18 @@ export function drawKey(ctx, kind, size, pal) {
         ctx.arc(8, 8, 5.5, Math.PI / 2, Math.PI * 1.05);
         ctx.stroke();
     } else if (kind === "context") {
-        contextArc(ctx, q, { pct: 66 }, 5.2, 1, pal);
+        contextArc(ctx, q, { pct: 66 }, 5.2, 1, pal, 0.6);
     } else if (kind === "work") {
-        ["agents", "tasks", "observers"].forEach((k, i) => bead(ctx, k, 3 + i * 5, 8, 1, pal));
+        ["agents", "tasks", "observers"].forEach((k, i) => bead(ctx, k, 3 + i * 5, 8, 1, pal, 0.65));
     } else if (kind === "moons") {
         circle(ctx, 6.5, 9.5, 4.5);
         ctx.strokeStyle = rgba(pal.ink, 0.35);
         ctx.lineWidth = 1;
         ctx.stroke();
-        circle(ctx, 10.4, 6.5, MOON_R + 0.4);
+        circle(ctx, 10.4, 6.5, 1.9);
         ctx.fillStyle = rgba(pal.ink, 0.8);
         ctx.fill();
-        circle(ctx, 6.5, 9.5, NODE_R - 0.6);
+        circle(ctx, 6.5, 9.5, 2);
         ctx.fill();
     }
     ctx.restore();
@@ -296,10 +336,12 @@ function priority(n) {
 }
 
 // drawScene draws the graph seen through pr on a canvas of W×H and answers
-// where every node stands on it, for the pointer to find (hits), and where
-// the words are (taken), for the tip to keep off. scene holds the
-// rings and the nodes of a layout, each node carrying what it shows (name,
-// tone, pct, work, note), the host's name, the palette and the type.
+// where every node stands on it, for the pointer to find (hits), where the
+// words are (taken), for the tip to keep off, and where each name went
+// (labels). scene holds the rings and the nodes of a layout, each node
+// carrying what it shows (name, tone, pct, work, note), the host's name, the
+// palette and the type, the sides the names stood on the frame before
+// (sides, which it updates) and whether a name may change its side (settle).
 export function drawScene(ctx, W, H, pr, scene) {
     const { rings, nodes, host, pal, type } = scene;
     const u = type.unit;
@@ -390,12 +432,12 @@ export function drawScene(ctx, W, H, pr, scene) {
         const r = (n.p.depth > 0 ? MOON_R : NODE_R) * u;
         mark(ctx, q, n, r, f, pal, u);
         contextArc(ctx, q, n, r + ARC_GAP * u, f, pal, u);
-        beads(ctx, q, n, r + (ARC_GAP + 6) * u, f, pal, u);
+        beads(ctx, q, n, r + (ARC_GAP + BEADS) * u, f, pal, u);
         const d = { x: q.x, y: q.y, r: r + (ARC_GAP + 3) * u };
         discs.push(d);
         hits.push({ x: q.x, y: q.y, r: d.r + 4 * u, node: n });
         items.push({
-            x: q.x, y: q.y, r: d.r, pri: priority(n),
+            key: n.s.session, x: q.x, y: q.y, r: d.r, pri: priority(n),
             leader: n.tone === "wait" ? rgba(pal.wait, 0.8) : null,
             lines: linesOf(n, pal, type),
         });
@@ -411,8 +453,8 @@ export function drawScene(ctx, W, H, pr, scene) {
     discs.push({ x: core.x, y: core.y, r: 10 * u });
     caption(ctx, host, type.big, rgba(pal.ink, 0.85), core.x, core.y + 10 * u, "c", taken);
 
-    tags(ctx, W, H, items, taken, discs, core, rgba(pal.ink, 0.3), u);
-    return { hits, taken };
+    const labels = tags(ctx, W, H, items, taken, discs, core, rgba(pal.ink, 0.3), u, scene.sides, scene.settle);
+    return { hits, taken, labels };
 }
 
 // linesOf is what the frame says beside a node: its name, and a number only

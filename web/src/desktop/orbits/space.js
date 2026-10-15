@@ -39,13 +39,13 @@ export function idleOf(s, now) {
 // for its mark and its name.
 const RING = 150;
 const RING_STEP = 97.5;
-const ROOM = 64;
+const ROOM = 84;
 
 // MOON is the orbit of a session's moons; a moon's own moons go on an orbit
 // smaller by MOON_SHRINK, so a grandchild stays inside its parent's reach.
-export const MOON = 34;
+export const MOON = 46;
 const MOON_SHRINK = 0.6;
-const MOON_ROOM = 22;
+const MOON_ROOM = 30;
 
 // at is a point of the dial plane: angle a clockwise from the front, at radius
 // r and height y.
@@ -219,6 +219,31 @@ export function fit(points, wide, tall, W, H, pad) {
         ox: pad[3] + (W - pad[1] - pad[3]) / 2 - W / 2 - (f * (x0 + x1)) / 2,
         oy: pad[0] + (H - pad[0] - pad[2]) / 2 - H / 2 - (f * (y0 + y1)) / 2,
     };
+}
+
+// ZOOM bounds the scale the wheel sets: out to where the whole scene is a
+// little smaller than its box, in to where a cluster of moons reads mark by
+// mark. Past either the scene is a speck or a single mark.
+export const ZOOM = [0.6, 4];
+
+// zoomAt is the zoom and the pan that scale the picture by `by` round the
+// point m of the canvas, so what stood under m stays under it, the zoom held
+// to ZOOM. c is where the host is projected with no pan, the point the zoom
+// of a lens scales the picture from.
+export function zoomAt(zoom, pan, by, m, c) {
+    const z = Math.min(ZOOM[1], Math.max(ZOOM[0], zoom * by));
+    const k = z / zoom;
+    return {
+        zoom: z,
+        pan: { x: m.x - c.x - k * (m.x - c.x - pan.x), y: m.y - c.y - k * (m.y - c.y - pan.y) },
+    };
+}
+
+// lensAt is a fitted lens scaled by zoom and moved by pan: the picture grows
+// round its centre and slides, while the marks and the names keep their size
+// in pixels, as on a map.
+export function lensAt(lens, zoom, pan) {
+    return { ...lens, f: lens.f * zoom, ox: lens.ox + pan.x, oy: lens.oy + pan.y };
 }
 
 // lensFor fits the rings of a layout to a canvas: in width over a whole turn,

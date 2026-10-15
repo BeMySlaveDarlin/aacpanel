@@ -3,6 +3,7 @@ package check
 import (
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -58,7 +59,47 @@ type homeGraph struct {
 	HiddenDraws int    `json:"hiddenDraws"`
 	ShownAgain  int    `json:"shownAgain"`
 	OffDraws    int    `json:"offDraws"`
-	Period      struct {
+	Help        string `json:"help"`
+	Gestures    struct {
+		PanDuring     float64 `json:"panDuring"`
+		PanAfter      float64 `json:"panAfter"`
+		PanTip        string  `json:"panTip"`
+		PressAfterPan int     `json:"pressAfterPan"`
+		ResetPan      float64 `json:"resetPan"`
+		PanEdge       struct {
+			Name   string  `json:"name"`
+			Off    float64 `json:"off"`
+			During float64 `json:"during"`
+			After  float64 `json:"after"`
+		} `json:"panEdge"`
+		WheelPrevent bool    `json:"wheelPrevented"`
+		ZoomBy       float64 `json:"zoomBy"`
+		ZoomKept     float64 `json:"zoomKept"`
+		ZoomOff      float64 `json:"zoomOff"`
+		ZoomIn       struct {
+			Bound float64 `json:"bound"`
+			Tip   string  `json:"tip"`
+		} `json:"zoomIn"`
+		ZoomOut struct {
+			Bound float64 `json:"bound"`
+			Tip   string  `json:"tip"`
+		} `json:"zoomOut"`
+		TurnJumps       []string `json:"turnJumps"`
+		TurnApart       float64  `json:"turnApart"`
+		MiddlePrevented bool     `json:"middlePrevented"`
+		MiddleApart     float64  `json:"middleApart"`
+		ResetTips       []string `json:"resetTips"`
+		ResetOpened     int      `json:"resetOpened"`
+	} `json:"gestures"`
+	Keep struct {
+		Steps    int      `json:"steps"`
+		Changes  int      `json:"changes"`
+		Unforced []string `json:"unforced"`
+		Unearned []string `json:"unearned"`
+		Frozen   int      `json:"frozen"`
+		Names    int      `json:"names"`
+	} `json:"keep"`
+	Period struct {
 		Start     string   `json:"start"`
 		On        string   `json:"on"`
 		Before    []string `json:"before"`
@@ -138,7 +179,7 @@ func TestTheGraphPlacesASessionByItsLastRequest(t *testing.T) {
 	}
 
 	m := got.Moon
-	if m.Parent != "blog" || m.Depth != 1 || m.OffBy > 0.001 || m.Orbit != 34 {
+	if m.Parent != "blog" || m.Depth != 1 || m.OffBy > 0.001 || m.Orbit != 46 {
 		t.Errorf("the thread blog opened is a moon of %q at depth %d, %v off the angle of its request, %v from blog: "+
 			"a child stands on the orbit of its parent at the angle of its own last request", m.Parent, m.Depth, m.OffBy, m.Orbit)
 	}
@@ -264,5 +305,94 @@ func TestOneSwitchSetsThePeriodOfTheFourTiles(t *testing.T) {
 	}
 	if p.Layer != "7 days" || p.Breakdown != "7 days" {
 		t.Errorf("the layers of the models and the projects open on %q and %q, not on the period of the switch", p.Layer, p.Breakdown)
+	}
+}
+
+// The picture of the graph is handled as a map: a drag moves it, the wheel
+// scales it round the pointer within its bounds and does not scroll the page,
+// a drag with Shift or the middle button turns it, Reset view brings back the
+// turn, the place and the scale. A press that travelled opens nothing.
+func TestTheGraphIsHandledAsAMap(t *testing.T) {
+	got := runHomeGraph(t)
+	g := got.Gestures
+
+	if g.PanDuring > 0.01 || g.PanAfter > 0.01 {
+		t.Errorf("a drag of 60×25 moved the names by up to %.2f px off it while dragged and %.2f px once let go: "+
+			"the picture moves whole, every name with its mark", g.PanDuring, g.PanAfter)
+	}
+	if g.PanTip != "blog" {
+		t.Errorf("after the move the pointer over blog's new place finds %q", g.PanTip)
+	}
+	if g.PressAfterPan != 0 {
+		t.Errorf("a press that travelled opened %d sessions", g.PressAfterPan)
+	}
+	if g.ResetPan > 0.01 {
+		t.Errorf("Reset view left the names %.2f px from where they stood", g.ResetPan)
+	}
+	if g.PanEdge.Name == "" || g.PanEdge.Off > 0.01 || g.PanEdge.During >= 0 {
+		t.Errorf("a move that took %q to the edge (its name at x %.1f) moved the names up to %.2f px off the move "+
+			"while it went on: a name keeps its side through a move", g.PanEdge.Name, g.PanEdge.During, g.PanEdge.Off)
+	}
+	if g.PanEdge.After < 0 {
+		t.Errorf("once the move ended the name of %q still starts over the edge, at x %.1f: the end of a move "+
+			"places again a name the move took off the picture", g.PanEdge.Name, g.PanEdge.After)
+	}
+
+	if !g.WheelPrevent {
+		t.Error("the wheel over the graph scrolls the page as it zooms")
+	}
+	if math.Abs(g.ZoomBy-math.Exp(0.45)) > 0.01 || g.ZoomKept > 0.5 || g.ZoomOff > 0.5 {
+		t.Errorf("300 px of the wheel scaled the picture by %.3f (want %.3f), moved the mark under the pointer by %.2f px "+
+			"and the others up to %.2f px off the scale round it: the zoom keeps the point under the pointer, "+
+			"and every name rides with its mark", g.ZoomBy, math.Exp(0.45), g.ZoomKept, g.ZoomOff)
+	}
+	if g.ZoomOut.Bound >= 1 || g.ZoomIn.Bound <= 1 || g.ZoomIn.Tip != "cx-thread" || g.ZoomOut.Tip != "stray" {
+		t.Errorf("the zoom, driven past its bounds %v and %v, is not found there (%q in, %q out)",
+			g.ZoomOut.Bound, g.ZoomIn.Bound, g.ZoomIn.Tip, g.ZoomOut.Tip)
+	}
+
+	if g.TurnApart < 10 || g.MiddleApart < 5 {
+		t.Errorf("a drag with Shift parted the names by %.1f px and with the middle button by %.1f px: both turn the scene",
+			g.TurnApart, g.MiddleApart)
+	}
+	if !g.MiddlePrevented {
+		t.Error("the middle button on the graph starts the browser's scrolling as it turns the scene")
+	}
+	if !reflect.DeepEqual(g.ResetTips, []string{"shop", "blog", "notes", "draft", "stray", "cx-thread"}) || g.ResetOpened != 0 {
+		t.Errorf("after a move, a zoom and Reset view the marks are found as %v, %d opened on the way",
+			g.ResetTips, g.ResetOpened)
+	}
+	if !strings.Contains(got.Help, "drag to move") || !strings.Contains(got.Help, "Shift-drag to turn") ||
+		!strings.Contains(got.Help, "wheel to zoom") {
+		t.Errorf("the legend says %q of the gestures", got.Help)
+	}
+}
+
+// A name keeps its side while the scene turns: it leaves it only when the
+// side covers something — another name, a caption, a mark, the edge — and
+// only for a side that covers less than half of that. A frame of a move or a
+// zoom alone moves no name off its side. Turned a little at a time, names do
+// not jump across their marks.
+func TestTheNamesKeepTheirSides(t *testing.T) {
+	got := runHomeGraph(t)
+	k := got.Keep
+
+	if k.Steps != 61 || k.Names != 14 {
+		t.Fatalf("the crowded ring drew %d steps with %d names — the fixture ran short", k.Steps, k.Names)
+	}
+	if len(k.Unforced) != 0 {
+		t.Errorf("names left a side that covered nothing: %v", k.Unforced)
+	}
+	if len(k.Unearned) != 0 {
+		t.Errorf("names crossed their marks for a side not markedly clearer than the one they left: %v", k.Unearned)
+	}
+	if k.Changes > k.Steps {
+		t.Errorf("fourteen names changed sides %d times over %d small steps", k.Changes, k.Steps)
+	}
+	if k.Frozen != 0 {
+		t.Errorf("%d names changed sides in frames of a move or a zoom", k.Frozen)
+	}
+	if len(got.Gestures.TurnJumps) > 2 {
+		t.Errorf("names jumped across their marks in a slow turn of the home graph: %v", got.Gestures.TurnJumps)
 	}
 }

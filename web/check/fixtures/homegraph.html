@@ -13,6 +13,13 @@
 // draws is counted by the clears of its canvas: nothing while nothing
 // changes, frame after frame only while it turns by itself and the page is
 // seen. The system here asks for less motion, so the turn starts off.
+//
+// The picture is handled as a map: the page drags it, turns it with Shift
+// and the middle button, scales it with the wheel, and reads where the graph
+// wrote each name in its last frame — a name rides with its mark through a
+// move and a zoom, and keeps its side through a slow turn. How a name keeps
+// its side is asked of the drawing itself, on a crowded ring, turned step by
+// step: a name leaves its side only for one it covered.
 import { h, render } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { html } from "/src/html.js";
@@ -20,7 +27,8 @@ import { Home, PERIOD } from "/src/desktop/home.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { attachTips } from "/src/desktop/tip.js";
 import { PAD, graphOf } from "/src/desktop/orbits/orbits.js";
-import { DAY, HOME, MOON, SPAN, TAU, at, camera, dial, lensFor } from "/src/desktop/orbits/space.js";
+import { DAY, HOME, MOON, SPAN, TAU, ZOOM, at, camera, dial, lensAt, lensFor } from "/src/desktop/orbits/space.js";
+import { TOUCH, drawScene } from "/src/desktop/orbits/scene.js";
 import { periodRange } from "/src/data/usage.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -34,11 +42,22 @@ window.matchMedia = (q) => (q === REDUCE
     : plainMedia(q));
 
 // The draws of the graph, counted where they start: a frame clears the canvas.
+// And the words it wrote in its last frame, where it wrote them.
 let draws = 0;
+let written = new Map();
+const onGraph = (ctx) => ctx.canvas.closest && ctx.canvas.closest(".dkorbstage");
 const clear = CanvasRenderingContext2D.prototype.clearRect;
 CanvasRenderingContext2D.prototype.clearRect = function (...args) {
-    if (this.canvas.closest && this.canvas.closest(".dkorbstage")) draws += 1;
+    if (onGraph(this)) {
+        draws += 1;
+        written = new Map();
+    }
     return clear.apply(this, args);
+};
+const fillText = CanvasRenderingContext2D.prototype.fillText;
+CanvasRenderingContext2D.prototype.fillText = function (t, x, y, ...rest) {
+    if (onGraph(this)) written.set(t, { x, y });
+    return fillText.call(this, t, x, y, ...rest);
 };
 
 // A whole second, as the snapshot counts its time.
@@ -241,6 +260,199 @@ window.done = (async () => {
     ev = rightClick({ x: box.left + 6, y: box.top + 6 });
     await frame();
     out.menuAway = { prevented: ev.defaultPrevented, menu: Boolean(menuNode()) };
+
+    // The picture is handled as a map. NAMES pairs a session with the name the
+    // graph writes for it; a name's offset from its mark at the home view
+    // tells where the mark stands later, while the name keeps its side.
+    await quiet();
+    const NAMES = [["shop", "shop"], ["blog", "blog"], ["notes", "notes"], ["draft", "draft"], ["stray", "stray"],
+        ["codex-1", "cx-thread"]];
+    const local = (p) => ({ x: p.x - box.left, y: p.y - box.top });
+    const names = () => Object.fromEntries(NAMES.map(([, n]) => [n, written.get(n) ? { ...written.get(n) } : null]));
+    const marks0 = Object.fromEntries(NAMES.map(([s, n]) => [n, local(spotOf(s))]));
+    const names0 = names();
+    // Where each name stands beside its mark at the home view, as it stands now.
+    const besides = () => {
+        const seen = names();
+        return Object.fromEntries(NAMES.map(([, n]) => [n, { x: seen[n].x - marks0[n].x, y: seen[n].y - marks0[n].y }]));
+    };
+    const beside = besides();
+    const apart = (a, b) => Math.max(...NAMES.map(([, n]) => Math.hypot(a[n].x - b[n].x, a[n].y - b[n].y)));
+    const shifted = (a, b, dx, dy) => Math.max(...NAMES.map(([, n]) => Math.hypot(b[n].x - a[n].x - dx, b[n].y - a[n].y - dy)));
+    const resetView = async () => {
+        Array.from(document.querySelectorAll(".dkorbbtn")).find((b) => text(b) === "Reset view").click();
+        await quiet();
+    };
+    const tipAt = async (p) => {
+        pointer("pointermove", p, { buttons: 0 });
+        await frames(2);
+        const name = text(document.querySelector(".dkorbtip b"));
+        pointer("pointermove", { x: box.left + 6, y: box.top + 6 }, { buttons: 0 });
+        await frames(1);
+        return name;
+    };
+    const g2 = {};
+    out.gestures = g2;
+    out.help = text(document.querySelector(".dkorbhelp"));
+
+    // A drag moves the picture, every name with its mark; a press that
+    // travelled opens nothing, even on a mark.
+    const corner = { x: box.left + 6, y: box.top + 6 };
+    pointer("pointerdown", corner);
+    pointer("pointermove", { x: corner.x + 30, y: corner.y + 12 });
+    pointer("pointermove", { x: corner.x + 60, y: corner.y + 25 });
+    await frames(2);
+    g2.panDuring = shifted(names0, names(), 60, 25);
+    pointer("pointerup", { x: corner.x + 60, y: corner.y + 25 });
+    await quiet();
+    g2.panAfter = shifted(names0, names(), 60, 25);
+    const blogNow = { x: spotOf("blog").x + 60, y: spotOf("blog").y + 25 };
+    g2.panTip = await tipAt(blogNow);
+    // The picture follows the press, so the mark it started on is under the
+    // pointer again where it is let go.
+    let count = opened.length;
+    pointer("pointerdown", blogNow);
+    pointer("pointermove", { x: blogNow.x + 20, y: blogNow.y + 30 });
+    await frames(2);
+    pointer("pointerup", { x: blogNow.x + 20, y: blogNow.y + 30 });
+    await quiet();
+    g2.pressAfterPan = opened.length - count;
+    await resetView();
+    g2.resetPan = apart(names0, names());
+    // A move that takes a name over the edge leaves it there while it goes on:
+    // the name rides with its mark, and is placed again once the move ends.
+    const [, edge] = NAMES.find(([, n]) => beside[n].x < -10);
+    const far = 30 - marks0[edge].x;
+    pointer("pointerdown", corner);
+    pointer("pointermove", { x: corner.x + far / 2, y: corner.y });
+    pointer("pointermove", { x: corner.x + far, y: corner.y });
+    await frames(2);
+    g2.panEdge = { name: edge, off: shifted(names0, names(), far, 0), during: names()[edge].x };
+    pointer("pointerup", { x: corner.x + far, y: corner.y });
+    await quiet();
+    g2.panEdge.after = names()[edge].x;
+    await resetView();
+
+    // The wheel scales the picture round the pointer and is the graph's: the
+    // page does not scroll under it. The mark under the pointer stays, every
+    // other one goes out from it, and every name rides with its mark.
+    const m = spotOf("blog");
+    const ml = local(m);
+    const at0 = besides();
+    const markOf = (seen, n) => ({ x: seen[n].x - at0[n].x, y: seen[n].y - at0[n].y });
+    const wheel300 = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -300, deltaMode: 0, clientX: m.x, clientY: m.y });
+    stage().dispatchEvent(wheel300);
+    g2.wheelPrevented = wheel300.defaultPrevented;
+    await frames(2);
+    const zoomed = names();
+    const mark = (n) => markOf(zoomed, n);
+    g2.zoomBy = Math.hypot(mark("stray").x - mark("shop").x, mark("stray").y - mark("shop").y)
+        / Math.hypot(marks0.stray.x - marks0.shop.x, marks0.stray.y - marks0.shop.y);
+    g2.zoomKept = Math.hypot(mark("blog").x - ml.x, mark("blog").y - ml.y);
+    g2.zoomOff = Math.max(...NAMES.map(([, n]) => Math.hypot(
+        mark(n).x - (ml.x + g2.zoomBy * (marks0[n].x - ml.x)), mark(n).y - (ml.y + g2.zoomBy * (marks0[n].y - ml.y)))));
+    await quiet();
+    // The zoom stops at its bounds, in and out.
+    const toward = (n, k) => ({ x: m.x + k * (marks0[n].x + box.left - m.x), y: m.y + k * (marks0[n].y + box.top - m.y) });
+    stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -100000, clientX: m.x, clientY: m.y }));
+    await quiet();
+    g2.zoomIn = { bound: ZOOM[1], tip: await tipAt(toward("cx-thread", ZOOM[1])) };
+    stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100000, clientX: m.x, clientY: m.y }));
+    await quiet();
+    g2.zoomOut = { bound: ZOOM[0], tip: await tipAt(toward("stray", ZOOM[0])) };
+    await resetView();
+
+    // Shift and a drag turn the scene, as the middle button does: the names
+    // part from one another, not only slide. Turned a little at a time, no
+    // name jumps across its mark.
+    // A step of the turn moves a mark a few pixels; a name that moves more
+    // than JUMP in one step has crossed its mark.
+    const JUMP = 18;
+    const unturned = names();
+    pointer("pointerdown", corner, { shiftKey: true });
+    let last = unturned;
+    const jumps = [];
+    for (let i = 1; i <= 50; i++) {
+        pointer("pointermove", { x: corner.x + 3 * i, y: corner.y }, { shiftKey: true });
+        await frames(2);
+        const seen = names();
+        for (const [, n] of NAMES) {
+            if (Math.hypot(seen[n].x - last[n].x, seen[n].y - last[n].y) > JUMP) jumps.push(`${n}@${i}`);
+        }
+        last = seen;
+    }
+    const turned = names();
+    pointer("pointerup", { x: corner.x + 150, y: corner.y }, { shiftKey: true });
+    await quiet();
+    g2.turnJumps = jumps;
+    g2.turnApart = shifted(unturned, turned, turned.shop.x - unturned.shop.x, turned.shop.y - unturned.shop.y);
+    count = opened.length;
+    await resetView();
+    const unmiddled = names();
+    const middle = new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 1, buttons: 4,
+        clientX: corner.x, clientY: corner.y, pointerType: "mouse", pointerId: 1 });
+    stage().dispatchEvent(middle);
+    g2.middlePrevented = middle.defaultPrevented;
+    pointer("pointermove", { x: corner.x + 60, y: corner.y }, { buttons: 4 });
+    await frames(2);
+    const middled = names();
+    pointer("pointerup", { x: corner.x + 60, y: corner.y }, { button: 1 });
+    await quiet();
+    g2.middleApart = shifted(unmiddled, middled, middled.shop.x - unmiddled.shop.x, middled.shop.y - unmiddled.shop.y);
+
+    // Reset view brings back the turn, the place and the scale: every mark is
+    // where the home view puts it.
+    pointer("pointerdown", corner);
+    pointer("pointermove", { x: corner.x + 80, y: corner.y + 40 });
+    pointer("pointerup", { x: corner.x + 80, y: corner.y + 40 });
+    stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -400, clientX: m.x, clientY: m.y }));
+    await quiet();
+    await resetView();
+    g2.resetTips = [];
+    for (const [s, n] of NAMES) g2.resetTips.push((await tipAt(spotOf(s))) === n ? n : `${n}?`);
+    g2.resetOpened = opened.length - count;
+
+    // How a name keeps its side, asked of the drawing: a crowded ring turned
+    // a little at a time. A name leaves its side only for one it covered, and
+    // a move or a zoom alone, drawn without settling, moves none.
+    const crowd = { at: Math.floor(now / 1000), profileMap: [], sessions: Array.from({ length: 14 }, (_, i) => S({
+        session: `node-${String.fromCharCode(97 + i)}`, profile: "personal", status: i % 3 ? "idle" : "busy",
+        lastRequestAt: iso(2 + i * 1.5), pct: 10 + i * 5,
+        parent: i > 10 ? { session: "node-a" } : undefined })) };
+    const cg = graphOf(crowd);
+    const W = 900;
+    const H = 420;
+    const sheet = document.createElement("canvas");
+    sheet.width = W;
+    sheet.height = H;
+    const cx = sheet.getContext("2d");
+    const pal = { ink: "#e6dccb", wait: "#ef8a55", busy: "#fffaf0", cap: "#ffffff" };
+    const type = { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, big: { font: "200 28px Inter", size: 28, sp: 1, halo: 6 } };
+    const lens = lensFor(cg.rings, W, H, PAD);
+    const sides = new Map();
+    const scene = (settle) => ({ rings: cg.rings, nodes: cg.nodes, glow: null, host: "helios", pal, type, sides, settle });
+    const sideOf = (labels) => Object.fromEntries(labels.map((l) => [l.key, `${l.dir}/${l.reach}`]));
+    const keep = { steps: 0, changes: 0, unforced: [], unearned: [], frozen: 0 };
+    for (let i = 0; i <= 60; i++) {
+        cx.clearRect(0, 0, W, H);
+        const drawn = drawScene(cx, W, H, camera({ yaw: HOME.yaw + i * 0.015, pitch: HOME.pitch }, W, H, lens), scene(true));
+        keep.steps += 1;
+        for (const l of drawn.labels) {
+            if (!l.left) continue;
+            keep.changes += 1;
+            if (l.left.clash <= TOUCH) keep.unforced.push(`${l.key}@${i}`);
+            if (l.clash >= l.left.clash / 2) keep.unearned.push(`${l.key}@${i}`);
+        }
+    }
+    const settled = sideOf(drawScene(cx, W, H, camera({ yaw: HOME.yaw + 0.9, pitch: HOME.pitch }, W, H, lens), scene(true)).labels);
+    for (const [z, px, py] of [[1.6, 0, 0], [3, 120, -40], [0.7, -200, 60], [4, 300, 200]]) {
+        cx.clearRect(0, 0, W, H);
+        const drawn = drawScene(cx, W, H, camera({ yaw: HOME.yaw + 0.9, pitch: HOME.pitch }, W, H, lensAt(lens, z, { x: px, y: py })), scene(false));
+        const now2 = sideOf(drawn.labels);
+        keep.frozen += Object.keys(settled).filter((k) => settled[k] !== now2[k]).length;
+    }
+    keep.names = Object.keys(settled).length;
+    out.keep = keep;
 
     // Nothing is drawn while nothing changes.
     await quiet();
