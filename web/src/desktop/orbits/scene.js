@@ -7,7 +7,7 @@
 // — the accent of a session at work in a small steady glow, the gold of a
 // session waiting for the person, the top of the context scale near the cap
 // — and the one wide light stands behind the session that has waited longest.
-import { SPAN, TAU, at, add, inclined, onOrbit, worldOf } from "./space.js";
+import { TAU, at, add, inclined, onOrbit, worldOf } from "./space.js";
 
 // NEAR is where the lit part takes the tone of the cap and the frame says the
 // number: a session past it is a turn or two of a long task from the cap.
@@ -29,6 +29,10 @@ const REACH = [8, 22, 40, 62, 90];
 // eye, ORBIT[0] on the far half — enough to follow an orbit round and see
 // which way it leans, never a line that rivals a mark.
 export const ORBIT = [0.05, 0.08];
+
+// Where on its orbit the name of an orbit stands: a fixed point at the back
+// and to the left, past which the planets go.
+const ORBIT_NAME_AT = (TAU * 330) / 360;
 const TAG_PAD = [2, 5];
 
 // rgba is a colour of the palette at an opacity. The palette is written in
@@ -316,19 +320,6 @@ export function drawKey(ctx, kind, size, pal) {
         ctx.stroke();
     } else if (kind === "phase") {
         phase(ctx, q, 5.5, { tone: "idle", pct: 40 }, 0, 1, pal);
-    } else if (kind === "angle") {
-        ctx.strokeStyle = rgba(pal.ink, 0.6);
-        ctx.lineWidth = 1;
-        ctx.setLineDash([2, 2]);
-        ctx.beginPath();
-        ctx.moveTo(8, 14);
-        ctx.lineTo(8, 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.strokeStyle = pal.ink;
-        ctx.beginPath();
-        ctx.arc(8, 8, 5.5, Math.PI / 2, Math.PI * 1.05);
-        ctx.stroke();
     } else if (kind === "work") {
         ["agents", "tasks", "observers"].forEach((k, i) => bead(ctx, k, 3 + i * 5, 8, 1, pal, 0.75));
     } else if (kind === "moons") {
@@ -421,11 +412,6 @@ export function drawScene(ctx, W, H, pr, scene) {
             for (let i = 0; i <= 120; i++) points.push(plane(onOrbit(o, (i / 120) * TAU)));
             orbit(points, star, s.tint);
         }
-        // The meridian of now, from the star to the front of the outer orbit.
-        const outer = s.orbits[s.orbits.length - 1];
-        ctx.setLineDash([2, 3]);
-        line(ctx, [star, plane(onOrbit({ ...outer, R: outer.R + 14 }, 0))], s.tint, () => 0.4);
-        ctx.setLineDash([]);
         // The orbits of the moons.
         for (const n of s.members) {
             if (n.kids.length === 0) continue;
@@ -457,11 +443,10 @@ export function drawScene(ctx, W, H, pr, scene) {
             lines: [{ t: s.name, f: type.star, c: s.tint }, { t: s.summary, f: type.tag, c: rgba(pal.ink, 0.5) }],
         });
         // An orbit says its project only where its planets do not: outside
-        // the map, and a project whose sessions are named otherwise. The name
-        // stands in the empty end of the dial.
+        // the map, and a project whose sessions are named otherwise.
         for (const o of s.orbits) {
             if (!o.label) continue;
-            const q = plane(onOrbit(o, SPAN + (TAU - SPAN) / 2));
+            const q = plane(onOrbit(o, ORBIT_NAME_AT));
             items.push({ key: `${s.name}/${o.key}`, x: q.x, y: q.y, r: 2 * u, pri: -100, from: star, quiet: behind(s.name),
                 lines: [{ t: o.name, f: type.tag, c: rgba(s.tint, 0.75) }] });
         }

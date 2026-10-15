@@ -31,7 +31,7 @@ import { Home, PERIOD } from "/src/desktop/home.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { attachTips } from "/src/desktop/tip.js";
 import { between, graphOf, lensOf, orbitsIn, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
-import { DAY, HOME, INCLINE, MOON, SPAN, TAU, ZOOM, add, at, boxOf, camera, dial, inclined, lensAt, onOrbit, orbitOf, slotsFor, worldOf } from "/src/desktop/orbits/space.js";
+import { HOME, IDLE, INCLINE, MOON, MOONS, TAU, TURN, ZOOM, add, at, boxOf, camera, inclined, lensAt, onOrbit, orbitOf, slotsFor, spinOf, turnBy, worldOf } from "/src/desktop/orbits/space.js";
 import { TOUCH, drawScene, starSize } from "/src/desktop/orbits/scene.js";
 import { periodRange } from "/src/data/usage.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -149,6 +149,9 @@ function Shell({ snap }) {
     `;
 }
 const show = () => render(h(ToastHost, null, h(GateHost, null, h(Shell, { snap: snapshot }))), document.getElementById("app"));
+// The choice of Motion a run before this one, or another page, left behind.
+const MOTION_KEY = "aacpanel.desktop.motion";
+localStorage.removeItem(MOTION_KEY);
 show();
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -229,20 +232,23 @@ window.done = (async () => {
     await quiet();
     const out = {};
 
-    // The dial and the places, from the graph's own functions.
+    // The places, from the graph's own functions. Where a planet stands on its
+    // orbit is its own and says nothing of its time: an hour later, every
+    // request an hour older, every planet stands where it stood; the planets
+    // of an orbit stand clear of each other.
     const g = graphOf(snapshot);
     const node = (name) => g.nodes.find((x) => x.s.session === name);
-    out.dial = { now: deg(dial(0)), hour: deg(dial(60)), day: deg(dial(DAY)), past: deg(dial(DAY * 5)), span: deg(SPAN),
-        rising: [0, 1, 5, 30, 60, 360, DAY].map((m) => dial(m)).every((a, i, all) => i === 0 || a > all[i - 1]) };
     out.angles = Object.fromEntries(g.nodes.map((n) => [n.s.session, deg(n.p.ang)]));
-    out.dialOf = { blog: deg(dial(60)), draft: deg(dial(5)), shop: deg(dial(1)), bench: deg(dial(30)) };
+    out.anglesLater = Object.fromEntries(graphOf({ ...snapshot, at: snapshot.at + 3600 }).nodes.map((n) => [n.s.session, deg(n.p.ang)]));
+    out.apart = Math.round(Math.min(...g.systems.flatMap((sys) => sys.orbits.flatMap((o) => o.planets.flatMap((a, i) =>
+        o.planets.slice(i + 1).map((b) => Math.hypot(a.w[0] - b.w[0], a.w[1] - b.w[1], a.w[2] - b.w[2])))))));
     out.systems = g.systems.map((sys) => ({ name: sys.name, live: sys.live, summary: sys.summary,
         orbits: sys.orbits.map((o) => ({ key: o.key, name: o.name, R: o.R, label: Boolean(o.label),
             planets: o.planets.map((p) => p.key) })) }));
     const moonOf = (child, parent, depth) => {
         const kid = node(child).p;
         const up = node(parent).p;
-        const expect = add(up.w, inclined(up.lean, at(dial(kid.idle), orbitOf(depth - 1))));
+        const expect = add(up.w, inclined(up.lean, at(kid.ang, orbitOf(depth - 1))));
         return { depth: kid.depth, parent: kid.parent, system: kid.system,
             offBy: Math.max(...expect.map((v, i) => Math.abs(v - kid.w[i]))),
             orbit: Math.round(Math.hypot(kid.w[0] - up.w[0], kid.w[1] - up.w[1], kid.w[2] - up.w[2])) };
@@ -252,6 +258,9 @@ window.done = (async () => {
     out.moonSizes = [orbitOf(0), orbitOf(1), MOON];
     out.orbitOf = Object.fromEntries(g.nodes.map((n) => [n.s.session, n.orbit]));
     out.notes = node("blog").note;
+    // draft has asked nothing yet and counts from its start; stray names
+    // neither and counts a day.
+    out.notesOf = { draft: node("draft").note, stray: node("stray").note };
     out.stars = [0, 1, 4].map((live) => starSize(live));
 
     // The orbits of a contour go out by weight — the small and quiet inside,
@@ -348,6 +357,36 @@ window.done = (async () => {
         // The planets of one orbit stand off the plane of the system: the
         // galaxy has depth within a system too.
         out.leans.heights = sys.orbits.map((o) => Math.round(Math.max(...o.planets.map((n) => Math.abs(n.w[1]))) * 10) / 10);
+        // No meridian runs from a star any more.
+        const outer = sys.orbits[sys.orbits.length - 1];
+        const from0 = pr(place.c);
+        const to0 = pr(worldOf(place, onOrbit({ ...outer, R: outer.R + 14 }, 0)));
+        out.orbitInk.meridian = segs.some((x) => same(x.a, from0) && same(x.b, to0));
+        // The orbits turn as the planets of a sun do: solo, pair and big idle,
+        // late waits; the moons of b1 round it, and of m1 round m1.
+        const inner = sys.orbits[0].R;
+        const orb = (key) => sys.orbits.find((o) => o.key === key);
+        const nd = (k) => gw.nodes.find((n) => n.s.session === k).p;
+        out.spins = {
+            turn: TURN,
+            innerTurn: Math.round(TAU / spinOf(inner, inner, true)),
+            orbits: sys.orbits.map((o) => ({ key: o.key, R: o.R, spin: o.spin, idleSpin: spinOf(o.R, inner, false),
+                liveSpin: spinOf(o.R, inner, true) })),
+            moons: { big: orb("p41").spin, b1: nd("b1").spin, m1: nd("m1").spin },
+        };
+        // A moon at work stirs the orbit of its planet as a planet at work would.
+        const stirred = graphOf({ ...work(), sessions: work().sessions.map((x) => (x.session === "m1" ? { ...x, status: "busy" } : x)) });
+        const big = stirred.systems[0].orbits.find((o) => o.key === "p41");
+        out.spins.stirred = big.spin / spinOf(big.R, stirred.systems[0].orbits[0].R, true);
+        // Ten seconds of turning move every planet and every moon by its spin.
+        const turns = new Map();
+        turnBy(gw, turns, 10);
+        const off = (u, v) => Math.max(...u.map((x, i) => Math.abs(x - v[i])));
+        out.spins.offBy = Math.max(
+            ...sys.orbits.flatMap((o) => o.planets.map((n) => off(n.w, onOrbit(o, n.ang + o.spin * 10)))),
+            off(nd("m1").w, add(nd("b1").w, inclined(nd("b1").lean, at(nd("m1").ang + nd("b1").spin * 10, nd("b1").orbit)))),
+            off(nd("m2").w, add(nd("m1").w, inclined(nd("m1").lean, at(nd("m2").ang + nd("m1").spin * 10, nd("m1").orbit)))));
+        out.spins.kept = turns.size;
     }
 
     // The galaxy, as the page opens: the liveliest in front, no system over
@@ -482,6 +521,7 @@ window.done = (async () => {
     const g2 = {};
     out.gestures = g2;
     out.help = text(document.querySelector(".dkorbhelp"));
+    out.legend = Array.from(document.querySelectorAll(".dkorbleg > span:not(.dkorbhelp)")).map(text);
 
     // A drag moves the picture, every name with its mark; a press that
     // travelled opens nothing, even on a mark.
@@ -627,6 +667,16 @@ window.done = (async () => {
     const cg = graphOf(crowd);
     const corder = orderOf(cg);
     const cplaces = placesOf(cg, corder, corder[0]);
+    // Eleven planets on one orbit stand clear of each other all round it.
+    {
+        const ring = cg.systems[0].orbits[0];
+        const ws = ring.planets.map((n) => n.w);
+        out.crowdApart = {
+            count: ws.length,
+            even: Math.round((TAU * ring.R) / ws.length),
+            least: Math.round(Math.min(...ws.flatMap((a, i) => ws.slice(i + 1).map((b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))))),
+        };
+    }
     const W = 900;
     const H = 420;
     const sheet = document.createElement("canvas");
@@ -738,33 +788,6 @@ window.done = (async () => {
     const still = draws;
     await frames(20);
     out.still = draws - still;
-
-    // The turn of its own: off where less motion is asked for, frame after
-    // frame once on, none while the page is hidden, none once off.
-    const auto = Array.from(document.querySelectorAll(".dkorbbtn")).find((b) => text(b) === "Auto-rotate");
-    out.autoAtStart = auto.getAttribute("aria-pressed");
-    auto.click();
-    const on = draws;
-    await frames(12);
-    out.turning = draws - on;
-    let hidden = false;
-    Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
-    hidden = true;
-    document.dispatchEvent(new Event("visibilitychange"));
-    await frames(2);
-    const gone = draws;
-    await frames(12);
-    out.hiddenDraws = draws - gone;
-    hidden = false;
-    document.dispatchEvent(new Event("visibilitychange"));
-    const back = draws;
-    await frames(12);
-    out.shownAgain = draws - back;
-    auto.click();
-    await frames(2);
-    const off = draws;
-    await frames(12);
-    out.offDraws = draws - off;
 
     // The galaxy in depth. The liveliest contour stands in front; the wheel
     // with Shift brings the next forward, round and round both ways, and
@@ -995,6 +1018,77 @@ window.done = (async () => {
     await until(() => document.querySelector(".uslayer"));
     await quiet();
     out.period.breakdown = text(document.querySelector(".uslayer .uchip.on"));
+
+    // Motion. Where less motion is asked for and nothing is kept, the orbits
+    // stand: Motion is off and nothing is drawn. Switched on, the planets go
+    // round, no more than thirty frames a second and none while the page is
+    // hidden or the graph is off the screen; the choice is kept, so a page
+    // opened again where less motion is asked for has it on, and off once
+    // switched off. With nothing kept and no wish for less motion it is on.
+    {
+        const app = document.getElementById("app");
+        const button = () => Array.from(document.querySelectorAll(".dkorbbtn")).find((b) => text(b) === "Motion");
+        const m = {};
+        out.motion = m;
+        await quiet();
+        m.atStart = button().getAttribute("aria-pressed");
+        let d0 = draws;
+        await frames(20);
+        m.offDraws = draws - d0;
+        button().click();
+        m.kept = localStorage.getItem(MOTION_KEY);
+        await frames(4);
+        const at0 = names();
+        const t0 = performance.now();
+        d0 = draws;
+        await frames(90);
+        m.fps = Math.round(((draws - d0) / ((performance.now() - t0) / 1000)) * 10) / 10;
+        const at1 = names();
+        m.moved = Math.max(...NAMES.map(([, n]) => Math.round(Math.hypot(at1[n].x - at0[n].x, at1[n].y - at0[n].y) * 100) / 100));
+        let hidden = false;
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+        hidden = true;
+        document.dispatchEvent(new Event("visibilitychange"));
+        await frames(2);
+        d0 = draws;
+        await frames(12);
+        m.hiddenDraws = draws - d0;
+        hidden = false;
+        document.dispatchEvent(new Event("visibilitychange"));
+        d0 = draws;
+        await frames(12);
+        m.shownAgain = draws - d0;
+        const widget = document.querySelector(".dkorbits");
+        widget.style.transform = "translateY(-6000px)";
+        await frames(4);
+        d0 = draws;
+        await frames(12);
+        m.awayDraws = draws - d0;
+        widget.style.transform = "";
+        await frames(4);
+        d0 = draws;
+        await frames(12);
+        m.backDraws = draws - d0;
+        render(null, app);
+        show();
+        await until(() => button());
+        m.reopened = button().getAttribute("aria-pressed");
+        button().click();
+        m.keptOff = localStorage.getItem(MOTION_KEY);
+        await quiet();
+        d0 = draws;
+        await frames(20);
+        m.offAgain = draws - d0;
+        localStorage.removeItem(MOTION_KEY);
+        lessMotion = false;
+        render(null, app);
+        show();
+        await until(() => button());
+        m.plainStart = button().getAttribute("aria-pressed");
+        render(null, app);
+        lessMotion = true;
+        localStorage.removeItem(MOTION_KEY);
+    }
     return out;
 })();
 </script>

@@ -1,9 +1,8 @@
 // The graph of the live sessions at the top of the home screen, a galaxy:
 // every contour a system round a star of its own, every project with a live
 // session an orbit round the star — the small and quiet inside, the large and
-// lively outside, every orbit leaning its own way — every session a planet on
-// the orbit of its project at the angle of its last request, the sessions it
-// opened its moons.
+// lively outside, every orbit leaning its own way — every session a planet
+// going round on the orbit of its project, the sessions it opened its moons.
 // The systems stand in depth, the liveliest in front when the page opens; a
 // click on a star, or the wheel with Shift, brings another forward. A click on
 // a planet opens the session as its row in the column opens it, a right click
@@ -15,13 +14,14 @@
 // scroll under it there; Reset view brings back the turn, the place and the
 // scale it opened with, and the order of the systems by how alive they are.
 //
-// The scene is drawn when what it shows changes — the snapshot, the theme,
-// the size, a turn, a move — and not on every frame: a home screen left open
-// all day should cost nothing while nothing moves. Only the turning of its
-// own, switched on by the person, draws frame after frame, and it stops while
-// the page is hidden; a system coming forward, or an orbit a snapshot moves
-// in or out, glides there in a moment, or stands there at once where the
-// system asks for less motion, as the turn starts off there too.
+// With Motion on the planets go round their orbits, frame after frame but no
+// more than FPS frames a second, and not at all while the page is hidden or
+// the graph is off the screen: a home screen left open all day costs little.
+// Motion is on unless the system asks for less motion, and the person's own
+// choice is kept. With it off the scene is drawn only when what it shows
+// changes — the snapshot, the theme, the size, a turn, a move. A system
+// coming forward, or an orbit a snapshot moves in or out, glides there in a
+// moment, or stands there at once where the system asks for less motion.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -34,7 +34,7 @@ import { contourOfLive } from "../../screens/sessions/map.js";
 import { pageNames } from "../../screens/sessions/pages.js";
 import { useMenu } from "../../ui/menu.js";
 import { liveMenuOf } from "../sessionmenu.js";
-import { BACK, FLAT, HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, placeOrbit, slotsFor, tiltOf, zoomAt } from "./space.js";
+import { BACK, FLAT, HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, placeOrbit, slotsFor, tiltOf, turnBy, zoomAt } from "./space.js";
 import { HALO, drawKey, drawScene, overlap } from "./scene.js";
 
 // PAD keeps the scene off the edges of its canvas: [top, right, bottom, left].
@@ -49,11 +49,26 @@ const HUE_FALLBACK = ["#6b9c83", "#7fe3d4", "#b98cff", "#8f9dff"];
 // The kinds of background work a session reports, in the order its beads go.
 const WORK = ["agents", "tasks", "observers", "alarms"];
 
-// How fast a drag turns and tips the scene, in radians a pixel, and how fast
-// it turns by itself, in radians a millisecond: a turn in a minute and a half.
+// How fast a drag turns and tips the scene, in radians a pixel.
 const DRAG_YAW = 0.006;
 const DRAG_PITCH = 0.004;
-const SPIN = 0.00007;
+
+// The most frames a second the orbits turn at: the eye reads a slow turn as
+// smooth at it, and it is half of what a screen would draw.
+const FPS = 30;
+
+// Where the choice of Motion is kept, "on" or "off"; with none kept the
+// system's wish for less motion decides.
+const MOTION_KEY = "aacpanel.desktop.motion";
+
+function motionAtStart() {
+    try {
+        const kept = localStorage.getItem(MOTION_KEY);
+        if (kept === "on" || kept === "off") return kept === "on";
+    } catch {
+    }
+    return !window.matchMedia(REDUCE).matches;
+}
 
 // A press that travels further than this is a drag, not a click.
 const SLOP = 3;
@@ -402,7 +417,6 @@ const KEYS = [
     ["phase", "lit part — context"],
     ["work", "background work"],
     ["moons", "moons — sessions it opened"],
-    ["angle", "angle — since the last request, front is now"],
 ];
 
 // Legend names what the marks mean.
@@ -443,6 +457,8 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         orbitsBefore.current = orbitsIn(next);
         return next;
     }, [snapshot, tones]);
+    const graphRef = useRef(graph);
+    graphRef.current = graph;
     const counts = countsOf(graph);
 
     const stage = useRef(null);
@@ -451,11 +467,19 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     // turn redraws without a render of the component.
     const live = useRef({
         view: { ...HOME }, zoom: 1, pan: { x: 0, y: 0 }, size: null, lens: null,
-        hits: [], taken: [], sides: new Map(), settle: true, drag: null, frame: 0, spin: 0, zoomed: 0,
+        hits: [], taken: [], sides: new Map(), settle: true, drag: null, frame: 0, motion: 0, seen: false, turns: new Map(), zoomed: 0,
         order: null, front: null, places: new Map(), glide: 0, next: 0, shapes: new Map(), reshape: 0,
     });
     const [tip, setTip] = useState(null);
-    const [auto, setAuto] = useState(() => !window.matchMedia(REDUCE).matches);
+    const [motion, setMotion] = useState(motionAtStart);
+    const toggleMotion = () => {
+        const next = !motion;
+        setMotion(next);
+        try {
+            localStorage.setItem(MOTION_KEY, next ? "on" : "off");
+        } catch {
+        }
+    };
 
     // paint draws the scene as it stands. settle says the scene turned or
     // changed, so a name its side has come to cover may move; a frame of a
@@ -610,6 +634,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     useEffect(() => {
         keepOrder(live.current, graph);
         live.current.lens = null;
+        turnBy(graph, live.current.turns, 0);
         reshape(graph);
         request();
     }, [graph, theme]);
@@ -622,33 +647,42 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         return () => { alive = false; };
     }, []);
 
-    // The turn of its own: a frame at a time while it is on and the page is
-    // seen.
+    // Motion: the orbits turn a frame at a time, no more than FPS a second,
+    // while it is on, the page is seen and the graph is on the screen. A
+    // frame skipped or a pause counts no time: the planets go on from where
+    // they stood.
     useEffect(() => {
-        if (!auto) return undefined;
+        if (!motion) return undefined;
         const st = live.current;
         let last = 0;
         const step = (t) => {
-            const dt = last ? Math.min(64, t - last) : 16;
+            st.motion = requestAnimationFrame(step);
+            if (last && t - last < 1000 / FPS - 2) return;
+            const dt = last ? Math.min(0.1, (t - last) / 1000) : 0;
             last = t;
-            if (!st.drag) st.view = { ...st.view, yaw: st.view.yaw + dt * SPIN };
-            paintRef.current();
-            st.spin = requestAnimationFrame(step);
+            turnBy(graphRef.current, st.turns, dt);
+            paintRef.current(true);
         };
         const run = () => {
-            cancelAnimationFrame(st.spin);
-            st.spin = 0;
+            cancelAnimationFrame(st.motion);
+            st.motion = 0;
             last = 0;
-            if (!document.hidden) st.spin = requestAnimationFrame(step);
+            if (!document.hidden && st.seen) st.motion = requestAnimationFrame(step);
         };
+        const seen = new IntersectionObserver((entries) => {
+            st.seen = entries[entries.length - 1].isIntersecting;
+            run();
+        });
+        seen.observe(stage.current);
         run();
         document.addEventListener("visibilitychange", run);
         return () => {
+            seen.disconnect();
             document.removeEventListener("visibilitychange", run);
-            cancelAnimationFrame(st.spin);
-            st.spin = 0;
+            cancelAnimationFrame(st.motion);
+            st.motion = 0;
         };
-    }, [auto]);
+    }, [motion]);
 
     useEffect(() => () => {
         cancelAnimationFrame(live.current.frame);
@@ -806,8 +840,8 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
                     ${counts.wait > 0 && html` · <b class="dkorbwait">${counts.wait} waiting for an answer</b>`}
                 </span>
                 <span class="dkorbacts">
-                    <button class="dkorbbtn" type="button" aria-pressed=${auto ? "true" : "false"} onClick=${() => setAuto(!auto)}>
-                        <i class="dkorbsw"></i>Auto-rotate
+                    <button class="dkorbbtn" type="button" aria-pressed=${motion ? "true" : "false"} onClick=${toggleMotion}>
+                        <i class="dkorbsw"></i>Motion
                     </button>
                     <button class="dkorbbtn" type="button" onClick=${reset}>Reset view</button>
                 </span>

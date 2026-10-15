@@ -5,34 +5,21 @@
 // project with a live session — the small and quiet ones inside, the large
 // and lively further out, each orbit as wide as the widest family on it and
 // leaning its own way. The sessions of a project are the planets of its
-// orbit, each at an angle that says how long ago it last asked the model —
-// the meridian of now runs to the front of every system alike, the time goes
-// clockwise from it. A session another one opened is that one's moon, at the
-// angle of its own last request, and its own sessions are moons of the moon.
-// The systems stand in depth, a galaxy: one in front, drawn large, the others
-// smaller behind it.
+// orbit and go round their star, the inner orbits faster than the outer, the
+// idle ones slowly; a session another one opened is that one's moon and goes
+// round it faster still, and its own sessions are moons of the moon. Where a
+// planet stands on its orbit says nothing of its own: the tip tells how long
+// ago it last asked the model. The systems stand in depth, a galaxy: one in
+// front, drawn large, the others smaller behind it.
 
 export const TAU = Math.PI * 2;
 
-// The dial is logarithmic: the first minutes after a request are where a
-// session is told from its neighbours, a quiet afternoon is one place. Five
-// minutes, half an hour, an hour, six hours and a day all have room, and the
-// day takes 300 degrees; older stands at the end of the scale. The last 60
-// degrees stay empty, so the oldest session is never read as the newest one
-// beside the meridian.
+// A day, in minutes: how long ago a session that names no time last asked.
 export const DAY = 1440;
-const STEP = 2;
-export const SPAN = (TAU * 300) / 360;
-
-// dial is the angle of a session that last asked min minutes ago.
-export function dial(min) {
-    const m = Math.max(0, min || 0);
-    return SPAN * Math.min(1, Math.log(1 + m / STEP) / Math.log(1 + DAY / STEP));
-}
 
 // idleOf is how many minutes ago a session last asked the model, counted from
 // now in milliseconds. A session that has not asked yet counts from its start;
-// one that names neither stands at the end of the scale.
+// one that names neither counts a day.
 export function idleOf(s, now) {
     const at = Date.parse((s && s.lastRequestAt) || "") || Date.parse((s && s.startedAt) || "");
     if (!Number.isFinite(at)) return DAY;
@@ -53,8 +40,11 @@ const ROOM = 70;
 // Every orbit leans its own way, the orbit of a planet's moons too: by an
 // inclination within INCLINE about a line through the star at an angle of its
 // own, both drawn from the name of the orbit — the same in every snapshot, and
-// not two alike.
+// not two alike. The moons lean within MOON_INCLINE: a moon on a steeper orbit
+// round a planet of the outer orbit would stand past the height the system is
+// given, as the planets go round.
 export const INCLINE = [(5 * Math.PI) / 180, (25 * Math.PI) / 180];
+export const MOON_INCLINE = [(5 * Math.PI) / 180, (12 * Math.PI) / 180];
 
 // MOON is the orbit of a planet's moons; a moon's own moons go on an orbit
 // smaller by MOON_SHRINK, so a grandchild stays inside its parent's reach.
@@ -81,10 +71,10 @@ function hashOf(name, salt) {
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// leanOf is how the orbit of a name leans: its inclination inc and the angle
-// of the line it leans about, node.
-export function leanOf(name) {
-    return { inc: INCLINE[0] + (INCLINE[1] - INCLINE[0]) * hashOf(name, 1), node: TAU * hashOf(name, 2) };
+// leanOf is how the orbit of a name leans: its inclination inc, within range,
+// and the angle of the line it leans about, node.
+export function leanOf(name, range = INCLINE) {
+    return { inc: range[0] + (range[1] - range[0]) * hashOf(name, 1), node: TAU * hashOf(name, 2) };
 }
 
 // inclined turns a point of an orbit's flat circle about the line of the
@@ -107,12 +97,32 @@ export function onOrbit(o, a) {
     return inclined(o.tilt, at(a, o.R));
 }
 
+// The orbits turn, their planets going round the star: the innermost orbit of
+// a system once in TURN seconds, every orbit further out slower, as the
+// planets of a sun go — the time of a turn as the radius to the power of one
+// and a half — and an orbit where every session idles at IDLE of that, so the
+// live ones turn and the sleeping ones all but stand. Moons go round their
+// planet MOONS times as fast as the planet goes round its star.
+export const TURN = 180;
+export const IDLE = 0.25;
+export const MOONS = 3;
+
+// spinOf is how fast an orbit of radius R turns, in radians a second, in a
+// system whose innermost orbit has radius inner; live says a session on it
+// works or waits.
+export function spinOf(R, inner, live) {
+    return (TAU / TURN) * (inner / R) ** 1.5 * (live ? 1 : IDLE);
+}
+
 // orbitOf is the radius of the orbit a node of depth d keeps its moons on.
 export function orbitOf(depth) {
     return MOON * MOON_SHRINK ** depth;
 }
 
-// layout places the nodes of every system in the plane of its system.
+// layout places the nodes of every system in the plane of its system, each
+// planet at a place of its own on its orbit, drawn from its name and pulled
+// clear of its neighbours, and sets every orbit and every planet with moons
+// turning.
 // systems lists the contours, each with its orbits: { name, orbits: [{ key,
 // name, keys }] }, keys being the planets of the orbit; nodes maps the key of
 // every session to { parent, idle, pull }, parent the key of the session that
@@ -123,11 +133,12 @@ export function orbitOf(depth) {
 // answers the systems that have a planet, each with its radius R and its
 // orbits with theirs, their bands and leans, and for every node its point in
 // its system's plane (w), its angle, its depth among moons, its moons, the
-// radius of their orbit and its lean.
+// radius of their orbit and its lean; and how fast every orbit turns (spin)
+// and the moons of every planet (its spin).
 export function layout(systems, nodes) {
     const placed = new Map();
     for (const [key, n] of nodes) {
-        placed.set(key, { key, parent: n.parent || null, idle: n.idle, pull: n.pull || 0, ang: dial(n.idle), kids: [], depth: 0, w: null });
+        placed.set(key, { key, parent: n.parent || null, idle: n.idle, pull: n.pull || 0, ang: TAU * hashOf(key, 3), kids: [], depth: 0, w: null });
     }
     // A parent that is not live, or a chain of parents that comes back to the
     // node itself, leaves the node a planet: it has nobody to orbit.
@@ -154,6 +165,8 @@ export function layout(systems, nodes) {
             o.R = edge + o.band / 2;
             edge += o.band;
             o.tilt = leanOf(`${sys.name}/${o.key}`);
+            o.spin = spinOf(o.R, orbits[0].R, o.planets.some(lively));
+            for (const p of o.planets) spinMoons(p, o.spin * MOONS);
             spread(o.planets, (a, b) => Math.max(ROOM + reach(a), ROOM + reach(b)) / o.R);
             for (const p of o.planets) spreadMoons(p);
             placeOrbit(o);
@@ -188,8 +201,20 @@ function loops(n, placed) {
 function depthOf(n, depth) {
     n.depth = depth;
     n.orbit = orbitOf(depth);
-    n.lean = leanOf(`moons/${n.key}`);
+    n.lean = leanOf(`moons/${n.key}`, MOON_INCLINE);
     for (const k of n.kids) depthOf(k, depth + 1);
+}
+
+// lively says a session of a family works or waits.
+function lively(n) {
+    return n.pull > 0 || n.kids.some(lively);
+}
+
+// spinMoons sets how fast the moons of a node go round it, and theirs round
+// them, each depth MOONS times as fast as the one above.
+function spinMoons(n, spin) {
+    n.spin = spin;
+    for (const k of n.kids) spinMoons(k, spin * MOONS);
 }
 
 // weightOf is what a family weighs: a session apiece and their pull.
@@ -211,24 +236,47 @@ function spreadMoons(p) {
 
 function moons(p) {
     for (const k of p.kids) {
-        k.w = add(p.w, inclined(p.lean, at(k.ang, p.orbit)));
+        k.w = add(p.w, inclined(p.lean, at(k.ang + (p.turn || 0), p.orbit)));
         moons(k);
     }
 }
 
 // placeOrbit puts the planets of an orbit, and their moons, where the
-// orbit's radius and lean say: on a new snapshot, and on every frame of an
-// orbit gliding to a new place.
+// orbit's radius, lean and turn say: on a new snapshot, on every frame of an
+// orbit gliding to a new place and of the orbits turning.
 export function placeOrbit(o) {
     for (const p of o.planets) {
-        p.w = onOrbit(o, p.ang);
+        p.w = onOrbit(o, p.ang + (o.turn || 0));
         moons(p);
     }
 }
 
-// spread pulls apart the nodes that would stand on one another, and only
-// toward older: a session is never drawn fresher than it is. gap(a, b) is the
-// angle two neighbours need between them. When the orbit cannot hold every
+// turnBy turns the orbits of a graph, and the moons round their planets, by
+// dt seconds from where turns has them — a map from every orbit and every
+// planet with moons to how far it has turned, which outlives the snapshots —
+// and puts every node where that leaves it. A dt of 0 only puts them there.
+export function turnBy(graph, turns, dt) {
+    const turn = (key, spin) => {
+        const now = ((turns.get(key) || 0) + spin * dt) % TAU;
+        turns.set(key, now);
+        return now;
+    };
+    const kin = (n) => {
+        if (n.kids.length === 0) return;
+        n.turn = turn(`moons/${n.key}`, n.spin);
+        n.kids.forEach(kin);
+    };
+    for (const sys of graph.systems) {
+        for (const o of sys.orbits) {
+            o.turn = turn(`${sys.name}/${o.key}`, o.spin);
+            o.planets.forEach(kin);
+            placeOrbit(o);
+        }
+    }
+}
+
+// spread pulls apart the nodes that would stand on one another, forward
+// round the orbit. gap(a, b) is the angle two neighbours need between them. When the orbit cannot hold every
 // node at its full gap, the gaps shrink all together until the last node
 // stops short of the first one round the orbit.
 export function spread(list, gap) {

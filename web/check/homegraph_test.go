@@ -5,28 +5,58 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
 )
 
 type homeGraph struct {
-	Dial struct {
-		Now    float64 `json:"now"`
-		Hour   float64 `json:"hour"`
-		Day    float64 `json:"day"`
-		Past   float64 `json:"past"`
-		Span   float64 `json:"span"`
-		Rising bool    `json:"rising"`
-	} `json:"dial"`
-	Angles     map[string]float64 `json:"angles"`
-	DialOf     map[string]float64 `json:"dialOf"`
-	Systems    []graphSystem      `json:"systems"`
-	Moon       graphMoon          `json:"moon"`
-	Grandchild graphMoon          `json:"grandchild"`
-	MoonSizes  []float64          `json:"moonSizes"`
-	OrbitOf    map[string]string  `json:"orbitOf"`
-	Stars      []float64          `json:"stars"`
+	Angles      map[string]float64 `json:"angles"`
+	AnglesLater map[string]float64 `json:"anglesLater"`
+	Apart       float64            `json:"apart"`
+	NotesOf     map[string]string  `json:"notesOf"`
+	CrowdApart  struct {
+		Count int     `json:"count"`
+		Even  float64 `json:"even"`
+		Least float64 `json:"least"`
+	} `json:"crowdApart"`
+	Spins struct {
+		Turn      float64 `json:"turn"`
+		InnerTurn float64 `json:"innerTurn"`
+		Orbits    []struct {
+			Key      string  `json:"key"`
+			R        float64 `json:"R"`
+			Spin     float64 `json:"spin"`
+			IdleSpin float64 `json:"idleSpin"`
+			LiveSpin float64 `json:"liveSpin"`
+		} `json:"orbits"`
+		Moons   map[string]float64 `json:"moons"`
+		Stirred float64            `json:"stirred"`
+		OffBy   float64            `json:"offBy"`
+		Kept    int                `json:"kept"`
+	} `json:"spins"`
+	Motion struct {
+		AtStart    string  `json:"atStart"`
+		OffDraws   int     `json:"offDraws"`
+		Kept       string  `json:"kept"`
+		FPS        float64 `json:"fps"`
+		Moved      float64 `json:"moved"`
+		Hidden     int     `json:"hiddenDraws"`
+		ShownAgain int     `json:"shownAgain"`
+		Away       int     `json:"awayDraws"`
+		Back       int     `json:"backDraws"`
+		Reopened   string  `json:"reopened"`
+		KeptOff    string  `json:"keptOff"`
+		OffAgain   int     `json:"offAgain"`
+		PlainStart string  `json:"plainStart"`
+	} `json:"motion"`
+	Systems    []graphSystem     `json:"systems"`
+	Moon       graphMoon         `json:"moon"`
+	Grandchild graphMoon         `json:"grandchild"`
+	MoonSizes  []float64         `json:"moonSizes"`
+	OrbitOf    map[string]string `json:"orbitOf"`
+	Stars      []float64         `json:"stars"`
 	Weights    struct {
 		Order     []string       `json:"order"`
 		Weights   map[string]int `json:"weights"`
@@ -45,13 +75,14 @@ type homeGraph struct {
 		Heights []float64            `json:"heights"`
 	} `json:"leans"`
 	OrbitInk struct {
-		Rings  int     `json:"rings"`
-		Wanted int     `json:"wanted"`
-		Found  int     `json:"found"`
-		Min    float64 `json:"min"`
-		Max    float64 `json:"max"`
-		Near   float64 `json:"near"`
-		Far    float64 `json:"far"`
+		Rings    int     `json:"rings"`
+		Wanted   int     `json:"wanted"`
+		Found    int     `json:"found"`
+		Min      float64 `json:"min"`
+		Max      float64 `json:"max"`
+		Near     float64 `json:"near"`
+		Far      float64 `json:"far"`
+		Meridian bool    `json:"meridian"`
 	} `json:"orbitInk"`
 	Order  []string `json:"order"`
 	Galaxy struct {
@@ -139,14 +170,10 @@ type homeGraph struct {
 		Prevented bool `json:"prevented"`
 		Menu      bool `json:"menu"`
 	} `json:"menuAway"`
-	Still       int    `json:"still"`
-	AutoAtStart string `json:"autoAtStart"`
-	Turning     int    `json:"turning"`
-	HiddenDraws int    `json:"hiddenDraws"`
-	ShownAgain  int    `json:"shownAgain"`
-	OffDraws    int    `json:"offDraws"`
-	Help        string `json:"help"`
-	Gestures    struct {
+	Still    int      `json:"still"`
+	Help     string   `json:"help"`
+	Legend   []string `json:"legend"`
+	Gestures struct {
 		PanDuring     float64 `json:"panDuring"`
 		PanAfter      float64 `json:"panAfter"`
 		PanTip        string  `json:"panTip"`
@@ -250,51 +277,42 @@ func runHomeGraph(t *testing.T) homeGraph {
 	return got
 }
 
-// A session stands on the orbit of its project at the angle of its last
-// request: the meridian of now at zero, a log scale to a day at 300 degrees,
-// anything older at the end of it. A session that has not asked yet counts
-// from its start, one that names neither stands at the end. Two that asked at
-// once are pulled apart toward older only, and a session another one opened
-// is its moon, on the small orbit round it at the angle of its own request,
-// whatever the project of its directory; a grandchild is a moon of the moon.
-func TestTheGraphPlacesASessionByItsLastRequest(t *testing.T) {
+// A session stands on the orbit of its project, at a place of its own that
+// says nothing of its time — an hour later every planet stands where it stood
+// — and clear of the other planets of the orbit; a session another one opened
+// is its moon, on the small orbit round it, whatever the project of its
+// directory, and a grandchild is a moon of the moon. How long ago it last
+// asked is told beside its mark and in its tip.
+func TestAPlanetStandsOnTheOrbitOfItsProject(t *testing.T) {
 	got := runHomeGraph(t)
 
-	d := got.Dial
-	if d.Now != 0 || d.Day != 300 || d.Past != 300 || d.Span != 300 {
-		t.Errorf("the dial reads now %v°, a day %v°, five days %v° (span %v°): the scale is now at 0 and a day at 300, older at the end",
-			d.Now, d.Day, d.Past, d.Span)
+	if len(got.Angles) != 8 || !reflect.DeepEqual(got.Angles, got.AnglesLater) {
+		t.Errorf("the planets stand at %v, and an hour later at %v: a place on an orbit is the planet's own, not its time",
+			got.Angles, got.AnglesLater)
 	}
-	if math.Abs(d.Hour-156.5) > 0.5 {
-		t.Errorf("an hour stands at %v° instead of 156.5°: the scale is not log(1 + min/2) over a day", d.Hour)
+	if got.Apart < 60 {
+		t.Errorf("two planets of one orbit stand %v apart: they are pulled clear of each other", got.Apart)
 	}
-	if !d.Rising {
-		t.Error("an older request does not stand further round the dial")
+	// Too many for their room, the planets keep their own places as far as
+	// they can and the gaps all shrink alike: no two stand on one another,
+	// though the gaps are not even.
+	if c := got.CrowdApart; c.Count != 11 || c.Least < 0.4*c.Even {
+		t.Errorf("%d planets on one orbit stand at least %v apart, where an even share of the orbit is %v: they are "+
+			"pulled clear of each other all round it", c.Count, c.Least, c.Even)
 	}
-
-	for name, at := range map[string]string{"blog": "blog", "draft": "draft", "shop": "shop", "bench-1": "bench"} {
-		if math.Abs(got.Angles[name]-got.DialOf[at]) > 0.11 {
-			t.Errorf("%s stands at %v°, while its last request — or its start, having asked nothing — puts it at %v°",
-				name, got.Angles[name], got.DialOf[at])
-		}
-	}
-	if got.Angles["stray"] != 300 {
-		t.Errorf("a session with neither a request nor a start stands at %v°, not at the end of the scale", got.Angles["stray"])
-	}
-	if got.Angles["notes"] <= got.Angles["blog"] {
-		t.Errorf("notes asked when blog did on the same orbit and stands at %v° against %v°: neighbours are pulled "+
-			"apart toward older", got.Angles["notes"], got.Angles["blog"])
+	if got.NotesOf["draft"] != "idle, 5 min" || got.NotesOf["stray"] != "idle, 1 d" {
+		t.Errorf("draft says %q and stray %q beside their marks: a session that has asked nothing counts from its "+
+			"start, one that names neither a day", got.NotesOf["draft"], got.NotesOf["stray"])
 	}
 
 	m := got.Moon
 	if m.Parent != "blog" || m.Depth != 1 || m.System != "client" || m.OffBy > 0.001 || m.Orbit != int64ish(got.MoonSizes[0]) {
-		t.Errorf("the thread blog opened in the directory of drafts is a moon of %q at depth %d in %q, %v off the angle "+
-			"of its request, %v from blog: a child stands on the orbit of its parent at the angle of its own last request",
-			m.Parent, m.Depth, m.System, m.OffBy, m.Orbit)
+		t.Errorf("the thread blog opened in the directory of drafts is a moon of %q at depth %d in %q, %v off its place, "+
+			"%v from blog: a child stands on the orbit round its parent", m.Parent, m.Depth, m.System, m.OffBy, m.Orbit)
 	}
 	g := got.Grandchild
 	if g.Parent != "codex-1" || g.Depth != 2 || g.OffBy > 0.001 || g.Orbit != int64ish(got.MoonSizes[1]) {
-		t.Errorf("the session the thread opened is a moon of %q at depth %d, %v off its angle, %v from it: "+
+		t.Errorf("the session the thread opened is a moon of %q at depth %d, %v off its place, %v from it: "+
 			"a grandchild is a moon of the moon, on a smaller orbit", g.Parent, g.Depth, g.OffBy, g.Orbit)
 	}
 	if got.OrbitOf["codex-1"] != "blog" || got.OrbitOf["deep"] != "blog" {
@@ -333,7 +351,9 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 		have := []orbit{}
 		last := 0.0
 		for _, o := range sys.Orbits {
-			have = append(have, orbit{o.Key, strings.Join(o.Planets, ","), o.Label})
+			planets := append([]string(nil), o.Planets...)
+			sort.Strings(planets)
+			have = append(have, orbit{o.Key, strings.Join(planets, ","), o.Label})
 			if o.R <= last {
 				t.Errorf("in %s the orbit %s stands at %v, inside the orbit before it", sys.Name, o.Key, o.R)
 			}
@@ -583,23 +603,41 @@ func TestTheGraphOpensASessionAsItsRowDoes(t *testing.T) {
 	}
 }
 
-// The graph is drawn when what it shows changes, not on every frame. Where
-// less motion is asked for it does not turn by itself; switched on, it turns
-// frame after frame while the page is seen and stops while it is hidden.
+// With Motion off the graph is drawn when what it shows changes, not on every
+// frame. Motion is off where less motion is asked for and nothing is kept;
+// switched on, the planets go round, no more than thirty frames a second and
+// none while the page is hidden or the graph is off the screen, and the
+// choice is kept for the next time the page opens; with nothing kept and no
+// wish for less motion it is on.
 func TestTheGraphDrawsOnlyWhenSomethingMoves(t *testing.T) {
 	got := runHomeGraph(t)
 
 	if got.Still != 0 {
 		t.Errorf("the graph drew %d frames while nothing changed", got.Still)
 	}
-	if got.AutoAtStart != "false" {
-		t.Errorf("Auto-rotate starts %q where the system asks for less motion", got.AutoAtStart)
+	m := got.Motion
+	if m.AtStart != "false" || m.OffDraws != 0 {
+		t.Errorf("where less motion is asked for, Motion starts %q and the graph draws %d frames of twenty", m.AtStart, m.OffDraws)
 	}
-	if got.Turning < 6 || got.ShownAgain < 6 {
-		t.Errorf("switched on, the graph drew %d frames of twelve, and %d once the page was seen again", got.Turning, got.ShownAgain)
+	if m.Kept != "on" || m.Moved < 0.1 {
+		t.Errorf("switched on, Motion is kept as %q and the names move %v px in a second and a half: the planets go round, "+
+			"slowly", m.Kept, m.Moved)
 	}
-	if got.HiddenDraws != 0 || got.OffDraws != 0 {
-		t.Errorf("the graph drew %d frames while the page was hidden and %d once switched off", got.HiddenDraws, got.OffDraws)
+	if m.FPS > 31 || m.FPS < 15 {
+		t.Errorf("the planets go round at %v frames a second: at most thirty", m.FPS)
+	}
+	if m.Hidden != 0 || m.ShownAgain < 4 {
+		t.Errorf("the graph drew %d frames while the page was hidden, %d of twelve once seen again", m.Hidden, m.ShownAgain)
+	}
+	if m.Away != 0 || m.Back < 4 {
+		t.Errorf("the graph drew %d frames while off the screen, %d of twelve once back on it", m.Away, m.Back)
+	}
+	if m.Reopened != "true" || m.KeptOff != "off" || m.OffAgain != 0 {
+		t.Errorf("opened again Motion is %q, switched off it is kept as %q and the graph draws %d frames: the person's "+
+			"choice outlives the page", m.Reopened, m.KeptOff, m.OffAgain)
+	}
+	if m.PlainStart != "true" {
+		t.Errorf("with nothing kept and no wish for less motion, Motion starts %q", m.PlainStart)
 	}
 }
 
@@ -831,7 +869,8 @@ func TestEveryOrbitLeansItsOwnWay(t *testing.T) {
 // The orbits, and the orbits of the moons, are barely there: hairlines at an
 // opacity of 0.05 to 0.08, the half nearer the eye the brighter.
 func TestTheOrbitsAreBarelyThere(t *testing.T) {
-	o := runHomeGraph(t).OrbitInk
+	got := runHomeGraph(t)
+	o := got.OrbitInk
 	if o.Rings != 6 || o.Found != o.Wanted || o.Wanted == 0 {
 		t.Fatalf("%d of %d segments of %d orbits found among the strokes: every orbit is drawn in its lean", o.Found, o.Wanted, o.Rings)
 	}
@@ -840,6 +879,12 @@ func TestTheOrbitsAreBarelyThere(t *testing.T) {
 	}
 	if !(o.Near > o.Far) {
 		t.Errorf("the near half of the orbits is drawn at %v against %v for the far half: the near half is the brighter", o.Near, o.Far)
+	}
+	if want := []string{"busy", "idle", "waiting for an answer", "lit part — context", "background work", "moons — sessions it opened"}; !reflect.DeepEqual(got.Legend, want) {
+		t.Errorf("the legend says %v, want %v: a place on an orbit means nothing to name", got.Legend, want)
+	}
+	if o.Meridian {
+		t.Error("a meridian runs from the star to the front of the outer orbit: a place on an orbit says nothing of time any more")
 	}
 }
 
@@ -866,5 +911,53 @@ func TestAnOrbitGlidesToItsNewPlace(t *testing.T) {
 	if tie.Kept != "shop" || tie.Fresh == "shop" {
 		t.Errorf("shop stops working and weighs as stray: its kept place says %q, its place by the map %q — "+
 			"orbits of equal weight stay where they were drawn", tie.Kept, tie.Fresh)
+	}
+}
+
+// The orbits turn as the planets of a sun go round: the innermost orbit of a
+// system once in three minutes, the orbits further out slower, the time of a
+// turn as the radius to the power of one and a half, and an orbit where every
+// session idles at a quarter of that. Moons go round their planet faster
+// than the planet round its star, and theirs faster still. A turn moves every
+// planet and every moon by its own spin.
+func TestTheOrbitsTurnAsPlanetsDo(t *testing.T) {
+	sp := runHomeGraph(t).Spins
+	if sp.InnerTurn < 120 || sp.InnerTurn > 240 {
+		t.Errorf("the innermost orbit, live, turns once in %v s: two to four minutes", sp.InnerTurn)
+	}
+	if len(sp.Orbits) != 4 {
+		t.Fatalf("the spins of %d orbits came back, not four", len(sp.Orbits))
+	}
+	idle := map[string]bool{"p43": true, "p42": true, "p41": true, "p44": false}
+	for i, o := range sp.Orbits {
+		want := o.LiveSpin
+		if idle[o.Key] {
+			want = o.IdleSpin
+		}
+		if math.Abs(o.Spin-want) > 1e-12 {
+			t.Errorf("the orbit %s turns at %v rad/s, want %v: an orbit of idle sessions turns at a quarter", o.Key, o.Spin, want)
+		}
+		if math.Abs(o.LiveSpin/o.IdleSpin-4) > 1e-9 {
+			t.Errorf("at the radius of %s an idle orbit turns at %v of a live one: a quarter", o.Key, o.IdleSpin/o.LiveSpin)
+		}
+		if i > 0 {
+			in := sp.Orbits[i-1]
+			if ratio, kepler := in.LiveSpin/o.LiveSpin, math.Pow(o.R/in.R, 1.5); math.Abs(ratio-kepler) > 1e-9 || ratio <= 1 {
+				t.Errorf("the orbit at %v turns %v times as fast as the one at %v, want %v: the inner ones faster, as R^1.5",
+					in.R, ratio, o.R, kepler)
+			}
+		}
+	}
+	if math.Abs(sp.Stirred-1) > 1e-9 {
+		t.Errorf("big idles but for a moon at work, and turns at %v of a live orbit: a family at work keeps its orbit live", sp.Stirred)
+	}
+	m := sp.Moons
+	if !(m["b1"] > m["big"] && m["m1"] > m["b1"]) {
+		t.Errorf("the orbit of big turns at %v, the moons of b1 round it at %v, those of m1 at %v: moons go round faster "+
+			"than their planet", m["big"], m["b1"], m["m1"])
+	}
+	if sp.OffBy > 1e-9 || sp.Kept != 6 {
+		t.Errorf("ten seconds of turning leave a node %v off where its spin puts it, and keep %d turns: four orbits and two "+
+			"planets with moons", sp.OffBy, sp.Kept)
 	}
 }
