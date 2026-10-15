@@ -149,16 +149,57 @@ function Shell({ snap }) {
     `;
 }
 const show = () => render(h(ToastHost, null, h(GateHost, null, h(Shell, { snap: snapshot }))), document.getElementById("app"));
+
+// The page's own clock is the fixture's. A frame the fixture waits for comes
+// at once, a sixtieth of a second later in the page's time, so a glide or a
+// second and a half of turning takes the frames it takes and not the wall
+// clock's wait; a frame the page asks for while the fixture waits on
+// something else comes with the browser's own frame, so a page left turning
+// does not spin. The fixture's own deadlines keep the wall clock, and what
+// the browser delivers on its real frames — an intersection seen — is waited
+// for on them.
+const wall = { now: performance.now.bind(performance), frame: window.requestAnimationFrame.bind(window) };
+let clock = wall.now();
+const due = new Map();
+let framesAsked = 0;
+let onScreen = false;
+const tick = () => {
+    clock += 1000 / 60;
+    const now = [...due.values()];
+    due.clear();
+    for (const cb of now) cb(clock);
+};
+const pump = new MessageChannel();
+pump.port1.onmessage = tick;
+window.requestAnimationFrame = (cb) => {
+    framesAsked += 1;
+    due.set(framesAsked, cb);
+    if (!onScreen) {
+        onScreen = true;
+        wall.frame(() => {
+            onScreen = false;
+            if (due.size > 0) tick();
+        });
+    }
+    return framesAsked;
+};
+window.cancelAnimationFrame = (id) => { due.delete(id); };
+performance.now = () => clock;
+const wallFrames = async (n) => { for (let i = 0; i < n; i++) await new Promise((r) => wall.frame(() => r())); };
 // The choice of Motion a run before this one, or another page, left behind.
 const MOTION_KEY = "aacpanel.desktop.motion";
 localStorage.removeItem(MOTION_KEY);
 show();
 
-const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const frame = () => new Promise((r) => {
+    framesAsked += 1;
+    due.set(framesAsked, () => r());
+    pump.port2.postMessage(0);
+});
 const frames = async (n) => { for (let i = 0; i < n; i++) await frame(); };
 const until = async (fn, ms = 3000) => {
-    const end = performance.now() + ms;
-    while (performance.now() < end) {
+    const end = wall.now() + ms;
+    while (wall.now() < end) {
         const got = fn();
         if (got) return got;
         await frame();
@@ -803,6 +844,8 @@ window.done = (async () => {
         const cy = lit.reduce((sum, p) => sum + p.dy, 0) / Math.max(1, lit.length);
         const off = Math.abs(Math.atan2(Math.sin(Math.atan2(cy, cx) - toward), Math.cos(Math.atan2(cy, cx) - toward)));
         return {
+            pixels,
+            toward,
             share: Math.round((lit.length / pixels.length) * 1000) / 1000,
             rgb,
             facing: lit.length ? Math.round((off * 180) / Math.PI) : null,
@@ -816,12 +859,36 @@ window.done = (async () => {
         out.phase = Object.fromEntries(Object.entries(ph).map(([k, v]) => [k, drop(v)]));
         out.phase.ink = [1, 3, 5].map((i) => parseInt(pal.ink.slice(i, i + 2), 16));
         out.phase.cap = [1, 3, 5].map((i) => parseInt(pal.cap.slice(i, i + 2), 16));
-        // The surface is the session's own: drawn again, the same to the byte;
-        // another session, another surface.
+        // The surface is the session's own: drawn again once its picture is
+        // long gone from the keep — four hundred and twenty others drawn after
+        // it — the same to the byte; another session, another surface.
+        for (let i = 0; i < 21; i++) {
+            sheetOf(Array.from({ length: 20 }, (_, j) => S({ session: `crowd-${i}-${j}`, profile: "personal", status: "idle",
+                pct: 50, lastRequestAt: iso(30) })), pal, 1);
+        }
         const again = phaseOf(50);
         const other = phaseOf(50, "solo-two");
         const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
-        out.surface = { again: same(ph["50"].bytes, again.bytes), other: same(ph["50"].bytes, other.bytes) };
+        // Two planets stand at their own angles to the star, so their pictures
+        // are turned their own ways: each pixel of the lit half of one is
+        // turned back into the light's own frame and read off the other where
+        // that frame puts it.
+        const unlike = (a, b) => {
+            const grid = new Map(b.pixels.map((p) => [`${Math.round(p.dx)},${Math.round(p.dy)}`, p]));
+            let sum = 0;
+            let n = 0;
+            for (const p of a.pixels) {
+                const x = p.dx * Math.cos(a.toward) + p.dy * Math.sin(a.toward);
+                const y = -p.dx * Math.sin(a.toward) + p.dy * Math.cos(a.toward);
+                if (x < 6) continue;
+                const q = grid.get(`${Math.round(x * Math.cos(b.toward) - y * Math.sin(b.toward))},${Math.round(x * Math.sin(b.toward) + y * Math.cos(b.toward))}`);
+                if (!q) continue;
+                sum += Math.abs(lumaOf(p.rgb) - lumaOf(q.rgb));
+                n += 1;
+            }
+            return Math.round((sum / Math.max(1, n)) * 10) / 10;
+        };
+        out.surface = { again: same(ph["50"].bytes, again.bytes), unlike: unlike(ph["50"], other) };
         // A planet and its moon as drawn at the scale the interface opens on:
         // the radius of each, from the area of its disc.
         const sh = sheetOf([S({ session: "solo", profile: "personal", status: "idle", pct: 50, lastRequestAt: iso(30) }),
@@ -1102,6 +1169,8 @@ window.done = (async () => {
         m.offDraws = draws - d0;
         button().click();
         m.kept = localStorage.getItem(MOTION_KEY);
+        // The graph is seen on the browser's own frame.
+        await wallFrames(2);
         await frames(4);
         const made0 = spritesMade();
         const at0 = names();
@@ -1127,12 +1196,12 @@ window.done = (async () => {
         m.shownAgain = draws - d0;
         const widget = document.querySelector(".dkorbits");
         widget.style.transform = "translateY(-6000px)";
-        await frames(4);
+        await wallFrames(3);
         d0 = draws;
         await frames(12);
         m.awayDraws = draws - d0;
         widget.style.transform = "";
-        await frames(4);
+        await wallFrames(3);
         d0 = draws;
         await frames(12);
         m.backDraws = draws - d0;

@@ -57,6 +57,11 @@ window.clearTimeout = (id) => {
 
 const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
+// The deadline is the wall clock's, taken before a fixture may drive the
+// page's own clock: a fixture that hands out frames faster than the screen
+// draws them still gives the page its seconds to settle.
+const wall = performance.now.bind(performance);
+
 // arrive takes every transition and animation of the page that ends by itself
 // to its end, and says whether there was one. What a fixture reads is where
 // the screen comes to rest — the end of a transition is the style the rules
@@ -83,9 +88,9 @@ export async function quiet(ms = 3000) {
     let changed = true;
     const seen = new MutationObserver(() => { changed = true; });
     seen.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
-    const end = performance.now() + ms;
+    const end = wall() + ms;
     try {
-        while (performance.now() < end) {
+        while (wall() < end) {
             changed = arrive();
             await frame();
             await frame();

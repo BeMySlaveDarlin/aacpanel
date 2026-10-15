@@ -145,8 +145,8 @@ type homeGraph struct {
 	} `json:"carousel"`
 	Phase   map[string]json.RawMessage `json:"phase"`
 	Surface struct {
-		Again bool `json:"again"`
-		Other bool `json:"other"`
+		Again  bool    `json:"again"`
+		Unlike float64 `json:"unlike"`
 	} `json:"surface"`
 	Sizes struct {
 		Planet float64 `json:"planet"`
@@ -575,8 +575,11 @@ func TestAPlanetIsLitByItsContext(t *testing.T) {
 // five. The far stars are drawn on the dark theme and not on the light one.
 func TestAPlanetHasASurfaceOfItsOwn(t *testing.T) {
 	got := runHomeGraph(t)
-	if !got.Surface.Again || got.Surface.Other {
-		t.Errorf("drawn again, the planet is the same: %v; another session's the same: %v", got.Surface.Again, got.Surface.Other)
+	// Read in the light's own frame, one surface against itself differs by
+	// a level or two of resampling; two surfaces by more than ten.
+	if !got.Surface.Again || got.Surface.Unlike < 6 {
+		t.Errorf("drawn again, the planet is the same to the byte: %v; another session's surface differs from it by %v "+
+			"levels: the surface is the session's own", got.Surface.Again, got.Surface.Unlike)
 	}
 	if got.Motion.Made != 0 {
 		t.Errorf("%d pictures of planets were made while they went round for a second and a half: they are made once", got.Motion.Made)
