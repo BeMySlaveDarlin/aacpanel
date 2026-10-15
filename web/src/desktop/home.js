@@ -1,17 +1,23 @@
-// The desktop home screen: a grid of widgets.
+// The desktop home screen, the live part on top. Now: the graph of the
+// sessions, and beside it the containers, the machine and today's spend.
+// Period below: the four tiles that answer what the spend went on, under one
+// switch of the period, so the four always speak of the same days.
 import { useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { pct, plural, uptime } from "../format.js";
 import * as usage from "../data/usage.js";
+import { Orbits } from "./orbits/orbits.js";
 import { UsageLayer, nextStep } from "./usage/breakdown.js";
 import { Hours } from "./usage/hours.js";
 import { ScanLayer } from "./usage/scan.js";
-import { Cache, Today } from "./usage/today.js";
+import { Today } from "./usage/today.js";
 import { Models, Projects, Tools } from "./usage/tops.js";
 
-const TOPS_PERIOD = "30d";
+// The period the four tiles open on: two weeks is the step by the hour still
+// reads, and the span a working habit shows in.
+export const PERIOD = "14d";
 
 const TODAY = { period: "today" };
 
@@ -22,48 +28,64 @@ function bucketLabel(range) {
     return `${at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · ${day}`;
 }
 
-export function Home({ snapshot, tree, onSection }) {
+// Jump is a line that leads to a section: its figure, what it is, and the
+// way there.
+function Jump({ icon, value, label, sub, onOpen }) {
+    return html`
+        <button class="dkhmjump" type="button" onClick=${onOpen}>
+            <span class="dkhmjumpicon"><${icon} /></span>
+            <span class="dkhmjumpvalue">${value}</span>
+            <span class="dkhmjumplabel">
+                <b>${label}</b>
+                <span>${sub}</span>
+            </span>
+            <span class="dkhmjumpgo">open<${Icon.chevron} /></span>
+        </button>
+    `;
+}
+
+// Group is the quiet heading over the tiles that answer one question.
+function Group({ name, note, children }) {
+    return html`
+        <div class="dkhmgroup">
+            <h2>${name}</h2>
+            ${note && html`<p>${note}</p>`}
+            ${children}
+        </div>
+    `;
+}
+
+// PeriodSwitch is the one switch of the period of the four tiles.
+function PeriodSwitch({ period, onPick }) {
+    return html`
+        <span class="uchips dkhmperiod" role="group" aria-label="Period">
+            ${usage.PERIODS.map((p) => html`
+                <button
+                    key=${p.id}
+                    class=${`uchip${p.id === period ? " on" : ""}`}
+                    type="button"
+                    aria-pressed=${p.id === period ? "true" : "false"}
+                    onClick=${() => onPick(p.id)}
+                >${p.label}</button>
+            `)}
+        </span>
+    `;
+}
+
+export function Home({ snapshot, tree, exec, wait, theme, onSection, onSession, onTerm }) {
     const h = (snapshot && snapshot.host) || {};
-    const sessions = (snapshot && snapshot.sessions) || [];
-    const waiting = sessions.filter((x) => x.status === "waiting").length;
     const stacks = (tree && tree.stacks) || [];
 
     const [layer, setLayer] = useState(null);
+    const [period, setPeriod] = useState(PERIOD);
     const scan = usage.useUsageScan();
     const today = usage.useUsageSummary(TODAY, scan.rounds);
     const todayHours = usage.useUsageSeries(TODAY, "hour", scan.rounds);
 
-    const jumps = [
-        {
-            id: "sessions",
-            label: "Sessions",
-            icon: Icon.sessions,
-            value: sessions.length,
-            sub: waiting
-                ? `${waiting} waiting for an answer`
-                : (sessions.length ? "all busy with work" : "there are no live sessions"),
-            hot: waiting > 0,
-        },
-        {
-            id: "containers",
-            label: "Containers",
-            icon: Icon.containers,
-            value: tree ? `${tree.running}/${tree.total}` : "—",
-            sub: tree ? `${stacks.length} ${plural(stacks.length, "stack", "stacks")}` : "the tree is unavailable",
-        },
-        {
-            id: "machine",
-            label: "Machine",
-            icon: Icon.cpu,
-            value: pct(h.cpuPct),
-            sub: `memory ${pct(h.mem && h.mem.pct)}${uptime(h.uptime) && ` · ${uptime(h.uptime)}`}`,
-        },
-    ];
-
-    const openBreakdown = (period, by, row) => {
+    const openBreakdown = (at, by, row) => {
         const base = { by, label: by === usage.BY_SESSION ? "sessions" : "projects", filter: {} };
         const down = row ? nextStep(base, row) : null;
-        setLayer({ kind: "breakdown", period, trail: down ? [base, down] : [base] });
+        setLayer({ kind: "breakdown", period: at, trail: down ? [base, down] : [base] });
     };
 
     const openBucket = (range) => setLayer({
@@ -71,6 +93,8 @@ export function Home({ snapshot, tree, onSection }) {
         pinned: bucketLabel(range),
         trail: [{ by: usage.BY_SESSION, label: "sessions", filter: { from: range.from, to: range.to } }],
     });
+
+    const stopped = tree ? tree.total - tree.running : 0;
 
     return html`
         <section class="dkcenter">
@@ -80,58 +104,80 @@ export function Home({ snapshot, tree, onSection }) {
                     <span class="dkheadpath">${(snapshot && snapshot.hostName) || "host"} · overview</span>
                 </div>
             </div>
-            <div class="dkgrid">
-                <div class="dkwidget w6 h1 dkjumps">
-                    ${jumps.map((it) => html`
-                        <button
-                            key=${it.id}
-                            class=${`dkjump${it.hot ? " hot" : ""}`}
-                            type="button"
-                            onClick=${() => onSection(it.id)}
-                        >
-                            <span class="dkjumpicon"><${it.icon} /></span>
-                            <span class="dkjumpvalue">${it.value}</span>
-                            <span class="dkjumplabel">${it.label}</span>
-                            <span class="dkjumpsub">${it.sub}</span>
-                        </button>
-                    `)}
+            <div class="dkhm">
+                <${Group} name="Now" />
+                <div class="dkhmnow">
+                    <${Orbits}
+                        snapshot=${snapshot}
+                        exec=${exec}
+                        wait=${wait}
+                        theme=${theme}
+                        onSession=${onSession}
+                        onTerm=${onTerm}
+                    />
+                    <div class="dkhmside">
+                        <div class="dkwidget dkhmjumps">
+                            <${Jump}
+                                icon=${Icon.containers}
+                                value=${tree ? `${tree.running}/${tree.total}` : "—"}
+                                label="Containers"
+                                sub=${tree
+                                    ? `${stacks.length} ${plural(stacks.length, "stack", "stacks")} · ${stopped} stopped`
+                                    : "the tree is unavailable"}
+                                onOpen=${() => onSection("containers")}
+                            />
+                            <${Jump}
+                                icon=${Icon.cpu}
+                                value=${pct(h.cpuPct)}
+                                label="Machine"
+                                sub=${`memory ${pct(h.mem && h.mem.pct)}${uptime(h.uptime) && ` · ${uptime(h.uptime)}`}`}
+                                onOpen=${() => onSection("machine")}
+                            />
+                        </div>
+                        <${Group} name="Today" />
+                        <${Today}
+                            summary=${today}
+                            series=${todayHours}
+                            scan=${scan}
+                            onScan=${() => setLayer({ kind: "scan" })}
+                            onOpen=${() => openBreakdown("today", usage.BY_PROJECT, null)}
+                            onCache=${() => setLayer({
+                                kind: "breakdown",
+                                period: "today",
+                                trail: [{ by: usage.BY_SESSION, label: "worst cache first", filter: {}, sort: "hit" }],
+                            })}
+                        />
+                    </div>
                 </div>
-                <${Today}
-                    summary=${today}
-                    series=${todayHours}
-                    scan=${scan}
-                    onScan=${() => setLayer({ kind: "scan" })}
-                    onOpen=${() => openBreakdown("today", usage.BY_PROJECT, null)}
-                />
-                <${Cache}
-                    summary=${today}
-                    scan=${scan}
-                    onOpen=${() => setLayer({
-                        kind: "breakdown",
-                        period: "today",
-                        trail: [{ by: usage.BY_SESSION, label: "worst cache first", filter: {}, sort: "hit" }],
-                    })}
-                />
-                <${Hours}
-                    rounds=${scan.rounds}
-                    scan=${scan}
-                    onOpen=${(period, range) => (range ? openBucket(range) : openBreakdown(period, usage.BY_PROJECT, null))}
-                />
-                <${Projects}
-                    rounds=${scan.rounds}
-                    scan=${scan}
-                    onOpen=${(row) => openBreakdown(TOPS_PERIOD, usage.BY_PROJECT, row)}
-                />
-                <${Models}
-                    rounds=${scan.rounds}
-                    scan=${scan}
-                    onOpen=${() => setLayer({ kind: "models", period: TOPS_PERIOD })}
-                />
-                <${Tools}
-                    rounds=${scan.rounds}
-                    scan=${scan}
-                    onOpen=${() => setLayer({ kind: "tools", period: TOPS_PERIOD })}
-                />
+                <${Group} name="Period" note="one switch for all four">
+                    <${PeriodSwitch} period=${period} onPick=${setPeriod} />
+                <//>
+                <div class="dkhmgrid">
+                    <${Hours}
+                        period=${period}
+                        rounds=${scan.rounds}
+                        scan=${scan}
+                        onOpen=${(range) => (range ? openBucket(range) : openBreakdown(period, usage.BY_PROJECT, null))}
+                    />
+                    <${Projects}
+                        period=${period}
+                        rounds=${scan.rounds}
+                        scan=${scan}
+                        onOpen=${(row) => openBreakdown(period, usage.BY_PROJECT, row)}
+                    />
+                    <${Models}
+                        period=${period}
+                        rounds=${scan.rounds}
+                        scan=${scan}
+                        onOpen=${() => setLayer({ kind: "models", period })}
+                    />
+                    <${Tools}
+                        period=${period}
+                        rounds=${scan.rounds}
+                        scan=${scan}
+                        onOpen=${() => setLayer({ kind: "tools", period })}
+                    />
+                </div>
             </div>
             ${layer && layer.kind === "scan" && html`
                 <${ScanLayer} scan=${scan} onClose=${() => setLayer(null)} />

@@ -4,28 +4,40 @@ import { html } from "../../html.js";
 export const SEG_COLORS = ["--ctx-2", "--ctx-1", "--ctx-3", "--ctx-4"];
 export const SEG_REST = "--ink-faint";
 
+// opener is what makes a tile, or a part of one, open its breakdown: the
+// click, and Enter or Space for the keyboard. Nothing where it has none.
+export function opener(onOpen) {
+    if (!onOpen) return {};
+    return {
+        onClick: onOpen,
+        onKeyDown: (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen();
+            }
+        },
+        role: "button",
+        tabIndex: 0,
+    };
+}
+
+// Head is the header of a tile: its title, a note and its own buttons, whose
+// clicks stay theirs.
+export function Head({ title, note, actions }) {
+    return html`
+        <header class="uwghead">
+            <span class="uwgtitle">${title}</span>
+            ${note && html`<span class="uwgnote">${note}</span>`}
+            ${actions && html`<span class="uwgacts" onClick=${stop}>${actions}</span>`}
+        </header>
+    `;
+}
+
 // Widget is the shell of a home tile: a header, a body and a click that opens it.
 export function Widget({ span, title, note, actions, onOpen, children }) {
-    const open = onOpen
-        ? {
-            onClick: onOpen,
-            onKeyDown: (e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onOpen();
-                }
-            },
-            role: "button",
-            tabIndex: 0,
-        }
-        : {};
     return html`
-        <section class=${`dkwidget ${span} uwg${onOpen ? " open" : ""}`} ...${open}>
-            <header class="uwghead">
-                <span class="uwgtitle">${title}</span>
-                ${note && html`<span class="uwgnote">${note}</span>`}
-                ${actions && html`<span class="uwgacts" onClick=${stop}>${actions}</span>`}
-            </header>
+        <section class=${`dkwidget ${span} uwg${onOpen ? " open" : ""}`} ...${opener(onOpen)}>
+            <${Head} title=${title} note=${note} actions=${actions} />
             <div class="uwgbody">${children}</div>
         </section>
     `;

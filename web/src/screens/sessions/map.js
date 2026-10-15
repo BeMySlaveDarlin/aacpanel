@@ -8,6 +8,7 @@ import { BackHead, useBackClose } from "../../ui/back.js";
 import { LaunchLine, drift, onStream } from "../../ui/launchline.js";
 import { ownLabel } from "../../ui/own.js";
 import { plural } from "../../format.js";
+import { contourName } from "../../contour.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
@@ -57,6 +58,16 @@ export function personalOf(profiles) {
     const list = profiles || [];
     const found = list.find((p) => p.default) || list[0];
     return found ? found.profile : null;
+}
+
+// contourOfLive answers the contour a live session stands in on the wide
+// screen, in its column and in the graph of the home alike: the one the map
+// gives it, else the personal contour of the map, else the one the session
+// names itself.
+export function contourOfLive(profiles, sessions) {
+    const where = contoursOf(profiles, sessions);
+    const personal = personalOf(profiles);
+    return (s) => where.get(s.session) || personal || contourName(s.profile);
 }
 
 // pagesOf returns the sessions laid out across the profile pages: each on the

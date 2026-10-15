@@ -17,11 +17,21 @@ func TestDesktopSharesContourRules(t *testing.T) {
 
 	for _, want := range []struct{ call, harm string }{
 		{"pageNames(map, limits)", "the desktop will again name contours after the collector instead of the map labels"},
-		{"contoursOf(map, all)", "sessions of a renamed contour will land on a foreign page"},
+		{"contourOfLive(map, all)", "sessions of a renamed contour will land on a foreign page"},
 	} {
 		if !strings.Contains(src, want.call) {
 			t.Errorf("the desktop does not call %s — %s", want.call, want.harm)
 		}
+	}
+	graph := files["src/desktop/orbits/orbits.js"]
+	for _, call := range []string{"contourOfLive(map, sessions)", "pageNames(map,"} {
+		if !strings.Contains(graph, call) {
+			t.Errorf("the graph of the home does not call %s — its rings part from the contours of the column", call)
+		}
+	}
+	shared := jsBlock(t, "src/screens/sessions/map.js", files["src/screens/sessions/map.js"], "export function contourOfLive(")
+	if !strings.Contains(shared, "contoursOf(profiles, sessions)") {
+		t.Error("contourOfLive does not ask contoursOf — the wide screen places sessions by a rule of its own")
 	}
 
 	if !strings.Contains(src, "snapshot.profileMap") {

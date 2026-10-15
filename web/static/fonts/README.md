@@ -7,6 +7,7 @@ by which there is no npm in the project.
 | File | Typeface | Source | Licence |
 |---|---|---|---|
 | `inter-400-*.woff2`, `inter-600-*.woff2` | Inter, 400 and 600–800 | Google Fonts | SIL OFL 1.1 (`OFL-Inter.txt`) |
+| `inter-200-latin.woff2` | Inter, 200, latin only | Google Fonts | SIL OFL 1.1 (`OFL-Inter.txt`) |
 | `jetbrains-mono-400-*.woff2` | JetBrains Mono, 400 | Google Fonts | SIL OFL 1.1 (`OFL-JetBrainsMono.txt`) |
 | `brief/literata-600-*.woff2`, `brief/literata-700-*.woff2` | Literata, 600 and 700 | Google Fonts | SIL OFL 1.1 (`brief/OFL-Literata.txt`) |
 
@@ -16,7 +17,8 @@ directly in it into the service worker's precache, so a file no token of
 application.
 
 The files are Google Fonts subsets: `latin` and `cyrillic` separately, hooked up
-with `unicode-range`. The four files of Inter weigh 130 KB.
+with `unicode-range`. The four files of Inter 400 and 600 weigh 130 KB, the thin
+face below 24 KB more.
 
 What the subsets do **not** cover: `→` (U+2192), `↔` (U+2194), `▾` (U+25BE),
 `⋮` (U+22EE). Those four characters are drawn by the system font from the
@@ -38,6 +40,21 @@ not embolden text, and what claude writes into it is not always latin. Twenty
 kilobytes for both files — a seventh of Inter, and this is the case where the
 weight in the precache pays for itself: the font works on every screen with code
 on it, not on one.
+
+## Inter 200 — the large type of the session graph
+
+The graph of the sessions on the desktop home draws its scale ("now", "an
+hour", "a day") and the host's name large and thin, as an engraving: at the
+regular weight the same words at that size shout over the marks they name. A
+canvas has no synthetic thin face to fall back on, so the weight is a file.
+
+Only latin: those words are the panel's own and a host name, and a cyrillic
+subset would be twenty kilobytes more in the precache for no character the
+graph draws at this weight. The request is the one above with `wght@200`; at a
+single weight Google Fonts answers with a static instance, 24 KB, not the
+variable file the 400 and 600 rows share. It lies here, not in a directory of
+its own like Literata, because the desktop home is the screen the panel opens
+on.
 
 ## Literata — the headings of a brief
 

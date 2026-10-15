@@ -20,7 +20,7 @@ import { settled } from "../catchup.js";
 import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
-import { contoursOf, personalOf } from "../screens/sessions/map.js";
+import { contourOfLive } from "../screens/sessions/map.js";
 import { kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex, shownName, spoke } from "../agent.js";
@@ -34,7 +34,7 @@ import { Popover } from "../ui/popover.js";
 import { useMenu } from "../ui/menu.js";
 import { resume } from "../screens/sessions/actions.js";
 import { ago as age } from "./panels/util.js";
-import { ClosedMenu, ProjectMenu, SessionMenu } from "./sessionmenu.js";
+import { ClosedMenu, ProjectMenu, UNDER_WAY, liveMenuOf } from "./sessionmenu.js";
 
 // How many closed conversations the shelf shows, and how many it asks the
 // archive for to find them: the shelf keeps the latest conversation of a
@@ -45,10 +45,6 @@ const SHELF_ASK = 30;
 
 // The dot of a row by the tone of its state.
 const DOT = { wait: "dkwaiting", busy: "dkbusy", idle: "dkidle", off: "dkoff" };
-
-// What the close and the restart of a row say while they are under way, on
-// its icon and in its menu alike.
-const UNDER_WAY = { close: "The session is already closing", restart: "The session is already restarting" };
 
 // ContourPick chooses which contours the column shows.
 export function ContourPick({ names, picks, onToggle, onAll }) {
@@ -202,10 +198,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
             data-fill=${s.noRequests ? undefined : fill(full)}
             style=${s.noRequests ? undefined : `--fill:${Math.min(100, full)}%`}
             onClick=${open}
-            onContextMenu=${menu && menu(SessionMenu, {
-                s, exec, snapshot, onOpen: open, onTerm, lost,
-                closing: closing ? UNDER_WAY.close : "", restarting: restarting ? UNDER_WAY.restart : "",
-            }, `session ${shownName(s)}`)}
+            onContextMenu=${menu && menu(...liveMenuOf(s, { exec, snapshot, wait, onOpen: open, onTerm }))}
         >
             <span class="dksessmain">
                 <span class="dkname" title=${shownName(s) !== s.session ? s.session : undefined}>${shownName(s)}</span>
@@ -683,12 +676,10 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
         return known.length ? known : [...new Set(all.map((s) => contourName(s.profile)))];
     }, [map, limits, all]);
 
-    const where = useMemo(() => contoursOf(map, all), [map, all]);
     // A session that names no contour and that no contour of the map claims
     // stands in the personal contour of the map, as on the phone; with no map
     // at all, in the one the panel calls personal.
-    const personal = personalOf(map);
-    const pageOf = (s) => where.get(s.session) || personal || contourName(s.profile);
+    const pageOf = useMemo(() => contourOfLive(map, all), [map, all]);
     useEffect(() => { if (onNames) onNames(names); }, [names.join("\n")]);
 
     const ordered = useMemo(() => orderOf(all, map), [all, map]);

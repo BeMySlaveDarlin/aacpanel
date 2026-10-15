@@ -1,16 +1,17 @@
-// Home-screen breakdowns: projects, models and subagents, tools.
+// Home-screen breakdowns: projects, models and subagents, tools. Each is of
+// the period the home screen's switch stands on, which the group heading
+// names: a note on every tile repeating it would be three more places to
+// read the same words.
 import { html } from "../../html.js";
 import { tokens } from "../../format.js";
 import * as usage from "../../data/usage.js";
 import { Blank, Legend, Row, SEG_COLORS, SEG_REST, ShareBar, Widget, pctText, troubleOf } from "./parts.js";
 
-const PERIOD = "30d";
-
 const PROJECT_ROWS = 6;
 
 // Projects renders the top projects plus the mandatory "outside the map" row.
-export function Projects({ rounds, scan, onOpen }) {
-    const state = usage.useUsageBreakdown({ period: PERIOD }, usage.BY_PROJECT, 0, rounds);
+export function Projects({ period, rounds, scan, onOpen }) {
+    const state = usage.useUsageBreakdown({ period }, usage.BY_PROJECT, 0, rounds);
     const rows = (state.kind === "ready" && state.data.rows) || [];
     const outside = rows.find((r) => r.outside) || null;
     const named = rows.filter((r) => !r.outside);
@@ -23,7 +24,6 @@ export function Projects({ rounds, scan, onOpen }) {
         <${Widget}
             span="w4 h2"
             title="Top projects"
-            note="30 days"
             onOpen=${scan.collected ? () => onOpen(null) : null}
         >
             ${!scan.collected
@@ -70,9 +70,9 @@ export function Projects({ rounds, scan, onOpen }) {
 const MODEL_SEGS = 4;
 
 // Models renders the model shares and the main-session / subagent split.
-export function Models({ rounds, scan, onOpen }) {
-    const models = usage.useUsageModels({ period: PERIOD }, rounds);
-    const summary = usage.useUsageSummary({ period: PERIOD }, rounds);
+export function Models({ period, rounds, scan, onOpen }) {
+    const models = usage.useUsageModels({ period }, rounds);
+    const summary = usage.useUsageSummary({ period }, rounds);
 
     const rows = (models.kind === "ready" && models.data.models) || [];
     const whole = rows.reduce((sum, r) => sum + usage.inboundOf(r), 0);
@@ -109,7 +109,7 @@ export function Models({ rounds, scan, onOpen }) {
         <${Widget}
             span="w6 h1"
             title="Models and subagents"
-            note="30 days · share of inbound"
+            note="share of inbound"
             onOpen=${scan.collected ? onOpen : null}
         >
             ${!scan.collected
@@ -137,8 +137,8 @@ export function Models({ rounds, scan, onOpen }) {
 const TOOL_ROWS = 5;
 
 // Tools renders the top tools by call count.
-export function Tools({ rounds, scan, onOpen }) {
-    const state = usage.useUsageTools({ period: PERIOD }, TOOL_ROWS, rounds);
+export function Tools({ period, rounds, scan, onOpen }) {
+    const state = usage.useUsageTools({ period }, TOOL_ROWS, rounds);
     const data = state.kind === "ready" ? state.data : null;
     const top = (data && data.top) || [];
     const whole = data ? data.calls || 0 : 0;
@@ -148,7 +148,7 @@ export function Tools({ rounds, scan, onOpen }) {
         <${Widget}
             span="w6 h1"
             title="Tools"
-            note=${scan.collected && data ? `30 days · ${pctText(data.errors || 0, whole)} errors overall` : "30 days"}
+            note=${scan.collected && data ? `${pctText(data.errors || 0, whole)} errors overall` : ""}
             onOpen=${scan.collected ? onOpen : null}
         >
             ${!scan.collected

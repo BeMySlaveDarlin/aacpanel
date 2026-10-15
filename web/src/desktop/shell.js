@@ -299,7 +299,18 @@ export function DesktopShell({
     };
 
     const center = () => {
-        if (section === "home") return html`<${Home} snapshot=${snapshot} tree=${tree} onSection=${goSection} />`;
+        if (section === "home") {
+            return html`<${Home}
+                snapshot=${snapshot}
+                tree=${tree}
+                exec=${exec}
+                wait=${wait}
+                theme=${theme}
+                onSection=${goSection}
+                onSession=${openChat}
+                onTerm=${term.route ? openTerm : null}
+            />`;
+        }
         if (section === "containers") {
             return html`<${ContainersCenter}
                 tree=${tree}

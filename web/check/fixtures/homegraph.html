@@ -1,0 +1,305 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="app"></div>
+<script type="module">
+// The home screen of the desk: the graph of the sessions on top and the four
+// tiles of the period under one switch. Where the graph puts a session is
+// asked of its own pure functions, and the page then points, clicks and
+// right-clicks at that place on the canvas as a person would — the tip, the
+// session opened as its row opens it, the menu of its row. What the graph
+// draws is counted by the clears of its canvas: nothing while nothing
+// changes, frame after frame only while it turns by itself and the page is
+// seen. The system here asks for less motion, so the turn starts off.
+import { h, render } from "preact";
+import { useEffect, useRef } from "preact/hooks";
+import { html } from "/src/html.js";
+import { Home, PERIOD } from "/src/desktop/home.js";
+import { MenuHost } from "/src/desktop/menu.js";
+import { attachTips } from "/src/desktop/tip.js";
+import { PAD, graphOf } from "/src/desktop/orbits/orbits.js";
+import { DAY, HOME, MOON, SPAN, TAU, at, camera, dial, lensFor } from "/src/desktop/orbits/space.js";
+import { periodRange } from "/src/data/usage.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+// Less motion, as the desk of the machine asks for; every other query as is.
+const REDUCE = "(prefers-reduced-motion: reduce)";
+const plainMedia = window.matchMedia.bind(window);
+window.matchMedia = (q) => (q === REDUCE
+    ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }
+    : plainMedia(q));
+
+// The draws of the graph, counted where they start: a frame clears the canvas.
+let draws = 0;
+const clear = CanvasRenderingContext2D.prototype.clearRect;
+CanvasRenderingContext2D.prototype.clearRect = function (...args) {
+    if (this.canvas.closest && this.canvas.closest(".dkorbstage")) draws += 1;
+    return clear.apply(this, args);
+};
+
+// A whole second, as the snapshot counts its time.
+const now = Math.floor(Date.now() / 1000) * 1000;
+const iso = (min) => new Date(now - min * 60e3).toISOString();
+const S = (o) => ({ transport: "stream", model: "claude-opus-5-5", limit: 1000000, limitKnown: true, startedAt: iso(300),
+    pct: 20, tokens: 200000, sessionId: `id-${o.session}`, cwd: `/srv/${o.session}`, ...o });
+const sessions = [
+    S({ session: "shop", profile: "personal", status: "busy", lastRequestAt: iso(1), work: { agents: 1, tasks: 1 } }),
+    S({ session: "blog", profile: "client", status: "waiting", lastRequestAt: iso(60), pct: 52 }),
+    S({ session: "notes", profile: "client", status: "idle", lastRequestAt: iso(60), pct: 74 }),
+    S({ session: "draft", profile: "client", status: "idle", lastRequestAt: null, startedAt: iso(5) }),
+    S({ session: "stray", profile: "personal", status: "idle", lastRequestAt: null, startedAt: null }),
+    S({ session: "codex-1", profile: "client", agent: "codex", title: "cx-thread", status: "busy",
+        lastRequestAt: iso(2), parent: { session: "blog" } }),
+];
+const profileMap = [
+    { id: 3, profile: "personal", default: true, groups: [] },
+    { id: 4, profile: "client", groups: [] },
+];
+const snapshot = { at: Math.floor(now / 1000), hostName: "helios", sessions, profileMap,
+    host: { cpuPct: 7, mem: { pct: 41 }, uptime: 200000 } };
+const tree = { running: 2, total: 3, stacks: [{ name: "shop", running: 2, total: 3, containers: [] }] };
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.stop", "session.switch",
+    "session.rename", "window.open", "window.close"] };
+const wait = { opening: () => [], of: () => null };
+
+// The fake host: the usage of every period, each request kept.
+const usageAsked = [];
+const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (url) => {
+    const u = new URL(String(url), location.href);
+    if (u.pathname.startsWith("/api/usage/")) {
+        const kind = u.pathname.slice("/api/usage/".length);
+        if (kind === "scan") return json({ available: true, scannedAt: Math.floor(now / 1000) - 60, files: 3, state: { running: false } });
+        usageAsked.push({ kind, from: u.searchParams.get("from") || "", step: u.searchParams.get("step") || "" });
+        if (kind === "summary") return json({ inbound: 1000, hit: 0.9, subShareIn: 0.3, subShareOut: 0.2,
+            summary: { output: 10, answers: 3, cacheRead: 900, cacheCreation: 50, agents: 2, kinds: 1 } });
+        if (kind === "series") return json({ points: [{ at: iso(30), inbound: 40, output: 4 }, { at: iso(90), inbound: 60, output: 6 }] });
+        if (kind === "breakdown") return json({ rows: [{ key: "/srv/shop", label: "shop", contour: "personal", inbound: 500,
+            output: 5, answers: 2, sessions: 1, hit: 0.9 }] });
+        if (kind === "models") return json({ models: [{ model: "claude-opus-5-5", inbound: 900, output: 9, answers: 3, hit: 0.9 }] });
+        if (kind === "tools") return json({ top: [{ tool: "Bash", calls: 10, errors: 1 }], calls: 10, errors: 1, restNames: 0, restCalls: 0 });
+    }
+    if (u.pathname === "/api/session/switch") return json({ to: "console" });
+    if (u.pathname === "/api/session/window") return json({ state: "closed" });
+    return new Response("", { status: 404 });
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const opened = [];
+const sections = [];
+function Shell() {
+    const shell = useRef(null);
+    const tip = useRef(null);
+    useEffect(() => attachTips(shell.current, tip.current), []);
+    return html`
+        <div class="deskshell" ref=${shell}>
+            <${MenuHost}>
+                <div class="dktip" ref=${tip} role="tooltip"></div>
+                <div class="dkbody full">
+                    <${Home} snapshot=${snapshot} tree=${tree} exec=${exec} wait=${wait} theme="space"
+                        onSection=${(id) => sections.push(id)} onSession=${(t) => opened.push(t)} onTerm=${null} />
+                </div>
+            <//>
+        </div>
+    `;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Shell))), document.getElementById("app"));
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const frames = async (n) => { for (let i = 0; i < n; i++) await frame(); };
+const until = async (fn, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (performance.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await frame();
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const deg = (rad) => Math.round((rad * 180) / Math.PI * 10) / 10;
+const stage = () => document.querySelector(".dkorbstage");
+const tipText = () => text(document.querySelector(".dkorbtip"));
+const tipLines = () => Array.from(document.querySelectorAll(".dkorbtip > *")).map(text);
+const menuNode = () => document.querySelector(".ctxmenu");
+
+// spotOf is where the graph's own functions put a session on the canvas, in
+// the coordinates of the window, for the home view.
+const spotOf = (name) => {
+    const box = stage().getBoundingClientRect();
+    const g = graphOf(snapshot);
+    const pr = camera(HOME, box.width, box.height, lensFor(g.rings, box.width, box.height, PAD));
+    const n = g.nodes.find((x) => x.s.session === name);
+    const q = pr(n.p.w);
+    return { x: box.left + q.x, y: box.top + q.y };
+};
+const pointer = (type, p, extra = {}) => {
+    const ev = new PointerEvent(type, { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y,
+        pointerType: "mouse", pointerId: 1, button: 0, buttons: type === "pointerup" ? 0 : 1, ...extra });
+    stage().dispatchEvent(ev);
+    return ev;
+};
+const press = async (p) => {
+    pointer("pointerdown", p);
+    pointer("pointerup", p);
+    await frame();
+};
+const rightClick = (p) => {
+    stage().dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 2, buttons: 2,
+        clientX: p.x, clientY: p.y, pointerType: "mouse" }));
+    const ev = new PointerEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, buttons: 2,
+        clientX: p.x, clientY: p.y, pointerType: "mouse" });
+    stage().dispatchEvent(ev);
+    return ev;
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    await until(() => stage() && document.querySelectorAll(".dkhmgrid .usrow").length > 0);
+    await quiet();
+    const out = {};
+
+    // The dial and the places, from the graph's own functions.
+    const g = graphOf(snapshot);
+    const node = (name) => g.nodes.find((x) => x.s.session === name);
+    out.dial = { now: deg(dial(0)), hour: deg(dial(60)), day: deg(dial(DAY)), past: deg(dial(DAY * 5)), span: deg(SPAN),
+        rising: [0, 1, 5, 30, 60, 360, DAY].map((m) => dial(m)).every((a, i, all) => i === 0 || a > all[i - 1]) };
+    out.angles = Object.fromEntries(g.nodes.map((n) => [n.s.session, deg(n.p.ang)]));
+    out.dialOf = { blog: deg(dial(60)), draft: deg(dial(5)), shop: deg(dial(1)) };
+    out.rings = g.rings.map((r) => ({ name: r.name, R: r.R, members: r.members.map((m) => m.key) }));
+    const kid = node("codex-1").p;
+    const parent = node("blog").p;
+    const expect = at(dial(kid.idle), MOON).map((v, i) => v + parent.w[i]);
+    out.moon = {
+        depth: kid.depth, parent: kid.parent,
+        offBy: Math.max(...expect.map((v, i) => Math.abs(v - kid.w[i]))),
+        fromHost: Math.round(Math.hypot(kid.w[0], kid.w[2])),
+        orbit: Math.round(Math.hypot(kid.w[0] - parent.w[0], kid.w[2] - parent.w[2])),
+    };
+    out.notes = node("blog").note;
+
+    // The header carries what the tile of the sessions said, and that tile is
+    // gone: the rows beside the graph are the containers and the machine.
+    out.head = text(document.querySelector(".dkorbhead .dkorbnote"));
+    out.titles = Array.from(document.querySelectorAll(".dkhm .uwgtitle, .dkhm .dkorbtitle")).map(text);
+    out.jumps = Array.from(document.querySelectorAll(".dkhmjump .dkhmjumplabel b")).map(text);
+    document.querySelectorAll(".dkhmjump")[1].click();
+    out.sections = sections.slice();
+
+    // The canvas is as large as its box at the density of the screen.
+    const cv = stage().querySelector("canvas");
+    out.canvas = { width: cv.width, height: cv.height,
+        boxWidth: Math.round(stage().getBoundingClientRect().width * devicePixelRatio),
+        boxHeight: Math.round(stage().getBoundingClientRect().height * devicePixelRatio) };
+
+    // The tip names the session under the pointer, and none stands over the
+    // empty dial.
+    pointer("pointermove", spotOf("blog"), { buttons: 0 });
+    await until(() => tipText());
+    out.tip = tipLines();
+    const box = stage().getBoundingClientRect();
+    pointer("pointermove", { x: box.left + 6, y: box.top + 6 }, { buttons: 0 });
+    await until(() => !tipText());
+    out.tipAway = tipText();
+
+    // A click on a mark opens its session as the row does; a drag turns the
+    // scene and opens nothing; Reset view brings the marks back.
+    await press(spotOf("blog"));
+    out.clicked = opened.slice();
+    const from = spotOf("notes");
+    pointer("pointerdown", from);
+    pointer("pointermove", { x: from.x + 90, y: from.y + 30 });
+    pointer("pointermove", { x: from.x + 180, y: from.y + 60 });
+    pointer("pointerup", { x: from.x + 180, y: from.y + 60 });
+    await frames(2);
+    out.afterDrag = opened.length;
+    await press(spotOf("notes"));
+    out.oldSpotAfterDrag = opened.slice(out.afterDrag).map((t) => t.name);
+    Array.from(document.querySelectorAll(".dkorbbtn")).find((b) => text(b) === "Reset view").click();
+    await frames(2);
+    const before = opened.length;
+    await press(spotOf("notes"));
+    out.afterReset = opened.slice(before).map((t) => t.name);
+
+    // The right click opens the menu of the session's row, and its Open opens it.
+    let ev = rightClick(spotOf("shop"));
+    await until(menuNode);
+    await quiet();
+    out.menu = {
+        prevented: ev.defaultPrevented,
+        label: menuNode() ? menuNode().getAttribute("aria-label") : "",
+        items: menuNode() ? Array.from(menuNode().querySelectorAll('[role="menuitem"] .pkname')).map(text) : [],
+    };
+    const openItem = Array.from(menuNode().querySelectorAll('[role="menuitem"]')).find((el) => text(el.querySelector(".pkname")) === "Open");
+    openItem.click();
+    await until(() => !menuNode());
+    out.menuOpened = opened[opened.length - 1];
+    ev = rightClick({ x: box.left + 6, y: box.top + 6 });
+    await frame();
+    out.menuAway = { prevented: ev.defaultPrevented, menu: Boolean(menuNode()) };
+
+    // Nothing is drawn while nothing changes.
+    await quiet();
+    const still = draws;
+    await frames(20);
+    out.still = draws - still;
+
+    // The turn of its own: off where less motion is asked for, frame after
+    // frame once on, none while the page is hidden, none once off.
+    const auto = Array.from(document.querySelectorAll(".dkorbbtn")).find((b) => text(b) === "Auto-rotate");
+    out.autoAtStart = auto.getAttribute("aria-pressed");
+    auto.click();
+    const on = draws;
+    await frames(12);
+    out.turning = draws - on;
+    let hidden = false;
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+    hidden = true;
+    document.dispatchEvent(new Event("visibilitychange"));
+    await frames(2);
+    const gone = draws;
+    await frames(12);
+    out.hiddenDraws = draws - gone;
+    hidden = false;
+    document.dispatchEvent(new Event("visibilitychange"));
+    const back = draws;
+    await frames(12);
+    out.shownAgain = draws - back;
+    auto.click();
+    await frames(2);
+    const off = draws;
+    await frames(12);
+    out.offDraws = draws - off;
+
+    // One switch for the four tiles of the period: what each of them asks
+    // the host, before the switch and after.
+    const range = (id) => String(periodRange(id).from);
+    const kinds = (fromAt) => [...new Set(usageAsked.filter((a) => a.from === fromAt).map((a) => a.kind))].sort();
+    out.period = { start: PERIOD, on: text(document.querySelector(".dkhmperiod .uchip.on")) };
+    out.period.before = kinds(range(PERIOD));
+    const chip = Array.from(document.querySelectorAll(".dkhmperiod .uchip")).find((b) => text(b) === "7 days");
+    chip.click();
+    await quiet();
+    out.period.after = kinds(range("7d"));
+    out.period.onAfter = text(document.querySelector(".dkhmperiod .uchip.on"));
+    out.period.hours = text(document.querySelector(".dkhmgrid .uwg .uwgtitle"));
+    out.period.thirty = usageAsked.filter((a) => a.from === range("30d")).length;
+    // A layer opened from a tile takes the period the switch stands on.
+    const tile = (title) => Array.from(document.querySelectorAll(".dkhmgrid .uwg")).find((w) => text(w.querySelector(".uwgtitle")) === title);
+    tile("Models and subagents").click();
+    await until(() => document.querySelector(".uslayer"));
+    await quiet();
+    out.period.layer = text(document.querySelector(".uslayer .uchip.on"));
+    document.querySelector(".uslayer .dkclose").click();
+    await until(() => !document.querySelector(".uslayer"));
+    tile("Top projects").click();
+    await until(() => document.querySelector(".uslayer"));
+    await quiet();
+    out.period.breakdown = text(document.querySelector(".uslayer .uchip.on"));
+    return out;
+})();
+</script>

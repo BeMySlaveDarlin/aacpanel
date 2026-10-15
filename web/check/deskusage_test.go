@@ -187,6 +187,9 @@ func TestFirstScanNamesItsPrice(t *testing.T) {
 	}
 }
 
+// The home goes from the live part to the period: today's spend beside the
+// graph, then the spend by hour, the projects, the models and the tools of the
+// period, in that order and at those sizes across twelve columns.
 func TestWidgetsKeepTheirPlaceInTheGrid(t *testing.T) {
 	files := usageFront(t)
 	home := stripComments(files["src/desktop/home.js"])
@@ -194,20 +197,18 @@ func TestWidgetsKeepTheirPlaceInTheGrid(t *testing.T) {
 		t.Fatal("src/desktop/home.js not found — the test is looking in the wrong place")
 	}
 
-	order := regexp.MustCompile(`<\$\{(Today|Cache|Hours|Projects|Models|Tools)\}`).FindAllStringSubmatch(home, -1)
+	order := regexp.MustCompile(`<\$\{(Orbits|Today|Hours|Projects|Models|Tools)\}`).FindAllStringSubmatch(home, -1)
 	got := make([]string, 0, len(order))
 	for _, m := range order {
 		got = append(got, m[1])
 	}
-	want := []string{"Today", "Cache", "Hours", "Projects", "Models", "Tools"}
+	want := []string{"Orbits", "Today", "Hours", "Projects", "Models", "Tools"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Errorf("the dashboard tiles stand in the order %v while the design puts them %v: the order "+
-			"goes from how much was spent to what on, and the grid rows are built for it", got, want)
+		t.Errorf("the home tiles stand in the order %v while the design puts them %v: what is alive first, "+
+			"then how much was spent and on what", got, want)
 	}
 
 	sizes := map[string]string{
-		"today.js|Today":   "w3 h1",
-		"today.js|Cache":   "w3 h1",
 		"hours.js|Hours":   "w8 h2",
 		"tops.js|Projects": "w4 h2",
 		"tops.js|Models":   "w6 h1",

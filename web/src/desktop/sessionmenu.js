@@ -11,7 +11,7 @@ import { useAction } from "../actions/gate.js";
 import { hostLabel } from "../actions/registry.js";
 import { useToast } from "../ui/toasts.js";
 import { MenuItem, MenuList, useMenuSheet } from "../ui/menu.js";
-import { CODEX_CLOSE, isCodex, noTurn } from "../agent.js";
+import { CODEX_CLOSE, isCodex, noTurn, shownName } from "../agent.js";
 import { copyId, copyResume, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
 import { LOOK_NAMES } from "../screens/chat/look.js";
 import { RenameSheet } from "../screens/chat/rename.js";
@@ -20,6 +20,25 @@ import { moveSession, sidesOf, useSwitchWay } from "../screens/chat/switch.js";
 import { useWindow, windowOf } from "../screens/chat/window.js";
 import { useTermJump } from "../screens/terms/jump.js";
 import { projectOf, resume, startIn } from "../screens/sessions/actions.js";
+import { stopsOf } from "../screens/sessions/blocks.js";
+
+// What the close and the restart of a live session say while they are under
+// way, on the icons of its row and in its menu alike.
+export const UNDER_WAY = { close: "The session is already closing", restart: "The session is already restarting" };
+
+// liveMenuOf is what a right click on a live session opens wherever the
+// session is drawn — its row in the column, its node in the graph of the
+// home: the body of the menu, its props and its label, as useMenu's handler
+// takes them. What the session's close or restart is doing it asks the
+// waits of the panel (wait), what they would stop the snapshot.
+export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm }) {
+    const closing = wait ? wait.of("close", s.session) : null;
+    const restarting = wait ? wait.of("restart", s.session) : null;
+    return [SessionMenu, {
+        s, exec, snapshot, onOpen, onTerm, lost: stopsOf(s),
+        closing: closing ? UNDER_WAY.close : "", restarting: restarting ? UNDER_WAY.restart : "",
+    }, `session ${shownName(s)}`];
+}
 
 // SessionMenu is the menu of a live session's row. The row hands it what it
 // shows itself: how the session opens, what its close or its restart says

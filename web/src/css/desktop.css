@@ -1473,41 +1473,320 @@
 
     .dkdbar i.hot { background: var(--crit); }
 
-    .dkgrid {
+    /* The home screen is one page that scrolls: the live part on top, the
+       period under it. */
+    .dkhm {
         flex: 1;
         min-height: 0;
         overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+        padding: .6rem .8rem .8rem;
+    }
+
+    /* A group is a quiet heading over the tiles that answer one question. */
+    .dkhmgroup {
+        flex: none;
+        display: flex;
+        align-items: baseline;
+        gap: .8rem;
+        min-height: 1.7rem;
+        padding: .2rem .1rem 0;
+    }
+
+    .dkhmgroup h2 {
+        margin: 0;
+        font-size: var(--t-xs);
+        font-weight: 600;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+    }
+
+    .dkhmgroup p { margin: 0; font-size: var(--t-xs); color: var(--ink-faint); }
+
+    .dkhmgroup .dkhmperiod { margin-left: auto; align-self: center; }
+
+    .dkhmperiod .uchip { font-size: var(--t-sm); padding: .15rem .55rem; }
+
+    /* Now: the graph two parts of three, the rest beside it. The row is as
+       tall as the graph needs to read, not as tall as the window: the period
+       is a scroll away, and a graph squeezed to make room for it reads as a
+       smudge. */
+    .dkhmnow {
+        flex: none;
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        gap: .7rem;
+        height: 32rem;
+    }
+
+    .dkhmside { display: flex; flex-direction: column; gap: .5rem; min-width: 0; min-height: 0; }
+
+    .dkhmside > .uday { flex: 1; }
+
+    .dkhmjumps { flex: none; display: flex; flex-direction: column; }
+
+    .dkhmjump {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .7rem;
+        padding: .6rem .75rem;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dkhmjump + .dkhmjump { border-top: var(--hair) solid var(--line); }
+
+    .dkhmjumpicon { display: grid; place-items: center; color: var(--ink-faint); }
+
+    .dkhmjumpicon svg { width: var(--i-lg); height: var(--i-lg); }
+
+    /* Wide enough for "45/63", so the names of the two rows start in one
+       column. */
+    .dkhmjumpvalue {
+        min-width: 5.2ch;
+        font-size: var(--t-xl);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+    }
+
+    .dkhmjumplabel { display: flex; flex-direction: column; min-width: 0; }
+
+    .dkhmjumplabel b { font-size: var(--t-md); font-weight: 400; color: var(--ink-dim); }
+
+    .dkhmjumplabel span {
+        font-size: var(--t-sm);
+        color: var(--ink-faint);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .dkhmjumpgo { display: inline-flex; align-items: center; gap: .1rem; font-size: var(--t-sm); color: var(--ink-faint); }
+
+    .dkhmjumpgo svg { width: var(--i-sm); height: var(--i-sm); }
+
+    /* Period: the spend by hour and the projects side by side, the models
+       and the tools under them. */
+    .dkhmgrid {
+        flex: none;
         display: grid;
         grid-template-columns: repeat(12, minmax(0, 1fr));
-        grid-auto-rows: minmax(8.5rem, 1fr);
         gap: .7rem;
-        padding: .8rem;
     }
 
-    .dkgrid > .w3 { grid-column: span 3; }
+    .dkhmgrid > .w4 { grid-column: span 4; }
 
-    .dkgrid > .w4 { grid-column: span 4; }
+    .dkhmgrid > .w6 { grid-column: span 6; }
 
-    .dkgrid > .w6 { grid-column: span 6; }
+    .dkhmgrid > .w8 { grid-column: span 8; }
 
-    .dkgrid > .w8 { grid-column: span 8; }
+    .dkhmgrid > .h2 { height: 21rem; }
 
-    .dkgrid > .h1 { grid-row: span 1; }
+    .dkhmgrid > .h1 { min-height: 12.5rem; }
 
-    .dkgrid > .h2 { grid-row: span 2; }
-
+    /* A narrower desk gives the spend by hour and the projects a row each:
+       a third of it is too narrow for the names of the projects. */
     @media (max-width: 1500px) {
-        .dkgrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-
-        .dkgrid > .w8 { grid-column: span 6; }
-
-        .dkgrid > .w6 { grid-column: span 6; }
-
-        .dkgrid > .w4 { grid-column: span 3; }
-
-        .dkgrid > .w3 { grid-column: span 3; }
-
+        .dkhmgrid > .w8, .dkhmgrid > .w4 { grid-column: span 12; }
     }
+
+    /* The graph of the sessions (desktop/orbits). The scene is drawn on a
+       canvas in these colours, set here so a theme sets them like every
+       other: sand on the dark page, umber on the sky. The one warm colour is
+       the waiting session's, and it is ember rather than the gold of a wait
+       elsewhere in the panel: gold stands too close to the sand of the
+       scene to be the first thing seen. */
+    .dkorbits {
+        --orb-ink: #e6dccb;
+        --orb-wait: #ef8a55;
+        --orb-busy: #fffaf0;
+        --orb-cap: #ffffff;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        font-family: var(--sans);
+        user-select: none;
+    }
+
+    :root.sky .dkorbits {
+        --orb-ink: #4b3d2a;
+        --orb-wait: #b04f1c;
+        --orb-busy: #0f2338;
+        --orb-cap: #0f2338;
+    }
+
+    .dkorbhead {
+        flex: none;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: .2rem .7rem;
+        padding: .6rem .8rem .2rem;
+    }
+
+    .dkorbtitle { font-size: var(--t-sm); font-weight: 600; }
+
+    .dkorbnote { min-width: 0; font-size: var(--t-xs); color: var(--ink-faint); }
+
+    .dkorbnote b { font-weight: 600; }
+
+    .dkorbbusy { color: var(--ink); }
+
+    .dkorbwait { color: var(--orb-wait); }
+
+    .dkorbacts { margin-left: auto; align-self: center; display: flex; gap: .4rem; }
+
+    .dkorbbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        height: 1.7rem;
+        padding: 0 .55rem;
+        border: 0;
+        border-radius: var(--r-small);
+        background: transparent;
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
+        color: var(--ink-dim);
+        font: inherit;
+        font-size: var(--t-xs);
+        cursor: pointer;
+    }
+
+    .dkorbbtn[aria-pressed="true"] { color: var(--ink); }
+
+    .dkorbsw {
+        position: relative;
+        width: 1.35rem;
+        height: .75rem;
+        border-radius: .375rem;
+        background: rgba(var(--tint), .14);
+    }
+
+    .dkorbsw::after {
+        content: "";
+        position: absolute;
+        left: .125rem;
+        top: .125rem;
+        width: .5rem;
+        height: .5rem;
+        border-radius: 50%;
+        background: var(--ink-faint);
+    }
+
+    .dkorbbtn[aria-pressed="true"] .dkorbsw { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+
+    .dkorbbtn[aria-pressed="true"] .dkorbsw::after { left: .75rem; background: var(--ink); }
+
+    .dkorbstage { position: relative; flex: 1; min-height: 0; cursor: grab; }
+
+    .dkorbstage.over { cursor: pointer; }
+
+    .dkorbstage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
+    .dkorbempty {
+        position: absolute;
+        inset: 0;
+        height: fit-content;
+        margin: auto;
+        text-align: center;
+        font-size: var(--t-sm);
+        color: var(--ink-faint);
+    }
+
+    .dkorbtip {
+        position: absolute;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        padding: .4rem .55rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        background: var(--tipbg);
+        box-shadow: var(--drop);
+        font-size: var(--t-xs);
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .dkorbtip b { font-size: var(--t-sm); font-weight: 600; }
+
+    .dkorbtip span { color: var(--ink-dim); }
+
+    .dkorbtip .dkorbwait { color: var(--orb-wait); }
+
+    .dkorbtip em { font-style: normal; color: var(--ink-faint); }
+
+    .dkorbleg {
+        flex: none;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .25rem 1rem;
+        padding: .3rem .8rem .6rem;
+        font-size: var(--t-xs);
+        color: var(--ink-faint);
+    }
+
+    .dkorbleg span { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
+
+    .dkorbkey { flex: none; width: var(--i-sm); height: var(--i-sm); }
+
+    .dkorbleg .dkorbhelp { margin-left: auto; }
+
+    /* The tile of today: the spend with its hours, the cache under it, each
+       part opening its own breakdown. */
+    .uwg.uday { padding: 0; gap: 0; }
+
+    .udaypart { min-height: 0; display: flex; flex-direction: column; gap: .3rem; padding: .6rem .7rem; }
+
+    .udaypart:first-child { flex: 1; }
+
+    .udaypart + .udaypart { border-top: var(--hair) solid var(--line); }
+
+    .udaypart.open { cursor: pointer; }
+
+    .udaypart.open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+    .udaybars {
+        flex: 1;
+        min-height: 2.5rem;
+        display: grid;
+        grid-template-columns: repeat(24, minmax(0, 1fr));
+        align-items: end;
+        gap: 0 .2rem;
+        margin-top: .3rem;
+    }
+
+    .udaybars i {
+        display: block;
+        height: var(--h, 3px);
+        border-radius: 1px 1px 0 0;
+        background: color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+
+    .udaybars i.now { background: color-mix(in srgb, var(--accent) 50%, var(--ink)); }
+
+    .udaybars i.ahead { background: rgba(var(--tint), .06); }
+
+    .udayaxis {
+        display: grid;
+        grid-template-columns: repeat(24, minmax(0, 1fr));
+        font-size: var(--t-xs);
+        color: var(--ink-faint);
+    }
+
+    .udayaxis .udayby { grid-column: 21 / -1; text-align: right; }
 
     .dkslot {
         display: grid;
@@ -1835,62 +2114,6 @@
         overflow: hidden;
     }
 
-    .dkjumps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-
-    .dkjump {
-        min-width: 0;
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-rows: auto auto auto;
-        align-content: center;
-        align-items: center;
-        gap: .15rem .7rem;
-        padding: 1rem 1.1rem;
-        border: 0;
-        border-left: var(--hair) solid var(--line);
-        background: transparent;
-        color: var(--ink);
-        text-align: left;
-        cursor: pointer;
-    }
-
-    .dkjump:first-child { border-left: 0; }
-
-    .dkjumpicon {
-        grid-row: 1 / span 3;
-        display: grid;
-        place-items: center;
-        width: 2.4rem;
-        height: 2.4rem;
-        color: var(--ink-faint);
-    }
-
-    .dkjumpicon svg { width: var(--i-lg); height: var(--i-lg); }
-
-    .dkjumpvalue {
-        font-size: var(--t-2xl);
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        line-height: 1.1;
-    }
-
-    .dkjumplabel { grid-column: 2; font-size: var(--t-md); color: var(--ink-dim); }
-
-    .dkjumpsub {
-        grid-column: 2;
-        font-size: var(--t-sm);
-        line-height: 1.35;
-        color: var(--ink-faint);
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .dkjump.hot .dkjumpicon { color: var(--warn); }
-
-    .dkjump.hot .dkjumpsub { color: var(--warn); }
-
     .dkscrim {
         position: absolute;
         inset: 0;
@@ -2023,7 +2246,7 @@
     .dkpagebtn:not(:disabled):hover { color: var(--ink); }
     .dkarch:hover { background: var(--glass); }
     .dkcat:not(.on):hover { background: var(--glass); }
-    .dkjump:hover { background: var(--glass); }
+    .dkhmjump:hover { background: var(--glass); }
     .feedjump:hover { color: var(--ink); background: var(--glass-2); }
     .dkact.off:hover { color: var(--ink-faint); }
 
@@ -2032,6 +2255,7 @@
     .deskshell .dkmbody,
     .deskshell .dklogs,
     .deskshell .dkpage,
+    .deskshell .dkhm,
     .deskshell .chatfeed {
         scrollbar-width: thin;
         scrollbar-color: var(--edge) transparent;
@@ -2042,6 +2266,7 @@
     .deskshell .dkmbody:hover,
     .deskshell .dklogs:hover,
     .deskshell .dkpage:hover,
+    .deskshell .dkhm:hover,
     .deskshell .chatfeed:hover { scrollbar-color: var(--ink-faint) transparent; }
 
 .deskshell .dkscroll::-webkit-scrollbar,

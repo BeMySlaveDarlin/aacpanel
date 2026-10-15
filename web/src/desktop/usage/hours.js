@@ -16,13 +16,11 @@ const SERIES = [
 const RANGE = [0, null];
 const Y2 = { range: RANGE, format: tokens };
 
-const CHIPS = usage.PERIODS;
-
-function pick(points, idx, step, onOpen, period) {
+function pick(points, idx, step, onOpen) {
     const point = points[idx];
     if (!point) return;
     const from = Math.floor(Date.parse(point.at) / 1000);
-    onOpen(period, { from, to: from + (step === "day" ? 86400 : 3600) });
+    onOpen({ from, to: from + (step === "day" ? 86400 : 3600) });
 }
 
 function useBoxHeight(ref, initial) {
@@ -40,10 +38,12 @@ function useBoxHeight(ref, initial) {
     return height;
 }
 
-export function Hours({ rounds, scan, onOpen }) {
+// Hours is the spend of the period by hour, or by day where hours would be
+// noise; a press on a bar opens the sessions of that hour, on the tile the
+// breakdown of the period.
+export function Hours({ period, rounds, scan, onOpen }) {
     const box = useRef(null);
     const height = useBoxHeight(box, 220);
-    const [period, setPeriod] = useState("14d");
     const step = usage.stepFor(period);
     const state = usage.useUsageSeries({ period }, step, rounds);
 
@@ -62,19 +62,7 @@ export function Hours({ rounds, scan, onOpen }) {
                 <span class="ukey"><i style="background:var(--accent)"></i>inbound</span>
                 <span class="ukey"><i style="background:var(--accent-2)"></i>output, right axis</span>
             `}
-            actions=${html`
-                <span class="uchips" onClick=${stop}>
-                    ${CHIPS.map((p) => html`
-                        <button
-                            key=${p.id}
-                            class=${`uchip${p.id === period ? " on" : ""}`}
-                            type="button"
-                            onClick=${() => setPeriod(p.id)}
-                        >${p.label}</button>
-                    `)}
-                </span>
-            `}
-            onOpen=${scan.collected ? () => onOpen(period, null) : null}
+            onOpen=${scan.collected ? () => onOpen(null) : null}
         >
             <div class="uwgchart" ref=${box} onClick=${stop}>
                 ${!scan.collected
@@ -89,7 +77,7 @@ export function Hours({ rounds, scan, onOpen }) {
                             y2=${Y2}
                             yFormat=${tokens}
                             height=${height}
-                            onPick=${(idx) => pick(points, idx, step, onOpen, period)}
+                            onPick=${(idx) => pick(points, idx, step, onOpen)}
                         />
                     `)}
             </div>
