@@ -1,34 +1,48 @@
-// The graph of the live sessions at the top of the home screen: every contour
-// a ring round the host, every session a mark on its ring at the angle of its
-// last request, the sessions it opened its moons. A click opens the session as
-// its row in the column opens it, a right click opens the same menu.
+// The graph of the live sessions at the top of the home screen, a galaxy:
+// every contour a system round a star of its own, every project with a live
+// session an orbit round the star, every session a planet on the orbit of its
+// project at the angle of its last request, the sessions it opened its moons.
+// The systems stand in depth, the liveliest in front when the page opens; a
+// click on a star, or the wheel with Shift, brings another forward. A click on
+// a planet opens the session as its row in the column opens it, a right click
+// opens the same menu.
 //
 // It is handled as a map is: a drag moves the picture, the wheel scales it
 // round the pointer, and a drag with Shift or with the middle button turns
 // the scene. The wheel over the graph is the graph's, so the page does not
 // scroll under it there; Reset view brings back the turn, the place and the
-// scale it opened with.
+// scale it opened with, and the order of the systems by how alive they are.
 //
 // The scene is drawn when what it shows changes — the snapshot, the theme,
 // the size, a turn, a move — and not on every frame: a home screen left open
 // all day should cost nothing while nothing moves. Only the turning of its
 // own, switched on by the person, draws frame after frame, and it stops while
-// the page is hidden. Where the system asks for less motion it starts off.
+// the page is hidden; a system coming forward glides there in a moment, or
+// stands there at once where the system asks for less motion, as the turn
+// starts off there too.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { plural } from "../../format.js";
+import { ownName } from "../../catchup.js";
 import { shownName } from "../../agent.js";
-import { stateOf, useAnswers } from "../../screens/sessions/blocks.js";
+import { kinOf } from "../../screens/sessions/kin.js";
+import { liveBlocksOf, stateOf, useAnswers } from "../../screens/sessions/blocks.js";
 import { contourOfLive } from "../../screens/sessions/map.js";
 import { pageNames } from "../../screens/sessions/pages.js";
 import { useMenu } from "../../ui/menu.js";
 import { liveMenuOf } from "../sessionmenu.js";
-import { HOME, PITCH, camera, idleOf, layout, lensAt, lensFor, zoomAt } from "./space.js";
+import { HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, slotsFor, tiltOf, zoomAt } from "./space.js";
 import { HALO, drawKey, drawScene, overlap } from "./scene.js";
 
 // PAD keeps the scene off the edges of its canvas: [top, right, bottom, left].
-export const PAD = [30, 40, 26, 40];
+const PAD = [26, 24, 30, 24];
+
+// The hues of the systems, by their place in the map: tokens of the panel no
+// state of a session wears — a session at work is the accent, one waiting the
+// gold, a context near the cap the top of the context scale.
+const HUES = ["--ok", "--accent-2", "--cat-agents", "--cat-tools"];
+const HUE_FALLBACK = ["#6b9c83", "#7fe3d4", "#b98cff", "#8f9dff"];
 
 // The kinds of background work a session reports, in the order its beads go.
 const WORK = ["agents", "tasks", "observers", "alarms"];
@@ -46,18 +60,24 @@ const SLOP = 3;
 // a hundred pixels, is about a seventh.
 const WHEEL = 0.0015;
 
+// How far the wheel with Shift travels for the next system to come forward:
+// a notch of a mouse wheel; a touchpad gets there over a short stroke.
+const NEXT = 40;
+
 // How long the wheel rests before the zoom counts as done. While a move or a
 // zoom goes on no name changes its side; once it is done, a name the move
 // has brought onto another moves off it, once — as an answer to the gesture
 // rather than a jump some seconds later, with the next snapshot.
 const WHEEL_DONE = 250;
 
+// How long a system takes to come forward.
+const GLIDE = 450;
+
 // The scale of the type against the root size of the interface: the names a
-// step under the body text, read from across the desk without leaning in; the
-// scale and the host about twice as large and thin. The marks are drawn for a
+// step under the body text, read from across the desk without leaning in, the
+// names of the stars in the same size and heavier. The marks are drawn for a
 // root of UNIT_PX — the size the interface opens on — and grow with it.
 const TAG_REM = 0.86;
-const BIG_REM = 1.6;
 const UNIT_PX = 18;
 
 const REDUCE = "(prefers-reduced-motion: reduce)";
@@ -71,33 +91,73 @@ function short(min) {
     return `${Math.round(min / 1440)} d`;
 }
 
-// graphOf lays out the live sessions of a snapshot: the rings in the order of
-// the map, the contours the map does not know after them, and every session
-// with what its mark says — its name, its context, its background work, and
-// its state in the words of its row: stateOf, so the graph waits on a
-// question exactly when the row does.
+// graphOf lays out the live sessions of a snapshot. A contour is a system,
+// its sessions as the column of sessions holds them: an orbit for every
+// project with a live session, in the order of the map, and the sessions of
+// no project on an orbit of their own outside them; on an orbit the sessions
+// nobody opened, and every other session a moon of the one that opened it.
+// Every session carries what its mark says — its name, its context, its
+// background work, and its state in the words of its row: stateOf, so the
+// graph waits on a question exactly when the row does.
 export function graphOf(snapshot) {
     const sessions = (snapshot && snapshot.sessions) || [];
     const map = (snapshot && snapshot.profileMap) || [];
     const now = snapshot && snapshot.at ? snapshot.at * 1000 : Date.now();
     const contourOf = contourOfLive(map, sessions);
-    const rings = new Map(pageNames(map, snapshot && snapshot.limits).map((name) => [name, []]));
-    const facts = new Map();
+    const lists = new Map(pageNames(map, snapshot && snapshot.limits).map((name) => [name, []]));
     for (const s of sessions) {
         const contour = contourOf(s);
-        if (!rings.has(contour)) rings.set(contour, []);
-        rings.get(contour).push(s.session);
-        facts.set(s.session, { parent: (s.parent && s.parent.session) || null, idle: idleOf(s, now) });
+        if (!lists.has(contour)) lists.set(contour, []);
+        lists.get(contour).push(s);
     }
-    const placed = layout([...rings].map(([name, keys]) => ({ name, keys })), facts);
-    const nodes = sessions.map((s) => {
+    const facts = new Map();
+    const plan = [];
+    const index = new Map();
+    for (const [name, list] of lists) {
+        index.set(name, index.size);
+        if (list.length === 0) continue;
+        // A parent in another contour is not one here: the child is a planet
+        // of its own contour.
+        const here = new Set(list.map((s) => s.session));
+        for (const s of list) {
+            const parent = s.parent && here.has(s.parent.session) ? s.parent.session : null;
+            facts.set(s.session, { parent, idle: idleOf(s, now) });
+        }
+        const { rootOf } = kinOf(list);
+        const orbits = [];
+        const outside = [];
+        for (const block of liveBlocksOf({ profile: map.find((p) => p.profile === name) || null, sessions: list })) {
+            const tops = block.live.filter((s) => rootOf(s) === s).map((s) => s.session);
+            if (!block.project) {
+                outside.push(...tops);
+                continue;
+            }
+            const own = block.project.session || block.project.name;
+            orbits.push({
+                key: `p${block.project.id}`, name: block.project.name, keys: tops,
+                label: !tops.some((t) => ownName(t.toLowerCase(), String(own).toLowerCase())),
+            });
+        }
+        if (outside.length) orbits.push({ key: "outside", name: "outside the map", keys: outside, label: true });
+        plan.push({ name, orbits });
+    }
+    const laid = layout(plan, facts);
+    const orbitName = new Map();
+    for (const sys of laid.systems) for (const o of sys.orbits) for (const p of o.planets) orbitName.set(p.key, o.name);
+    const nameOfOrbit = (p) => {
+        let at = p;
+        while (at.parent) at = laid.nodes.get(at.parent);
+        return orbitName.get(at.key) || "";
+    };
+    const nodes = sessions.filter((s) => laid.nodes.get(s.session).w).map((s) => {
         const state = stateOf(s);
-        const p = placed.nodes.get(s.session);
+        const p = laid.nodes.get(s.session);
         return {
             s,
             p,
             name: shownName(s),
             contour: contourOf(s),
+            orbit: nameOfOrbit(p),
             tone: state.tone,
             state,
             pct: s.pct || 0,
@@ -106,23 +166,74 @@ export function graphOf(snapshot) {
             note: `${state.text}, ${short(p.idle)}`,
         };
     });
-    return { rings: placed.rings, nodes };
+    const systems = laid.systems.map((sys) => {
+        const mine = nodes.filter((n) => n.p.system === sys.name);
+        const busy = mine.filter((n) => n.tone === "busy").length;
+        const wait = mine.filter((n) => n.tone === "wait").length;
+        const count = mine.length;
+        return {
+            ...sys,
+            index: index.get(sys.name),
+            busy,
+            wait,
+            live: busy + 2 * wait,
+            summary: [`${count} ${plural(count, "session", "sessions")}`, busy > 0 && `${busy} busy`, wait > 0 && `${wait} waiting`]
+                .filter(Boolean).join(" · "),
+        };
+    });
+    return { systems, nodes };
 }
 
-// glowOf is the session the one light stands behind: the one that has waited
-// for the person longest, or else the freshest at work.
-function glowOf(nodes) {
-    const waiting = nodes.filter((n) => n.tone === "wait").sort((a, b) => b.idle - a.idle);
-    if (waiting.length) return waiting[0];
-    const busy = nodes.filter((n) => n.tone === "busy").sort((a, b) => a.idle - b.idle);
-    return busy[0] || null;
+// orderOf is the order of the systems in depth when the page opens and on
+// Reset view: the liveliest — at work, and waiting twice — in front, a larger
+// one before a smaller at a tie, then the order of the map. It is not
+// rearranged as the contours quiet down or wake up: only the person moves a
+// system forward.
+export function orderOf(graph) {
+    return graph.systems.slice()
+        .sort((a, b) => b.live - a.live || b.R - a.R || a.index - b.index)
+        .map((s) => s.name);
+}
+
+// placesOf is where every system stands with front in front: the systems go
+// round the places of the galaxy in their order, starting from front.
+export function placesOf(graph, order, front) {
+    const R = Math.max(...graph.systems.map((s) => s.R));
+    const slots = slotsFor(order.length, R);
+    const first = Math.max(0, order.indexOf(front));
+    const out = new Map();
+    order.forEach((name, i) => {
+        const sys = graph.systems.find((s) => s.name === name);
+        if (!sys) return;
+        const k = (i - first + order.length) % order.length;
+        out.set(name, { c: slots[k].slice(), tilt: tiltOf(sys.index) });
+    });
+    return out;
+}
+
+// lensOf fits the galaxy of a graph to a canvas of W×H: every place it has,
+// for a system of the largest size.
+export function lensOf(graph, W, H) {
+    const R = Math.max(...graph.systems.map((s) => s.R));
+    return lensFor(slotsFor(graph.systems.length, R), R, W, H, PAD);
+}
+
+// sceneOf is what the drawing takes of a graph with its systems at places:
+// the systems with their places and hues, the sessions, the floor.
+export function sceneOf(graph, places, hues) {
+    const R = Math.max(...graph.systems.map((s) => s.R));
+    return {
+        systems: graph.systems.map((s) => ({ ...s, place: places.get(s.name), tint: hues[s.index % hues.length] })),
+        nodes: graph.nodes,
+        floor: floorOf(slotsFor(graph.systems.length, R), R),
+    };
 }
 
 // countsOf is the line of the header: how many live, where, and how many need
 // nothing and how many need the person.
 function countsOf(graph) {
     const live = graph.nodes.length;
-    const contours = graph.rings.length;
+    const contours = graph.systems.length;
     const busy = graph.nodes.filter((n) => n.tone === "busy").length;
     const wait = graph.nodes.filter((n) => n.tone === "wait").length;
     return { live, contours, busy, wait };
@@ -140,6 +251,7 @@ function paletteOf(el) {
         wait: v("--wait", "#e3c97a"),
         busy: v("--accent", "#63a8ff"),
         cap: v("--ctx-4", "#b98cff"),
+        hues: HUES.map((name, i) => v(name, HUE_FALLBACK[i])),
     };
 }
 
@@ -148,23 +260,22 @@ function typeOf(el) {
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const family = getComputedStyle(el).fontFamily || "Inter, system-ui, sans-serif";
     const tag = Math.round(TAG_REM * rem * 10) / 10;
-    const big = Math.round(BIG_REM * rem * 10) / 10;
     const unit = rem / UNIT_PX;
     return {
         unit,
-        tag: { font: `${tag}px ${family}`, size: tag, sp: 0.5, halo: HALO * unit },
-        big: { font: `200 ${big}px ${family}`, size: big, sp: 1, halo: HALO * unit },
+        tag: { font: `${tag}px ${family}`, size: tag, sp: 0.4, halo: HALO * unit },
+        star: { font: `600 ${tag}px ${family}`, size: tag, sp: 0.8, halo: HALO * unit },
     };
 }
 
-// hitAt is the node under a point of the stage, the nearest of those whose
-// mark the point is on.
+// hitAt is the mark under a point of the stage, the nearest of those the
+// point is on.
 function hitAt(hits, x, y) {
     let best = null;
     let bd = Infinity;
     for (const h of hits) {
         const d = Math.hypot(h.x - x, h.y - y);
-        if (d < h.r + 6 && d < bd) {
+        if (d < h.r + 4 && d < bd) {
             bd = d;
             best = h;
         }
@@ -200,17 +311,26 @@ function lastAsked(n) {
     return n.idle < 1 ? "asked just now" : `last request ${short(n.idle)} ago`;
 }
 
-function Tip({ tip, onPlaced }) {
+function Tip({ tip, front, onPlaced }) {
     const ref = useRef(null);
     useLayoutEffect(() => {
         if (ref.current) onPlaced(ref.current);
     }, [tip]);
+    if (tip.star) {
+        return html`
+            <div class="dkorbtip" ref=${ref} role="tooltip">
+                <b>${tip.star.name}</b>
+                <span>${tip.star.summary}</span>
+                <em>${tip.star.name === front ? "the contour in front" : "click — bring it forward"}</em>
+            </div>
+        `;
+    }
     const n = tip.node;
     const parent = n.p.parent ? ` · opened by ${n.p.parent}` : "";
     return html`
         <div class="dkorbtip" ref=${ref} role="tooltip">
             <b>${n.name}</b>
-            <span>${`${n.contour} · context ${Math.round(n.pct)}% · ${lastAsked(n)}${parent}`}</span>
+            <span>${`${n.contour} · ${n.orbit} · context ${Math.round(n.pct)}% · ${lastAsked(n)}${parent}`}</span>
             <span class=${n.tone === "wait" ? "dkorbwait" : ""}>
                 ${n.state.text}${n.state.work && n.tone !== "wait" ? ` · ${n.state.work}` : ""}
             </span>
@@ -250,10 +370,10 @@ const KEYS = [
     ["busy", "busy"],
     ["idle", "idle"],
     ["wait", "waiting for an answer"],
-    ["angle", "angle — since the last request"],
-    ["context", "context, tick — the cap"],
+    ["phase", "lit part — context"],
     ["work", "background work"],
-    ["moons", "child sessions"],
+    ["moons", "moons — sessions it opened"],
+    ["angle", "angle — since the last request, front is now"],
 ];
 
 // Legend names what the marks mean.
@@ -263,9 +383,23 @@ function Legend({ theme }) {
             ${KEYS.map(([kind, label]) => html`
                 <span key=${kind} class=${kind === "wait" ? "dkorbwait" : ""}><${Key} kind=${kind} theme=${theme} />${label}</span>
             `)}
-            <span class="dkorbhelp">drag to move · Shift-drag to turn · wheel to zoom · click opens · right-click — menu</span>
+            <span class="dkorbhelp">drag to move · Shift-drag to turn · wheel to zoom · Shift-wheel or a star — another contour forward</span>
         </div>
     `;
+}
+
+// keepOrder carries the order of the systems over to a new snapshot: those
+// still there keep their places, a new one goes to the back, and the one in
+// front stays in front while it is there.
+function keepOrder(st, graph) {
+    const names = graph.systems.map((s) => s.name);
+    if (!st.order) {
+        st.order = orderOf(graph);
+        st.front = st.order[0] || null;
+        return;
+    }
+    st.order = st.order.filter((n) => names.includes(n)).concat(orderOf(graph).filter((n) => !st.order.includes(n)));
+    if (!st.order.includes(st.front)) st.front = st.order[0] || null;
 }
 
 export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
@@ -284,35 +418,44 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     const live = useRef({
         view: { ...HOME }, zoom: 1, pan: { x: 0, y: 0 }, size: null, lens: null,
         hits: [], taken: [], sides: new Map(), settle: true, drag: null, frame: 0, spin: 0, zoomed: 0,
+        order: null, front: null, places: new Map(), glide: 0, next: 0,
     });
     const [tip, setTip] = useState(null);
     const [auto, setAuto] = useState(() => !window.matchMedia(REDUCE).matches);
 
     // paint draws the scene as it stands. settle says the scene turned or
     // changed, so a name its side has come to cover may move; a frame of a
-    // move or a zoom alone keeps every name where it was beside its mark.
+    // move, a zoom or a glide alone keeps every name where it was beside its
+    // mark.
     const paint = (settle = true) => {
         const st = live.current;
         st.frame = 0;
         const turned = settle || st.settle;
         st.settle = false;
         const el = canvas.current;
-        if (!el || !st.size || graph.rings.length === 0) return;
+        if (!el || !st.size) return;
         const { W, H, dpr } = st.size;
-        // The lens is fitted to the rings and the box: a new contour or a new
-        // size fits it again.
-        if (!st.lens) st.lens = lensFor(graph.rings, W, H, PAD);
         const ctx = el.getContext("2d");
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
+        if (graph.systems.length === 0) return;
+        // A frame asked for before a new snapshot came may be drawn after it.
+        keepOrder(st, graph);
+        // The lens is fitted to the galaxy and the box: a new system or a new
+        // size fits it again.
+        if (!st.lens) st.lens = lensOf(graph, W, H);
+        // While a system glides forward the others glide with it; one that
+        // turns up meanwhile takes its place at once.
+        const target = placesOf(graph, st.order, st.front);
+        if (!st.glide) st.places = target;
+        else for (const [n, p] of target) if (!st.places.has(n)) st.places.set(n, p);
+        const pal = paletteOf(stage.current);
         const pr = camera(st.view, W, H, lensAt(st.lens, st.zoom, st.pan));
         const drawn = drawScene(ctx, W, H, pr, {
-            rings: graph.rings,
-            nodes: graph.nodes,
-            glow: glowOf(graph.nodes),
-            host: (snapshot && snapshot.hostName) || "host",
-            pal: paletteOf(stage.current),
+            ...sceneOf(graph, st.places, pal.hues),
+            pal,
             type: typeOf(stage.current),
+            front: st.front,
             sides: st.sides,
             settle: turned,
         });
@@ -330,6 +473,44 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     };
     const requestRef = useRef(request);
     requestRef.current = request;
+
+    // bring moves a system to the front, the others round the places after it.
+    // It glides there, or stands there at once where less motion is asked for.
+    const bring = (name) => {
+        const st = live.current;
+        if (!st.order || !st.order.includes(name)) return;
+        cancelAnimationFrame(st.glide);
+        st.glide = 0;
+        const from = new Map(st.places);
+        st.front = name;
+        const to = placesOf(graph, st.order, name);
+        if (window.matchMedia(REDUCE).matches || from.size === 0) {
+            st.places = to;
+            request(true);
+            return;
+        }
+        const t0 = performance.now();
+        const step = (t) => {
+            const k = Math.min(1, (t - t0) / GLIDE);
+            const e = 1 - (1 - k) ** 3;
+            const now = new Map();
+            for (const [n, p] of to) {
+                const a = (from.get(n) || p).c;
+                now.set(n, { ...p, c: a.map((v, i) => v + (p.c[i] - v) * e) });
+            }
+            st.places = now;
+            if (k < 1) {
+                st.glide = requestAnimationFrame(step);
+                paintRef.current(false);
+            } else {
+                st.glide = 0;
+                paintRef.current(true);
+            }
+        };
+        st.glide = requestAnimationFrame(step);
+    };
+    const bringRef = useRef(bring);
+    bringRef.current = bring;
 
     // The canvas follows its box and the density of the screen.
     useEffect(() => {
@@ -350,20 +531,20 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         return () => watch.disconnect();
     }, []);
 
-    // On the next frame rather than now: the theme reaches the page in an
-    // effect of the application, which runs after this one, and its colours
-    // are read off the page.
+    // A new snapshot keeps the order of the systems. On the next frame rather
+    // than now: the theme reaches the page in an effect of the application,
+    // which runs after this one, and its colours are read off the page.
     useEffect(() => {
+        keepOrder(live.current, graph);
         live.current.lens = null;
         request();
     }, [graph, theme]);
 
-    // The thin face of the scale comes with the first frame that asks for it;
-    // the frame drawn before it came is drawn again.
+    // The names of the stars are heavier type, drawn again once it comes.
     useEffect(() => {
         let alive = true;
         const type = typeOf(stage.current);
-        document.fonts.load(type.big.font).then(() => alive && paintRef.current(), () => {});
+        document.fonts.load(type.star.font).then(() => alive && paintRef.current(), () => {});
         return () => { alive = false; };
     }, []);
 
@@ -395,19 +576,34 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         };
     }, [auto]);
 
-    useEffect(() => () => cancelAnimationFrame(live.current.frame), []);
+    useEffect(() => () => {
+        cancelAnimationFrame(live.current.frame);
+        cancelAnimationFrame(live.current.glide);
+    }, []);
 
-    // The wheel scales the picture round the pointer. It is listened to by
-    // hand: a wheel the page may not cancel would scroll the page under the
-    // graph with every step of the zoom.
+    // The wheel scales the picture round the pointer; with Shift it brings
+    // the next system forward, up the one behind, down the one before, round
+    // and round. It is listened to by hand: a wheel the page may not cancel
+    // would scroll the page under the graph with every step.
     useEffect(() => {
         const el = stage.current;
         const wheel = (e) => {
             const st = live.current;
             e.preventDefault();
             if (!st.size || !st.lens) return;
-            const box = el.getBoundingClientRect();
             const px = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? st.size.H : 1;
+            if (e.shiftKey) {
+                // With Shift held the browser may turn the wheel sideways.
+                st.next += (e.deltaY || e.deltaX) * px;
+                if (Math.abs(st.next) < NEXT || !st.order || st.order.length < 2) return;
+                const by = st.next < 0 ? 1 : -1;
+                st.next = 0;
+                const n = st.order.length;
+                hideRef.current();
+                bringRef.current(st.order[(st.order.indexOf(st.front) + by + n) % n]);
+                return;
+            }
+            const box = el.getBoundingClientRect();
             const m = { x: e.clientX - box.left, y: e.clientY - box.top };
             const c = { x: st.size.W / 2 + st.lens.ox, y: st.size.H / 2 + st.lens.oy };
             const next = zoomAt(st.zoom, st.pan, Math.exp(-e.deltaY * px * WHEEL), m, c);
@@ -430,7 +626,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         const box = stage.current.getBoundingClientRect();
         return { x: e.clientX - box.left, y: e.clientY - box.top };
     };
-    const show = (h, at) => setTip(h ? { node: h.node, x: at.x, y: at.y } : null);
+    const show = (h, at) => setTip(h ? { node: h.node || null, star: h.star || null, x: at.x, y: at.y } : null);
     const hideRef = useRef(null);
     hideRef.current = () => { if (tip) setTip(null); };
 
@@ -471,8 +667,11 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             return;
         }
         const h = hitAt(st.hits, at.x, at.y);
-        if ((h && h.node) !== (tip && tip.node)) show(h, at);
+        const was = tip && (tip.node || tip.star);
+        if ((h && (h.node || h.star)) !== was) show(h, at);
     };
+    // A click on a planet opens its session; a click on a star brings its
+    // system forward.
     const up = (e) => {
         const st = live.current;
         const drag = st.drag;
@@ -482,23 +681,35 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         if (!drag || drag.moved || drag.button !== 0) return;
         const at = point(e);
         const h = hitAt(st.hits, at.x, at.y);
-        if (h) onSession({ name: h.node.s.session, id: h.node.s.sessionId });
+        if (!h) return;
+        if (h.star) {
+            setTip(null);
+            bring(h.star.name);
+            return;
+        }
+        onSession({ name: h.node.s.session, id: h.node.s.sessionId });
     };
     const context = (e) => {
         if (!menu) return;
         const at = point(e);
         const h = hitAt(live.current.hits, at.x, at.y);
-        if (!h) return;
+        if (!h || !h.node) return;
         const s = h.node.s;
         const open = () => onSession({ name: s.session, id: s.sessionId });
         setTip(null);
         menu(...liveMenuOf(s, { exec, snapshot, wait, onOpen: open, onTerm }))(e, stage.current);
     };
+    // Reset view brings back the turn, the place, the scale and the order of
+    // the systems by how alive they are now.
     const reset = () => {
         const st = live.current;
+        cancelAnimationFrame(st.glide);
+        st.glide = 0;
         st.view = { ...HOME };
         st.zoom = 1;
         st.pan = { x: 0, y: 0 };
+        st.order = orderOf(graph);
+        st.front = st.order[0] || null;
         request();
     };
     const placed = (el) => {
@@ -538,7 +749,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             >
                 <canvas ref=${canvas} role="img" aria-label=${`Sessions: ${said}`}></canvas>
                 ${snapshot && counts.live === 0 && html`<p class="dkorbempty">There are no live sessions.</p>`}
-                ${tip && html`<${Tip} tip=${tip} onPlaced=${placed} />`}
+                ${tip && html`<${Tip} tip=${tip} front=${live.current.front} onPlaced=${placed} />`}
             </div>
             <${Legend} theme=${theme} />
         </section>

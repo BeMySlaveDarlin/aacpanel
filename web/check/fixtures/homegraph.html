@@ -5,11 +5,15 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <div id="app"></div>
 <script type="module">
-// The home screen of the desk: the graph of the sessions on top and the four
-// tiles of the period under one switch. Where the graph puts a session is
+// The home screen of the desk: the galaxy of the sessions on top and the four
+// tiles of the period under one switch. Three contours are three systems;
+// their projects are orbits in the order of the map, a session of no project
+// stands on an orbit outside them, and the sessions a session opened are its
+// moons, a grandchild a moon of the moon. Where the graph puts a session is
 // asked of its own pure functions, and the page then points, clicks and
 // right-clicks at that place on the canvas as a person would — the tip, the
-// session opened as its row opens it, the menu of its row. What the graph
+// session opened as its row opens it, the menu of its row, a star brought
+// forward by a click or by the wheel with Shift. What the graph
 // draws is counted by the clears of its canvas: nothing while nothing
 // changes, frame after frame only while it turns by itself and the page is
 // seen. The system here asks for less motion, so the turn starts off.
@@ -26,37 +30,44 @@ import { html } from "/src/html.js";
 import { Home, PERIOD } from "/src/desktop/home.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { attachTips } from "/src/desktop/tip.js";
-import { PAD, graphOf } from "/src/desktop/orbits/orbits.js";
-import { DAY, HOME, MOON, SPAN, TAU, ZOOM, at, camera, dial, lensAt, lensFor } from "/src/desktop/orbits/space.js";
-import { TOUCH, drawScene } from "/src/desktop/orbits/scene.js";
+import { graphOf, lensOf, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
+import { DAY, HOME, MOON, SPAN, TAU, ZOOM, at, boxOf, camera, dial, lensAt, orbitOf, slotsFor, worldOf } from "/src/desktop/orbits/space.js";
+import { TOUCH, drawScene, starSize } from "/src/desktop/orbits/scene.js";
 import { periodRange } from "/src/data/usage.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
-// Less motion, as the desk of the machine asks for; every other query as is.
+// Less motion, as the desk of the machine asks for, until the page says
+// otherwise; every other query as is.
 const REDUCE = "(prefers-reduced-motion: reduce)";
+let lessMotion = true;
 const plainMedia = window.matchMedia.bind(window);
 window.matchMedia = (q) => (q === REDUCE
-    ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }
+    ? { matches: lessMotion, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }
     : plainMedia(q));
 
 // The draws of the graph, counted where they start: a frame clears the canvas.
 // And the words it wrote in its last frame, where it wrote them.
 let draws = 0;
 let written = new Map();
+let times = new Map();
 const onGraph = (ctx) => ctx.canvas.closest && ctx.canvas.closest(".dkorbstage");
 const clear = CanvasRenderingContext2D.prototype.clearRect;
 CanvasRenderingContext2D.prototype.clearRect = function (...args) {
     if (onGraph(this)) {
         draws += 1;
         written = new Map();
+        times = new Map();
     }
     return clear.apply(this, args);
 };
 const fillText = CanvasRenderingContext2D.prototype.fillText;
 CanvasRenderingContext2D.prototype.fillText = function (t, x, y, ...rest) {
-    if (onGraph(this)) written.set(t, { x, y });
+    if (onGraph(this)) {
+        written.set(t, { x, y });
+        times.set(t, (times.get(t) || 0) + 1);
+    }
     return fillText.call(this, t, x, y, ...rest);
 };
 
@@ -65,20 +76,31 @@ const now = Math.floor(Date.now() / 1000) * 1000;
 const iso = (min) => new Date(now - min * 60e3).toISOString();
 const S = (o) => ({ transport: "stream", model: "claude-opus-5-5", limit: 1000000, limitKnown: true, startedAt: iso(300),
     pct: 20, tokens: 200000, sessionId: `id-${o.session}`, cwd: `/srv/${o.session}`, ...o });
-const sessions = [
-    S({ session: "shop", profile: "personal", status: "busy", lastRequestAt: iso(1), work: { agents: 1, tasks: 1 } }),
-    S({ session: "blog", profile: "client", status: "waiting", lastRequestAt: iso(60), pct: 52 }),
-    S({ session: "notes", profile: "client", status: "idle", lastRequestAt: iso(60), pct: 74 }),
-    S({ session: "draft", profile: "client", status: "idle", lastRequestAt: null, startedAt: iso(5) }),
-    S({ session: "stray", profile: "personal", status: "idle", lastRequestAt: null, startedAt: null }),
-    S({ session: "codex-1", profile: "client", agent: "codex", title: "cx-thread", status: "busy",
-        lastRequestAt: iso(2), parent: { session: "blog" } }),
-];
+// The map: a project in personal, two in client — drafts before blog — and
+// one in lab. The service names the project of every live session.
+const P = (id, name, group) => ({ id, name, session: name, path: `/srv/${name}`, group });
+const shopP = P(11, "shop", "Side");
+const draftsP = P(21, "drafts", "Work");
+const blogP = P(22, "blog", "Work");
+const benchP = P(31, "bench", "Lab");
 const profileMap = [
-    { id: 3, profile: "personal", default: true, groups: [] },
-    { id: 4, profile: "client", groups: [] },
+    { id: 3, profile: "personal", default: true, groups: [{ name: "Side", projects: [shopP] }] },
+    { id: 4, profile: "client", groups: [{ name: "Work", projects: [draftsP, blogP] }] },
+    { id: 5, profile: "lab", groups: [{ name: "Lab", projects: [benchP] }] },
 ];
-const snapshot = { at: Math.floor(now / 1000), hostName: "helios", sessions, profileMap,
+const sessions = [
+    S({ session: "shop", profile: "personal", project: shopP, status: "busy", lastRequestAt: iso(1), work: { agents: 1, tasks: 1 } }),
+    S({ session: "blog", profile: "client", project: blogP, status: "waiting", lastRequestAt: iso(60), pct: 52 }),
+    S({ session: "notes", profile: "client", project: blogP, status: "idle", lastRequestAt: iso(60), pct: 74 }),
+    S({ session: "draft", profile: "client", project: draftsP, status: "idle", lastRequestAt: null, startedAt: iso(5) }),
+    S({ session: "stray", profile: "personal", project: null, status: "idle", lastRequestAt: null, startedAt: null }),
+    // A thread blog opened in the directory of another project: blog's moon.
+    S({ session: "codex-1", profile: "client", project: draftsP, agent: "codex", title: "cx-thread", status: "busy",
+        lastRequestAt: iso(2), parent: { session: "blog" } }),
+    S({ session: "deep", profile: "client", project: null, status: "idle", lastRequestAt: iso(20), parent: { session: "codex-1" } }),
+    S({ session: "bench-1", profile: "lab", project: benchP, status: "idle", lastRequestAt: iso(30) }),
+];
+let snapshot = { at: Math.floor(now / 1000), hostName: "helios", sessions, profileMap,
     host: { cpuPct: 7, mem: { pct: 41 }, uptime: 200000 } };
 const tree = { running: 2, total: 3, stacks: [{ name: "shop", running: 2, total: 3, containers: [] }] };
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.stop", "session.switch",
@@ -110,7 +132,7 @@ window.EventSource = class { constructor() { this.readyState = 1; } addEventList
 
 const opened = [];
 const sections = [];
-function Shell() {
+function Shell({ snap }) {
     const shell = useRef(null);
     const tip = useRef(null);
     useEffect(() => attachTips(shell.current, tip.current), []);
@@ -119,14 +141,15 @@ function Shell() {
             <${MenuHost}>
                 <div class="dktip" ref=${tip} role="tooltip"></div>
                 <div class="dkbody full">
-                    <${Home} snapshot=${snapshot} tree=${tree} exec=${exec} wait=${wait} theme="space"
+                    <${Home} snapshot=${snap} tree=${tree} exec=${exec} wait=${wait} theme="space"
                         onSection=${(id) => sections.push(id)} onSession=${(t) => opened.push(t)} onTerm=${null} />
                 </div>
             <//>
         </div>
     `;
 }
-render(h(ToastHost, null, h(GateHost, null, h(Shell))), document.getElementById("app"));
+const show = () => render(h(ToastHost, null, h(GateHost, null, h(Shell, { snap: snapshot }))), document.getElementById("app"));
+show();
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const frames = async (n) => { for (let i = 0; i < n; i++) await frame(); };
@@ -147,14 +170,26 @@ const tipLines = () => Array.from(document.querySelectorAll(".dkorbtip > *")).ma
 const menuNode = () => document.querySelector(".ctxmenu");
 
 // spotOf is where the graph's own functions put a session on the canvas, in
-// the coordinates of the window, for the home view.
-const spotOf = (name) => {
+// the coordinates of the window, for the home view with front in front —
+// the liveliest when the page opens. starOf is the same for the star of a
+// contour.
+const viewOf = (front, order) => {
     const box = stage().getBoundingClientRect();
     const g = graphOf(snapshot);
-    const pr = camera(HOME, box.width, box.height, lensFor(g.rings, box.width, box.height, PAD));
+    const ord = order || orderOf(g);
+    const places = placesOf(g, ord, front || ord[0]);
+    const pr = camera(HOME, box.width, box.height, lensOf(g, box.width, box.height));
+    const win = (q) => ({ x: box.left + q.x, y: box.top + q.y });
+    return { g, places, pr, win };
+};
+const spotOf = (name, front, order) => {
+    const { g, places, pr, win } = viewOf(front, order);
     const n = g.nodes.find((x) => x.s.session === name);
-    const q = pr(n.p.w);
-    return { x: box.left + q.x, y: box.top + q.y };
+    return win(pr(worldOf(places.get(n.p.system), n.p.w)));
+};
+const starOf = (contour, front, order) => {
+    const { places, pr, win } = viewOf(front, order);
+    return win(pr(places.get(contour).c));
 };
 const pointer = (type, p, extra = {}) => {
     const ev = new PointerEvent(type, { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y,
@@ -188,18 +223,57 @@ window.done = (async () => {
     out.dial = { now: deg(dial(0)), hour: deg(dial(60)), day: deg(dial(DAY)), past: deg(dial(DAY * 5)), span: deg(SPAN),
         rising: [0, 1, 5, 30, 60, 360, DAY].map((m) => dial(m)).every((a, i, all) => i === 0 || a > all[i - 1]) };
     out.angles = Object.fromEntries(g.nodes.map((n) => [n.s.session, deg(n.p.ang)]));
-    out.dialOf = { blog: deg(dial(60)), draft: deg(dial(5)), shop: deg(dial(1)) };
-    out.rings = g.rings.map((r) => ({ name: r.name, R: r.R, members: r.members.map((m) => m.key) }));
-    const kid = node("codex-1").p;
-    const parent = node("blog").p;
-    const expect = at(dial(kid.idle), MOON).map((v, i) => v + parent.w[i]);
-    out.moon = {
-        depth: kid.depth, parent: kid.parent,
-        offBy: Math.max(...expect.map((v, i) => Math.abs(v - kid.w[i]))),
-        fromHost: Math.round(Math.hypot(kid.w[0], kid.w[2])),
-        orbit: Math.round(Math.hypot(kid.w[0] - parent.w[0], kid.w[2] - parent.w[2])),
+    out.dialOf = { blog: deg(dial(60)), draft: deg(dial(5)), shop: deg(dial(1)), bench: deg(dial(30)) };
+    out.systems = g.systems.map((sys) => ({ name: sys.name, live: sys.live, summary: sys.summary,
+        orbits: sys.orbits.map((o) => ({ key: o.key, name: o.name, R: o.R, label: Boolean(o.label),
+            planets: o.planets.map((p) => p.key) })) }));
+    const moonOf = (child, parent, depth) => {
+        const kid = node(child).p;
+        const up = node(parent).p;
+        const expect = at(dial(kid.idle), orbitOf(depth - 1)).map((v, i) => v + up.w[i]);
+        return { depth: kid.depth, parent: kid.parent, system: kid.system,
+            offBy: Math.max(...expect.map((v, i) => Math.abs(v - kid.w[i]))),
+            orbit: Math.round(Math.hypot(kid.w[0] - up.w[0], kid.w[2] - up.w[2])) };
     };
+    out.moon = moonOf("codex-1", "blog", 1);
+    out.grandchild = moonOf("deep", "codex-1", 2);
+    out.moonSizes = [orbitOf(0), orbitOf(1), MOON];
+    out.orbitOf = Object.fromEntries(g.nodes.map((n) => [n.s.session, n.orbit]));
     out.notes = node("blog").note;
+    out.stars = [0, 1, 4].map((live) => starSize(live));
+
+    // The galaxy, as the page opens: the liveliest in front, no system over
+    // another, every one inside the box; an orbit says its project only where
+    // its planets do not.
+    out.order = orderOf(g);
+    {
+        const box0 = stage().getBoundingClientRect();
+        const { places, pr } = viewOf();
+        const boxes = g.systems.map((sys) => {
+            const pts = Array.from({ length: 32 }, (_, i) => pr(worldOf(places.get(sys.name), at((i / 32) * TAU, sys.R))));
+            const xs = pts.map((q) => q.x);
+            const ys = pts.map((q) => q.y);
+            return { name: sys.name, x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs),
+                h: Math.max(...ys) - Math.min(...ys), z: pr(places.get(sys.name).c).z };
+        });
+        out.galaxy = {
+            covered: boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => a.x < b.x + b.w && b.x < a.x + a.w
+                && a.y < b.y + b.h && b.y < a.y + a.h).map((b) => `${a.name}/${b.name}`)),
+            outside: boxes.filter((b) => b.x < 0 || b.y < 0 || b.x + b.w > box0.width || b.y + b.h > box0.height).map((b) => b.name),
+            nearest: boxes.slice().sort((a, b) => a.z - b.z)[0].name,
+        };
+        // However many contours there are, their places stand clear of each
+        // other.
+        out.galaxy.crowded = [];
+        for (let count = 2; count <= 8; count++) {
+            const bx = slotsFor(count, 300).map((c) => boxOf(c, 300));
+            bx.forEach((a, i) => bx.slice(i + 1).forEach((b, j) => {
+                if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) out.galaxy.crowded.push(`${count}:${i}/${i + j + 1}`);
+            }));
+        }
+        out.written = { blog: times.get("blog") || 0, drafts: times.get("drafts") || 0, outside: times.get("outside the map") || 0,
+            shop: times.get("shop") || 0, client: times.get("client") || 0 };
+    }
 
     // The header carries what the tile of the sessions said, and that tile is
     // gone: the rows beside the graph are the containers and the machine.
@@ -263,10 +337,10 @@ window.done = (async () => {
 
     // The picture is handled as a map. NAMES pairs a session with the name the
     // graph writes for it; a name's offset from its mark at the home view
-    // tells where the mark stands later, while the name keeps its side.
+    // tells where the mark stands later, while the name keeps its side. The
+    // names are those of the system in front, which are always written.
     await quiet();
-    const NAMES = [["shop", "shop"], ["blog", "blog"], ["notes", "notes"], ["draft", "draft"], ["stray", "stray"],
-        ["codex-1", "cx-thread"]];
+    const NAMES = [["blog", "blog"], ["notes", "notes"], ["draft", "draft"], ["codex-1", "cx-thread"], ["deep", "deep"]];
     const local = (p) => ({ x: p.x - box.left, y: p.y - box.top });
     const names = () => Object.fromEntries(NAMES.map(([, n]) => [n, written.get(n) ? { ...written.get(n) } : null]));
     const marks0 = Object.fromEntries(NAMES.map(([s, n]) => [n, local(spotOf(s))]));
@@ -346,8 +420,8 @@ window.done = (async () => {
     await frames(2);
     const zoomed = names();
     const mark = (n) => markOf(zoomed, n);
-    g2.zoomBy = Math.hypot(mark("stray").x - mark("shop").x, mark("stray").y - mark("shop").y)
-        / Math.hypot(marks0.stray.x - marks0.shop.x, marks0.stray.y - marks0.shop.y);
+    g2.zoomBy = Math.hypot(mark("draft").x - mark("notes").x, mark("draft").y - mark("notes").y)
+        / Math.hypot(marks0.draft.x - marks0.notes.x, marks0.draft.y - marks0.notes.y);
     g2.zoomKept = Math.hypot(mark("blog").x - ml.x, mark("blog").y - ml.y);
     g2.zoomOff = Math.max(...NAMES.map(([, n]) => Math.hypot(
         mark(n).x - (ml.x + g2.zoomBy * (marks0[n].x - ml.x)), mark(n).y - (ml.y + g2.zoomBy * (marks0[n].y - ml.y)))));
@@ -359,7 +433,7 @@ window.done = (async () => {
     g2.zoomIn = { bound: ZOOM[1], tip: await tipAt(toward("cx-thread", ZOOM[1])) };
     stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100000, clientX: m.x, clientY: m.y }));
     await quiet();
-    g2.zoomOut = { bound: ZOOM[0], tip: await tipAt(toward("stray", ZOOM[0])) };
+    g2.zoomOut = { bound: ZOOM[0], tip: await tipAt(toward("draft", ZOOM[0])) };
     await resetView();
 
     // Shift and a drag turn the scene, as the middle button does: the names
@@ -385,7 +459,7 @@ window.done = (async () => {
     pointer("pointerup", { x: corner.x + 150, y: corner.y }, { shiftKey: true });
     await quiet();
     g2.turnJumps = jumps;
-    g2.turnApart = shifted(unturned, turned, turned.shop.x - unturned.shop.x, turned.shop.y - unturned.shop.y);
+    g2.turnApart = shifted(unturned, turned, turned.blog.x - unturned.blog.x, turned.blog.y - unturned.blog.y);
     count = opened.length;
     await resetView();
     const unmiddled = names();
@@ -398,7 +472,7 @@ window.done = (async () => {
     const middled = names();
     pointer("pointerup", { x: corner.x + 60, y: corner.y }, { button: 1 });
     await quiet();
-    g2.middleApart = shifted(unmiddled, middled, middled.shop.x - unmiddled.shop.x, middled.shop.y - unmiddled.shop.y);
+    g2.middleApart = shifted(unmiddled, middled, middled.blog.x - unmiddled.blog.x, middled.blog.y - unmiddled.blog.y);
 
     // Reset view brings back the turn, the place and the scale: every mark is
     // where the home view puts it.
@@ -416,10 +490,12 @@ window.done = (async () => {
     // a little at a time. A name leaves its side only for one it covered, and
     // a move or a zoom alone, drawn without settling, moves none.
     const crowd = { at: Math.floor(now / 1000), profileMap: [], sessions: Array.from({ length: 14 }, (_, i) => S({
-        session: `node-${String.fromCharCode(97 + i)}`, profile: "personal", status: i % 3 ? "idle" : "busy",
+        session: `node-${String.fromCharCode(97 + i)}`, profile: "personal", status: i === 5 ? "waiting" : i % 3 ? "idle" : "busy",
         lastRequestAt: iso(2 + i * 1.5), pct: 10 + i * 5,
         parent: i > 10 ? { session: "node-a" } : undefined })) };
     const cg = graphOf(crowd);
+    const corder = orderOf(cg);
+    const cplaces = placesOf(cg, corder, corder[0]);
     const W = 900;
     const H = 420;
     const sheet = document.createElement("canvas");
@@ -427,10 +503,11 @@ window.done = (async () => {
     sheet.height = H;
     const cx = sheet.getContext("2d");
     const pal = { ink: "#eef1ff", wait: "#e3c97a", busy: "#63a8ff", cap: "#b98cff" };
-    const type = { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, big: { font: "200 28px Inter", size: 28, sp: 1, halo: 6 } };
-    const lens = lensFor(cg.rings, W, H, PAD);
+    const type = { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } };
+    const lens = lensOf(cg, W, H);
     const sides = new Map();
-    const scene = (settle) => ({ rings: cg.rings, nodes: cg.nodes, glow: null, host: "helios", pal, type, sides, settle });
+    const hues = ["#6b9c83", "#7fe3d4", "#b98cff"];
+    const scene = (settle) => ({ ...sceneOf(cg, cplaces, hues), pal, type, sides, settle });
     const sideOf = (labels) => Object.fromEntries(labels.map((l) => [l.key, `${l.dir}/${l.reach}`]));
     const keep = { steps: 0, changes: 0, unforced: [], unearned: [], frozen: 0 };
     for (let i = 0; i <= 60; i++) {
@@ -451,8 +528,73 @@ window.done = (async () => {
         const now2 = sideOf(drawn.labels);
         keep.frozen += Object.keys(settled).filter((k) => settled[k] !== now2[k]).length;
     }
-    keep.names = Object.keys(settled).length;
+    keep.names = Object.keys(settled).filter((k) => !k.startsWith("*") && !k.includes("/")).length;
     out.keep = keep;
+
+    // Behind the front a name is written only where it stands clear, but for
+    // a session waiting for the person; the same crowded system in front
+    // writes every name.
+    // Drawn small, so the names cannot all stand clear.
+    const SW = 380;
+    const SH = 200;
+    const clearOf = (front) => {
+        cx.clearRect(0, 0, W, H);
+        const lab = drawScene(cx, SW, SH, camera(HOME, SW, SH, lensOf(cg, SW, SH)), { ...sceneOf(cg, cplaces, hues), front,
+            pal, type, sides: new Map(), settle: true }).labels;
+        const shown = lab.filter((l) => !l.hidden);
+        let clashes = 0;
+        shown.forEach((a, i) => shown.slice(i + 1).forEach((b) => {
+            const w = Math.min(a.rect.x + a.rect.w, b.rect.x + b.rect.w) - Math.max(a.rect.x, b.rect.x);
+            const hh = Math.min(a.rect.y + a.rect.h, b.rect.y + b.rect.h) - Math.max(a.rect.y, b.rect.y);
+            if (w > 2 && hh > 2) clashes += 1;
+        }));
+        return { hidden: lab.filter((l) => l.hidden).map((l) => l.key), shown: shown.length, clashes };
+    };
+    out.quiet = { behind: clearOf("elsewhere"), front: clearOf(corder[0]) };
+
+    // The phase of a planet: the lit share of its disc is the share of its
+    // context, lit in its own tone, and in the tone of the cap near the cap.
+    // Drawn alone and four times larger, and counted pixel by pixel.
+    const phaseOf = (pct) => {
+        const one = { at: Math.floor(now / 1000), profileMap: [], sessions: [S({ session: "solo", profile: "personal",
+            status: "idle", pct, lastRequestAt: iso(30) })] };
+        const pg = graphOf(one);
+        const po = orderOf(pg);
+        const pp = placesOf(pg, po, po[0]);
+        const PW = 600;
+        const PH = 400;
+        const pc = document.createElement("canvas");
+        pc.width = PW;
+        pc.height = PH;
+        const px = pc.getContext("2d");
+        const big = { unit: 4, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } };
+        const pr = camera(HOME, PW, PH, lensOf(pg, PW, PH));
+        drawScene(px, PW, PH, pr, { ...sceneOf(pg, pp, hues), pal, type: big, sides: new Map(), settle: true });
+        const n = pg.nodes[0];
+        const q = pr(worldOf(pp.get(n.p.system), n.p.w));
+        // The disc is eight units across the radius, the outline at its edge.
+        const r = 8 * big.unit - 1;
+        const x0 = Math.round(q.x - r);
+        const y0 = Math.round(q.y - r);
+        const data = px.getImageData(x0, y0, 2 * r + 1, 2 * r + 1).data;
+        let all = 0;
+        let lit = 0;
+        const rgb = [0, 0, 0];
+        for (let y = 0; y <= 2 * r; y++) {
+            for (let x = 0; x <= 2 * r; x++) {
+                if (Math.hypot(x0 + x + 0.5 - q.x, y0 + y + 0.5 - q.y) > r) continue;
+                const i = (y * (2 * r + 1) + x) * 4;
+                all += 1;
+                if (data[i + 3] > 150) {
+                    lit += 1;
+                    for (let k = 0; k < 3; k++) rgb[k] += data[i + k];
+                }
+            }
+        }
+        return { share: Math.round((lit / all) * 1000) / 1000, rgb: lit ? rgb.map((v) => Math.round(v / lit)) : [] };
+    };
+    out.phase = { "0": phaseOf(0), "25": phaseOf(25), "50": phaseOf(50), "75": phaseOf(75), "40": phaseOf(40), "70": phaseOf(70),
+        ink: [1, 3, 5].map((i) => parseInt(pal.ink.slice(i, i + 2), 16)), cap: [1, 3, 5].map((i) => parseInt(pal.cap.slice(i, i + 2), 16)) };
 
     // Nothing is drawn while nothing changes.
     await quiet();
@@ -486,6 +628,85 @@ window.done = (async () => {
     const off = draws;
     await frames(12);
     out.offDraws = draws - off;
+
+    // The galaxy in depth. The liveliest contour stands in front; the wheel
+    // with Shift brings the next forward, round and round both ways, and
+    // zooms nothing; a click on a star brings its contour forward. A change of
+    // how alive the contours are moves nothing until Reset view orders them
+    // anew. Where less motion is asked for a system stands in its place at
+    // once, elsewhere it glides there.
+    await resetView();
+    const gal = {};
+    out.carousel = gal;
+    const CONTOURS = ["client", "personal", "lab"];
+    const fronts = async (front, order) => {
+        const found = [];
+        for (const c of CONTOURS) found.push((await tipAt(starOf(c, front, order))) === c ? c : `${c}?`);
+        return found;
+    };
+    const shiftWheel = async (dy) => {
+        const sb = stage().getBoundingClientRect();
+        const ev = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: dy, shiftKey: true,
+            clientX: sb.left + 40, clientY: sb.top + 40 });
+        stage().dispatchEvent(ev);
+        return ev.defaultPrevented;
+    };
+    // At rest: no frame drawn for three frames in a row.
+    const rest = async () => {
+        let last = -1;
+        let same = 0;
+        await until(() => {
+            if (draws === last) same += 1;
+            else {
+                same = 0;
+                last = draws;
+            }
+            return same >= 3;
+        }, 3000);
+    };
+    gal.order = orderOf(graphOf(snapshot));
+    gal.first = await fronts();
+    let drawn0 = draws;
+    gal.prevented = await shiftWheel(-100);
+    await rest();
+    gal.instant = draws - drawn0;
+    gal.up = await fronts("personal");
+    pointer("pointermove", starOf("personal", "personal"), { buttons: 0 });
+    await frames(2);
+    gal.frontSays = text(document.querySelector(".dkorbtip em"));
+    pointer("pointermove", { x: box.left + 6, y: box.top + 6 }, { buttons: 0 });
+    await shiftWheel(100);
+    await rest();
+    gal.down = await fronts("client");
+    await shiftWheel(100);
+    await rest();
+    gal.wrap = await fronts("lab");
+    count = opened.length;
+    await press(starOf("personal", "lab"));
+    await rest();
+    gal.clicked = await fronts("personal");
+    gal.clickOpened = opened.length - count;
+    // The contours wake up and quiet down: lab now waits, blog does not.
+    const kept = gal.order;
+    snapshot = { ...snapshot, sessions: snapshot.sessions.map((x) => (x.session === "blog" ? { ...x, status: "idle" }
+        : x.session === "bench-1" ? { ...x, status: "waiting" } : x)) };
+    show();
+    await quiet();
+    gal.kept = await fronts("personal", kept);
+    await resetView();
+    gal.reorder = orderOf(graphOf(snapshot));
+    gal.reset = await fronts();
+    // Outside less motion the next system glides forward over some frames.
+    lessMotion = false;
+    drawn0 = draws;
+    await shiftWheel(-100);
+    await frames(3);
+    gal.midway = await tipAt(starOf(gal.reorder[1], gal.reorder[1], gal.reorder));
+    await rest();
+    gal.glide = draws - drawn0;
+    gal.glided = await fronts(gal.reorder[1], gal.reorder);
+    lessMotion = true;
+    await resetView();
 
     // One switch for the four tiles of the period: what each of them asks
     // the host, before the switch and after.

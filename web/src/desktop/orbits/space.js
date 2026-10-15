@@ -1,11 +1,14 @@
 // Where a session stands in the graph of the home screen, and how the graph is
 // seen. Numbers in, numbers out: nothing here draws or reads the page.
 //
-// A contour is a ring around the host. A session stands on the ring of its
-// contour at an angle that says how long ago it last asked the model: the
-// meridian of now runs to the front, the time goes clockwise from it. A
-// session another one opened is its moon, on a small orbit around it, at the
-// angle of its own last request.
+// A contour is a system of its own: a star, and round it an orbit for every
+// project with a live session, in the order of the map. The sessions of a
+// project are the planets of its orbit, each at an angle that says how long
+// ago it last asked the model — the meridian of now runs to the front of
+// every system alike, the time goes clockwise from it. A session another one
+// opened is that one's moon, at the angle of its own last request, and its
+// own sessions are moons of the moon. The systems stand in depth, a galaxy:
+// one at the front, the others behind it.
 
 export const TAU = Math.PI * 2;
 
@@ -34,21 +37,24 @@ export function idleOf(s, now) {
     return Math.max(0, (now - at) / 60000);
 }
 
-// The rings, in the units of the scene: the camera fits them to the canvas,
-// so only their proportions count. ROOM is what a node needs along its ring
-// for its mark and its name.
-const RING = 150;
-const RING_STEP = 97.5;
-const ROOM = 84;
+// The orbits of a system, in the units of the scene; the camera fits them to
+// the canvas, so only their proportions count. The first orbit keeps STAR
+// clear for the star and its name; the next stands a STEP out at least, and
+// further where the moons of two neighbouring orbits would meet. ROOM is what
+// a planet needs along its orbit for its mark and its name.
+const STAR = 40;
+const ORBIT_STEP = 58;
+const ORBIT_GAP = 30;
+const ROOM = 70;
 
-// MOON is the orbit of a session's moons; a moon's own moons go on an orbit
+// MOON is the orbit of a planet's moons; a moon's own moons go on an orbit
 // smaller by MOON_SHRINK, so a grandchild stays inside its parent's reach.
-export const MOON = 46;
+export const MOON = 54;
 const MOON_SHRINK = 0.6;
 const MOON_ROOM = 30;
 
-// at is a point of the dial plane: angle a clockwise from the front, at radius
-// r and height y.
+// at is a point of a system's plane: angle a clockwise from the front, at
+// radius r and height y.
 export function at(a, r, y = 0) {
     return [-Math.sin(a) * r, y, -Math.cos(a) * r];
 }
@@ -62,39 +68,60 @@ export function orbitOf(depth) {
     return MOON * MOON_SHRINK ** depth;
 }
 
-// layout places the nodes of the graph. contours lists the rings from the
-// innermost out, each with the keys of its sessions; nodes maps a key to
-// { parent, idle }, parent being the key of the session that opened it.
-// It answers with a ring for every contour that has a session, and for
-// every node its point (w), its angle (ang), its depth among moons, its
-// moons (kids) and the radius of their orbit (orbit).
-export function layout(contours, nodes) {
+// layout places the nodes of every system in the plane of its system.
+// systems lists the contours, each with its orbits from the innermost out:
+// { name, orbits: [{ key, name, keys }] }, keys being the planets of the
+// orbit; nodes maps the key of every session to { parent, idle }, parent the
+// key of the session that opened it within the same contour. It answers the
+// systems that have a planet, each with its radius R and its orbits with
+// theirs, and for every node its point in its system's plane (w), its angle,
+// its depth among moons, its moons and the radius of their orbit.
+export function layout(systems, nodes) {
     const placed = new Map();
     for (const [key, n] of nodes) {
         placed.set(key, { key, parent: n.parent || null, idle: n.idle, ang: dial(n.idle), kids: [], depth: 0, w: null });
     }
     // A parent that is not live, or a chain of parents that comes back to the
-    // node itself, leaves the node on its ring: it has nobody to orbit.
+    // node itself, leaves the node a planet: it has nobody to orbit.
     for (const n of placed.values()) {
         if (!n.parent || !placed.has(n.parent) || loops(n, placed)) n.parent = null;
     }
     for (const n of placed.values()) if (n.parent) placed.get(n.parent).kids.push(n);
 
-    const rings = [];
-    for (const c of contours) {
-        const members = c.keys.map((k) => placed.get(k)).filter(Boolean);
-        if (members.length === 0) continue;
-        const R = RING + rings.length * RING_STEP;
-        rings.push({ name: c.name, R, members });
-        const roots = members.filter((n) => !n.parent);
-        for (const n of roots) depthOf(n, 0);
-        spread(roots, (a, b) => Math.max(ROOM + reach(a), ROOM + reach(b)) / R);
-        for (const n of roots) {
-            n.w = at(n.ang, R);
-            moons(n);
+    const out = [];
+    for (const sys of systems) {
+        const orbits = sys.orbits
+            .map((o) => ({ ...o, planets: o.keys.map((k) => placed.get(k)).filter((n) => n && !n.parent) }))
+            .filter((o) => o.planets.length > 0);
+        if (orbits.length === 0) continue;
+        let r = 0;
+        orbits.forEach((o, i) => {
+            for (const p of o.planets) depthOf(p, 0);
+            o.reach = Math.max(...o.planets.map(reach));
+            r = i === 0 ? STAR + o.reach + 14 : r + Math.max(ORBIT_STEP, orbits[i - 1].reach + o.reach + ORBIT_GAP);
+            o.R = r;
+            spread(o.planets, (a, b) => Math.max(ROOM + reach(a), ROOM + reach(b)) / o.R);
+            for (const p of o.planets) {
+                p.w = at(p.ang, o.R);
+                moons(p);
+            }
+        });
+        const members = [];
+        const gather = (n) => {
+            n.system = sys.name;
+            members.push(n);
+            n.kids.forEach(gather);
+        };
+        for (const o of orbits) {
+            for (const p of o.planets) {
+                p.orbitKey = o.key;
+                gather(p);
+            }
         }
+        const last = orbits[orbits.length - 1];
+        out.push({ name: sys.name, orbits, members, R: last.R + last.reach + 18 });
     }
-    return { rings, nodes: placed };
+    return { systems: out, nodes: placed };
 }
 
 function loops(n, placed) {
@@ -129,9 +156,9 @@ function moons(p) {
 
 // spread pulls apart the nodes that would stand on one another, and only
 // toward older: a session is never drawn fresher than it is. gap(a, b) is the
-// angle two neighbours need between them. When the ring cannot hold every
+// angle two neighbours need between them. When the orbit cannot hold every
 // node at its full gap, the gaps shrink all together until the last node
-// stops short of the first one round the ring.
+// stops short of the first one round the orbit.
 export function spread(list, gap) {
     if (list.length === 0) return;
     list.sort((a, b) => a.ang - b.ang || (a.key < b.key ? -1 : 1));
@@ -157,18 +184,112 @@ export function spread(list, gap) {
     push(lo);
 }
 
-// The view the graph opens with and comes back to on Reset: the front a
-// little to the right, the plane tilted enough for the rings to read as
-// rings and flat enough for the names to stand apart.
-export const HOME = { yaw: 0.12, pitch: 0.42 };
+// The tilts of the systems, by their place in the map: every plane leans its
+// own way, so two systems read as two even when they stand close.
+const TILTS = [
+    { tx: 0.14, tz: -0.08 },
+    { tx: 0, tz: 0.05 },
+    { tx: -0.12, tz: 0.09 },
+    { tx: 0.08, tz: 0.12 },
+    { tx: -0.06, tz: -0.1 },
+];
 
-// How far a drag may tip the plane: past these it is seen edge on, or from
+export function tiltOf(index) {
+    return TILTS[index % TILTS.length];
+}
+
+// tilted turns a point of a system's plane by the tilt of the system.
+export function tilted(t, p) {
+    const cx = Math.cos(t.tx);
+    const sx = Math.sin(t.tx);
+    const cz = Math.cos(t.tz);
+    const sz = Math.sin(t.tz);
+    const y1 = p[1] * cx - p[2] * sx;
+    const z1 = p[1] * sx + p[2] * cx;
+    return [p[0] * cz - y1 * sz, p[0] * sz + y1 * cz, z1];
+}
+
+// worldOf is where a point of a system's plane stands in the scene, the
+// system standing at place { c, tilt }.
+export function worldOf(place, p) {
+    const q = tilted(place.tilt, p);
+    return [place.c[0] + q[0], place.c[1] + q[1], place.c[2] + q[2]];
+}
+
+// The view the graph opens with and comes back to on Reset: the galaxy seen
+// a little from the right and from above, so the systems behind the front
+// one stand clear of it and the depth between them reads.
+export const HOME = { yaw: 0.28, pitch: 0.5 };
+
+// How far a drag may tip the scene: past these it is seen edge on, or from
 // below.
 export const PITCH = [-0.2, 0.95];
 
-// DIST is how far the eye stands from the host, in the units of the scene:
-// near enough for the front to read as nearer, far enough not to bend.
-export const DIST = 1500;
+// DIST is how far the eye stands from the front of the galaxy, in the units
+// of the scene: far enough for a system three deep not to shrink to a dot.
+export const DIST = 2200;
+
+// The places of the galaxy, in radii of the largest system: the front one in
+// the middle and nearest, then one behind on the left, one behind on the
+// right, one far behind in the middle; any more go round further back.
+const PLACES = [[0, 0, -0.65], [-2.4, 0.5, 1.4], [2.3, 0.3, 0.9], [0, 0.9, 2.3]];
+
+function placeOf(k) {
+    if (k < PLACES.length) return PLACES[k];
+    const a = k * 2.4;
+    const ring = 2.6 + 0.4 * Math.floor(k / PLACES.length);
+    return [Math.sin(a) * ring, 0.6 + 0.2 * k, 1.5 + 0.5 * k];
+}
+
+// slotsFor gives count places for systems of radius up to R, spread out
+// sideways until, seen from the home view, no two of them cover each other:
+// any system fits any place, so the front can change hands without a
+// system landing on another.
+export function slotsFor(count, R) {
+    let wide = 1;
+    let slots = [];
+    for (let i = 0; i < 40; i++) {
+        slots = Array.from({ length: count }, (_, k) => {
+            const p = placeOf(k);
+            return [p[0] * R * wide, p[1] * R, p[2] * R];
+        });
+        if (apart(slots, R)) break;
+        wide *= 1.08;
+    }
+    return slots;
+}
+
+// boxOf is the box a circle of radius R round c takes on the screen of the
+// home view, before any lens.
+export function boxOf(c, R, tilt = { tx: 0, tz: 0 }) {
+    const pr = camera(HOME, 0, 0, { f: 1, dist: DIST, ox: 0, oy: 0 });
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    for (let i = 0; i < 32; i++) {
+        const q = pr(worldOf({ c, tilt }, at((i / 32) * TAU, R)));
+        x0 = Math.min(x0, q.x);
+        x1 = Math.max(x1, q.x);
+        y0 = Math.min(y0, q.y);
+        y1 = Math.max(y1, q.y);
+    }
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+// A gap of a twentieth of the larger box between two systems.
+function apart(slots, R) {
+    const boxes = slots.map((c) => boxOf(c, R));
+    for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+            const a = boxes[i];
+            const b = boxes[j];
+            const g = Math.max(a.w, b.w) / 20;
+            if (a.x < b.x + b.w + g && b.x < a.x + a.w + g && a.y < b.y + b.h + g && b.y < a.y + a.h + g) return false;
+        }
+    }
+    return true;
+}
 
 // camera projects a point of the scene onto a canvas of W×H for a view
 // { yaw, pitch } and a lens k = { f, dist, ox, oy }. z grows away from the eye.
@@ -188,26 +309,19 @@ export function camera(view, W, H, k) {
 }
 
 // fit picks the lens that keeps every point inside the canvas, less pad
-// [top, right, bottom, left], for every view of wide in width and of tall in
-// height: a turn of the scene never zooms it.
-export function fit(points, wide, tall, W, H, pad) {
+// [top, right, bottom, left], for every view of views.
+export function fit(points, views, W, H, pad) {
     let x0 = Infinity;
     let x1 = -Infinity;
     let y0 = Infinity;
     let y1 = -Infinity;
     const lens = { f: 1, dist: DIST, ox: 0, oy: 0 };
-    for (const v of wide) {
+    for (const v of views) {
         const pr = camera(v, 0, 0, lens);
         for (const p of points) {
             const q = pr(p);
             x0 = Math.min(x0, q.x);
             x1 = Math.max(x1, q.x);
-        }
-    }
-    for (const v of tall) {
-        const pr = camera(v, 0, 0, lens);
-        for (const p of points) {
-            const q = pr(p);
             y0 = Math.min(y0, q.y);
             y1 = Math.max(y1, q.y);
         }
@@ -221,6 +335,27 @@ export function fit(points, wide, tall, W, H, pad) {
     };
 }
 
+// floorOf is the height of the floor the stalks of the stars stand on: under
+// the lowest place, by three quarters of the largest system.
+export function floorOf(slots, R) {
+    return Math.min(...slots.map((c) => c[1])) - 0.75 * R;
+}
+
+// lensFor fits every place of the galaxy, a circle of R round each and its
+// stalk down to the floor, to a canvas, from the home view and a little
+// either side of it: the first view holds every system whichever is in
+// front, and a short turn does not push one out.
+export function lensFor(slots, R, W, H, pad) {
+    const points = [];
+    const floor = floorOf(slots, R);
+    for (const c of slots) {
+        for (let i = 0; i < 24; i++) points.push(worldOf({ c, tilt: { tx: 0, tz: 0 } }, at((i / 24) * TAU, R + 26)));
+        points.push([c[0], floor - 10, c[2]]);
+    }
+    const views = [HOME, { ...HOME, yaw: HOME.yaw - 0.2 }, { ...HOME, yaw: HOME.yaw + 0.2 }];
+    return fit(points, views, W, H, pad);
+}
+
 // ZOOM bounds the scale the wheel sets: out to where the whole scene is a
 // little smaller than its box, in to where a cluster of moons reads mark by
 // mark. Past either the scene is a speck or a single mark.
@@ -228,8 +363,8 @@ export const ZOOM = [0.6, 4];
 
 // zoomAt is the zoom and the pan that scale the picture by `by` round the
 // point m of the canvas, so what stood under m stays under it, the zoom held
-// to ZOOM. c is where the host is projected with no pan, the point the zoom
-// of a lens scales the picture from.
+// to ZOOM. c is the centre of the lens with no pan, the point the zoom of a
+// lens scales the picture from.
 export function zoomAt(zoom, pan, by, m, c) {
     const z = Math.min(ZOOM[1], Math.max(ZOOM[0], zoom * by));
     const k = z / zoom;
@@ -244,18 +379,4 @@ export function zoomAt(zoom, pan, by, m, c) {
 // in pixels, as on a map.
 export function lensAt(lens, zoom, pan) {
     return { ...lens, f: lens.f * zoom, ox: lens.ox + pan.x, oy: lens.oy + pan.y };
-}
-
-// lensFor fits the rings of a layout to a canvas: in width over a whole turn,
-// in height over the tilts a little either side of the home view, so the
-// scene neither zooms as it turns nor shrinks for a tilt nobody makes.
-export function lensFor(rings, W, H, pad) {
-    const points = [];
-    for (const r of rings) for (let i = 0; i < 16; i++) points.push(at((i / 16) * TAU, r.R + 48));
-    points.push([0, 30, 0], [0, -30, 0]);
-    const wide = [];
-    for (let i = 0; i < 16; i++) wide.push({ yaw: HOME.yaw + (i * TAU) / 16, pitch: HOME.pitch });
-    const tall = [];
-    for (let i = 0; i < 7; i++) tall.push({ yaw: HOME.yaw + (i / 6 - 0.5) * 1.2, pitch: HOME.pitch });
-    return fit(points, wide, tall, W, H, pad);
 }
