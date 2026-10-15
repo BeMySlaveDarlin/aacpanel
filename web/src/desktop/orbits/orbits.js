@@ -290,12 +290,18 @@ function countsOf(graph) {
 function paletteOf(el) {
     const css = getComputedStyle(el);
     const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+    const sky = v("--void", "#06070f");
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(sky.replace("#", "").slice(i, i + 2), 16) || 0);
     return {
         ink: v("--ink", "#eef1ff"),
         wait: v("--wait", "#e3c97a"),
         busy: v("--accent", "#63a8ff"),
         cap: v("--ctx-4", "#b98cff"),
         hues: HUES.map((name, i) => v(name, HUE_FALLBACK[i])),
+        // The sky behind the scene, and whether it is a light one: there the
+        // shadows are soft and no far stars are drawn.
+        void: sky,
+        sky: 0.2126 * r + 0.7152 * g + 0.0722 * b > 128,
     };
 }
 
@@ -516,6 +522,8 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             front: st.front,
             sides: st.sides,
             settle: turned,
+            view: st.view,
+            pan: st.pan,
         });
         st.hits = drawn.hits;
         st.taken = drawn.taken;

@@ -63,7 +63,7 @@ export function add(p, q) {
 }
 
 // hashOf is a number in [0, 1) that a name and a salt always give.
-function hashOf(name, salt) {
+export function hashOf(name, salt) {
     let h = 2166136261 ^ salt;
     for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619);
     h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);

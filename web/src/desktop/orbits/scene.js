@@ -1,13 +1,16 @@
 // The drawing of the galaxy of sessions on a canvas. Every contour is a
-// system in a hue of its own: a star, the orbits of its projects as hairlines
-// barely there, a dotted stalk down to the floor that tells how deep it
-// stands.
-// A session is a planet lit in part, as a moon in its phase: the lit share is
-// how much of its context it has used. The marks keep their colours of state
-// — the accent of a session at work in a small steady glow, the gold of a
-// session waiting for the person, the top of the context scale near the cap
-// — and the one wide light stands behind the session that has waited longest.
-import { TAU, at, add, inclined, onOrbit, worldOf } from "./space.js";
+// system in a hue of its own: a star with a dense core and a soft corona, the
+// orbits of its projects as hairlines barely there, a dotted stalk down to
+// the floor that tells how deep it stands, a sparse field of far stars behind
+// on the dark theme. A session is a planet lit by its star, as a moon in its
+// phase: the side toward the star is lit, the lit share is how much of its
+// context it has used, its surface its own, its night side a little lit by
+// the sky. The marks keep their colours of state — the accent of a session
+// at work in a small steady glow, the gold of a session waiting for the
+// person, the top of the context scale near the cap — and the one wide light
+// stands behind the session that has waited longest. What stands further
+// back is fainter and hazier.
+import { TAU, at, add, hashOf, inclined, onOrbit, worldOf } from "./space.js";
 
 // NEAR is where the lit part takes the tone of the cap and the frame says the
 // number: a session past it is a turn or two of a long task from the cap.
@@ -16,8 +19,8 @@ const NEAR = 62;
 // Sizes in units of the scene: a unit is a pixel at the scale the interface
 // opens on, and grows with it as the type does. The orbits stay hairlines at
 // any scale.
-const NODE_R = 8;
-const MOON_R = 6;
+const NODE_R = 9.5;
+const MOON_R = 5;
 const BUSY_GLOW = 13;
 const WAIT_RING = 12;
 const BEADS = 9;
@@ -217,35 +220,187 @@ function toneOf(n, pal) {
     return n.tone === "wait" ? pal.wait : n.tone === "busy" ? pal.busy : pal.ink;
 }
 
-// phase draws a planet lit in part, as the moon in its phase: the lit share
-// of the disc is the share of the context the session has used, the lit side
-// toward light (an angle on the screen). Near the cap the lit part takes the
-// tone of the cap.
-function phase(ctx, q, r, n, light, f, pal) {
-    const k = clamp(n.pct / 100, 0, 1);
-    const col = toneOf(n, pal);
-    circle(ctx, q.x, q.y, r);
-    ctx.fillStyle = rgba(col, (n.tone === "idle" ? 0.13 : 0.22) * f);
-    ctx.fill();
-    ctx.strokeStyle = rgba(col, (n.tone === "idle" ? 0.45 : 0.75) * f);
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    if (k < 0.01) return;
-    // The lit part is a half disc and the half of an ellipse whose width is
-    // |1 − 2k| of the disc: hollowed out of the half below half the context,
-    // added to it above, so its area is the share k of the disc.
+// A planet is drawn from a picture made once and kept: its surface from its
+// name, lit from the right by the share k of its context, its night side the
+// sky behind seen through NIGHT of its own light, darker toward its edge,
+// with a thin rim of air on the lit limb and no gloss. Each frame turns the
+// picture toward its star; a new one is made only for a new size, state or
+// share. The lit part is where light falls on the sphere, so its area is the
+// share k exactly, the terminator soft by SOFT either side.
+const SPRITES = new Map();
+const SPRITES_KEPT = 400;
+let made = 0;
+const SOFT = 0.1;
+const NIGHT = 0.08;
+const NIGHT_SKY = 0.3;
+const GREY = [150, 152, 158];
+
+// spritesMade is how many pictures of planets have been made so far.
+export function spritesMade() {
+    return made;
+}
+
+function rgbOf(hex) {
+    const h = hex.replace("#", "");
+    return h.length === 3 ? h.split("").map((c) => parseInt(c + c, 16)) : [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+}
+
+function smooth(a, b, x) {
+    const t = clamp((x - a) / (b - a), 0, 1);
+    return t * t * (3 - 2 * t);
+}
+
+// surfaceOf is how light the surface of a planet is at a point of its disc,
+// from its name: the bands of a gas giant or the spots of a mottled one, and
+// for a moon the craters of rock.
+function surfaceOf(key, rocky) {
+    const h = (salt) => hashOf(key, 10 + salt);
+    if (rocky) {
+        const craters = Array.from({ length: 4 + Math.floor(h(0) * 4) }, (_, i) => ({
+            x: h(1 + i * 3) * 1.6 - 0.8, y: h(2 + i * 3) * 1.6 - 0.8, r: 0.14 + h(3 + i * 3) * 0.22,
+        }));
+        const grain = h(40) * TAU;
+        return (x, y) => {
+            let a = 0.96 + 0.05 * Math.sin(9 * x + 7 * y + grain);
+            for (const c of craters) {
+                const dd = Math.hypot(x - c.x, y - c.y) / c.r;
+                if (dd < 1) a -= 0.18 * (1 - dd * dd);
+                else if (dd < 1.3) a += 0.08 * (1.3 - dd);
+            }
+            return a;
+        };
+    }
+    if (h(0) < 0.65) {
+        const f1 = 6 + h(1) * 5;
+        const f2 = 15 + h(2) * 8;
+        const p1 = h(3) * TAU;
+        const p2 = h(4) * TAU;
+        const p3 = h(5) * TAU;
+        const a1 = 0.09 + h(6) * 0.07;
+        const a2 = 0.04 + h(7) * 0.04;
+        const wob = 0.05 + h(8) * 0.08;
+        return (x, y) => {
+            const yy = y + wob * Math.sin(3.2 * x + p3);
+            return 1 + a1 * Math.sin(f1 * yy + p1) + a2 * Math.sin(f2 * yy + p2);
+        };
+    }
+    const spots = Array.from({ length: 3 + Math.floor(h(1) * 3) }, (_, i) => ({
+        x: h(2 + i * 4) * 1.4 - 0.7, y: h(3 + i * 4) * 1.4 - 0.7, r: 0.15 + h(4 + i * 4) * 0.25,
+        d: (h(5 + i * 4) < 0.5 ? -1 : 1) * (0.08 + h(6 + i * 4) * 0.1),
+    }));
+    const grain = h(40) * TAU;
+    return (x, y) => {
+        let a = 1 + 0.04 * Math.sin(5 * x + 4 * y + grain);
+        for (const sp of spots) {
+            const dd = Math.hypot(x - sp.x, y - sp.y) / sp.r;
+            if (dd < 1) a += sp.d * (1 - dd * dd) ** 1.5;
+        }
+        return a;
+    };
+}
+
+// lookOf is what the picture of a node is made of: the colour of its state
+// (the cap's on the lit part near the cap), a moon greyer, an idle one a
+// little dimmer, and the sky its night side shows.
+function lookOf(n, moon, pal) {
+    const near = n.pct >= NEAR;
+    let rgb = rgbOf(near ? pal.cap : toneOf(n, pal));
+    if (moon) rgb = rgb.map((v, i) => v * 0.4 + GREY[i] * 0.6);
+    const sky = rgbOf(pal.void || "#06070f");
+    const night = pal.sky ? NIGHT_SKY : NIGHT;
+    return {
+        k: clamp(Math.round(n.pct) / 100, 0, 1),
+        rgb,
+        day: n.tone === "idle" ? 0.9 : 1,
+        sky: sky.map((v) => v * (1 - night)),
+        night,
+        rim: rgb.map((v) => v + (255 - v) * 0.5),
+        rocky: moon,
+        id: `${n.tone}|${near ? "cap" : ""}|${Math.round(n.pct)}|${moon ? "moon" : ""}|${pal.void}|${rgb.join(",")}`,
+    };
+}
+
+function spriteOf(key, r, scale, look) {
+    const id = `${key}|${Math.round(r * scale * 10)}|${look.id}`;
+    const kept = SPRITES.get(id);
+    if (kept) return kept;
+    const R = r * scale;
+    const size = Math.ceil(2 * (R + 1.5));
+    const cv = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(size, size)
+        : Object.assign(document.createElement("canvas"), { width: size, height: size });
+    const g = cv.getContext("2d");
+    const img = g.createImageData(size, size);
+    const d = img.data;
+    const c = size / 2;
+    const cosT = 2 * look.k - 1;
+    const sinT = Math.sqrt(Math.max(0, 1 - cosT * cosT));
+    const surface = surfaceOf(key, look.rocky);
+    for (let py = 0; py < size; py++) {
+        for (let px = 0; px < size; px++) {
+            const x = (px + 0.5 - c) / R;
+            const y = (py + 0.5 - c) / R;
+            const rho = Math.hypot(x, y);
+            const edge = clamp((1 - rho) * R + 0.5, 0, 1);
+            if (edge <= 0) continue;
+            const z = Math.sqrt(Math.max(0, 1 - rho * rho));
+            const sun = x * sinT + z * cosT;
+            const lit = smooth(-SOFT, SOFT, sun);
+            const albedo = surface(x, y, z);
+            const day = look.day * albedo * (0.7 + 0.3 * Math.max(0, sun) ** 0.6) * (0.78 + 0.22 * z);
+            const air = rho > 1 - 2 / R ? smooth(1 - 2 / R, 1, rho) * Math.max(0, x / (rho || 1)) * lit * 0.55 : 0;
+            const i = (py * size + px) * 4;
+            for (let ch = 0; ch < 3; ch++) {
+                const lightC = look.rgb[ch] * day;
+                const nightC = look.sky[ch] + look.rgb[ch] * albedo * look.night * (0.6 + 0.4 * z);
+                const v = nightC + (lightC - nightC) * lit;
+                d[i + ch] = clamp(Math.round(v + (look.rim[ch] - v) * air), 0, 255);
+            }
+            d[i + 3] = Math.round(255 * edge);
+        }
+    }
+    g.putImageData(img, 0, 0);
+    made += 1;
+    SPRITES.set(id, cv);
+    if (SPRITES.size > SPRITES_KEPT) SPRITES.delete(SPRITES.keys().next().value);
+    return cv;
+}
+
+// planet draws a node at q, of radius r, lit from the angle light on the
+// screen, at the opacity f its depth leaves it, behind a haze as far as it
+// stands back.
+function planet(ctx, q, r, n, key, moon, light, f, pal) {
+    const scale = ctx.getTransform().a || 1;
+    const sprite = spriteOf(key, r, scale, lookOf(n, moon, pal));
+    const half = sprite.width / scale / 2;
     ctx.save();
     ctx.translate(q.x, q.y);
     ctx.rotate(light);
-    ctx.beginPath();
-    ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
-    const rx = r * Math.abs(1 - 2 * k);
-    if (k < 0.5) ctx.ellipse(0, 0, rx, r, 0, Math.PI / 2, -Math.PI / 2, true);
-    else ctx.ellipse(0, 0, rx, r, 0, Math.PI / 2, Math.PI * 1.5, false);
-    ctx.closePath();
-    ctx.fillStyle = n.pct >= NEAR ? rgba(pal.cap, f) : rgba(col, (n.tone === "idle" ? 0.78 : 1) * f);
-    ctx.fill();
+    ctx.globalAlpha *= f;
+    ctx.drawImage(sprite, -half, -half, half * 2, half * 2);
     ctx.restore();
+    if (f < 1) {
+        circle(ctx, q.x, q.y, r);
+        ctx.fillStyle = rgba(pal.void || "#06070f", (1 - f) * 0.45);
+        ctx.fill();
+    }
+}
+
+// starField is the sparse field of far stars behind the scene on the dark
+// theme — one star to some seven thousand pixels — the same every time,
+// moving a little as the scene moves and turns.
+function starField(ctx, W, H, view, pan, pal) {
+    const T = Math.max(W, H) * 1.4;
+    const count = Math.round((T * T) / 7000);
+    const ox = view.yaw * 60 + pan.x * 0.08;
+    const oy = view.pitch * 60 + pan.y * 0.08;
+    for (let i = 0; i < count; i++) {
+        const x = ((((hashOf(`far${i}`, 1) * T + ox) % T) + T) % T) - (T - W) / 2;
+        const y = ((((hashOf(`far${i}`, 2) * T + oy) % T) + T) % T) - (T - H) / 2;
+        if (x < 0 || y < 0 || x > W || y > H) continue;
+        const size = 0.5 + hashOf(`far${i}`, 3) * 0.8;
+        ctx.fillStyle = rgba(pal.ink, 0.12 + hashOf(`far${i}`, 4) * 0.38);
+        ctx.fillRect(x - size / 2, y - size / 2, size, size);
+    }
 }
 
 // The background work of a session is beads round its mark, one shape per
@@ -309,17 +464,17 @@ export function drawKey(ctx, kind, size, pal) {
     const q = { x: 8, y: 8 };
     if (kind === "busy") {
         busyGlow(ctx, q, 3.4, 0.35, pal);
-        phase(ctx, q, 3.6, { tone: "busy", pct: 60 }, Math.PI, 1, pal);
+        planet(ctx, q, 3.6, { tone: "busy", pct: 60 }, "key/busy", false, Math.PI, 1, pal);
     } else if (kind === "idle") {
-        phase(ctx, q, 3.6, { tone: "idle", pct: 60 }, Math.PI, 1, pal);
+        planet(ctx, q, 3.6, { tone: "idle", pct: 60 }, "key/idle", false, Math.PI, 1, pal);
     } else if (kind === "wait") {
-        phase(ctx, q, 3, { tone: "wait", pct: 60 }, Math.PI, 1, pal);
+        planet(ctx, q, 3, { tone: "wait", pct: 60 }, "key/wait", false, Math.PI, 1, pal);
         circle(ctx, q.x, q.y, 6.5);
         ctx.strokeStyle = rgba(pal.wait, 0.8);
         ctx.lineWidth = 1.1;
         ctx.stroke();
     } else if (kind === "phase") {
-        phase(ctx, q, 5.5, { tone: "idle", pct: 40 }, 0, 1, pal);
+        planet(ctx, q, 5.5, { tone: "idle", pct: 40 }, "key/phase", false, 0, 1, pal);
     } else if (kind === "work") {
         ["agents", "tasks", "observers"].forEach((k, i) => bead(ctx, k, 3 + i * 5, 8, 1, pal, 0.75));
     } else if (kind === "moons") {
@@ -356,7 +511,8 @@ const STAR_SIDES = [6, 2, 5, 7];
 // it shows (name, tone, pct, work, note) and its place in its system (p), the
 // floor under the stars, the system in front (front), the palette and the
 // type, the sides the names stood on the frame before (sides, which it
-// updates) and whether a name may change its side (settle).
+// updates), whether a name may change its side (settle), and the view and
+// pan the far stars move with.
 export function drawScene(ctx, W, H, pr, scene) {
     const { systems, nodes, floor, pal, type } = scene;
     const u = type.unit;
@@ -375,6 +531,9 @@ export function drawScene(ctx, W, H, pr, scene) {
     const z1 = Math.max(...zs);
     // Depth is told by how faint a line is, never by how large a mark is.
     const fade = (z) => (z1 > z0 ? clamp(1 - ((z - z0) / (z1 - z0)) * 0.55, 0.45, 1) : 1);
+
+    // The far stars, on the dark theme only.
+    if (!pal.sky) starField(ctx, W, H, scene.view || { yaw: 0, pitch: 0 }, scene.pan || { x: 0, y: 0 }, pal);
 
     // The one wide light, behind the session that has waited for the person
     // longest.
@@ -419,22 +578,28 @@ export function drawScene(ctx, W, H, pr, scene) {
             for (let i = 0; i <= 40; i++) points.push(plane(add(n.w, inclined(n.lean, at((i / 40) * TAU, n.orbit)))));
             orbit(points, plane(n.w), pal.ink);
         }
-        // The star: larger and brighter the more alive its contour is.
+        // The star: a dense bright core in its hue, a corona that fades
+        // softly and a little bloom, larger and brighter the more alive its
+        // contour is, fainter the further back it stands.
         const sr = starSize(s.live) * u;
-        if (s.live > 0) {
-            const g = ctx.createRadialGradient(star.x, star.y, 0, star.x, star.y, sr * 6);
-            g.addColorStop(0, rgba(s.tint, 0.1 + 0.05 * Math.min(s.live, 5)));
-            g.addColorStop(1, rgba(s.tint, 0));
-            ctx.fillStyle = g;
-            ctx.fillRect(star.x - sr * 6, star.y - sr * 6, sr * 12, sr * 12);
-        }
-        circle(ctx, star.x, star.y, sr);
-        ctx.fillStyle = s.tint;
+        const glow = (0.3 + 0.07 * Math.min(s.live, 5)) * (pal.sky ? 0.6 : 1) * fade(star.z);
+        const bloom = ctx.createRadialGradient(star.x, star.y, sr * 0.5, star.x, star.y, sr * 10);
+        bloom.addColorStop(0, rgba(s.tint, glow * 0.5));
+        bloom.addColorStop(0.25, rgba(s.tint, glow * 0.16));
+        bloom.addColorStop(1, rgba(s.tint, 0));
+        ctx.fillStyle = bloom;
+        circle(ctx, star.x, star.y, sr * 10);
         ctx.fill();
-        circle(ctx, star.x, star.y, sr + 5 * u);
-        ctx.strokeStyle = rgba(s.tint, 0.45);
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        const tint = rgbOf(s.tint);
+        const core = ctx.createRadialGradient(star.x, star.y, 0, star.x, star.y, sr * 1.15);
+        const white = pal.sky ? 0.3 : 0.75;
+        core.addColorStop(0, `rgb(${tint.map((v) => Math.round(v + (255 - v) * white)).join(",")})`);
+        core.addColorStop(0.45, s.tint);
+        core.addColorStop(0.85, rgba(s.tint, 0.9));
+        core.addColorStop(1, rgba(s.tint, 0));
+        ctx.fillStyle = core;
+        circle(ctx, star.x, star.y, sr * 1.15);
+        ctx.fill();
         stars.set(s.name, star);
         discs.push({ x: star.x, y: star.y, r: sr + 6 * u });
         hits.push({ x: star.x, y: star.y, r: sr + 10 * u, star: s });
@@ -461,7 +626,7 @@ export function drawScene(ctx, W, H, pr, scene) {
         const star = stars.get(n.p.system);
         const light = Math.atan2(star.y - q.y, star.x - q.x);
         if (n.tone === "busy") busyGlow(ctx, q, r, u, pal);
-        phase(ctx, q, r, n, light, f, pal);
+        planet(ctx, q, r, n, n.s.session, n.p.depth > 0, light, f, pal);
         if (n.tone === "wait") {
             circle(ctx, q.x, q.y, r + WAIT_RING * u);
             ctx.strokeStyle = rgba(pal.wait, 0.8);

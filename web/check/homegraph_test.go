@@ -50,6 +50,7 @@ type homeGraph struct {
 		KeptOff    string  `json:"keptOff"`
 		OffAgain   int     `json:"offAgain"`
 		PlainStart string  `json:"plainStart"`
+		Made       int     `json:"made"`
 	} `json:"motion"`
 	Systems    []graphSystem     `json:"systems"`
 	Moon       graphMoon         `json:"moon"`
@@ -142,7 +143,19 @@ type homeGraph struct {
 			BackDraws int    `json:"backDraws"`
 		} `json:"orbitGlide"`
 	} `json:"carousel"`
-	Phase map[string]json.RawMessage `json:"phase"`
+	Phase   map[string]json.RawMessage `json:"phase"`
+	Surface struct {
+		Again bool `json:"again"`
+		Other bool `json:"other"`
+	} `json:"surface"`
+	Sizes struct {
+		Planet float64 `json:"planet"`
+		Moon   float64 `json:"moon"`
+	} `json:"sizes"`
+	Field struct {
+		Space int `json:"space"`
+		Sky   int `json:"sky"`
+	} `json:"field"`
 	Quiet struct {
 		Behind graphQuiet `json:"behind"`
 		Front  graphQuiet `json:"front"`
@@ -255,8 +268,10 @@ type graphQuiet struct {
 }
 
 type graphPhase struct {
-	Share float64 `json:"share"`
-	RGB   []int   `json:"rgb"`
+	Share  float64  `json:"share"`
+	RGB    []int    `json:"rgb"`
+	Facing *float64 `json:"facing"`
+	Night  *float64 `json:"night"`
 }
 
 type openedTalk struct {
@@ -512,20 +527,66 @@ func TestAPlanetIsLitByItsContext(t *testing.T) {
 			t.Errorf("a planet at %s%% of its context is lit over %.3f of its disc", pct, have)
 		}
 	}
+	for _, pct := range []string{"25", "50", "75"} {
+		if f := read(pct).Facing; f == nil || *f > 15 {
+			t.Errorf("a planet at %s%% is lit on the side %v degrees off the way to its star: the lit side faces it", pct, f)
+		}
+	}
+	for _, pct := range []string{"25", "50"} {
+		if n := read(pct).Night; n == nil || *n < 0.05 || *n > 0.15 {
+			t.Errorf("the night side of a planet at %s%% is %v as light as its tone: not black, a light of about 8%%", pct, n)
+		}
+	}
+	// The light falls off over the sphere, so the lit part is darker than its
+	// tone; its colour is the tone's all the same.
+	hue := func(rgb []int) []float64 {
+		top := 0
+		for _, v := range rgb {
+			top = max(top, v)
+		}
+		out := make([]float64, len(rgb))
+		for i, v := range rgb {
+			out[i] = float64(v) / float64(max(top, 1))
+		}
+		return out
+	}
 	near := func(a, b []int) bool {
 		if len(a) != 3 || len(b) != 3 {
 			return false
 		}
-		for i := range a {
-			if math.Abs(float64(a[i]-b[i])) > 12 {
+		ha, hb := hue(a), hue(b)
+		for i := range ha {
+			if math.Abs(ha[i]-hb[i]) > 0.08 {
 				return false
 			}
 		}
 		return true
 	}
 	if !near(read("40").RGB, ink) || !near(read("70").RGB, capTone) {
-		t.Errorf("the lit part is %v at 40%% and %v at 70%%: its own tone %v, and the tone of the cap %v near the cap",
+		t.Errorf("the lit part is %v at 40%% and %v at 70%%: the hue of its own tone %v, and of the tone of the cap %v near the cap",
 			read("40").RGB, read("70").RGB, ink, capTone)
+	}
+}
+
+// The surface of a planet is its own and made once: drawn again it is the same
+// to the byte, another session's is another, and while the planets go round
+// not one picture is made anew. A planet of the system in front is about ten
+// pixels across the radius at the scale the interface opens on, a moon about
+// five. The far stars are drawn on the dark theme and not on the light one.
+func TestAPlanetHasASurfaceOfItsOwn(t *testing.T) {
+	got := runHomeGraph(t)
+	if !got.Surface.Again || got.Surface.Other {
+		t.Errorf("drawn again, the planet is the same: %v; another session's the same: %v", got.Surface.Again, got.Surface.Other)
+	}
+	if got.Motion.Made != 0 {
+		t.Errorf("%d pictures of planets were made while they went round for a second and a half: they are made once", got.Motion.Made)
+	}
+	if got.Sizes.Planet < 9 || got.Sizes.Planet > 10 || got.Sizes.Moon < 4.5 || got.Sizes.Moon > 5.5 {
+		t.Errorf("a planet is drawn %v units across the radius and a moon %v: about ten and five", got.Sizes.Planet, got.Sizes.Moon)
+	}
+	if got.Field.Space < 3 || got.Field.Sky != 0 {
+		t.Errorf("the far stars light %d pixels of the dark sky and %d of the light one: a sparse field on the dark theme, none on the light",
+			got.Field.Space, got.Field.Sky)
 	}
 }
 
@@ -686,7 +747,7 @@ func TestTheGraphIsHandledAsAMap(t *testing.T) {
 		t.Errorf("a press that travelled opened %d sessions", g.PressAfterPan)
 	}
 	if g.ResetPan > 0.01 {
-		t.Errorf("Reset view left the names %.2f px from where they stood", g.ResetPan)
+		t.Errorf("Reset view left the names %.2f px off the way back from where the moves took them", g.ResetPan)
 	}
 	if g.PanEdge.Name == "" || g.PanEdge.Off > 0.01 || g.PanEdge.During >= 0 {
 		t.Errorf("a move that took %q to the edge (its name at x %.1f) moved the names up to %.2f px off the move "+
