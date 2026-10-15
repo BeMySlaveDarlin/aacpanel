@@ -30,7 +30,7 @@ import { html } from "/src/html.js";
 import { Home, PERIOD } from "/src/desktop/home.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { attachTips } from "/src/desktop/tip.js";
-import { graphOf, lensOf, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
+import { between, graphOf, lensOf, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
 import { DAY, HOME, MOON, SPAN, TAU, ZOOM, at, boxOf, camera, dial, lensAt, orbitOf, slotsFor, worldOf } from "/src/desktop/orbits/space.js";
 import { TOUCH, drawScene, starSize } from "/src/desktop/orbits/scene.js";
 import { periodRange } from "/src/data/usage.js";
@@ -266,11 +266,22 @@ window.done = (async () => {
         // other.
         out.galaxy.crowded = [];
         for (let count = 2; count <= 8; count++) {
-            const bx = slotsFor(count, 300).map((c) => boxOf(c, 300));
+            const bx = slotsFor(count, 300).map((slot) => boxOf(slot.c, slot.R));
             bx.forEach((a, i) => bx.slice(i + 1).forEach((b, j) => {
                 if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) out.galaxy.crowded.push(`${count}:${i}/${i + j + 1}`);
             }));
         }
+        // The system in front is the near plan: most of the height of the box.
+        const front = boxes.find((b) => b.name === out.galaxy.nearest);
+        out.galaxy.frontShare = Math.round((front.h / box0.height) * 100) / 100;
+        // The others are markedly smaller, in a row above it and to its sides.
+        const mid = front.x + front.w / 2;
+        out.galaxy.behind = boxes.filter((b) => b !== front).map((b) => ({
+            name: b.name,
+            above: b.y + b.h <= front.y,
+            side: b.x >= mid ? "right" : b.x + b.w <= mid ? "left" : "middle",
+            share: Math.round(((b.w * b.h) / (front.w * front.h)) * 100) / 100,
+        }));
         out.written = { blog: times.get("blog") || 0, drafts: times.get("drafts") || 0, outside: times.get("outside the map") || 0,
             shop: times.get("shop") || 0, client: times.get("client") || 0 };
     }
@@ -487,8 +498,10 @@ window.done = (async () => {
     g2.resetOpened = opened.length - count;
 
     // How a name keeps its side, asked of the drawing: a crowded ring turned
-    // a little at a time. A name leaves its side only for one it covered, and
-    // a move or a zoom alone, drawn without settling, moves none.
+    // a little at a time, as far out as the wheel takes it, where its names
+    // crowd the most. A name leaves its side only for one it covered, and
+    // only for one markedly clearer; a move or a zoom alone, drawn without
+    // settling, moves none.
     const crowd = { at: Math.floor(now / 1000), profileMap: [], sessions: Array.from({ length: 14 }, (_, i) => S({
         session: `node-${String.fromCharCode(97 + i)}`, profile: "personal", status: i === 5 ? "waiting" : i % 3 ? "idle" : "busy",
         lastRequestAt: iso(2 + i * 1.5), pct: 10 + i * 5,
@@ -501,10 +514,17 @@ window.done = (async () => {
     const sheet = document.createElement("canvas");
     sheet.width = W;
     sheet.height = H;
+    // A lone contour is the same near plan, not the whole height of the box.
+    {
+        const pr = camera(HOME, W, H, lensOf(cg, W, H));
+        const sys = cg.systems[0];
+        const ys = Array.from({ length: 32 }, (_, i) => pr(worldOf(cplaces.get(sys.name), at((i / 32) * TAU, sys.R))).y);
+        out.galaxy.alone = Math.round(((Math.max(...ys) - Math.min(...ys)) / H) * 100) / 100;
+    }
     const cx = sheet.getContext("2d");
     const pal = { ink: "#eef1ff", wait: "#e3c97a", busy: "#63a8ff", cap: "#b98cff" };
     const type = { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } };
-    const lens = lensOf(cg, W, H);
+    const lens = lensAt(lensOf(cg, W, H), ZOOM[0], { x: 0, y: 0 });
     const sides = new Map();
     const hues = ["#6b9c83", "#7fe3d4", "#b98cff"];
     const scene = (settle) => ({ ...sceneOf(cg, cplaces, hues), pal, type, sides, settle });
@@ -665,12 +685,32 @@ window.done = (async () => {
         }, 3000);
     };
     gal.order = orderOf(graphOf(snapshot));
+    // The area every system takes on the screen with front in front, and
+    // whether the one in front is the largest — asked of the drawing too:
+    // a planet of it is where its size puts it.
+    const areasOf = (front, order) => {
+        const { g: seen, places, pr } = viewOf(front, order);
+        return Object.fromEntries(seen.systems.map((sys) => {
+            const pts = Array.from({ length: 32 }, (_, i) => pr(worldOf(places.get(sys.name), at((i / 32) * TAU, sys.R))));
+            const xs = pts.map((q) => q.x);
+            const ys = pts.map((q) => q.y);
+            return [sys.name, Math.round((Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)))];
+        }));
+    };
+    const largest = async (front, planet, order) => {
+        const a = areasOf(front, order);
+        const most = Object.keys(a).every((n) => n === front || a[n] < a[front]);
+        const drawn = (await tipAt(spotOf(planet, front, order))) === planet;
+        return `${front}: ${most ? "the largest" : "not the largest"}${drawn ? "" : ", drawn elsewhere"}`;
+    };
+    gal.largest = [];
     gal.first = await fronts();
     let drawn0 = draws;
     gal.prevented = await shiftWheel(-100);
     await rest();
     gal.instant = draws - drawn0;
     gal.up = await fronts("personal");
+    gal.largest.push(await largest("personal", "shop"));
     pointer("pointermove", starOf("personal", "personal"), { buttons: 0 });
     await frames(2);
     gal.frontSays = text(document.querySelector(".dkorbtip em"));
@@ -678,9 +718,11 @@ window.done = (async () => {
     await shiftWheel(100);
     await rest();
     gal.down = await fronts("client");
+    gal.largest.push(await largest("client", "notes"));
     await shiftWheel(100);
     await rest();
     gal.wrap = await fronts("lab");
+    gal.largest.push(await largest("lab", "bench-1"));
     count = opened.length;
     await press(starOf("personal", "lab"));
     await rest();
@@ -707,6 +749,48 @@ window.done = (async () => {
     gal.glided = await fronts(gal.reorder[1], gal.reorder);
     lessMotion = true;
     await resetView();
+    // Midway through the glide the one coming forward is midway in size and
+    // in how it leans, and the one going back midway in size.
+    {
+        const seen = graphOf(snapshot);
+        const o = gal.reorder;
+        const a = placesOf(seen, o, o[0]);
+        const b = placesOf(seen, o, o[1]);
+        const sizes = (n) => [a.get(n).k, between(a.get(n), b.get(n), 0.5).k, b.get(n).k].map((v) => Math.round(v * 100) / 100);
+        gal.grows = sizes(o[1]);
+        gal.shrinks = sizes(o[0]);
+        const lean = (t) => Math.round((Math.abs(t.tx) + Math.abs(t.tz)) * 1000) / 1000;
+        gal.straightens = [lean(a.get(o[1]).tilt), lean(between(a.get(o[1]), b.get(o[1]), 0.5).tilt), lean(b.get(o[1]).tilt)];
+    }
+    // A contour of one orbit brought in front of one of five is drawn up to
+    // it, and the one of five goes back smaller.
+    {
+        const P2 = (id, name, group) => ({ id, name, session: name, path: `/srv/${name}`, group });
+        const five = [1, 2, 3, 4, 5].map((i) => P2(100 + i, `part-${i}`, "Parts"));
+        const solo = P2(200, "solo", "Solo");
+        const before = snapshot;
+        snapshot = { at: Math.floor(now / 1000), sessions: [
+            ...five.map((pj) => S({ session: pj.name, profile: "big", project: pj, status: "idle", lastRequestAt: iso(10) })),
+            S({ session: "solo", profile: "small", project: solo, status: "idle", lastRequestAt: iso(10) }),
+        ], profileMap: [
+            { id: 7, profile: "big", default: true, groups: [{ name: "Parts", projects: five }] },
+            { id: 8, profile: "small", groups: [{ name: "Solo", projects: [solo] }] },
+        ] };
+        show();
+        await quiet();
+        await resetView();
+        const order = orderOf(graphOf(snapshot));
+        gal.five = { first: order[0], orbits: Object.fromEntries(graphOf(snapshot).systems.map((sys) => [sys.name, sys.orbits.length])) };
+        await shiftWheel(-100);
+        await rest();
+        gal.five.front = (await tipAt(starOf("small", "small", order))) === "small" ? "small" : "?";
+        gal.five.largest = await largest("small", "solo", order);
+        gal.five.areas = areasOf("small", order);
+        snapshot = before;
+        show();
+        await quiet();
+        await resetView();
+    }
 
     // One switch for the four tiles of the period: what each of them asks
     // the host, before the switch and after.

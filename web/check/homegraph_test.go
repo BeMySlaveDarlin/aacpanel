@@ -29,29 +29,48 @@ type homeGraph struct {
 	Stars      []float64          `json:"stars"`
 	Order      []string           `json:"order"`
 	Galaxy     struct {
-		Covered []string `json:"covered"`
-		Outside []string `json:"outside"`
-		Nearest string   `json:"nearest"`
-		Crowded []string `json:"crowded"`
+		Covered    []string `json:"covered"`
+		Outside    []string `json:"outside"`
+		Nearest    string   `json:"nearest"`
+		Crowded    []string `json:"crowded"`
+		FrontShare float64  `json:"frontShare"`
+		Alone      float64  `json:"alone"`
+		Behind     []struct {
+			Name  string  `json:"name"`
+			Above bool    `json:"above"`
+			Side  string  `json:"side"`
+			Share float64 `json:"share"`
+		} `json:"behind"`
 	} `json:"galaxy"`
 	Written  map[string]int `json:"written"`
 	Carousel struct {
-		Order      []string `json:"order"`
-		First      []string `json:"first"`
-		Prevented  bool     `json:"prevented"`
-		Instant    int      `json:"instant"`
-		Up         []string `json:"up"`
-		FrontSays  string   `json:"frontSays"`
-		Down       []string `json:"down"`
-		Wrap       []string `json:"wrap"`
-		Clicked    []string `json:"clicked"`
-		ClickOpens int      `json:"clickOpened"`
-		Kept       []string `json:"kept"`
-		Reorder    []string `json:"reorder"`
-		Reset      []string `json:"reset"`
-		Midway     string   `json:"midway"`
-		Glide      int      `json:"glide"`
-		Glided     []string `json:"glided"`
+		Order       []string  `json:"order"`
+		First       []string  `json:"first"`
+		Prevented   bool      `json:"prevented"`
+		Instant     int       `json:"instant"`
+		Up          []string  `json:"up"`
+		FrontSays   string    `json:"frontSays"`
+		Down        []string  `json:"down"`
+		Wrap        []string  `json:"wrap"`
+		Clicked     []string  `json:"clicked"`
+		ClickOpens  int       `json:"clickOpened"`
+		Kept        []string  `json:"kept"`
+		Reorder     []string  `json:"reorder"`
+		Reset       []string  `json:"reset"`
+		Midway      string    `json:"midway"`
+		Glide       int       `json:"glide"`
+		Glided      []string  `json:"glided"`
+		Largest     []string  `json:"largest"`
+		Grows       []float64 `json:"grows"`
+		Shrinks     []float64 `json:"shrinks"`
+		Straightens []float64 `json:"straightens"`
+		Five        struct {
+			First   string         `json:"first"`
+			Orbits  map[string]int `json:"orbits"`
+			Front   string         `json:"front"`
+			Largest string         `json:"largest"`
+			Areas   map[string]int `json:"areas"`
+		} `json:"five"`
 	} `json:"carousel"`
 	Phase map[string]json.RawMessage `json:"phase"`
 	Quiet struct {
@@ -306,13 +325,30 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 	}
 }
 
-// The galaxy opens with the liveliest contour in front and every system in
-// the box, none over another — and its places stand clear of each other for
-// any number of contours.
+// The galaxy opens with the liveliest contour in front as a near plan, most
+// of the height of the box, and every system in the box, none over another —
+// and its places stand clear of each other for any number of contours.
 func TestTheGalaxyOpensOnTheLiveliest(t *testing.T) {
 	got := runHomeGraph(t)
 	if !reflect.DeepEqual(got.Order, []string{"client", "personal", "lab"}) || got.Galaxy.Nearest != "client" {
 		t.Errorf("the galaxy opens in the order %v with %q nearest: the liveliest in front", got.Order, got.Galaxy.Nearest)
+	}
+	if got.Galaxy.FrontShare < 0.55 || got.Galaxy.FrontShare > 0.72 {
+		t.Errorf("the system in front takes %.2f of the height of the box: the near plan is most of it", got.Galaxy.FrontShare)
+	}
+	if got.Galaxy.Alone < 0.6 || got.Galaxy.Alone > 0.7 {
+		t.Errorf("a lone contour takes %.2f of the height of the box: it is the same near plan, not the whole box", got.Galaxy.Alone)
+	}
+	sides := map[string]bool{}
+	for _, b := range got.Galaxy.Behind {
+		sides[b.Side] = true
+		if !b.Above || b.Side == "middle" || b.Share > 0.25 {
+			t.Errorf("%s behind the front stands above it %v, to its %s, at %.2f of its area: the row behind is "+
+				"markedly smaller, above it and to its sides", b.Name, b.Above, b.Side, b.Share)
+		}
+	}
+	if len(got.Galaxy.Behind) != 2 || !sides["left"] || !sides["right"] {
+		t.Errorf("the two contours behind stand to one side of the front: %+v", got.Galaxy.Behind)
 	}
 	if len(got.Galaxy.Crowded) != 0 {
 		t.Errorf("with more contours the places of the galaxy cover one another: %v", got.Galaxy.Crowded)
@@ -325,7 +361,8 @@ func TestTheGalaxyOpensOnTheLiveliest(t *testing.T) {
 
 // The wheel with Shift brings the next contour forward, round and round both
 // ways, and zooms nothing; a click on a star brings its contour forward and
-// opens nothing. Who is in front changes only by the person: a contour that
+// opens nothing. The one in front is the largest on the screen, whatever its
+// size: a contour of one orbit in front of one of five is drawn up to it. Who is in front changes only by the person: a contour that
 // wakes up does not jump the queue until Reset view orders them anew. Where
 // less motion is asked for a system stands in its place at once; elsewhere
 // it glides there over some frames.
@@ -368,6 +405,24 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 	if len(c.Reorder) == 0 || c.Reorder[0] != "lab" || !reflect.DeepEqual(c.Reset, all) {
 		t.Errorf("Reset view ordered the contours %v and the stars were found as %v: it puts the liveliest in front",
 			c.Reorder, c.Reset)
+	}
+	if want := []string{"personal: the largest", "client: the largest", "lab: the largest"}; !reflect.DeepEqual(c.Largest, want) {
+		t.Errorf("after each turn of the wheel with Shift the one in front is the largest on the screen: %v", c.Largest)
+	}
+	five := c.Five
+	if five.First != "big" || five.Orbits["big"] != 5 || five.Orbits["small"] != 1 || five.Front != "small" {
+		t.Fatalf("the fixture of one orbit against five ran short: %+v", five)
+	}
+	if five.Largest != "small: the largest" || five.Areas["small"] <= five.Areas["big"] {
+		t.Errorf("a contour of one orbit brought in front of one of five says %q and takes %v of the screen: the "+
+			"one in front is drawn up to the largest, the one behind smaller", five.Largest, five.Areas)
+	}
+	if len(c.Grows) != 3 || !(c.Grows[0] < c.Grows[1] && c.Grows[1] < c.Grows[2]) ||
+		len(c.Shrinks) != 3 || !(c.Shrinks[0] > c.Shrinks[1] && c.Shrinks[1] > c.Shrinks[2]) {
+		t.Errorf("midway through a glide the one coming forward is to be midway in size %v, the one going back %v", c.Grows, c.Shrinks)
+	}
+	if s := c.Straightens; len(s) != 3 || !(s[0] > s[1] && s[1] > s[2] && s[2] == 0) {
+		t.Errorf("the one coming forward is to straighten as it comes, square to the view in front: it leans %v", s)
 	}
 	if c.Glide < 6 || c.Midway != "" || !reflect.DeepEqual(c.Glided, all) {
 		t.Errorf("outside less motion the contour came forward over %d frames, was already found in place midway (%q), "+
@@ -617,11 +672,12 @@ func TestTheNamesKeepTheirSides(t *testing.T) {
 	if k.Frozen != 0 {
 		t.Errorf("%d names changed sides in frames of a move or a zoom", k.Frozen)
 	}
-	// A slow turn of the galaxy brings names onto each other now and then, and
-	// those move; the rule itself is held above, on the drawing. Here the
-	// count says the graph keeps the sides at all: without them the same turn
-	// makes about twice as many jumps.
-	if len(got.Gestures.TurnJumps) > 5 {
+	// A slow turn of the galaxy brings names onto each other now and then —
+	// the row behind sweeps over the names of the system in front — and those
+	// move; the rule itself is held above, on the drawing. Here the count says
+	// the graph keeps the sides at all: without them the same turn makes half
+	// as many jumps again.
+	if len(got.Gestures.TurnJumps) > 7 {
 		t.Errorf("names jumped across their marks in a slow turn of the home graph: %v", got.Gestures.TurnJumps)
 	}
 }

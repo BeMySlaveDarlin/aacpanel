@@ -32,7 +32,7 @@ import { contourOfLive } from "../../screens/sessions/map.js";
 import { pageNames } from "../../screens/sessions/pages.js";
 import { useMenu } from "../../ui/menu.js";
 import { liveMenuOf } from "../sessionmenu.js";
-import { HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, slotsFor, tiltOf, zoomAt } from "./space.js";
+import { BACK, FLAT, HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, slotsFor, tiltOf, zoomAt } from "./space.js";
 import { HALO, drawKey, drawScene, overlap } from "./scene.js";
 
 // PAD keeps the scene off the edges of its canvas: [top, right, bottom, left].
@@ -196,7 +196,9 @@ export function orderOf(graph) {
 }
 
 // placesOf is where every system stands with front in front: the systems go
-// round the places of the galaxy in their order, starting from front.
+// round the places of the galaxy in their order, starting from front. The one
+// in front is drawn at the size of the largest and square to the view, the
+// others at BACK of their own size, leaning their own ways.
 export function placesOf(graph, order, front) {
     const R = Math.max(...graph.systems.map((s) => s.R));
     const slots = slotsFor(order.length, R);
@@ -206,16 +208,28 @@ export function placesOf(graph, order, front) {
         const sys = graph.systems.find((s) => s.name === name);
         if (!sys) return;
         const k = (i - first + order.length) % order.length;
-        out.set(name, { c: slots[k].slice(), tilt: tiltOf(sys.index) });
+        out.set(name, { c: slots[k].c.slice(), tilt: k === 0 ? FLAT : tiltOf(sys.index), k: k === 0 ? R / sys.R : BACK });
     });
     return out;
 }
 
-// lensOf fits the galaxy of a graph to a canvas of W×H: every place it has,
-// for a system of the largest size.
+// between is a place a share e of the way from a to b: where a system stands,
+// how large it is drawn and how it leans, so the one coming forward grows and
+// straightens as it comes and the one going back shrinks as it goes.
+export function between(a, b, e) {
+    const by = (u, v) => u + (v - u) * e;
+    return {
+        c: a.c.map((v, i) => by(v, b.c[i])),
+        tilt: { tx: by(a.tilt.tx, b.tilt.tx), tz: by(a.tilt.tz, b.tilt.tz) },
+        k: by(a.k, b.k),
+    };
+}
+
+// lensOf fits the galaxy of a graph to a canvas of W×H: the near plan large,
+// every place behind inside the canvas.
 export function lensOf(graph, W, H) {
     const R = Math.max(...graph.systems.map((s) => s.R));
-    return lensFor(slotsFor(graph.systems.length, R), R, W, H, PAD);
+    return lensFor(slotsFor(graph.systems.length, R), W, H, PAD);
 }
 
 // sceneOf is what the drawing takes of a graph with its systems at places:
@@ -225,7 +239,7 @@ export function sceneOf(graph, places, hues) {
     return {
         systems: graph.systems.map((s) => ({ ...s, place: places.get(s.name), tint: hues[s.index % hues.length] })),
         nodes: graph.nodes,
-        floor: floorOf(slotsFor(graph.systems.length, R), R),
+        floor: floorOf(R),
     };
 }
 
@@ -475,7 +489,9 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     requestRef.current = request;
 
     // bring moves a system to the front, the others round the places after it.
-    // It glides there, or stands there at once where less motion is asked for.
+    // It glides there — the one in front going back and growing smaller, the
+    // new one coming forward and growing — or stands there at once where less
+    // motion is asked for.
     const bring = (name) => {
         const st = live.current;
         if (!st.order || !st.order.includes(name)) return;
@@ -494,10 +510,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             const k = Math.min(1, (t - t0) / GLIDE);
             const e = 1 - (1 - k) ** 3;
             const now = new Map();
-            for (const [n, p] of to) {
-                const a = (from.get(n) || p).c;
-                now.set(n, { ...p, c: a.map((v, i) => v + (p.c[i] - v) * e) });
-            }
+            for (const [n, p] of to) now.set(n, between(from.get(n) || p, p, e));
             st.places = now;
             if (k < 1) {
                 st.glide = requestAnimationFrame(step);

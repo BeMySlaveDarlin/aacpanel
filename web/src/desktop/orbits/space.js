@@ -8,7 +8,7 @@
 // every system alike, the time goes clockwise from it. A session another one
 // opened is that one's moon, at the angle of its own last request, and its
 // own sessions are moons of the moon. The systems stand in depth, a galaxy:
-// one at the front, the others behind it.
+// one in front, drawn large, the others smaller behind it.
 
 export const TAU = Math.PI * 2;
 
@@ -184,8 +184,11 @@ export function spread(list, gap) {
     push(lo);
 }
 
-// The tilts of the systems, by their place in the map: every plane leans its
-// own way, so two systems read as two even when they stand close.
+// The tilts of the systems behind the front, by their place in the map: every
+// plane leans its own way, so two systems read as two even when they stand
+// close. The system in front faces the view square (FLAT), so the near plan is
+// as tall as the lens means it to be whichever system it is.
+export const FLAT = { tx: 0, tz: 0 };
 const TILTS = [
     { tx: 0.14, tz: -0.08 },
     { tx: 0, tz: 0.05 },
@@ -210,10 +213,11 @@ export function tilted(t, p) {
 }
 
 // worldOf is where a point of a system's plane stands in the scene, the
-// system standing at place { c, tilt }.
+// system standing at place { c, tilt, k }: at c, tilted, scaled by k.
 export function worldOf(place, p) {
     const q = tilted(place.tilt, p);
-    return [place.c[0] + q[0], place.c[1] + q[1], place.c[2] + q[2]];
+    const k = place.k || 1;
+    return [place.c[0] + q[0] * k, place.c[1] + q[1] * k, place.c[2] + q[2] * k];
 }
 
 // The view the graph opens with and comes back to on Reset: the galaxy seen
@@ -229,31 +233,39 @@ export const PITCH = [-0.2, 0.95];
 // of the scene: far enough for a system three deep not to shrink to a dot.
 export const DIST = 2200;
 
-// The places of the galaxy, in radii of the largest system: the front one in
-// the middle and nearest, then one behind on the left, one behind on the
-// right, one far behind in the middle; any more go round further back.
-const PLACES = [[0, 0, -0.65], [-2.4, 0.5, 1.4], [2.3, 0.3, 0.9], [0, 0.9, 2.3]];
+// The galaxy is a near plan and a back row. The system in front is drawn
+// at the size of the largest system whatever its own — a small contour
+// brought forward is drawn up to it, its marks and names keeping their size —
+// and the systems behind are BACK of their own size, in a row further back
+// and above it, by turns to the left and to the right of the middle, further
+// out the more of them there are. The places are the same whichever system
+// stands in front, so bringing another forward never moves the picture.
+export const BACK = 0.4;
 
-function placeOf(k) {
-    if (k < PLACES.length) return PLACES[k];
-    const a = k * 2.4;
-    const ring = 2.6 + 0.4 * Math.floor(k / PLACES.length);
-    return [Math.sin(a) * ring, 0.6 + 0.2 * k, 1.5 + 0.5 * k];
-}
-
-// slotsFor gives count places for systems of radius up to R, spread out
-// sideways until, seen from the home view, no two of them cover each other:
-// any system fits any place, so the front can change hands without a
-// system landing on another.
+// slotsFor gives count places for a galaxy whose largest system has radius
+// R: the first in front, the rest behind, each { c, R } with the radius a
+// system drawn there takes at most. A place behind is raised until, seen from
+// the home view, it stands clear above the system in front, and the row is
+// spread sideways until no two of its places cover each other.
 export function slotsFor(count, R) {
+    const back = BACK * R;
+    const front = boxOf([0, 0, 0], R);
+    const slots = [{ c: [0, 0, 0], R }];
     let wide = 1;
-    let slots = [];
-    for (let i = 0; i < 40; i++) {
-        slots = Array.from({ length: count }, (_, k) => {
-            const p = placeOf(k);
-            return [p[0] * R * wide, p[1] * R, p[2] * R];
-        });
-        if (apart(slots, R)) break;
+    for (let tries = 0; tries < 40; tries++) {
+        slots.length = 1;
+        for (let j = 0; j < count - 1; j++) {
+            const side = j % 2 ? 1 : -1;
+            const rank = Math.floor(j / 2);
+            const c = [side * R * (0.85 + 0.95 * rank) * wide, 0, R * (0.9 + 0.4 * rank)];
+            for (let up = 0; up < 60; up++) {
+                const b = boxOf(c, back);
+                if (b.y + b.h <= front.y - 0.05 * front.h) break;
+                c[1] += 0.05 * R;
+            }
+            slots.push({ c, R: back });
+        }
+        if (apart(slots)) break;
         wide *= 1.08;
     }
     return slots;
@@ -277,14 +289,14 @@ export function boxOf(c, R, tilt = { tx: 0, tz: 0 }) {
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-// A gap of a twentieth of the larger box between two systems.
-function apart(slots, R) {
-    const boxes = slots.map((c) => boxOf(c, R));
+// A gap of a tenth of the smaller box between two places.
+function apart(slots) {
+    const boxes = slots.map((s) => boxOf(s.c, s.R));
     for (let i = 0; i < boxes.length; i++) {
         for (let j = i + 1; j < boxes.length; j++) {
             const a = boxes[i];
             const b = boxes[j];
-            const g = Math.max(a.w, b.w) / 20;
+            const g = Math.min(a.w, b.w) / 10;
             if (a.x < b.x + b.w + g && b.x < a.x + a.w + g && a.y < b.y + b.h + g && b.y < a.y + a.h + g) return false;
         }
     }
@@ -308,52 +320,35 @@ export function camera(view, W, H, k) {
     };
 }
 
-// fit picks the lens that keeps every point inside the canvas, less pad
-// [top, right, bottom, left], for every view of views.
-export function fit(points, views, W, H, pad) {
-    let x0 = Infinity;
-    let x1 = -Infinity;
-    let y0 = Infinity;
-    let y1 = -Infinity;
-    const lens = { f: 1, dist: DIST, ox: 0, oy: 0 };
-    for (const v of views) {
-        const pr = camera(v, 0, 0, lens);
-        for (const p of points) {
-            const q = pr(p);
-            x0 = Math.min(x0, q.x);
-            x1 = Math.max(x1, q.x);
-            y0 = Math.min(y0, q.y);
-            y1 = Math.max(y1, q.y);
-        }
-    }
-    const f = Math.max(0.01, Math.min((W - pad[1] - pad[3]) / (x1 - x0), (H - pad[0] - pad[2]) / (y1 - y0)));
+// floorOf is the height of the floor the stalks of the stars stand on: a
+// little under the plane of the system in front.
+export function floorOf(R) {
+    return -0.3 * R;
+}
+
+// FRONT is how much of the height of the canvas the system in front takes
+// at most: the near plan is the subject of the widget, the row behind its
+// setting, and a lone system is not blown up to the edges.
+const FRONT = 0.7;
+
+// lensFor fits the galaxy to a canvas from the home view: every place in it,
+// less pad [top, right, bottom, left], the system in front in the middle
+// across and taking no more than FRONT of the height.
+export function lensFor(slots, W, H, pad) {
+    const boxes = slots.map((s) => boxOf(s.c, s.R * 1.08));
+    const x0 = Math.min(...boxes.map((b) => b.x));
+    const x1 = Math.max(...boxes.map((b) => b.x + b.w));
+    const y0 = Math.min(...boxes.map((b) => b.y));
+    const y1 = Math.max(...boxes.map((b) => b.y + b.h));
+    const front = boxes[0];
+    const half = Math.max(front.x + front.w / 2 - x0, x1 - (front.x + front.w / 2));
+    const f = Math.min((W - pad[1] - pad[3]) / (2 * half), (H - pad[0] - pad[2]) / (y1 - y0), (FRONT * H) / front.h);
     return {
         f,
         dist: DIST,
-        ox: pad[3] + (W - pad[1] - pad[3]) / 2 - W / 2 - (f * (x0 + x1)) / 2,
+        ox: -(front.x + front.w / 2) * f,
         oy: pad[0] + (H - pad[0] - pad[2]) / 2 - H / 2 - (f * (y0 + y1)) / 2,
     };
-}
-
-// floorOf is the height of the floor the stalks of the stars stand on: under
-// the lowest place, by three quarters of the largest system.
-export function floorOf(slots, R) {
-    return Math.min(...slots.map((c) => c[1])) - 0.75 * R;
-}
-
-// lensFor fits every place of the galaxy, a circle of R round each and its
-// stalk down to the floor, to a canvas, from the home view and a little
-// either side of it: the first view holds every system whichever is in
-// front, and a short turn does not push one out.
-export function lensFor(slots, R, W, H, pad) {
-    const points = [];
-    const floor = floorOf(slots, R);
-    for (const c of slots) {
-        for (let i = 0; i < 24; i++) points.push(worldOf({ c, tilt: { tx: 0, tz: 0 } }, at((i / 24) * TAU, R + 26)));
-        points.push([c[0], floor - 10, c[2]]);
-    }
-    const views = [HOME, { ...HOME, yaw: HOME.yaw - 0.2 }, { ...HOME, yaw: HOME.yaw + 0.2 }];
-    return fit(points, views, W, H, pad);
 }
 
 // ZOOM bounds the scale the wheel sets: out to where the whole scene is a
