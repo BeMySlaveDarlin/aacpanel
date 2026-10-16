@@ -85,6 +85,33 @@ export async function copyText(text, toast, title = "Copied", sub = lead(text)) 
     }
 }
 
+// hostCopies lets what the program in a terminal copies reach the clipboard
+// of this browser. tmux keeps a selection made with the mouse, and a copy
+// from its own menu, in a buffer on the host and hands it to the terminal as
+// OSC 52; a terminal that drops it leaves the text on the host. tmux hands it
+// to every device that shows the pane: only the one in focus — the one the
+// person works at — takes it, and a query of the clipboard is not answered.
+export function hostCopies(term, toast) {
+    return term.parser.registerOscHandler(52, (data) => {
+        const text = osc52Text(data);
+        if (text !== null && document.hasFocus()) copyText(text, toast);
+        return true;
+    });
+}
+
+// osc52Text is the text an OSC 52 hands over — "<where>;<base64>" — or null
+// for an empty one and one that is not base64, a query (?) among them.
+export function osc52Text(data) {
+    const at = data.indexOf(";");
+    const b64 = at < 0 ? "" : data.slice(at + 1);
+    if (!b64) return null;
+    try {
+        return new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    } catch {
+        return null;
+    }
+}
+
 // copyName copies the name of a container, as the host calls it.
 export function copyName(name, toast) {
     return copyText(name, toast, "Name copied", name);

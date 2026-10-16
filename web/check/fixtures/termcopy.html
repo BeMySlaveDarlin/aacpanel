@@ -1,0 +1,86 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<div id="screen" style="width:640px;height:240px"></div>
+<div id="root" style="width:640px;height:320px"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The terminal of the panel under tmux: what tmux copies comes as OSC 52 and
+// goes into the clipboard of the browser, on the device in focus only; a query
+// of the clipboard is not answered, and what is not base64 is dropped.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Terminal } from "/dist/term.js";
+import { hostCopies } from "/src/screens/chat/copy.js";
+import { Term } from "/src/screens/chat/term.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const copied = [];
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: (text) => (copied.push(text), Promise.resolve()),
+} });
+let focused = true;
+document.hasFocus = () => focused;
+const toasts = [];
+const toast = (title, sub, bad) => toasts.push({ title, sub, bad: Boolean(bad) });
+
+const term = new Terminal({ cols: 60, rows: 8 });
+term.open(document.getElementById("screen"));
+hostCopies(term, toast);
+const answered = [];
+term.onData((d) => answered.push(d));
+
+const b64 = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+const write = (data) => new Promise((r) => term.write(data, r));
+const settle = () => new Promise((r) => setTimeout(r, 30));
+const run = async (seq) => {
+    const from = copied.length;
+    await write(seq);
+    await settle();
+    return copied.slice(from);
+};
+
+(async () => {
+    const out = {};
+    // As tmux sends it: no selection named, the text in base64, BEL at the end.
+    out.tmux = await run(`\x1b]52;;${b64("héllo ✓\nline two")}\x07`);
+    out.toast = toasts.slice();
+    // As other programs send it: the clipboard named, ST at the end.
+    out.named = await run(`\x1b]52;c;${b64("plain")}\x1b\\`);
+    out.query = await run("\x1b]52;c;?\x07");
+    out.answered = answered.slice();
+    out.broken = await run("\x1b]52;c;@@not base64@@\x07");
+    focused = false;
+    const before = toasts.length;
+    out.away = await run(`\x1b]52;;${b64("from the phone")}\x07`);
+    out.awayToasts = toasts.length - before;
+    focused = true;
+
+    // The terminal of the panel itself, its stream from the host faked: the
+    // copy tmux hands over in the stream lands in the clipboard.
+    const streams = [];
+    window.EventSource = class {
+        constructor(url) {
+            this.url = url;
+            this.on = {};
+            this.readyState = 1;
+            streams.push(this);
+        }
+        addEventListener(type, fn) { this.on[type] = fn; }
+        close() { this.readyState = 2; }
+    };
+    window.EventSource.CLOSED = 2;
+    window.fetch = () => Promise.resolve(new Response("{}"));
+    render(html`<${ToastHost}><${Term} name="lab" /><//>`, document.getElementById("root"));
+    const until = async (ok) => {
+        for (let i = 0; i < 200 && !ok(); i++) await settle();
+    };
+    await until(() => streams[0] && streams[0].on.ready && streams[0].onmessage);
+    const es = streams[0];
+    es.on.ready({ data: JSON.stringify({ id: "t1" }) });
+    const from = copied.length;
+    es.onmessage({ data: btoa(`\x1b]52;;${b64("from the session")}\x07`) });
+    await until(() => copied.length > from);
+    out.session = copied.slice(from);
+    window.done = out;
+})();
+</script>

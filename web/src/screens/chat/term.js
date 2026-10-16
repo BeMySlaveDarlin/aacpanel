@@ -4,6 +4,7 @@ import { html } from "../../html.js";
 import { mayFocus } from "../../ui/focus.js";
 import { useToast } from "../../ui/toasts.js";
 import { useWide, WIDE } from "../../ui/wide.js";
+import { hostCopies } from "./copy.js";
 import { sender } from "./input.js";
 
 const SCROLLBACK = 5000;
@@ -293,6 +294,7 @@ export function Term({ name, term: tab }) {
             const fit = new mod.FitAddon();
             term.loadAddon(fit);
             term.open(screen);
+            hostCopies(term, toast);
             fit.fit();
             termRef.current = term;
             swipe = swipeAsWheel(term, screen);
