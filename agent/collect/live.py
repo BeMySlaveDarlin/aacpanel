@@ -1,6 +1,7 @@
 """Live sessions: where their files are, what they are busy with and what goes into the snapshot."""
 import json
 import os
+import socket
 
 import archive
 import asked
@@ -14,6 +15,26 @@ import projects
 
 import agent
 from sesstate.wake import ALARMS
+
+
+def home_session_name():
+    """Returns the name the host gives its main session, as the executor reads it."""
+    return (os.environ.get("AACP_HOME_SESSION") or socket.gethostname() or "aacpanel").lower()
+
+
+def main_of_home(sessions, main):
+    """Leaves the mark of the host's main session on one session of the home directory.
+
+    A session living in the home directory is the host's main one, which the
+    panel never closes. Where several live there, it is the one under the name
+    the host gives its main session, and the others close as any session does;
+    with none under that name they all keep the mark, as a lone one does.
+    """
+    homes = [s for s in sessions if s.get("home")]
+    if len(homes) < 2 or not any((s.get("session") or "").lower() == main for s in homes):
+        return
+    for s in homes:
+        s["home"] = (s.get("session") or "").lower() == main
 
 
 def claude_config_dirs():
@@ -359,6 +380,7 @@ def sessions():
                     s["work"] = work
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
+    main_of_home(data.get("sessions", []), home_session_name())
     # A codex thread has none of what the rows above are filled with: no file
     # of a claude session, no transcript of claude, and a checklist kept by
     # its thread rather than by a place. A codex no executor follows and no

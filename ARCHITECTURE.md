@@ -1440,7 +1440,9 @@ system until the setting is corrected and the executor restarted.
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no
-stop. The executor tells a session's directory by the link under `/proc` and,
+stop. Where several sessions live there, the main one is the one under the
+name the host gives its main session (`AACP_HOME_SESSION`), and the others
+close as any session does; a lone one is the main session whatever its name. The executor tells a session's directory by the link under `/proc` and,
 where that is refused, by the directory claude writes into the file of the
 live session: the sandbox of the executor's unit runs in a user namespace of
 its own, and the link of a process outside it does not open there. `session.restart` ends a session the gentle way — the same wait for the

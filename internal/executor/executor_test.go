@@ -1337,6 +1337,7 @@ func TestSessionClose(t *testing.T) {
 	t.Run("the main host session is not closed", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
+		t.Setenv(hostcfg.HomeSessionEnv, "host")
 		procFS(t,
 			fakeProc{pid: 300, comm: "konsole", args: []string{"konsole"}, ppid: 1},
 			fakeProc{pid: 302, comm: "claude", args: []string{"claude", "-n", "host"}, ppid: 300, cwd: home},
@@ -1350,6 +1351,27 @@ func TestSessionClose(t *testing.T) {
 		}
 		if len(log.sent) != 0 {
 			t.Errorf("signals were sent before the refusal: %v", log.sent)
+		}
+	})
+
+	t.Run("another session in the home directory closes as any other", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv(hostcfg.HomeSessionEnv, "host")
+		procFS(t,
+			fakeProc{pid: 300, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+			fakeProc{pid: 302, comm: "claude", args: []string{"claude", "-n", "host"}, ppid: 300, cwd: home},
+			fakeProc{pid: 304, comm: "claude", args: []string{"claude", "-n", "second"}, ppid: 300, cwd: home},
+		)
+		e, _ := newTest(t, "")
+		log := withSignals(t, e, map[int]bool{304: true, 302: true}, map[int]int{304: 1})
+
+		if _, err := e.Execute(ctx, req(action.SessionClose, "second")); err != nil {
+			t.Fatalf("a second session in the home directory was refused as the host's main one: %v", err)
+		}
+		sent := strings.Join(log.sent, ",")
+		if !strings.Contains(sent, "304:") || strings.Contains(sent, "302:") {
+			t.Errorf("signals %v: the second session is closed and the main one is untouched", log.sent)
 		}
 	})
 

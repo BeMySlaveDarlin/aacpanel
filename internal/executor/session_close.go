@@ -22,7 +22,10 @@ type agentProc struct {
 	Agent   int
 	Konsole int
 	Dir     string
-	// Home marks the host's main session: the one running in the home directory.
+	// Home marks the host's main session: the one running in the home
+	// directory. Where several run there, it is the one under the name the
+	// host gives its main session, and the others are sessions like any other;
+	// a lone one is the main session whatever its name.
 	Home bool
 }
 
@@ -322,7 +325,7 @@ func lookupAgent(target string) (agentProc, error) {
 		}
 		return agentProc{
 			Session: name, Agent: pid, Konsole: konsoleOf(pid), Dir: dir,
-			Home: home != "" && dir == strings.TrimRight(home, "/"),
+			Home: home != "" && dir == strings.TrimRight(home, "/") && mainAt(pids, home, name),
 		}, nil
 	}
 
@@ -330,6 +333,31 @@ func lookupAgent(target string) (agentProc, error) {
 		return agentProc{}, fmt.Errorf("there is no session %q: not a single named claude session is running", target)
 	}
 	return agentProc{}, fmt.Errorf("there is no session %q among the running ones: %s", target, strings.Join(known, ", "))
+}
+
+// mainAt says whether the session called name, running in the home directory,
+// is the host's main session: it is, unless another live session there goes
+// by the name the host gives its main session.
+func mainAt(pids []int, home, name string) bool {
+	main := homeSessionName()
+	if main == "" || strings.EqualFold(name, main) {
+		return true
+	}
+	home = strings.TrimRight(home, "/")
+	for _, pid := range pids {
+		other, ok := sessionName(pid)
+		if !ok || !strings.EqualFold(other, main) {
+			continue
+		}
+		dir := procCwd(pid)
+		if dir == "" {
+			dir = sessionFileCwd(pid)
+		}
+		if dir == home {
+			return false
+		}
+	}
+	return true
 }
 
 // sessionFileCwd is the working directory claude wrote into the file of its

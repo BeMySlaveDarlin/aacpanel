@@ -154,5 +154,62 @@ class TheRepositoryOfALiveSession(unittest.TestCase):
         self.assertNotIn("checkout", got[plain])
 
 
+class TheMainSessionOfTheHost(unittest.TestCase):
+    """One session of the home directory is the host's main one.
+
+    The panel does not close the main session, and every session started in
+    the home directory used to pass for it: a second one there could not be
+    closed at all.
+    """
+
+    def homes(self, *names):
+        return [{"session": n, "home": True} for n in names] + [{"session": "shop", "home": False}]
+
+    def test_the_one_under_the_host_name_is_the_main_one(self):
+        rows = self.homes("atlas", "Chibi")
+        live.main_of_home(rows, "atlas")
+        self.assertEqual([(r["session"], r["home"]) for r in rows],
+                         [("atlas", True), ("Chibi", False), ("shop", False)])
+
+    def test_a_lone_session_at_home_is_the_main_one_whatever_its_name(self):
+        rows = self.homes("host")
+        live.main_of_home(rows, "atlas")
+        self.assertTrue(rows[0]["home"])
+
+    def test_with_none_under_the_host_name_they_all_stay(self):
+        rows = self.homes("one", "two")
+        live.main_of_home(rows, "atlas")
+        self.assertEqual([r["home"] for r in rows], [True, True, False])
+
+    def test_the_rows_of_the_collector_carry_one_main_session(self):
+        dir = test_barrier.tmp_dir()
+        self.addCleanup(dir.cleanup)
+        self.addCleanup(setattr, notes, "BOARD", notes.BOARD)
+        notes.BOARD = notes.Board(os.path.join(dir.name, "notes.json"))
+        slug = os.path.expanduser("~").replace("/", "-")
+        home = os.path.expanduser("~")
+        rows = {"sessions": [
+            {"session": n, "sessionId": f"abcd1234-0000-4000-8000-00000000000{i}", "cwd": home,
+             "transcript": f"/x/projects/{slug}/{i}.jsonl"} for i, n in enumerate(("atlas", "Chibi"))]}
+        for name, value in (("sessions", lambda: rows), ("session_profiles", dict),
+                            ("session_births", dict), ("live_session_waits", dict),
+                            ("live_session_status", dict), ("live_session_status_at", dict)):
+            holder = live.ctx if name == "sessions" else live
+            self.addCleanup(setattr, holder, name, getattr(holder, name))
+            setattr(holder, name, value)
+        old = os.environ.get("AACP_HOME_SESSION")
+        os.environ["AACP_HOME_SESSION"] = "atlas"
+        self.addCleanup(lambda: os.environ.pop("AACP_HOME_SESSION") if old is None
+                        else os.environ.__setitem__("AACP_HOME_SESSION", old))
+        got = {s["session"]: s["home"] for s in live.sessions()["sessions"]}
+        self.assertEqual(got, {"atlas": True, "Chibi": False},
+                         "a second session of the home directory passes for the host's main one and cannot be closed")
+
+    def test_the_name_is_matched_whatever_its_case(self):
+        rows = self.homes("Atlas", "Chibi")
+        live.main_of_home(rows, "atlas")
+        self.assertEqual([r["home"] for r in rows[:2]], [True, False])
+
+
 if __name__ == "__main__":
     unittest.main()
