@@ -370,64 +370,6 @@
    would read as one more window of claude's. */
 .limit[data-agent="codex"] .fill.ok { background: var(--agent-codex); }
 
-.hostbar {
-    display: flex;
-    align-items: flex-start;
-    gap: .6rem;
-}
-
-.hstats {
-    flex: 1;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: .7rem;
-}
-
-.hstat {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.hstat-title {
-    font-size: var(--t-xs);
-    color: var(--ink-faint);
-}
-
-.hstat-value {
-    font-size: var(--t-lg);
-    font-weight: 600;
-    letter-spacing: -.01em;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.hstat .bar { margin-top: .3rem; }
-
-.bar.blank { background: none; }
-.hstat .bar { flex: none; }
-
-.hdetails {
-    flex: none;
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    gap: .2rem;
-    padding: .3rem .5rem;
-    border: 0;
-    border-radius: var(--r-small);
-    box-shadow: inset 0 0 0 var(--hair) var(--edge);
-    background: none;
-    color: var(--ink-dim);
-    font: inherit;
-    font-size: var(--t-xs);
-    cursor: pointer;
-}
-
-.hdetails .chev { display: inline-flex; }
-.hdetails svg { width: var(--i-sm); height: var(--i-sm); }
-
 .status {
     display: flex;
     align-items: center;

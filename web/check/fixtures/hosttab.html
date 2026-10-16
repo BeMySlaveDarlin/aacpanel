@@ -9,8 +9,8 @@
 // containers tab from before opens on it, its three pages are turned by a
 // swipe and by their names, the page chosen comes back after another tab and
 // after a new start, the row of pages stands in one place on every page with
-// the strip of the machine and the filters inside the containers page, details
-// on that strip turns to the machine page, and the host menu still opens the
+// the filters of the containers right under it, inside their page, and the
+// host menu still opens the
 // machine and the journal over the screen with the way back — the way back
 // keeps its page even when the next layer opens before the pager under it drew
 // a frame. Headless has no touch gestures, so a swipe is
@@ -165,11 +165,10 @@ const swipe = async (by, to) => {
 const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : -1);
 const bottom = (el) => (el ? Math.round(el.getBoundingClientRect().bottom) : -1);
 // look reads what stands on the screen with the pager on the page it names:
-// where the row of pages stands, and the strip of the machine and the filters
-// — those of the page, and any standing outside the pages.
+// where the row of pages stands, and the filters — those of the page, and any
+// standing outside the pages.
 const look = (name) => {
     const page = pageAt(names().indexOf(name));
-    const strip = page && page.querySelector(".hostbar");
     const chips = page && page.querySelector(".chips");
     const row = document.querySelector(".pftabs");
     return {
@@ -179,11 +178,9 @@ const look = (name) => {
         head: page ? Array.from(page.querySelectorAll(".phead h2")).map(text) : [],
         rowTop: top(row),
         rowBottom: bottom(row),
-        strip: Boolean(strip),
-        stripTop: top(strip),
         filters: chips ? Array.from(chips.querySelectorAll(".chip")).map((c) => c.firstChild.textContent.trim()) : [],
         filtersTop: top(chips),
-        outside: Array.from(document.querySelectorAll(".hostbar, .chips"))
+        outside: Array.from(document.querySelectorAll(".chips"))
             .filter((el) => !el.closest(".pfpages")).map((el) => el.className),
         stacks: page ? page.querySelectorAll(".stack").length : 0,
         grid: Boolean(page && page.querySelector(".mgrid")),
@@ -284,18 +281,15 @@ window.done = (async () => {
         await until(() => settled("Machine"), 2000);
         out.reopened = { page: current(), navOn: navOn(), tab: localStorage.getItem("aacpanel.tab") };
 
-        // A tap on a name turns the pager there; details on the strip of the
-        // machine turns it to the machine page rather than opening a layer.
+        // A tap on a name turns the pager there rather than opening a layer:
+        // the containers, then the machine.
         Array.from(document.querySelectorAll(".pftab")).find((b) => text(b) === "Containers").click();
-        await until(() => settled("Containers") && pageAt(0).querySelector(".hdetails"), 2000);
+        await until(() => settled("Containers"), 2000);
         out.tapped = look("Containers");
-        // A strip that left the page leaves nothing here to press: the walk
-        // goes on, and the reading says where the tab stayed.
-        const details = pageAt(0).querySelector(".hdetails");
-        if (details) details.click();
+        Array.from(document.querySelectorAll(".pftab")).find((b) => text(b) === "Machine").click();
         await until(() => settled("Machine"), 2000);
         await quiet();
-        out.details = { ...layer(), page: current(), kept: localStorage.getItem("aacpanel.host.page") || "" };
+        out.named = { ...layer(), page: current(), kept: localStorage.getItem("aacpanel.host.page") || "" };
 
         // The host menu opens the machine and the journal over the screen.
         out.menuMachine = await openMenu("Machine");

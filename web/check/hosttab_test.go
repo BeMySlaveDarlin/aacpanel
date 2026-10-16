@@ -13,8 +13,6 @@ type hostPage struct {
 	Head       []string `json:"head"`
 	RowTop     int      `json:"rowTop"`
 	RowBottom  int      `json:"rowBottom"`
-	Strip      bool     `json:"strip"`
-	StripTop   int      `json:"stripTop"`
 	Filters    []string `json:"filters"`
 	FiltersTop int      `json:"filtersTop"`
 	Outside    []string `json:"outside"`
@@ -42,6 +40,10 @@ type hostReturn struct {
 	Page  string `json:"page"`
 	Title string `json:"title"`
 }
+
+// filtersGapMax is the most the filters of the containers may stand below the
+// row of pages: a margin, not room for a strip between them.
+const filtersGapMax = 24
 
 // The host tab of the phone: the containers, the machine and the journal as
 // pages of one tab, turned by a swipe the way the sessions turn their
@@ -76,12 +78,12 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 			NavOn string `json:"navOn"`
 			Tab   string `json:"tab"`
 		} `json:"reopened"`
-		Tapped  hostPage `json:"tapped"`
-		Details struct {
+		Tapped hostPage `json:"tapped"`
+		Named  struct {
 			hostLayer
 			Page string `json:"page"`
 			Kept string `json:"kept"`
-		} `json:"details"`
+		} `json:"named"`
 		MenuMachine     hostLayer  `json:"menuMachine"`
 		MenuMachineBack hostReturn `json:"menuMachineBack"`
 		MenuJournal     hostLayer  `json:"menuJournal"`
@@ -147,16 +149,16 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		if f.Page != "Containers" || f.Stacks != 3 {
 			t.Errorf("the tab opened on %q with %d stacks, expected the containers with all three", f.Page, f.Stacks)
 		}
-		if !f.Strip || strings.Join(f.Filters, "|") != "All|Running|Down|Unhealthy" {
-			t.Errorf("the containers page has the strip of the machine %v and the filters %v, expected both as before",
-				f.Strip, f.Filters)
+		if strings.Join(f.Filters, "|") != "All|Running|Down|Unhealthy" {
+			t.Errorf("the containers page has the filters %v, expected all four", f.Filters)
 		}
 	})
 
 	// The row of pages is the first thing under the header, as on the
 	// sessions: what belongs to the containers turns with their page and
-	// never pushes the row about.
-	t.Run("the row of pages stands still and the strip turns with the containers", func(t *testing.T) {
+	// never pushes the row about. The figures of the machine have a page of
+	// their own, so nothing stands between the row and the filters.
+	t.Run("the row of pages stands still and the filters turn with the containers", func(t *testing.T) {
 		f, m, j := got.First, got.Machine, got.Journal
 		if f.RowTop <= 0 || f.RowTop != m.RowTop || f.RowTop != j.RowTop {
 			t.Errorf("the row of pages stands at %d on the containers, %d on the machine, %d on the journal — "+
@@ -164,13 +166,13 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		}
 		for _, p := range []hostPage{f, m, j} {
 			if len(p.Outside) != 0 {
-				t.Errorf("on the %s page %v stand outside the pages — the strip and the filters belong to the "+
-					"containers page", p.Page, p.Outside)
+				t.Errorf("on the %s page %v stand outside the pages — the filters belong to the containers page",
+					p.Page, p.Outside)
 			}
 		}
-		if f.StripTop < f.RowBottom || f.FiltersTop < f.StripTop {
-			t.Errorf("on the containers page the row ends at %d, the strip starts at %d and the filters at %d — "+
-				"expected the strip under the row and the filters under the strip", f.RowBottom, f.StripTop, f.FiltersTop)
+		if gap := f.FiltersTop - f.RowBottom; gap < 0 || gap > filtersGapMax {
+			t.Errorf("on the containers page the row ends at %d and the filters start at %d — expected the filters "+
+				"right under the row, at most %d px below it", f.RowBottom, f.FiltersTop, filtersGapMax)
 		}
 	})
 
@@ -195,9 +197,6 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		}
 		if !m.Grid {
 			t.Error("the machine page of the tab draws no tiles of the machine")
-		}
-		if m.Strip {
-			t.Error("the machine page carries the strip of the machine meant for the containers")
 		}
 		j := got.Journal
 		if j.Back || len(j.Head) != 0 {
@@ -227,18 +226,17 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		}
 	})
 
-	t.Run("details on the strip turns the pager to the machine", func(t *testing.T) {
-		if got.Tapped.Page != "Containers" || !got.Tapped.Strip {
-			t.Fatalf("a tap on the name left the tab on %q with the strip %v, expected the containers with it",
-				got.Tapped.Page, got.Tapped.Strip)
+	t.Run("a tap on a name turns the pager there", func(t *testing.T) {
+		if got.Tapped.Page != "Containers" {
+			t.Fatalf("a tap on the containers left the tab on %q", got.Tapped.Page)
 		}
-		d := got.Details
+		d := got.Named
 		if d.Title != "" || !d.Pager || !d.Nav {
-			t.Errorf("details opened a layer %q (pager %v, menu %v), expected the pages of the tab to stay",
+			t.Errorf("a tap on the machine opened a layer %q (pager %v, menu %v), expected the pages of the tab to stay",
 				d.Title, d.Pager, d.Nav)
 		}
 		if d.Page != "Machine" || d.Kept != "machine" {
-			t.Errorf("details left the tab on %q, kept %q, expected the machine page", d.Page, d.Kept)
+			t.Errorf("a tap on the machine left the tab on %q, kept %q, expected the machine page", d.Page, d.Kept)
 		}
 	})
 

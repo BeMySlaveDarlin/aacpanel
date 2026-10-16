@@ -74,15 +74,3 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], ex
         </div>
     `;
 }
-
-// machineStats returns the three host figures for the strip over the containers.
-export function machineStats(snapshot) {
-    const host = snapshot && snapshot.host;
-    if (!host) return null;
-    const net = (host.net || []).reduce((sum, n) => sum + (n.rxRate || 0) + (n.txRate || 0), 0);
-    return {
-        cpuPct: host.cpuPct || 0,
-        memPct: (host.mem && host.mem.pct) || 0,
-        net,
-    };
-}
