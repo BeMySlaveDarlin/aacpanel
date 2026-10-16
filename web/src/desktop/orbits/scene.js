@@ -36,7 +36,7 @@ const BEHIND = 0.5;
 // The orbits are faint: ORBIT[1] on the half of an orbit nearer the eye,
 // ORBIT[0] on the far half — enough to follow an orbit round and see which
 // way it leans, never a line that rivals a mark.
-export const ORBIT = [0.08, 0.13];
+export const ORBIT = [0.11, 0.18];
 
 // Where on its orbit the name of an orbit stands: a fixed point at the back
 // and to the left, past which the planets go.
