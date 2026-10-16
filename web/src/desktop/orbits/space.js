@@ -440,12 +440,6 @@ export function camera(view, W, H, k) {
     };
 }
 
-// floorOf is the height of the floor the stalks of the stars stand on: a
-// little under the plane of the system in front.
-export function floorOf(R) {
-    return -0.3 * R;
-}
-
 // FRONT is how much of the height of the canvas the system in front takes
 // at most: the near plan is the subject of the widget, the row behind its
 // setting, and a lone system is not blown up to the edges.

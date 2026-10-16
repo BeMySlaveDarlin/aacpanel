@@ -1,19 +1,18 @@
-// The drawing of the galaxy of sessions on a canvas. Every contour is a
-// system in a hue of its own: a star with a dense core and a soft corona, the
-// orbits of its projects as hairlines barely there, a dotted stalk down to
-// the floor that tells how deep it stands, a sparse field of far stars behind
-// on the dark theme. A session is a planet lit by its star, as a moon in its
-// phase: the side toward the star is lit, the lit share is how much of its
-// context it has used, its surface its own, its night side a little lit by
-// the sky. The marks keep their colours of state — the accent of a session
-// at work in a small steady glow, the gold of a session waiting for the
-// person, the top of the context scale near the cap — and the one wide light
-// stands behind the session that has waited longest. What stands further
-// back is fainter and hazier.
+// The drawing of the galaxy of sessions on a canvas. Every contour is a system
+// in a hue of its own: a star with a dense core and a soft corona, the orbits
+// of its projects as hairlines barely there, a sparse field of far stars
+// behind on the dark theme. A session is a planet lit by its star, as a moon
+// in its phase: the side toward the star is lit, the lit share is how much of
+// its context it has used, its surface its own, its night side a little lit by
+// the sky. The marks keep their colours of state — the accent of a session at
+// work in a small steady glow, the gold of a session waiting for the person,
+// the top of the context scale near the cap — and the one wide light stands
+// behind the session that has waited longest. What stands further back is
+// fainter and hazier.
 import { TAU, at, add, hashOf, inclined, onOrbit, worldOf } from "./space.js";
 
-// NEAR is where the lit part takes the tone of the cap and the frame says the
-// number: a session past it is a turn or two of a long task from the cap.
+// NEAR is where the lit part takes the tone of the cap: a session past it is
+// a turn or two of a long task from the cap.
 const NEAR = 62;
 
 // Sizes in units of the scene: a unit is a pixel at the scale the interface
@@ -508,13 +507,12 @@ const STAR_SIDES = [6, 2, 5, 7];
 // where the words are (taken), for the tip to keep off, and where each name
 // went (labels). scene holds the systems — each with its place, its hue, its
 // orbits, its members and how alive it is — and the nodes, each carrying what
-// it shows (name, tone, pct, work, note) and its place in its system (p), the
-// floor under the stars, the system in front (front), the palette and the
-// type, the sides the names stood on the frame before (sides, which it
-// updates), whether a name may change its side (settle), and the view and
-// pan the far stars move with.
+// it shows (name, tone, pct, work, note) and its place in its system (p),
+// the system in front (front), the palette and the type, the sides the names
+// stood on the frame before (sides, which it updates), whether a name may
+// change its side (settle), and the view and pan the far stars move with.
 export function drawScene(ctx, W, H, pr, scene) {
-    const { systems, nodes, floor, pal, type } = scene;
+    const { systems, nodes, pal, type } = scene;
     const u = type.unit;
     const taken = [];
     const discs = [];
@@ -555,16 +553,6 @@ export function drawScene(ctx, W, H, pr, scene) {
     for (const { s, c: star } of order) {
         const plane = (p) => pr(worldOf(s.place, p));
         ctx.lineWidth = 0.8;
-        // The stalk to the floor and its foot: how deep the system stands.
-        const foot = [s.place.c[0], floor, s.place.c[2]];
-        ctx.setLineDash([1, 4]);
-        line(ctx, [star, pr(foot)], s.tint, () => 0.28);
-        ctx.setLineDash([]);
-        const ring = [];
-        for (let i = 0; i <= 32; i++) {
-            ring.push(pr([foot[0] + Math.cos((i / 32) * TAU) * 22, floor, foot[2] + Math.sin((i / 32) * TAU) * 22]));
-        }
-        line(ctx, ring, s.tint, () => 0.28);
         // The orbits, each in its lean.
         const orbit = (points, centre, colour) => line(ctx, points, colour, (a, b) => ((a.z + b.z) / 2 < centre.z ? ORBIT[1] : ORBIT[0]));
         // The box the orbits take on the stage: a click there, off every
@@ -660,12 +648,11 @@ export function drawScene(ctx, W, H, pr, scene) {
     return { hits, taken, labels, areas };
 }
 
-// linesOf is what the frame says beside a node: its name, and a number only
-// where it asks for the person — the wait, or the context near the cap.
+// linesOf is what the frame says beside a node: its name, and under it what
+// the session asks the person while it waits.
 function linesOf(n, pal, type) {
     const colour = n.tone === "wait" ? pal.wait : n.tone === "busy" ? pal.busy : rgba(pal.ink, 0.62);
     const lines = [{ t: n.name, f: type.tag, c: colour }];
     if (n.tone === "wait") lines.push({ t: n.note, f: type.tag, c: rgba(pal.wait, 0.9) });
-    else if (n.pct >= NEAR) lines.push({ t: `${Math.round(n.pct)}% of context`, f: type.tag, c: pal.cap });
     return lines;
 }

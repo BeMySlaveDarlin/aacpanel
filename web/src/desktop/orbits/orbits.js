@@ -34,7 +34,7 @@ import { contourOfLive } from "../../screens/sessions/map.js";
 import { pageNames } from "../../screens/sessions/pages.js";
 import { useMenu } from "../../ui/menu.js";
 import { liveMenuOf } from "../sessionmenu.js";
-import { BACK, FLAT, HOME, PITCH, camera, floorOf, idleOf, layout, lensAt, lensFor, placeOrbit, slotsFor, tiltOf, turnBy, zoomAt } from "./space.js";
+import { BACK, FLAT, HOME, PITCH, camera, idleOf, layout, lensAt, lensFor, placeOrbit, slotsFor, tiltOf, turnBy, zoomAt } from "./space.js";
 import { HALO, drawKey, drawScene, overlap } from "./scene.js";
 
 // PAD keeps the scene off the edges of its canvas: [top, right, bottom, left].
@@ -263,13 +263,11 @@ export function lensOf(graph, W, H) {
 }
 
 // sceneOf is what the drawing takes of a graph with its systems at places:
-// the systems with their places and hues, the sessions, the floor.
+// the systems with their places and hues, the sessions.
 export function sceneOf(graph, places, hues) {
-    const R = Math.max(...graph.systems.map((s) => s.R));
     return {
         systems: graph.systems.map((s) => ({ ...s, place: places.get(s.name), tint: hues[s.index % hues.length] })),
         nodes: graph.nodes,
-        floor: floorOf(R),
     };
 }
 
