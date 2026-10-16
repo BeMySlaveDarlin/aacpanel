@@ -31,7 +31,7 @@ const closeRules = " Without name it closes only this session; with name, only a
 	"through session_open. Close on the person's request or once the one job the session was opened for is done. " +
 	"A Codex helper stays open for follow-up turns until its parent or person explicitly asks it to close. " +
 	"Save the work on disk as the project requires and give the report before closing. A close ends the session's " +
-	"agents, workflows and background commands, so their work holds the close; a wake-up counts as no work. " +
+	"agents, workflows, background commands and observers, so their work holds the close; a wake-up or an alarm counts as no work. " +
 	"Wait until they finish, or tell the person what is at work. anyway ends that work too: only on the person's word."
 
 // CloseDescription is the tool's own word to the model.
@@ -83,7 +83,7 @@ func closeSchema() map[string]any {
 		"properties": map[string]any{
 			"name": map[string]any{"type": "string", "description": "A child opened by this conversation; omitted closes this session."},
 			"anyway": map[string]any{"type": "boolean",
-				"description": "Close even with agents, workflows or background commands at work; they end. Only on the person's word."},
+				"description": "Close even with agents, workflows, background commands or observers at work; they end. Only on the person's word."},
 		},
 		"additionalProperties": false,
 	}

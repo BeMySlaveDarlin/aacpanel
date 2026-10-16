@@ -9,8 +9,9 @@ import (
 )
 
 // A restart ends the session and everything it runs: its agents, its
-// workflows and the commands and watchers it sent to the background. The
-// restart waits while any of that is at work; a wake-up the session set itself
+// workflows, the commands and watchers it sent to the background and the
+// observers of the panel it started. The restart waits while any of that is at
+// work; a wake-up the session set itself, of claude or an alarm of the panel,
 // runs nothing and is not waited for. The collector counts the work of every
 // session into its snapshot. The hook and the tool read those counts through
 // this package, covered by deploy/claude/testdata/background.json.
@@ -32,12 +33,15 @@ const LongestLook = freshWait + freshStep
 
 // work is what of a session is at work in the background.
 type work struct {
-	Agents, Tasks, Workflows int
+	Agents, Tasks, Workflows, Observers int
 }
 
-func (w work) any() bool { return w.Agents+w.Tasks+w.Workflows > 0 }
+func (w work) any() bool { return w.Agents+w.Tasks+w.Workflows+w.Observers > 0 }
 
-// workOf is the work of a session in the snapshot, wake-ups left out.
+// workOf is the work of a session in the snapshot, wake-ups left out. An
+// observer counts while its command runs, as the collector counts it: it
+// waits as long as its command does, and the session started it to hear how
+// that command ends.
 func workOf(s snapshot, session string) work {
 	for _, r := range s.Sessions {
 		if r.SessionID != session {
@@ -46,7 +50,8 @@ func workOf(s snapshot, session string) work {
 		var counts map[string]json.RawMessage
 		_ = json.Unmarshal(r.Work, &counts)
 		tasks := count(counts["tasks"]) - count(counts["wakes"])
-		return work{Agents: count(counts["agents"]), Tasks: max(tasks, 0), Workflows: count(counts["workflows"])}
+		return work{Agents: count(counts["agents"]), Tasks: max(tasks, 0), Workflows: count(counts["workflows"]),
+			Observers: count(counts["observers"])}
 	}
 	return work{}
 }
@@ -95,7 +100,7 @@ func plural(n int, one, many string) string {
 	return fmt.Sprintf("%d %s", n, many)
 }
 
-// words is the work in words: 2 agents and 1 background task.
+// words is the work in words: 2 agents, 1 background task and 1 observer.
 func (w work) words() string {
 	var parts []string
 	if w.Agents > 0 {
@@ -106,6 +111,9 @@ func (w work) words() string {
 	}
 	if w.Tasks > 0 {
 		parts = append(parts, plural(w.Tasks, "background task", "background tasks"))
+	}
+	if w.Observers > 0 {
+		parts = append(parts, plural(w.Observers, "observer", "observers"))
 	}
 	if len(parts) < 2 {
 		return strings.Join(parts, "")

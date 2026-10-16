@@ -1656,9 +1656,11 @@ the session, when it last did, how its command ended; an alarm with its note,
 when it rings next and every how long. A tap on an observer opens the end of
 its log, read by the collector for that conversation alone. The chip and the
 card of the session count the observers whose command runs and the alarms
-among the background tasks, under names of their own in the snapshot, so a
-restart, which waits for the session's own work, does not wait for them: they
-end with it. A press ends one through an action of the executor,
+among the background tasks, under names of their own in the snapshot. A
+restart and a close wait for an observer whose command runs, as for the
+session's own work: the session started it to hear how that command ends, and
+the restart past the context cap would end it halfway. An alarm runs nothing
+and is not waited for. A press ends one through an action of the executor,
 `observer.stop` or `alarm.cancel`, by the id the collector read it under and
 only for the conversation of the session the action names. The session gets
 one letter saying which observer was stopped or which alarm was cancelled
@@ -2055,7 +2057,7 @@ would otherwise close the session an earlier restart brought up under the same
 name — and a conversation on the stream nobody said a word in starts anew. A restart the person asks for is a fresh one, and the tool's word keeps
 `continue` for their ask to keep the conversation: left to choose, a model takes
 `continue` to spare itself the notes a fresh start wants first. Nothing is asked while the collector's snapshot shows the session's
-agents, workflows or background commands at work, since a restart ends them;
+agents, workflows, background commands or observers at work, since a restart ends them;
 the snapshot can be eleven seconds old, so work seen is read again in a
 snapshot written after the look began, through `internal/session`, which the
 context guard uses too. A session on the stream is closed only at

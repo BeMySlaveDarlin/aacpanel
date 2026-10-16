@@ -18,8 +18,8 @@ import (
 // the cap or a little under it, by guards.RestartMargin: a session ending a
 // turn there would not stop again until someone wrote to it.
 //
-// Not while its agents, workflows or the commands it sent to the background
-// are at work: a restart would end them. The news that one of them is done
+// Not while its agents, workflows, the commands it sent to the background or
+// the observers of the panel it started are at work: a restart would end them. The news that one of them is done
 // starts a turn of its own, and the end of that turn asks again. That turn
 // can end before the collector's snapshot has read the news, so work the
 // snapshot shows is looked at again in a snapshot written after the look

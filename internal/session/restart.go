@@ -30,9 +30,9 @@ const RestartDescription = "Restarts this session through the panel, as its proj
 	"the conversation, never to spare the notes, and with intent, your message to yourself of what you were doing and " +
 	"the next step: it comes first in the resumed conversation, and without it nothing is restarted. " +
 	"The session is closed right after the call, a session on the stream at the end of the " +
-	"current turn: once the panel has taken the restart, end the turn and do nothing more. A restart ends everything the session runs — its agents, workflows " +
-	"and background commands — so while any of them is at work nothing is restarted and the call says what " +
-	"is at work; a wake-up the session set runs nothing and does not count. A restart you started on your " +
+	"current turn: once the panel has taken the restart, end the turn and do nothing more. A restart ends everything the session runs — its agents, workflows, " +
+	"background commands and observers — so while any of them is at work nothing is restarted and the call says what " +
+	"is at work; a wake-up or an alarm the session set runs nothing and does not count. A restart you started on your " +
 	"own: end the turn and restart once that work is done. A restart the person asked for: tell them what " +
 	"is at work. anyway restarts all the same and ends that work: only on the person's word."
 
@@ -71,7 +71,7 @@ func restartSchema() map[string]any {
 			"intent": map[string]any{"type": "string", "minLength": 1, "maxLength": action.IntentMax,
 				"description": "With continue, and only with it: the message this session writes to itself — what it was doing and the step it takes next. It comes as the first message of the resumed conversation, in place of the map's message after a restart; nobody else writes it, and without it the session would come back and wait."},
 			"anyway": map[string]any{"type": "boolean",
-				"description": "Restart even with agents, workflows or background commands at work; they end. Only on the person's word."},
+				"description": "Restart even with agents, workflows, background commands or observers at work; they end. Only on the person's word."},
 		},
 		"additionalProperties": false,
 	}
@@ -138,7 +138,7 @@ func restart(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (s
 // for it: act names the one as a noun and a verb alike, done is what nothing
 // was.
 func waitLine(w work, act, done string) string {
-	one := w.Agents+w.Tasks+w.Workflows == 1
+	one := w.Agents+w.Tasks+w.Workflows+w.Observers == 1
 	are, them := "are", "them"
 	if one {
 		are, them = "is", "it"

@@ -14,10 +14,10 @@ type shared struct {
 		What    string          `json:"what"`
 		Session string          `json:"session"`
 		State   json.RawMessage `json:"state"`
-		Work    [3]int          `json:"work"`
+		Work    [4]int          `json:"work"`
 	} `json:"work"`
 	Words []struct {
-		Work  [3]int `json:"work"`
+		Work  [4]int `json:"work"`
 		Words string `json:"words"`
 	} `json:"words"`
 }
@@ -63,7 +63,7 @@ func TestTheSharedCasesOfWhatIsAtWork(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := workOf(s, c.Session); got != (work{Agents: c.Work[0], Tasks: c.Work[1], Workflows: c.Work[2]}) {
+			if got := workOf(s, c.Session); got != (work{Agents: c.Work[0], Tasks: c.Work[1], Workflows: c.Work[2], Observers: c.Work[3]}) {
 				t.Errorf("the work is %+v, meant %v", got, c.Work)
 			}
 		})
@@ -72,7 +72,7 @@ func TestTheSharedCasesOfWhatIsAtWork(t *testing.T) {
 
 func TestTheSharedWordsOfWhatIsAtWork(t *testing.T) {
 	for _, c := range sharedCases(t).Words {
-		w := work{Agents: c.Work[0], Tasks: c.Work[1], Workflows: c.Work[2]}
+		w := work{Agents: c.Work[0], Tasks: c.Work[1], Workflows: c.Work[2], Observers: c.Work[3]}
 		if got := w.words(); got != c.Words {
 			t.Errorf("%v is said %q, meant %q", c.Work, got, c.Words)
 		}
