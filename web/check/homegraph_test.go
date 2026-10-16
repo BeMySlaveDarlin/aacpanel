@@ -930,16 +930,16 @@ func TestEveryOrbitLeansItsOwnWay(t *testing.T) {
 	}
 }
 
-// The orbits, and the orbits of the moons, are barely there: hairlines at an
-// opacity of 0.05 to 0.08, the half nearer the eye the brighter.
+// The orbits, and the orbits of the moons, are faint: hairlines at an
+// opacity of 0.08 to 0.13, the half nearer the eye the brighter.
 func TestTheOrbitsAreBarelyThere(t *testing.T) {
 	got := runHomeGraph(t)
 	o := got.OrbitInk
 	if o.Rings != 6 || o.Found != o.Wanted || o.Wanted == 0 {
 		t.Fatalf("%d of %d segments of %d orbits found among the strokes: every orbit is drawn in its lean", o.Found, o.Wanted, o.Rings)
 	}
-	if o.Min < 0.05 || o.Max > 0.08 {
-		t.Errorf("the orbits are drawn at an opacity of %v to %v: barely there is 0.05 to 0.08", o.Min, o.Max)
+	if o.Min < 0.08 || o.Max > 0.13 {
+		t.Errorf("the orbits are drawn at an opacity of %v to %v: faint is 0.08 to 0.13", o.Min, o.Max)
 	}
 	if !(o.Near > o.Far) {
 		t.Errorf("the near half of the orbits is drawn at %v against %v for the far half: the near half is the brighter", o.Near, o.Far)
