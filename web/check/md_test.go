@@ -63,6 +63,23 @@ func TestMarkdownListSurvivesBlankLinesBetweenItems(t *testing.T) {
 			plainList(`<ol class="mdlist" start="1"><li>a</li></ol>`) +
 				plainList(`<ul class="mdlist"><li>b</li></ul>`),
 		},
+		{
+			"a line that follows an item with no indent goes on with the item",
+			"- A general answer: ask what follows. A strong one goes into detail,\nthe weak one says the same again.\n- Note the answer.",
+			plainList(`<ul class="mdlist"><li>A general answer: ask what follows. A strong one goes into detail, the weak one says the same again.</li>` +
+				`<li>Note the answer.</li></ul>`),
+		},
+		{
+			"an indented line goes on with the item too",
+			"1. first\n   and more\n2. second",
+			plainList(`<ol class="mdlist" start="1"><li>first and more</li><li>second</li></ol>`),
+		},
+		{
+			"a paragraph after a blank line is not the item's, and a heading ends the item",
+			"- a\ngoes on\n\nanother paragraph\n- b\n## Next",
+			plainList(`<ul class="mdlist"><li>a goes on</li></ul>`) + `<p>another paragraph</p>` +
+				plainList(`<ul class="mdlist"><li>b</li></ul>`) + `<div class="mdh mdh2">Next</div>`,
+		},
 	}
 	texts := make([]string, 0, len(cases))
 	for _, c := range cases {

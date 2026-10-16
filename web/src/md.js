@@ -244,16 +244,25 @@ export function render(text, opts) {
             const mark = ordered ? numbered : bullet;
             const items = [];
             while (i < lines.length && mark.test(lines[i])) {
-                items.push(lines[i].replace(mark, ""));
+                const item = [lines[i].replace(mark, "")];
                 i += 1;
+                // The lines that follow an item with no blank line between
+                // go on with its words, indented or not, until a line that
+                // starts something of its own.
+                while (i < lines.length && lines[i].trim() && !starts(lines[i]) && !bullet.test(lines[i]) && !numbered.test(lines[i])) {
+                    item.push(lines[i].trim());
+                    i += 1;
+                }
+                items.push(item);
                 let next = i;
                 while (next < lines.length && !lines[next].trim()) next += 1;
                 if (next > i && next < lines.length && mark.test(lines[next])) i = next;
             }
             const start = ordered ? Number(numbered.exec(line)[1]) : 0;
+            const words = (it) => (breaks ? hard(it) : inline(it.join(" ")));
             out.push(ordered
-                ? html`<ol class="mdlist" start=${start}>${items.map((it, n) => html`<li key=${n}>${inline(it)}</li>`)}</ol>`
-                : html`<ul class="mdlist">${items.map((it, n) => html`<li key=${n}>${inline(it)}</li>`)}</ul>`);
+                ? html`<ol class="mdlist" start=${start}>${items.map((it, n) => html`<li key=${n}>${words(it)}</li>`)}</ol>`
+                : html`<ul class="mdlist">${items.map((it, n) => html`<li key=${n}>${words(it)}</li>`)}</ul>`);
             continue;
         }
 
@@ -264,9 +273,7 @@ export function render(text, opts) {
 
         const para = [line];
         i += 1;
-        while (i < lines.length && lines[i].trim()
-               && !lines[i].startsWith("```") && !lines[i].startsWith("|")
-               && !/^(#{1,4})\s/.test(lines[i]) && !/^\s*>/.test(lines[i])
+        while (i < lines.length && lines[i].trim() && !starts(lines[i])
                && !bullet.test(lines[i]) && !numbered.test(lines[i])) {
             para.push(lines[i]);
             i += 1;
@@ -275,6 +282,13 @@ export function render(text, opts) {
     }
 
     return out;
+}
+
+// starts says whether a line begins a block of its own — a fence, a table, a
+// heading, a quote or a rule — and so ends the words before it.
+function starts(line) {
+    return line.startsWith("```") || line.startsWith("|") || /^(#{1,4})\s/.test(line) || /^\s*>/.test(line)
+        || /^\s*(---|\*\*\*|___)\s*$/.test(line);
 }
 
 // dedent takes off the indent a letter came with as a whole: a report that
