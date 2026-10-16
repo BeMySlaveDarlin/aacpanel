@@ -73,8 +73,8 @@ func TestThePhoneCardKeepsItsActionsAboveItsPlace(t *testing.T) {
 		checklist string
 	}{
 		"aacpanel":       {"working · 15 h 40 m · RC", "stream", "78%", "pjsince", 1, "cut"},
-		"atlas":          {"idle · 4 d 20 h · RC", "stream", "64%", "pjwork", 1, "whole"},
-		"blog":           {"idle · 3 h 0 m", "tmux", "9%", "pjwork", 1, ""},
+		"atlas":          {"background · 4 d 20 h · RC", "stream", "64%", "pjwork", 1, "whole"},
+		"blog":           {"background · 3 h 0 m", "tmux", "9%", "pjwork", 1, ""},
 		long:             {"idle · 25 min", "stream", "22%", "pjsince", 1, ""},
 		"shop":           {"idle · 1 h 30 m", "stream", "31%", "pjsince", 1, ""},
 		"codex-5afc361b": {"idle · 42 min", "daemon", "15%", "pjsince", 1, ""},

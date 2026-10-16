@@ -1,9 +1,11 @@
-// The conversation header: the name as a marquee, what the session thinks with
-// and how much context is eaten.
+// The conversation header: the name as a marquee, what the session thinks with,
+// how much context is eaten and how the session stands — what runs in its
+// background counted and said as its row in the list of sessions says it.
 
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { plural } from "../../format.js";
 import { waitText } from "../../ui/waits.js";
 import { shown } from "./answered.js";
 
@@ -103,7 +105,43 @@ export function stateOf(row, still = null, move = null) {
     }
     if (live.status === "busy") return { tone: "busy", say: "handling the request", word: "answering" };
     if (!live.status) return { tone: "", say: "the session state is unknown", word: "" };
+    // The answer is over and what it started still runs: the session takes a
+    // message, but it is not quiet.
+    if (runningOf(live.work) > 0) {
+        const work = workOf(live.work);
+        return { tone: "bg", say: `the answer is over, background work goes on${work ? `: ${work}` : ""}`, word: "background" };
+    }
     return { tone: "idle", say: "waiting for a message", word: "idle" };
+}
+
+// backgroundOf counts the background tasks of a session as the snapshot counts
+// them: its own, and the observers and the alarms it asked the panel for —
+// they wait for it in the background as its own do, and end with it the same.
+export function backgroundOf(work) {
+    const w = work || {};
+    return (w.tasks || 0) + (w.observers || 0) + (w.alarms || 0);
+}
+
+// workOf says what a session has in its background, as the line under the
+// state of its row says it: its agents and its background tasks.
+export function workOf(work) {
+    const agents = (work && work.agents) || 0;
+    const tasks = backgroundOf(work);
+    return [
+        agents > 0 && `${agents} ${plural(agents, "agent", "agents")}`,
+        tasks > 0 && `${tasks} ${plural(tasks, "background task", "background tasks")}`,
+    ].filter(Boolean).join(" · ");
+}
+
+// runningOf counts what of a session's background work runs: its agents, its
+// workflows, the observers it asked the panel for and its own tasks bar its
+// wakes. A timer runs nothing — a wake the session set itself or an alarm the
+// panel holds for it — and the session sleeps until it: one with only timers
+// ahead is idle. The list and the head of the conversation say "background"
+// by this count both, so the two never part.
+export function runningOf(work) {
+    const w = work || {};
+    return Math.max(0, (w.tasks || 0) - (w.wakes || 0)) + (w.agents || 0) + (w.workflows || 0) + (w.observers || 0);
 }
 
 // Most of a name the tail keeps when the line is too short for all of it.

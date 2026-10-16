@@ -92,7 +92,7 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		wantState, wantSince, wantWork := "idle", "Claude · Opus 5.5 · 2 min ago", ""
 		switch {
 		case session == "aacpanel":
-			wantWork = "3 background tasks"
+			wantState, wantWork = "background", "3 background tasks"
 		case session == "person":
 			wantState, wantSince = "no requests yet", "Claude · Opus 5.5"
 		case remote:

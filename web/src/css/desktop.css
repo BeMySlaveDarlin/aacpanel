@@ -469,6 +469,8 @@
 
     .dkfolddots i[data-tone="busy"] { background: var(--accent); opacity: 1; }
 
+    .dkfolddots i[data-tone="bg"] { background: transparent; opacity: 1; box-shadow: inset 0 0 0 1.5px var(--accent); }
+
     .dkfolddots i[data-tone="wait"] { background: var(--wait); opacity: 1; box-shadow: 0 0 8px var(--wait); }
 
     .dksess.dklive.dkbranch {
@@ -691,6 +693,10 @@
     .dklive[data-tone="wait"] .dksay .dkdot { background: var(--wait); box-shadow: 0 0 9px var(--wait); }
 
     .dklive[data-tone="busy"] .dksay { font-weight: 600; color: var(--accent); }
+
+    /* Background work keeps the weight of the quiet rows: in the accent of
+       work, a step lighter than an answer. */
+    .dklive[data-tone="bg"] .dksay { color: var(--accent); }
 
     .dklive .dksay .dkdot.dkidle { opacity: .8; }
 
@@ -1009,6 +1015,9 @@
 
     .dkdot.dkbusy { background: var(--accent); }
 
+    /* At work, but not answering: an empty ring in the accent of work. */
+    .dkdot.dkbg { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
+
     .dkdot.dkwaiting { background: var(--warn); box-shadow: 0 0 .35rem var(--warn); }
 
     .dkdot.dkidle, .dkdot.dkok { background: var(--ok); }
@@ -1218,6 +1227,8 @@
     .dkword { font-size: var(--t-sm); color: var(--ink-faint); }
 
     .dkword[data-tone="waiting"] { color: var(--wait); }
+
+    .dkword[data-tone="bg"] { color: var(--accent); }
 
     .dkpct { font-size: var(--t-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ctx-1); }
 

@@ -17,12 +17,13 @@ import { inOrder, sessionsOf } from "./of.js";
 import { kinLabel, kinOf, layoutOf, openedLabel, placeOf } from "./kin.js";
 import { useFolds } from "./folds.js";
 import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../../agent.js";
-import { modelTitle } from "../chat/head.js";
+import { backgroundOf, modelTitle, runningOf, workOf } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
 import { calledMark } from "../../viewing.js";
 
-// The order of the list: who waits for the person, who works, who is quiet.
+// The order of the list: who waits for the person, who works — on an answer
+// or in its background — and who is quiet.
 export const RANK = { wait: 0, busy: 1, quiet: 2 };
 
 // How many projects with nothing live the list shows under the live ones: the
@@ -48,16 +49,15 @@ export function stateOf(row) {
     if (s.waitingFor || s.status === "waiting") {
         return { tone: "wait", text: waitText(s.waitingFor), since: "", when: "", work: "" };
     }
-    const agents = (s.work && s.work.agents) || 0;
-    const tasks = backgroundOf(s.work);
-    const work = [
-        agents > 0 && `${agents} ${plural(agents, "agent", "agents")}`,
-        tasks > 0 && `${tasks} ${plural(tasks, "background task", "background tasks")}`,
-    ].filter(Boolean).join(" · ");
+    const work = workOf(s.work);
     if (s.status === "busy") return { tone: "busy", text: "working", since: work, when: "", work };
     if (s.noRequests) return { tone: "idle", text: "no requests yet", since: work, when: "", work };
     const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
-    return { tone: "idle", text: "idle", since: [when, work].filter(Boolean).join(" · "), when, work };
+    const since = [when, work].filter(Boolean).join(" · ");
+    // The answer is over and what it started still runs (see runningOf): the
+    // row says so rather than idle, and its project stands among the working.
+    if (runningOf(s.work) > 0) return { tone: "bg", text: "background", since, when, work };
+    return { tone: "idle", text: "idle", since, when, work };
 }
 
 // useAnswers redraws a list of sessions when an answer from this page marks a
@@ -67,14 +67,6 @@ export function stateOf(row) {
 export function useAnswers() {
     const [, redraw] = useState(0);
     useEffect(() => listen(() => redraw((n) => n + 1)), []);
-}
-
-// backgroundOf counts the background tasks of a session as the snapshot counts
-// them: its own, and the observers and the alarms it asked the panel for —
-// they wait for it in the background as its own do, and end with it the same.
-function backgroundOf(work) {
-    const w = work || {};
-    return (w.tasks || 0) + (w.observers || 0) + (w.alarms || 0);
 }
 
 // stopsOf names what a close or a restart of a live session ends with it: its
@@ -219,7 +211,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
         block.live = inOrder(block.project, block.live);
         const tones = block.live.map((s) => stateOf(s).tone);
         block.rank = tones.includes("wait") ? RANK.wait
-            : tones.includes("busy") || block.ghosts.length > 0 ? RANK.busy
+            : tones.includes("busy") || tones.includes("bg") || block.ghosts.length > 0 ? RANK.busy
                 : RANK.quiet;
         const times = [
             ...block.live.map((s) => stamp(s.lastRequestAt || s.startedAt)),

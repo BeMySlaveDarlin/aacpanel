@@ -37,6 +37,8 @@ const rows = [
     { ...base, session: "shop", sessionId: "c", transport: "stream", pct: 31, startedAt: ago(90), lastRequestAt: ago(7) },
     { ...base, session: "codex-5afc361b", sessionId: "e", project: { id: 3 }, agent: "codex", transport: "stream",
       model: "gpt-6-astra", pct: 15, startedAt: ago(42), lastRequestAt: ago(2) },
+    // A command of its own runs: the session is at work in its background,
+    // on a line shorter than that of atlas.
     { ...base, session: "blog", sessionId: "d", pct: 9, startedAt: ago(3 * 60), lastRequestAt: ago(18), work: { tasks: 1 } },
     { ...base, session: "blog-fingerprint-rotation-second-pass", sessionId: "f", project: { id: 4 }, transport: "stream",
       pct: 22, startedAt: ago(25), lastRequestAt: ago(3) },

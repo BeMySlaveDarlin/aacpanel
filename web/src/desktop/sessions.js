@@ -45,7 +45,7 @@ const SHELF = 6;
 const SHELF_ASK = 30;
 
 // The dot of a row by the tone of its state.
-const DOT = { wait: "dkwaiting", busy: "dkbusy", idle: "dkidle", off: "dkoff" };
+const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", off: "dkoff" };
 
 // ContourPick chooses which contours the column shows.
 export function ContourPick({ names, picks, onToggle, onAll }) {

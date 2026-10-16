@@ -26,7 +26,8 @@ const rows = [
     { ...base, session: "acme-fingerprint-rotation-second", sessionId: "a", transport: "stream",
       remote: "https://claude.ai/code/session_01abc", lastRequestAt: new Date(Date.now() - 18 * 60e3).toISOString() },
     // One shell of its own, an observer and an alarm of the panel: the card
-    // counts them as one background work.
+    // counts all three as its background tasks, and with the shell and the
+    // observer running the session is at work in its background.
     { ...base, session: "aacpanel", sessionId: "b", work: { tasks: 1, observers: 1, alarms: 1 },
       called: new Date(Date.now() - 120e3).toISOString().replace(/\.\d+Z$/, "Z") },
     { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },

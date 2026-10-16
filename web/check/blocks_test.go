@@ -90,3 +90,97 @@ func TestAConversationIsNamedByTheLastWordsThatSaySomething(t *testing.T) {
 		}
 	}
 }
+
+// An idle session with something of its own still running — an agent, a
+// background command, a workflow, an observer of the panel — is at work in
+// its background, not quiet; a timer runs nothing, and a session with only a
+// wake of its own or an alarm of the panel ahead is idle. A question and a
+// permission still come first, and an answer at work stays busy. The project
+// of a session at work in its background stands among the working, above a
+// quiet one that asked later.
+func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
+	row := func(status string, work map[string]any, more ...any) map[string]any {
+		out := map[string]any{"session": "s", "status": status, "work": work, "lastRequestAt": "2026-09-27T09:00:00Z"}
+		for i := 0; i+1 < len(more); i += 2 {
+			out[more[i].(string)] = more[i+1]
+		}
+		return out
+	}
+	work := func(kv ...any) map[string]any {
+		out := map[string]any{"tasks": 0, "agents": 0}
+		for i := 0; i+1 < len(kv); i += 2 {
+			out[kv[i].(string)] = kv[i+1]
+		}
+		return out
+	}
+	cases := []struct {
+		name, tone, text string
+		row              map[string]any
+	}{
+		{"an agent", "bg", "background", row("idle", work("agents", 1))},
+		{"an observer of the panel", "bg", "background", row("idle", work("observers", 1))},
+		{"a workflow", "bg", "background", row("idle", work("workflows", 1))},
+		{"a background command beside a wake", "bg", "background", row("idle", work("tasks", 2, "wakes", 1))},
+		{"only a wake of its own", "idle", "idle", row("idle", work("tasks", 1, "wakes", 1))},
+		{"only an alarm of the panel", "idle", "idle", row("idle", work("alarms", 1))},
+		{"a question beside an agent", "wait", "", row("idle", work("agents", 1), "ask", map[string]any{"header": "Screens", "count": 1})},
+		{"a permission beside an agent", "wait", "", row("waiting", work("agents", 1))},
+		{"an answer beside an agent", "busy", "working", row("busy", work("agents", 1))},
+	}
+	calls := make([][]any, len(cases))
+	for i, c := range cases {
+		calls[i] = []any{c.row}
+	}
+	got := runModuleJS(t, "src/screens/sessions/blocks.js", "stateOf", calls)
+	for i, c := range cases {
+		st := got[i].(map[string]any)
+		if st["tone"] != c.tone || (c.text != "" && st["text"] != c.text) {
+			t.Errorf("%s: the row reads %v %q, expected %s %q", c.name, st["tone"], st["text"], c.tone, c.text)
+		}
+	}
+	if st := got[0].(map[string]any); st["work"] != "1 agent" || !strings.Contains(st["since"].(string), "1 agent") {
+		t.Errorf("a row at work in its background lost the line of what runs: work %q, since %q", st["work"], st["since"])
+	}
+
+	profile := map[string]any{"groups": []any{
+		map[string]any{"name": "Infra", "projects": []any{
+			map[string]any{"id": 1, "name": "quiet", "session": "quiet", "path": "/p/quiet"},
+			map[string]any{"id": 2, "name": "runs", "session": "runs", "path": "/p/runs"},
+		}},
+	}}
+	sessions := []any{
+		map[string]any{"session": "quiet", "sessionId": "q1", "status": "idle", "work": work(), "lastRequestAt": "2026-09-27T10:00:00Z"},
+		map[string]any{"session": "runs", "sessionId": "r1", "status": "idle", "work": work("agents", 1), "lastRequestAt": "2026-09-27T09:00:00Z"},
+	}
+	blocks := runModuleJS(t, "src/screens/sessions/blocks.js", "blocksOf", [][]any{
+		{map[string]any{"profile": profile, "sessions": sessions}},
+	})[0].([]any)
+	var order []string
+	rank := map[string]float64{}
+	for _, raw := range blocks {
+		b := raw.(map[string]any)
+		order = append(order, b["name"].(string))
+		rank[b["name"].(string)] = b["rank"].(float64)
+	}
+	if strings.Join(order, ",") != "runs,quiet" || rank["runs"] != 1 || rank["quiet"] != 2 {
+		t.Errorf("the list reads %v with ranks %v — a project at work in its background stands among the working, above the quiet", order, rank)
+	}
+}
+
+// The head of the conversation says background work by the same count as the
+// row: an idle session with an agent at work is at work in its background and
+// says what runs; one with only an alarm ahead is idle.
+func TestTheHeadSaysBackgroundWorkAsTheRowDoes(t *testing.T) {
+	got := runModuleJS(t, "src/screens/chat/head.js", "stateOf", [][]any{
+		{map[string]any{"session": "s", "status": "idle", "work": map[string]any{"tasks": 0, "agents": 1}}},
+		{map[string]any{"session": "s", "status": "idle", "work": map[string]any{"tasks": 0, "agents": 0, "alarms": 1}}},
+	})
+	bg := got[0].(map[string]any)
+	if bg["tone"] != "bg" || bg["word"] != "background" || !strings.Contains(bg["say"].(string), "1 agent") {
+		t.Errorf("an idle session with an agent at work reads %v %q (%q) in its head, expected bg \"background\" naming the agent",
+			bg["tone"], bg["word"], bg["say"])
+	}
+	if idle := got[1].(map[string]any); idle["tone"] != "idle" || idle["word"] != "idle" {
+		t.Errorf("a session with only an alarm ahead reads %v %q in its head, expected idle", idle["tone"], idle["word"])
+	}
+}

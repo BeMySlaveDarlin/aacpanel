@@ -187,7 +187,10 @@ export function graphOf(snapshot, before = null) {
             label: isCodex(s) && p.parent ? `codex · ${shownName(byName.get(p.parent))}` : shownName(s),
             contour: contourOf(s),
             orbit: nameOfOrbit(p),
-            tone: state.tone,
+            // A planet with background work is drawn as an idle one: the work
+            // is drawn already, as the marks of its agents and tasks around
+            // it. The words of its tip and its note stay the row's.
+            tone: state.tone === "bg" ? "idle" : state.tone,
             state,
             pct: s.pct || 0,
             idle: p.idle,
