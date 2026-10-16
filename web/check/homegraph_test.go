@@ -112,6 +112,10 @@ type homeGraph struct {
 		Wrap        []string  `json:"wrap"`
 		Clicked     []string  `json:"clicked"`
 		ClickOpens  int       `json:"clickOpened"`
+		OrbitClick  []string  `json:"orbitClicked"`
+		OrbitOpens  int       `json:"orbitOpened"`
+		OrbitStar   int       `json:"orbitFromStar"`
+		OrbitMarks  int       `json:"orbitFromMarks"`
 		Kept        []string  `json:"kept"`
 		Reorder     []string  `json:"reorder"`
 		Reset       []string  `json:"reset"`
@@ -461,6 +465,7 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 		{"down from personal — client in front", c.Down},
 		{"down from client — round to lab", c.Wrap},
 		{"a click on personal's star", c.Clicked},
+		{"a click among client's orbits", c.OrbitClick},
 	} {
 		if !reflect.DeepEqual(step.got, all) {
 			t.Errorf("after %s the stars are found as %v: the contour comes forward, and nothing is zoomed", step.what, step.got)
@@ -471,6 +476,13 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 	}
 	if c.ClickOpens != 0 {
 		t.Errorf("a click on a star opened %d sessions", c.ClickOpens)
+	}
+	if c.OrbitMarks < 30 {
+		t.Errorf("the click among client's orbits fell %d px from its star and %d px from its nearest mark: "+
+			"it asks the star or a planet, not the orbits", c.OrbitStar, c.OrbitMarks)
+	}
+	if c.OrbitOpens != 0 {
+		t.Errorf("a click among the orbits of a system behind opened %d sessions", c.OrbitOpens)
 	}
 	if c.Instant > 2 {
 		t.Errorf("where less motion is asked for, a contour came forward over %d frames", c.Instant)

@@ -333,6 +333,24 @@ function hitAt(hits, x, y) {
     return best;
 }
 
+// behindAt is a system behind the one in front whose orbits a point of the
+// stage falls among, the one whose star is nearest where two boxes overlap:
+// a click there brings it forward as a click on its star does. The system in
+// front has no such box — it is already forward.
+function behindAt(areas, front, x, y) {
+    let best = null;
+    let bd = Infinity;
+    for (const a of areas || []) {
+        if (a.star.name === front || x < a.x0 || x > a.x1 || y < a.y0 || y > a.y1) continue;
+        const d = Math.hypot(a.cx - x, a.cy - y);
+        if (d < bd) {
+            bd = d;
+            best = { star: a.star };
+        }
+    }
+    return best;
+}
+
 // placeTip finds the corner of the tip near the pointer that covers the
 // fewest names and marks, inside the stage.
 function placeTip(x, y, tw, th, W, H, taken, hits) {
@@ -529,6 +547,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             pan: st.pan,
         });
         st.hits = drawn.hits;
+        st.areas = drawn.areas;
         st.taken = drawn.taken;
     };
     const paintRef = useRef(paint);
@@ -797,8 +816,8 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         const was = tip && (tip.node || tip.star);
         if ((h && (h.node || h.star)) !== was) show(h, at);
     };
-    // A click on a planet opens its session; a click on a star brings its
-    // system forward.
+    // A click on a planet opens its session; a click on a star, or among the
+    // orbits of a system behind, brings that system forward.
     const up = (e) => {
         const st = live.current;
         const drag = st.drag;
@@ -807,7 +826,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         if (drag && drag.moved && !drag.turn) request(true);
         if (!drag || drag.moved || drag.button !== 0) return;
         const at = point(e);
-        const h = hitAt(st.hits, at.x, at.y);
+        const h = hitAt(st.hits, at.x, at.y) || behindAt(st.areas, st.front, at.x, at.y);
         if (!h) return;
         if (h.star) {
             setTip(null);

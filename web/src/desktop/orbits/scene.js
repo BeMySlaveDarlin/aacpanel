@@ -520,6 +520,7 @@ export function drawScene(ctx, W, H, pr, scene) {
     const discs = [];
     const items = [];
     const hits = [];
+    const areas = [];
     const bySystem = new Map(systems.map((s) => [s.name, s]));
     // The names of the system in front are all written; those of the systems
     // behind it, smaller with distance, only where they stand clear, but for
@@ -566,11 +567,21 @@ export function drawScene(ctx, W, H, pr, scene) {
         line(ctx, ring, s.tint, () => 0.28);
         // The orbits, each in its lean.
         const orbit = (points, centre, colour) => line(ctx, points, colour, (a, b) => ((a.z + b.z) / 2 < centre.z ? ORBIT[1] : ORBIT[0]));
+        // The box the orbits take on the stage: a click there, off every
+        // mark, is a click on the system.
+        const box = { x0: star.x, y0: star.y, x1: star.x, y1: star.y, cx: star.x, cy: star.y, star: s };
         for (const o of s.orbits) {
             const points = [];
             for (let i = 0; i <= 120; i++) points.push(plane(onOrbit(o, (i / 120) * TAU)));
             orbit(points, star, s.tint);
+            for (const q of points) {
+                box.x0 = Math.min(box.x0, q.x);
+                box.y0 = Math.min(box.y0, q.y);
+                box.x1 = Math.max(box.x1, q.x);
+                box.y1 = Math.max(box.y1, q.y);
+            }
         }
+        areas.push(box);
         // The orbits of the moons.
         for (const n of s.members) {
             if (n.kids.length === 0) continue;
@@ -646,7 +657,7 @@ export function drawScene(ctx, W, H, pr, scene) {
     }
 
     const labels = tags(ctx, W, H, items, taken, discs, rgba(pal.ink, 0.3), u, scene.sides, scene.settle);
-    return { hits, taken, labels };
+    return { hits, taken, labels, areas };
 }
 
 // linesOf is what the frame says beside a node: its name, and a number only

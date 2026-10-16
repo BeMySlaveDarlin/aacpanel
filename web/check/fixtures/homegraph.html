@@ -998,6 +998,36 @@ window.done = (async () => {
     await rest();
     gal.clicked = await fronts("personal");
     gal.clickOpened = opened.length - count;
+    // A click among the orbits of a system behind, off its star and its
+    // planets, brings it forward as its star does: the point on its outer
+    // orbit farthest from every mark of it.
+    const amongOrbitsOf = (contour, front) => {
+        const { g: seen, places, pr, win } = viewOf(front);
+        const sys = seen.systems.find((x) => x.name === contour);
+        const place = places.get(contour);
+        const o = sys.orbits[sys.orbits.length - 1];
+        const marks = [pr(place.c), ...sys.members.map((n) => pr(worldOf(place, n.w)))];
+        let best = null;
+        let far = -1;
+        for (let i = 0; i < 48; i++) {
+            const q = pr(worldOf(place, onOrbit(o, (i / 48) * TAU)));
+            const d = Math.min(...marks.map((m) => Math.hypot(m.x - q.x, m.y - q.y)));
+            if (d > far) {
+                far = d;
+                best = q;
+            }
+        }
+        gal.orbitFromStar = Math.round(Math.hypot(best.x - marks[0].x, best.y - marks[0].y));
+        gal.orbitFromMarks = Math.round(far);
+        return win(best);
+    };
+    count = opened.length;
+    await press(amongOrbitsOf("client", "personal"));
+    await rest();
+    gal.orbitClicked = await fronts("client");
+    gal.orbitOpened = opened.length - count;
+    await press(starOf("personal", "client"));
+    await rest();
     // The contours wake up and quiet down: lab now waits, blog does not.
     const kept = gal.order;
     snapshot = { ...snapshot, sessions: snapshot.sessions.map((x) => (x.session === "blog" ? { ...x, status: "idle" }
