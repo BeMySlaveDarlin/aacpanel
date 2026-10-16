@@ -500,9 +500,22 @@ class Lineage(unittest.TestCase):
         # the pid now is another, a session started later under the same
         # name among them.
         self.environ({500: {ctx.PARENT_VAR: "lead"}})
-        self.stood(500, {"session": "review", "procStart": "776"})
-        self.table({500: (40, "claude"), 40: (1, "aacpanel-exec")})
-        self.assertEqual(ctx.lineage(500, {}), {"parent": {"session": "lead"}})
+        for kept in ("review", ""):
+            with self.subTest(kept=kept):
+                self.stood(500, {"session": kept, "procStart": "776"})
+                self.table({500: (40, "claude"), 40: (1, "aacpanel-exec")})
+                self.assertEqual(ctx.lineage(500, {}), {"parent": {"session": "lead"}})
+
+    def test_a_session_taken_from_under_its_parent_stands_alone_whatever_its_environment_says(self):
+        # Opened by lead, which its environment keeps to the end of the
+        # process, and taken from under it later.
+        self.environ({500: {ctx.PARENT_VAR: "lead"}})
+        self.stood(500, {"session": "", "procStart": "777"})
+        for where in ({500: (40, "claude"), 40: (1, "tmux: server")},
+                      {500: (40, "claude"), 40: (1, "aacpanel-exec")}):
+            with self.subTest(where=where[40][1]):
+                self.table(where)
+                self.assertEqual(ctx.lineage(500, {}), {})
 
     def test_a_run_is_named_by_the_session_it_runs_in_whatever_was_kept_for_it(self):
         self.environ({500: {}})

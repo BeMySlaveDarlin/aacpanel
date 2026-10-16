@@ -1,6 +1,7 @@
 // Registry of state-changing actions: what to tell the person before it happens.
 
 import { isCodex } from "../agent.js";
+import { openedBy } from "../screens/sessions/kin.js";
 
 let hostName = "";
 let profileMap = [];
@@ -31,6 +32,11 @@ export function setLiveSessions(list) {
 // thread.
 function codexTarget(target) {
     return isCodex(liveSessions.find((s) => s.session === target));
+}
+
+// parentOf names the session the live session an action names stands under.
+function parentOf(target) {
+    return openedBy(liveSessions.find((s) => s.session === target));
 }
 
 const AGENTS = [["claude", "Claude Code"], ["codex", "Codex"]];
@@ -529,6 +535,15 @@ export const ACTIONS = {
         instant: true,
         effect: "Remote Control makes the session reachable from the Claude app and claude.ai; switched off, the bridge goes and the session stays where it is.",
         done: (target, params) => `${target}: Remote Control ${params && params.on ? "is on" : "is off"}`,
+    },
+    // No screen stands a session back under the one it was taken from: a
+    // request on the local listener does, so the sheet says so before the press.
+    "session.detach": {
+        title: (target) => `Detach ${target} from ${parentOf(target) || "its parent"}?`,
+        effect: "The session stands on its own in the list of sessions and comes back on its own after a restart; "
+            + "its conversation goes on as it is. No screen stands it under a session again.",
+        done: (target) => `${target} stands on its own`,
+        ok: "Detach",
     },
     "session.rename": {
         instant: true,
@@ -1069,6 +1084,7 @@ const NAMES = {
     "session.mcp": "Change an MCP server",
     "session.rename": "Rename the session",
     "session.remote": "Remote Control",
+    "session.detach": "Detach a session from its parent",
     "secret.put": "Save a secret",
     "secret.drop": "Remove a secret",
     "window.open": "Open window",

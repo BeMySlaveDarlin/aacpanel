@@ -191,7 +191,8 @@ func (l *Link) adopt(threadID, parent string) {
 // started at the word of that session stands. The parent goes on the disk
 // first, and one that does not get there is refused rather than shown: the
 // executor started after this one would not know it, and the thread would
-// leave its parent with no word to anyone.
+// leave its parent with no word to anyone. An empty parent stands the thread
+// on its own.
 func (l *Link) SetParent(threadID, parent string) error {
 	if err := keepParent(threadID, parent); err != nil {
 		return err

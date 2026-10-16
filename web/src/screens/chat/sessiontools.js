@@ -21,7 +21,7 @@ import { copyText } from "./copy.js";
 import { shortPath } from "./head.js";
 import { useRemote } from "./remote.js";
 import { moveSession, stops } from "./switch.js";
-import { outsideNote, placeOf } from "../sessions/kin.js";
+import { openedBy, outsideNote, placeOf } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
 
 // MoreButton opens the tools of the session from the header on a phone.
@@ -159,6 +159,7 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
             <div class="cmdsechead"><span>Session</span></div>
             <ul class="mcplist toollist">
                 <${SessionLines} name=${name} live=${live} exec=${exec} cwd=${cwd} onDone=${onDone} onLook=${onLook} />
+                <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
             </ul>
         </section>
         <section class="toolsec toolend">
@@ -280,6 +281,30 @@ export function renameWhy(live, exec) {
     if (live.outside) return "the panel did not start this session and cannot rename it";
     if (live.transport !== "stream") return "a session in tmux is renamed on its own screen, /rename with keys";
     return knows(exec, "session.rename") ? "" : whyNot(exec, "session.rename");
+}
+
+// DETACH says what taking a session from under its parent does, on the item
+// of the menu and on the line of the tools alike.
+export const DETACH = "the session stands on its own in the list; its conversation goes on as it is";
+
+// detach takes a live session from under the session it stands under.
+export function detach(run, name) {
+    return run("session.detach", name, {});
+}
+
+// detachWhy says why the session cannot be taken from under its parent now,
+// or nothing when it can.
+export function detachWhy(exec) {
+    return knows(exec, "session.detach") ? "" : whyNot(exec, "session.detach");
+}
+
+// DetachLine takes the session from under the session it stands under; a
+// session standing on its own has no line.
+export function DetachLine({ name, live, exec, run, onDone }) {
+    const parent = openedBy(live);
+    if (!parent) return null;
+    return html`<${ToolRow} icon=${Icon.flow} label="Detach from parent" note=${`under ${parent} · ${DETACH}`}
+                            off=${detachWhy(exec)} onPress=${() => { onDone(); detach(run, name); }} />`;
 }
 
 // IdLine copies the id a session is found again by.

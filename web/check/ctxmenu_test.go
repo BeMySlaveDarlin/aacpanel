@@ -132,6 +132,8 @@ type ctxMenu struct {
 		FocusRow bool   `json:"focusRow"`
 	} `json:"rename"`
 	Restarted       *ctxSent `json:"restarted"`
+	Detached        *ctxSent `json:"detached"`
+	DetachTitle     string   `json:"detachTitle"`
 	ClosedByMenu    *ctxSent `json:"closedByMenu"`
 	ClosedByButton  *ctxSent `json:"closedByButton"`
 	Stopped         *ctxSent `json:"stopped"`
@@ -311,8 +313,11 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 			"Copy the session ID · Copy the resume command · | · Restart the session",
 		"scratch": "Open · Terminal of the project · | · ~Rename… · Move to the stream · Open a window on this machine · " +
 			"~Turn Remote Control on · | · Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
+		"child": "Open · Terminal of the project · | · Rename… · ~Turn Remote Control on · Detach from parent · | · " +
+			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
 		"ext":          "Open · | · Copy the session ID · Copy the resume command",
 		"codex":        "Open · | · Copy the thread ID · | · Stop the turn · Close the session",
+		"codexChild":   "Open · | · Detach from parent · | · Copy the thread ID · | · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID",
@@ -344,6 +349,12 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 	}
 	if m := got.About["codexClose"]; m == nil || !strings.Contains(m.Tip, "the daemon unloads it") {
 		t.Errorf("the close of a codex thread says %+v — it should carry what a close does to a thread", m)
+	}
+	// Only a session standing under another is taken from under it: the item
+	// names the parent and says the session stands on its own in the list.
+	if m := got.About["detach"]; m == nil || m.Off || m.Note != "under aacpanel" ||
+		!strings.Contains(m.Tip, "stands on its own in the list") {
+		t.Errorf("the detach of a session aacpanel opened stands as %+v — expected naming aacpanel and what it does", m)
 	}
 }
 
@@ -410,6 +421,12 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 	}
 	if r := got.Restarted; r == nil || r.Kind != "session.restart" || r.Target != "aacpanel" || len(r.Params) != 0 {
 		t.Errorf("Restart of a session that is not the home one sent %+v — expected session.restart of aacpanel", r)
+	}
+	if d := got.Detached; d == nil || d.Kind != "session.detach" || d.Target != "review" || len(d.Params) != 0 {
+		t.Errorf("the detach of review sent %+v — expected session.detach of review", d)
+	}
+	if got.DetachTitle != "Detach review from aacpanel?" {
+		t.Errorf("the sheet before the detach asks %q — it should name the session and its parent", got.DetachTitle)
 	}
 	if m := got.Moved; m == nil || m.Kind != "session.switch" || m.Target != "scratch" || m.Params["to"] != "stream" {
 		t.Errorf("the move of scratch sent %+v — expected session.switch to the stream", m)

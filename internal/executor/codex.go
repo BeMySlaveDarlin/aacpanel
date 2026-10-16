@@ -157,6 +157,8 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexMcpChange(ctx, th, req.Mcp)
 	case action.SessionParent:
 		return codexParent(th, req.Parent)
+	case action.SessionDetach:
+		return codexDetach(th)
 	case action.TaskStop:
 		return codexTaskStop(ctx, th, req.Work)
 	case action.AgentStop:

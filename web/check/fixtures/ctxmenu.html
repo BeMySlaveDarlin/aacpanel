@@ -35,6 +35,7 @@ import { startOf } from "/src/desktop/settings.js";
 import { attachTips } from "/src/desktop/tip.js";
 import { MenuItem, MenuList, useMenu } from "/src/ui/menu.js";
 import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
 import { Icon } from "/src/ui/icons.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -59,6 +60,11 @@ const sessions = [
     S({ session: "ext", project: null, outside: true, status: "idle" }),
     S({ session: "codex-1", project: { ...projects[13], group: "Side" }, agent: "codex", title: "cx-thread", status: "busy",
         sessionId: "th-cx" }),
+    // Two sessions aacpanel had the panel open, a claude and a thread of
+    // codex: only a session standing under another is taken from under it.
+    S({ session: "review", project: { ...projects[11], group: "Side" }, parent: { session: "aacpanel" }, status: "idle" }),
+    S({ session: "codex-2", project: { ...projects[11], group: "Side" }, agent: "codex", title: "cx-review", status: "idle",
+        sessionId: "th-cx2", parent: { session: "aacpanel" } }),
 ];
 const closed = (o) => ({ model: "claude-opus-5-5", pctMax: 30, startedAt: iso(o.min + 60), lastAt: iso(o.min), messages: 4,
     profile: "personal", prompts: ["the archive pages of the blog, newest first"], ...o });
@@ -78,8 +84,9 @@ const tree = { running: 1, total: 2, stacks: [{ name: "shop", running: 1, total:
 // The host knows every kind the menus press but Remote Control and the
 // restart of a container: those two are dimmed, and say why.
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.resume", "session.open",
-    "session.switch", "session.rename", "session.stop", "window.open", "window.close", "term.start",
+    "session.switch", "session.rename", "session.stop", "session.detach", "window.open", "window.close", "term.start",
     "container.stop", "container.start", "stack.up", "stack.down"] };
+setLiveSessions(sessions);
 
 const sent = [];
 const copied = [];
@@ -415,6 +422,22 @@ window.done = (async () => {
     out.lists.codex = read();
     out.about.codexClose = about("Close the session");
     await shut();
+    // A session standing under another is taken from under it, after the
+    // sheet that names the parent; a thread of codex the same way.
+    await openOn(rowOf("cx-review"));
+    out.lists.codexChild = read();
+    await shut();
+    await openOn(rowOf("review"), true);
+    out.lists.child = read();
+    out.about.detach = about("Detach from parent");
+    const detachedBefore = sent.length;
+    itemOf("Detach from parent").click();
+    const detachSheet = await until(() => document.querySelector(confirmSel) && document.querySelector(".sheet.on"), 1500);
+    out.detachTitle = text(detachSheet && detachSheet.querySelector(".stitle"));
+    const detachYes = document.querySelector(confirmSel);
+    if (detachYes) detachYes.click();
+    await until(() => sent.length > detachedBefore && !document.querySelector(".sheet.on"), 1500);
+    out.detached = sent.length > detachedBefore ? sent[sent.length - 1] : null;
     await openOn(document.querySelector(".dkshelf .dkclosed"));
     out.lists.closed = read();
     out.resumed = await press("Resume");

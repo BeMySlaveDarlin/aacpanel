@@ -405,7 +405,7 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionLetter: true, action.SessionStop: true, action.SessionEscape: true,
 		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
 		action.SessionFile: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
-		action.SessionRename: true, action.SessionParent: true, action.TaskStop: true, action.AgentStop: true, action.SecretPut: true,
+		action.SessionRename: true, action.SessionParent: true, action.SessionDetach: true, action.TaskStop: true, action.AgentStop: true, action.SecretPut: true,
 		action.SessionMcp: true, action.ObserverStop: true, action.AlarmCancel: true}
 	for _, k := range action.Kinds {
 		if !sessionTarget(k) || taken[k] {

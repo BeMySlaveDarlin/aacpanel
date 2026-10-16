@@ -117,3 +117,26 @@ func (s *Server) standUnder(ctx context.Context, child string, params map[string
 	}
 	return parent, nil
 }
+
+// standAlone checks that a live session can be taken from under its parent
+// and returns the parent: the session lives and the panel stands it under
+// another. A run of claude inside the work of a session stands under that
+// session for as long as it runs, and nothing the panel keeps changes that.
+func (s *Server) standAlone(name string) (string, error) {
+	if s.host == nil {
+		return "", errors.New("the live sessions are not known: the host snapshot is not configured")
+	}
+	live, ok := s.host.LiveSession(name)
+	if !ok {
+		return "", fmt.Errorf("there is no live session %q", name)
+	}
+	if live.Outside {
+		return "", fmt.Errorf("session %s was started outside the panel: it stands under the session it runs in, "+
+			"or under none", name)
+	}
+	parent := live.OpenedBy()
+	if parent == "" {
+		return "", fmt.Errorf("session %s stands under no session already", name)
+	}
+	return parent, nil
+}

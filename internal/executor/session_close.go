@@ -135,6 +135,7 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 	if err != nil {
 		return "", err
 	}
+	next.Parent = keptParent(p.Agent, next.Parent)
 	s, err := findOneLiveSession(target)
 	held := err == nil && onStream(s)
 	var closed, afresh string

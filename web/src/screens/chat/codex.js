@@ -22,7 +22,7 @@ import { LOOK_NAMES } from "./look.js";
 import { AgentsChip, HeldChip } from "./work.js";
 import { McpSheet } from "./mcp.js";
 import { SetupSheet } from "./setup.js";
-import { IdLine, PlaceLine, ToolRow } from "./sessiontools.js";
+import { DetachLine, IdLine, PlaceLine, ToolRow } from "./sessiontools.js";
 import { outsideNote } from "../sessions/kin.js";
 import { useTermAvailable } from "./term.js";
 
@@ -111,7 +111,8 @@ function CodexWork({ work, processes, onOpen }) {
 }
 
 // CodexSections are the tools of a thread: where it lives, what it has, its
-// id, the stop of its turn and its close — no move, no window and no bridge.
+// id, the session it stands under while it stands under one, the stop of its
+// turn and its close — no move, no window and no bridge.
 // Its name is changed from the thread, behind the band. A codex running on
 // its own has where it lives and its id alone: the panel asks it nothing.
 export function CodexSections({ name, live, exec, onDone, onLook }) {
@@ -146,7 +147,10 @@ export function CodexSections({ name, live, exec, onDone, onLook }) {
         </section>
         <section class="toolsec">
             <div class="cmdsechead"><span>Session</span></div>
-            <ul class="mcplist toollist"><${IdLine} id=${live.sessionId || ""} /></ul>
+            <ul class="mcplist toollist">
+                <${IdLine} id=${live.sessionId || ""} />
+                <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
+            </ul>
         </section>
         <section class="toolsec toolend">
             <ul class="mcplist toollist">

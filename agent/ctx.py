@@ -146,15 +146,17 @@ def opened_by(pid):
     """Names the session a session of the panel stands under, by its process.
 
     The launcher puts the session that had the panel open it into its
-    environment; the panel stands a live session under another later in a file
-    of its process, which the executor keeps, and the later word wins. A
-    session a person opened has no parent until it is stood under one, and the
-    parent a session was opened with is not known where its environment cannot
-    be read.
+    environment; the panel stands a live session under another later, or takes
+    it from under one, in a file of its process, which the executor keeps, and
+    the later word wins. A session a person opened has no parent until it is
+    stood under one, and the parent a session was opened with is not known
+    where its environment cannot be read.
     """
     if not pid:
         return {}
-    parent = held.process_parent(pid, proc_start(pid)) or _environ(pid, (PARENT_VAR,)).get(PARENT_VAR)
+    parent = held.process_parent(pid, proc_start(pid))
+    if parent is None:
+        parent = _environ(pid, (PARENT_VAR,)).get(PARENT_VAR)
     return {"parent": {"session": parent}} if parent else {}
 
 

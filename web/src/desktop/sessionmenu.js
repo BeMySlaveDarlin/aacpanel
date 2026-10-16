@@ -12,7 +12,7 @@ import { hostLabel } from "../actions/registry.js";
 import { useToast } from "../ui/toasts.js";
 import { MenuItem, MenuList, useMenuSheet } from "../ui/menu.js";
 import { CODEX_CLOSE, isCodex, noTurn, shownName } from "../agent.js";
-import { copyId, copyResume, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
+import { copyId, copyResume, DETACH, detach, detachWhy, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
 import { LOOK_NAMES } from "../screens/chat/look.js";
 import { RenameSheet, takenNames } from "../screens/chat/rename.js";
 import { useRemote } from "../screens/chat/remote.js";
@@ -21,6 +21,7 @@ import { useWindow, windowOf } from "../screens/chat/window.js";
 import { useTermJump } from "../screens/terms/jump.js";
 import { projectOf, resume, startIn } from "../screens/sessions/actions.js";
 import { stopsOf } from "../screens/sessions/blocks.js";
+import { openedBy } from "../screens/sessions/kin.js";
 
 // What the close and the restart of a live session say while they are under
 // way, on the icons of its row and in its menu alike.
@@ -64,6 +65,14 @@ function copies(id, cwd, codex, toast) {
     ];
 }
 
+// detachItem takes a session from under the session it stands under, as the
+// line of its tools does; a session standing on its own has none.
+function detachItem(s, exec, run) {
+    const parent = openedBy(s);
+    return parent && html`<${MenuItem} key="detach" label="Detach from parent" note=${`under ${parent}`} tip=${DETACH}
+                                       off=${detachWhy(exec)} onPick=${() => detach(run, s.session)} />`;
+}
+
 function OutsideMenu({ s, onOpen }) {
     const toast = useToast();
     return html`<${MenuList} groups=${[
@@ -88,6 +97,7 @@ function ThreadMenu({ s, exec, onOpen, closing }) {
     const stopWhy = noTurn(s) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
+        [detachItem(s, exec, run)],
         copies(s.sessionId, s.cwd, true, toast),
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}
@@ -136,6 +146,7 @@ function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lo
                              off=${onHost.why} onPick=${onHost.press} />`,
             html`<${MenuItem} key="remote" label=${rc.shown ? "Turn Remote Control off" : "Turn Remote Control on"}
                               off=${rc.why} onPick=${rc.press} />`,
+            detachItem(s, exec, run),
         ],
         copies(s.sessionId, s.cwd, false, toast),
         [

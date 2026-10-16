@@ -225,6 +225,9 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		// Remote Control changes nothing in the list: the session stays where
 		// it stood, and the switch in its header follows the snapshot.
 		"session.remote": "",
+		// A session taken from under its parent stays in the list: it stands
+		// on its own with the next snapshot, and nothing leaves or joins.
+		"session.detach": "",
 	}
 
 	for id, body := range sessionActions(t, files[registryFile]) {

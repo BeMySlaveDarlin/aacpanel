@@ -68,6 +68,7 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 	if err != nil {
 		return "", err
 	}
+	p.Parent = keptParent(proc.Agent, p.Parent)
 	if filepath.Clean(s.CWD) != p.Path {
 		return "", fmt.Errorf("session %s runs in %s, while its project is %s — the panel would resume it somewhere else",
 			s.Name, s.CWD, p.Path)

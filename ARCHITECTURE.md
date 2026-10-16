@@ -1383,7 +1383,7 @@ The list of actions is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote`, `session.parent` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote`, `session.parent`, `session.detach` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
@@ -1835,9 +1835,22 @@ collector reads it there before the environment, and the later word wins. The
 file is the process's, not the name's: a session started later under the same
 name is another process and no child of it, and a renamed one keeps its
 parent. A restart or a move of the child starts its next process with the
-parent in its environment, as the snapshot holds it. A codex thread is stood
-under a session where a thread started for one keeps its parent. No screen
-offers it: a request on the local listener does it, and the journal names it.
+parent in its environment: the one the file of the old process names, and
+else the one the snapshot holds — the snapshot reads the file a moment after
+the executor wrote it, and a move with the panel down knows only the parent
+the session was started with. A codex thread is stood under a session where a
+thread started for one keeps its parent. No screen offers it: a request on the
+local listener does it, and the journal names it.
+
+**A live session is taken from under its parent with `session.detach`**, from
+its menu and its tools while it stands under one. The parent it was opened with
+stays in the environment of its process, so the executor writes the same file
+of the process naming none; the collector takes that over the environment, and
+the session stands on its own until it is stood under another again. A restart
+starts the next process with no parent at all. A run inside the work of a
+session stands under that session while it runs and is refused. A codex thread
+is taken from under its session by the file the executor keeps for it. The
+journal names the session it stood under.
 
 **The archive is ordered by when a conversation last spoke, not by when its
 file was last written to.** Claude appends a title, a mode or a snapshot of file

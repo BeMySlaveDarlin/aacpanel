@@ -332,6 +332,20 @@ func TestAStandUnderNamesAnotherSession(t *testing.T) {
 	}
 }
 
+// session.detach names the session alone: what it stands under is the
+// snapshot's, and a parent in the request would stand it under that one.
+func TestADetachNamesTheSessionAlone(t *testing.T) {
+	if !Valid(SessionDetach) {
+		t.Fatal("session.detach is missing from Kinds — the executor would reject it as unknown")
+	}
+	if err := (Request{ID: "1", Kind: SessionDetach, Target: "db-split-01"}).Validate(); err != nil {
+		t.Errorf("a detach of a session is refused: %v", err)
+	}
+	if err := (Request{ID: "1", Kind: SessionDetach, Target: "db-split-01", Parent: "db-split"}).Validate(); err == nil {
+		t.Error("a detach naming a parent is accepted")
+	}
+}
+
 func TestAnswerRequestChecksOwnWords(t *testing.T) {
 	ask := func(a *Answer) Request {
 		return Request{ID: "a1", Kind: SessionAnswer, Target: "aacpanel", Answer: a}

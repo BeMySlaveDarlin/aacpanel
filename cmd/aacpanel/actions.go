@@ -341,6 +341,16 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 		req.Parent, params = parent, map[string]any{"parent": parent}
 	}
+	// The journal names the session the target is taken from under: the
+	// snapshot knows it now, and the executor is told nothing but the target.
+	if req.Kind == action.SessionDetach {
+		parent, err := s.standAlone(body.Target)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		params = map[string]any{"from": parent}
+	}
 	// A session opening another names the directory, and a name only if it
 	// wants one of its own: the project is the one of the map the directory
 	// belongs to, and the session is named after it unless a name is given.

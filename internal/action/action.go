@@ -79,6 +79,11 @@ const (
 	// session_open stands the session it opens under the one that calls it.
 	SessionParent Kind = "session.parent"
 
+	// SessionDetach takes a live session from under the session it stands
+	// under: it stands on its own, as a session a person opened, until it
+	// is stood under another again.
+	SessionDetach Kind = "session.detach"
+
 	// SessionSwitch moves a live session between the console and the feed:
 	// the same conversation is closed on one side and resumed on the other.
 	SessionSwitch Kind = "session.switch"
@@ -143,7 +148,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown, CodexUpdate, ClaudeUpdate,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
-	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
+	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
 	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop,
 }
 

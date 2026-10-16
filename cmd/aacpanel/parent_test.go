@@ -149,6 +149,59 @@ func TestASessionIsStoodOnlyUnderALiveSessionOfItsProjectPG(t *testing.T) {
 	}
 }
 
+// A live session the panel stands under another is taken from under it: the
+// executor hears the session alone, and the journal names the session it
+// stood under, which the snapshot knows now and not after.
+func TestALiveSessionIsTakenFromUnderItsParentPG(t *testing.T) {
+	srv, fake, _ := standServer(t)
+	w := post(t, srv, `{"kind":"session.detach","target":"grandkid","params":{}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	var got action.Request
+	select {
+	case got = <-fake.got:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+	if got.Kind != action.SessionDetach || got.Target != "grandkid" || got.Parent != "" {
+		t.Errorf("the executor was asked %s %q with parent %q, meant session.detach of grandkid", got.Kind, got.Target,
+			got.Parent)
+	}
+	list, err := srv.db.Actions(t.Context(), store.ActionsReq{Limit: 1})
+	if err != nil || len(list) == 0 {
+		t.Fatalf("the action did not reach the journal: %v", err)
+	}
+	if list[0].Kind != string(action.SessionDetach) || list[0].Target != "grandkid" || list[0].Params["from"] != "kid" {
+		t.Errorf("the journal holds %s %q with %v", list[0].Kind, list[0].Target, list[0].Params)
+	}
+}
+
+// Only a session the panel stands under another is taken from under it, and
+// the panel says why not before the executor is asked: a session standing on
+// its own already, one that does not live, and a run inside the work of a
+// session, which stands under that session for as long as it runs.
+func TestOnlyASessionUnderAnotherIsTakenFromUnderItPG(t *testing.T) {
+	srv, fake, _ := standServer(t)
+	for name, c := range map[string]struct{ target, says string }{
+		"a session on its own":   {"lead", "stands under no session already"},
+		"a session that is not":  {"gone", `no live session "gone"`},
+		"a run inside a session": {"run", "outside the panel"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := post(t, srv, `{"kind":"session.detach","target":"`+c.target+`","params":{}}`)
+			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), c.says) {
+				t.Errorf("status %d, body %q, meant 400 saying %q", w.Code, w.Body.String(), c.says)
+			}
+		})
+	}
+	select {
+	case got := <-fake.got:
+		t.Fatalf("a refused detach went to the executor: %+v", got)
+	default:
+	}
+}
+
 // A conversation a session resumes through session_open stands under that
 // session by the rule of an open: while the two are of one project — the
 // conversation ran in the project's directory, and the caller lives in a

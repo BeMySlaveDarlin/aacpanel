@@ -105,8 +105,10 @@ func ParentPath(sessionID string) string {
 // changed, so the parent the panel sets later lies beside the one the launcher
 // puts there. It is the process's and not the name's: a session started later
 // under the same name is another process and is no child of it, and a restart
-// starts the next process with the parent in its environment, as the snapshot
-// holds it. It holds a session name and the start of the process, nothing else.
+// starts the next process with the parent in its environment. An empty name
+// says the session was taken from under its parent: it stands under none,
+// whatever its environment names. It holds a session name and the start of the
+// process, nothing else.
 func ProcessParentPath(pid int) string {
 	return filepath.Join(keptDir(), "process-parents", strconv.Itoa(pid)+".json")
 }

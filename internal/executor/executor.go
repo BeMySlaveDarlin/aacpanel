@@ -214,6 +214,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionRemote(ctx, req.Target, *req.Remote)
 	case action.SessionParent:
 		return e.sessionParent(req.Target, req.Parent)
+	case action.SessionDetach:
+		return e.sessionDetach(req.Target)
 	case action.TaskStop:
 		return e.taskStop(ctx, req.Target, req.Work)
 	case action.AgentStop:

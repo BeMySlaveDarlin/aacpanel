@@ -207,24 +207,26 @@ def process_parent_path(pid):
 
 
 def process_parent(pid, start):
-    """Returns the session a live claude process was stood under after it started, or empty.
+    """Returns the session a live claude process was stood under after it started.
 
     The environment of a running process does not change, so the executor
     keeps a parent set later in a file of the process. The file names the
     start of the process it was kept for: a pid used again by another process
-    takes nothing over.
+    takes nothing over. Empty is a session taken from under its parent, which
+    stands under none whatever its environment says; None is a process the
+    executor kept no word of.
     """
     if not isinstance(pid, int) or pid <= 0 or not start:
-        return ""
+        return None
     try:
         with open(process_parent_path(pid), encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
-        return ""
+        return None
     if not isinstance(data, dict) or data.get("procStart") != start:
-        return ""
+        return None
     session = data.get("session")
-    return session if isinstance(session, str) else ""
+    return session if isinstance(session, str) else None
 
 
 def withdrawn_path(sid):

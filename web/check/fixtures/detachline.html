@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The tools of a session on a phone take it from under the session it stands
+// under: a claude session and a thread of codex aacpanel had the panel open
+// have the line, a session standing on its own has none, and the press goes
+// through the sheet that names the parent.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { SessionSections } from "/src/screens/chat/sessiontools.js";
+import { CodexSections } from "/src/screens/chat/codex.js";
+import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const sent = [];
+window.fetch = async (url, init) => {
+    if (String(url) === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return new Response(JSON.stringify({ logged: true, ok: true, detail: "ok" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const child = { session: "review", transport: "stream", profile: "personal", sessionId: "id-review", status: "idle",
+    parent: { session: "aacpanel" } };
+const alone = { ...child, session: "solo", sessionId: "id-solo", parent: null };
+const thread = { session: "codex-2", agent: "codex", transport: "stream", sessionId: "th-2", status: "idle",
+    parent: { session: "aacpanel" } };
+setLiveSessions([child, alone, thread]);
+const exec = { available: true, kinds: ["session.detach", "session.close", "session.stop", "session.remote", "session.rename"] };
+const snapshot = { profiles: [{ name: "personal", auth: "builtin" }] };
+const claude = (id, live) => html`
+    <div id=${id}><${SessionSections} name=${live.session} live=${live} exec=${exec} snapshot=${snapshot} cwd="/srv/aacpanel"
+        sides=${{ moves: "" }} win=${{ kind: "closed" }} way=${{ to: "" }} work=${null}
+        onDone=${() => {}} onWindow=${() => {}} onLook=${() => {}} /></div>`;
+
+render(html`
+    <${ToastHost}><${GateHost}>
+        ${claude("child", child)}
+        ${claude("alone", alone)}
+        <div id="thread"><${CodexSections} name=${thread.session} live=${thread} exec=${exec}
+                                           onDone=${() => {}} onLook=${() => {}} /></div>
+    <//><//>
+`, document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    let got = ok();
+    while (!got && performance.now() < end) {
+        await new Promise((r) => setTimeout(r, 25));
+        got = ok();
+    }
+    return got;
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const labels = (id) => Array.from(document.querySelectorAll(`#${id} .toollabel`)).map(text);
+const line = (id) => Array.from(document.querySelectorAll(`#${id} .toolrow`))
+    .find((b) => text(b.querySelector(".toollabel")) === "Detach from parent");
+const confirmSel = ".sheet.on .btnrow .btn.primary";
+// detach presses the line of one session and says yes on the sheet; it
+// answers the title of the sheet.
+const detach = async (id) => {
+    const before = sent.length;
+    const row = line(id);
+    if (!row) return "";
+    row.click();
+    const yes = await until(() => document.querySelector(confirmSel));
+    const title = text(document.querySelector(".sheet.on .stitle"));
+    if (yes) yes.click();
+    await until(() => sent.length > before && !document.querySelector(".sheet.on"));
+    return title;
+};
+
+window.done = (async () => {
+    await until(() => document.querySelector("#thread .toollabel") && document.querySelector("#alone .toollabel"));
+    const out = { child: labels("child"), alone: labels("alone"), thread: labels("thread"),
+        note: text(line("child") && line("child").querySelector(".toolnote")) };
+    out.titles = [await detach("child"), await detach("thread")];
+    out.sent = sent.map((s) => `${s.kind}:${s.target}:${JSON.stringify(s.params)}`);
+    return out;
+})();
+</script>
