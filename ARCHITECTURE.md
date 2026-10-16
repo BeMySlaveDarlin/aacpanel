@@ -1427,7 +1427,10 @@ system until the setting is corrected and the executor restarted.
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no
-stop. `session.restart` ends a session the gentle way — the same wait for the
+stop. The executor tells a session's directory by the link under `/proc` and,
+where that is refused, by the directory claude writes into the file of the
+live session: the sandbox of the executor's unit runs in a user namespace of
+its own, and the link of a process outside it does not open there. `session.restart` ends a session the gentle way — the same wait for the
 transcript — and starts a new one with an empty context, or, asked to go on,
 resuming the conversation it closed; the old transcript stays in the archive.
 A restart asked to go on may carry the message the session wrote itself to go
@@ -1436,7 +1439,9 @@ the map's message after a restart, as "A session restarts and closes itself"
 says. A session whose working directory belongs to a project
 of the map comes back as that project: its launch, its contour, and the
 message after a restart as its first — a restart without them would bring it up
-in another setup, possibly under another account. A session no project holds
+in another setup, possibly under another account. It comes back in the
+directory it ran in, not in the project's own: a session of a worktree goes on
+working in the worktree. A session no project holds
 is restarted only if it is the host's main one. The phone's live cards offer
 Restart and Close directly, with Restart alone on the main session, Close
 alone for codex and neither for a session outside the panel. A project session
@@ -1449,7 +1454,11 @@ session from a worktree or a subdirectory comes back there, not in the
 project's own directory. The project is the nearest directory above it that is
 in the map, or, for a git worktree kept beside its repository, the project of
 the main checkout — the agent reads that off the worktree's `.git` file, since
-the service does not see the disk. The climb stops below a project root: a
+the service does not see the disk. It reads it for the directories its walk of
+the roots finds and for the directory of every live session: the walk stops at
+the first directory that looks like a project, and a worktree kept under one —
+a folder of worktrees beside the repositories of a contour — is never among its
+rows. The climb stops below a project root: a
 project that is a root itself, like the home directory, holds the machine's own
 session, and taking it for the owner of whatever lies under it would start that
 in another account. A thread of codex looks for no project at all: the daemon

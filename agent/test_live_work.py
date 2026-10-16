@@ -99,5 +99,60 @@ class CallOfASession(unittest.TestCase):
                           "the call of a session that is gone stands on the board, and the panel pushes it")
 
 
+class TheRepositoryOfALiveSession(unittest.TestCase):
+    """A live session names the repository of the worktree it runs in.
+
+    The walk of the projects stops at the first directory that looks like a
+    project, so a folder of worktrees kept beside the repositories is not
+    walked, and the service, which does not see the disk, would place a
+    session there outside the map.
+    """
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+        self.addCleanup(setattr, notes, "BOARD", notes.BOARD)
+        notes.BOARD = notes.Board(os.path.join(self.dir.name, "notes.json"))
+
+    def mk(self, *parts):
+        path = os.path.join(self.dir.name, *parts)
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def worktree(self, repo, name):
+        admin = self.mk(repo, ".git", "worktrees", name)
+        with open(os.path.join(admin, "commondir"), "w", encoding="utf-8") as f:
+            f.write("../..\n")
+        tree = self.mk("Acme", "worktrees", name)
+        with open(os.path.join(tree, ".git"), "w", encoding="utf-8") as f:
+            f.write(f"gitdir: {admin}\n")
+        return tree
+
+    def rows(self, cwds):
+        rows = {"sessions": [{"session": f"s{i}", "sessionId": f"abcd1234-0000-4000-8000-00000000000{i}", "cwd": cwd}
+                             for i, cwd in enumerate(cwds)]}
+        for name, value in (("sessions", lambda: rows), ("session_profiles", dict),
+                            ("session_births", dict), ("live_session_waits", dict),
+                            ("live_session_status", dict), ("live_session_status_at", dict)):
+            holder = live.ctx if name == "sessions" else live
+            self.addCleanup(setattr, holder, name, getattr(holder, name))
+            setattr(holder, name, value)
+        return {s["cwd"]: s for s in live.sessions()["sessions"]}
+
+    def test_a_session_in_a_worktree_names_its_repository(self):
+        repo = os.path.join(self.dir.name, "Acme", "shop")
+        tree = self.worktree(os.path.join("Acme", "shop"), "shop-fix")
+        deep = self.mk("Acme", "worktrees", "shop-fix", "web")
+        plain = self.mk("Acme", "notes")
+        self.mk("Acme", "shop", "web")
+
+        got = self.rows([tree, deep, repo, plain])
+        self.assertEqual(got[tree].get("checkout"), repo,
+                         "a session in a worktree kept beside its repository lands outside the map")
+        self.assertEqual(got[deep].get("checkout"), repo)
+        self.assertNotIn("checkout", got[repo], "the repository itself is not a worktree of itself")
+        self.assertNotIn("checkout", got[plain])
+
+
 if __name__ == "__main__":
     unittest.main()

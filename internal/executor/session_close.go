@@ -312,6 +312,9 @@ func lookupAgent(target string) (agentProc, error) {
 		}
 
 		dir := procCwd(pid)
+		if dir == "" {
+			dir = sessionFileCwd(pid)
+		}
 		if isAncestor(pid) {
 			return agentProc{}, fmt.Errorf(
 				"session %s is the one the executor itself runs in: closing it would leave it unable to report the result",
@@ -327,4 +330,18 @@ func lookupAgent(target string) (agentProc, error) {
 		return agentProc{}, fmt.Errorf("there is no session %q: not a single named claude session is running", target)
 	}
 	return agentProc{}, fmt.Errorf("there is no session %q among the running ones: %s", target, strings.Join(known, ", "))
+}
+
+// sessionFileCwd is the working directory claude wrote into the file of its
+// live session. The cwd link under /proc is refused to a reader in a user
+// namespace below the one of the process, and the sandbox of the executor's
+// unit runs it in a namespace of its own: read there, every session would be
+// in no directory at all.
+func sessionFileCwd(pid int) string {
+	for _, dir := range sessionsDirs() {
+		if s, ok := readSessionFile(dir, pid); ok {
+			return strings.TrimRight(s.CWD, "/")
+		}
+	}
+	return ""
 }

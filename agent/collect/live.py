@@ -10,6 +10,7 @@ import ctx
 import held
 import notes
 import observers
+import projects
 
 import agent
 from sesstate.wake import ALARMS
@@ -364,6 +365,14 @@ def sessions():
     # live session started stands on its own, only read.
     data.setdefault("sessions", []).extend(ctx.codex_sessions(held_by))
     data["sessions"].extend(data.pop("codex", None) or [])
+    # The service finds the project of a session by its directory and does
+    # not see the disk. A worktree kept beside its repository may lie under a
+    # directory the walk of the projects stops at, so the repository a session
+    # works in is read off the .git file of its worktree here.
+    for s in data["sessions"]:
+        checkout = projects.checkout_of(s.get("cwd") or "")
+        if checkout:
+            s["checkout"] = checkout
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
     asked.BOOK.sweep(alive)
     notes.BOARD.sweep(alive)

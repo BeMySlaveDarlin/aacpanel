@@ -93,6 +93,29 @@ func TestSessionRestart(t *testing.T) {
 		}
 	})
 
+	// The sandbox of the executor cannot read the working directory of a
+	// process outside its user namespace: the session is known by its file,
+	// and the refusal names the directory the file names.
+	t.Run("the refusal names the directory of a session known by its file alone", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		const dir = "/srv/proj/Beta/worktrees/feed-fix"
+		procFS(t, fakeProc{pid: 404, comm: "claude", args: []string{"claude"}, ppid: 1})
+		sessionFiles(t, fakeSession{pid: 404, name: "feed", start: "1000", cwd: dir})
+		e, _ := newTest(t, "")
+		sig := withSignals(t, e, map[int]bool{404: true}, nil)
+
+		_, err := e.Execute(ctx, req(action.SessionRestart, "feed"))
+		if err == nil {
+			t.Fatal("a session outside the home directory was restarted without its project")
+		}
+		if !strings.Contains(err.Error(), "runs in "+dir+", not in the home directory") {
+			t.Errorf("the refusal %q does not say where the session runs", err)
+		}
+		if len(sig.sent) != 0 {
+			t.Errorf("signals were sent before the refusal: %v", sig.sent)
+		}
+	})
+
 	t.Run("a project session restarts with the project the panel names", func(t *testing.T) {
 		stand(t)
 		root := t.TempDir()

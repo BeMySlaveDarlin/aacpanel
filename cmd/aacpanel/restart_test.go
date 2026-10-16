@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -64,6 +65,39 @@ func TestSessionRestartComesBackAsItsProjectPG(t *testing.T) {
 	w = post(t, srv, `{"kind":"session.restart","params":{"conversation":"99999999-9999-4999-8999-999999999999"}}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("a conversation no session runs gave %d", w.Code)
+	}
+}
+
+// A session run in a git worktree kept outside its repository's directory
+// comes back as the repository's project, in the worktree it ran in: its
+// transcript is kept by that directory, and the work there is the worktree's,
+// not the main checkout's. The agent names the repository on the session.
+func TestARestartOfAWorktreeSessionStaysInTheWorktreePG(t *testing.T) {
+	srv, fake, dir := switchServer(t, "stream", "stream")
+	worktree := filepath.Join(filepath.Dir(dir), "worktrees", "aacpanel-fix")
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"aacpanel-fix","sessionId":"`+
+		switchSID+`","cwd":"`+worktree+`","checkout":"`+dir+`","transport":"stream"}]}`))
+
+	w := post(t, srv, `{"kind":"session.restart","params":{"conversation":"`+switchSID+`"}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	got := <-fake.got
+	if got.Project == nil {
+		t.Fatal("the restart went without a project: the executor restarts only the host's main session that way")
+	}
+	if got.Project.Path != worktree {
+		t.Errorf("the session would come back in %s, not in the worktree %s it ran in", got.Project.Path, worktree)
+	}
+	if got.Project.Session != "aacpanel-fix" {
+		t.Errorf("the session would come back as %q, not under its own name", got.Project.Session)
+	}
+	var launch map[string]any
+	if err := json.Unmarshal(got.Project.Launch, &launch); err != nil {
+		t.Fatal(err)
+	}
+	if launch["model"] != "opus" || launch["effort"] != "high" || launch["transport"] != "stream" {
+		t.Errorf("the launch parameters of the repository's project did not come along: %s", got.Project.Launch)
 	}
 }
 

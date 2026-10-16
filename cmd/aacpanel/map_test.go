@@ -317,6 +317,49 @@ func TestHostMapComesFromDBPG(t *testing.T) {
 			t.Errorf("the worktree session went out as %s — the screens show it outside the map", w.Body.String())
 		}
 	})
+
+	// The walk of the projects stops at a directory that looks like a
+	// project, and a folder of worktrees under one is never walked: the agent
+	// names the repository of a live session's worktree on the session
+	// itself. A worktree of a repository the map does not hold is of no
+	// project.
+	t.Run("a live session in a worktree the walk did not reach carries the project of its repository", func(t *testing.T) {
+		srv, root := hostServer(t, snapshot)
+		id := fillMap(t, srv, root)
+		repo := filepath.Join(root, "aacpanel")
+		worktree := filepath.Join(root, "Labs", "worktrees", "aacpanel-fix")
+		stranger := filepath.Join(root, "Labs", "worktrees", "shop-fix")
+		srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[`+
+			`{"session":"fix","cwd":"`+worktree+`","checkout":"`+repo+`"},`+
+			`{"session":"shop","cwd":"`+stranger+`","checkout":"`+filepath.Join(root, "Labs", "shop")+`"}],`+
+			`"projects":{"at":1,"dirs":[{"path":"`+filepath.Join(root, "Labs")+`","kind":"project"}]}}`))
+
+		w := httptest.NewRecorder()
+		srv.apiHost(w, httptest.NewRequest(http.MethodGet, "/api/host", nil))
+		var out struct {
+			Sessions []struct {
+				Session string `json:"session"`
+				Project *struct {
+					ID int `json:"id"`
+				} `json:"project"`
+			} `json:"sessions"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatalf("the snapshot was not parsed: %v", err)
+		}
+		got := map[string]*struct {
+			ID int `json:"id"`
+		}{}
+		for _, s := range out.Sessions {
+			got[s.Session] = s.Project
+		}
+		if got["fix"] == nil || got["fix"].ID != id {
+			t.Errorf("the worktree session went out as %s — the screens show it outside the map", w.Body.String())
+		}
+		if got["shop"] != nil {
+			t.Errorf("a worktree of a repository the map does not hold was given project %d", got["shop"].ID)
+		}
+	})
 }
 
 func fillMap(t *testing.T, srv *Server, root string) int {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 	"sync"
 	"time"
@@ -150,7 +151,11 @@ func (s LiveSession) OpenedBy() string {
 
 // Worktrees maps the git worktrees the agent saw on disk to their main
 // checkouts. A session run in a worktree belongs to the project of the main
-// checkout, and the service cannot look at the disk to find it out.
+// checkout, and the service cannot look at the disk to find it out. The walk
+// of the projects stops at the first directory that looks like a project, so
+// a worktree kept beside its repository under such a directory is not among
+// its rows: the agent names the checkout of every live session as well, by
+// the session's directory.
 func (h *Reader) Worktrees() map[string]string {
 	raw, err := h.Raw()
 	if err != nil {
@@ -163,6 +168,10 @@ func (h *Reader) Worktrees() map[string]string {
 				WorktreeOf string `json:"worktreeOf"`
 			} `json:"dirs"`
 		} `json:"projects"`
+		Sessions []struct {
+			CWD      string `json:"cwd"`
+			Checkout string `json:"checkout"`
+		} `json:"sessions"`
 	}
 	if json.Unmarshal(raw, &snapshot) != nil {
 		return nil
@@ -171,6 +180,11 @@ func (h *Reader) Worktrees() map[string]string {
 	for _, d := range snapshot.Projects.Dirs {
 		if d.WorktreeOf != "" {
 			out[d.Path] = d.WorktreeOf
+		}
+	}
+	for _, s := range snapshot.Sessions {
+		if s.CWD != "" && s.Checkout != "" {
+			out[path.Clean(s.CWD)] = s.Checkout
 		}
 	}
 	return out
