@@ -158,6 +158,8 @@ type homeGraph struct {
 	Sizes struct {
 		Planet float64 `json:"planet"`
 		Moon   float64 `json:"moon"`
+		Front  float64 `json:"front"`
+		Behind float64 `json:"behind"`
 	} `json:"sizes"`
 	Field struct {
 		Space int `json:"space"`
@@ -270,9 +272,10 @@ type graphMoon struct {
 }
 
 type graphQuiet struct {
-	Hidden  []string `json:"hidden"`
-	Shown   int      `json:"shown"`
-	Clashes int      `json:"clashes"`
+	Hidden    []string `json:"hidden"`
+	Shown     int      `json:"shown"`
+	ShownKeys []string `json:"shownKeys"`
+	Clashes   int      `json:"clashes"`
 }
 
 type graphPhase struct {
@@ -354,7 +357,7 @@ func int64ish(v float64) float64 {
 // equal sessions of a project as planets of one orbit, the sessions of no
 // project on an orbit of their own — here stray alone weighs less than shop at
 // work and stands inside it. An orbit names its project only where its planets
-// do not.
+// do not, and only in the system in front: personal behind writes neither.
 func TestAContourIsASystemOfItsProjects(t *testing.T) {
 	got := runHomeGraph(t)
 
@@ -391,9 +394,9 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 		t.Errorf("the systems are %v, not the contours in the order of the map", names)
 	}
 	w := got.Written
-	if w["blog"] != 1 || w["drafts"] != 1 || w["outside"] != 1 || w["shop"] != 1 || w["client"] != 1 {
-		t.Errorf("the frame writes %v: blog and shop once, as their planets, drafts and outside the map once, as their "+
-			"orbits, client once, as its star", w)
+	if w["blog"] != 1 || w["drafts"] != 1 || w["client"] != 1 || w["outside"] != 0 || w["shop"] != 0 {
+		t.Errorf("the frame writes %v: blog once, as its planet, drafts once, as its orbit, client once, as its star, "+
+			"and of personal behind neither shop nor its orbit outside the map", w)
 	}
 	summary := map[string]string{}
 	for _, sys := range got.Systems {
@@ -619,6 +622,19 @@ func TestAPlanetHasASurfaceOfItsOwn(t *testing.T) {
 // The tile of the sessions is gone from the home: its numbers are the header
 // of the graph, and the rows beside the graph lead to the containers and the
 // machine.
+// A planet of a system behind the front one is drawn at half its size in
+// front: the orbits shrink there, and planets of full size crowd each other
+// and their star into one blot.
+func TestAPlanetBehindIsDrawnAtHalf(t *testing.T) {
+	got := runHomeGraph(t).Sizes
+	if got.Front < 8.5 || got.Front > 10.5 {
+		t.Fatalf("the planet in front measures %v units across the radius: about ten — the measure is off", got.Front)
+	}
+	if share := got.Behind / got.Front; share < 0.4 || share > 0.6 {
+		t.Errorf("the planet behind the front measures %v against %v in front, %.2f of it: about half", got.Behind, got.Front, share)
+	}
+}
+
 func TestTheHomeHasNoTileOfTheSessions(t *testing.T) {
 	got := runHomeGraph(t)
 
@@ -855,14 +871,16 @@ func TestTheNamesKeepTheirSides(t *testing.T) {
 	}
 }
 
-// A system behind the front one is smaller with distance while its names are
-// not: there a name is written only where it stands clear, but for a session
-// waiting for the person, which is written wherever it stands. The system in
-// front writes every name.
-func TestNamesBehindTheFrontStandClear(t *testing.T) {
+// A system behind the front one is one target and small with distance: it
+// says its own name and that of a session waiting for the person, and no
+// other — the names of its planets on leaders round a small system are a
+// tangle. The system in front writes every name.
+func TestABehindSaysItsNameAndTheWait(t *testing.T) {
 	q := runHomeGraph(t).Quiet
-	if q.Behind.Clashes != 0 || len(q.Behind.Hidden) == 0 {
-		t.Errorf("a crowded system behind the front writes names over each other %d times, hiding %v", q.Behind.Clashes, q.Behind.Hidden)
+	shown := append([]string(nil), q.Behind.ShownKeys...)
+	sort.Strings(shown)
+	if !reflect.DeepEqual(shown, []string{"*personal", "node-f"}) {
+		t.Errorf("a system behind the front writes %v: only its own name and the session waiting for the person", shown)
 	}
 	if contains("node-f", q.Behind.Hidden) {
 		t.Error("a session waiting for the person lost its name behind the front")

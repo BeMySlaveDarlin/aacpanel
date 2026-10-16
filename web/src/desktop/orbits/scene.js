@@ -27,6 +27,12 @@ export const HALO = 6;
 const GLOW = 150;
 const REACH = [8, 22, 40, 62, 90];
 
+// BEHIND is how large the marks of a system behind the front one are drawn:
+// its orbits shrink there, and planets of full size would crowd each other
+// and its star. The share its orbits shrink by would leave them dots, so the
+// marks stop at half; a system on its way forward or back passes between.
+const BEHIND = 0.5;
+
 // The orbits are faint: ORBIT[1] on the half of an orbit nearer the eye,
 // ORBIT[0] on the far half — enough to follow an orbit round and see which
 // way it leans, never a line that rivals a mark.
@@ -119,20 +125,25 @@ function clash(rect, W, H, taken, discs) {
 }
 
 // tags places the names, the most wanted first, each beside its mark or on a
-// hairline leader further off; a quiet one only where it stands clear. sides keeps where every name stood the frame
-// before: a name stays there while it covers nothing, and the side is chosen
-// anew only for a new name or one its side has come to cover — outward from
-// the star of its system first, or in the order of the sides an item prefers.
-// Where nothing turns (settle false: the scene only moved or grew) no name
-// changes its side at all, and the names ride with their marks. It answers
-// every name with the side it took and how much that covers, and, where it
-// left one, the side it left and how much that side covered.
+// hairline leader further off; a quiet one is not written, and its mark keeps
+// its tip. sides keeps where every name stood the frame before: a name stays
+// there while it covers nothing, and the side is chosen anew only for a new
+// name or one its side has come to cover — outward from the star of its system
+// first, or in the order of the sides an item prefers. Where nothing turns
+// (settle false: the scene only moved or grew) no name changes its side at
+// all, and the names ride with their marks. It answers every name with the
+// side it took and how much that covers, and, where it left one, the side it
+// left and how much that side covered; a quiet one only as hidden.
 function tags(ctx, W, H, items, taken, discs, leader, u, sides, settle) {
     const pad = TAG_PAD.map((v) => v * u);
     const reach = REACH.map((v) => v * u);
     const labels = [];
     items.sort((a, b) => b.pri - a.pri);
     for (const it of items) {
+        if (it.quiet) {
+            labels.push({ key: it.key, hidden: true });
+            continue;
+        }
         let w = 0;
         let h = 0;
         for (const l of it.lines) {
@@ -185,12 +196,6 @@ function tags(ctx, W, H, items, taken, discs, leader, u, sides, settle) {
         }
         sides.set(it.key, side);
         const R = rectOf(side);
-        // A quiet name — of a system behind the front one — is written only
-        // where it stands clear; its mark keeps its tip.
-        if (it.quiet && clash(R, W, H, taken, discs) > TOUCH) {
-            labels.push({ key: it.key, dir: side.dir, reach: side.reach, rect: R, clash: covers, left, hidden: true });
-            continue;
-        }
         taken.push(R);
         labels.push({ key: it.key, dir: side.dir, reach: side.reach, rect: R, clash: covers, left });
         if (side.reach > 0) {
@@ -520,15 +525,18 @@ export function drawScene(ctx, W, H, pr, scene) {
     const hits = [];
     const areas = [];
     const bySystem = new Map(systems.map((s) => [s.name, s]));
-    // The names of the system in front are all written; those of the systems
-    // behind it, smaller with distance, only where they stand clear, but for
-    // a session waiting for the person.
+    // The names of the system in front are all written; a system behind it is
+    // one target, and says only its own name and that of a session waiting
+    // for the person.
     const behind = (name) => Boolean(scene.front) && name !== scene.front;
+    const R = Math.max(...systems.map((s) => s.R));
+    const marks = new Map(systems.map((s) => [s.name, markOf(s, R)]));
     const spot = new Map(nodes.map((n) => [n, pr(worldOf(bySystem.get(n.p.system).place, n.p.w))]));
     const zs = [...spot.values()].map((q) => q.z);
     const z0 = Math.min(...zs);
     const z1 = Math.max(...zs);
-    // Depth is told by how faint a line is, never by how large a mark is.
+    // Depth within the scene is told by how faint a line is; a mark is smaller
+    // only for standing in a system behind the front one.
     const fade = (z) => (z1 > z0 ? clamp(1 - ((z - z0) / (z1 - z0)) * 0.55, 0.45, 1) : 1);
 
     // The far stars, on the dark theme only.
@@ -621,19 +629,20 @@ export function drawScene(ctx, W, H, pr, scene) {
     for (const n of far) {
         const q = spot.get(n);
         const f = fade(q.z);
-        const r = (n.p.depth > 0 ? MOON_R : NODE_R) * u;
+        const m = u * marks.get(n.p.system);
+        const r = (n.p.depth > 0 ? MOON_R : NODE_R) * m;
         const star = stars.get(n.p.system);
         const light = Math.atan2(star.y - q.y, star.x - q.x);
-        if (n.tone === "busy") busyGlow(ctx, q, r, u, pal);
+        if (n.tone === "busy") busyGlow(ctx, q, r, m, pal);
         planet(ctx, q, r, n, n.s.session, n.p.depth > 0, light, f, pal);
         if (n.tone === "wait") {
-            circle(ctx, q.x, q.y, r + WAIT_RING * u);
+            circle(ctx, q.x, q.y, r + WAIT_RING * m);
             ctx.strokeStyle = rgba(pal.wait, 0.8);
             ctx.lineWidth = 1.3;
             ctx.stroke();
         }
-        beads(ctx, q, n, r + BEADS * u, f, pal, u);
-        const d = { x: q.x, y: q.y, r: r + (n.tone === "wait" ? WAIT_RING + 1 : 6) * u };
+        beads(ctx, q, n, r + BEADS * m, f, pal, m);
+        const d = { x: q.x, y: q.y, r: r + (n.tone === "wait" ? WAIT_RING + 1 : 6) * m };
         discs.push(d);
         hits.push({ x: q.x, y: q.y, r: d.r + 3 * u, node: n });
         items.push({
@@ -646,6 +655,16 @@ export function drawScene(ctx, W, H, pr, scene) {
 
     const labels = tags(ctx, W, H, items, taken, discs, rgba(pal.ink, 0.3), u, scene.sides, scene.settle);
     return { hits, taken, labels, areas };
+}
+
+// markOf is the share of their size the marks of a system are drawn at: whole
+// in front, BEHIND behind, and between on the way, by how large the system is
+// drawn against its size in front (k, which in front is R over its own
+// radius). Kept to twentieths, so a system on its way makes a few pictures of
+// its planets rather than one a frame.
+function markOf(s, R) {
+    const k = s.place.k || R / s.R;
+    return clamp(Math.round(((k * s.R) / R) * 20) / 20, BEHIND, 1);
 }
 
 // linesOf is what the frame says beside a node: its name, and under it what

@@ -750,8 +750,8 @@ window.done = (async () => {
     keep.names = Object.keys(settled).filter((k) => !k.startsWith("*") && !k.includes("/")).length;
     out.keep = keep;
 
-    // Behind the front a name is written only where it stands clear, but for
-    // a session waiting for the person; the same crowded system in front
+    // Behind the front only the name of the system and that of a session
+    // waiting for the person are written; the same crowded system in front
     // writes every name.
     // Drawn small, so the names cannot all stand clear.
     const SW = 380;
@@ -767,7 +767,7 @@ window.done = (async () => {
             const hh = Math.min(a.rect.y + a.rect.h, b.rect.y + b.rect.h) - Math.max(a.rect.y, b.rect.y);
             if (w > 2 && hh > 2) clashes += 1;
         }));
-        return { hidden: lab.filter((l) => l.hidden).map((l) => l.key), shown: shown.length, clashes };
+        return { hidden: lab.filter((l) => l.hidden).map((l) => l.key), shown: shown.length, shownKeys: shown.map((l) => l.key), clashes };
     };
     out.quiet = { behind: clearOf("elsewhere"), front: clearOf(corder[0]) };
 
@@ -778,11 +778,11 @@ window.done = (async () => {
     // dark of the sky, and counted pixel by pixel: a pixel is lit where it is
     // brighter than a quarter of its tone.
     const lumaOf = (rgb) => 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
-    const sheetOf = (sessions, palette = pal, unit = 4) => {
+    const sheetOf = (sessions, palette = pal, unit = 4, front) => {
         const one = { at: Math.floor(now / 1000), profileMap: [], sessions };
         const pg = graphOf(one);
         const po = orderOf(pg);
-        const pp = placesOf(pg, po, po[0]);
+        const pp = placesOf(pg, po, front || po[0]);
         const PW = unit === 4 ? 600 : 900;
         const PH = unit === 4 ? 400 : 420;
         const pc = document.createElement("canvas");
@@ -887,6 +887,18 @@ window.done = (async () => {
             return Math.round(Math.sqrt(pixels.reduce((sum, p) => sum + p.a / full, 0) / Math.PI) * 10) / 10;
         };
         out.sizes = { planet: radius("solo", 13), moon: radius("moon", 8) };
+        // A planet of a system behind the front one is drawn at half its
+        // size, counted by the pixels at least half as opaque as its fullest,
+        // so the faint light of its star near it does not count.
+        const core = (sheet, name, reach) => {
+            const { pixels } = disc(sheet.px, sheet.at(name), reach);
+            const full = Math.max(...pixels.map((p) => p.a));
+            return Math.round(Math.sqrt(pixels.filter((p) => p.a >= full / 2).length / Math.PI) * 10) / 10;
+        };
+        const pair = (front) => sheetOf([S({ session: "solo", profile: "personal", status: "idle", pct: 50, lastRequestAt: iso(30) }),
+            S({ session: "other", profile: "client", status: "idle", pct: 50, lastRequestAt: iso(30) })], pal, 1, front);
+        out.sizes.front = core(pair("personal"), "solo", 13);
+        out.sizes.behind = core(pair("client"), "solo", 13);
         // The far stars: on the dark theme a sparse field behind the scene, on
         // the light one none. Counted away from the system.
         const field = (palette) => {
@@ -1225,14 +1237,17 @@ window.done = (async () => {
         await wallFrames(2);
         await frames(4);
         const made0 = spritesMade();
-        const at0 = names();
+        // Every name written, of whichever system stands in front.
+        const allNames = () => Object.fromEntries([...written].map(([k, v]) => [k, { ...v }]));
+        const at0 = allNames();
         const t0 = performance.now();
         d0 = draws;
         await frames(90);
         m.fps = Math.round(((draws - d0) / ((performance.now() - t0) / 1000)) * 10) / 10;
-        const at1 = names();
+        const at1 = allNames();
         m.made = spritesMade() - made0;
-        m.moved = Math.max(...NAMES.map(([, n]) => Math.round(Math.hypot(at1[n].x - at0[n].x, at1[n].y - at0[n].y) * 100) / 100));
+        m.moved = Math.max(0, ...Object.keys(at0).filter((n) => at1[n])
+            .map((n) => Math.round(Math.hypot(at1[n].x - at0[n].x, at1[n].y - at0[n].y) * 100) / 100));
         let hidden = false;
         Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
         hidden = true;
