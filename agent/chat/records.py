@@ -513,6 +513,15 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return out + service_items
         if pending is not None and pending.seen(text):
             return []
+        # A command the person ran with "!" while the session was at work is
+        # handed to it as a queued prompt too: drawn as the command and its
+        # output, as where the queue takes it.
+        ran = shell(text, at, pos)
+        if ran and len(ran) == 2:
+            if pending is not None:
+                pending.remember(text, pos)
+                pending.enqueue(ran[0])
+            return out + ran
         if pending is not None:
             pending.remember(text, pos)
         role, shown = classify(text)

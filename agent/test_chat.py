@@ -576,6 +576,24 @@ class ShellCommands(unittest.TestCase):
                          [("shell", "make check"), ("shellout", "ok & done")])
         self.assertFalse([i for i in items if i.get("state")], "the command is not a message waiting in the queue")
 
+    def handed(self, text):
+        return line({"type": "attachment", "timestamp": "2026-08-23T10:00:02Z",
+                     "attachment": {"type": "queued_command", "prompt": text}})
+
+    def test_a_command_handed_over_mid_turn_is_a_command(self):
+        self.write(self.handed(self.RAN), line({"type": "queue-operation", "operation": "remove",
+                                                 "timestamp": "2026-08-23T10:00:02Z", "content": self.RAN}))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([(i["role"], i["text"]) for i in items],
+                         [("shell", "make check"), ("shellout", "ok & done")])
+        self.assertFalse([i for i in items if "<bash-" in i.get("text", "")], "no tags of the transcript on the screen")
+
+    def test_a_command_queued_and_handed_over_is_drawn_once(self):
+        self.write(self.queued(self.RAN), self.handed(self.RAN))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([(i["role"], i["text"]) for i in items],
+                         [("shell", "make check"), ("shellout", "ok & done")])
+
     def test_the_output_leaves_the_queue_in_its_turn(self):
         self.write(self.queued("and then the docs"), self.queued(self.RAN),
                    self.dequeued(), self.read("and then the docs"),
