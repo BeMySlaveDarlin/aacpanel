@@ -283,20 +283,24 @@
 /* One field. The buttons live inside it without boxes of their own: the field
    is the thing, the paperclip and the arrow are marks on it. */
 .composer {
+    /* The ground and the edge of the glass, named for the field whose glass
+       is a layer under it (picker.css). */
+    --field-ground: rgba(var(--tint), .06);
+    --field-edge: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
     flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: .15rem;
     margin-top: .5rem;
     padding: .25rem .3rem .25rem .75rem;
-    background: rgba(var(--tint), .06);
+    background: var(--field-ground);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
     border: 0;
     border-radius: var(--r-card);
-    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
+    box-shadow: var(--field-edge);
 }
-.composer:focus-within { box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent), var(--gloss), var(--glow); }
+.composer:focus-within { --field-edge: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent), var(--gloss), var(--glow); }
 
 .composer textarea {
     flex: 1;

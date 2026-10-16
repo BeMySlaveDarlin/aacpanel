@@ -179,6 +179,44 @@
 }
 .pkmenu.left { left: 0; }
 .pkmenu.right { right: 0; }
+/* The menus of the band open over the feed, so each frosts what it covers the
+   way a sheet does: through its ground alone the rows of the feed read between
+   its items. An element with a backdrop filter is where every filter inside it
+   takes its backdrop from, and the menus stand inside the field, itself of
+   glass: there they would frost the field alone. So a field whose band opens
+   menus carries its glass as a layer under it, and each menu likewise, since
+   the list beside the model's menu stands inside the menu. */
+.composer:has(.pickbar) {
+    position: relative;
+    isolation: isolate;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+}
+.composer:has(.pickbar)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--field-ground);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    box-shadow: var(--field-edge);
+}
+.pickbar .pkmenu { background: none; box-shadow: none; }
+.pickbar .pkmenu::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--sheet-bg);
+    backdrop-filter: blur(26px) saturate(160%);
+    -webkit-backdrop-filter: blur(26px) saturate(160%);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--drop);
+}
 .pkmenu .pkrow {
     min-height: 0;
     padding: .38rem .55rem;

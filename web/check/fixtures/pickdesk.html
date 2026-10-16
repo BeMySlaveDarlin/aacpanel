@@ -84,6 +84,22 @@ const beside = (name) => Array.from(root.querySelectorAll(`${model} > .pkmorerow
 // The lists the model's menu has open beside it, and the rows that say so.
 const subs = () => Array.from(root.querySelectorAll(`${model} > .pkmenu.pksub`)).map((m) => m.getAttribute("aria-label"));
 const expanded = () => Array.from(root.querySelectorAll(`${model} > .pkmorerow[aria-expanded=true] .pkname`)).map((n) => n.textContent.trim());
+// What frosts a menu over the feed: its glass — on the menu or on the layer
+// under it — and the boxes between the glass and the page that would cut its
+// backdrop off: a filter inside one of them blurs that box alone, and the
+// feed reads through the menu.
+const frost = (sel) => {
+    const menu = root.querySelector(sel);
+    const layer = getComputedStyle(menu, "::before").backdropFilter;
+    const glass = layer !== "none" ? layer : getComputedStyle(menu).backdropFilter;
+    const cut = [];
+    for (let el = layer !== "none" ? menu : menu.parentElement; el; el = el.parentElement) {
+        const s = getComputedStyle(el);
+        if (s.backdropFilter !== "none" || s.filter !== "none" || Number(s.opacity) < 1 || s.maskImage !== "none"
+            || s.clipPath !== "none" || s.mixBlendMode !== "normal") cut.push(el.className);
+    }
+    return { glass, cut };
+};
 const openEffort = async () => {
     await tap(pick("model"));
     await until(() => beside("Effort"));
@@ -113,6 +129,7 @@ const openEffort = async () => {
     await tap(beside("Effort"));
     await until(() => count(effortSub) > 0);
     out.subsEffort = subs();
+    out.frost = { model: frost(model), effort: frost(effortSub) };
     out.expandedEffort = expanded();
     out.effortHead = text(`${effortSub} .pkmenuhead`)[0] || "";
     out.effortStops = Array.from(root.querySelectorAll(`${effortSub} .pkstop`)).map((b) => b.getAttribute("aria-label"));

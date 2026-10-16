@@ -204,6 +204,10 @@ type pickDeskShot struct {
 	Sent            []string `json:"sent"`
 	Confirm         bool     `json:"confirm"`
 	Bare            []string `json:"bare"`
+	Frost           map[string]struct {
+		Glass string   `json:"glass"`
+		Cut   []string `json:"cut"`
+	} `json:"frost"`
 }
 
 // On a wide screen two words sit inside the composer, the model with its
@@ -276,5 +280,30 @@ func TestTheDesktopEffortOpensBesideTheModelMenu(t *testing.T) {
 	}
 	if got.InsideKeeps != 1 {
 		t.Error("a press inside the effort beside the menu closed it")
+	}
+}
+
+// The menus over the composer open over the rows of the feed and frost them,
+// the model's menu and the effort beside it alike. A backdrop filter takes its
+// backdrop from the nearest box between it and the page that has a filter of
+// its own — the composer's glass, or the menu the effort stands in — so
+// nothing there may have one: the menu would blur that box alone, and the feed
+// would read through it.
+func TestTheDesktopMenusFrostTheFeedUnderThem(t *testing.T) {
+	var got pickDeskShot
+	runWideFixture(t, "pickdesk.html", &got)
+
+	for _, menu := range []string{"model", "effort"} {
+		frost, ok := got.Frost[menu]
+		if !ok {
+			t.Errorf("the %s menu was not measured", menu)
+			continue
+		}
+		if !strings.Contains(frost.Glass, "blur(") {
+			t.Errorf("the %s menu has no glass (%q): the rows of the feed read through it", menu, frost.Glass)
+		}
+		if len(frost.Cut) > 0 {
+			t.Errorf("the glass of the %s menu takes its backdrop from %v, not the feed: it blurs that alone", menu, frost.Cut)
+		}
 	}
 }
