@@ -20,6 +20,11 @@ MAIL_ATTR_RE = re.compile(r'(\w[\w-]*)\s*=\s*"([^"]*)"')
 HANDBACK_MARK = "[Subagent hand-back]"
 HANDBACK_AT = "The report follows:"
 
+# What the panel signs a letter of an alarm or an observer of the session
+# with. The executor sends it in the envelope of a letter between sessions,
+# but with no address to answer, which a letter of a session always carries.
+PANEL_SENDERS = ("alarm", "observer")
+
 
 def mails(text):
     """Returns mail from other claude sessions as (who, source, what was said)."""
@@ -37,6 +42,9 @@ def mails(text):
             source = "agent" if tag == "teammate" else "session"
         who = (fields.get("teammate_id") or fields.get("from-name")
                or fields.get("from") or "")
+        panel = panel_sender(tag, fields)
+        if panel:
+            source, who = panel
         if handback:
             body = report_of(body)
         said = ""
@@ -60,6 +68,21 @@ def mails(text):
             continue
         out.append((who, source, said))
     return out
+
+
+def panel_sender(tag, fields):
+    """Returns (kind, name) of a letter the panel wrote for an alarm or an observer, or None.
+
+    The panel signs it "alarm <name>" or "observer <name>" and gives it no
+    address: a session next door signed so would still carry the address of
+    its socket.
+    """
+    if tag != "cross-session" or fields.get("from"):
+        return None
+    kind, _, name = (fields.get("from-name") or "").partition(" ")
+    if kind not in PANEL_SENDERS or not name.strip():
+        return None
+    return kind, name.strip()
 
 
 def report_of(body):

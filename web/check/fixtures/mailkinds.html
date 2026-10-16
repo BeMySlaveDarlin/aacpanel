@@ -4,11 +4,12 @@
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// The three kinds of letter a session gets among the prompts: a neighbour
-// session, a subagent of its own, and a hook of the session speaking at the end
-// of a turn. All three are cards of the build of the files sent to the person;
-// what differs is the word on the head, who signs it and, for the hook, the
-// colour of its mark. The report of the subagent is long and comes indented.
+// The kinds of letter a session gets among the prompts: a neighbour session, a
+// subagent of its own, a hook of the session speaking at the end of a turn, and
+// an alarm and an observer the panel keeps for it. All are cards of the build
+// of the files sent to the person; what differs is the word on the head, who
+// signs it and, for the hook and the panel's, the colour of its mark. The
+// report of the subagent is long and comes indented.
 import { h, render } from "preact";
 import { Row } from "/src/screens/chat/rows.js";
 import { quiet } from "/check/fixtures/quiet.js";
@@ -20,6 +21,10 @@ const items = [
       text: "  ## Result\n  \n  Both commands went through, nothing skipped.\n  \n  | step | took |\n  |---|---|\n  | build | 12s |\n  | check | 45s |" },
     { role: "mail", from: "router", source: "hook", pos: 30, at,
       text: "the router did not pass: ask the question first." },
+    { role: "mail", from: "shelf-watch", source: "alarm", pos: 40, at,
+      text: "Alarm shelf-watch, which this session set with alarm_set to ring every 1h." },
+    { role: "mail", from: "ci", source: "observer", pos: 50, at,
+      text: "Observer ci: the command ended with code 0." },
 ];
 render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: item.pos }))),
     document.getElementById("root"));

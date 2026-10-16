@@ -26,11 +26,12 @@ type mailShot struct {
 }
 
 // A session next door, a subagent of this session and a hook of it all arrive
-// among the prompts wrapped in a preamble that says the same thing every time.
-// The feed draws the three as cards of the build of the files sent to the
+// among the prompts wrapped in a preamble that says the same thing every time,
+// and an alarm or an observer of the panel in the envelope of a session next
+// door. The feed draws each as a card of the build of the files sent to the
 // person — who and when on the head, the first lines of the letter under it,
 // the rest behind a row — so what is read is what was said rather than the
-// wrapping.
+// wrapping, and a letter of the panel is not headed as one of an agent.
 func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 	var shot mailShot
 	runFixture(t, "mailkinds.html", &shot)
@@ -38,13 +39,15 @@ func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 		t.Fatal(shot.Error)
 	}
 
-	if len(shot.Rows) != 3 {
-		t.Fatalf("%d letters drawn, wanted three: %+v", len(shot.Rows), shot.Rows)
+	if len(shot.Rows) != 5 {
+		t.Fatalf("%d letters drawn, wanted five: %+v", len(shot.Rows), shot.Rows)
 	}
 	for i, want := range []struct{ kind, label, from, peek string }{
 		{"session", "from agent", "infra-rework", "Four sets green"},
 		{"agent", "from agent", "aecca89632fbfe14e", "Both commands went through, nothing skipped."},
 		{"hook", "stop hook", "", "the router did not pass"},
+		{"alarm", "alarm", "shelf-watch", "Alarm shelf-watch"},
+		{"observer", "observer", "ci", "Observer ci"},
 	} {
 		got := shot.Rows[i]
 		if !strings.Contains(got.Cls, "sent") || !strings.Contains(got.Cls, "k-"+want.kind) {
@@ -68,10 +71,13 @@ func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 		t.Error("a letter said whole on its card still offers a row to open it")
 	}
 
-	// The hook is not a correspondent, and its mark says so.
-	if shot.Rows[2].Icon == shot.Rows[0].Icon {
-		t.Errorf("the hook and the neighbour session are marked in the same colour (%q) — "+
-			"a blocked turn reads as a letter", shot.Rows[2].Icon)
+	// The hook and the panel's letters are not correspondents, and their mark
+	// says so.
+	for _, i := range []int{2, 3, 4} {
+		if shot.Rows[i].Icon == shot.Rows[0].Icon {
+			t.Errorf("the %s and the neighbour session are marked in the same colour (%q) — "+
+				"it reads as a letter of a correspondent", shot.Rows[i].Label, shot.Rows[i].Icon)
+		}
 	}
 
 	if !shot.Opened.Open {

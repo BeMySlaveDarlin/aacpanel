@@ -2375,6 +2375,23 @@ class Mail(unittest.TestCase):
         self.assertEqual([(i["from"], i["source"]) for i in got],
                          [("a", "agent"), ("docs", "session")])
 
+    def test_a_letter_of_an_alarm_or_an_observer_of_the_panel_is_not_a_neighbours(self):
+        got = self.items(user(
+            '<cross-session-message from-name="alarm wbshelf-watch">\n'
+            "Alarm wbshelf-watch, which this session set with alarm_set to ring every 1h.\n"
+            "</cross-session-message>\n"
+            '<cross-session-message from-name="observer ci">\n'
+            "Observer ci: the command ended with code 0.\n"
+            "</cross-session-message>"))
+        self.assertEqual([(i["from"], i["source"]) for i in got],
+                         [("wbshelf-watch", "alarm"), ("ci", "observer")])
+
+    def test_a_session_next_door_signed_like_an_alarm_stays_a_session(self):
+        got = self.items(user(
+            '<cross-session-message from="uds:/run/user/1000/cc-socks/1234567.sock" '
+            'from-name="alarm clock">\nA letter of a session called so.\n</cross-session-message>'))
+        self.assertEqual([(i["from"], i["source"]) for i in got], [("alarm clock", "session")])
+
     def test_a_hand_back_of_a_subagent_is_mail_without_its_preamble(self):
         got = self.items(user(
             '<agent-message from="aecca89632fbfe14e">\n'

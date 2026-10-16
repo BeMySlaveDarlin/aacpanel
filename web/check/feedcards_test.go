@@ -79,7 +79,7 @@ func testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t *testing.T, run func(*tes
 	if files.Label != "file for you" || files.Box == nil || files.Plate == nil || files.At == nil {
 		t.Fatalf("the reference card is not the files sent to the person: %+v", files)
 	}
-	names := []string{"questions", "question", "permissions", "page", "page updated", "brief", "wake-up",
+	names := []string{"questions", "question", "permissions", "page", "page updated", "brief", "alarm",
 		"called you", "not called"}
 	// A call is a line said, as a letter is: its words stand under the head,
 	// with no plate of rows to open.
