@@ -32,10 +32,16 @@ export function idleOf(s, now) {
 // and BAND for the marks and the names beside it; the first band starts STAR
 // out, clear of the star and its name, and every orbit runs down the middle
 // of its band. ROOM is what a planet needs along its orbit for its mark and
-// its name.
-const STAR = 25;
+// its name. ACROSS is what a planet needs from every planet of the orbits
+// inside its own, and SUN from the star, as the home view sees them: seen from
+// above at a slant, the orbits all but meet at their near and far sides and
+// cross where they lean, and two planets there, or a planet and the star,
+// would be drawn one over the other.
+const STAR = 50;
 const BAND = 58;
 const ROOM = 70;
+const ACROSS = 70;
+const SUN = 45;
 
 // Every orbit leans its own way, the orbit of a planet's moons too: by an
 // inclination within INCLINE about a line through the star at an angle of its
@@ -121,8 +127,8 @@ export function orbitOf(depth) {
 
 // layout places the nodes of every system in the plane of its system, each
 // planet at a place of its own on its orbit, drawn from its name and pulled
-// clear of its neighbours, and sets every orbit and every planet with moons
-// turning.
+// clear of its neighbours on the orbit, of the planets inside and of the star,
+// and sets every orbit and every planet with moons turning.
 // systems lists the contours, each with its orbits: { name, orbits: [{ key,
 // name, keys }] }, keys being the planets of the orbit; nodes maps the key of
 // every session to { parent, idle, pull }, parent the key of the session that
@@ -160,7 +166,7 @@ export function layout(systems, nodes) {
         }
         orbits.sort((a, b) => a.weight - b.weight);
         let edge = STAR;
-        for (const o of orbits) {
+        orbits.forEach((o, i) => {
             o.band = 2 * o.reach + BAND;
             o.R = edge + o.band / 2;
             edge += o.band;
@@ -168,9 +174,10 @@ export function layout(systems, nodes) {
             o.spin = spinOf(o.R, orbits[0].R, o.planets.some(lively));
             for (const p of o.planets) spinMoons(p, o.spin * MOONS);
             spread(o.planets, (a, b) => Math.max(ROOM + reach(a), ROOM + reach(b)) / o.R);
+            clear(o, orbits.slice(0, i));
             for (const p of o.planets) spreadMoons(p);
             placeOrbit(o);
-        }
+        });
         const members = [];
         const gather = (n) => {
             n.system = sys.name;
@@ -273,6 +280,37 @@ export function turnBy(graph, turns, dt) {
             placeOrbit(o);
         }
     }
+}
+
+// CLEAR is how many angles round the orbit clear tries, nearest first.
+const CLEAR = 144;
+
+// clear turns the planets of orbit o together, by the least angle either way,
+// until the home view shows each of them ACROSS or more from every planet of
+// the orbits inside, and SUN or more from the star, their moons counted;
+// where no angle does, by the one that comes closest. The order and the gaps
+// along the orbit stay as spread left them.
+function clear(o, inside) {
+    if (o.planets.length === 0) return;
+    const seen = camera(HOME, 0, 0, { f: DIST, dist: DIST, ox: 0, oy: 0 });
+    const star = seen([0, 0, 0]);
+    const others = inside.flatMap((q) => q.planets.map((b) => ({ at: seen(onOrbit(q, b.ang)), reach: reach(b) })));
+    const fit = (d) => Math.min(...o.planets.map((a) => {
+        const p = seen(onOrbit(o, a.ang + d));
+        const sun = Math.hypot(p.x - star.x, p.y - star.y) / (SUN + reach(a));
+        return Math.min(sun, ...others.map((b) => Math.hypot(p.x - b.at.x, p.y - b.at.y) / (ACROSS + reach(a) + b.reach)));
+    }));
+    let best = 0;
+    let most = fit(0);
+    for (let i = 1; i <= CLEAR && most < 1; i++) {
+        const d = (Math.ceil(i / 2) * (i % 2 ? 1 : -1) * TAU) / CLEAR;
+        const got = fit(d);
+        if (got > most) {
+            best = d;
+            most = got;
+        }
+    }
+    for (const a of o.planets) a.ang += best;
 }
 
 // spread pulls apart the nodes that would stand on one another, forward

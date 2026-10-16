@@ -169,6 +169,11 @@ type homeGraph struct {
 		Behind graphQuiet `json:"behind"`
 		Front  graphQuiet `json:"front"`
 	} `json:"quiet"`
+	Crowded struct {
+		Orbits []string `json:"orbits"`
+		Apart  int      `json:"apart"`
+		Star   int      `json:"star"`
+	} `json:"crowded"`
 	Notes    string   `json:"notes"`
 	Head     string   `json:"head"`
 	Titles   []string `json:"titles"`
@@ -394,6 +399,9 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 		t.Errorf("the systems are %v, not the contours in the order of the map", names)
 	}
 	w := got.Written
+	if w["counts"] != 0 {
+		t.Errorf("the frame writes the counts of %d stars under their names: a star says its name, its counts are in its tip", w["counts"])
+	}
 	if w["blog"] != 1 || w["drafts"] != 1 || w["client"] != 1 || w["outside"] != 0 || w["shop"] != 0 {
 		t.Errorf("the frame writes %v: blog once, as its planet, drafts once, as its orbit, client once, as its star, "+
 			"and of personal behind neither shop nor its orbit outside the map", w)
@@ -414,13 +422,16 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 
 // The galaxy opens with the liveliest contour in front as a near plan, most
 // of the height of the box, and every system in the box, none over another —
-// and its places stand clear of each other for any number of contours.
+// and its places stand clear of each other for any number of contours. A small
+// contour in front of larger ones behind takes the least: the room round the
+// star makes a small system larger for its planets than a large one, and the
+// row behind takes its share of the box.
 func TestTheGalaxyOpensOnTheLiveliest(t *testing.T) {
 	got := runHomeGraph(t)
 	if !reflect.DeepEqual(got.Order, []string{"client", "personal", "lab"}) || got.Galaxy.Nearest != "client" {
 		t.Errorf("the galaxy opens in the order %v with %q nearest: the liveliest in front", got.Order, got.Galaxy.Nearest)
 	}
-	if got.Galaxy.FrontShare < 0.55 || got.Galaxy.FrontShare > 0.72 {
+	if got.Galaxy.FrontShare < 0.52 || got.Galaxy.FrontShare > 0.72 {
 		t.Errorf("the system in front takes %.2f of the height of the box: the near plan is most of it", got.Galaxy.FrontShare)
 	}
 	if got.Galaxy.Alone < 0.6 || got.Galaxy.Alone > 0.7 {
@@ -534,7 +545,10 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 
 // A planet is lit as the moon in its phase: the lit share of its disc is the
 // share of its context, in its own tone, and in the tone of the cap near the
-// cap.
+// cap. The terminator is soft and its half toward the night still passes for
+// lit by the reading's threshold, so the reading runs up to 0.04 over the
+// share, the most at three quarters, and a pixel either way of the disc tips it
+// past; the reading is held to 0.05.
 func TestAPlanetIsLitByItsContext(t *testing.T) {
 	got := runHomeGraph(t)
 	read := func(key string) graphPhase {
@@ -549,7 +563,7 @@ func TestAPlanetIsLitByItsContext(t *testing.T) {
 	_ = json.Unmarshal(got.Phase["cap"], &capTone)
 	for _, pct := range []string{"0", "25", "50", "75"} {
 		want, _ := strconv.ParseFloat(pct, 64)
-		if have := read(pct).Share; math.Abs(have-want/100) > 0.04 {
+		if have := read(pct).Share; math.Abs(have-want/100) > 0.05 {
 			t.Errorf("a planet at %s%% of its context is lit over %.3f of its disc", pct, have)
 		}
 	}
@@ -888,6 +902,25 @@ func TestABehindSaysItsNameAndTheWait(t *testing.T) {
 	if len(q.Front.Hidden) != 0 || q.Front.Clashes == 0 {
 		t.Errorf("the system in front hides the names %v (and writes %d over each other — the fixture is to be crowded)",
 			q.Front.Hidden, q.Front.Clashes)
+	}
+}
+
+// Planets that their names put at one angle on neighbouring orbits, and one at
+// the far side of the star, would be drawn one over another: seen from above
+// at a slant, orbits all but meet at their near and far sides. Each orbit
+// turns until the home view shows its planets apart from those inside it and
+// from the star — on the widget, two marks across between planets and three
+// radii of a mark from the star.
+func TestPlanetsStandApartOnTheHomeView(t *testing.T) {
+	c := runHomeGraph(t).Crowded
+	if !reflect.DeepEqual(c.Orbits, []string{"sirius", "zeta", "delta", "sigma", "alpha", "rho"}) {
+		t.Fatalf("the crowded contour has the orbits %v: the fixture is to put a planet on each of six, in the order of the map", c.Orbits)
+	}
+	if c.Apart < 40 {
+		t.Errorf("two planets of the crowded contour stand %d px apart on the home view: they are drawn one over the other", c.Apart)
+	}
+	if c.Star < 30 {
+		t.Errorf("a planet stands %d px from its star on the home view: it is drawn over the star", c.Star)
 	}
 }
 

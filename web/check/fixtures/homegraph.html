@@ -466,7 +466,8 @@ window.done = (async () => {
             share: Math.round(((b.w * b.h) / (front.w * front.h)) * 100) / 100,
         }));
         out.written = { blog: times.get("blog") || 0, drafts: times.get("drafts") || 0, outside: times.get("outside the map") || 0,
-            shop: times.get("shop") || 0, client: times.get("client") || 0 };
+            shop: times.get("shop") || 0, client: times.get("client") || 0,
+            counts: [...times.keys()].filter((t) => /^\d+ sessions?\b/.test(t)).length };
     }
 
     // The header carries what the tile of the sessions said, and that tile is
@@ -770,6 +771,26 @@ window.done = (async () => {
         return { hidden: lab.filter((l) => l.hidden).map((l) => l.key), shown: shown.length, shownKeys: shown.map((l) => l.key), clashes };
     };
     out.quiet = { behind: clearOf("elsewhere"), front: clearOf(corder[0]) };
+
+    // Six projects whose names put the planet of the inner orbit at the far
+    // side of the star and every next one by the one inside it: the home view
+    // shows every planet apart from the others and the star, on a canvas the
+    // size of the widget.
+    {
+        const projects = ["sirius", "zeta", "delta", "sigma", "alpha", "rho"].map((name, i) => P(41 + i, name, "Crowd"));
+        const snap = { at: Math.floor(now / 1000), profileMap: [{ id: 9, profile: "crowd", groups: [{ name: "Crowd", projects }] }],
+            sessions: projects.map((pj) => S({ session: pj.name, profile: "crowd", project: pj, status: "idle", lastRequestAt: iso(30) })) };
+        const g3 = graphOf(snap);
+        const o3 = orderOf(g3);
+        const p3 = placesOf(g3, o3, o3[0]);
+        const pr = camera(HOME, 1092, 472, lensOf(g3, 1092, 472));
+        const spots = g3.nodes.map((n) => pr(worldOf(p3.get(n.p.system), n.p.w)));
+        const sun = pr(p3.get(g3.systems[0].name).c);
+        let apart = Infinity;
+        spots.forEach((a, i) => spots.slice(i + 1).forEach((b) => { apart = Math.min(apart, Math.hypot(a.x - b.x, a.y - b.y)); }));
+        out.crowded = { orbits: g3.systems[0].orbits.map((o) => o.planets.map((pl) => pl.key).join()), apart: Math.round(apart),
+            star: Math.round(Math.min(...spots.map((q) => Math.hypot(q.x - sun.x, q.y - sun.y)))) };
+    }
 
     // The phase of a planet: lit by its star, the lit share of its disc the
     // share of its context, lit in its own tone, and in the tone of the cap

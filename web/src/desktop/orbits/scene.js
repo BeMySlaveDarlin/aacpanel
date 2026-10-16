@@ -612,7 +612,7 @@ export function drawScene(ctx, W, H, pr, scene) {
         hits.push({ x: star.x, y: star.y, r: sr + 10 * u, star: s });
         items.push({
             key: `*${s.name}`, x: star.x, y: star.y, r: sr + 6 * u, pri: 5000, prefer: STAR_SIDES, from: star,
-            lines: [{ t: s.name, f: type.star, c: s.tint }, { t: s.summary, f: type.tag, c: rgba(pal.ink, 0.5) }],
+            lines: [{ t: s.name, f: type.star, c: s.tint }],
         });
         // An orbit says its project only where its planets do not: outside
         // the map, and a project whose sessions are named otherwise.
