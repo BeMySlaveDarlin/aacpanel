@@ -1924,6 +1924,51 @@ class Secrets(unittest.TestCase):
         self.assertEqual([i["role"] for i in got], [])
 
 
+class PersonCalls(unittest.TestCase):
+    """A call of the person through the panel is a card of its own, drawn from the call, with no row of a call."""
+
+    def tool(self, args, use="toolu_call"):
+        return json.loads(line({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "mcp__aacpanel__notify", "id": use, "input": args},
+        ]}, "timestamp": "2026-10-16T09:00:00Z"}))
+
+    def tool_answer(self, text, error=False, use="toolu_call"):
+        block = {"type": "tool_result", "tool_use_id": use, "content": [{"type": "text", "text": text}]}
+        if error:
+            block["is_error"] = True
+        return json.loads(line({"type": "user", "message": {"content": [block]},
+                                "timestamp": "2026-10-16T09:00:01Z"}))
+
+    def test_a_call_is_its_card_with_the_line_the_phone_got(self):
+        got = chat.parse(self.tool({"text": "  The migration\n waits for you:\tprod or stage?  "}), 0)
+        self.assertEqual(got, [{"role": "call", "text": "The migration waits for you: prod or stage?",
+                                "use": "toolu_call", "at": "2026-10-16T09:00:00Z", "pos": 0}])
+
+    def test_the_line_is_cut_where_the_tool_cuts_it(self):
+        got = chat.parse(self.tool({"text": "é" * 400}), 0)
+        self.assertEqual([(i["role"], len(i["text"])) for i in got], [("call", 300)])
+
+    def test_a_call_with_no_line_stays_a_call(self):
+        for args in ({}, {"text": "   "}, {"text": 7}):
+            with self.subTest(args=args):
+                self.assertEqual([i["role"] for i in chat.parse(self.tool(args), 0)], ["tool"])
+
+    def test_a_reader_that_keeps_calls_waits_for_the_answer(self):
+        calls = {}
+        card = chat.parse(self.tool({"text": "Deploy is blocked"}), 0, calls=calls)
+        self.assertEqual([(i["role"], i.get("open")) for i in card], [("call", True)])
+        got = chat.parse(self.tool_answer("The person has been called: the push carries this line."), 10, calls=calls)
+        self.assertEqual(got, [{"role": "result", "use": "toolu_call", "at": "2026-10-16T09:00:01Z", "pos": 10}],
+                         "a call that went says nothing more than that its answer came")
+
+    def test_a_refusal_says_why_nobody_was_called(self):
+        calls = {}
+        chat.parse(self.tool({"text": "Deploy is blocked"}), 0, calls=calls)
+        said = "Nobody was called: this session called 12 s ago: one call a minute, 48 s left."
+        got = chat.parse(self.tool_answer(said, error=True), 10, calls=calls)
+        self.assertEqual([(i["role"], i.get("failed"), i.get("undelivered")) for i in got], [("result", True, said)])
+
+
 class SecretFiles(unittest.TestCase):
     """The feed opens no secret, though a conversation in the home directory holds the directory of them."""
 

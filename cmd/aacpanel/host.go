@@ -48,6 +48,18 @@ func (s *Server) noteViewing(r *http.Request) {
 	if err != nil {
 		log.Printf("viewing mark of device %d: %v", device, err)
 	}
+	if name == "" {
+		return
+	}
+	// The person has the session on screen: its calls are seen on every
+	// device, since it is the person who was called, not the device.
+	conversation := ""
+	if live, ok := s.host.LiveSession(name); ok {
+		conversation = live.SessionID
+	}
+	if err := s.db.SessionCalls().Seen(ctx, name, conversation); err != nil {
+		log.Printf("the calls of %s are not marked seen: %v", name, err)
+	}
 }
 
 const viewingTimeout = 3 * time.Second

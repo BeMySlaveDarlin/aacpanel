@@ -323,7 +323,20 @@ question and not a request for a permission — nothing waits for an answer, and
 the turn goes on. What keeps it from becoming a bell nobody hears is the
 collector, which takes one call a minute from a session and cuts the line to a
 length a phone shows; a call the panel has not carried away within a few minutes
-goes stale, because a call is for now and a log of them is not worth keeping.
+goes stale there, because a push is for now.
+
+A call also stays where the person looks next. The feed draws it as a card
+from the call itself, the line the phone got, and a refusal of the tool marks
+the card with its reason, as a letter that reached nobody is marked. The panel
+keeps the last call of each conversation in `session_calls` and marks the
+session in the lists until the person opens its feed on any device: the call
+was for the person, not for a device, and the mark does not go stale. Opening
+is the view mark a poll of the host carries, and a screen polls the moment a
+feed opens, so a glance shorter than the gap between polls still counts; until
+that poll answers, the device that opened the feed hides the mark itself. A
+call made while some device has the session on screen sets no mark, as it
+sends that device no push. The price is a row per conversation that called,
+kept for a month.
 
 A call does not travel in the snapshot. The panel keeps a request for the calls
 waiting on the chat socket, and the collector answers it the moment it takes
@@ -1986,7 +1999,9 @@ session. The feed draws the card of a published brief from the tool's answer,
 which names the brief first, and never from what the call was given: a check
 publishes nothing, and neither does a call the collector refused. The card of a
 secret is drawn the same way, its name from the answer and its title and
-notepad from the call, and a call the tool refused gives none.
+notepad from the call, and a call the tool refused gives none. The card of a
+call to the person is drawn from the call alone, since the line is what the
+phone got; the answer only says whether anyone was called.
 
 **The checklist of a session is the model's own, kept by a tool of the
 panel.** The tool is `checklist` on the panel's server, allowed, so an update

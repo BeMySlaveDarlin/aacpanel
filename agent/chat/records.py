@@ -7,8 +7,8 @@ import sesstate
 from sesstate.feed import TURN_ENDS
 
 from . import codex, commands
-from .cards import (BRIEF_TOOL, SECRET_TOOL, artifact_card, ask_round, brief_card, permit_card, permit_row,
-                    secret_call, secret_card, sent_card, wake_item)
+from .cards import (BRIEF_TOOL, NOTIFY_TOOL, SECRET_TOOL, artifact_card, ask_round, brief_card, call_card,
+                    permit_card, permit_row, secret_call, secret_card, sent_card, wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
                       service, strip_panel_note, unwrap_pasted)
 from .mail import LETTER_TOOL, peer_name, peer_pid, undelivered
@@ -356,7 +356,7 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     call = calls.pop(use, None) if calls is not None else None
                     if use and call is not None:
                         mark = result_mark(use, b, at, pos, i)
-                        if call.get("letter"):
+                        if call.get("letter") or call.get("notify"):
                             lost = undelivered(sesstate.result_text(b), b.get("is_error"))
                             if lost:
                                 mark["undelivered"] = lost
@@ -607,6 +607,17 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     # reached the human is known only from the answer, and
                     # the window takes the call out once its card is drawn.
                     sent.add(block.get("id") or "")
+                if name == NOTIFY_TOOL:
+                    card = call_card(block.get("input"), block.get("id"), at, pos)
+                    if card:
+                        # Whether anyone was called is known only from the
+                        # answer: the card waits for it as a letter does,
+                        # and the fold marks it when a refusal comes.
+                        if calls is not None and card["use"]:
+                            calls[card["use"]]["notify"] = True
+                            card["open"] = True
+                        out.append(card)
+                        continue
                 if name in ("SendMessage", LETTER_TOOL):
                     data = block.get("input") or {}
                     said = data.get("message") or data.get("content") or data.get("text") or ""

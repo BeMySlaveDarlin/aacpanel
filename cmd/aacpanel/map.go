@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
@@ -85,6 +86,7 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 	}
 	payload = limitsByContour(payload, list)
 	payload = sessionsByContour(payload, list)
+	payload = s.sessionsCalled(ctx, payload)
 	if len(list) == 0 {
 		return payload, nil
 	}
@@ -102,6 +104,57 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 		return payload, nil
 	}
 	return spliced, nil
+}
+
+// sessionsCalled puts the time of the call on every session whose
+// conversation called the person and was not opened since: the lists mark it
+// until it is.
+func (s *Server) sessionsCalled(ctx context.Context, payload []byte) []byte {
+	if s.db == nil {
+		return payload
+	}
+	unseen, err := s.db.SessionCalls().Unseen(ctx)
+	if err != nil {
+		log.Printf("the calls of the sessions: %v", err)
+		return payload
+	}
+	if len(unseen) == 0 {
+		return payload
+	}
+	var snapshot map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &snapshot); err != nil {
+		return payload
+	}
+	var rows []map[string]json.RawMessage
+	if err := json.Unmarshal(snapshot["sessions"], &rows); err != nil {
+		return payload
+	}
+	marked := false
+	for _, row := range rows {
+		at, ok := unseen[textField(row, "sessionId")]
+		if !ok {
+			continue
+		}
+		raw, err := json.Marshal(at.UTC().Format(time.RFC3339))
+		if err != nil {
+			return payload
+		}
+		row["called"] = raw
+		marked = true
+	}
+	if !marked {
+		return payload
+	}
+	raw, err := json.Marshal(rows)
+	if err != nil {
+		return payload
+	}
+	snapshot["sessions"] = raw
+	out, err := json.Marshal(snapshot)
+	if err != nil {
+		return payload
+	}
+	return out
 }
 
 func spliceField(payload []byte, key string, value any) ([]byte, error) {

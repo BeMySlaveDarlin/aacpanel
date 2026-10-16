@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-const viewFresh = 40 * time.Second
+// ViewFresh is how long a mark of a device looking at a session says it still
+// does: a screen repeats the mark with every poll of the host.
+const ViewFresh = 40 * time.Second
 
 // Views reports who is looking at a session right now.
 type Views interface {
@@ -23,7 +25,7 @@ func (s *Sender) watching(ctx context.Context, m Message) map[int64]bool {
 	askCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	ids, err := s.views.Watching(askCtx, m.Session, viewFresh)
+	ids, err := s.views.Watching(askCtx, m.Session, ViewFresh)
 	if err != nil {
 		log.Printf("notify: who is looking at %q is unknown (%v), sending to everyone", m.Session, err)
 		return nil

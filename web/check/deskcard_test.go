@@ -58,21 +58,23 @@ type deskCard struct {
 		Head    string `json:"head"`
 		Say     string `json:"say"`
 	} `json:"ghost"`
-	Says        map[string]string        `json:"says"`
-	SaysAfter   map[string]string        `json:"saysAfter"`
-	Tones       map[string]string        `json:"tones"`
-	Edge        string                   `json:"edge"`
-	NoEdge      string                   `json:"noEdge"`
-	Grounds     map[string]rowGround     `json:"grounds"`
-	GhostGround rowGround                `json:"ghostGround"`
-	Facts       map[string]deskCardFacts `json:"facts"`
-	Marks       map[string][]string      `json:"marks"`
-	ColumnText  string                   `json:"columnText"`
-	Rows        []deskCardRow            `json:"rows"`
-	HomeAct     string                   `json:"homeAct"`
-	Hiding      []string                 `json:"hiding"`
-	Asked       []string                 `json:"asked"`
-	Shelf       []struct {
+	Says         map[string]string        `json:"says"`
+	SaysAfter    map[string]string        `json:"saysAfter"`
+	Tones        map[string]string        `json:"tones"`
+	Edge         string                   `json:"edge"`
+	NoEdge       string                   `json:"noEdge"`
+	Grounds      map[string]rowGround     `json:"grounds"`
+	GhostGround  rowGround                `json:"ghostGround"`
+	Facts        map[string]deskCardFacts `json:"facts"`
+	Marks        map[string][]string      `json:"marks"`
+	Bells        map[string]string        `json:"bells"`
+	BellsVisited map[string]string        `json:"bellsVisited"`
+	ColumnText   string                   `json:"columnText"`
+	Rows         []deskCardRow            `json:"rows"`
+	HomeAct      string                   `json:"homeAct"`
+	Hiding       []string                 `json:"hiding"`
+	Asked        []string                 `json:"asked"`
+	Shelf        []struct {
 		Name    string   `json:"name"`
 		Contour string   `json:"contour"`
 		When    string   `json:"when"`
@@ -541,4 +543,22 @@ type rowGround struct {
 	Bar    string  `json:"bar"`
 	Under  string  `json:"under"`
 	Own    string  `json:"own"`
+}
+
+// A session that called the person rings on its row until its conversation
+// has been on screen: a bell among the marks of its name that says when it
+// called, on no other row, and gone once the person has been there and come
+// back, before the host says so.
+func TestDeskRowRingsUntilTheSessionIsOpened(t *testing.T) {
+	got := runDeskCard(t)
+	tip, ok := got.Bells["shop"]
+	if len(got.Bells) != 1 || !ok {
+		t.Fatalf("the rows ringing are %v, wanted the one session that called", got.Bells)
+	}
+	if tip != "called you · 3 min ago" {
+		t.Errorf("the bell says %q, wanted when the session called", tip)
+	}
+	if len(got.BellsVisited) != 0 {
+		t.Errorf("the conversation of the session was on screen, and the column still rings: %v", got.BellsVisited)
+	}
 }

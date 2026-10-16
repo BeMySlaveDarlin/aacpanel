@@ -57,7 +57,8 @@ def said(item):
     """Returns what a row of the feed says as the conversation: the role of its match and its words.
 
     A letter from a hook is the harness speaking, and a card is searched by
-    the words it shows as its name, not by what it holds. The task of a thread
+    the words it shows as its name, not by what it holds; the card of a call
+    of the person shows its line and nothing else. The task of a thread
     another drives is drawn as a letter, and found as one.
     """
     role = item.get("role")
@@ -71,6 +72,8 @@ def said(item):
         return "card", (item.get("title"),)
     if role == "secret":
         return "card", (item.get("title"), item.get("name"))
+    if role == "call":
+        return "card", (item.get("text"),)
     return None, ()
 
 

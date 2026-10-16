@@ -612,6 +612,22 @@ button.pjstub { cursor: pointer; }
    both as quiet words. */
 .pjlived, .pjremote { flex: none; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
 .pjlived::before, .pjremote::before { content: "·"; margin-right: .45rem; }
+/* A call the person has not come for yet: a bell in the colour of waiting on
+   the state's line, as tall as the place after it, until the session is
+   opened. */
+.pjcalled {
+    flex: none;
+    margin-top: .02rem;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    height: 1.15rem;
+    padding: 0 .3rem;
+    border-radius: var(--r-pill);
+    color: var(--wait);
+    background: color-mix(in srgb, var(--wait) 14%, transparent);
+}
+.pjcalled svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
 /* Where the session is in the checklist of its work: a line of its own under
    the state, cut at its end rather than wrapped. */
 .pjchecklist {

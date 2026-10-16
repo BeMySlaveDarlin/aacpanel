@@ -1,4 +1,4 @@
-"""Feed cards: artifact, brief, secret asked for, files sent to the human, answered question round, answered permissions, alarm firing."""
+"""Feed cards: artifact, brief, secret asked for, call of the person, files sent to the human, answered question round, answered permissions, alarm firing."""
 import re
 
 import sesstate
@@ -112,6 +112,30 @@ def secret_card(text, call, use, at, pos):
     return {"role": "secret", "use": use or "", "name": found.group(1),
             "title": call.get("title", ""), "template": call.get("template", ""),
             "at": at, "pos": pos}
+
+
+# The call of the person through the panel's server, by the name claude gives
+# it. The card is drawn from the call: the line is what the phone was handed,
+# and the answer says only whether anyone was called.
+NOTIFY_TOOL = "mcp__aacpanel__notify"
+
+# The tool squeezes the line and cuts it at this many characters before the
+# push carries it.
+MAX_CALL = 300
+
+
+def call_card(data, use, at, pos):
+    """Returns the card of a call of the person, or None for a call with no line.
+
+    The line is squeezed and cut the way the tool does it, so the card says
+    what the phone got. A call with no line is refused by the tool and stays
+    a call, its refusal readable in its details.
+    """
+    text = data.get("text") if isinstance(data, dict) else None
+    line = " ".join(text.split())[:MAX_CALL] if isinstance(text, str) else ""
+    if not line:
+        return None
+    return {"role": "call", "text": line, "use": use or "", "at": at, "pos": pos}
 
 
 def mark_outside(items, cwd):

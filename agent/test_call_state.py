@@ -76,6 +76,18 @@ def panel_letter(use, to="shop-review", text="salta"):
                                      "input": {"to": to, "text": text}}]}}
 
 
+def person_call(use, text="Deploy is blocked on the migration"):
+    """Returns an answer of the model that calls the person through the panel."""
+    return {"type": "assistant", "timestamp": AT, "cwd": CWD,
+            "message": {"content": [{"type": "tool_use", "id": use, "name": "mcp__aacpanel__notify",
+                                     "input": {"text": text}}]}}
+
+
+def person_calls_of(items):
+    """Returns every call of the person in the window as (id, failed, why nobody was called)."""
+    return [(i.get("use"), i.get("failed"), i.get("undelivered")) for i in items if i["role"] == "call"]
+
+
 def letters_of(items):
     """Returns every letter sent in the window as (id, why it reached nobody)."""
     return [(i.get("use"), i.get("undelivered")) for i in items
@@ -377,6 +389,43 @@ class Letters(Window):
         self.assertEqual([(i["role"], i["pos"]) for i in more["items"]], [("mail", sent["pos"])],
                          "the reader finds the letter by its position and role and redraws it")
         self.assertEqual(letters_of(more["items"]), [("t1", REASON)])
+
+
+# What the panel's notify answers a call it made, and one it refused.
+CALLED = "The person has been called: the push carries this line and opens this session."
+NOT_CALLED = "Nobody was called: this session called 12 s ago: one call a minute, 48 s left."
+
+
+class PersonCalls(Window):
+    def test_a_call_is_a_card_and_not_a_call_among_the_calls(self):
+        self.write(prompt("go"), person_call("t1"), result("t1", text=CALLED))
+        got = chat.feed(self.path)["items"]
+        self.assertEqual(person_calls_of(got), [("t1", None, None)])
+        self.assertEqual(calls_of(got), [], "the call is drawn twice: as its card and as a row of the run")
+        self.assertNotIn("open", [i for i in got if i["role"] == "call"][0],
+                         "the answer came, the card is not waiting any more")
+
+    def test_a_refused_call_says_why_nobody_was_called(self):
+        self.write(prompt("go"), person_call("t1"), result("t1", error=True, text=NOT_CALLED))
+        self.assertEqual(person_calls_of(chat.feed(self.path)["items"]), [("t1", True, NOT_CALLED)])
+
+    def test_a_refusal_past_the_position_sends_the_card_again(self):
+        self.write(prompt("go"), person_call("t1"))
+        first = chat.feed(self.path, limit=40)
+        card = first["items"][-1]
+        self.write(result("t1", error=True, text=NOT_CALLED))
+        more = chat.feed(self.path, limit=40, after=first["last"])
+        self.assertEqual([(i["role"], i["pos"]) for i in more["items"]], [("call", card["pos"])],
+                         "the reader finds the card by its position and role and redraws it")
+        self.assertEqual(person_calls_of(more["items"]), [("t1", True, NOT_CALLED)])
+
+    def test_a_page_that_ends_on_a_call_sees_its_refusal_past_the_page(self):
+        self.write(prompt("go"), person_call("t1"))
+        edge = self.write(result("t1", error=True, text=NOT_CALLED))
+        self.write(*[prompt(f"prompt {n}") for n in range(3)])
+        page = chat.feed(self.path, limit=10, before=edge)
+        self.assertEqual(person_calls_of(page["items"]), [("t1", True, NOT_CALLED)],
+                         "the page stopped at its end with the call still waiting for its answer")
 
 
 if __name__ == "__main__":

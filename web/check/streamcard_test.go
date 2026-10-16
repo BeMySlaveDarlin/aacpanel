@@ -5,11 +5,14 @@ import (
 	"testing"
 )
 
-// The phone's card keeps the name, place, state, model and background work
-// readable below its name and actions. Tapping the place, percentage or Remote
-// Control opens the conversation just as tapping the words does.
-func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
-	var got []struct {
+type streamCardBell struct {
+	Title  string `json:"title"`
+	Icon   bool   `json:"icon"`
+	Inside bool   `json:"inside"`
+}
+
+type streamCardRun struct {
+	Cards []struct {
 		Name          string `json:"name"`
 		Mark          string `json:"mark"`
 		State         string `json:"state"`
@@ -35,8 +38,21 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		MarksInside   bool   `json:"marksInside"`
 		PctAddsHeight int    `json:"pctAddsHeight"`
 		Overflow      int    `json:"overflow"`
-	}
-	runFixture(t, "streamcard.html", &got)
+	} `json:"cards"`
+	Called struct {
+		Before  map[string]streamCardBell `json:"before"`
+		Visited map[string]streamCardBell `json:"visited"`
+		Again   map[string]streamCardBell `json:"again"`
+	} `json:"called"`
+}
+
+// The phone's card keeps the name, place, state, model and background work
+// readable below its name and actions. Tapping the place, percentage or Remote
+// Control opens the conversation just as tapping the words does.
+func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
+	var run streamCardRun
+	runFixture(t, "streamcard.html", &run)
+	got := run.Cards
 	if len(got) != 3 {
 		t.Fatalf("%d cards, wanted 3: %+v", len(got), got)
 	}
@@ -106,5 +122,28 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		if c.Overflow > 0 {
 			t.Errorf("the page scrolls sideways by %dpx", c.Overflow)
 		}
+	}
+}
+
+// A session that called the person carries a bell on its card until the
+// person opens it: the card of a session that never called has none, the
+// device that opened the feed takes the bell off without waiting for the host
+// to say so, and a call made after the visit brings it back.
+func TestACallMarksTheCardUntilTheSessionIsOpened(t *testing.T) {
+	var run streamCardRun
+	runFixture(t, "streamcard.html", &run)
+	got := run.Called
+	bell, ok := got.Before["aacpanel"]
+	if len(got.Before) != 1 || !ok {
+		t.Fatalf("the bells before the visit stand on %v, wanted the one session that called", got.Before)
+	}
+	if !bell.Icon || !bell.Inside || !strings.HasPrefix(bell.Title, "called you · ") {
+		t.Errorf("the bell of the session that called is %+v: a mark inside its row that says when it called", bell)
+	}
+	if len(got.Visited) != 0 {
+		t.Errorf("the feed of the session was opened and closed, and the list still rings: %v", got.Visited)
+	}
+	if _, ok := got.Again["aacpanel"]; !ok || len(got.Again) != 1 {
+		t.Errorf("a call after the visit marks %v, wanted the session that called again", got.Again)
 	}
 }

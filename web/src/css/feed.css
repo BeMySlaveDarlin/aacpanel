@@ -669,6 +669,11 @@ code.path {
 .mletter.k-hook .sentico { color: var(--warn); }
 .mletterlost { flex: none; color: var(--warn); font-size: var(--t-xs); }
 .mletterwhy { margin: 0; white-space: pre-line; }
+/* A call of the person: the line their phone got, set as the words of a
+   letter. One nobody got takes the colour the panel warns in on its mark and
+   says why under the line. */
+.mcall.lost .sentico { color: var(--warn); }
+.mcallwhy { margin: 0; }
 .mlettermore .mfico, .pnmmore .mfico { color: var(--ink-faint); }
 .mlettermore .mfname, .pnmmore .mfname { font-weight: 500; color: var(--ink-dim); }
 

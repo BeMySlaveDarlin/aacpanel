@@ -23,16 +23,17 @@ const notifyInstructions = "When the work is blocked on what only the person can
 	"call them with notify: one line to their phone, not a question."
 
 const notifyDescription = "Calls the person to this session: the line arrives on their phone as a push, and a " +
-	"tap opens this session in the panel. Not a question and not a permission request: nothing appears in the " +
-	"conversation, nothing waits for an answer, and the turn goes on. Call when the work is blocked on a decision only " +
+	"tap opens this session in the panel. The call stands in the conversation as a card with the line, and the " +
+	"session is marked in the person's lists until they open it. Not a question and not a permission request: " +
+	"nothing waits for an answer, and the turn goes on. Call when the work is blocked on a decision only " +
 	"they can make, when something broke that they would want to know about now, or when they asked to be called " +
 	"when a job finished. Not instead of finishing work that is merely hard, not for progress, and not in place " +
 	"of a question when an answer is what you need and they are there. The line stands on its own, read on a " +
 	"phone with no conversation around it: say what is stuck and why it needs them, not \"need you\". It goes " +
 	"to a device outside this machine: no keys, no tokens, no contents of a private file. One call a minute " +
-	"from a session, 300 characters to a line; the phone already showing this session gets nothing, and a call " +
-	"nobody came for goes stale in a few minutes. A refusal says why nobody was called; say it in the " +
-	"conversation instead."
+	"from a session, 300 characters to a line; the phone already showing this session gets nothing, and a push " +
+	"nobody came for goes stale in a few minutes, while the mark in the lists stays until they open the session. " +
+	"A refusal says why nobody was called; say it in the conversation instead."
 
 // maxCall is the length of a line the collector keeps. The rest is cut here
 // rather than there: the collector reads a call in one short read, and a line

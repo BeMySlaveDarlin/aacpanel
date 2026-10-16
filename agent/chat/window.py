@@ -104,13 +104,14 @@ def fold(rows, limit, before, after):
     def find_call(use):
         """Returns the group holding the call with this id, the rows it is in and the call.
 
-        A letter is a call that stands as a row of its own: it is its own group.
+        A letter and a call of the person are calls that stand as rows of
+        their own: each is its own group.
         """
         if not use:
             return None, None, None
         for rows_of in (window, known):
             for was in reversed(rows_of):
-                if was["role"] == "mail" and was.get("use") == use:
+                if was["role"] in ("mail", "call") and was.get("use") == use:
                     return was, rows_of, was
                 if was["role"] != "tools":
                     continue
@@ -140,7 +141,7 @@ def fold(rows, limit, before, after):
 
     def open_calls():
         return any(c.get("open") for was in window if was["role"] == "tools" for c in was["calls"]) \
-            or any(was.get("open") for was in window if was["role"] == "mail")
+            or any(was.get("open") for was in window if was["role"] in ("mail", "call"))
 
     def drop_call(use):
         # A delivery is shown once. Whether anything reached the human is

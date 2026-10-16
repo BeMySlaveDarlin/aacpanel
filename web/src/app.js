@@ -16,6 +16,7 @@ import { DesktopShell } from "./desktop/shell.js";
 import { failed, pick } from "./router.js";
 import * as api from "./api.js";
 import { tellEndpoints, watchOpen } from "./pwa.js";
+import { tellViewing } from "./viewing.js";
 
 
 const REFRESH_MS = 15000;
@@ -159,6 +160,13 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
         }, PICK_MS);
         return () => clearInterval(timer);
     }, [repick]);
+
+    // A feed opening is told to the host at once: it is what clears the
+    // mark of a call on every device.
+    useEffect(() => {
+        tellViewing(refresh);
+        return () => tellViewing(null);
+    }, [refresh]);
 
     useEffect(() => {
         refresh();

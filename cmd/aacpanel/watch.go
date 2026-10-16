@@ -149,8 +149,9 @@ func (w *watcher) carryCalls(ctx context.Context) {
 	}
 }
 
-// carry pushes the calls of the board not carried yet and says whether one
-// waits for its session to reach the snapshot.
+// carry pushes the calls of the board not carried yet, marks their sessions
+// in the lists and says whether one waits for its session to reach the
+// snapshot.
 func (w *watcher) carry(ctx context.Context, board []chat.SessionNote) bool {
 	if len(board) == 0 {
 		return false
@@ -161,11 +162,50 @@ func (w *watcher) carry(ctx context.Context, board []chat.SessionNote) bool {
 	}
 	var cur notify.World
 	w.readSnapshot(ctx, &cur)
+	w.markCalls(ctx, board, cur.Sessions)
 	news, waiting := w.calls.Fresh(time.Now(), notes, cur.Sessions)
 	if len(news) > 0 {
 		w.say(ctx, notify.Report{Raise: news})
 	}
 	return waiting
+}
+
+// markCalls records every call of the board for the mark on its session in
+// the lists, which stands until the person opens that session. The push goes
+// stale in minutes; the mark does not, so a call missed on the phone is still
+// found on the list. A call made while some device has the session on screen
+// is seen as it comes. A call whose session the snapshot does not show yet
+// waits for it, as its push does: a screen names the session it shows by its
+// name, and the name comes from the snapshot.
+func (w *watcher) markCalls(ctx context.Context, board []chat.SessionNote, sessions []notify.Session) {
+	if w.srv.db == nil {
+		return
+	}
+	names := make(map[string]string, len(sessions))
+	for _, s := range sessions {
+		if s.ID != "" {
+			names[s.ID] = s.Name
+		}
+	}
+	calls, views := w.srv.db.SessionCalls(), w.srv.db.SessionViews()
+	for _, n := range board {
+		name, ok := names[n.SessionID]
+		if !ok || name == "" {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339, n.At)
+		if err != nil {
+			log.Printf("notify: the call of %s has no time it was made (%q): %v", name, n.At, err)
+			continue
+		}
+		watching, err := views.Watching(ctx, name, notify.ViewFresh)
+		if err != nil {
+			log.Printf("notify: who is looking at %s is unknown, its call is marked: %v", name, err)
+		}
+		if err := calls.Called(ctx, n.SessionID, name, at, len(watching) > 0); err != nil {
+			log.Printf("notify: the call of %s is not marked in the lists: %v", name, err)
+		}
+	}
 }
 
 // Stacks returns the stacks the last look saw.

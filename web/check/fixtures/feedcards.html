@@ -7,7 +7,8 @@
 // Every card of what arrives in the feed beside the one the rest are built
 // after, the files sent to the person: a round of questions answered, one
 // nobody answered, permissions answered, a page published and published again,
-// a brief and a wake-up of two paragraphs. The feed is the real one — the grid
+// a brief, a wake-up of two paragraphs, a call of the person and a call the
+// tool refused. The feed is the real one — the grid
 // with its timeline — in the shell of a phone or of a desk, whichever the
 // screen is.
 import { render } from "preact";
@@ -49,6 +50,9 @@ const items = [
       title: "What stays on the head of a card", eyebrow: "after round five", questions: 7 },
     { role: "wake", pos: 11, at: at(8), cut: false,
       text: "Watch tick: is `make check` done?\n\nGreen: deploy the whole stack. Red: read the log and fix it first." },
+    { role: "call", use: "u-call", pos: 12, at: at(9), text: "The migration waits for you: prod or stage?" },
+    { role: "call", use: "u-call2", pos: 13, at: at(10), text: "Still waiting on the migration", failed: true,
+      undelivered: "Nobody was called: this session called 12 s ago: one call a minute, 48 s left." },
 ];
 
 const pages = [];
@@ -66,7 +70,7 @@ const until = async (ok, ms = 3000) => {
 (async () => {
     const root = document.getElementById("root");
     const cards = () => Array.from(root.querySelectorAll(".feedcol > .feedrow:not(.r-ai) > :first-child"));
-    await until(() => cards().length === 8 && root.querySelector(".mletter.k-wake"));
+    await until(() => cards().length === 10 && root.querySelector(".mletter.k-wake"));
     await document.fonts.ready;
     const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
     const box = (el) => {
@@ -97,10 +101,10 @@ const until = async (ok, ms = 3000) => {
             rows: plate ? Array.from(plate.children).map((row) => ({ box: box(row), radius: getComputedStyle(row).borderRadius })) : [],
         };
     };
-    const [sent, asked, afk, permitted, page, again, brief, wake] = cards();
+    const [sent, asked, afk, permitted, page, again, brief, wake, called, refused] = cards();
     const out = {
         wide,
-        cards: [sent, asked, afk, permitted, page, again, brief, wake].map(shot),
+        cards: [sent, asked, afk, permitted, page, again, brief, wake, called, refused].map(shot),
         questions: Array.from(asked.querySelectorAll(".askedrow")).map((row) => ({
             tag: text(row.querySelector(".mftag")),
             tagCase: row.querySelector(".mftag") ? getComputedStyle(row.querySelector(".mftag")).textTransform : "",
@@ -138,6 +142,11 @@ const until = async (ok, ms = 3000) => {
             closed: text(wake.querySelector(".mletterbody")),
             more: text(wake.querySelector(".mlettermore .mfname")),
         },
+        calls: [called, refused].map((card) => ({
+            text: text(card.querySelector(".mcallline")),
+            why: text(card.querySelector(".mcallwhy")),
+            mark: getComputedStyle(card.querySelector(".sentico")).color,
+        })),
     };
     brief.querySelector(".artifact").click();
     wake.querySelector(".mlettermore").click();

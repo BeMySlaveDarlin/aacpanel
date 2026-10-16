@@ -74,7 +74,7 @@ def units(said):
 
 
 # The rows of the feed a role of a match stands for.
-ROWS = {"me": ("me",), "assistant": ("ai",), "letter": ("mail",), "card": ("brief", "artifact", "secret")}
+ROWS = {"me": ("me",), "assistant": ("ai",), "letter": ("mail",), "card": ("brief", "artifact", "secret", "call")}
 
 SHELF = {"seven": {"title": "Panel: seven questions", "questions": [{"kind": "pick"}]}}
 
@@ -119,6 +119,8 @@ class Search(unittest.TestCase):
             result("toolu_secret", "Asked as deploy-token.\nThe person fills the notepad in the panel.", n=11),
             assistant(call("mcp__aacpanel__brief_publish", "toolu_brief", doc={"id": "seven"}), n=12),
             result("toolu_brief", "Published as seven: the person sees it in the panel", n=13),
+            assistant(call("mcp__aacpanel__notify", "toolu_call", text="The panel waits for you: prod or stage?"), n=14),
+            result("toolu_call", "The person has been called: hidden in the answer of the panel's call", n=15),
         )
 
     def test_what_the_feed_shows_as_the_conversation_is_found(self):
@@ -126,8 +128,8 @@ class Search(unittest.TestCase):
         got = self.ask("panel")
         self.assertEqual([(m["role"], hit_of(m)) for m in got["matches"]],
                          [("me", "panel"), ("assistant", "panel"), ("letter", "Panel"),
-                          ("card", "panel"), ("card", "panel"), ("card", "Panel")])
-        self.assertEqual(got["total"], 6)
+                          ("card", "panel"), ("card", "panel"), ("card", "Panel"), ("card", "panel")])
+        self.assertEqual(got["total"], 7)
         self.assertFalse(got["cut"])
         named = self.ask("deploy-token")["matches"]
         self.assertEqual([(m["role"], m["snippet"]) for m in named], [("card", "deploy-token")],
@@ -246,7 +248,7 @@ class Search(unittest.TestCase):
                              dequeue(n=22), user("the panel in the queue", n=22, promptSource="sdk"),
                              assistant(text("and one more on the panel"), n=23)]))
         got = self.ask("panel")["matches"]
-        self.assertEqual(len(got), 8)
+        self.assertEqual(len(got), 9)
         tail_rows = chat.feed(self.path, limit=200)["items"]
         for match in got:
             with self.subTest(match=match["snippet"]):

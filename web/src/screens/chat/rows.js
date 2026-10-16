@@ -91,6 +91,10 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
     }
 
+    if (item.role === "call") {
+        return html`<${CallCard} item=${item} />`;
+    }
+
     if (item.role === "asked") {
         return html`<${AskedCard} item=${item} />`;
     }
@@ -792,6 +796,24 @@ function SecretCard({ item, shelf, onOpen }) {
                     `}
                 </div>
             </div>
+        </div>
+    `;
+}
+
+// CallCard is a call of the person the session made through the panel: the
+// line their phone got, under a head that says the session called. A call the
+// tool refused reached nobody, and says so on its head and why under the line.
+function CallCard({ item }) {
+    const lost = item.undelivered;
+    return html`
+        <div class=${`sent mcall${lost ? " lost" : ""}`}>
+            <div class="senthead">
+                <span class="sentico">${Icon.alerts()}</span>
+                <span class="sentlabel">${lost ? "not called" : "called you"}</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            <div class="sentcap mcallline">${item.text}</div>
+            ${lost && html`<p class="hint warn mcallwhy">${lost}</p>`}
         </div>
     `;
 }

@@ -53,6 +53,9 @@ type feedCardsShot struct {
 		Closed, More, Open, Fold string
 	} `json:"wake"`
 	Briefs []string `json:"briefs"`
+	Calls  []struct {
+		Text, Why, Mark string
+	} `json:"calls"`
 }
 
 func samePx(a, b float64) bool { return math.Abs(a-b) <= 0.5 }
@@ -69,14 +72,18 @@ func testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t *testing.T, run func(*tes
 	if got.Error != "" {
 		t.Fatal(got.Error)
 	}
-	if len(got.Cards) != 8 {
-		t.Fatalf("%d cards drawn, wanted eight", len(got.Cards))
+	if len(got.Cards) != 10 {
+		t.Fatalf("%d cards drawn, wanted ten", len(got.Cards))
 	}
 	files := got.Cards[0]
 	if files.Label != "file for you" || files.Box == nil || files.Plate == nil || files.At == nil {
 		t.Fatalf("the reference card is not the files sent to the person: %+v", files)
 	}
-	names := []string{"questions", "question", "permissions", "page", "page updated", "brief", "wake-up"}
+	names := []string{"questions", "question", "permissions", "page", "page updated", "brief", "wake-up",
+		"called you", "not called"}
+	// A call is a line said, as a letter is: its words stand under the head,
+	// with no plate of rows to open.
+	said := map[string]bool{"called you": true, "not called": true}
 	for i, card := range got.Cards[1:] {
 		name := names[i]
 		if card.Box == nil {
@@ -107,7 +114,9 @@ func testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t *testing.T, run func(*tes
 				name, card.At, files.At)
 		}
 		if card.Plate == nil {
-			t.Errorf("%s: no plate of rows under the head", name)
+			if !said[name] {
+				t.Errorf("%s: no plate of rows under the head", name)
+			}
 			continue
 		}
 		if !samePx(card.Plate.Left, files.Plate.Left) || !samePx(card.Plate.Width, files.Plate.Width) {
@@ -210,5 +219,20 @@ func TestTheCardsOfTheFeedStillSayWhatTheySaid(t *testing.T) {
 	}
 	if !strings.Contains(got.Wake.Open, "Red: read the log and fix it first.") || got.Wake.Fold != "Fold the prompt" {
 		t.Errorf("the opened wake-up shows %q with a row %q", got.Wake.Open, got.Wake.Fold)
+	}
+
+	if len(got.Calls) != 2 {
+		t.Fatalf("calls of the person: %+v", got.Calls)
+	}
+	called, refused := got.Calls[0], got.Calls[1]
+	if called.Text != "The migration waits for you: prod or stage?" || called.Why != "" {
+		t.Errorf("the call reads %q with %q under it: the line the phone got, and nothing else", called.Text, called.Why)
+	}
+	if refused.Text != "Still waiting on the migration" ||
+		refused.Why != "Nobody was called: this session called 12 s ago: one call a minute, 48 s left." {
+		t.Errorf("the refused call reads %q with %q under it: its line, and why nobody was called", refused.Text, refused.Why)
+	}
+	if refused.Mark == called.Mark {
+		t.Errorf("the mark of a call nobody got is drawn %s, as the mark of one that went", refused.Mark)
 	}
 }

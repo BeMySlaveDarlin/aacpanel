@@ -7,11 +7,14 @@
 // Live rows of the sessions list at the width of a phone, each in the block of
 // its project: two sessions on the stream — one with a long name, Remote
 // Control up and its last request 18 minutes back, one with no requests yet —
-// and one in tmux with a task in its background.
+// and one in tmux with a task in its background, which called the person two
+// minutes ago. Then the feed of that session opens and closes, and the list
+// is drawn again with the same call, and with a call made after the visit.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { useViewing, viewing } from "/src/viewing.js";
 
 const base = {
     tokens: 184000, limit: 1000000, pct: 18.4, limitKnown: true, messages: 42, compacts: 1,
@@ -24,18 +27,19 @@ const rows = [
       remote: "https://claude.ai/code/session_01abc", lastRequestAt: new Date(Date.now() - 18 * 60e3).toISOString() },
     // One shell of its own, an observer and an alarm of the panel: the card
     // counts them as one background work.
-    { ...base, session: "aacpanel", sessionId: "b", work: { tasks: 1, observers: 1, alarms: 1 } },
+    { ...base, session: "aacpanel", sessionId: "b", work: { tasks: 1, observers: 1, alarms: 1 },
+      called: new Date(Date.now() - 120e3).toISOString().replace(/\.\d+Z$/, "Z") },
     { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },
 ];
 const exec = { available: true, kinds: ["session.close", "session.open"] };
-const blocks = blocksOf({ profile: null, sessions: rows });
 const pressed = [];
 
-render(
-    h(ToastHost, null, h(GateHost, null, blocks.map((block) =>
+const list = (sessions) => render(
+    h(ToastHost, null, h(GateHost, null, blocksOf({ profile: null, sessions }).map((block) =>
         h(ProjectBlock, { key: block.key, block, exec,
             onOpen: (name) => pressed.push(`open:${name}`) })))),
     document.getElementById("root"));
+list(rows);
 
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const cut = (el) => Boolean(el) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
@@ -67,11 +71,31 @@ const tapAt = (el) => {
     return tapPoint(box.left + box.width / 2, box.top + box.height / 2);
 };
 
+// called reads the bell of every card that has one, by the session's name.
+const called = () => Object.fromEntries(Array.from(document.querySelectorAll(".pjblock")).flatMap((block) => {
+    const bell = block.querySelector(".pjstate .pjcalled");
+    if (!bell) return [];
+    const box = bell.getBoundingClientRect();
+    const row = block.querySelector(".pjrow").getBoundingClientRect();
+    return [[block.querySelector(".pjname").textContent.trim(), {
+        title: bell.getAttribute("title") || "",
+        icon: Boolean(bell.querySelector("svg")),
+        inside: box.width > 0 && box.left >= row.left && box.right <= row.right && box.bottom <= row.bottom,
+    }]];
+}));
+
+// The feed of a session on screen is all a visit is: a screen that marks it
+// as viewed while it stands.
+const Feed = ({ name }) => {
+    useViewing(name);
+    return null;
+};
+
 window.done = (async () => {
     await until(() => document.querySelectorAll(".pjcard .pjtag").length === rows.length);
     await document.fonts.ready;
     const blocks = Array.from(document.querySelectorAll(".pjblock"));
-    return blocks.map((block) => {
+    const cards = blocks.map((block) => {
         const rowEl = block.querySelector(".pjrow");
         const row = rowEl.getBoundingClientRect();
         const open = block.querySelector(".pjopen").getBoundingClientRect();
@@ -119,5 +143,19 @@ window.done = (async () => {
             overflow: document.scrollingElement.scrollWidth - window.innerWidth,
         };
     });
+    const before = called();
+
+    const feed = document.createElement("div");
+    render(h(Feed, { name: "aacpanel" }), feed);
+    await until(() => viewing() === "aacpanel");
+    render(null, feed);
+    list(rows);
+    await until(() => !document.querySelector(".pjcalled"));
+    const visited = called();
+
+    const later = new Date(Date.now() + 60e3).toISOString().replace(/\.\d+Z$/, "Z");
+    list(rows.map((r) => (r.session === "aacpanel" ? { ...r, called: later } : r)));
+    await until(() => document.querySelector(".pjcalled"));
+    return { cards, called: { before, visited, again: called() } };
 })();
 </script>

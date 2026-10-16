@@ -28,7 +28,8 @@ html,body{margin:0}
 // counts who waits and opens a new session; the closed conversations stand on
 // a shelf below with their time and Resume. Then the header of the
 // conversation in two lines, with the right panel open and without, and the
-// time of a closed conversation on the phone.
+// time of a closed conversation on the phone. A session that called the
+// person rings on its row until its conversation has been on screen.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
@@ -73,9 +74,10 @@ const first = [
         pct: 41.8, remote: "https://claude.ai/code/session_x", compacts: 2 }),
     S({ session: "api", profile: "globex", contour: 1, project: projects[23], status: "waiting", waitingFor: "dialog open",
         pct: 37, mode: "plan" }),
+    // It called the person three minutes ago, and they have not opened it.
     S({ session: "shop", profile: "globex", contour: 1, project: projects[21], status: "busy",
         work: { agents: 1, tasks: 0, observers: 1 },
-        pct: 26, mode: "bypassPermissions" }),
+        pct: 26, mode: "bypassPermissions", called: iso(3) }),
     S({ session: "helios", profile: "personal", contour: 3, project: projects[14], home: true, status: "idle", pct: 10,
         remote: "https://claude.ai/code/session_y" }),
     S({ session: "scratch", profile: "personal", contour: 3, project: null, transport: "tmux", status: "idle", pct: 5 }),
@@ -216,6 +218,12 @@ const rows = () => Array.from(root().querySelectorAll(".dklive:not(.dkghost)")).
         shown: Boolean(shown), bad };
 });
 
+// bells reads the rows that ring for a call, by name, with what the bell says.
+const bells = () => Object.fromEntries(Array.from(root().querySelectorAll(".dklive")).flatMap((row) => {
+    const bell = row.querySelector(".dksessmain .dkcalled");
+    return bell && bell.querySelector("svg") ? [[text(row.querySelector(".dkname")), bell.dataset.tip || ""]] : [];
+}));
+
 // hiding lists the rules of the stylesheet that take the action of a row, the
 // plus of a heading, Resume or the time of a closed conversation off the
 // screen: none of them waits for the pointer.
@@ -277,6 +285,7 @@ window.done = (async () => {
         .map((n) => [n, facts(n)]));
     out.marks = Object.fromEntries(["aacpanel", "helios", "scratch", "shop"].map((n) => [n,
         Array.from(rowOf(n).querySelectorAll(".dkmark, .dkrc, .dkhome")).map(text)]));
+    out.bells = bells();
     out.columnText = text(root().querySelector(".dkscroll"));
     out.rows = rows();
     out.homeAct = (rowOf("helios").querySelector(".dkrowacts .dkact") || {}).getAttribute?.("aria-label") || "";
@@ -392,6 +401,13 @@ window.done = (async () => {
     document.getElementById("body").classList.remove("withpanel");
     await quiet();
     out.withoutPanel = head();
+
+    // The conversation of the session that called was on screen: back on the
+    // column, its row rings no more, though the host has not said so yet.
+    render(null, chat);
+    column(first, "aacpanel");
+    await quiet();
+    out.bellsVisited = bells();
 
     // The time of a closed conversation on the phone.
     render(h(ToastHost, null, h(GateHost, null, html`<${PastLine} row=${archive[1]} project=${null} exec=${exec} onOpen=${() => {}} />`)),

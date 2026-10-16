@@ -1330,6 +1330,21 @@
 
     .dkrc::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
 
+    /* A call the person has not come for yet: a bell in the colour of
+       waiting among the marks of the name, until the session is opened. */
+    .dkcalled {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        padding: .1rem .3rem;
+        border-radius: var(--r-pill);
+        line-height: 1;
+        color: var(--wait);
+        background: color-mix(in srgb, var(--wait) 14%, transparent);
+    }
+
+    .dkcalled svg { width: var(--i-sm); height: var(--i-sm); }
+
     .dkpop {
         position: absolute;
         top: calc(100% + .4rem);

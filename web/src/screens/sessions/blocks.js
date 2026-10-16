@@ -20,6 +20,7 @@ import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, shownName, spok
 import { modelTitle } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
+import { calledMark } from "../../viewing.js";
 
 // The order of the list: who waits for the person, who works, who is quiet.
 export const RANK = { wait: 0, busy: 1, quiet: 2 };
@@ -391,6 +392,7 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
     const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, daemon: Icon.plug }[place];
     // The quiet line opens with who runs the session, in the hue of its agent.
     const lived = session.startedAt ? since(session.startedAt) : "";
+    const called = calledMark(session);
     const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.when]
         .filter(Boolean).map((part) => ` · ${part}`).join("");
     return html`
@@ -420,6 +422,8 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
                     ${lived && html`<span class="pjlived">${lived}</span>`}
                     ${session.remote && html`<span class="pjremote" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+                    ${called && html`<span class="pjcalled" role="img" title=${`called you · ${when(stamp(called))}`}
+                                           aria-label=${`called you · ${when(stamp(called))}`}>${Icon.alerts()}</span>`}
                     <span class="pjtag">${tag()}${place}</span>
                 </span>
                 ${steps && html`<span class="pjchecklist">${steps}</span>`}

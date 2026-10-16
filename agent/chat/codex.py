@@ -30,8 +30,8 @@ import contours
 import held
 
 from .harness import COMPACTED, STOPPED
-from .cards import (BRIEF_TOOL, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT, SECRET_TOOL, brief_card,
-                    secret_call, secret_card)
+from .cards import (BRIEF_TOOL, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT, NOTIFY_TOOL, SECRET_TOOL,
+                    brief_card, call_card, secret_call, secret_card)
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
 from .mail import LETTER_TOOL, mails, peer_name, undelivered
 from .tools import one_line, tool_arg, tool_kind, tool_label
@@ -473,8 +473,10 @@ def _mcp_call(item, use, at, pos, shelf=None):
     A letter that reached nobody says why, from the answer that came with it.
     A brief published and a secret asked for are the cards claude's feed
     draws in their place, from the answer the item carries with the call: a
-    call the tool refused stays a call. Shelf reads a published brief by its
-    name, for what its card says of it.
+    call the tool refused stays a call. A call of the person is its card
+    whatever the answer, drawn from the call, and one the tool refused says
+    why, as a letter does. Shelf reads a published brief by its name, for
+    what its card says of it.
     """
     name = _mcp_name(item)
     if not name:
@@ -485,6 +487,11 @@ def _mcp_call(item, use, at, pos, shelf=None):
         card = secret_card(_mcp_said(item), secret_call(args), use, at, pos)
     elif name == BRIEF_TOOL:
         card = brief_card(_mcp_said(item), "tool", shelf, use, at, pos)
+    elif name == NOTIFY_TOOL:
+        card = call_card(args, use, at, pos)
+        lost = undelivered(_mcp_said(item), _failed(item)) if card else ""
+        if lost:
+            card.update(failed=True, undelivered=lost)
     if card:
         return [card]
     said = args.get("text")

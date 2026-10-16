@@ -499,6 +499,19 @@ class McpCalls(Runtime):
                          [("tool", "aacpanel: send_to_session"), ("result", None)],
                          "the list of sessions sends nothing and stays a call")
 
+    def test_a_call_of_the_person_is_its_card(self):
+        rows = chat.parse(mcp_call("aacpanel", "notify", {"text": "Deploy is blocked:\n  prod or stage?"},
+                                   text="The person has been called: the push carries this line."), 4)
+        self.assertEqual(rows, [{"role": "call", "text": "Deploy is blocked: prod or stage?", "use": "call_9",
+                                 "at": "2026-10-09T12:06:00.000Z", "pos": 4}])
+        said = "Nobody was called: this session called 12 s ago: one call a minute, 48 s left."
+        refused = chat.parse(mcp_call("aacpanel", "notify", {"text": "again"}, status="failed", text=said), 4)
+        self.assertEqual([(r["role"], r["text"], r.get("failed"), r.get("undelivered")) for r in refused],
+                         [("call", "again", True, said)], "a call that reached nobody says why")
+        empty = chat.parse(mcp_call("aacpanel", "notify", {}, status="failed",
+                                    text="Nobody was called: the line is empty."), 4)
+        self.assertEqual([r["role"] for r in empty], ["tool", "result"], "a call with no line stays a call")
+
     def test_a_secret_the_thread_asked_for_is_the_card_of_a_secret(self):
         """The card takes its name from the answer and its title and notepad from the call, as claude's does."""
         args = {"name": "github-token", "title": "GitHub token", "template": "GH_TOKEN=\n"}
