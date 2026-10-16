@@ -14,7 +14,7 @@ import { MenuItem, MenuList, useMenuSheet } from "../ui/menu.js";
 import { CODEX_CLOSE, isCodex, noTurn, shownName } from "../agent.js";
 import { copyId, copyResume, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
 import { LOOK_NAMES } from "../screens/chat/look.js";
-import { RenameSheet } from "../screens/chat/rename.js";
+import { RenameSheet, takenNames } from "../screens/chat/rename.js";
 import { useRemote } from "../screens/chat/remote.js";
 import { moveSession, sidesOf, useSwitchWay } from "../screens/chat/switch.js";
 import { useWindow, windowOf } from "../screens/chat/window.js";
@@ -117,7 +117,7 @@ function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lo
     const stops = lost ? `stops ${lost}` : "";
     const rename = () => sheet(LOOK_NAMES.rename, (close) => html`
         <${RenameSheet} name=${s.session} exec=${exec} onDone=${close}
-                        taken=${((snapshot && snapshot.sessions) || []).map((x) => x.session)} />
+                        taken=${takenNames(snapshot)} />
     `);
 
     return html`<${MenuList} groups=${[
@@ -161,10 +161,10 @@ export function ClosedMenu({ row, exec, onOpen }) {
         [
             html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`,
             row.sessionId && html`<${MenuItem} key="resume" label="Resume" off=${whyNot(exec, "session.resume")}
-                                               onPick=${() => resume(run, row)} />`,
+                                               onPick=${() => resume(run, row, exec)} />`,
             (row.project || projectOf(row)) && html`
                 <${MenuItem} key="new" label="New session in the project" off=${whyNot(exec, "session.open")}
-                             onPick=${() => startIn(run, row)} />`,
+                             onPick=${() => startIn(run, row, exec)} />`,
         ],
         copies(row.sessionId, row.cwd, isCodex(row), toast),
     ]} />`;

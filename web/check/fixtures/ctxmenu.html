@@ -66,6 +66,9 @@ const archive = [
     closed({ sessionId: "c-blog", name: "blog", project: { ...projects[13], group: "Side" }, cwd: "/srv/blog", min: 30 }),
     closed({ sessionId: "c-cx", name: "drafts", agent: "codex", project: { ...projects[13], group: "Side" }, cwd: "/srv/blog",
         min: 90, tokensUsed: 5000, messages: 0 }),
+    // Off the map, in a directory that came without its root: nothing names a
+    // project there. Not a word said keeps it off the shelf.
+    closed({ sessionId: "c-loose", name: "loose", project: null, cwd: "srv/loose", min: 150, messages: 0 }),
 ];
 const tree = { running: 1, total: 2, stacks: [{ name: "shop", running: 1, total: 2, hasStats: true, cpu: 1, mem: 64 << 20,
     containers: [
@@ -424,6 +427,16 @@ window.done = (async () => {
     await openOn(archRows[1]);
     out.lists.archiveCodex = read();
     await shut();
+    // Whether each row of the archive offers a new session, on its menu and
+    // by its plus: every row here has Resume first, so a second icon is the
+    // plus.
+    out.archiveNewOn = [];
+    for (const row of archRows) {
+        await openOn(row);
+        out.archiveNewOn.push({ name: text(row.querySelector(".dkname")), menu: Boolean(itemOf("New session in the project")),
+            plus: row.querySelectorAll(".dkacts .dkact").length > 1 });
+        await shut();
+    }
 
     await openOn(headOf("aacpanel"));
     out.lists.project = read();

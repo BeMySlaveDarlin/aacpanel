@@ -244,7 +244,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     };
     // What the rows of the feed lend their menus: the words of a message go
     // into the composer only where there is a composer to take them.
-    const lent = live && !live.outside ? { quote: takeQuote, edit: putBack, queueOf } : { queueOf };
+    const lent = live && !live.outside ? { quote: takeQuote, edit: putBack, queueOf, exec } : { queueOf, exec };
     const openPath = (path) => setLook({ kind: "file", path });
     const pathMenu = usePathMenu(openPath);
 

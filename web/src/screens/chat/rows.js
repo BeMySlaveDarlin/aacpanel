@@ -27,8 +27,10 @@ import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
 
 // FeedWrites is what the screen of a feed lends its messages for their
 // menus: quote(text) and edit(text) put words into the composer, where
-// one stands under the feed, and queueOf(row) is what takes a message back
-// from the queue of the session (see useTakeBack), or null.
+// one stands under the feed, queueOf(row) is what takes a message back
+// from the queue of the session (see useTakeBack), or null, and exec is the
+// executor of the conversation, which the second attempt at a message that
+// did not go out is asked of (see useSendAgain).
 export const FeedWrites = createContext(null);
 
 // Row renders one row of the feed: what is said and what arrives. A run of
@@ -189,7 +191,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
                 ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} onSave=${save} />`}
                 ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
                 ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}
-                ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} />`}
+                ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} exec=${writes.exec} />`}
             </div>
         `}
         ${handed.length > 0 && html`<${HandedFiles} files=${handed} onOpen=${onFile} onSave=${save} />`}
@@ -208,7 +210,7 @@ function messageMenu(menu, writes, item, md, again) {
     const failed = item.state === "failed";
     const queue = mine && item.state === "queued" && writes.queueOf ? writes.queueOf(item) : null;
     const takes = queue && takesBack(item, queue.exec) ? { ...queue, row: item } : null;
-    const second = again && item.done ? { again, onDone: item.done } : null;
+    const second = again && item.done ? { again, onDone: item.done, exec: writes.exec } : null;
     if (!md && !takes && !second) return undefined;
     return menu(MessageMenu, {
         md, queue: takes, again: second,
@@ -227,8 +229,8 @@ function withoutSentPaths(text, files) {
 
 // SendAgain stands under a message a session refused because a screen of its
 // own held the keyboard, and makes the second attempt (see useSendAgain).
-function SendAgain({ again, onDone }) {
-    const { ready, why, going, fail, press } = useSendAgain(again, onDone);
+function SendAgain({ again, onDone, exec }) {
+    const { ready, why, going, fail, press } = useSendAgain(again, onDone, exec);
     return html`
         <div class="magain">
             <button class="btn" type="button" disabled=${going || !ready}

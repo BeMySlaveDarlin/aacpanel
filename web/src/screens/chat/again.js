@@ -3,7 +3,7 @@
 import { useState } from "preact/hooks";
 
 import { useAction } from "../../actions/gate.js";
-import { knows, useExec, whyNot } from "../../exec.js";
+import { knows, whyNot } from "../../exec.js";
 
 // The words the host writes into a refusal, read here to tell one refusal from
 // another. Only one of them promises the message went nowhere at all, and only
@@ -54,10 +54,10 @@ export function savedPaths(error) {
 // by a message typed into whatever stands there now. Both steps are asked for
 // before the attempt offers itself (ready, or why not): a host that knows one
 // and not the other would press Esc and type nothing after it, leaving the
-// session on a screen the person never opened.
-export function useSendAgain(again, onDone) {
+// session on a screen the person never opened. They are asked of exec, the
+// executor as the conversation has it.
+export function useSendAgain(again, onDone, exec) {
     const run = useAction();
-    const exec = useExec();
     const [going, setGoing] = useState(false);
     const [fail, setFail] = useState("");
     const ready = knows(exec, "session.escape") && knows(exec, "session.send");

@@ -9,7 +9,7 @@
 // the second attempt, and the host lets the first Esc fail — a dialog Esc does
 // not close is the case the button must not send a message into.
 import { h, render } from "preact";
-import { Row } from "/src/screens/chat/rows.js";
+import { FeedWrites, Row } from "/src/screens/chat/rows.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -27,9 +27,6 @@ const sent = [];
 let closes = false;
 window.fetch = counted(async (url, init) => {
     const u = String(url);
-    if (u === "/api/exec") {
-        return json({ available: true, kinds: ["session.send", "session.file", "session.escape"] });
-    }
     if (u === "/api/actions") {
         const body = JSON.parse((init && init.body) || "{}");
         sent.push({ kind: body.kind, target: body.target, params: body.params || {} });
@@ -58,8 +55,11 @@ let item = {
     from: { name: "acme", text: "", files: 1 },
 };
 
+// The executor of the conversation, lent to its rows as the chat screen lends it.
+const exec = { available: true, kinds: ["session.send", "session.file", "session.escape"] };
+
 function draw() {
-    render(h(ToastHost, null, h(GateHost, null, h(Row, { item }))), root);
+    render(h(ToastHost, null, h(GateHost, null, h(FeedWrites.Provider, { value: { exec } }, h(Row, { item })))), root);
 }
 
 // The chat screen patches the row it keeps and draws the feed again; here that

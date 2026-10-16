@@ -153,8 +153,27 @@ export function PlacePicker({ pick, why, onPick, contour = "", onContour = null 
     `;
 }
 
+// itemsOf is what the menu of a terminal holds, the phone's sheet of a tab and
+// the menu at a desk alike: whether the terminal is the panel's own (own) — the
+// terminal of a session and a tmux the panel did not start are opened and
+// closed and nothing more — and, for the window, the new name, a new tab and
+// the close, why the host cannot do it now, or nothing when it can (why).
+function itemsOf(t, acts) {
+    const cannot = (key) => (acts.can[key] ? "" : acts.why[key]);
+    return {
+        own: !t.session && !t.foreign,
+        why: {
+            window: cannot("console"),
+            rename: cannot("rename"),
+            start: cannot("start"),
+            close: acts.canClose(t) ? "" : acts.whyClose(t),
+        },
+    };
+}
+
 // TabMenu is what is done to the open tab on a phone.
 export function TabMenu({ t, acts, onLook, onNew, onDone }) {
+    const { own, why } = itemsOf(t, acts);
     const row = (icon, label, note, press, off = "", danger = false) => html`
         <li><button type="button" class=${`mcprow toolrow${danger ? " toolstop" : ""}`} disabled=${Boolean(off)}
                     onClick=${() => { onDone(); press(); }}>
@@ -169,12 +188,11 @@ export function TabMenu({ t, acts, onLook, onNew, onDone }) {
         <div class="cmdsheet tools">
             <div class="shead cmdtitle"><span class="cmdhead toolname">${tabName(t)}</span></div>
             <ul class="mcplist toollist">
-                ${!t.foreign && row(Icon.monitor, "Open in a window", `on ${hostLabel()}: the same tmux, the same shell`,
-                    () => acts.window(t), acts.can.console ? "" : acts.why.console)}
-                ${!t.foreign && row(Icon.pencil, "Rename tab", "", () => onLook("rename"), acts.can.rename ? "" : acts.why.rename)}
-                ${!t.foreign && row(Icon.plus, "New tab here", "", onNew, acts.can.start ? "" : acts.why.start)}
-                ${row(Icon.close, "Close tab", "ends the shell and what runs in it", () => onLook("close"),
-                    acts.canClose(t) ? "" : acts.whyClose(t), true)}
+                ${own && row(Icon.monitor, "Open in a window", `on ${hostLabel()}: the same tmux, the same shell`,
+                    () => acts.window(t), why.window)}
+                ${own && row(Icon.pencil, "Rename tab", "", () => onLook("rename"), why.rename)}
+                ${own && row(Icon.plus, "New tab here", "", onNew, why.start)}
+                ${row(Icon.close, "Close tab", "ends the shell and what runs in it", () => onLook("close"), why.close, true)}
             </ul>
         </div>
     `;
@@ -187,19 +205,16 @@ export function TabMenu({ t, acts, onLook, onNew, onDone }) {
 // goes the way the × goes: a terminal where something runs asks first.
 function TermMenu({ t, acts, going, onOpen, onClose, onNew }) {
     const sheet = useMenuSheet();
-    const own = !t.session && !t.foreign;
-    const closeWhy = going.includes(t.id) ? "the terminal is closing already"
-        : acts.canClose(t) ? "" : acts.whyClose(t);
+    const { own, why } = itemsOf(t, acts);
+    const closeWhy = going.includes(t.id) ? "the terminal is closing already" : why.close;
     const rename = () => sheet("rename the tab", (close) => html`<${RenameTab} t=${t} acts=${acts} onDone=${close} />`);
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
         [
             own && html`<${MenuItem} key="window" label="Open in a window" note=${`on ${hostLabel()}`}
-                                     off=${acts.can.console ? "" : acts.why.console} onPick=${() => acts.window(t)} />`,
-            own && html`<${MenuItem} key="rename" label="Rename…" off=${acts.can.rename ? "" : acts.why.rename}
-                                     onPick=${rename} />`,
-            own && onNew && html`<${MenuItem} key="new" label="New tab here" off=${acts.can.start ? "" : acts.why.start}
-                                              onPick=${onNew} />`,
+                                     off=${why.window} onPick=${() => acts.window(t)} />`,
+            own && html`<${MenuItem} key="rename" label="Rename…" off=${why.rename} onPick=${rename} />`,
+            own && onNew && html`<${MenuItem} key="new" label="New tab here" off=${why.start} onPick=${onNew} />`,
         ],
         [html`<${MenuItem} key="close" label="Close" off=${closeWhy} onPick=${onClose} />`],
     ]} />`;

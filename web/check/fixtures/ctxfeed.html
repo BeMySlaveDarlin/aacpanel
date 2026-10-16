@@ -69,6 +69,9 @@ const saved = [];
 const asked = [];
 const sessions = [];
 let refuseSend = false;
+// How many times the page asked the host for its executor: the conversation
+// is handed one, and nothing under it has to ask again.
+let execAsked = 0;
 window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 60, total: items.length, moreBefore: false,
@@ -78,7 +81,10 @@ window.fetch = counted(async (url, init) => {
         asked.push(new URL(u, location.href).searchParams.get("path"));
         return json({ name: "notes.txt", size: 12, text: "hello notes\n", next: 0 });
     }
-    if (u === "/api/exec") return json({ available: true, kinds: ["session.send", "session.escape", "session.unqueue"] });
+    if (u === "/api/exec") {
+        execAsked += 1;
+        return json({ available: true, kinds: ["session.send", "session.escape", "session.unqueue"] });
+    }
     if (u === "/api/term") return json({ available: true });
     if (u === "/api/terms") return json({ terms });
     if (u.startsWith("/api/term/")) return json({});
@@ -276,6 +282,7 @@ window.done = (async () => {
     // The feed follows the message sent again, and a menu opened while it
     // moves would go down with it: the next one waits for the feed to stand.
     await quiet();
+    out.execAsked = execAsked;
 
     // The letter, as its head copies it.
     const letter = document.querySelector(".mletter");

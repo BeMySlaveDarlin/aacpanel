@@ -154,6 +154,11 @@ type ctxMenu struct {
 		Width     int  `json:"width"`
 		Prevented bool `json:"prevented"`
 	} `json:"wideFrame"`
+	ArchiveNewOn []struct {
+		Name string `json:"name"`
+		Menu bool   `json:"menu"`
+		Plus bool   `json:"plus"`
+	} `json:"archiveNewOn"`
 }
 
 func ctxMenuPage(t *testing.T) ctxMenu {
@@ -427,6 +432,28 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Logs, []string{"shop-db"}) {
 		t.Errorf("Logs opened %q, expected the logs of shop-db", got.Logs)
+	}
+}
+
+// A row of the archive offers a new session by its plus where its menu offers
+// one and nowhere else: a conversation off the map whose directory names no
+// project has neither, and a plus there would ask the host for a session of no
+// name.
+func TestTheArchiveOffersANewSessionWhereItsMenuDoes(t *testing.T) {
+	got := ctxMenuPage(t)
+	var names []string
+	for _, r := range got.ArchiveNewOn {
+		names = append(names, r.Name)
+		if r.Plus != r.Menu {
+			t.Errorf("the row of %s in the archive has a plus %v, while its menu offers a new session %v", r.Name, r.Plus, r.Menu)
+		}
+		if r.Name == "loose" && (r.Plus || r.Menu) {
+			t.Errorf("the row of loose, off the map in a directory that names no project, offers a new session: plus %v, menu %v",
+				r.Plus, r.Menu)
+		}
+	}
+	if want := []string{"blog", "drafts", "loose"}; !reflect.DeepEqual(names, want) {
+		t.Errorf("the archive was read as %q, expected %q", names, want)
 	}
 }
 

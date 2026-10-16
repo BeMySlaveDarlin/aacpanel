@@ -16,7 +16,7 @@ import { McpSheet } from "./mcp.js";
 import { StatusSheet } from "./status.js";
 import { SetupSheet, SETUP_TITLES } from "./setup.js";
 import { CommandsChip, CommandsSheet } from "./commands.js";
-import { RenameSheet } from "./rename.js";
+import { RenameSheet, takenNames } from "./rename.js";
 import { PickBar, PickSheet, PickWords } from "./picker.js";
 import { SessionSections } from "./sessiontools.js";
 import { SideChat, useSideChat } from "./sidechat.js";
@@ -102,7 +102,7 @@ export function ClaudeChat(props) {
                                          onDone=${() => setLook(null)} />`
                 : look.kind === "rename"
                 ? (live ? html`<${RenameSheet} name=${name} exec=${exec} onDone=${() => setLook(null)}
-                                               taken=${((snapshot && snapshot.sessions) || []).map((s) => s.session)} />`
+                                               taken=${takenNames(snapshot)} />`
                     : html`<p class="cmdnote">The session has ended: there is nothing to rename.</p>`)
                 : (live ? html`<${SetupSheet} name=${name} part=${look.part} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`);

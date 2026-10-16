@@ -22,6 +22,12 @@ export function nameTrouble(value, current, taken) {
     return "";
 }
 
+// takenNames are the names the live sessions of the snapshot answer to, the
+// ones a new name is refused for.
+export function takenNames(snapshot) {
+    return ((snapshot && snapshot.sessions) || []).map((s) => s.session);
+}
+
 export function RenameSheet({ name, exec, taken, onDone }) {
     const run = useAction();
     const [value, setValue] = useState(name);

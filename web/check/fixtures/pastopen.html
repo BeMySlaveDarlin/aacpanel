@@ -4,10 +4,11 @@
 <div id="root"></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// The buttons of an archived card over a fake service. Two contours hold a
-// project of the same name, and one row of the archive ran outside the map.
+// The new session of an archived conversation, pressed on its row of the
+// archive over a fake service. Two contours hold a project of the same name,
+// and one row of the archive ran outside the map.
 import { h, render } from "preact";
-import { PastActions } from "/src/screens/sessions/actions.js";
+import { Archive } from "/src/desktop/panels/archive.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -21,14 +22,16 @@ const offTheMap = {
     sessionId: "22222222-2222-4222-8222-222222222222",
     name: "Stray", cwd: "/srv/elsewhere/lab", messages: 3,
 };
+const rows = [onTheMap, offTheMap];
 
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
 window.fetch = counted(async (url, init) => {
     const u = String(url);
+    if (u.startsWith("/api/sessions/archive")) return json({ rows, total: rows.length, offset: 0 });
     if (u === "/api/actions") {
         sent.push(JSON.parse(init.body));
-        return new Response(JSON.stringify({ ok: true, detail: "up" }),
-            { status: 200, headers: { "Content-Type": "application/json" } });
+        return json({ ok: true, detail: "up" });
     }
     return new Response("", { status: 404 });
 });
@@ -36,19 +39,20 @@ window.fetch = counted(async (url, init) => {
 const exec = { available: true, kinds: ["session.open", "session.resume"] };
 
 render(
-    h(ToastHost, null, h(GateHost, null, [
-        h(PastActions, { key: "a", row: onTheMap, exec }),
-        h(PastActions, { key: "b", row: offTheMap, exec }),
-    ])),
+    h(ToastHost, null, h(GateHost, null,
+        h(Archive, { profiles: null, names: [], picks: [], setPicks: () => {}, onOpen: () => {}, exec }))),
     document.getElementById("root"));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const rowOf = (name) => Array.from(document.querySelectorAll(".dkarch"))
+    .find((r) => r.querySelector(".dkname").textContent.trim() === name);
 
-const press = async (label) => {
-    const btn = Array.from(document.querySelectorAll("button"))
-        .find((n) => (n.getAttribute("aria-label") || "") === label);
-    if (!btn) return `no button labelled ${label}`;
-    btn.click();
+// press presses the new session of a row — the second of its icons, after
+// Resume — and says yes to the gate.
+const press = async (name) => {
+    const row = rowOf(name);
+    const plus = row ? row.querySelectorAll(".dkacts .dkact")[1] : null;
+    if (!plus) return `no new session on the row of ${name}`;
+    plus.click();
     await quiet();
     const ok = document.querySelector(".btnrow .btn.primary");
     if (!ok) return "the confirmation never came up";
@@ -58,9 +62,10 @@ const press = async (label) => {
 };
 
 window.done = (async () => {
+    await quiet();
     const trouble = [];
-    trouble.push(await press("new session in project API"));
-    trouble.push(await press("new session in project lab"));
+    trouble.push(await press("Common"));
+    trouble.push(await press("Stray"));
     return { sent, trouble: trouble.filter(Boolean) };
 })();
 </script>

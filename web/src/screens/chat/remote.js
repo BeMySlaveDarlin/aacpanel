@@ -47,12 +47,9 @@ export function useRemote({ name, live, exec, snapshot }) {
             + "not the one the Claude app is signed into"
         : knows(exec, "session.remote") ? "" : whyNot(exec, "session.remote");
     const off = Boolean(why) || want !== null;
-    const say = shown
-        ? `Remote Control is on${live.remote ? `: ${live.remote.replace(/^https:\/\//, "")}` : ""} · switch it off`
-        : "Switch Remote Control on, to go on from the Claude app or claude.ai";
     const press = async () => {
         const result = await run("session.remote", name, { on: !shown });
         if (result && result.ok) setWant(!shown);
     };
-    return { shown, contour, why, off, settling: want !== null, say, press };
+    return { shown, contour, why, off, settling: want !== null, press };
 }

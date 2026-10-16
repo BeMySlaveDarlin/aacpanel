@@ -621,8 +621,7 @@ function ClosedLine({ row, contour, project, on, onPick, exec }) {
                             data-tipside="left"
                             onClick=${async (e) => {
                                 e.stopPropagation();
-                                if (!ready) return;
-                                await resume(run, row);
+                                await resume(run, row, exec);
                             }}>Resume</button>
                 `}
             </span>

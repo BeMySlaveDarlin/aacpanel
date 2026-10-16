@@ -4,7 +4,6 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { whyNot } from "../../exec.js";
-import { hostLabel } from "../../actions/registry.js";
 import { blocked, moveSession } from "./switch.js";
 
 const asking = { kind: "unknown", reason: "asking the host about the window" };
@@ -48,7 +47,6 @@ export function windowOf({ name, live, work, exec, win, way, run, onChange }) {
             moves: true,
             open: false,
             why: blocked(live) || whyNot(exec, "session.switch") || whyNot(exec, "window.open"),
-            say: `Move to tmux and open a window on ${hostLabel()}`,
             press: () => moveSession({ run, exec, name, to: "console", work, withWindow: true }),
         };
     }
@@ -59,7 +57,6 @@ export function windowOf({ name, live, work, exec, win, way, run, onChange }) {
         moves: false,
         open,
         why: win.kind === "unknown" ? (win.reason || "the window state is unknown") : whyNot(exec, kind),
-        say: open ? `The window on ${hostLabel()} is open · close it` : `Open a window on ${hostLabel()}`,
         press: async () => {
             const result = await run(kind, name, {});
             if (result && result.cancelled) return;

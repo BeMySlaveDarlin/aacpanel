@@ -10,7 +10,7 @@ import { knows, whyNot } from "../../exec.js";
 import { useAction } from "../../actions/gate.js";
 import { useMenu } from "../../ui/menu.js";
 import { ago, modelShort, useJSON } from "./util.js";
-import { resume, startIn } from "../../screens/sessions/actions.js";
+import { projectOf, resume, startIn } from "../../screens/sessions/actions.js";
 import { ClosedMenu } from "../sessionmenu.js";
 
 // How many conversations a contour shows at once. Contours are paged apart, so
@@ -19,14 +19,6 @@ import { ClosedMenu } from "../sessionmenu.js";
 const PER_CONTOUR = 5;
 
 const PER_ALONE = 24;
-
-function projectOf(row) {
-    if (row && row.project && row.project.name) return row.project.name;
-    const cwd = row && row.cwd;
-    if (!cwd) return "";
-    const parts = cwd.split("/").filter(Boolean);
-    return parts.length ? parts[parts.length - 1] : "";
-}
 
 // contourQuery asks for one contour the way the archive understands it.
 //
@@ -69,7 +61,7 @@ function Row({ r, exec, onOpen, run }) {
                         class=${`dkact${knows(exec, "session.resume") ? "" : " off"}`}
                         data-tip=${knows(exec, "session.resume") ? undefined : whyNot(exec, "session.resume")}
                         data-tipside="left"
-                        onClick=${() => knows(exec, "session.resume") && resume(run, r)}
+                        onClick=${() => resume(run, r, exec)}
                     ><${Icon.resume} /></i>
                 `}
                 ${(r.project || projectOf(r)) && html`
@@ -77,7 +69,7 @@ function Row({ r, exec, onOpen, run }) {
                         class=${`dkact${knows(exec, "session.open") ? "" : " off"}`}
                         data-tip=${knows(exec, "session.open") ? undefined : whyNot(exec, "session.open")}
                         data-tipside="left"
-                        onClick=${() => knows(exec, "session.open") && startIn(run, r)}
+                        onClick=${() => startIn(run, r, exec)}
                     ><${Icon.plus} /></i>
                 `}
             </span>

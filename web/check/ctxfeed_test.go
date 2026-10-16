@@ -43,6 +43,7 @@ type ctxFeed struct {
 	Failed           ctxOpened `json:"failed"`
 	FailedList       []string  `json:"failedList"`
 	SentAgain        []ctxSent `json:"sentAgain"`
+	ExecAsked        int       `json:"execAsked"`
 	Letter           ctxOpened `json:"letter"`
 	LetterCopied     string    `json:"letterCopied"`
 	LetterHead       string    `json:"letterHead"`
@@ -129,7 +130,9 @@ func TestAMessageHasTheMenuOfItsWords(t *testing.T) {
 
 // A message in the queue is edited or taken back as its buttons do, through
 // the same calls; one that did not go out offers what its row offers, and its
-// second attempt is the row's: Esc, then the same words once more.
+// second attempt is the row's: Esc, then the same words once more. Whether the
+// host can make it is asked of the executor the conversation was handed, not
+// of the host again by the row and by every menu opened on it.
 func TestAQueuedAndAFailedMessageDoWhatTheirRowsDo(t *testing.T) {
 	got := ctxFeedPage(t)
 	if menuOf(got.Queued) != "Edit · Take back" {
@@ -157,6 +160,10 @@ func TestAQueuedAndAFailedMessageDoWhatTheirRowsDo(t *testing.T) {
 	if len(got.SentAgain) != 2 || got.SentAgain[0].Kind != "session.escape" || got.SentAgain[1].Kind != "session.send" ||
 		got.SentAgain[1].Params["text"] != "again please" {
 		t.Errorf("Esc and send again sent %+v, expected session.escape and then the same words", got.SentAgain)
+	}
+	if got.ExecAsked != 0 {
+		t.Errorf("the row and the menu of a message that did not go out asked the host for its executor %d times — "+
+			"the conversation has it already", got.ExecAsked)
 	}
 }
 

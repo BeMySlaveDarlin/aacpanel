@@ -44,7 +44,7 @@ function QueuedMenu({ queue }) {
 
 function FailedMenu({ md, again }) {
     const toast = useToast();
-    const second = useSendAgain(again.again, again.onDone);
+    const second = useSendAgain(again.again, again.onDone, again.exec);
     return html`<${MenuList} groups=${[[
         md && html`<${MenuItem} key="copy" label="Copy" onPick=${() => copyText(md, toast)} />`,
         html`<${MenuItem} key="again" label="Esc and send again" off=${second.ready ? "" : second.why}
