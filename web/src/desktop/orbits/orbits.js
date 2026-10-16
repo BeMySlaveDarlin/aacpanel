@@ -333,22 +333,38 @@ function hitAt(hits, x, y) {
     return best;
 }
 
-// behindAt is a system behind the one in front whose orbits a point of the
-// stage falls among, the one whose star is nearest where two boxes overlap:
-// a click there brings it forward as a click on its star does. The system in
-// front has no such box — it is already forward.
+// A system behind the one in front is one target, its star, planets and the
+// room among its orbits alike, and a little round them: a click anywhere on
+// it brings it forward. Only the system in front answers for its bodies — a
+// planet there opens its session.
+const BEHIND_PAD = 18;
+
+// behindAt is the system behind the one in front that a point of the stage
+// falls on, the one whose star is nearest where two overlap.
 function behindAt(areas, front, x, y) {
     let best = null;
     let bd = Infinity;
     for (const a of areas || []) {
-        if (a.star.name === front || x < a.x0 || x > a.x1 || y < a.y0 || y > a.y1) continue;
+        if (a.star.name === front) continue;
+        if (x < a.x0 - BEHIND_PAD || x > a.x1 + BEHIND_PAD || y < a.y0 - BEHIND_PAD || y > a.y1 + BEHIND_PAD) continue;
         const d = Math.hypot(a.cx - x, a.cy - y);
         if (d < bd) {
             bd = d;
-            best = { star: a.star };
+            best = a.star;
         }
     }
     return best;
+}
+
+// pick is what a point of the stage answers for: a body of the system in
+// front, or the star of a system — its own star, or a system behind taken
+// whole.
+function pick(st, x, y) {
+    const h = hitAt(st.hits, x, y);
+    if (h && (h.star || h.node.p.system === st.front)) return h;
+    const whole = behindAt(st.areas, st.front, x, y);
+    if (whole) return { star: whole, whole: true };
+    return null;
 }
 
 // placeTip finds the corner of the tip near the pointer that covers the
@@ -386,7 +402,7 @@ function Tip({ tip, front, onPlaced }) {
     }, [tip]);
     if (tip.star) {
         return html`
-            <div class="dkorbtip" ref=${ref} role="tooltip">
+            <div class="dkorbtip" ref=${ref} role="tooltip" data-on=${tip.whole ? "system" : "star"}>
                 <b>${tip.star.name}</b>
                 <span>${tip.star.summary}</span>
                 <em>${tip.star.name === front ? "the contour in front" : "click — bring it forward"}</em>
@@ -772,7 +788,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         const box = stage.current.getBoundingClientRect();
         return { x: e.clientX - box.left, y: e.clientY - box.top };
     };
-    const show = (h, at) => setTip(h ? { node: h.node || null, star: h.star || null, x: at.x, y: at.y } : null);
+    const show = (h, at) => setTip(h ? { node: h.node || null, star: h.star || null, whole: Boolean(h.whole), x: at.x, y: at.y } : null);
     const hideRef = useRef(null);
     hideRef.current = () => { if (tip) setTip(null); };
 
@@ -812,12 +828,12 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
             request(st.drag.turn);
             return;
         }
-        const h = hitAt(st.hits, at.x, at.y);
+        const h = pick(st, at.x, at.y);
         const was = tip && (tip.node || tip.star);
         if ((h && (h.node || h.star)) !== was) show(h, at);
     };
-    // A click on a planet opens its session; a click on a star, or among the
-    // orbits of a system behind, brings that system forward.
+    // A click on a planet of the system in front opens its session; a click
+    // on a star, or anywhere on a system behind, brings that system forward.
     const up = (e) => {
         const st = live.current;
         const drag = st.drag;
@@ -826,7 +842,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
         if (drag && drag.moved && !drag.turn) request(true);
         if (!drag || drag.moved || drag.button !== 0) return;
         const at = point(e);
-        const h = hitAt(st.hits, at.x, at.y) || behindAt(st.areas, st.front, at.x, at.y);
+        const h = pick(st, at.x, at.y);
         if (!h) return;
         if (h.star) {
             setTip(null);
@@ -838,7 +854,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     const context = (e) => {
         if (!menu) return;
         const at = point(e);
-        const h = hitAt(live.current.hits, at.x, at.y);
+        const h = pick(live.current, at.x, at.y);
         if (!h || !h.node) return;
         const s = h.node.s;
         const open = () => onSession({ name: s.session, id: s.sessionId });

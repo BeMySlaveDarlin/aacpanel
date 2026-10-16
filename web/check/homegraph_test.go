@@ -114,6 +114,9 @@ type homeGraph struct {
 		ClickOpens  int       `json:"clickOpened"`
 		OrbitClick  []string  `json:"orbitClicked"`
 		OrbitOpens  int       `json:"orbitOpened"`
+		BehindTip   string    `json:"behindTip"`
+		PlanetClick []string  `json:"planetClicked"`
+		PlanetOpens int       `json:"planetOpened"`
 		OrbitStar   int       `json:"orbitFromStar"`
 		OrbitMarks  int       `json:"orbitFromMarks"`
 		Kept        []string  `json:"kept"`
@@ -183,6 +186,7 @@ type homeGraph struct {
 	AfterReset       []string      `json:"afterReset"`
 	Menu             homeGraphMenu `json:"menu"`
 	MenuOpened       openedTalk    `json:"menuOpened"`
+	MenuBehind       bool          `json:"menuBehind"`
 	MenuAway         struct {
 		Prevented bool `json:"prevented"`
 		Menu      bool `json:"menu"`
@@ -466,6 +470,7 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 		{"down from client — round to lab", c.Wrap},
 		{"a click on personal's star", c.Clicked},
 		{"a click among client's orbits", c.OrbitClick},
+		{"a click on a planet of lab behind", c.PlanetClick},
 	} {
 		if !reflect.DeepEqual(step.got, all) {
 			t.Errorf("after %s the stars are found as %v: the contour comes forward, and nothing is zoomed", step.what, step.got)
@@ -480,6 +485,12 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 	if c.OrbitMarks < 30 {
 		t.Errorf("the click among client's orbits fell %d px from its star and %d px from its nearest mark: "+
 			"it asks the star or a planet, not the orbits", c.OrbitStar, c.OrbitMarks)
+	}
+	if c.PlanetOpens != 0 {
+		t.Errorf("a click on a planet of a system behind opened %d sessions: only the system in front opens its bodies", c.PlanetOpens)
+	}
+	if c.BehindTip != "system lab" {
+		t.Errorf("the pointer over a planet of lab behind shows %q: the system taken whole", c.BehindTip)
 	}
 	if c.OrbitOpens != 0 {
 		t.Errorf("a click among the orbits of a system behind opened %d sessions", c.OrbitOpens)
@@ -673,6 +684,9 @@ func TestTheGraphOpensASessionAsItsRowDoes(t *testing.T) {
 	}
 	if got.MenuOpened != (openedTalk{"shop", "id-shop"}) {
 		t.Errorf("Open in the menu opened %v", got.MenuOpened)
+	}
+	if got.MenuBehind {
+		t.Error("a right click on a planet of a system behind opened a session's menu: only the system in front answers for its bodies")
 	}
 	if got.MenuAway.Prevented || got.MenuAway.Menu {
 		t.Error("a right click on the empty dial takes the browser's menu away with nothing in its place")

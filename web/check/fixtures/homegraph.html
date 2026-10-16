@@ -512,22 +512,6 @@ window.done = (async () => {
     await press(spotOf("notes"));
     out.afterReset = opened.slice(before).map((t) => t.name);
 
-    // The right click opens the menu of the session's row, and its Open opens it.
-    let ev = rightClick(spotOf("shop"));
-    await until(menuNode);
-    await quiet();
-    out.menu = {
-        prevented: ev.defaultPrevented,
-        label: menuNode() ? menuNode().getAttribute("aria-label") : "",
-        items: menuNode() ? Array.from(menuNode().querySelectorAll('[role="menuitem"] .pkname')).map(text) : [],
-    };
-    const openItem = Array.from(menuNode().querySelectorAll('[role="menuitem"]')).find((el) => text(el.querySelector(".pkname")) === "Open");
-    openItem.click();
-    await until(() => !menuNode());
-    out.menuOpened = opened[opened.length - 1];
-    ev = rightClick({ x: box.left + 6, y: box.top + 6 });
-    await frame();
-    out.menuAway = { prevented: ev.defaultPrevented, menu: Boolean(menuNode()) };
 
     // The picture is handled as a map. NAMES pairs a session with the name the
     // graph writes for it; a name's offset from its mark at the home view
@@ -554,7 +538,9 @@ window.done = (async () => {
     const tipAt = async (p) => {
         pointer("pointermove", p, { buttons: 0 });
         await frames(2);
-        const name = text(document.querySelector(".dkorbtip b"));
+        // A system behind taken whole says its name too; tipAt asks for the
+        // mark itself under the point.
+        const name = text(document.querySelector(".dkorbtip:not([data-on=system]) b"));
         pointer("pointermove", { x: box.left + 6, y: box.top + 6 }, { buttons: 0 });
         await frames(1);
         return name;
@@ -1028,6 +1014,42 @@ window.done = (async () => {
     gal.orbitOpened = opened.length - count;
     await press(starOf("personal", "client"));
     await rest();
+    // A planet of a system behind is the system too: the pointer over it
+    // names the system, and a click brings the system forward and opens no
+    // session.
+    pointer("pointermove", spotOf("bench-1", "personal"), { buttons: 0 });
+    await frames(2);
+    const whole = document.querySelector(".dkorbtip");
+    gal.behindTip = whole ? `${whole.getAttribute("data-on")} ${text(whole.querySelector("b"))}` : "";
+    pointer("pointermove", { x: box.left + 6, y: box.top + 6 }, { buttons: 0 });
+    count = opened.length;
+    await press(spotOf("bench-1", "personal"));
+    await rest();
+    gal.planetClicked = await fronts("lab");
+    gal.planetOpened = opened.length - count;
+    await press(starOf("personal", "lab"));
+    await rest();
+    // The right click on a body of the system in front opens the menu of the
+    // session's row, and its Open opens it; a body of a system behind is not a
+    // session to act on, and its right click takes no menu.
+    let ev = rightClick(spotOf("shop", "personal"));
+    await until(menuNode);
+    await quiet();
+    out.menu = {
+        prevented: ev.defaultPrevented,
+        label: menuNode() ? menuNode().getAttribute("aria-label") : "",
+        items: menuNode() ? Array.from(menuNode().querySelectorAll('[role="menuitem"] .pkname')).map(text) : [],
+    };
+    const openItem = Array.from(menuNode().querySelectorAll('[role="menuitem"]')).find((el) => text(el.querySelector(".pkname")) === "Open");
+    openItem.click();
+    await until(() => !menuNode());
+    out.menuOpened = opened[opened.length - 1];
+    ev = rightClick({ x: box.left + 6, y: box.top + 6 });
+    await frame();
+    out.menuAway = { prevented: ev.defaultPrevented, menu: Boolean(menuNode()) };
+    ev = rightClick(spotOf("blog", "personal"));
+    await frame();
+    out.menuBehind = Boolean(menuNode());
     // The contours wake up and quiet down: lab now waits, blog does not.
     const kept = gal.order;
     snapshot = { ...snapshot, sessions: snapshot.sessions.map((x) => (x.session === "blog" ? { ...x, status: "idle" }
