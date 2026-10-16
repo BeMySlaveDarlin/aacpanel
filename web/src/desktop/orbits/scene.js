@@ -239,6 +239,26 @@ const NIGHT = 0.08;
 const NIGHT_SKY = 0.3;
 const GREY = [150, 152, 158];
 
+// The bands and spots of a surface are a tenth or so of its light: enough on
+// a planet the size of a coin, lost on one of a few pixels. Under TEXTURE
+// pixels across the radius they are drawn stronger by as much as the planet
+// is smaller, up to TEXTURE_MAX: the surface of a planet at the scale the
+// interface opens on reads, and a large one keeps its quiet surface.
+const TEXTURE = 24;
+const TEXTURE_MAX = 2.4;
+
+// On the light theme the tones of the states are dark, and a planet lit in
+// them would be darker than the sky, a negative. There its lit part is a light
+// tint of its tone, about as light as LIGHT on the scale of luminance and of
+// its hue, as much of its colour as that lightness leaves (TINT of it at
+// most); the light falls off over the sphere and its bands toward the tone
+// itself rather than toward black, by SHADE of what it does on the dark
+// theme, so the lit part stays lighter than the sky and its shading is its
+// colour. The night side keeps the dark tone, darker than the sky.
+const LIGHT = 240;
+const TINT = 0.6;
+const SHADE = 0.5;
+
 // spritesMade is how many pictures of planets have been made so far.
 export function spritesMade() {
     return made;
@@ -303,29 +323,47 @@ function surfaceOf(key, rocky) {
     };
 }
 
+// lightOf is the light tint of a colour: its hue, at a luminance of LIGHT,
+// with TINT of its colourfulness or as much as that luminance leaves room for.
+function lightOf(rgb) {
+    const lo = Math.min(...rgb);
+    const hi = Math.max(...rgb);
+    const shape = rgb.map((v) => (hi > lo ? (v - lo) / (hi - lo) : 0));
+    const luma = 0.2126 * shape[0] + 0.7152 * shape[1] + 0.0722 * shape[2];
+    const chroma = Math.min(TINT * (hi - lo), luma < 1 ? (255 - LIGHT) / (1 - luma) : 0);
+    return shape.map((v) => LIGHT - chroma * luma + chroma * v);
+}
+
 // lookOf is what the picture of a node is made of: the colour of its state
 // (the cap's on the lit part near the cap), a moon greyer, an idle one a
-// little dimmer, and the sky its night side shows.
+// little dimmer on the dark theme — on the light one dimmer is darker than
+// the sky — and the sky its night side shows. The lit part goes from lit, in
+// full light, toward deep as the light falls off: black on the dark theme,
+// the tone on the light one.
 function lookOf(n, moon, pal) {
     const near = n.pct >= NEAR;
     let rgb = rgbOf(near ? pal.cap : toneOf(n, pal));
     if (moon) rgb = rgb.map((v, i) => v * 0.4 + GREY[i] * 0.6);
     const sky = rgbOf(pal.void || "#06070f");
     const night = pal.sky ? NIGHT_SKY : NIGHT;
+    const lit = pal.sky ? lightOf(rgb) : rgb;
     return {
         k: clamp(Math.round(n.pct) / 100, 0, 1),
         rgb,
-        day: n.tone === "idle" ? 0.9 : 1,
+        lit,
+        deep: pal.sky ? rgb : [0, 0, 0],
+        shade: pal.sky ? SHADE : 1,
+        day: n.tone === "idle" && !pal.sky ? 0.9 : 1,
         sky: sky.map((v) => v * (1 - night)),
         night,
-        rim: rgb.map((v) => v + (255 - v) * 0.5),
+        rim: lit.map((v) => v + (255 - v) * 0.5),
         rocky: moon,
         id: `${n.tone}|${near ? "cap" : ""}|${Math.round(n.pct)}|${moon ? "moon" : ""}|${pal.void}|${rgb.join(",")}`,
     };
 }
 
 function spriteOf(key, r, scale, look) {
-    const id = `${key}|${Math.round(r * scale * 10)}|${look.id}`;
+    const id = `${key}|${Math.round(r * 10)}|${Math.round(r * scale * 10)}|${look.id}`;
     const kept = SPRITES.get(id);
     if (kept) return kept;
     const R = r * scale;
@@ -339,6 +377,7 @@ function spriteOf(key, r, scale, look) {
     const cosT = 2 * look.k - 1;
     const sinT = Math.sqrt(Math.max(0, 1 - cosT * cosT));
     const surface = surfaceOf(key, look.rocky);
+    const contrast = clamp(TEXTURE / r, 1, TEXTURE_MAX);
     for (let py = 0; py < size; py++) {
         for (let px = 0; px < size; px++) {
             const x = (px + 0.5 - c) / R;
@@ -349,12 +388,13 @@ function spriteOf(key, r, scale, look) {
             const z = Math.sqrt(Math.max(0, 1 - rho * rho));
             const sun = x * sinT + z * cosT;
             const lit = smooth(-SOFT, SOFT, sun);
-            const albedo = surface(x, y, z);
-            const day = look.day * albedo * (0.7 + 0.3 * Math.max(0, sun) ** 0.6) * (0.78 + 0.22 * z);
+            const albedo = 1 + (surface(x, y, z) - 1) * contrast;
+            const fall = (0.7 + 0.3 * Math.max(0, sun) ** 0.6) * (0.78 + 0.22 * z);
+            const day = look.day * (1 - look.shade * (1 - albedo * fall));
             const air = rho > 1 - 2 / R ? smooth(1 - 2 / R, 1, rho) * Math.max(0, x / (rho || 1)) * lit * 0.55 : 0;
             const i = (py * size + px) * 4;
             for (let ch = 0; ch < 3; ch++) {
-                const lightC = look.rgb[ch] * day;
+                const lightC = look.deep[ch] + (look.lit[ch] - look.deep[ch]) * day;
                 const nightC = look.sky[ch] + look.rgb[ch] * albedo * look.night * (0.6 + 0.4 * z);
                 const v = nightC + (lightC - nightC) * lit;
                 d[i + ch] = clamp(Math.round(v + (look.rim[ch] - v) * air), 0, 255);
@@ -507,12 +547,45 @@ function priority(n, front) {
 // to the left, under to the right — off the orbits, which run to its sides.
 const STAR_SIDES = [6, 2, 5, 7];
 
+// The name of the star in front is placed before every other name, and the
+// name of a star behind after every name of the system in front: a turn that
+// carries a star behind over the names in front moves its name, not theirs.
+const STAR_FRONT = 5000;
+const STAR_BEHIND = -200;
+
+// A system behind shrinks its orbits further than its marks, and its moons
+// would stand on their planet, the ring of a wait round one over the ring
+// round the other. There the moons of a node are drawn no nearer it on the
+// screen than the node and the widest of them reach — a mark, and the ring
+// round it while it waits — and KIN between, pushed straight out from it, and
+// their orbit with them; on the way forward the floor goes as the marks grow,
+// and in front the orbits are drawn as they are. A family behind that starts
+// or stops waiting moves its moons to the new floor at once.
+const KIN = 8;
+
+// apart carries a point q beside a planet the world puts at from to the
+// planet as it is drawn, at to: as far from it as the world puts it, and no
+// nearer than least.
+function apart(q, from, to, least) {
+    const dx = q.x - from.x;
+    const dy = q.y - from.y;
+    const d = Math.hypot(dx, dy);
+    const k = d > 0 && d < least ? least / d : 1;
+    return { ...q, x: to.x + dx * k, y: to.y + dy * k };
+}
+
+// reachOf is how far from its centre the mark of a node reaches, in units of
+// its system's marks: the mark, and the ring round it while it waits.
+function reachOf(n) {
+    return (n.p.depth > 0 ? MOON_R : NODE_R) + (n.tone === "wait" ? WAIT_RING : 0);
+}
+
 // drawScene draws the galaxy seen through pr on a canvas of W×H and answers
 // where every planet and star stands on it, for the pointer to find (hits),
 // where the words are (taken), for the tip to keep off, and where each name
 // went (labels). scene holds the systems — each with its place, its hue, its
 // orbits, its members and how alive it is — and the nodes, each carrying what
-// it shows (name, tone, pct, work, note) and its place in its system (p),
+// it shows (label, tone, pct, work, note) and its place in its system (p),
 // the system in front (front), the palette and the type, the sides the names
 // stood on the frame before (sides, which it updates), whether a name may
 // change its side (settle), and the view and pan the far stars move with.
@@ -531,7 +604,23 @@ export function drawScene(ctx, W, H, pr, scene) {
     const behind = (name) => Boolean(scene.front) && name !== scene.front;
     const R = Math.max(...systems.map((s) => s.R));
     const marks = new Map(systems.map((s) => [s.name, markOf(s, R)]));
-    const spot = new Map(nodes.map((n) => [n, pr(worldOf(bySystem.get(n.p.system).place, n.p.w))]));
+    const byKey = new Map(nodes.map((n) => [n.p.key, n]));
+    // The floor between a node and its moons, whole behind and none in front.
+    const kin = (n) => {
+        const mark = marks.get(n.p.system);
+        const moons = Math.max(...n.p.kids.map((k) => reachOf(byKey.get(k.key))));
+        return ((reachOf(n) + moons + KIN) * u * mark * (1 - mark)) / (1 - BEHIND);
+    };
+    // Where every node is drawn: where the world puts it, a moon kept off its
+    // planet by the floor, the planets first.
+    const seen = new Map(nodes.map((n) => [n.p.key, pr(worldOf(bySystem.get(n.p.system).place, n.p.w))]));
+    const drawnAt = new Map();
+    for (const n of nodes.slice().sort((a, b) => a.p.depth - b.p.depth)) {
+        const up = drawnAt.has(n.p.parent) ? byKey.get(n.p.parent) : null;
+        const q = seen.get(n.p.key);
+        drawnAt.set(n.p.key, up ? apart(q, seen.get(up.p.key), drawnAt.get(up.p.key), kin(up)) : q);
+    }
+    const spot = new Map(nodes.map((n) => [n, drawnAt.get(n.p.key)]));
     const zs = [...spot.values()].map((q) => q.z);
     const z0 = Math.min(...zs);
     const z1 = Math.max(...zs);
@@ -578,12 +667,17 @@ export function drawScene(ctx, W, H, pr, scene) {
             }
         }
         areas.push(box);
-        // The orbits of the moons.
+        // The orbits of the moons, kept off their planet as the moons are.
         for (const n of s.members) {
             if (n.kids.length === 0) continue;
+            const from = seen.get(n.key);
+            const to = drawnAt.get(n.key);
+            const least = kin(byKey.get(n.key));
             const points = [];
-            for (let i = 0; i <= 40; i++) points.push(plane(add(n.w, inclined(n.lean, at((i / 40) * TAU, n.orbit)))));
-            orbit(points, plane(n.w), pal.ink);
+            for (let i = 0; i <= 40; i++) {
+                points.push(apart(plane(add(n.w, inclined(n.lean, at((i / 40) * TAU, n.orbit)))), from, to, least));
+            }
+            orbit(points, to, pal.ink);
         }
         // The star: a dense bright core in its hue, a corona that fades
         // softly and a little bloom, larger and brighter the more alive its
@@ -611,7 +705,8 @@ export function drawScene(ctx, W, H, pr, scene) {
         discs.push({ x: star.x, y: star.y, r: sr + 6 * u });
         hits.push({ x: star.x, y: star.y, r: sr + 10 * u, star: s });
         items.push({
-            key: `*${s.name}`, x: star.x, y: star.y, r: sr + 6 * u, pri: 5000, prefer: STAR_SIDES, from: star,
+            key: `*${s.name}`, x: star.x, y: star.y, r: sr + 6 * u, prefer: STAR_SIDES, from: star,
+            pri: behind(s.name) ? STAR_BEHIND : STAR_FRONT,
             lines: [{ t: s.name, f: type.star, c: s.tint }],
         });
         // An orbit says its project only where its planets do not: outside
@@ -667,11 +762,11 @@ function markOf(s, R) {
     return clamp(Math.round(((k * s.R) / R) * 20) / 20, BEHIND, 1);
 }
 
-// linesOf is what the frame says beside a node: its name, and under it what
+// linesOf is what the frame says beside a node: its label, and under it what
 // the session asks the person while it waits.
 function linesOf(n, pal, type) {
     const colour = n.tone === "wait" ? pal.wait : n.tone === "busy" ? pal.busy : rgba(pal.ink, 0.62);
-    const lines = [{ t: n.name, f: type.tag, c: colour }];
+    const lines = [{ t: n.label, f: type.tag, c: colour }];
     if (n.tone === "wait") lines.push({ t: n.note, f: type.tag, c: rgba(pal.wait, 0.9) });
     return lines;
 }

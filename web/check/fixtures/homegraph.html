@@ -31,7 +31,7 @@ import { Home, PERIOD } from "/src/desktop/home.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { attachTips } from "/src/desktop/tip.js";
 import { between, graphOf, lensOf, orbitsIn, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
-import { HOME, IDLE, INCLINE, MOON, MOONS, TAU, TURN, ZOOM, add, at, boxOf, camera, inclined, lensAt, onOrbit, orbitOf, slotsFor, spinOf, turnBy, worldOf } from "/src/desktop/orbits/space.js";
+import { HOME, IDLE, INCLINE, MOON, MOONS, TAU, TURN, ZOOM, add, at, boxOf, camera, inclined, lensAt, onOrbit, orbitOf, placeOrbit, slotsFor, spinOf, turnBy, worldOf } from "/src/desktop/orbits/space.js";
 import { TOUCH, drawScene, spritesMade, starSize } from "/src/desktop/orbits/scene.js";
 import { periodRange } from "/src/data/usage.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -467,6 +467,7 @@ window.done = (async () => {
         }));
         out.written = { blog: times.get("blog") || 0, drafts: times.get("drafts") || 0, outside: times.get("outside the map") || 0,
             shop: times.get("shop") || 0, client: times.get("client") || 0,
+            helper: times.get("codex · blog") || 0, thread: times.get("cx-thread") || 0,
             counts: [...times.keys()].filter((t) => /^\d+ sessions?\b/.test(t)).length };
     }
 
@@ -515,11 +516,13 @@ window.done = (async () => {
 
 
     // The picture is handled as a map. NAMES pairs a session with the name the
-    // graph writes for it; a name's offset from its mark at the home view
-    // tells where the mark stands later, while the name keeps its side. The
-    // names are those of the system in front, which are always written.
+    // graph writes for it, and the name its tip says where that is another —
+    // the thread of codex blog opened is written as blog's helper; a name's
+    // offset from its mark at the home view tells where the mark stands later,
+    // while the name keeps its side. The names are those of the system in
+    // front, which are always written.
     await quiet();
-    const NAMES = [["blog", "blog"], ["notes", "notes"], ["draft", "draft"], ["codex-1", "cx-thread"], ["deep", "deep"]];
+    const NAMES = [["blog", "blog"], ["notes", "notes"], ["draft", "draft"], ["codex-1", "codex · blog", "cx-thread"], ["deep", "deep"]];
     const local = (p) => ({ x: p.x - box.left, y: p.y - box.top });
     const names = () => Object.fromEntries(NAMES.map(([, n]) => [n, written.get(n) ? { ...written.get(n) } : null]));
     const marks0 = Object.fromEntries(NAMES.map(([s, n]) => [n, local(spotOf(s))]));
@@ -632,7 +635,7 @@ window.done = (async () => {
     const toward = (n, k) => ({ x: m.x + k * (marks0[n].x + box.left - m.x), y: m.y + k * (marks0[n].y + box.top - m.y) });
     stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -100000, clientX: m.x, clientY: m.y }));
     await quiet();
-    g2.zoomIn = { bound: ZOOM[1], tip: await tipAt(toward("cx-thread", ZOOM[1])) };
+    g2.zoomIn = { bound: ZOOM[1], tip: await tipAt(toward("codex · blog", ZOOM[1])) };
     stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100000, clientX: m.x, clientY: m.y }));
     await quiet();
     g2.zoomOut = { bound: ZOOM[0], tip: await tipAt(toward("draft", ZOOM[0])) };
@@ -685,7 +688,7 @@ window.done = (async () => {
     await quiet();
     await resetView();
     g2.resetTips = [];
-    for (const [s, n] of NAMES) g2.resetTips.push((await tipAt(spotOf(s))) === n ? n : `${n}?`);
+    for (const [s, n, said = n] of NAMES) g2.resetTips.push((await tipAt(spotOf(s))) === said ? said : `${said}?`);
     g2.resetOpened = opened.length - count;
 
     // How a name keeps its side, asked of the drawing: a crowded ring turned
@@ -932,6 +935,180 @@ window.done = (async () => {
             return lit;
         };
         out.field = { space: field(pal), sky: field({ ...pal, ink: "#0f2338", void: "#bcd9f2", sky: true }) };
+    }
+
+    // The surface reads at the scale the interface opens on: the light of a
+    // planet fully lit varies round each circle about its centre only by its
+    // bands or its spots, as a share of the light of that circle — on a planet
+    // of banded clouds and on a mottled one, at that scale and four times it.
+    {
+        const textureOf = (name, unit) => {
+            const sh = sheetOf([S({ session: name, profile: "personal", status: "idle", pct: 100, lastRequestAt: iso(30) })], pal, unit);
+            const R = 9.5 * sh.unit;
+            const circles = new Map();
+            for (const p of disc(sh.px, sh.at(name), Math.round(R) - 1).pixels) {
+                const d = Math.round(Math.hypot(p.dx, p.dy));
+                if (d < 0.15 * R || d > 0.8 * R) continue;
+                if (!circles.has(d)) circles.set(d, []);
+                circles.get(d).push(lumaOf(p.rgb));
+            }
+            const shares = [...circles.values()].filter((l) => l.length >= 6).map((l) => {
+                const mean = l.reduce((a, b) => a + b, 0) / l.length;
+                return Math.sqrt(l.reduce((a, b) => a + (b - mean) ** 2, 0) / l.length) / mean;
+            });
+            return Math.round((shares.reduce((a, b) => a + b, 0) / shares.length) * 1000) / 1000;
+        };
+        out.texture = { small: [textureOf("bands", 1), textureOf("spots", 1)], large: [textureOf("bands", 4), textureOf("spots", 4)] };
+    }
+
+    // On the light theme a planet is lit lighter than the sky, as on the dark
+    // one: its lit part, past the soft terminator, in a light tint of the tone
+    // of its state; its night side darker than the sky.
+    {
+        const skyPal = { ink: "#0f2338", wait: "#7a5a12", busy: "#14548f", cap: "#8b5fd8", void: "#bcd9f2", sky: true };
+        const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+        const hueOf = (rgb) => {
+            const [r, g1, b] = rgb;
+            const hi = Math.max(r, g1, b);
+            const c = hi - Math.min(r, g1, b);
+            if (c === 0) return 0;
+            const h = hi === r ? ((g1 - b) / c) % 6 : hi === g1 ? (b - r) / c + 2 : (r - g1) / c + 4;
+            return (h * 60 + 360) % 360;
+        };
+        const halves = (status, pct, tone) => {
+            const sh = sheetOf([S({ session: "solo", profile: "personal", status, pct, lastRequestAt: iso(30) })], skyPal, 4);
+            const q = sh.at("solo");
+            const R = 9.5 * sh.unit;
+            const toward = Math.atan2(sh.star.y - q.y, sh.star.x - q.x);
+            const along = (p) => (p.dx * Math.cos(toward) + p.dy * Math.sin(toward)) / R;
+            const { pixels } = disc(sh.px, q, Math.round(R) - 2);
+            const mean = (list) => [0, 1, 2].map((k) => list.reduce((a, p) => a + p.rgb[k], 0) / Math.max(1, list.length));
+            const lit = mean(pixels.filter((p) => along(p) > 0.15));
+            const night = mean(pixels.filter((p) => along(p) < -0.15));
+            const off = Math.abs(hueOf(lit) - hueOf(rgbOf(tone)));
+            return { lit: Math.round(lumaOf(lit)), night: Math.round(lumaOf(night)), hue: Math.round(Math.min(off, 360 - off)) };
+        };
+        out.sky = {
+            void: Math.round(lumaOf(rgbOf(skyPal.void))),
+            idle: halves("idle", 50, skyPal.ink),
+            busy: halves("busy", 50, skyPal.busy),
+            wait: halves("waiting", 50, skyPal.wait),
+            cap: halves("idle", 75, skyPal.cap),
+        };
+    }
+
+    // In a system behind the front one a planet and its moon stand clear of
+    // each other, the rings of their waits too, all the way round; in front a
+    // moon stands where its orbit puts it. back has a planet waiting with a
+    // moon waiting and an idle planet with an idle moon, front three at work.
+    {
+        const K = (session, profile, status, parent) => S({ session, profile, project: null, status, lastRequestAt: iso(10),
+            parent: parent ? { session: parent } : undefined });
+        const gk = graphOf({ at: Math.floor(now / 1000), profileMap: [], sessions: [
+            K("f1", "front", "busy"), K("f2", "front", "busy"), K("f3", "front", "busy"),
+            K("pw", "back", "waiting"), K("pm", "back", "waiting", "pw"), K("qi", "back", "idle"), K("qm", "back", "idle", "qi"),
+        ] });
+        const ko = orderOf(gk);
+        const KW = 900;
+        const KH = 420;
+        const pr = camera(HOME, KW, KH, lensOf(gk, KW, KH));
+        const sheet = document.createElement("canvas");
+        sheet.width = KW;
+        sheet.height = KH;
+        const kx = sheet.getContext("2d");
+        const proto = CanvasRenderingContext2D.prototype;
+        let arc = null;
+        let rings = [];
+        kx.beginPath = () => { arc = null; proto.beginPath.call(kx); };
+        kx.arc = (x, y, r, a0, a1) => { arc = { x, y, r }; proto.arc.call(kx, x, y, r, a0, a1); };
+        // A ring of a wait is a circle stroked 1.3 wide, as the canvas keeps
+        // that width.
+        kx.stroke = () => { if (arc && Math.abs(kx.lineWidth - 1.3) < 0.01) rings.push(arc); proto.stroke.call(kx); };
+        const planets = gk.systems.flatMap((sys) => sys.orbits.map((o) => ({ o, families: o.planets.filter((p) => p.kids.length > 0) })));
+        const kin = { frames: 0, rings: Infinity, marks: Infinity, front: 0 };
+        for (let i = 0; i < 48; i++) {
+            for (const { o, families } of planets) {
+                for (const p of families) p.turn = (i / 48) * TAU;
+                placeOrbit(o);
+            }
+            for (const front of ["front", "back"]) {
+                const places = placesOf(gk, ko, front);
+                rings = [];
+                kx.clearRect(0, 0, KW, KH);
+                const { hits } = drawScene(kx, KW, KH, pr, { ...sceneOf(gk, places, hues), front, pal, type, sides: new Map(), settle: true });
+                const hit = (name) => hits.find((h) => h.node && h.node.s.session === name);
+                if (front === "front") {
+                    kin.frames += rings.length === 2 ? 1 : 0;
+                    if (rings.length === 2) {
+                        const [a, b] = rings;
+                        kin.rings = Math.min(kin.rings, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r - 1.3);
+                    }
+                    // A planet behind is half its size in front, 9.5 across the
+                    // radius, and its moon half of 5.
+                    kin.marks = Math.min(kin.marks, Math.hypot(hit("qi").x - hit("qm").x, hit("qi").y - hit("qm").y) - (9.5 + 5) / 2);
+                } else {
+                    for (const name of ["pm", "qm"]) {
+                        const n = gk.nodes.find((x) => x.s.session === name);
+                        const raw = pr(worldOf(places.get(n.p.system), n.p.w));
+                        kin.front = Math.max(kin.front, Math.hypot(hit(name).x - raw.x, hit(name).y - raw.y));
+                    }
+                }
+            }
+        }
+        out.kin = { frames: kin.frames, rings: Math.round(kin.rings * 10) / 10, marks: Math.round(kin.marks * 10) / 10,
+            front: Math.round(kin.front * 1000) / 1000 };
+    }
+
+    // The names of the system in front are placed before the name of a star
+    // behind it. Then two contours of a session each: the star behind is put
+    // just over the name of the planet in front, so that the side its name
+    // takes first, under it, is that name's; the star names itself elsewhere,
+    // and the planet keeps the side it has with the star away.
+    {
+        const LW = 900;
+        const LH = 420;
+        const lens0 = lensOf(g, LW, LH);
+        const pr0 = camera(HOME, LW, LH, lens0);
+        const o0 = orderOf(g);
+        const placed = drawScene(document.createElement("canvas").getContext("2d"), LW, LH, pr0, { ...sceneOf(g, placesOf(g, o0, o0[0]), hues),
+            front: o0[0], pal, type, sides: new Map(), settle: true }).labels.filter((l) => !l.hidden).map((l) => l.key);
+        const own = new Set([`*${o0[0]}`, ...g.nodes.filter((n) => n.p.system === o0[0]).map((n) => n.s.session),
+            ...g.systems.find((sys) => sys.name === o0[0]).orbits.map((o) => `${o0[0]}/${o.key}`)]);
+        const two = graphOf({ at: Math.floor(now / 1000), profileMap: [], sessions: [
+            S({ session: "anchor", profile: "near", status: "idle", lastRequestAt: iso(10) }),
+            S({ session: "aside", profile: "far", status: "idle", lastRequestAt: iso(10) }),
+        ] });
+        const lens = lensOf(two, LW, LH);
+        const pr = camera(HOME, LW, LH, lens);
+        const sideOf = (places) => {
+            const labels = drawScene(document.createElement("canvas").getContext("2d"), LW, LH, pr, { ...sceneOf(two, places, hues),
+                front: "near", pal, type, sides: new Map(), settle: true }).labels;
+            return { anchor: labels.find((l) => l.key === "anchor"), star: labels.find((l) => l.key === "*far") };
+        };
+        const places = placesOf(two, orderOf(two), "near");
+        const alone = sideOf(places);
+        // The point of the scene the home view shows at x, y of the canvas, at
+        // the depth z from the eye.
+        const behind = (x, y, z) => {
+            const s = lens.f / (lens.dist + z);
+            const cx = (x - LW / 2 - lens.ox) / s;
+            const cy = -(y - LH / 2 - lens.oy) / s;
+            const [cyw, syw, cp, sp] = [Math.cos(HOME.yaw), Math.sin(HOME.yaw), Math.cos(HOME.pitch), Math.sin(HOME.pitch)];
+            const z0 = cy * sp + z * cp;
+            return [cx * cyw - z0 * syw, cy * cp - z * sp, cx * syw + z0 * cyw];
+        };
+        const r = alone.anchor.rect;
+        const far = places.get("far");
+        const reach = starSize(two.systems.find((sys) => sys.name === "far").live) + 6;
+        const moved = new Map(places);
+        moved.set("far", { ...far, c: behind(r.x + r.w / 2, r.y - reach - 0.5, pr(far.c).z) });
+        const crossed = sideOf(moved);
+        out.labels = {
+            placed, own: [...own],
+            alone: `${alone.anchor.dir}/${alone.anchor.reach}`,
+            crossed: `${crossed.anchor.dir}/${crossed.anchor.reach}`,
+            star: crossed.star ? { at: Math.round(pr(moved.get("far").c).y - r.y), dir: crossed.star.dir } : null,
+        };
     }
 
     // Nothing is drawn while nothing changes.

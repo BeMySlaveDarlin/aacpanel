@@ -155,6 +155,33 @@ type homeGraph struct {
 		Again  bool    `json:"again"`
 		Unlike float64 `json:"unlike"`
 	} `json:"surface"`
+	Texture struct {
+		Small []float64 `json:"small"`
+		Large []float64 `json:"large"`
+	} `json:"texture"`
+	Sky struct {
+		Void int        `json:"void"`
+		Idle graphLight `json:"idle"`
+		Busy graphLight `json:"busy"`
+		Wait graphLight `json:"wait"`
+		Cap  graphLight `json:"cap"`
+	} `json:"sky"`
+	Kin struct {
+		Frames int     `json:"frames"`
+		Rings  float64 `json:"rings"`
+		Marks  float64 `json:"marks"`
+		Front  float64 `json:"front"`
+	} `json:"kin"`
+	Labels struct {
+		Placed  []string `json:"placed"`
+		Own     []string `json:"own"`
+		Alone   string   `json:"alone"`
+		Crossed string   `json:"crossed"`
+		Star    *struct {
+			At  float64 `json:"at"`
+			Dir int     `json:"dir"`
+		} `json:"star"`
+	} `json:"labels"`
 	Sizes struct {
 		Planet float64 `json:"planet"`
 		Moon   float64 `json:"moon"`
@@ -290,6 +317,12 @@ type graphPhase struct {
 	Night  *float64 `json:"night"`
 }
 
+type graphLight struct {
+	Lit   int `json:"lit"`
+	Night int `json:"night"`
+	Hue   int `json:"hue"`
+}
+
 type openedTalk struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
@@ -405,6 +438,10 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 	if w["blog"] != 1 || w["drafts"] != 1 || w["client"] != 1 || w["outside"] != 0 || w["shop"] != 0 {
 		t.Errorf("the frame writes %v: blog once, as its planet, drafts once, as its orbit, client once, as its star, "+
 			"and of personal behind neither shop nor its orbit outside the map", w)
+	}
+	if w["helper"] != 1 || w["thread"] != 0 {
+		t.Errorf("the thread of codex blog opened is written %d times as \"codex · blog\" and %d as its own name: "+
+			"a helper of a session is written as that session's helper", w["helper"], w["thread"])
 	}
 	summary := map[string]string{}
 	for _, sys := range got.Systems {
@@ -630,6 +667,116 @@ func TestAPlanetHasASurfaceOfItsOwn(t *testing.T) {
 	if got.Field.Space < 3 || got.Field.Sky != 0 {
 		t.Errorf("the far stars light %d pixels of the dark sky and %d of the light one: a sparse field on the dark theme, none on the light",
 			got.Field.Space, got.Field.Sky)
+	}
+}
+
+// The bands and spots of a planet read at the scale the interface opens on:
+// round every circle about its centre the light of a planet fully lit varies
+// by its surface, as a share of that light, half as much again as on a planet
+// four times as large — at the strength a large one has they are lost on a
+// few pixels. A large planet keeps the quiet surface it has.
+func TestASurfaceReadsAtTheScaleThePageOpensOn(t *testing.T) {
+	x := runHomeGraph(t).Texture
+	if len(x.Small) != 2 || len(x.Large) != 2 {
+		t.Fatalf("the surfaces came back as %+v", x)
+	}
+	for i, kind := range []string{"banded", "mottled"} {
+		if x.Small[i] < 1.5*x.Large[i] {
+			t.Errorf("a %s planet at the scale the page opens on varies by %.3f of its light round a circle, and by %.3f "+
+				"four times as large: its surface is drawn stronger where it is small", kind, x.Small[i], x.Large[i])
+		}
+		if x.Large[i] > 0.12 {
+			t.Errorf("a %s planet four times as large varies by %.3f of its light round a circle: a large planet keeps "+
+				"a quiet surface", kind, x.Large[i])
+		}
+	}
+}
+
+// On the light theme a planet reads as on the dark one: its lit part, past the
+// soft terminator, lighter than the sky and in a light tint of the tone of its
+// state — the accent at work, the gold waiting, the tone of the cap near the
+// cap; its night side darker than the sky.
+func TestALitPlanetIsLighterThanTheLightSky(t *testing.T) {
+	sky := runHomeGraph(t).Sky
+	if sky.Void < 200 {
+		t.Fatalf("the light sky is %d on the scale of luminance: the fixture is to draw on the light theme", sky.Void)
+	}
+	for _, c := range []struct {
+		state string
+		got   graphLight
+		hue   bool
+	}{{"idle", sky.Idle, false}, {"busy", sky.Busy, true}, {"waiting", sky.Wait, true}, {"near the cap", sky.Cap, true}} {
+		if c.got.Lit < sky.Void+6 {
+			t.Errorf("the lit part of a planet %s is %d against a sky of %d: lighter than the sky", c.state, c.got.Lit, sky.Void)
+		}
+		if c.hue && c.got.Hue > 15 {
+			t.Errorf("the lit part of a planet %s is %d degrees off the hue of its tone: a tint of it", c.state, c.got.Hue)
+		}
+	}
+	for _, c := range []struct {
+		state string
+		got   graphLight
+	}{{"idle", sky.Idle}, {"busy", sky.Busy}, {"waiting", sky.Wait}} {
+		if c.got.Night > sky.Void-20 {
+			t.Errorf("the night side of a planet %s is %d against a sky of %d: darker than the sky", c.state, c.got.Night, sky.Void)
+		}
+	}
+}
+
+// A planet of a system behind the front one and its moon stand clear of each
+// other all the way round, and so do the rings of their waits: the orbits
+// there shrink further than the marks, and a moon is kept off its planet. In
+// front a moon stands where its orbit puts it.
+func TestAMoonBehindStandsClearOfItsPlanet(t *testing.T) {
+	k := runHomeGraph(t).Kin
+	if k.Frames != 48 {
+		t.Fatalf("the two rings of the waits behind were found in %d frames of 48", k.Frames)
+	}
+	if k.Rings < 1.5 {
+		t.Errorf("a planet waiting behind the front and its moon waiting draw their rings %.1f px apart at the closest: "+
+			"one ring over the other", k.Rings)
+	}
+	if k.Marks < 2 {
+		t.Errorf("an idle planet behind the front and its moon stand %.1f px apart at the closest: one mark on the other", k.Marks)
+	}
+	if k.Front > 0.01 {
+		t.Errorf("in front a moon is drawn up to %.3f px off where its orbit puts it", k.Front)
+	}
+}
+
+// The names of the system in front go before the name of a star behind: a
+// star behind that comes where a name in front stands moves its own name, and
+// the name in front keeps its side.
+func TestTheNamesInFrontGoBeforeAStarBehind(t *testing.T) {
+	l := runHomeGraph(t).Labels
+	own := map[string]bool{}
+	for _, k := range l.Own {
+		own[k] = true
+	}
+	last := -1
+	for i, k := range l.Placed {
+		if own[k] {
+			last = i
+		}
+	}
+	behind := 0
+	for i, k := range l.Placed {
+		if strings.HasPrefix(k, "*") && !own[k] {
+			behind++
+			if i < last {
+				t.Errorf("the star behind %s is named before a name of the system in front: %v", k, l.Placed)
+			}
+		}
+	}
+	if behind != 2 || last < 0 {
+		t.Fatalf("the names are placed in the order %v: the fixture is to name two stars behind and the system in front", l.Placed)
+	}
+	if l.Star == nil || l.Alone == "" {
+		t.Fatalf("the star behind or the planet in front wrote no name: %+v", l)
+	}
+	if l.Crossed != l.Alone {
+		t.Errorf("the planet in front stands named on the side %s alone and on %s with a star behind just over its name: "+
+			"the name in front keeps its side", l.Alone, l.Crossed)
 	}
 }
 

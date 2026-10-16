@@ -27,7 +27,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import { html } from "../../html.js";
 import { plural } from "../../format.js";
 import { ownName } from "../../catchup.js";
-import { shownName } from "../../agent.js";
+import { isCodex, shownName } from "../../agent.js";
 import { kinOf } from "../../screens/sessions/kin.js";
 import { liveBlocksOf, stateOf, useAnswers } from "../../screens/sessions/blocks.js";
 import { contourOfLive } from "../../screens/sessions/map.js";
@@ -119,7 +119,10 @@ function short(min) {
 // order of the map: a snapshot moves an orbit only when the weights reorder.
 // Every session carries what its mark says — its name, its context, its
 // background work, and its state in the words of its row: stateOf, so the
-// graph waits on a question exactly when the row does.
+// graph waits on a question exactly when the row does. A thread of codex that
+// a session opened is written as that session's helper, "codex · " and the
+// name of the session: the thread mostly takes that name, and two marks side
+// by side would say the same; its tip keeps the thread's own name.
 export function graphOf(snapshot, before = null) {
     const sessions = (snapshot && snapshot.sessions) || [];
     const map = (snapshot && snapshot.profileMap) || [];
@@ -173,6 +176,7 @@ export function graphOf(snapshot, before = null) {
         while (at.parent) at = laid.nodes.get(at.parent);
         return orbitName.get(at.key) || "";
     };
+    const byName = new Map(sessions.map((s) => [s.session, s]));
     const nodes = sessions.filter((s) => laid.nodes.get(s.session).w).map((s) => {
         const state = stateOf(s);
         const p = laid.nodes.get(s.session);
@@ -180,6 +184,7 @@ export function graphOf(snapshot, before = null) {
             s,
             p,
             name: shownName(s),
+            label: isCodex(s) && p.parent ? `codex · ${shownName(byName.get(p.parent))}` : shownName(s),
             contour: contourOf(s),
             orbit: nameOfOrbit(p),
             tone: state.tone,
