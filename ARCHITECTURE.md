@@ -2094,10 +2094,19 @@ after a taken name, before claude starts; an open or a resume without one
 leaves the role the name has, and the Resume of the screens comes back under
 the name the conversation ran under, so it finds that role too. The executor
 writes the person's role from the file claude keeps of the live session, on the
-stream and in tmux alike; nothing is typed into the conversation, so a live
-session learns a role the person gave at its next start or by reading the
-tool. A rename through the panel carries the role to the new name. The
-collector carries it in the row of the session. The price is that the name is
+stream and in tmux alike, and nothing is typed into the conversation. A rename
+through the panel carries the role to the new name. The collector carries it
+in the row of the session, and the prompt stamp tells it from there: claude
+keeps the server's word a conversation started with, and a resume or a
+reconnect of the server does not read it again, so a role set or changed after
+the start would never reach the model otherwise. The stamp says the role once
+a conversation, on the next prompt or batch of tools — past its throttle, alone
+when the throttle keeps the rest back — and again when the role changes or the
+conversation is compacted, and says once that a role it told is cleared; what a
+conversation was told lies in `role-<conversation>.state` beside the
+throttle files and goes with their sweep. Where the stamp, a part of the kit
+installed on request, is not installed, a role reaches a conversation only at
+its start. The price is that the name is
 the key: a session renamed outside the panel, or opened again under another
 name, starts without its role. A thread of codex has no role.
 

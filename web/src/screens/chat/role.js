@@ -1,9 +1,9 @@
 // The sheet that gives a session its role in its project: a sentence or two
 // that tell it from the other sessions working in the same repository. The
-// panel keeps it by the session's name and its repository and tells the
-// session at every start, so it outlives a restart and a reopen under the
-// same name. Saved and cleared with the sheet's own buttons; a role past its
-// length is not sent.
+// panel keeps it by the session's name and its repository, so it outlives a
+// restart and a reopen under the same name, and tells the session with its
+// next prompt. Saved and cleared with the sheet's own buttons; a role past
+// its length is not sent.
 
 import { useState } from "preact/hooks";
 
@@ -48,8 +48,8 @@ export function RoleSheet({ name, live, exec, onDone }) {
         <div class="cmdsheet">
             <div class="shead cmdtitle"><span class="cmdhead">Role of the session</span></div>
             <p class="cmdnote">What this session does in its project, in a sentence or two: it tells it from the other
-                sessions working in the same repository. The session is told its role at every start, the next one
-                included; it keeps it across a restart and a reopen under the same name.</p>
+                sessions working in the same repository. The session is told its role with its next prompt; it keeps
+                it across a restart and a reopen under the same name.</p>
             <textarea class="rnname cxfield rolefield" rows="4" aria-label="the role of the session" value=${value}
                       placeholder="the lead of the database split: the migrations and their review"
                       onInput=${(e) => setValue(e.currentTarget.value)}></textarea>

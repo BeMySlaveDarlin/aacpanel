@@ -31,9 +31,10 @@ func roleReq(target, text string) action.Request {
 }
 
 // The role the person gives a live session lands where the panel's server
-// reads it at the next start of the session — the account, the repository
-// and the name of the session, by the person — on the stream and in tmux
-// alike, and nothing goes into the conversation. An empty role clears it.
+// reads it and the collector takes it to the prompt stamp from — the account,
+// the repository and the name of the session, by the person — on the stream
+// and in tmux alike, and nothing goes into the conversation. The answer says
+// the session hears it with its next prompt. An empty role clears it.
 func TestTheRoleThePersonGivesIsKeptForTheSession(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	f := onTheStream(t, false)
@@ -44,7 +45,7 @@ func TestTheRoleThePersonGivesIsKeptForTheSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(detail, "demo") || !strings.Contains(detail, "next start") {
+	if !strings.Contains(detail, "demo") || !strings.Contains(detail, "with its next prompt") {
 		t.Errorf("the report %q", detail)
 	}
 	got := role.Read(role.Dir(), sessionPlace(t, "demo"), "demo")
@@ -77,7 +78,7 @@ func TestTheRoleThePersonGivesIsKeptForTheSession(t *testing.T) {
 }
 
 // A session renamed by the panel takes its role along: the server finds it
-// by the new name at the next start, and the old name has none.
+// by the new name, and the old name has none.
 func TestARenamedSessionTakesItsRoleAlong(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	onTheStream(t, false)

@@ -792,7 +792,7 @@ installs it by hand.
 | Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
 | Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
-| Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `aacpanel-exec hook prompt-stamp`, and its throttle files `<state>/stamp-*.state` |
+| Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `aacpanel-exec hook prompt-stamp`, its throttle files `<state>/stamp-*.state` and the marks of the role it told `<state>/role-*.state` |
 | Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
 | Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |

@@ -3,7 +3,7 @@
 // session. Several sessions of one project often run in one directory and on
 // one branch, and after a restart each would take the notes and the handoffs
 // left there for its own; the role, given to the session before its first
-// word, says which work is its.
+// word and again with the prompt after it changes, says which work is its.
 //
 // A role is kept by the account the session runs in, by the repository it
 // works in and by its name, so it survives a restart — afresh or going on
@@ -14,7 +14,9 @@
 //
 // Three hands set it: the session itself through the panel's role tool, the
 // session that opens it through session_open, and the person in the panel.
-// The collector reads the file into the row of the session.
+// The collector reads the file into the row of the session, and the prompt
+// stamp tells a conversation the role from that row when it was not told it
+// yet: the server's word reaches only the start of a conversation.
 package role
 
 import (

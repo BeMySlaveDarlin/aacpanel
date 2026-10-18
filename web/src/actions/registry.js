@@ -555,7 +555,7 @@ export const ACTIONS = {
     // back the same way.
     "session.role": {
         instant: true,
-        effect: "The session is told its role at its next start; the role stays with its name across a restart and a reopen.",
+        effect: "The session is told its role with its next prompt; the role stays with its name across a restart and a reopen.",
         done: (target, params) => (params && params.role ? `${target}: the role is kept` : `${target} has no role now`),
     },
     "session.set": {

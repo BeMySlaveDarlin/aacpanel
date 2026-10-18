@@ -21,8 +21,9 @@ const Instructions = "Set this session's role with the role tool when the person
 
 // Description is the tool's own word to the model.
 const Description = "The role of this session in its project: a short text that tells it from the other " +
-	"sessions working in the same repository, shown to the person in the panel and told to the session at every " +
-	"start before its first word. It is kept by the account, the repository and the session's name, so it " +
+	"sessions working in the same repository, shown to the person in the panel and told to the session before " +
+	"its first word and again with the prompt after it changes. It is kept by the account, the repository and " +
+	"the session's name, so it " +
 	"outlives a restart, a close and an open under the same name, and a move into a worktree. " +
 	"Without role the call reads it; a text sets it, at most 500 characters; an empty text clears it. " +
 	"Set it when the person or the session that opened this one assigns a role, or when the work of this " +
@@ -117,5 +118,5 @@ func call(dir string, now func() time.Time, bind mcp.Bind, raw json.RawMessage) 
 	if kept == nil {
 		return "The role is cleared.", false
 	}
-	return "The role is kept: the person sees it in the panel, and this session is told it at every start.", false
+	return "The role is kept: the person sees it in the panel, and this session is told it with its next prompt.", false
 }

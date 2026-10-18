@@ -41,7 +41,10 @@ type stampStep struct {
 	Payload  json.RawMessage            `json:"payload"`
 	Says     []string                   `json:"says"`
 	Throttle *string                    `json:"throttle"`
-	Listing  []string                   `json:"listing"`
+	// Mark is the mark of the role of the conversation after the step: a
+	// string, or null for no mark; left out, it is not looked at.
+	Mark    json.RawMessage `json:"mark"`
+	Listing []string        `json:"listing"`
 }
 
 func readStampCases(t *testing.T) stampCases {
@@ -157,17 +160,31 @@ func TestTheSharedCasesOfTheStamp(t *testing.T) {
 				if want := strings.Join(st.Says, "\n"); said != want {
 					t.Errorf("step %d said:\n%s\nwant:\n%s", i, said, want)
 				}
+				var p struct {
+					Session string `json:"session_id"`
+				}
+				_ = json.Unmarshal(st.Payload, &p)
 				if st.Throttle != nil {
-					var p struct {
-						Session string `json:"session_id"`
+					session := p.Session
+					if session == "" {
+						session = "common"
 					}
-					_ = json.Unmarshal(st.Payload, &p)
-					if p.Session == "" {
-						p.Session = "common"
-					}
-					got, err := os.ReadFile(filepath.Join(state, "stamp-"+p.Session+".state"))
+					got, err := os.ReadFile(filepath.Join(state, "stamp-"+session+".state"))
 					if err != nil || string(got) != *st.Throttle {
 						t.Errorf("step %d: the throttle file reads %q (%v), want %q", i, got, err, *st.Throttle)
+					}
+				}
+				if st.Mark != nil {
+					var want *string
+					if err := json.Unmarshal(st.Mark, &want); err != nil {
+						t.Fatal(err)
+					}
+					got, err := os.ReadFile(filepath.Join(state, "role-"+p.Session+".state"))
+					switch {
+					case want == nil && err == nil:
+						t.Errorf("step %d: a mark of the role is left: %q", i, got)
+					case want != nil && (err != nil || string(got) != *want):
+						t.Errorf("step %d: the mark of the role reads %q (%v), want %q", i, got, err, *want)
 					}
 				}
 				if st.Listing != nil {

@@ -2,6 +2,8 @@ package hook
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,7 +29,9 @@ import (
 // where the guard restarts it, does not start what the restart would cut. The
 // stamp of a conversation between prompts keeps what it last said in a file
 // of the state directory, stamp-<conversation>.state, swept when another is
-// written after stampKeep untouched.
+// written after stampKeep untouched. The role of the session comes last, and
+// only when the conversation was not told it yet; between prompts it passes
+// the throttle (lineRole).
 //
 // The throttle's format stays compatible across updates. The cases in
 // deploy/claude/testdata/prompt-stamp.json hold the text to the byte. The
@@ -60,13 +64,64 @@ func stampPrompt(event string, payload []byte, now time.Time) Reply {
 	state := readState(filepath.Join(dir, "state.json"))
 	prompt := event == "UserPromptSubmit"
 	lines := stampLines(state, id, os.Getenv("CLAUDE_CONFIG_DIR"), prompt, g, now)
+	// Claude stamps the tool batches of a subagent too, into the subagent's
+	// conversation, and names the subagent in agent_id: the role is the main
+	// conversation's, and a mark written for a subagent would keep it from the
+	// one it is for.
+	role := ""
+	if agent, _ := fields["agent_id"].(string); agent == "" {
+		role = lineRole(dir, id, sessionOf(state, id))
+	}
 	if !prompt {
 		if !throttle(dir, id, sessionOf(state, id)["pct"], lineAlarms(state, id, g), now) {
-			return Reply{}
+			// The role is no news of the machine the throttle holds back: a
+			// role the conversation was not told goes out alone.
+			return Reply{Context: role}
 		}
 		lines = slices.DeleteFunc(lines, func(l string) bool { return strings.HasPrefix(l, "[") })
 	}
+	if role != "" {
+		lines = append(lines, role)
+	}
 	return Reply{Context: strings.Join(lines, "\n")}
+}
+
+// lineRole is the role of the session, said once a conversation and again
+// when it changes or the conversation is compacted, nothing otherwise. Claude
+// keeps the word of the panel's server a conversation started with: a resume
+// or a reconnect does not read it again, so a role set or changed after the
+// start reaches the model only here. What a conversation was last told — a
+// hash of the role and the count of its compactions, from the collector's row
+// — lies in role-<conversation>.state beside the throttle files and goes with
+// their sweep. A role cleared after it was told is said to be gone, once. A
+// conversation the snapshot does not know is told nothing, and nothing is
+// written.
+func lineRole(dir, id string, row map[string]any) string {
+	if id == "" || row == nil {
+		return ""
+	}
+	path := dir + string(filepath.Separator) + "role-" + id + ".state"
+	said, err := os.ReadFile(path)
+	told := err == nil
+	text, _ := row["role"].(string)
+	text = strings.Join(strings.Fields(text), " ")
+	if text == "" {
+		if !told {
+			return ""
+		}
+		_ = os.Remove(path)
+		return "Role:     none now: the role this session was told is cleared"
+	}
+	compacts, _ := number(row["compacts"])
+	sum := sha256.Sum256([]byte(text))
+	mark := hex.EncodeToString(sum[:8]) + ":" + whole(compacts)
+	if told && string(said) == mark {
+		return ""
+	}
+	if os.WriteFile(path+".tmp", []byte(mark), 0o666) == nil {
+		_ = os.Rename(path+".tmp", path)
+	}
+	return "Role:     " + text
 }
 
 // capOf is the guard of the place the session works in, as the panel's map
@@ -385,9 +440,9 @@ func throttle(dir, id string, pct any, alarms string, now time.Time) bool {
 	return true
 }
 
-// sweepStamps takes away the throttle files written before a moment, in
-// seconds. The state directory is shared with the collector: only the
-// stamp's own files go.
+// sweepStamps takes away the throttle files and the marks of the role written
+// before a moment, in seconds. The state directory is shared with the
+// collector: only the stamp's own files go.
 func sweepStamps(dir string, before float64) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -395,7 +450,8 @@ func sweepStamps(dir string, before float64) {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if !strings.HasPrefix(name, "stamp-") || !(strings.HasSuffix(name, ".state") || strings.HasSuffix(name, ".state.tmp")) {
+		own := strings.HasPrefix(name, "stamp-") || strings.HasPrefix(name, "role-")
+		if !own || !(strings.HasSuffix(name, ".state") || strings.HasSuffix(name, ".state.tmp")) {
 			continue
 		}
 		path := filepath.Join(dir, name)

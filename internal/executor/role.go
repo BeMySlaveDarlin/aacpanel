@@ -11,10 +11,12 @@ import (
 // sessionRole sets the role of a live claude session as the person gives it,
 // or clears it. It goes into the file the panel's server tells the session its
 // role from, kept by the account the session runs in, the repository it works
-// in and its name — all read from the file claude keeps of the session — so
-// a session on the stream and one in tmux take it alike, at their next start.
-// Nothing is sent into the conversation: words typed there would reach the
-// model as the person's message.
+// in and its name — all read from the file claude keeps of the session — and
+// the collector carries it into the row the prompt stamp tells the running
+// conversation from, with its next prompt or batch of tools: a session on the
+// stream and one in tmux take it alike. Nothing is typed into the
+// conversation: words typed there would reach the model as the person's
+// message.
 func (e *Executor) sessionRole(target, text string) (string, error) {
 	s, err := findOneLiveSession(target)
 	if err != nil {
@@ -27,7 +29,7 @@ func (e *Executor) sessionRole(target, text string) (string, error) {
 	if kept == nil {
 		return fmt.Sprintf("session %s has no role now", s.Name), nil
 	}
-	return fmt.Sprintf("session %s has its role; it is told it at its next start", s.Name), nil
+	return fmt.Sprintf("session %s has its role; it is told it with its next prompt", s.Name), nil
 }
 
 // placeOf is where a live session works, as the panel's server places it.

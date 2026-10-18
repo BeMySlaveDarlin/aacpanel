@@ -38,7 +38,7 @@ const (
 
 // openRole says what the role of the session opened is: its word about which
 // work of the repository is its, told to it before its first word.
-const openRole = " role, at most 500 characters, is told to the Claude session at every start."
+const openRole = " role, at most 500 characters, is told to the Claude session as its role in its project."
 
 const openDescription = "Opens a session in dir: a project of the map, a directory inside it or a worktree of it; " +
 	"a directory outside the map is not opened. With resume, the id of a closed Claude conversation, it goes on " +
