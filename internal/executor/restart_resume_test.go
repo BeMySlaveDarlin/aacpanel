@@ -183,3 +183,52 @@ func TestARestartFromScratchClosesOnlyTheConversationItNames(t *testing.T) {
 		t.Errorf("the report %q does not say the session started anew", detail)
 	}
 }
+
+// A session restarted anew runs a new conversation, and the sessions it had
+// opened stay its children: their records move to the new conversation, so it
+// can still close them and their reports still reach it. A restart that goes
+// on with the conversation keeps it, and the records stay as they are; the
+// children of another conversation are not touched either way.
+func TestARestartHandsTheChildrenToTheConversationItComesBackWith(t *testing.T) {
+	const (
+		anew  = "88888888-8888-4888-8888-888888888888"
+		other = "99999999-9999-4999-8999-999999999999"
+	)
+	for _, c := range []struct {
+		name, resume, back, owner string
+	}{
+		{"anew", "", anew, anew},
+		{"going on", streamSID, streamSID, streamSID},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			mine := []string{"process-7001-100", "019a2000-0000-7000-8000-00000000c0de"}
+			for _, id := range mine {
+				if err := stream.KeepOwner(id, stream.SessionOwner{Name: "demo", Conversation: streamSID}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := stream.KeepOwner("process-7002-100", stream.SessionOwner{Name: "lab", Conversation: other}); err != nil {
+				t.Fatal(err)
+			}
+			dir, _ := streamStand(t, func(*stream.State) {})
+			fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportStream, Conversation: c.back})
+			e, _ := newTest(t, "")
+			withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+			detail, err := e.Execute(context.Background(), restartOf(dir, c.resume))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range mine {
+				if got := stream.OwnerOf(id); got.Conversation != c.owner || got.Name != "demo" {
+					t.Errorf("child %s is recorded as opened by %+v, meant conversation %s: the restarted session "+
+						"could not close it (%s)", id, got, c.owner, detail)
+				}
+			}
+			if got := stream.OwnerOf("process-7002-100"); got.Conversation != other || got.Name != "lab" {
+				t.Errorf("a child of another conversation moved to %+v", got)
+			}
+		})
+	}
+}

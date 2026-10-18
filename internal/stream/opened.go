@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SessionOwner records who opened a helper. A name alone would give a later,
@@ -37,4 +38,28 @@ func OwnerOf(id string) SessionOwner {
 		return SessionOwner{}
 	}
 	return owner
+}
+
+// PassOwners hands every session the conversation from opened to owner. A
+// session restarted anew runs a new conversation, and the sessions it opened
+// before stay its children: the right to close them and their reports go on
+// with it rather than with a conversation that no longer runs.
+func PassOwners(from string, owner SessionOwner) error {
+	if from == "" || owner.Conversation == "" || owner.Conversation == from {
+		return nil
+	}
+	paths, err := filepath.Glob(filepath.Join(keptDir(), "opened", "*.json"))
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		id := strings.TrimSuffix(filepath.Base(path), ".json")
+		if OwnerOf(id).Conversation != from {
+			continue
+		}
+		if err := KeepOwner(id, owner); err != nil {
+			return err
+		}
+	}
+	return nil
 }

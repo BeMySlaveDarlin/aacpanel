@@ -714,6 +714,10 @@ start and leave the map intact.
 The opening record is separate from the visual parent and names the parent's
 conversation as well as its session. Manual grouping grants no reports or
 closing rights, and another conversation under the same name inherits none.
+A parent restarted anew runs a new conversation that the panel itself names
+at the start, and its records move to that conversation; a restart that goes
+on keeps the conversation and the records as they are. A tmux parent names no
+conversation at its start, and its records stay with the previous one.
 The record survives an executor restart; resuming a closed thread from the
 archive clears it. `turn/completed` queues one delivery attempt per thread and
 turn in the connected executor, including failure and interruption. A separate

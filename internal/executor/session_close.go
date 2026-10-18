@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/launcher"
+	"aacpanel/internal/stream"
 )
 
 var (
@@ -92,6 +94,10 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 	if home.Launch, err = goingOnLaunch(home.Launch, resume, req.Text); err != nil {
 		return "", err
 	}
+	var from string
+	if s, err := findOneLiveSession(target); err == nil {
+		from = s.SessionID
+	}
 	closed, err := e.closeAgent(ctx, p)
 	if err != nil {
 		return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
@@ -101,7 +107,7 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 	if err != nil {
 		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
-	return closed + "; " + describeConsole(rep) + restartedWith(resume, ""), nil
+	return closed + "; " + describeConsole(rep) + restartedWith(resume, "") + passChildren(from, rep), nil
 }
 
 // runsConversation refuses a restart or a close, as act names it, that names
@@ -138,6 +144,10 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 	next.Parent = keptParent(p.Agent, next.Parent)
 	s, err := findOneLiveSession(target)
 	held := err == nil && onStream(s)
+	var from string
+	if err == nil {
+		from = s.SessionID
+	}
 	var closed, afresh string
 	// A conversation on the stream nobody has said a word in has no
 	// transcript to go on with: the session starts anew rather than close and
@@ -162,7 +172,21 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 	if err != nil {
 		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
-	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh, nil
+	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh +
+		passChildren(from, rep), nil
+}
+
+// passChildren hands the sessions a restarted session had opened to the
+// conversation it came back with. A restart anew runs a new conversation, and
+// the children recorded under the old one would no longer be its own: it could
+// not close them, and their reports would go nowhere. A tmux session names no
+// conversation at its start, and its children stay where they were.
+func passChildren(from string, rep launcher.Report) string {
+	err := stream.PassOwners(from, stream.SessionOwner{Name: rep.Session, Conversation: rep.Conversation})
+	if err != nil {
+		return "; the sessions it had opened stay with its previous conversation: " + err.Error()
+	}
+	return ""
 }
 
 // goingOnLaunch is the launch a restart brings the session up with: with the
