@@ -261,7 +261,11 @@ func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, 
 		return nil, mapProject{}, nil
 	}
 
-	found, err := locateProject(list, id, cwd, target, s.worktrees(), s.db.ProjectRoots())
+	worktreeOf := s.worktrees()
+	if id == 0 {
+		worktreeOf = s.worktreesFor(ctx, list, cwd, worktreeOf)
+	}
+	found, err := locateProject(list, id, cwd, target, worktreeOf, s.db.ProjectRoots())
 	if err != nil {
 		return nil, mapProject{}, err
 	}
@@ -294,7 +298,7 @@ func (s *Server) projectIn(ctx context.Context, dir string) (*action.Project, ma
 	if err != nil {
 		return nil, mapProject{}, fmt.Errorf("the project of %s cannot be found: %w", clean, err)
 	}
-	found, ok := projectAt(list, clean, s.worktrees(), s.db.ProjectRoots())
+	found, ok := projectAt(list, clean, s.worktreesFor(ctx, list, clean, s.worktrees()), s.db.ProjectRoots())
 	if !ok {
 		return nil, mapProject{}, fmt.Errorf("no project of the map holds %s: the panel knows neither the account "+
 			"to open a session there in nor its launch parameters — add the directory to the map first", clean)
@@ -373,6 +377,36 @@ func (s *Server) worktrees() map[string]string {
 		return nil
 	}
 	return s.host.Worktrees()
+}
+
+// worktreesFor adds to the worktrees the snapshot knows the one dir lies in,
+// when the snapshot places dir in no project: the collector is asked then and
+// there, by the main checkout git names first among the worktrees. The walk
+// of the roots runs once a minute and stops at a directory that looks like a
+// project, so a worktree a session has just made, or one kept in a folder of
+// worktrees under such a directory, is not in the snapshot until a session
+// works in it. A collector that does not answer leaves the snapshot as it is.
+func (s *Server) worktreesFor(ctx context.Context, list []store.Profile, dir string, worktreeOf map[string]string) map[string]string {
+	dir = strings.TrimSpace(dir)
+	if dir == "" || s.chat == nil {
+		return worktreeOf
+	}
+	if _, ok := projectAt(list, dir, worktreeOf, s.db.ProjectRoots()); ok {
+		return worktreeOf
+	}
+	out, err := s.chat.Repo(ctx, chat.RepoReq{Op: "refs", Cwd: dir})
+	if err != nil {
+		log.Printf("the worktree of %s: the collector did not answer: %v", dir, err)
+		return worktreeOf
+	}
+	if out.NoRepo || len(out.Worktrees) == 0 || out.Worktrees[0].Path == "" {
+		return worktreeOf
+	}
+	if worktreeOf == nil {
+		worktreeOf = map[string]string{}
+	}
+	worktreeOf[path.Clean(dir)] = out.Worktrees[0].Path
+	return worktreeOf
 }
 
 // projectOwning finds the project a directory outside the map belongs to:

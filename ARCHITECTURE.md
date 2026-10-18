@@ -1473,7 +1473,10 @@ the service does not see the disk. It reads it for the directories its walk of
 the roots finds and for the directory of every live session: the walk stops at
 the first directory that looks like a project, and a worktree kept under one —
 a folder of worktrees beside the repositories of a contour — is never among its
-rows. The climb stops below a project root: a
+rows. A directory the snapshot places nowhere is asked about when a session is
+opened or resumed there: the agent lists the worktrees of its repository, main
+checkout first, so a worktree made a moment ago opens as its project without a
+session working in it first. The climb stops below a project root: a
 project that is a root itself, like the home directory, holds the machine's own
 session, and taking it for the owner of whatever lies under it would start that
 in another account. A thread of codex looks for no project at all: the daemon
