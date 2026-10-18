@@ -27,6 +27,12 @@ func TestMain(m *testing.M) {
 // /srv/proj/lab.
 func fakeClaude(t *testing.T, proc, config string, pid int, start, id, name string) {
 	t.Helper()
+	fakeClaudeIn(t, proc, config, pid, start, id, name, "/srv/proj/lab")
+}
+
+// fakeClaudeIn is fakeClaude working in cwd.
+func fakeClaudeIn(t *testing.T, proc, config string, pid int, start, id, name, cwd string) {
+	t.Helper()
 	dir := filepath.Join(proc, fmt.Sprint(pid))
 	fields := append([]string{"S", "1"}, strings.Split(strings.Repeat("0 ", 17), " ")[:17]...)
 	for name, body := range map[string]string{
@@ -44,8 +50,8 @@ func fakeClaude(t *testing.T, proc, config string, pid int, start, id, name stri
 	if err := os.MkdirAll(filepath.Join(config, "sessions"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	session := fmt.Sprintf(`{"pid":%d,"sessionId":%q,"cwd":"/srv/proj/lab","procStart":%q,"kind":"interactive","name":%q}`,
-		pid, id, start, name)
+	session := fmt.Sprintf(`{"pid":%d,"sessionId":%q,"cwd":%q,"procStart":%q,"kind":"interactive","name":%q}`,
+		pid, id, cwd, start, name)
 	if err := os.WriteFile(filepath.Join(config, "sessions", fmt.Sprintf("%d.json", pid)), []byte(session), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -159,6 +165,70 @@ func TestTheServerKeepsTheChecklistOfItsParentsSession(t *testing.T) {
 	if !strings.HasPrefix(said, noChecklist+" This session already has a checklist") ||
 		!strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
 		t.Errorf("the session started again under its name was not told of its checklist: %q", said)
+	}
+}
+
+// The server as a session runs it keeps the role the session sets with the
+// role tool, and the session started again under its name — another process
+// in another conversation, gone into a worktree of its repository — is told
+// the role at its handshake, before its first word. Another session of the
+// repository is told none.
+func TestTheServerTellsTheSessionItsRole(t *testing.T) {
+	const (
+		first     = "9e3f0a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b"
+		restarted = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+		beside    = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"
+	)
+	proc, config, state, root := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("AACP_PROC", proc)
+	t.Setenv("XDG_STATE_HOME", state)
+	t.Setenv("AACP_CLAUDE_HOME", filepath.Join(t.TempDir(), "no-contour"))
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	lab, worktree := filepath.Join(root, "lab"), filepath.Join(root, "lab-fix")
+	gitdir := filepath.Join(lab, ".git", "worktrees", "lab-fix")
+	for _, dir := range []string{gitdir, worktree} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, body := range map[string]string{
+		filepath.Join(lab, ".git", "HEAD"): "ref: refs/heads/main\n",
+		filepath.Join(gitdir, "commondir"): "../..\n",
+		filepath.Join(worktree, ".git"):    "gitdir: " + gitdir + "\n",
+		filepath.Join(gitdir, "HEAD"):      "ref: refs/heads/fix\n",
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	told := func(replies []map[string]any) string {
+		res, _ := replies[0]["result"].(map[string]any)
+		said, _ := res["instructions"].(string)
+		return said
+	}
+
+	fakeClaudeIn(t, proc, config, 4242, "5555", first, "lab", lab)
+	replies := talk(t, 4242, handshake,
+		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"role","arguments":{"role":"the lead of the db split"}}}`,
+	)
+	if len(replies) != 2 {
+		t.Fatalf("meant two replies, one to the handshake and one to the call: %v", replies)
+	}
+	if said := told(replies); strings.Contains(said, "This session's role") {
+		t.Errorf("a session with no role was told one: %q", said)
+	}
+	if res, _ := replies[1]["result"].(map[string]any); res == nil || res["isError"] != nil {
+		t.Fatalf("the call answered %v", replies[1])
+	}
+
+	fakeClaudeIn(t, proc, config, 5151, "7777", restarted, "lab", worktree)
+	if said := told(talk(t, 5151, handshake)); !strings.Contains(said, "This session's role, set by itself: “the lead of the db split”") {
+		t.Errorf("the session started again in a worktree was not told its role: %q", said)
+	}
+	fakeClaudeIn(t, proc, config, 6262, "8888", beside, "lab-review", lab)
+	if said := told(talk(t, 6262, handshake)); strings.Contains(said, "This session's role") {
+		t.Errorf("another session of the repository was told the role of this one: %q", said)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"aacpanel/internal/action"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/schema"
@@ -33,6 +34,11 @@ type Spec struct {
 	// collector reads it; a session on the stream keeps it in what its
 	// holder was started with as well.
 	Parent string `json:"parent,omitempty"`
+	// Role is the role the session that opened this one gives it. It is kept
+	// under the name the session comes up under, a free one after a taken
+	// name, before claude starts: the server tells the session its role at
+	// the first handshake. Without it the session keeps the role its name has.
+	Role *action.OpenRole `json:"role,omitempty"`
 	// Codex starts codex in tmux on a thread instead of claude.
 	Codex *CodexSpec `json:"codex,omitempty"`
 }
@@ -122,6 +128,9 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	env, envWarns := childEnv(os.Environ(), params, host.Display, host.Lang, configDir)
 	env = withParent(env, spec.Parent)
 	warns = append(warns, envWarns...)
+	if warn := keepRole(spec, name, env); warn != "" {
+		warns = append(warns, warn)
+	}
 
 	drop, dropWarns, err := writeSessionEnv(env)
 	if err != nil {

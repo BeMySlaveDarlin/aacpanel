@@ -1261,6 +1261,38 @@ func TestRunActionCarriesTheNewNameToExecutor(t *testing.T) {
 	}
 }
 
+// The role the person gives a session goes to the executor as it was typed,
+// an empty one too — it clears the role; one that is no text, or longer than
+// a role, does not leave the panel.
+func TestRunActionCarriesTheRoleToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	for _, text := range []string{"the lead of the db split", ""} {
+		body := fmt.Sprintf(`{"kind":"session.role","target":"person","params":{"role":%q}}`, text)
+		if w := post(t, srv, body); w.Code != http.StatusOK {
+			t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+		}
+		select {
+		case got := <-fake.got:
+			if got.Kind != action.SessionRole || got.Target != "person" || got.Role == nil || *got.Role != text {
+				t.Errorf("the executor got %+v", got)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("the executor did not get the request")
+		}
+	}
+	for body, says := range map[string]string{
+		`{"kind":"session.role","target":"person","params":{}}`:                                          "did not arrive as text",
+		`{"kind":"session.role","target":"person","params":{"role":7}}`:                                  "did not arrive as text",
+		`{"kind":"session.role","target":"person","params":{"role":"` + strings.Repeat("é", 501) + `"}}`: "at most 500",
+		`{"kind":"session.role","target":"person","params":{"role":"a\u0007bell"}}`:                      "control character",
+	} {
+		if w := post(t, srv, body); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), says) {
+			t.Errorf("%.70s passed with %d: %s", body, w.Code, w.Body.String())
+		}
+	}
+}
+
 func TestRunActionCarriesTheRemoteSwitchToExecutor(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}

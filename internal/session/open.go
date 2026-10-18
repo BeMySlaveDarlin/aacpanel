@@ -10,6 +10,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/role"
 	"aacpanel/internal/schema"
 )
 
@@ -28,8 +29,18 @@ const helperCycle = " Open with agent codex, then send the task with send_to_ses
 	"as a letter after every turn, including failure or interruption. Reply by letter to continue with the same " +
 	"agent; session_close with its name closes it."
 
-// OpenDescription is the tool's own word to the model.
-const OpenDescription = "Opens a session in dir: a project of the map, a directory inside it or a worktree of it; " +
+// OpenDescription is the tool's own word to the model; a thread of codex
+// reads it without the role.
+const (
+	OpenDescription      = openDescription + openRole + helperCycle
+	codexOpenDescription = openDescription + helperCycle
+)
+
+// openRole says what the role of the session opened is: its word about which
+// work of the repository is its, told to it before its first word.
+const openRole = " role, at most 500 characters, is told to the Claude session at every start."
+
+const openDescription = "Opens a session in dir: a project of the map, a directory inside it or a worktree of it; " +
 	"a directory outside the map is not opened. With resume, the id of a closed Claude conversation, it goes on " +
 	"with that conversation where it ran, under the caller by the same one-project rule and under the name it had " +
 	"unless name is given; dir is then optional and must be of the same project. The account and launch come " +
@@ -40,7 +51,7 @@ const OpenDescription = "Opens a session in dir: a project of the map, a directo
 	"person's word: opening spends the account's limits. Tell the person its name and account. The tool takes " +
 	"no task text: send the parent's task as a letter immediately after a Codex open returns; for Claude wait " +
 	"until it appears in send_to_session's list. Reports reach a live Claude parent on the stream or a Codex " +
-	"parent in the daemon; a tmux or gone parent gets none. Long reports arrive as a readable file path." + helperCycle
+	"parent in the daemon; a tmux or gone parent gets none. Long reports arrive as a readable file path."
 
 // openWait bounds the wait for the panel's answer. The panel answers once the
 // claude of the new session is up: the launcher waits a quarter of a minute
@@ -61,20 +72,25 @@ func Open(h Host) mcp.Tool {
 		InputSchema:  openSchema(),
 		Instructions: OpenInstructions,
 		Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
-			return open(ctx, h, bind, args)
+			return open(ctx, h, bind, args, true)
 		},
 	}
 }
 
 // A Codex server is shared by a daemon: a call without a proven thread may
-// not open a helper on behalf of an unknown conversation.
+// not open a helper on behalf of an unknown conversation. A thread of codex
+// gives no role: the role is a claude session's word about the one it opens.
 func CodexOpen(h Host) mcp.Tool {
 	t := Open(h)
+	t.Description = codexOpenDescription
+	schema := openSchema()
+	delete(schema["properties"].(map[string]any), "role")
+	t.InputSchema = schema
 	t.Call = func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 		if _, err := bind(); err != nil {
 			return "Nothing was opened: " + err.Error(), true
 		}
-		return open(ctx, h, bind, args)
+		return open(ctx, h, bind, args, false)
 	}
 	return t
 }
@@ -94,6 +110,9 @@ func openSchema() map[string]any {
 				"description": "The name of the new session. Left out, the project's session name from the map, or for resume the name the conversation had; when a live session answers to the name, the panel takes a free one."},
 			"resume": map[string]any{"type": "string",
 				"description": "The id of a closed Claude conversation to go on with instead of a new one. No agent or Codex options with it."},
+			"role": map[string]any{"type": "string", "maxLength": role.MaxText,
+				"description": "The role of the new Claude session in its project: which work of the repository is its. " +
+					"Left out, a session keeps the role its name has; empty, it clears it."},
 			"agent": map[string]any{"type": "string", "enum": []string{schema.AgentClaude, schema.AgentCodex},
 				"description": "The agent to start: claude or codex. Left out, the project's agent from the map. codex starts only where the project's account has a codex home on this machine."},
 			"model":   map[string]any{"type": "string", "description": "Codex model for this start; otherwise the map's."},
@@ -106,12 +125,15 @@ func openSchema() map[string]any {
 	}
 }
 
-func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (string, bool) {
+// open asks the panel to open or resume a session; roles says the caller may
+// give the session a role, which only a claude session does.
+func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage, roles bool) (string, bool) {
 	var args struct {
-		Dir    string `json:"dir"`
-		Name   string `json:"name"`
-		Agent  string `json:"agent"`
-		Resume string `json:"resume"`
+		Dir    string  `json:"dir"`
+		Name   string  `json:"name"`
+		Agent  string  `json:"agent"`
+		Resume string  `json:"resume"`
+		Role   *string `json:"role"`
 		action.CodexLaunch
 	}
 	if len(raw) > 0 {
@@ -123,6 +145,18 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 	}
 	if err := args.CodexLaunch.Validate(); err != nil {
 		return "Nothing was opened: " + err.Error() + ".", true
+	}
+	if args.Role != nil {
+		text, err := role.Clean(*args.Role)
+		switch {
+		case !roles:
+			return "Nothing was opened: a role is given by a Claude session, not by a thread of codex.", true
+		case args.Agent == schema.AgentCodex:
+			return "Nothing was opened: a role is kept for a Claude session, and agent codex starts codex.", true
+		case err != nil:
+			return "Nothing was opened: " + err.Error() + ".", true
+		}
+		args.Role = &text
 	}
 	hasCodex := args.Model != "" || args.Effort != "" || args.Sandbox != "" || args.WritableRoots != nil
 	if hasCodex && args.Agent == schema.AgentClaude {
@@ -166,14 +200,16 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 	if args.Dir != "" {
 		params["path"] = args.Dir
 	}
-	// The name goes along even when empty: it tells the panel the resume is a
-	// session's, which keeps the name the conversation had, from the Resume of
-	// the screens, which comes back under the project's session name.
+	// The name goes along even when empty: empty, the session comes back under
+	// the name the conversation had.
 	if kind == action.SessionResume {
 		params["session"], params["name"] = args.Resume, args.Name
 	}
 	if args.Agent != "" {
 		params["agent"] = args.Agent
+	}
+	if args.Role != nil {
+		params["role"] = *args.Role
 	}
 	if parent := callerName(bind); parent != "" {
 		params["parent"] = parent

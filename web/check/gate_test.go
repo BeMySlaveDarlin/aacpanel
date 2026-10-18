@@ -196,6 +196,10 @@ var instantActions = map[string]bool{
 	// A new name is typed on the rename sheet and saved with its own button:
 	// the sheet is where the person chose, and the old name can be typed back.
 	"session.rename": true,
+	// A role is typed on its sheet and saved or cleared with the sheet's own
+	// buttons: the sheet is where the person chose, and the role can be typed
+	// back.
+	"session.role": true,
 	// Remote Control is a switch in the header: it says which way it stands,
 	// and the same press puts it back.
 	"session.remote": true,
@@ -243,6 +247,7 @@ var instantExecActions = map[string]bool{
 	"session.set":        true,
 	"session.mcp":        true,
 	"session.rename":     true,
+	"session.role":       true,
 	"session.remote":     true,
 	"secret.put":         true,
 	"term.start":         true,

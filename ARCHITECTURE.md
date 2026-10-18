@@ -1387,7 +1387,7 @@ The list of actions is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote`, `session.parent`, `session.detach` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
@@ -1819,7 +1819,8 @@ process with the parent again, as the snapshot holds it. The person's Resume
 from the archive does not: a conversation the person brings back from there is
 the person's, and a claude session and a codex thread alike come back with no
 parent — the executor takes the parent of a codex thread off the disk as it
-resumes it. A resume a session asks for through `session_open` goes by the rule
+resumes it — and a claude session under the name it ran under, a free one
+after it when that name is taken. A resume a session asks for through `session_open` goes by the rule
 of an open: the session that asks is the parent while it lives in the project
 the conversation ran in, a directory it names is only checked to be of that
 project, and the conversation comes back under the name it ran under unless the
@@ -1990,13 +1991,15 @@ allowed names from it, so a session is never allowed a tool the server does not
 have. The server's word to a session — in its system prompt — is a lead and a
 line from every tool, since a tool of a server is often deferred and its
 description unread. Claude keeps 2048 UTF-16 units of that word by default
-and cuts the rest mid-sentence. The launcher lifts the ceiling to 5120 with
+and cuts the rest mid-sentence. The launcher lifts the ceiling to 6656 with
 `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the environment of every session
 it hands the tools; claude holds the description of every tool of every
 server to the same ceiling, so those are lifted too. The lead and every line
-fit the lifted ceiling even with the longest checklist standing and the
-three longest brief titles, and a test holds that, so a new tool pays for its line out of the
-same budget. A session started by hand keeps the default unless the variable
+fit the lifted ceiling even with the longest checklist standing, the
+three longest brief titles and the longest role, all in letters of two units,
+and a test holds that, so a new tool pays for its line out of the
+same budget; that worst case is what the number is made of, and its cost is
+that a tool of any other server keeps a description up to the same length. A session started by hand keeps the default unless the variable
 is in its environment, and past 2048 it loses the lines of the last tools. `-plan`
 starts the same server: a live session keeps the
 MCP configuration it was started with, and reconnecting to the server runs the
@@ -2066,6 +2069,37 @@ server knows no thread before a call. A checklist nobody has sent for thirty day
 swept when a server starts. Nothing makes the model keep it true: a `Stop` hook, where
 the account has it, holds a turn that did work past an unfinished checklist it
 did not touch, once, to ask whether it changed.
+
+**The role of a session says which work of its repository is its.** Several
+sessions of one project often run in one directory and on one branch, and
+after a restart each would take the notes, handoffs and task picks left there
+for its own. The role is a short text, up to 500 characters, set three ways:
+by the session itself with the `role` tool of the panel's server, allowed; by
+the session that opens it, with `role` of `session_open`; by the person, with
+`session.role` from the tools of the conversation. The server tells the
+session its role at every handshake, so it reaches the model before its first
+word, with who set it and that the other sessions of the directory may have
+roles of their own. A role is one file a session under `aacpanel/roles/` in
+the owner's state, named by a hash of the config directory of the account, the
+repository and the session's name. The repository is the common git directory
+of the checkout the session works in, read from the `.git` the walk up from
+its directory finds — a worktree's gitdir and that one's `commondir`, a
+directory with a `HEAD` for a main checkout — or the directory itself where no
+checkout holds it, so a session that moves into a worktree of its repository,
+or comes back in another, keeps its role. The file holds what its name is made
+of, the directory the role was set in, the role, who set it — the session, the
+person or the opener by name — and when. A role `session_open` gives is
+written by the launcher under the name the session comes up under, a free one
+after a taken name, before claude starts; an open or a resume without one
+leaves the role the name has, and the Resume of the screens comes back under
+the name the conversation ran under, so it finds that role too. The executor
+writes the person's role from the file claude keeps of the live session, on the
+stream and in tmux alike; nothing is typed into the conversation, so a live
+session learns a role the person gave at its next start or by reading the
+tool. A rename through the panel carries the role to the new name. The
+collector carries it in the row of the session. The price is that the name is
+the key: a session renamed outside the panel, or opened again under another
+name, starts without its role. A thread of codex has no role.
 
 **A session restarts and closes itself, writes to other sessions and opens new
 ones with tools of the panel.** They go to the panel's local listener as actions
@@ -2183,7 +2217,8 @@ as its child when the two are of one project. With `resume` it asks for
 goes on where it ran, with the launch of the map, under the name it ran under
 unless one is given and under the caller by the same rule — so a session that
 hands out work brings a step of it back as its own child, not around the
-panel. The tool has no first message of
+panel. Either may give a claude session its role, `role`, kept under the name
+the session comes up under. The tool has no first message of
 its own for the reason a letter is a kind of its own: words typed into a
 session its model takes for its
 person's, so work goes to the new session as a letter once it is up. The open

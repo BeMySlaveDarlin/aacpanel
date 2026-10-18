@@ -199,7 +199,7 @@ func TestAWorktreeTheSnapshotDoesNotKnowIsOfItsRepositoryPG(t *testing.T) {
 		{"a child opened deep inside it", `{"kind":"session.open","params":{"path":"` + worktree + `/web"}}`,
 			"aacpanel", worktree + "/web", ""},
 		{"a conversation that ran in it", `{"kind":"session.resume","target":"aacpanel-fix","params":{"session":"` +
-			conversation + `"}}`, "aacpanel", worktree, ""},
+			conversation + `"}}`, "aacpanel-fix", worktree, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := post(t, srv, c.body)

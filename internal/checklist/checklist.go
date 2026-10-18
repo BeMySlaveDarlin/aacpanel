@@ -11,8 +11,6 @@
 package checklist
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/sessionfile"
 )
 
 // The statuses of a step. A dropped step stays in the list: the person reads
@@ -63,21 +62,15 @@ type Item struct {
 
 // File is the file of the checklist of a session — its place and its name,
 // or its place alone for a session without a name — or empty for a place that
-// is not one. A path does not make a file name, so the name is a hash of the
-// two paths and the name of the session — the collector and the reminder hook
-// compute the same; the file holds them, and a reader takes it only for the
-// session it names.
+// is not one. A checklist is kept by the directory the session works in; the
+// collector and the reminder hook compute the same name, the file holds the
+// two paths and the name, and a reader takes it only for the session it names.
 func File(p mcp.Place, name string) string {
 	where, ok := p.Clean()
 	if !ok {
 		return ""
 	}
-	key := where.ConfigDir + "\x00" + where.Dir
-	if name != "" {
-		key += "\x00" + name
-	}
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:16]) + ".json"
+	return sessionfile.Name(where.ConfigDir, where.Dir, name)
 }
 
 // ThreadFile is the file of the checklist of a codex thread, or empty for what
@@ -135,15 +128,7 @@ type Checklist struct {
 // Dir is where the checklists lie: the owner's state, beside the rest of what
 // the panel keeps on the host.
 func Dir() string {
-	base := os.Getenv("XDG_STATE_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = os.TempDir()
-		}
-		base = filepath.Join(home, ".local", "state")
-	}
-	return filepath.Join(base, "aacpanel", "checklists")
+	return sessionfile.Dir("checklists")
 }
 
 var conversationID = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z-]*$`)

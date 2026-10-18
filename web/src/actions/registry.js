@@ -550,6 +550,14 @@ export const ACTIONS = {
         effect: "The session answers to the new name: the panel and the host find it by that name, and its conversation stays as it is.",
         done: (target, params) => `${target} is called ${(params && params.name) || "otherwise"} now`,
     },
+    // A role is typed on its sheet and saved or cleared with the sheet's own
+    // button: the sheet is where the person chose, and the role can be typed
+    // back the same way.
+    "session.role": {
+        instant: true,
+        effect: "The session is told its role at its next start; the role stays with its name across a restart and a reopen.",
+        done: (target, params) => (params && params.role ? `${target}: the role is kept` : `${target} has no role now`),
+    },
     "session.set": {
         instant: true,
         effect: "The session takes the new setting with its next request: nothing it has done is undone, and the setting can be picked back the same way.",
@@ -1083,6 +1091,7 @@ const NAMES = {
     "session.set": "Change a setting",
     "session.mcp": "Change an MCP server",
     "session.rename": "Rename the session",
+    "session.role": "Set the role of the session",
     "session.remote": "Remote Control",
     "session.detach": "Detach a session from its parent",
     "secret.put": "Save a secret",

@@ -18,6 +18,7 @@ import (
 
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/role"
 )
 
 func TestMain(m *testing.M) {
@@ -45,6 +46,7 @@ func TestEveryToolHasANameOfItsOwn(t *testing.T) {
 func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 	want := []string{
 		"mcp__aacpanel__checklist",
+		"mcp__aacpanel__role",
 		"mcp__aacpanel__brief_publish",
 		"mcp__aacpanel__brief_delete",
 		"mcp__aacpanel__notify",
@@ -387,10 +389,10 @@ func TestTheCloseClosesOnlyTheSessionCalling(t *testing.T) {
 	}
 }
 
-// The server's word fits what claude keeps of it even when the place holds the
-// longest checklist standing and three longest brief titles: cut, it loses the
-// lines of the last tools,
-// and the model never learns when to reach for them.
+// The server's word fits what claude keeps of it even when the session has the
+// longest role, the place holds the longest checklist standing and three
+// longest brief titles: cut, it loses the lines of the last tools, and the
+// model never learns when to reach for them.
 func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -411,6 +413,11 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	}
 	items[len(items)-1].Status = checklist.Active
 	if _, err := checklist.Keep(checklist.Dir(), here, items, "", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	longest := strings.Repeat("𝔸", role.MaxText)
+	if _, err := role.Keep(role.Dir(), here.Place, here.Name, longest, role.ByOpener(strings.Repeat("n", 64)),
+		time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -434,6 +441,9 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	}
 	if !strings.Contains(said, "and 1 more") {
 		t.Fatalf("the word does not carry the answered briefs: %q", said)
+	}
+	if !strings.Contains(said, "“"+longest+"”") {
+		t.Fatalf("the word does not carry the role of the session whole: %q", said)
 	}
 	// Claude counts the word as JavaScript counts a string, in UTF-16 units.
 	if n := len(utf16.Encode([]rune(said))); n > WordMax {

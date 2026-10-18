@@ -195,7 +195,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
 
     return html`
         <button
-            class=${`dksess dklive${current === s.session ? " on" : ""}${kid ? " dkkid" : ""}${branch ? ` dkbranch${branch === "last" ? " dkbranchend" : ""}` : ""}`}
+            class=${`dksess dklive${current === s.session ? " on" : ""}${kid ? " dkkid" : ""}${branch ? ` dkbranch${branch === "last" ? " dkbranchend" : ""}` : ""}${s.role ? " dkhasrole" : ""}`}
             type="button"
             data-tone=${tone}
             data-fill=${s.noRequests ? undefined : fill(full)}
@@ -225,6 +225,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
                 <span class="dksaytext">${said}</span>
                 ${since && html`<span class="dksaysince">· ${since}</span>`}
             </span>
+            ${s.role && html`<span class="dkrole" data-tip=${s.role}>${s.role}</span>`}
             <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
                 ${!s.home && !s.outside && html`
                     <i

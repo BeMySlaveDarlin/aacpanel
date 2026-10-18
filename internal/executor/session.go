@@ -39,6 +39,8 @@ type project struct {
 	Parent   string
 	OpenedBy string
 	Codex    *action.CodexLaunch
+	// Role is the role session_open gives the session; see action.Project.
+	Role *action.OpenRole
 }
 
 // Open starts a session of a project, as New does, or goes on with a thread
@@ -64,6 +66,9 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 	}
 
 	if c, warns := launcher.ParseCodex(p.Launch); c.Agent == schema.AgentCodex {
+		if p.Role != nil {
+			return "", "", fmt.Errorf("a role is kept for a session of claude, and %s starts codex", p.Name)
+		}
 		return e.codexOpen(ctx, p, c, warns)
 	}
 	if p.Codex != nil {
@@ -143,7 +148,7 @@ func chooseProject(target string, want *action.Project) (project, error) {
 		return project{
 			Name: want.Session, Path: path, Session: want.Session, RC: want.Session,
 			Launch: want.Launch, ClaudeBin: want.ClaudeBin, ConfigDir: want.ConfigDir,
-			FromMap: true, Parent: want.Parent, OpenedBy: want.OpenedBy, Codex: want.Codex,
+			FromMap: true, Parent: want.Parent, OpenedBy: want.OpenedBy, Codex: want.Codex, Role: want.Role,
 		}, nil
 	}
 	list, err := projects()

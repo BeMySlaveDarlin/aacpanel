@@ -10,11 +10,12 @@ into the row of the session and into the state of its conversation, in the
 small shape the screens take: every step with its status and, for a step at
 work or done, since when.
 """
-import hashlib
 import json
 import os
-import posixpath
 import re
+
+from sessionfile import clean as _clean, name as _name
+import sessionfile
 
 STATUSES = ("pending", "active", "done", "dropped")
 
@@ -24,39 +25,16 @@ THREAD_ID = re.compile(r"[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 
 def checklists_dir():
     """Returns where the executor keeps the checklists: the owner's state."""
-    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    return os.path.join(base, "aacpanel", "checklists")
-
-
-def _clean(path):
-    """Returns a path in the form the executor names the file by, or None when it is not absolute.
-
-    The form is Go's filepath.Clean: posixpath keeps a leading double slash,
-    Go does not.
-    """
-    if not isinstance(path, str) or not path.startswith("/"):
-        return None
-    path = posixpath.normpath(path)
-    return "/" + path.lstrip("/") if path.startswith("//") else path
-
-
-def _name(name):
-    return name if isinstance(name, str) and name else ""
+    return sessionfile.state_dir("checklists")
 
 
 def name_of(config_dir, cwd, name=None):
     """Returns the file name of the checklist of a session, or None for a place that is not one.
 
-    The name is a hash of the two paths and the name of the session, or of the
-    paths alone for a session without a name: the one the executor computes.
+    A checklist is kept by the directory the session works in: the name is the
+    one the executor computes from the two paths and the name of the session.
     """
-    config_dir, cwd = _clean(config_dir), _clean(cwd)
-    if config_dir is None or cwd is None:
-        return None
-    key = os.fsencode(config_dir) + b"\0" + os.fsencode(cwd)
-    if _name(name):
-        key += b"\0" + os.fsencode(name)
-    return hashlib.sha256(key).hexdigest()[:32] + ".json"
+    return sessionfile.file_name(config_dir, cwd, name)
 
 
 def thread_file(thread):

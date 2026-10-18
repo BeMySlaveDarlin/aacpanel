@@ -16,6 +16,7 @@ import (
 	"aacpanel/internal/collector"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
+	"aacpanel/internal/role"
 	"aacpanel/internal/session"
 )
 
@@ -29,15 +30,19 @@ const lead = "The person follows this session in the panel, on their phone and d
 // never reach the model. The launcher sets the variable for every session it
 // hands the panel's tools; a session started otherwise keeps the default.
 // Claude holds the description of every tool of every server to the same
-// ceiling, so the variable lifts those too.
+// ceiling, so the variable lifts those too. The number is the word at its
+// worst — the longest checklist standing, the longest brief titles and the
+// longest role, all in letters of two units — with room to spare; its cost is
+// that a tool of any other server keeps a description up to the same length.
 const (
 	WordEnv = "CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH"
-	WordMax = 5120
+	WordMax = 6656
 )
 
 func tools() []mcp.Tool {
 	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
+		role.Tool(role.Dir(), time.Now),
 		collector.BriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),

@@ -114,7 +114,7 @@ func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 	if got.Composer || !strings.Contains(got.Note, "started by rotation") {
 		t.Errorf("composer %v, note %q: a run is only read, and the note names who started it", got.Composer, got.Note)
 	}
-	if strings.Join(got.Panel, ",") != "Outside the panel,Rename…,Session info,Copy the session ID,Copy the resume command" {
+	if strings.Join(got.Panel, ",") != "Outside the panel,Rename…,Role…,Session info,Copy the session ID,Copy the resume command" {
 		t.Errorf("the session panel lists %v — no window, move, Remote Control or end for a session the panel did not start", got.Panel)
 	}
 }

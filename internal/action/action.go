@@ -75,6 +75,10 @@ const (
 	// bridge that makes it reachable from the Claude app and claude.ai.
 	SessionRemote Kind = "session.remote"
 
+	// SessionRole sets or clears the role of a live claude session in its
+	// project, as the person gives it: the session is told it at its next start.
+	SessionRole Kind = "session.role"
+
 	// SessionParent stands a live session under another of its project, as
 	// session_open stands the session it opens under the one that calls it.
 	SessionParent Kind = "session.parent"
@@ -148,7 +152,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown, CodexUpdate, ClaudeUpdate,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
-	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
+	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionRole, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
 	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop,
 }
 

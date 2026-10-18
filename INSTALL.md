@@ -787,7 +787,7 @@ installs it by hand.
 |---|---|---|
 | Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `aacpanel-exec hook ask-hook` |
 | Limits snapshot | always | the status line, `aacpanel-exec statusline`, before yours |
-| Panel tools | always | the MCP server `aacpanel`: checklist, briefs, secrets and a phone call, with the allow rules of its tools but the restart; answered briefs of the directory are named at the handshake |
+| Panel tools | always | the MCP server `aacpanel`: checklist, role, briefs, secrets and a phone call, with the allow rules of its tools but the restart; answered briefs of the directory are named at the handshake |
 | Page copies | yes | the `PostToolUse` hook on `Artifact`, `aacpanel-exec hook artifact-copy` |
 | Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
 | Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
@@ -1360,7 +1360,8 @@ first in the chain and passes the payload on to the command that was there:
   "statusLine": {"type": "command",
     "command": "AACP_STATUSLINE_NEXT='<the command that was there>' <home>/bin/aacpanel-exec statusline"},
   "permissions": {"allow": [
-    "mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish",
+    "mcp__aacpanel__checklist", "mcp__aacpanel__role",
+    "mcp__aacpanel__brief_publish",
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
     "mcp__aacpanel__secret_ask", "mcp__aacpanel__session_close",
     "mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop",
@@ -1455,7 +1456,7 @@ server on its command line anyway, and claude keeps one server of a name, so
 the server in the account serves the sessions started by hand. Such a session
 keeps 2048 UTF-16 units of the server's word, claude's default, and cuts the
 rest, the lines of the last tools first: the launcher lifts the ceiling for its
-own sessions with `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=5120`, and a session
+own sessions with `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=6656`, and a session
 started by hand gets the same with the variable in the environment claude
 starts in.
 

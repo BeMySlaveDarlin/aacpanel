@@ -497,10 +497,20 @@ func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
 		schema.Additional == nil || *schema.Additional {
 		t.Fatalf("the schema of %s is %s", tool.Name, raw)
 	}
-	if len(schema.Properties) != 8 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
-		schema.Properties["resume"] == nil || len(schema.Required) != 0 {
-		t.Errorf("%s takes %s: a directory or a conversation, a name and an agent it may have, nothing more",
+	if len(schema.Properties) != 9 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
+		schema.Properties["resume"] == nil || schema.Properties["role"] == nil || len(schema.Required) != 0 {
+		t.Errorf("%s takes %s: a directory or a conversation, a name, a role and an agent it may have, nothing more",
 			tool.Name, raw)
+	}
+	// A thread of codex gives no role: its open has no field for one and
+	// says nothing of it.
+	codex := CodexOpen(Host{})
+	raw, _ = json.Marshal(codex.InputSchema)
+	if strings.Contains(string(raw), `"role"`) || strings.Contains(codex.Description, "role") {
+		t.Errorf("the open of codex offers a role: %s\n%s", raw, codex.Description)
+	}
+	if again, _ := json.Marshal(tool.InputSchema); !strings.Contains(string(again), `"role"`) {
+		t.Error("taking the role out of the open of codex took it out of claude's")
 	}
 	var agent struct {
 		Enum []string `json:"enum"`
@@ -605,6 +615,44 @@ func TestAResumeGoesOnWithTheConversationUnderTheCaller(t *testing.T) {
 		if asked[i]["kind"] != "session.resume" || asked[i]["target"] != want.target ||
 			!reflect.DeepEqual(asked[i]["params"], want.params) {
 			t.Errorf("call %d asked the panel %v, meant %q with %v", i, asked[i], want.target, want.params)
+		}
+	}
+}
+
+// A role the opener gives goes to the panel trimmed, on an open and on a
+// resume, an empty one included — it clears the role of the name; a call
+// without one names none, so the session keeps the role its name has. A
+// role too long, one for codex and one a thread of codex gives are refused
+// before the panel is asked.
+func TestTheRoleOfTheSessionOpenedGoesToThePanel(t *testing.T) {
+	p, url := startPanel(t, http.StatusOK, `{"ok":true,"detail":"session lab-2 started","contour":"work","logged":true}`)
+	h := hostWith(t, "", url)
+	call(t, Open(h), boundAs("lead", mine), map[string]any{"dir": "/srv/proj/lab", "role": "  the db split \n"})
+	call(t, Open(h), boundAs("lead", mine), map[string]any{"resume": other, "role": ""})
+	call(t, Open(h), boundAs("lead", mine), map[string]any{"resume": other})
+	for args, says := range map[string]string{
+		`{"dir":"/srv/proj/lab","role":"` + strings.Repeat("é", 501) + `"}`: "at most 500",
+		`{"dir":"/srv/proj/lab","agent":"codex","role":"x"}`:                "agent codex starts codex",
+	} {
+		said, failed := Open(h).Call(t.Context(), boundAs("lead", mine), []byte(args))
+		if !failed || !strings.Contains(said, says) {
+			t.Errorf("%.80s answered %q (error %v), meant an error saying %q", args, said, failed, says)
+		}
+	}
+	said, failed := CodexOpen(h).Call(t.Context(), bound(mine), []byte(`{"dir":"/srv/proj/lab","role":"x"}`))
+	if !failed || !strings.Contains(said, "not by a thread of codex") {
+		t.Errorf("a thread of codex gave a role: %q (error %v)", said, failed)
+	}
+
+	asked := p.calls()
+	if len(asked) != 3 {
+		t.Fatalf("the panel was asked %v", asked)
+	}
+	for i, want := range []any{"the db split", "", nil} {
+		params, _ := asked[i]["params"].(map[string]any)
+		got, given := params["role"]
+		if given != (want != nil) || (given && got != want) {
+			t.Errorf("call %d named the role %v (%v), meant %v", i, got, given, want)
 		}
 	}
 }

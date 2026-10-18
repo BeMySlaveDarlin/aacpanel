@@ -637,22 +637,35 @@ func parentFromParams(kind action.Kind, params map[string]any) (string, error) {
 	return parent, nil
 }
 
-// resumeName is the name a resume session_open asks for comes back under:
-// the one the session gives, or empty for the one the conversation ran under,
-// which the archive knows. named tells such a resume from the Resume of the
-// screens, which sends no name and comes back under the project's session
-// name, as New brings one up.
-func resumeName(kind action.Kind, params map[string]any) (name string, named bool, err error) {
+// resumeName is the name a resume comes back under where the request gives
+// one, as session_open may; empty for the one the conversation ran under,
+// which the archive knows.
+func resumeName(kind action.Kind, params map[string]any) (string, error) {
 	raw, ok := params["name"]
 	if !ok || raw == nil {
-		return "", false, nil
+		return "", nil
 	}
 	name, isText := raw.(string)
 	if kind != action.SessionResume || !isText {
-		return "", false, fmt.Errorf("the name to resume the session under did not arrive as a name of a " +
+		return "", fmt.Errorf("the name to resume the session under did not arrive as a name of a " +
 			"session.resume")
 	}
-	return strings.TrimSpace(name), true, nil
+	return strings.TrimSpace(name), nil
+}
+
+// roleFromParams is the role a session.open or a session.resume gives the
+// session, as session_open names it: nil where it names none, and the
+// session keeps the role its name has.
+func roleFromParams(kind action.Kind, params map[string]any) (*string, error) {
+	raw, ok := params["role"]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	text, isText := raw.(string)
+	if (kind != action.SessionOpen && kind != action.SessionResume) || !isText {
+		return nil, fmt.Errorf("the role did not arrive as the text of a session.open or a session.resume")
+	}
+	return &text, nil
 }
 
 // agentFromParams is the agent a New names for this start over the project's

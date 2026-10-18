@@ -208,7 +208,9 @@ func TestOnlyASessionUnderAnotherIsTakenFromUnderItPG(t *testing.T) {
 // worktree of it — and on its own otherwise. It goes on where it ran, whatever
 // directory of its project the session names, and under the name the session
 // gives or else the one it ran under. The Resume of the screens names no
-// parent and no name, and comes back under the project's session name.
+// parent and no name, and comes back under the name it ran under as well, so
+// it finds the role that name has. A role the session gives goes along as
+// set by the session that asked, whichever project that one is of.
 func TestAResumeASessionAsksForStandsUnderItPG(t *testing.T) {
 	srv, fake, root := standServer(t)
 	repo, shop := filepath.Join(root, "aacpanel"), filepath.Join(root, "shop")
@@ -223,19 +225,24 @@ func TestAResumeASessionAsksForStandsUnderItPG(t *testing.T) {
 	}
 	for _, c := range []struct {
 		name, body, session, parent, path, by, logged string
+		role                                          *action.OpenRole
 	}{
 		{"by a session of its project", asked(task, `,"name":"","parent":"kid"`), "task-7", "kid", repo, opener,
-			"task-7"},
+			"task-7", nil},
 		{"under a name of the session's", asked(task, `,"name":"fix-2","parent":"kid"`), "fix-2", "kid", repo, opener,
-			"fix-2"},
+			"fix-2", nil},
 		{"naming a directory of its project", asked(task, `,"name":"","parent":"kid","path":"`+repo+`/web"`),
-			"task-7", "kid", repo, opener, "task-7"},
+			"task-7", "kid", repo, opener, "task-7", nil},
 		{"by a session of another project", asked(task, `,"name":"","parent":"seller"`), "task-7", "", repo, opener,
-			"task-7"},
-		{"of another project", asked(sold, `,"name":"","parent":"kid"`), "shop-fix", "", shop, opener, "shop-fix"},
+			"task-7", nil},
+		{"of another project", asked(sold, `,"name":"","parent":"kid"`), "shop-fix", "", shop, opener, "shop-fix", nil},
+		{"with a role", asked(task, `,"name":"","parent":"kid","role":"the db split"`), "task-7", "kid", repo, opener,
+			"task-7", &action.OpenRole{Text: "the db split", Opener: "kid"}},
+		{"with a role by a session of another project", asked(task, `,"name":"","parent":"seller","role":""`),
+			"task-7", "", repo, opener, "task-7", &action.OpenRole{Opener: "seller"}},
 		// The journal keeps the row the screen pressed, as it always has.
 		{"from the screens", `{"kind":"session.resume","target":"task-7","params":{"session":"` + task + `"}}`,
-			"aacpanel", "", repo, "", "task-7"},
+			"task-7", "", repo, "", "task-7", nil},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := post(t, srv, c.body)
@@ -254,6 +261,9 @@ func TestAResumeASessionAsksForStandsUnderItPG(t *testing.T) {
 				t.Fatalf("the resume reached the executor as %q with %+v, meant %s in %s under %q opened by %q",
 					got.Target, got.Project, c.session, c.path, c.parent, c.by)
 			}
+			if (got.Project.Role == nil) != (c.role == nil) || c.role != nil && *got.Project.Role != *c.role {
+				t.Errorf("the resume carried the role %+v, meant %+v", got.Project.Role, c.role)
+			}
 			list, err := srv.db.Actions(t.Context(), store.ActionsReq{Limit: 1})
 			if err != nil || len(list) == 0 {
 				t.Fatalf("the action did not reach the journal: %v", err)
@@ -262,6 +272,9 @@ func TestAResumeASessionAsksForStandsUnderItPG(t *testing.T) {
 				named != (c.parent != "") || named && parent != c.parent {
 				t.Errorf("the journal holds %q with %v, meant %s under %q", list[0].Target, list[0].Params, c.logged,
 					c.parent)
+			}
+			if role, given := list[0].Params["role"]; given != (c.role != nil) || given && role != c.role.Text {
+				t.Errorf("the journal holds the role %v, meant %+v", list[0].Params, c.role)
 			}
 		})
 	}
@@ -295,6 +308,10 @@ func TestAResumeASessionAsksForIsRefusedPG(t *testing.T) {
 			http.StatusBadRequest, "did not arrive as a name"},
 		"a name of an open": {`{"kind":"session.open","params":{"path":"` + repo + `","name":"lab"}}`,
 			http.StatusBadRequest, "did not arrive as a name of a session.resume"},
+		"a role longer than a role": {`{"kind":"session.resume","params":{"session":"` + task + `","name":"","role":"` +
+			strings.Repeat("é", 501) + `"}}`, http.StatusBadRequest, "at most 500"},
+		"a role that is no text": {`{"kind":"session.open","params":{"path":"` + repo + `","role":7}}`,
+			http.StatusBadRequest, "did not arrive as the text"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := post(t, srv, c.body)

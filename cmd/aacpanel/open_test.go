@@ -108,6 +108,53 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 	}
 }
 
+// A role session_open gives goes to the executor with the session that asked
+// for it, by its name, whatever project that one is of — the place in the
+// list is the map's to give, the role is the opener's word — and the journal
+// keeps the role. An open without one carries none, and the session keeps the
+// role its name has.
+func TestAnOpenCarriesTheRoleTheOpenerGivesPG(t *testing.T) {
+	srv, root := hostServer(t, `{"at":1}`)
+	fillMap(t, srv, root)
+	repo := filepath.Join(root, "aacpanel")
+	shop := otherProject(t, srv, root, "shop")
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"seller","cwd":"`+shop+`"}]}`))
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "session aacpanel started"})
+	srv.exec, srv.auth = client, &auth.Service{}
+
+	for _, c := range []struct {
+		name, body string
+		role       *action.OpenRole
+	}{
+		{"a role", `{"kind":"session.open","params":{"path":"` + repo + `","parent":"seller","role":"the db split"}}`,
+			&action.OpenRole{Text: "the db split", Opener: "seller"}},
+		{"none", `{"kind":"session.open","params":{"path":"` + repo + `","parent":"seller"}}`, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if w := post(t, srv, c.body); w.Code != http.StatusOK {
+				t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+			}
+			var got action.Request
+			select {
+			case got = <-fake.got:
+			case <-time.After(3 * time.Second):
+				t.Fatal("the executor did not get the request")
+			}
+			if got.Project == nil || got.Project.Parent != "" ||
+				(got.Project.Role == nil) != (c.role == nil) || c.role != nil && *got.Project.Role != *c.role {
+				t.Fatalf("the open reached the executor with %+v, meant the role %+v", got.Project, c.role)
+			}
+			list, err := srv.db.Actions(t.Context(), store.ActionsReq{Limit: 1})
+			if err != nil || len(list) == 0 {
+				t.Fatalf("the action did not reach the journal: %v", err)
+			}
+			if role, given := list[0].Params["role"]; given != (c.role != nil) || given && role != c.role.Text {
+				t.Errorf("the journal holds %v", list[0].Params)
+			}
+		})
+	}
+}
+
 // A directory no project of the map holds is not opened, not even under the
 // name of a project: the panel would know neither the account to open it in
 // nor its launch parameters. A directory that is no absolute path within the

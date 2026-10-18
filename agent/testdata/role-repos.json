@@ -1,0 +1,41 @@
+{
+  "about": "The repository a directory works in, as the key of a role names it. The layout is made under a fresh directory and every path is relative to it; {root} in a file stands for that directory. The executor (internal/role) and the collector (agent/roles.py) must both find the repo given for each directory.",
+  "dirs": [
+    "lab/.git/worktrees/lab-fix",
+    "lab/src/deep",
+    "worktrees/lab-fix/sub",
+    "worktrees/lab-abs",
+    "shop/.git",
+    "plain/sub",
+    "modules/.git/modules/lib",
+    "modules/lib",
+    "broken",
+    "stray/.git",
+    "stray/sub"
+  ],
+  "files": {
+    "lab/.git/HEAD": "ref: refs/heads/main\n",
+    "lab/.git/worktrees/lab-fix/HEAD": "ref: refs/heads/fix\n",
+    "lab/.git/worktrees/lab-fix/commondir": "../..\n",
+    "worktrees/lab-fix/.git": "gitdir: ../../lab/.git/worktrees/lab-fix\n",
+    "worktrees/lab-abs/.git": "gitdir: {root}/lab/.git/worktrees/lab-fix\n",
+    "shop/.git/HEAD": "ref: refs/heads/main\n",
+    "modules/.git/HEAD": "ref: refs/heads/main\n",
+    "modules/.git/modules/lib/HEAD": "ref: refs/heads/main\n",
+    "modules/lib/.git": "gitdir: ../.git/modules/lib\n",
+    "broken/.git": "not a pointer to a git directory\n"
+  },
+  "repos": [
+    ["lab", "lab/.git"],
+    ["lab/src/deep", "lab/.git"],
+    ["worktrees/lab-fix", "lab/.git"],
+    ["worktrees/lab-fix/sub", "lab/.git"],
+    ["worktrees/lab-abs", "lab/.git"],
+    ["shop", "shop/.git"],
+    ["plain/sub", "plain/sub"],
+    ["modules/lib", "modules/.git/modules/lib"],
+    ["broken", "broken"],
+    ["stray/sub", "stray/sub"],
+    ["gone/never-made", "gone/never-made"]
+  ]
+}

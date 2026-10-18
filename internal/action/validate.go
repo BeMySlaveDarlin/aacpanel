@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"aacpanel/internal/role"
 )
 
 // ErrBadRequest means the request is not acceptable.
@@ -364,6 +366,16 @@ func (r Request) Validate() error {
 	} else if r.Remote != nil {
 		return badRequest("action %s switches no remote control", r.Kind)
 	}
+	if r.Kind == SessionRole {
+		if r.Role == nil {
+			return badRequest("action %s without the role: an empty one clears it", r.Kind)
+		}
+		if err := validRole(*r.Role); err != nil {
+			return err
+		}
+	} else if r.Role != nil {
+		return badRequest("action %s sets no role", r.Kind)
+	}
 	if r.Kind == SessionParent {
 		if r.Parent == "" {
 			return badRequest("action %s without the session to stand %s under", r.Kind, r.Target)
@@ -608,9 +620,29 @@ func ValidParent(name string) error {
 	return nil
 }
 
+// validRole checks a role as the session's role tool would keep it: no
+// longer than a role is, and with no control characters but line breaks and
+// tabs.
+func validRole(text string) error {
+	if _, err := role.Clean(text); err != nil {
+		return badRequest("%v", err)
+	}
+	return safeText(text)
+}
+
 func (p Project) validate() error {
 	if p.OpenedBy != "" && !safeUUID(p.OpenedBy) {
 		return badRequest("the conversation opening a session must be a uuid")
+	}
+	if p.Role != nil {
+		if err := validRole(p.Role.Text); err != nil {
+			return err
+		}
+		if p.Role.Opener != "" {
+			if err := ValidParent(p.Role.Opener); err != nil {
+				return err
+			}
+		}
 	}
 	if p.Codex != nil {
 		if err := p.Codex.Validate(); err != nil {

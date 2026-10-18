@@ -12,6 +12,7 @@ import held
 import notes
 import observers
 import projects
+import roles
 
 import agent
 from sesstate.wake import ALARMS
@@ -294,6 +295,11 @@ def sessions():
         checklist = checklists.of(*place, sid=sid) if place else None
         if checklist:
             s["checklist"] = checklist
+        # The role is the session's too, kept by its repository and its name:
+        # left out of the row when it has none.
+        role = roles.of(*place) if place else None
+        if role:
+            s["role"] = role
         wait = waits.get(s.get("session") or "")
         if wait:
             s["waitingFor"] = wait

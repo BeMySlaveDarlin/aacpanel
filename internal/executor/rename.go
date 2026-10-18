@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/role"
 	"aacpanel/internal/stream"
 )
 
@@ -37,6 +38,10 @@ func (e *Executor) sessionRename(ctx context.Context, target, name string) (stri
 	if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpControl, Subtype: "rename_session",
 		Fields: map[string]any{"title": name, "source": "host"}}); err != nil {
 		return "", err
+	}
+	// The role is kept by the name, so it follows the session to the new one.
+	if err := role.Move(role.Dir(), placeOf(s), s.Name, name); err != nil {
+		return fmt.Sprintf("session %s is called %s now; its role stayed under the old name: %v", s.Name, name, err), nil
 	}
 	return fmt.Sprintf("session %s is called %s now", s.Name, name), nil
 }

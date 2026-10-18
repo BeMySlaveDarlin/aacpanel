@@ -1,7 +1,8 @@
 // The tools of a session. What is done to it answers three questions: where
 // it lives (the stream or tmux, the window on the host, the move
 // between them with what stops on the way), Remote Control, and the session
-// itself (its name, what it runs on, how to find it again, how it ends). The
+// itself (its name and role, what it runs on, how to find it again, how it
+// ends). The
 // sections are one piece for both screens: on a phone they fill the sheet
 // behind the header's one button, on the wide screen they drop from the
 // session button beside the views. Every line says in words why it cannot be
@@ -20,6 +21,7 @@ import { share, tokens } from "../../format.js";
 import { copyText } from "./copy.js";
 import { shortPath } from "./head.js";
 import { useRemote } from "./remote.js";
+import { roleWhy } from "./role.js";
 import { moveSession, stops } from "./switch.js";
 import { openedBy, outsideNote, placeOf } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
@@ -245,13 +247,14 @@ export function RemoteLine({ name, live, exec, snapshot }) {
 
 // ToolRow is a line of the tools that does something on a press: its icon,
 // what it does, and under it a note, or why it cannot be done when it cannot.
-export function ToolRow({ icon, label, note = "", aside = "", off = "", stop = false, more = false, onPress }) {
+// A note of the person's own words is clamped to two lines.
+export function ToolRow({ icon, label, note = "", aside = "", off = "", stop = false, more = false, clamp = false, onPress }) {
     return html`
         <li><button type="button" class=${`mcprow toolrow${stop ? " toolstop" : ""}`} disabled=${Boolean(off)} onClick=${onPress}>
             <span class="toolicon">${icon()}</span>
             <span class="toolbody">
                 <span class="toollabel">${label}</span>
-                ${(off || note) && html`<span class=${`toolnote${off ? " why" : ""}`}>${off || note}</span>`}
+                ${(off || note) && html`<span class=${`toolnote${off ? " why" : clamp ? " clamp" : ""}`}>${off || note}</span>`}
             </span>
             ${aside && html`<span class="toolaside">${aside}</span>`}
             ${more && html`<span class="crgo">${Icon.chevron()}</span>`}
@@ -315,13 +318,19 @@ export function IdLine({ id }) {
                             onPress=${() => copyId(id, toast)} />`;
 }
 
-// SessionLines names the session and says how to find it again.
+// ROLE_NONE is what the line of the role says while the session has none.
+export const ROLE_NONE = "none: a sentence that tells this session from the others of its repository";
+
+// SessionLines names the session, gives it its role and says how to find it
+// again.
 function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
     const toast = useToast();
     const id = live.sessionId || "";
     const resume = resumeOf(id, cwd);
     return html`
         <${ToolRow} icon=${Icon.pencil} label="Rename…" off=${renameWhy(live, exec)} onPress=${() => { onDone(); onLook("rename"); }} />
+        <${ToolRow} icon=${Icon.badge} label="Role…" note=${live.role || ROLE_NONE} clamp off=${roleWhy(exec)}
+                    onPress=${() => { onDone(); onLook("role"); }} />
         <${ToolRow} icon=${Icon.info} label="Session info" note="the model, the context, the tokens in and out"
                     aside="/status" onPress=${() => { onDone(); onLook("status"); }} />
         <${IdLine} id=${id} />

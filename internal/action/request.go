@@ -89,6 +89,9 @@ type Request struct {
 	// Remote is whether session.remote switches Remote Control on or off.
 	Remote *bool `json:"remote,omitempty"`
 
+	// Role is the role session.role gives a session; empty clears it.
+	Role *string `json:"role,omitempty"`
+
 	// Parent is the session session.parent stands the target under, by its
 	// name, as Project.Parent names the session that had one opened.
 	Parent string `json:"parent,omitempty"`
@@ -164,9 +167,21 @@ type Project struct {
 	OpenedBy string       `json:"openedBy,omitempty"`
 	Codex    *CodexLaunch `json:"codex,omitempty"`
 
+	// Role is the role session_open gives the session it opens or resumes:
+	// it is kept under the name the session comes up under, before its claude
+	// starts. Without it the session keeps the role its name has.
+	Role *OpenRole `json:"role,omitempty"`
+
 	ClaudeBin string `json:"claudeBin,omitempty"`
 
 	ConfigDir string `json:"configDir,omitempty"`
+}
+
+// OpenRole is the role a session is opened with, and the session that opened
+// it, by its name, empty when it has none.
+type OpenRole struct {
+	Text   string `json:"text"`
+	Opener string `json:"opener,omitempty"`
 }
 
 // Answer is the reply to a pending session question.

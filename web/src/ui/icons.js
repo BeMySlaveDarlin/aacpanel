@@ -101,6 +101,9 @@ export const Icon = {
 
     quote: () => html`<svg ...${stroke}><path d="M9 6 4 11l5 5" /><path d="M4 11h9a6 6 0 0 1 6 6v1" /></svg>`,
 
+    // A badge: who a session is among the others of its repository, its role.
+    badge: () => html`<svg ...${stroke}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 16.2a3.4 3.4 0 0 1 6.4 0M14.5 10h4M14.5 13.5h3" /></svg>`,
+
     copy: () => html`<svg ...${stroke}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>`,
 
     check: () => html`<svg ...${stroke}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>`,

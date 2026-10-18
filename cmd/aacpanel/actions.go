@@ -318,6 +318,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Rename, _ = body.Params["name"].(string)
 		params = map[string]any{"name": req.Rename}
 	}
+	if req.Kind == action.SessionRole {
+		text, ok := body.Params["role"].(string)
+		if !ok {
+			http.Error(w, "the role did not arrive as text: an empty one clears it", http.StatusBadRequest)
+			return
+		}
+		req.Role, params = &text, map[string]any{"role": text}
+	}
 	if req.Kind == action.SessionRemote {
 		if on, ok := body.Params["on"].(bool); ok {
 			req.Remote = &on
@@ -359,9 +367,12 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	// the two are of one project.
 	//
 	// A session resuming a conversation names the parent the same way, and
-	// the name it comes back under: its own, or else the one it ran under. The
-	// directory, where it names one, is only checked against the project the
-	// conversation ran in.
+	// the name it comes back under: its own, or else the one it ran under —
+	// the Resume of the screens names none and comes back under that one too,
+	// with the role the name has, and a taken name gives a free one after it.
+	// The directory, where it names one, is only checked against the project
+	// the conversation ran in. Either may give the session a role, kept under
+	// the name it comes up under, as set by the session that asked.
 	//
 	// New may name the agent to start for this once, over the project's own:
 	// the agent is a key of the launch, so the rest of the launch stays the
@@ -385,11 +396,17 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		name, named, err := resumeName(req.Kind, body.Params)
+		name, err := resumeName(req.Kind, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		givenRole, err := roleFromParams(req.Kind, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		opener := parent
 		var want *action.Project
 		var found mapProject
 		switch {
@@ -411,7 +428,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				}
 				want.Session, body.Target = req.Target, req.Target
 			}
-			if named {
+			if req.Kind == action.SessionResume {
 				if name == "" {
 					name = ranAs
 				}
@@ -421,6 +438,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			}
 			req.Project, contour = want, found.profile.Name
 			params = map[string]any{"project": found.project.ID, "path": want.Path}
+			if givenRole != nil {
+				want.Role, params["role"] = &action.OpenRole{Text: *givenRole, Opener: opener}, *givenRole
+			}
 			if parent != "" {
 				parent = s.openedUnder(r.Context(), parent, found)
 			}
@@ -449,6 +469,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		} else if agent == schema.AgentCodex {
 			http.Error(w, "codex starts only in a project of the map: its daemon is the one of the project's contour, "+
 				"and a session the map does not hold has no contour to take it from", http.StatusBadRequest)
+			return
+		} else if givenRole != nil {
+			http.Error(w, "a role is given only to a session of a project of the map: the panel knows no account "+
+				"to keep it under for a session the map does not hold", http.StatusBadRequest)
 			return
 		}
 	}

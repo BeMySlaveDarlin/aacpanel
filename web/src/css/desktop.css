@@ -591,6 +591,25 @@
 
     .dkfrom b { font-family: var(--mono); font-weight: 500; color: var(--ink-dim); }
 
+    /* The role of the session, the person's or its opener's words: a line of
+       its own under the state, cut at its end; the lines under it step down
+       one. */
+    .dklive > .dkrole {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--t-xs);
+        font-style: italic;
+        color: var(--ink-dim);
+    }
+
+    .dklive.dkhasrole > .dkdetail { grid-row: 4; }
+
+    .dklive.dkhasrole > .dkfrom { grid-row: 5; }
+
     .dksessbody { min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
 
     .dksessmain { display: flex; align-items: center; gap: .4rem; }

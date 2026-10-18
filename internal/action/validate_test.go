@@ -906,6 +906,39 @@ func TestRemoteSaysOnOrOff(t *testing.T) {
 	}
 }
 
+// A role is what session.role carries, an empty one clearing it, and what a
+// session is opened with; it is held to the length of a role and to text
+// without control characters, and no other action carries one.
+func TestARoleIsHeldToALengthOfARole(t *testing.T) {
+	text := func(s string) *string { return &s }
+	opened := func(r *OpenRole) Request {
+		return Request{ID: "a1", Kind: SessionOpen, Target: "lab", Project: &Project{Path: "/srv/lab", Session: "lab", Role: r}}
+	}
+	for name, r := range map[string]Request{
+		"a role":                    {ID: "a1", Kind: SessionRole, Target: "person", Role: text("the lead of the db split\non main")},
+		"a role cleared":            {ID: "a1", Kind: SessionRole, Target: "person", Role: text("")},
+		"the longest role":          {ID: "a1", Kind: SessionRole, Target: "person", Role: text(strings.Repeat("é", 500))},
+		"an open with a role":       opened(&OpenRole{Text: "the db split", Opener: "lead"}),
+		"an open clearing the role": opened(&OpenRole{}),
+	} {
+		if err := r.Validate(); err != nil {
+			t.Errorf("%s is rejected: %v", name, err)
+		}
+	}
+	for name, r := range map[string]Request{
+		"no role":                 {ID: "a1", Kind: SessionRole, Target: "person"},
+		"a role too long":         {ID: "a1", Kind: SessionRole, Target: "person", Role: text(strings.Repeat("é", 501))},
+		"a bell in a role":        {ID: "a1", Kind: SessionRole, Target: "person", Role: text("a\abell")},
+		"a role riding a rename":  {ID: "a1", Kind: SessionRename, Target: "person", Rename: "lab", Role: text("x")},
+		"an open with a long one": opened(&OpenRole{Text: strings.Repeat("é", 501)}),
+		"an opener of no name":    opened(&OpenRole{Text: "x", Opener: "../lead"}),
+	} {
+		if err := r.Validate(); err == nil {
+			t.Errorf("%s is accepted: %+v", name, r)
+		}
+	}
+}
+
 // A command of codex says what it does in a field of its own, and the check
 // holds each field to its command and to the shape codex takes.
 func TestTheCommandsOfCodexCarryTheirOwnFields(t *testing.T) {

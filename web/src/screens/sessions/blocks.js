@@ -353,7 +353,8 @@ function KinFold({ kids, line }) {
 
 // LiveLine is a live session inside its project, a line for each question:
 // what it is called, what it is doing, for how long it has lived and whether
-// Remote Control is up, where it is in the checklist of its work, who runs it
+// Remote Control is up, which work of the repository is its — its role, where
+// it has one — where it is in the checklist of its work, who runs it
 // on which model and when it last asked, and what runs in its background. On
 // a phone one line holds no more than one of these: the state is read whole,
 // the checklist cut at its end. Every row opens with the name of its session,
@@ -418,6 +419,7 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
                                            aria-label=${`called you · ${when(stamp(called))}`}>${Icon.alerts()}</span>`}
                     <span class="pjtag">${tag()}${place}</span>
                 </span>
+                ${session.role && html`<span class="pjrole">${session.role}</span>`}
                 ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
                 ${state.work && html`<span class="pjwork">${state.work}</span>`}
