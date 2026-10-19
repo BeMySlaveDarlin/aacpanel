@@ -107,8 +107,8 @@ type FileRef struct {
 	Name  string `json:"name"`
 	Size  int64  `json:"size,omitempty"`
 	Media string `json:"media,omitempty"`
-	// Outside is a file sent from outside the directory of the conversation:
-	// the reader would refuse to open it, and its row says so.
+	// Outside is a sent file the reader does not open, a secret say: a tap
+	// would end in a refusal, and its row says so.
 	Outside bool `json:"outside,omitempty"`
 }
 
@@ -400,9 +400,8 @@ type Sent struct {
 	Media string `json:"media,omitempty"`
 	At    string `json:"at,omitempty"`
 	Count int    `json:"count,omitempty"`
-	// Outside marks a file that lies outside the directory of the
-	// conversation: the reader will refuse it, and the list says so
-	// instead of offering a tap.
+	// Outside marks a file the reader does not open, a secret say: the
+	// list says so instead of offering a tap.
 	Outside bool `json:"outside,omitempty"`
 }
 

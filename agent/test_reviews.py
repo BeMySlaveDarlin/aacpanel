@@ -243,7 +243,9 @@ class OverTheSocket(unittest.TestCase):
     def test_a_reading_is_taken_and_the_answer_says_where_it_lies(self):
         # The panel writes down the path it is given and hands it to the
         # session: an answer without one leaves the session with nothing to open.
-        reply = self.talk(REVIEW)
+        # The stamp is fresh: a reading sent over a month ago is swept as soon
+        # as it is taken.
+        reply = self.talk(dict(REVIEW, at=stamp()))
         self.assertTrue(reply["ok"], reply)
         self.assertEqual(reply["id"], "aacpanel-20260919-081500")
         self.assertEqual(reply["path"], os.path.join(self.dir.name, "aacpanel-20260919-081500.json"))

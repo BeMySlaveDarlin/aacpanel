@@ -248,8 +248,8 @@ def _answer(request):
                               limit=request.get("bytes") or MAX_RAW)
         if found is None:
             return {"ok": False,
-                    "error": "the file was not opened: it either does not exist, or lies "
-                             "outside the directory of this conversation"}
+                    "error": "the file was not opened: it either does not exist, or is not "
+                             "a file that can be read, or is a secret"}
         return {"ok": True, "session": session, **found}
 
     want = request.get("file")
@@ -259,8 +259,8 @@ def _answer(request):
                               limit=request.get("bytes") or MAX_FILE)
         if found is None:
             return {"ok": False,
-                    "error": "the file was not opened: it either does not exist, or lies "
-                             "outside the directory of this conversation"}
+                    "error": "the file was not opened: it either does not exist, or is not "
+                             "a file that can be read, or is a secret"}
         return {"ok": True, "session": session, **found}
 
     want = request.get("agent")
@@ -396,12 +396,11 @@ def live_place(session):
 
 
 def read_in_place(reader, want, path, **window):
-    """Reads a file asked for from the feed of a transcript inside the directory it may lie in.
+    """Reads a file asked for from the feed of a transcript.
 
-    A file is read inside the directory of the conversation. A file the panel
-    sent lies outside every one: the message names it by its full path in the
-    directory the executor keeps such files in, and it is read inside that one
-    and named by the name it went under.
+    A relative path is taken from the directory of the conversation. A file
+    the panel sent is named by its full path in the directory the executor
+    keeps such files in, and is named back by the name it went under.
     """
     home = uploads_home(want)
     found = reader(want, home or transcript_cwd(path), **window)

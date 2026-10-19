@@ -195,21 +195,16 @@ class Uploads(unittest.TestCase):
         self.assertEqual((base64.b64decode(saved["data"]), saved["name"]), (b"plain words", "diag.txt"),
                          "the file is saved under the name it went under")
 
-    def test_the_directory_of_sent_files_opens_nothing_but_the_files_in_it(self):
-        outside = os.path.join(self.root, "secret.txt")
-        with open(outside, "wb") as f:
+    def test_a_file_beside_the_directory_of_sent_files_opens_under_its_own_name(self):
+        beside = os.path.join(self.root, "beside.txt")
+        with open(beside, "wb") as f:
             f.write(b"not sent")
-        link = os.path.join(self.files, "20261003-175757-ec828d-link.txt")
-        os.symlink(outside, link)
-        copy = self.copy("20261003-175757-ec828d-IMG_0001.heic")
         self.write()
-        for path in (outside, link, os.path.join(self.files, "..", "secret.txt"), copy):
-            for kind in ("file", "raw"):
-                with self.subTest(path=path, kind=kind):
-                    reply = chat.answer({"session": UUID, kind: path})
-                    self.assertFalse(reply["ok"], reply)
-                    self.assertNotIn("data", reply)
-                    self.assertNotIn("text", reply)
+        for kind in ("file", "raw"):
+            with self.subTest(kind=kind):
+                reply = chat.answer({"session": UUID, kind: beside})
+                self.assertTrue(reply["ok"], reply.get("error"))
+                self.assertEqual(reply["name"], "beside.txt")
 
     def test_a_picture_the_panel_sent_is_served_by_its_name(self):
         self.sent("20260920-100000-ab12cd-shot.png")

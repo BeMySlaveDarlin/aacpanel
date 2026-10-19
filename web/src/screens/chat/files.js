@@ -63,10 +63,9 @@ export function fileTag(file) {
 // the icon would: a PDF and a text file are one icon, and the type is what
 // the human tells them apart by.
 //
-// A file the reader cannot open — one a session sent from outside the
-// directory of the conversation — is not a button: the reader holds every
-// file against that directory, and a tap would end in a refusal. The row
-// says so under the name instead of promising an opening. A file that opens
+// A file the reader does not open — a secret a session sent, say — is not a
+// button: a tap would end in a refusal. The row says so under the name
+// instead of promising an opening. A file that opens
 // has a menu at a desk; onSave saves it where the row knows its conversation.
 export function FileCard({ file, onOpen, onSave, tag }) {
     const menu = useMenu();
@@ -80,7 +79,7 @@ export function FileCard({ file, onOpen, onSave, tag }) {
                 ${mark}
                 <span class="mfname">
                     ${file.name}
-                    <span class="mfnote">outside the conversation directory</span>
+                    <span class="mfnote">the panel does not open it</span>
                 </span>
                 ${file.size > 0 && html`<span class="mfsize">${bytes(file.size)}</span>`}
             </div>

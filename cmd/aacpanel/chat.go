@@ -358,9 +358,9 @@ func (s *Server) apiChatDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "a file path is required", http.StatusBadRequest)
 		return
 	}
-	// The path is held against the directory of the conversation by the one that
-	// knows it — the same check the viewer goes through. The panel itself never
-	// opens a file: a second way to the disk would be a way around that check.
+	// The path is checked by the one that reads it — the same check the viewer
+	// goes through. The panel itself never opens a file: a second way to the
+	// disk would be a way around that check.
 	first, err := s.chat.RawFile(r.Context(), target, want, 0, downloadChunk)
 	if err != nil {
 		chatFail(w, err)

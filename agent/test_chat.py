@@ -2690,6 +2690,15 @@ class TaskLook(unittest.TestCase):
     def test_there_is_no_output_yet(self):
         self.assertIsNone(chat.task_output(self.session, self.cwd, "notaskhere"))
 
+    def test_a_directory_with_a_dot_is_named_the_way_claude_names_it(self):
+        cwd = "/srv/proj/.hidden/some_proj"
+        tasks = os.path.join(self.root, f"claude-{os.getuid()}",
+                             "-srv-proj--hidden-some-proj", self.session, "tasks")
+        os.makedirs(tasks)
+        with open(os.path.join(tasks, "d0tdir.output"), "w", encoding="utf-8") as f:
+            f.write("found")
+        self.assertEqual(chat.task_output(self.session, cwd, "d0tdir")["text"], "found")
+
     def test_the_scratchpad_is_asked_of_the_session_process(self):
         import subprocess
         import archive
@@ -2770,30 +2779,24 @@ class ProjectFile(unittest.TestCase):
         os.makedirs(os.path.join(self.cwd, "web"))
         with open(os.path.join(self.cwd, "web", "app.css"), "w", encoding="utf-8") as f:
             f.write(".body { color: red }\n")
-        with open(os.path.join(self.root, "secret.txt"), "w", encoding="utf-8") as f:
-            f.write("not for the panel")
+        with open(os.path.join(self.root, "away.txt"), "w", encoding="utf-8") as f:
+            f.write("from another directory")
 
     def test_a_project_file_is_read(self):
         got = chat.read_file("web/app.css", self.cwd)
         self.assertEqual(got["name"], "app.css")
         self.assertIn("color: red", got["text"])
 
-    def test_stepping_outside_the_directory_is_refused(self):
-        for bad in ("../secret.txt", "/etc/passwd", "~/.ssh/id_rsa",
-                    "web/../../secret.txt"):
-            self.assertIsNone(chat.read_file(bad, self.cwd), bad)
+    def test_an_absolute_path_opens_wherever_it_leads(self):
+        got = chat.read_file(os.path.join(self.root, "away.txt"), self.cwd)
+        self.assertEqual(got["text"], "from another directory")
 
-    def test_a_symlink_pointing_outside_does_not_help(self):
-        os.symlink(os.path.join(self.root, "secret.txt"),
-                   os.path.join(self.cwd, "link.txt"))
-        self.assertIsNone(chat.read_file("link.txt", self.cwd))
+    def test_a_relative_path_is_taken_from_the_conversation(self):
+        for path in ("../away.txt", "web/../../away.txt", "  ../away.txt  "):
+            self.assertEqual(chat.read_file(path, self.cwd)["text"], "from another directory", path)
 
-    def test_a_neighbouring_directory_with_a_shared_prefix(self):
-        near = self.cwd + "-2"
-        os.makedirs(near)
-        with open(os.path.join(near, "x.txt"), "w", encoding="utf-8") as f:
-            f.write("not ours")
-        self.assertIsNone(chat.read_file(os.path.join(near, "x.txt"), self.cwd))
+    def test_a_relative_path_without_the_directory_opens_nothing(self):
+        self.assertIsNone(chat.read_file("web/app.css", ""))
 
     def test_a_binary_file_is_named_binary(self):
         with open(os.path.join(self.cwd, "bin.dat"), "wb") as f:
@@ -2986,10 +2989,10 @@ class RawOverTheSocket(unittest.TestCase):
         self.assertEqual(base64.b64decode(reply["data"]), bytes(range(256)))
         self.assertEqual(reply["session"], UUID)
 
-    def test_a_path_outside_the_conversation_is_refused_with_a_reason(self):
-        reply = chat.answer({"session": UUID, "raw": "../../etc/passwd"})
+    def test_a_file_that_is_not_there_is_refused_with_a_reason(self):
+        reply = chat.answer({"session": UUID, "raw": "nowhere.bin"})
         self.assertFalse(reply["ok"])
-        self.assertIn("outside the directory of this conversation", reply["error"])
+        self.assertIn("does not exist", reply["error"])
 
     def test_the_range_asked_for_is_the_range_that_comes_back(self):
         import base64
@@ -3037,8 +3040,8 @@ class RawRange(unittest.TestCase):
         self.body = bytes(range(256)) * 40
         with open(os.path.join(self.cwd, "core.bin"), "wb") as f:
             f.write(self.body)
-        with open(os.path.join(self.root, "secret.txt"), "w", encoding="utf-8") as f:
-            f.write("not for the panel")
+        with open(os.path.join(self.root, "away.txt"), "w", encoding="utf-8") as f:
+            f.write("from another directory")
 
     def raw(self, name, **kw):
         import base64
@@ -3063,22 +3066,10 @@ class RawRange(unittest.TestCase):
         _, data = self.raw("run.sh")
         self.assertEqual(data, b"#!/bin/sh\necho hi\n")
 
-    def test_stepping_outside_the_directory_is_refused(self):
-        for bad in ("../secret.txt", "/etc/passwd", "~/.ssh/id_rsa",
-                    "web/../../secret.txt", "  ../secret.txt  "):
-            self.assertIsNone(chat.read_raw(bad, self.cwd), bad)
-
-    def test_a_symlink_pointing_outside_does_not_help(self):
-        os.symlink(os.path.join(self.root, "secret.txt"),
-                   os.path.join(self.cwd, "link.txt"))
-        self.assertIsNone(chat.read_raw("link.txt", self.cwd))
-
-    def test_a_neighbouring_directory_with_a_shared_prefix(self):
-        near = self.cwd + "-2"
-        os.makedirs(near)
-        with open(os.path.join(near, "x.txt"), "w", encoding="utf-8") as f:
-            f.write("not ours")
-        self.assertIsNone(chat.read_raw(os.path.join(near, "x.txt"), self.cwd))
+    def test_a_file_of_another_directory_travels_too(self):
+        for path in (os.path.join(self.root, "away.txt"), "../away.txt"):
+            _, data = self.raw(path)
+            self.assertEqual(data, b"from another directory", path)
 
     def test_a_directory_does_not_count_as_a_file(self):
         self.assertIsNone(chat.read_raw("web", self.cwd))
@@ -3130,8 +3121,8 @@ class NamedFiles(unittest.TestCase):
                 f.write("x" * 12)
         with open(os.path.join(self.cwd, "shot.png"), "wb") as f:
             f.write(b"\x89PNG")
-        with open(os.path.join(self.root, "secret.txt"), "w", encoding="utf-8") as f:
-            f.write("not for the panel")
+        with open(os.path.join(self.root, "away.txt"), "w", encoding="utf-8") as f:
+            f.write("from another directory")
 
     def test_a_changed_file_gets_in_without_being_named(self):
         items = [
@@ -3203,8 +3194,9 @@ class NamedFiles(unittest.TestCase):
             f.write(b"\x7fELF\x00\x01\x02" * 40)
         self.assertEqual(chat.named_files("build `tool.bin`", self.cwd), [])
 
-    def test_nothing_outside_the_directory_travels_as_an_attachment(self):
-        self.assertEqual(chat.named_files("`../secret.txt` lies over here", self.cwd), [])
+    def test_a_file_of_another_directory_travels_as_an_attachment(self):
+        named = chat.named_files(f"`{self.root}/away.txt` lies over here", self.cwd)
+        self.assertEqual([f["name"] for f in named], ["away.txt"])
 
     def test_an_image_is_named_an_image(self):
         got = chat.named_files("here is `shot.png`", self.cwd)

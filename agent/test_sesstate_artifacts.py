@@ -182,42 +182,41 @@ class Sent(Transcript):
         got = self.state(self.delivered("toolu_1", [(self.txt, 5, "text/plain")]))
         self.assertEqual(got["docs"], [], "sending a text file is not writing one")
 
-    def test_a_file_sent_from_elsewhere_is_marked_outside(self):
-        """The reader opens a file only inside the directory of the conversation:
-        a file sent from anywhere else keeps its row, marked, so the list does
-        not offer a tap that ends in a refusal."""
+    def secrets(self):
+        """Returns the directory of secrets, moved under the test directory."""
+        from unittest import mock
+        state = os.path.join(self.dir.name, "state")
+        env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": state})
+        env.start()
+        self.addCleanup(env.stop)
+        return os.path.join(state, "aacpanel", "secrets")
+
+    def test_a_secret_is_marked_and_a_file_from_elsewhere_is_not(self):
+        """The reader opens a file wherever it lies, a secret aside: the row
+        of a secret stays, since it did reach the human, but is marked, so the
+        list does not offer a tap that ends in a refusal."""
         away = self.touch("resume.pdf", "%PDF-1.4\n", root=self.elsewhere)
+        secret = self.touch("token", "not for the panel\n", root=self.secrets())
         got = self.state(self.delivered("toolu_1", [(self.pdf, 10, "application/pdf"),
-                                                    (away, 10, "application/pdf")]))
+                                                    (away, 10, "application/pdf"),
+                                                    (secret, 10, "text/plain")]))
         self.assertEqual([(s["file"], s.get("outside")) for s in got["sent"]],
-                         [("report.pdf", None), ("resume.pdf", True)])
+                         [("report.pdf", None), ("resume.pdf", None), ("token", True)])
 
-    def test_a_file_inside_the_directory_carries_no_mark(self):
-        got = self.state(self.delivered("toolu_1", [(self.pdf, 10, "application/pdf")]))
-        self.assertNotIn("outside", got["sent"][0], "a file the reader opens is marked as one it cannot")
-
-    def test_a_link_that_leads_outside_is_marked(self):
-        target = self.touch("resume.pdf", "%PDF-1.4\n", root=self.elsewhere)
-        link = os.path.join(self.cwd, "resume.pdf")
+    def test_a_link_into_the_secrets_is_marked(self):
+        target = self.touch("token", "not for the panel\n", root=self.secrets())
+        link = os.path.join(self.cwd, "token.txt")
         os.symlink(target, link)
-        got = self.state(self.delivered("toolu_1", [(link, 10, "application/pdf")]))
-        self.assertTrue(got["sent"][0].get("outside"), "a link into another directory passes for a file inside")
-
-    def test_a_neighbour_with_a_shared_prefix_is_outside(self):
-        near = self.cwd + "-2"
-        os.makedirs(near)
-        away = self.touch("resume.pdf", "%PDF-1.4\n", root=near)
-        got = self.state(self.delivered("toolu_1", [(away, 10, "application/pdf")]))
-        self.assertTrue(got["sent"][0].get("outside"), "a neighbour sharing the prefix passes for the directory")
+        got = self.state(self.delivered("toolu_1", [(link, 10, "text/plain")]))
+        self.assertTrue(got["sent"][0].get("outside"), "a link into the secrets passes for a file that opens")
 
     def test_a_second_delivery_keeps_the_mark(self):
-        away = self.touch("resume.pdf", "%PDF-1.4\n", root=self.elsewhere)
+        secret = self.touch("token", "not for the panel\n", root=self.secrets())
         got = self.state(
-            self.delivered("toolu_1", [(away, 10, "application/pdf")]),
-            self.delivered("toolu_2", [(away, 12, "application/pdf")], at="2026-08-30T11:00:00Z"),
+            self.delivered("toolu_1", [(secret, 10, "text/plain")]),
+            self.delivered("toolu_2", [(secret, 12, "text/plain")], at="2026-08-30T11:00:00Z"),
         )
         self.assertEqual([(s["count"], s.get("outside")) for s in got["sent"]], [(2, True)])
-
 
 if __name__ == "__main__":
     unittest.main()

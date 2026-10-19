@@ -472,10 +472,9 @@ function sentState(file) {
 }
 
 // WorkList renders what stands behind a counter: the tasks, the subagents or
-// the artifacts. A sent file the reader cannot open — one that lies outside
-// the directory of the conversation — is drawn as a row, not a button: the
-// reader holds every file against that directory, and a tap would end in a
-// refusal, so the row says where the file lies instead.
+// the artifacts. A sent file the reader does not open — a secret, say — is
+// drawn as a row, not a button: a tap would end in a refusal, so the row
+// says so instead.
 export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs, onPage, onBrief }) {
     const [pick, setPick] = useState(null);
     const run = useAction();

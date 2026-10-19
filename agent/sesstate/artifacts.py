@@ -73,6 +73,44 @@ def inside(path_in_repo, cwd):
     return real
 
 
+def secrets_dir():
+    """Returns the directory the executor keeps the secrets in, named as the executor names it."""
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    return os.path.join(base, "aacpanel", "secrets")
+
+
+def opens(path, cwd):
+    """Returns the real path of a file the reader of the feed opens, or None.
+
+    An absolute path opens wherever it leads: the person reads on the phone
+    what the session reads on the host, its scratchpad and the files of other
+    projects among them. A relative one is taken from the directory of the
+    conversation and means nothing without it. A secret never opens: the
+    session is told a secret by its path, the feed makes a path a link, and
+    the service worker would keep what the link opened on the phone. Real
+    paths on both sides, so a link into the directory of secrets is refused
+    as well.
+    """
+    raw = os.path.expanduser(str(path or "").strip())
+    if not raw:
+        return None
+    if not os.path.isabs(raw):
+        if not cwd:
+            return None
+        raw = os.path.join(cwd, raw)
+    try:
+        real = os.path.realpath(raw)
+        root = os.path.realpath(secrets_dir())
+    except OSError:
+        return None
+    try:
+        if os.path.commonpath([real, root]) == root:
+            return None
+    except ValueError:
+        pass
+    return real
+
+
 def _artifact(state, data, use, at):
     fields = artifact_fields(data)
     if not fields:
@@ -138,10 +176,10 @@ def sent_files(result):
 
 def _sent(state, result, at):
     for entry in sent_files(result):
-        # The reader opens a file only inside the directory of the conversation,
-        # and a session may send one from anywhere. The row stays, since the
-        # file did reach the human, but it is marked: a tap would end in a refusal.
-        if inside(entry["path"], state.cwd) is None:
+        # A session may send a file the reader does not open, a secret say. The
+        # row stays, since the file did reach the human, but it is marked: a
+        # tap would end in a refusal.
+        if opens(entry["path"], state.cwd) is None:
             entry["outside"] = True
         was = state.sent.get(entry["path"]) or {}
         state.sent[entry["path"]] = {

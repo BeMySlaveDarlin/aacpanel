@@ -1,4 +1,4 @@
-"""The card of sent files: a file the reader cannot open says so."""
+"""The card of sent files: a file the reader does not open says so."""
 import json
 import os
 import shutil
@@ -17,19 +17,25 @@ def line(record):
     return json.dumps(record, ensure_ascii=False) + "\n"
 
 
-class SentFilesOutsideTheDirectory(unittest.TestCase):
-    """The reader opens a file only inside the directory of the conversation.
-    A session may send one from anywhere, and the card is still drawn for it —
-    but its row is marked, so the panel does not offer a tap that ends in a
-    refusal."""
+class SentFilesTheReaderDoesNotOpen(unittest.TestCase):
+    """The reader opens a file wherever it lies, a secret aside. A session may
+    send a secret, and the card is still drawn for it — but its row is marked,
+    so the panel does not offer a tap that ends in a refusal."""
 
     def setUp(self):
+        from unittest import mock
         self.root = os.path.realpath(test_barrier.tmp_path(prefix="chat-sent-"))
         self.addCleanup(shutil.rmtree, self.root, True)
         self.cwd = os.path.join(self.root, "proj")
         self.elsewhere = os.path.join(self.root, "scratch")
+        state = os.path.join(self.root, "state")
+        self.secrets = os.path.join(state, "aacpanel", "secrets")
         os.makedirs(os.path.join(self.cwd, "cv"))
         os.makedirs(self.elsewhere)
+        os.makedirs(self.secrets)
+        env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": state})
+        env.start()
+        self.addCleanup(env.stop)
         self.path = os.path.join(self.root, f"{UUID}.jsonl")
 
     def write(self, files, cwd=None):
@@ -54,45 +60,34 @@ class SentFilesOutsideTheDirectory(unittest.TestCase):
         self.assertEqual(len(cards), 1, items)
         return cards[0]
 
-    def test_a_file_sent_from_elsewhere_is_marked(self):
+    def test_a_secret_is_marked_and_a_file_from_elsewhere_is_not(self):
         inside = os.path.join(self.cwd, "cv", "resume.pdf")
-        outside = os.path.join(self.elsewhere, "resume.pdf")
-        self.write([inside, outside])
+        away = os.path.join(self.elsewhere, "resume.pdf")
+        secret = os.path.join(self.secrets, "token")
+        self.write([inside, away, secret])
         files = self.card()["files"]
         self.assertEqual([(f["name"], f.get("outside")) for f in files],
-                         [("resume.pdf", None), ("resume.pdf", True)])
+                         [("resume.pdf", None), ("resume.pdf", None), ("token", True)])
 
-    def test_a_file_inside_the_directory_carries_no_mark(self):
-        self.write([os.path.join(self.cwd, "cv", "resume.pdf")])
-        self.assertNotIn("outside", self.card()["files"][0])
-
-    def test_a_link_that_leads_outside_is_marked(self):
-        target = os.path.join(self.elsewhere, "resume.pdf")
-        with open(target, "wb") as f:
-            f.write(b"%PDF-")
-        link = os.path.join(self.cwd, "cv", "resume.pdf")
+    def test_a_link_into_the_secrets_is_marked(self):
+        target = os.path.join(self.secrets, "token")
+        with open(target, "w", encoding="utf-8") as f:
+            f.write("not for the panel")
+        link = os.path.join(self.cwd, "cv", "token.txt")
         os.symlink(target, link)
         self.write([link])
         self.assertTrue(self.card()["files"][0].get("outside"))
 
-    def test_a_neighbour_with_a_shared_prefix_is_outside(self):
-        near = self.cwd + "-2"
-        os.makedirs(near)
-        self.write([os.path.join(near, "resume.pdf")])
-        self.assertTrue(self.card()["files"][0].get("outside"))
-
-    def test_a_conversation_with_no_directory_can_open_nothing(self):
-        self.write([os.path.join(self.cwd, "cv", "resume.pdf")], cwd="")
-        self.assertTrue(self.card()["files"][0].get("outside"))
+    def test_without_a_directory_an_absolute_path_still_opens(self):
+        self.write([os.path.join(self.elsewhere, "resume.pdf"), "cv/resume.pdf"], cwd="")
+        self.assertEqual([f.get("outside") for f in self.card()["files"]], [None, True],
+                         "a relative path has nothing to start from without the directory")
 
     def test_the_mark_stays_in_a_window_after_a_position(self):
-        inside = os.path.join(self.cwd, "cv", "resume.pdf")
-        outside = os.path.join(self.elsewhere, "resume.pdf")
-        self.write([inside, outside])
+        self.write([os.path.join(self.cwd, "cv", "resume.pdf"), os.path.join(self.secrets, "token")])
         items = chat.feed(self.path, after=0)["items"]
         cards = [i for i in items if i["role"] == "sent"]
         self.assertEqual([f.get("outside") for f in cards[0]["files"]], [None, True])
-
 
 if __name__ == "__main__":
     unittest.main()

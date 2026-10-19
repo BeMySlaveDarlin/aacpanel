@@ -120,8 +120,8 @@ func TestAPDFIsSavedUnlessAskedForInPlace(t *testing.T) {
 }
 
 func TestAFileAskedForInPlaceGoesThroughTheSamePathCheck(t *testing.T) {
-	const refusal = "the file was not opened: it either does not exist, or lies outside the " +
-		"directory of this conversation"
+	const refusal = "the file was not opened: it either does not exist, or is not a file " +
+		"that can be read, or is a secret"
 	agent := startAgent(t, map[string]any{"ok": false, "error": refusal})
 	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
 
