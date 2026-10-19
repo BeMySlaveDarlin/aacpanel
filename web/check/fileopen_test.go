@@ -38,13 +38,14 @@ func TestAPDFOnThePhoneOpensOutsideThePanel(t *testing.T) {
 		t.Errorf("%s: the phone's link saves the file instead of showing it — the icon in the "+
 			"header already does that", bodyFile)
 	}
-	if strings.Contains(phone, "useBytes(") || strings.Contains(phone, "createObjectURL") {
+	if strings.Contains(phone, "useBytes(") || strings.Contains(phone, "useSource(") ||
+		strings.Contains(phone, "createObjectURL") {
 		t.Errorf("%s: the phone's link points into a blob — that is the address the browser's "+
 			"\"open\" fails on from inside the installed app", bodyFile)
 	}
 
 	wide := jsBlock(t, bodyFile, clean, "function PaperFrame(")
-	if !strings.Contains(wide, `class="filepdf"`) || !strings.Contains(wide, "useBytes(") {
+	if !strings.Contains(wide, `class="filepdf"`) || !strings.Contains(wide, "useSource(") {
 		t.Errorf("%s: the wide screen lost the document embedded in the page", bodyFile)
 	}
 }

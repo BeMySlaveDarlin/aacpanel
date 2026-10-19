@@ -27,6 +27,9 @@ type pageShot struct {
 		More  int   `json:"more"`
 		Asked []int `json:"asked"`
 	} `json:"other"`
+	Played largeShot `json:"played"`
+	Paper  largeShot `json:"paper"`
+	Photo  largeShot `json:"photo"`
 }
 
 // pageWindow is the window a page is read by: the largest the collector gives
@@ -90,6 +93,53 @@ func checkOtherFileByDefault(t *testing.T, got pageShot) {
 	}
 }
 
+// largeShot is what the view of a file past the ceiling of the viewer was
+// drawn with: its element and the address in it.
+type largeShot struct {
+	Tag  string `json:"tag"`
+	Src  string `json:"src"`
+	Said string `json:"said"`
+}
+
+// A song, a PDF and a photo past what the viewer reads whole are shown all
+// the same, in their own views, from the address the file is shown in place
+// at: the browser asks the service for the file itself — a player and a PDF
+// viewer by the ranges they need — and the page holds no copy of it. A PDF
+// keeps the way it opens on each screen: a link to the phone's viewer, a
+// frame at a desk.
+func checkLargeFilesAreShown(t *testing.T, got pageShot, wide bool) {
+	t.Helper()
+	pdf := "a"
+	if wide {
+		pdf = "iframe"
+	}
+	cases := []struct {
+		what, file, tag string
+		shot            largeShot
+	}{
+		{"a song", "song.mp3", "audio", got.Played},
+		{"a PDF", "atlas.pdf", pdf, got.Paper},
+		{"a photo", "photo.jpg", "img", got.Photo},
+	}
+	for _, c := range cases {
+		if c.shot.Tag != c.tag {
+			t.Errorf("%s over the ceiling of the viewer is drawn as <%s>, not <%s>, saying %q — "+
+				"it has a view of its own, and the size of the file is not a reason to lose it",
+				c.what, c.shot.Tag, c.tag, c.shot.Said)
+			continue
+		}
+		if !strings.HasPrefix(c.shot.Src, "/api/chat/file/download?") {
+			t.Errorf("%s is shown from %q rather than the file's address", c.what, c.shot.Src)
+		}
+		for _, part := range []string{"session=lab", "path=%2Fsrv%2Flab%2F" + c.file, "inline=1"} {
+			if !strings.Contains(c.shot.Src, part) {
+				t.Errorf("%s is shown from %q, which has no %q — it is to come from the address "+
+					"the file is shown in place at", c.what, c.shot.Src, part)
+			}
+		}
+	}
+}
+
 // On a phone a page takes the screen above the navigation, as a brief does,
 // and its frame the room under the head.
 func TestAPageOpensOnThePhoneAsTheWholeScreen(t *testing.T) {
@@ -98,6 +148,7 @@ func TestAPageOpensOnThePhoneAsTheWholeScreen(t *testing.T) {
 	checkPageIsWhole(t, got)
 	checkPageOverTheCap(t, got)
 	checkOtherFileByDefault(t, got)
+	checkLargeFilesAreShown(t, got, false)
 	if got.SheetH < got.ViewH*0.85 || got.FrameH < got.SheetH*0.75 {
 		t.Errorf("on a %.0fx%.0f screen the page is a %.0f tall sheet with a %.0f tall frame — "+
 			"it is read, not glanced into, and takes the screen", got.ViewW, got.ViewH, got.SheetH, got.FrameH)
@@ -111,6 +162,7 @@ func TestAPageOpensAtADeskInAWideWindow(t *testing.T) {
 	checkPageIsWhole(t, got)
 	checkPageOverTheCap(t, got)
 	checkOtherFileByDefault(t, got)
+	checkLargeFilesAreShown(t, got, true)
 	if got.SheetW < got.ViewW*0.75 || got.FrameH < got.ViewH*0.7 {
 		t.Errorf("on a %.0fx%.0f screen the page stands in a %.0fx%.0f window with a %.0f tall frame — "+
 			"a page needs the width and the height of the screen", got.ViewW, got.ViewH, got.SheetW, got.SheetH, got.FrameH)

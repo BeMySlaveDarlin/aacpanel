@@ -9,7 +9,9 @@
 // opens it as a document — the whole screen on a phone, a wide window at a
 // desk — read whole before it is drawn, by the window of a page and with no
 // press for the rest of it. A page past what the panel draws says to save it,
-// and a log next to them is read by the default window, a press at a time.
+// and a log next to them is read by the default window, a press at a time. A
+// song, a PDF and a photo past what the viewer reads whole are shown from the
+// file's address.
 import { h, render } from "preact";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -26,7 +28,15 @@ const log = "a line of the log\n".repeat(12000);
 const bodies = { "/srv/lab/board.html": board, "/srv/lab/huge.html": huge, "/srv/lab/notes.log": log };
 const sizeOf = (text) => new TextEncoder().encode(text).length;
 const at = "2026-09-28T05:00:00Z";
-const files = Object.entries(bodies).map(([path, text]) => ({ path, name: path.split("/").pop(), size: sizeOf(text) }));
+// The collector reads these whole only up to its ceiling, and of larger ones
+// says no more than what they are.
+const large = {
+    "/srv/lab/song.mp3": { kind: "audio", media: "audio/mpeg", name: "song.mp3", size: 10 << 20 },
+    "/srv/lab/atlas.pdf": { kind: "pdf", media: "application/pdf", name: "atlas.pdf", size: 30 << 20 },
+    "/srv/lab/photo.jpg": { kind: "image", media: "image/jpeg", name: "photo.jpg", size: 9 << 20 },
+};
+const files = Object.entries(bodies).map(([path, text]) => ({ path, name: path.split("/").pop(), size: sizeOf(text) }))
+    .concat(Object.entries(large).map(([path, file]) => ({ path, name: file.name, size: file.size })));
 const items = [
     { role: "ai", text: "Here is the board.", pos: 1, at },
     { role: "sent", pos: 2, at, files },
@@ -38,6 +48,7 @@ window.fetch = async (url) => {
     if (u.startsWith("/api/chat/file?")) {
         const q = new URL(u, location.href).searchParams;
         const path = q.get("path");
+        if (large[path]) return json({ ...large[path], tooBig: true });
         const body = bodies[path];
         if (body === undefined) return new Response("no such file", { status: 404 });
         asked[path].push(Number(q.get("bytes") || 0));
@@ -72,7 +83,8 @@ const open = async (path) => {
     card().click();
 };
 const close = async () => {
-    const back = document.querySelector(".sheet.on .pback");
+    // A page goes back by its head, any other file by the close of its sheet.
+    const back = document.querySelector(".sheet.on .pback, .sheet.on .sheetclose");
     if (back) back.click();
     await until(() => !document.querySelector(".sheet.on"));
 };
@@ -122,6 +134,24 @@ window.done = (async () => {
         more: document.querySelectorAll(".sheet.on .filemore").length,
         asked: asked["/srv/lab/notes.log"],
     };
-    return { ...page, over, other };
+
+    // shown opens a large file and says what its view takes it from: the
+    // element, and the address in it.
+    const shown = async (path, selector) => {
+        await close();
+        await open(path);
+        const view = () => document.querySelector(selector);
+        await until(() => view() || hint().includes("Too large"));
+        const el = view();
+        return {
+            tag: el ? el.tagName.toLowerCase() : "",
+            src: el ? el.getAttribute("src") || el.getAttribute("href") || "" : "",
+            said: hint(),
+        };
+    };
+    const played = await shown("/srv/lab/song.mp3", ".sheet.on .fileaudio audio");
+    const paper = await shown("/srv/lab/atlas.pdf", ".sheet.on .filepdf, .sheet.on .fileopen a");
+    const photo = await shown("/srv/lab/photo.jpg", ".sheet.on .filepic img");
+    return { ...page, over, other, played, paper, photo };
 })();
 </script>

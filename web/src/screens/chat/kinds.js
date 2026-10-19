@@ -25,15 +25,25 @@ export function isExec(state) {
     return Boolean(state) && (state.form === "exec" || state.kind === "exec");
 }
 
-// pickView returns the name of the view to show a file with.
+// DRAWN are the pictures every browser draws from an address. The rest of
+// what the collector calls a picture — HEIC and TIFF, which Chrome does not
+// decode, and SVG, which the panel does not show in place since it is a page —
+// has no view past the ceiling of the viewer.
+const DRAWN = new Set([
+    "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif",
+    "image/bmp", "image/x-icon", "image/apng",
+]);
+
+// pickView returns the name of the view to show a file with. A sound, a clip,
+// a PDF and a picture a browser draws are shown whatever their size: what the
+// viewer does not bring whole, the view asks for at the file's address.
 export function pickView(state, name) {
     if (!state) return "code";
     if (isExec(state)) return "exec";
     const form = state.form || "";
-    if (state.tooBig) return "toobig";
-    if (form === "image" || form === "video" || form === "audio" || form === "pdf") {
-        return form;
-    }
+    if (form === "video" || form === "audio" || form === "pdf") return form;
+    if (state.tooBig && !(form === "image" && DRAWN.has(state.media))) return "toobig";
+    if (form === "image") return form;
     if (form === "binary" || state.binary) return "binary";
     if (state.data) return "image";
     const file = String(name || "");

@@ -336,11 +336,17 @@ func (s *Server) apiChatFile(w http.ResponseWriter, r *http.Request) {
 // written out. The file never is.
 const downloadChunk = 1024 * 1024
 
-// downloadCap is the largest file the panel hands over. A file crosses the
-// socket range by range, and the collector on the other end is carrying the
-// feeds of every session at the same time: past this size the saving stops
-// being a download and becomes a wait. A file over the cap is refused by its
-// size — half a file handed over as the whole of it is worse than a refusal.
+// downloadCap is the largest file the panel hands over whole: saved, or shown
+// in place as a PDF or a picture. A file crosses the socket range by range,
+// and the collector on the other end is carrying the feeds of every session at
+// the same time: past this size the saving stops being a download and becomes
+// a wait. A file over the cap is refused by its size — half a file handed over
+// as the whole of it is worse than a refusal.
+//
+// A sound or a clip played in place is not held to it. The player asks for
+// the ranges it plays, and the collector is asked for the next range only once
+// the one before it has gone out, so what crosses the socket follows the
+// playing, not the size of the file: a film plays as a song does.
 const downloadCap = 128 << 20
 
 func (s *Server) apiChatDownload(w http.ResponseWriter, r *http.Request) {
@@ -371,61 +377,128 @@ func (s *Server) apiChatDownload(w http.ResponseWriter, r *http.Request) {
 			"it is older than the panel and has to be restarted", http.StatusBadGateway)
 		return
 	}
-	if first.Size > downloadCap {
-		http.Error(w, fmt.Sprintf("the file is too large to hand over: %d bytes against the %d "+
-			"the panel carries", first.Size, downloadCap), http.StatusRequestEntityTooLarge)
-		return
-	}
 
 	// The viewer may ask for the file to be shown in place instead of saved,
 	// and it gets that only for a file the browser shows without running
 	// anything in it. Everything else is saved whatever was asked.
 	inline := r.URL.Query().Get("inline") == "1" && shownInPlace(first.Media)
+	played := inline && playedInPlace(first.Media)
+	if first.Size > downloadCap && !played {
+		http.Error(w, fmt.Sprintf("the file is too large to hand over: %d bytes against the %d "+
+			"the panel carries", first.Size, downloadCap), http.StatusRequestEntityTooLarge)
+		return
+	}
+	head, err := base64.StdEncoding.DecodeString(first.Data)
+	if err != nil {
+		http.Error(w, "the collector sent the file in a form that does not decode: "+err.Error(),
+			http.StatusBadGateway)
+		return
+	}
+
 	fileHead(w, versionedName(first.Name, first.Mtime), first.Media, inline)
-	w.Header().Set("Content-Length", strconv.FormatInt(first.Size, 10))
-	s.sendRanges(r.Context(), w, target, want, first)
+	if played {
+		// A proxy in front reads an answer ahead of its reader unless told not
+		// to, and the range a player opens runs to the end of the file: the
+		// whole film would cross the collector at the speed of the proxy's disk.
+		w.Header().Set("X-Accel-Buffering", "no")
+	}
+	// A player asks by Range for where it seeks to, and a save cut off halfway
+	// asks for the rest. A save resumes against the time of the last change: a
+	// file changed since gets the whole new file, not its tail glued to the old
+	// head.
+	changed, _ := time.Parse(time.RFC3339, first.Mtime)
+	http.ServeContent(w, r, "", changed, &fileRanges{ctx: r.Context(), chat: s.chat,
+		target: target, path: want, size: first.Size, at: first.Offset, raw: head})
 }
 
-// sendRanges writes the file out range by range, asking the collector for the
-// next one until the file ends. A range that never arrives leaves the answer
-// shorter than the length declared in the header: the browser calls such a
-// download broken, which is what it is — the alternative is a file that looks
-// whole and is not.
-func (s *Server) sendRanges(ctx context.Context, w io.Writer, target chatTarget, want string, reply chat.Reply) {
-	for {
-		raw, err := base64.StdEncoding.DecodeString(reply.Data)
-		if err != nil {
-			log.Printf("file download: %s did not decode at %d bytes: %v", want, reply.Offset, err)
-			return
-		}
-		if _, err := w.Write(raw); err != nil {
-			return
-		}
-		next := reply.Next
-		if next <= 0 {
-			return
-		}
-		found, err := s.chat.RawFile(ctx, target, want, next, downloadChunk)
-		if err != nil {
-			log.Printf("file download: %s broke off at %d bytes: %v", want, next, err)
-			return
-		}
-		if found.Offset != next || found.Data == "" {
-			log.Printf("file download: the collector stopped at %d bytes of %d of %s",
-				next, reply.Size, want)
-			return
-		}
-		reply = found
+// fileRanges is a file of a conversation as a stream that seeks, read the way
+// the panel reads one — by the collector's ranges, one held at a time — for
+// http.ServeContent to cut the ranges of an answer from. A range that never
+// arrives leaves the answer shorter than the length declared in the header:
+// the browser calls such a download broken, which is what it is — the
+// alternative is a file that looks whole and is not.
+type fileRanges struct {
+	ctx    context.Context
+	chat   *chat.Client
+	target chatTarget
+	path   string
+	size   int64
+	pos    int64
+
+	// at and raw are the range in hand: where it starts and its bytes.
+	at  int64
+	raw []byte
+}
+
+func (f *fileRanges) Read(p []byte) (int, error) {
+	if f.pos >= f.size {
+		return 0, io.EOF
 	}
+	if f.pos < f.at || f.pos >= f.at+int64(len(f.raw)) {
+		if err := f.fetch(); err != nil {
+			return 0, err
+		}
+	}
+	n := copy(p, f.raw[f.pos-f.at:])
+	f.pos += int64(n)
+	return n, nil
+}
+
+// fetch asks the collector for the range that starts at the position.
+func (f *fileRanges) fetch() error {
+	found, err := f.chat.RawFile(f.ctx, f.target, f.path, f.pos, downloadChunk)
+	if err != nil {
+		log.Printf("file download: %s broke off at %d bytes: %v", f.path, f.pos, err)
+		return err
+	}
+	raw, err := base64.StdEncoding.DecodeString(found.Data)
+	if err != nil {
+		log.Printf("file download: %s did not decode at %d bytes: %v", f.path, f.pos, err)
+		return err
+	}
+	if found.Offset != f.pos || len(raw) == 0 {
+		log.Printf("file download: the collector stopped at %d bytes of %d of %s", f.pos, f.size, f.path)
+		return io.ErrUnexpectedEOF
+	}
+	f.at, f.raw = f.pos, raw
+	return nil
+}
+
+func (f *fileRanges) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekCurrent:
+		offset += f.pos
+	case io.SeekEnd:
+		offset += f.size
+	}
+	if offset < 0 {
+		return 0, errors.New("a seek before the start of the file")
+	}
+	f.pos = offset
+	return offset, nil
 }
 
 // shownInPlace reports whether the browser may show the file in place, as a
-// document of the panel's own origin: a PDF and nothing else. A page from a
-// project directory shown that way would run its script with the panel's
-// cookies, and a picture in SVG is a page too. A PDF renders without running
-// anything of the sort, and a phone has a viewer of its own for it.
+// document of the panel's own origin: a PDF, a picture other than SVG, a
+// sound and a clip. A page from a project directory shown that way would run
+// its script with the panel's cookies, and a picture in SVG is a page too. A
+// PDF renders without running anything of the sort, and a phone has a viewer
+// of its own for it; any other picture, a sound and a clip are decoded and run
+// nothing at all.
 func shownInPlace(media string) bool {
-	return media == "application/pdf"
+	switch {
+	case media == "application/pdf", playedInPlace(media):
+		return true
+	case strings.HasPrefix(media, "image/"):
+		return media != "image/svg+xml"
+	}
+	return false
+}
+
+// playedInPlace reports whether the file is one the viewer plays from its
+// address: a sound or a clip, the whole of either type.
+func playedInPlace(media string) bool {
+	return strings.HasPrefix(media, "audio/") || strings.HasPrefix(media, "video/")
 }
 
 // fileHead tells the browser what the answer is and whether to save it or to

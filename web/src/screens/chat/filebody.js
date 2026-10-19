@@ -11,8 +11,9 @@ import { Photo } from "./photo.js";
 import { frameDoc, PAGE_WHOLE, pickView, sheet } from "./kinds.js";
 
 // FileBody renders the contents of an open file. open is the address at which
-// the browser shows the file as a document of its own, for the kinds the
-// screen does not draw itself.
+// the browser shows the file in place: as a document of its own, for the kinds
+// the screen does not draw itself, and as the source a view takes a file past
+// the ceiling of the viewer from.
 export function FileBody({ state, look, open, more, onMore }) {
     const name = state.name || look.path || "";
     const view = pickView(state, name);
@@ -23,10 +24,10 @@ export function FileBody({ state, look, open, more, onMore }) {
         `;
     }
     if (view === "image") {
-        return html`<${Picture} state=${state} name=${name} />`;
+        return html`<${Picture} state=${state} name=${name} open=${open} />`;
     }
     if (view === "video" || view === "audio") {
-        return html`<${Player} state=${state} name=${name} sound=${view === "audio"} />`;
+        return html`<${Player} state=${state} open=${open} sound=${view === "audio"} />`;
     }
     if (view === "pdf") return html`<${Paper} state=${state} name=${name} open=${open} />`;
     if (view === "binary") {
@@ -91,8 +92,18 @@ function useBytes(data, media) {
     return url;
 }
 
-function Picture({ state, name }) {
-    const url = useBytes(state.data, state.media || "image/png");
+// useSource is where a file is shown from: its bytes when the viewer brought
+// the file whole, and its address when the file is past the ceiling of that.
+// From the address the browser fetches the file itself, a player and a PDF
+// viewer by the ranges they need, so a large file is never held whole by the
+// page nor by the service.
+function useSource(state, open, media) {
+    const held = useBytes(state.data, media);
+    return state.data ? held : open;
+}
+
+function Picture({ state, name, open: src }) {
+    const url = useSource(state, src, state.media || "image/png");
     const [open, setOpen] = useState(false);
     return html`
         <button class="filepic" type="button" onClick=${() => setOpen(true)}
@@ -103,8 +114,10 @@ function Picture({ state, name }) {
     `;
 }
 
-function Player({ state, name, sound }) {
-    const url = useBytes(state.data, state.media);
+// Player plays a sound or a clip. From the address it asks the panel for the
+// ranges it plays as it plays them, so a film streams rather than loads.
+function Player({ state, open, sound }) {
+    const url = useSource(state, open, state.media);
     if (!url) return html`<p class="hint">Reading…</p>`;
     return html`
         <div class=${sound ? "fileaudio" : "filevideo"}>
@@ -125,12 +138,12 @@ function Player({ state, name, sound }) {
 // document it can hand over.
 function Paper({ state, name, open }) {
     const wide = useWide();
-    if (wide) return html`<${PaperFrame} state=${state} name=${name} />`;
+    if (wide) return html`<${PaperFrame} state=${state} name=${name} open=${open} />`;
     return html`<${PaperOpen} open=${open} />`;
 }
 
-function PaperFrame({ state, name }) {
-    const url = useBytes(state.data, state.media || "application/pdf");
+function PaperFrame({ state, name, open }) {
+    const url = useSource(state, open, state.media || "application/pdf");
     if (!url) return html`<p class="hint">Reading…</p>`;
     return html`
         <iframe class="filepdf" src=${url} title=${name}></iframe>
