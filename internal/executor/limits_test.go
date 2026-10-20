@@ -75,8 +75,8 @@ func TestASnapshotAgingPastItsIntervalByTheNextLookIsRenewedNow(t *testing.T) {
 
 func TestTheIntervalOfTheProbeIsTheHosts(t *testing.T) {
 	t.Setenv(limitsEveryEnv, "")
-	if LimitsInterval() != LimitsEvery {
-		t.Errorf("no setting gives %s, expected %s", LimitsInterval(), LimitsEvery)
+	if LimitsInterval() != time.Minute {
+		t.Errorf("no setting gives %s, expected a minute", LimitsInterval())
 	}
 	t.Setenv(limitsEveryEnv, "2m")
 	if LimitsInterval() != 2*time.Minute {

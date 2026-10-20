@@ -12,18 +12,20 @@ import (
 )
 
 // LimitsEvery is how old the snapshot of a contour's limits may grow before a
-// probe renews it. A terminal of the contour keeps it fresh through its status
-// line, and then no probe runs at all.
-const LimitsEvery = 10 * time.Minute
+// probe renews it: a minute, so the shares on the screens trail claude's by no
+// more than that. Its price is a claude start and a word on haiku a contour
+// every minute, out of the very limit it reads. A terminal's status line
+// writes the snapshot too, and spares a probe only under a longer interval.
+const LimitsEvery = time.Minute
+
+// limitsEveryEnv overrides it, in Go duration form: how often a probe is worth
+// its price is the host's.
+const limitsEveryEnv = "AACP_LIMITS_EVERY"
 
 // LimitsLook is how often the executor looks for a snapshot to renew. A
 // snapshot that would age past its interval before the next look is renewed
 // at this one: otherwise an interval of a minute renews at every second look.
 const LimitsLook = time.Minute
-
-// limitsEveryEnv overrides it, in Go duration form: a probe costs a claude
-// start and a word on haiku, and how often it is worth that is the host's.
-const limitsEveryEnv = "AACP_LIMITS_EVERY"
 
 // probeClaudeEnv names the claude the probe starts: the wrapper of the
 // contours, the same one the sessions are started with.
