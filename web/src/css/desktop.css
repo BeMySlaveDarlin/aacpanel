@@ -2783,5 +2783,7 @@
     .pzanchor { position: relative; }
     .pzanchor .dkpop { left: 0; right: auto; width: min(26rem, 100%); }
     .dkpinned { display: inline-flex; color: var(--accent); flex: none; }
+    .dkpinned[aria-busy="true"] { opacity: .45; }
+    .dkpinned[data-on="false"] { color: var(--ink-dim); }
     .dkpinned svg { width: var(--i-sm); height: var(--i-sm); }
 }

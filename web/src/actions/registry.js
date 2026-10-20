@@ -558,6 +558,7 @@ export const ACTIONS = {
     },
     "session.pin": {
         instant: true,
+        watch: "pin",
         effect: "The session and its children stand first in their contour on every device; a restart or a reopen keeps the pin.",
         done: (target, params) => `${target}: the group ${params && params.on ? "is pinned" : "is unpinned"}`,
     },

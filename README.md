@@ -37,6 +37,10 @@ the project.
 The panel's own container is not shut down from here, and a push about a
 session does not go to the device where that session is open right now.
 
+A pin moves its group as it is pressed, ahead of the ordinary sections on
+the phone and the project order at a desk. Its dimmed mark waits for the host
+snapshot to confirm; a refusal restores the order and says why.
+
 **Dictation into the composer** is off until it is switched on for a device, in
 Settings. With nothing to send the button is a switch — one press starts
 listening, the next stops it, and what was heard stays in the field to be read

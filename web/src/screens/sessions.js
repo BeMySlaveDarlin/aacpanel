@@ -211,20 +211,21 @@ export function ghostsOf(profiles, opening) {
 
 // The sections of a contour's page, in the order the list is read.
 const SECTIONS = [
+    { pin: true, title: "pinned", tone: "" },
     { rank: RANK.wait, title: "needs you", tone: " pjwaits" },
     { rank: RANK.busy, title: "working", tone: "" },
     { rank: RANK.quiet, title: "quiet", tone: "" },
 ];
 
 function Page({ name, profile, limits, stale, sessions, everyone, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
-    const blocks = blocksOf({ profile, sessions, recent, opening });
+    const blocks = blocksOf({ profile, sessions, recent, opening, wait });
     const toProject = (project, group) => onProject({ ...project, profile: name, contour: profile ? profile.id : 0, group });
     return html`
         <${ProfileLimits} limits=${limits} profile=${name} contour=${profile ? profile.id : 0} stale=${stale} />
         ${blocks.length === 0
             ? !blind && html`<p class="empty">There are no live sessions.</p>`
             : SECTIONS.map((section) => {
-                const list = blocks.filter((b) => b.rank === section.rank);
+                const list = blocks.filter((b) => section.pin ? b.pinnedAt : !b.pinnedAt && b.rank === section.rank);
                 if (list.length === 0) return null;
                 return html`
                     <div class=${`grouphead pjsection${section.tone}`} key=${section.title}>

@@ -76,9 +76,12 @@ function expired(task, now) {
     return !task.flying && now - task.answered > CATCH_UP_LIMIT;
 }
 
-export function settled(task, names, at = 0, ids = {}) {
+export function settled(task, names, at = 0, ids = {}, pins = {}) {
     if (at && task.seen && at <= task.seen) return false;
     if (task.kind === "close") return !names.includes(task.target);
+    if (task.kind === "pin") {
+        return !names.includes(task.target) || Boolean(pins[task.target]) === Boolean(task.params.on);
+    }
     if (task.kind === "restart" || task.kind === "switch") {
         return names.includes(task.target) && ids[task.target] !== task.was;
     }
@@ -88,7 +91,7 @@ export function settled(task, names, at = 0, ids = {}) {
 
 export function useCatchUp(snapshot, refresh) {
     const [waits, setWaits] = useState({});
-    const [, tick] = useState(0);
+    const [ticks, tick] = useState(0);
     const alive = (snapshot && snapshot.sessions) || [];
     const at = (snapshot && snapshot.at) || 0;
 
@@ -140,14 +143,17 @@ export function useCatchUp(snapshot, refresh) {
         return () => clearInterval(timer);
     }, [busy, refresh]);
 
+    // The ceiling must run even when a failed refresh leaves the same
+    // snapshot on the screen.
     useEffect(() => {
         setWaits((prev) => {
             const names = alive.map((s) => s.session);
             const ids = Object.fromEntries(alive.map((s) => [s.session, identity(s)]));
+            const pins = Object.fromEntries(alive.map((s) => [s.session, s.pinnedAt]));
             const next = {};
             let changed = false;
             for (const [key, task] of Object.entries(prev)) {
-                if (settled(task, names, at, ids) || expired(task, Date.now())) {
+                if (settled(task, names, at, ids, pins) || expired(task, Date.now())) {
                     changed = true;
                     continue;
                 }
@@ -155,7 +161,7 @@ export function useCatchUp(snapshot, refresh) {
             }
             return changed ? next : prev;
         });
-    }, [snapshot]);
+    }, [snapshot, ticks]);
 
     return {
         of: (kind, target) => waits[waitKey(kind, target)] || null,

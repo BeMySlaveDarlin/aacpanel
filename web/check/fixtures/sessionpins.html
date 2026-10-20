@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:900px} .dkbody{height:900px} .phone{width:390px;max-width:100%;padding:.6rem 17px}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<script type="module">
+import { sessionPins } from "/check/fixtures/sessionpins.js";
+window.done = sessionPins(true);
+</script>

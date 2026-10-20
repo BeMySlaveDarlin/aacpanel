@@ -39,7 +39,7 @@ export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm }) {
     const closing = wait ? wait.of("close", s.session) : null;
     const restarting = wait ? wait.of("restart", s.session) : null;
     return [SessionMenu, {
-        s, exec, snapshot, onOpen, onTerm, lost: stopsOf(s),
+        s, exec, snapshot, wait, onOpen, onTerm, lost: stopsOf(s),
         closing: closing ? UNDER_WAY.close : "", restarting: restarting ? UNDER_WAY.restart : "",
     }, `session ${shownName(s)}`];
 }
@@ -76,10 +76,10 @@ function detachItem(s, exec, run) {
                                        off=${detachWhy(exec)} onPick=${() => detach(run, s.session)} />`;
 }
 
-function pinItem(s, snapshot, exec, run) {
-    const pin = pinOf(s, (snapshot && snapshot.sessions) || []);
-    return html`<${MenuItem} key="pin" label=${pin.label} tip=${pin.tip}
-                            off=${knows(exec, "session.pin") ? "" : whyNot(exec, "session.pin")}
+function pinItem(s, snapshot, exec, run, wait) {
+    const pin = pinOf(s, (snapshot && snapshot.sessions) || [], wait);
+    return html`<${MenuItem} key="pin" label=${pin.label} tip=${pin.tip} note=${pin.why}
+                            off=${pin.why || (knows(exec, "session.pin") ? "" : whyNot(exec, "session.pin"))}
                             onPick=${() => run("session.pin", pin.root.session, { on: !pin.on })} />`;
 }
 
@@ -100,14 +100,14 @@ function endsOf(exec, closing, restarting) {
     };
 }
 
-function ThreadMenu({ s, exec, snapshot, onOpen, closing }) {
+function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing }) {
     const run = useAction();
     const toast = useToast();
     const { closeWhy } = endsOf(exec, closing, "");
     const stopWhy = noTurn(s) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
-        [detachItem(s, exec, run), pinItem(s, snapshot, exec, run)],
+        [detachItem(s, exec, run), pinItem(s, snapshot, exec, run, wait)],
         copies(s.sessionId, s.cwd, true, toast),
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}
@@ -118,7 +118,7 @@ function ThreadMenu({ s, exec, snapshot, onOpen, closing }) {
     ]} />`;
 }
 
-function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lost }) {
+function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarting, lost }) {
     const run = useAction();
     const { closeWhy, restartWhy } = endsOf(exec, closing, restarting);
     const toast = useToast();
@@ -170,7 +170,7 @@ function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lo
             html`<${MenuItem} key="remote" label=${rc.shown ? "Turn Remote Control off" : "Turn Remote Control on"}
                               off=${rc.why} onPick=${rc.press} />`,
             detachItem(s, exec, run),
-            pinItem(s, snapshot, exec, run),
+            pinItem(s, snapshot, exec, run, wait),
         ],
         copies(s.sessionId, s.cwd, false, toast),
         [

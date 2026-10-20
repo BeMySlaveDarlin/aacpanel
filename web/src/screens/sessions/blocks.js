@@ -22,7 +22,7 @@ import { backgroundOf, modelTitle, runningOf, workOf } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
 import { calledMark } from "../../viewing.js";
-import { comparePins, pinOf } from "./pin.js";
+import { comparePins, pinAt, pinOf } from "./pin.js";
 
 // The order of the list: who waits for the person, who works — on an answer
 // or in its background — and who is quiet.
@@ -126,7 +126,7 @@ function projectsIn(profile) {
 // the group is read as one. A block keeps its sessions in the order of the
 // list it is given, the ones another started after the rest; how they stand
 // is the business of the screen that draws them.
-export function liveBlocksOf({ profile, sessions = [], opening = [] }) {
+export function liveBlocksOf({ profile, sessions = [], opening = [], wait = null }) {
     const { rootOf } = kinOf(sessions);
     const tops = sessions.filter((s) => rootOf(s) === s);
     const projects = projectsIn(profile);
@@ -175,11 +175,11 @@ export function liveBlocksOf({ profile, sessions = [], opening = [] }) {
     const pinned = [];
     const rest = [];
     for (const block of out.values()) {
-        const roots = block.live.filter((s) => rootOf(s) === s && s.pinnedAt);
+        const roots = block.live.filter((s) => rootOf(s) === s && pinAt(s, wait));
         for (const root of roots) {
             const live = block.live.filter((s) => rootOf(s) === root);
             pinned.push({ ...block, key: `pin:${root.session}`, live, ghosts: [],
-                home: live.some((s) => s.home), pinnedAt: root.pinnedAt });
+                home: live.some((s) => s.home), pinnedAt: pinAt(root, wait) });
         }
         block.live = block.live.filter((s) => !roots.includes(rootOf(s)));
         if (block.live.length || block.ghosts.length) rest.push(block);
@@ -194,9 +194,9 @@ export function liveBlocksOf({ profile, sessions = [], opening = [] }) {
 // its past: the way into the project is the live session, and a closed
 // conversation beside it reads as that session. Projects with nothing live
 // come last and at most QUIET_MAX of them.
-export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) {
+export function blocksOf({ profile, sessions = [], recent = [], opening = [], wait = null }) {
     const projects = projectsIn(profile);
-    const out = new Map(liveBlocksOf({ profile, sessions, opening }).map((block) => [block.key, { ...block, past: null }]));
+    const out = new Map(liveBlocksOf({ profile, sessions, opening, wait }).map((block) => [block.key, { ...block, past: null }]));
     const put = (key, init) => {
         if (!out.has(key)) out.set(key, { key, live: [], ghosts: [], past: null, home: false, ...init });
         return out.get(key);
@@ -287,7 +287,7 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
     const [folded, fold] = useFolds();
     const line = (s, kid = false, branch = "", from = "") => html`
         <${LiveLine} key=${s.session} session=${s} kid=${kid} branch=${branch} from=${from}
-                     pin=${pinOf(s, live || list)}
+                     pin=${pinOf(s, live || list, wait)}
                      notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} exec=${exec} />
     `;
     return layoutOf(list, live, folded).map((e) => {
@@ -386,7 +386,7 @@ function KinFold({ kids, line }) {
 // session another opened stands a step in under it, on the line of the branch
 // (branch "mid" or "last"); one whose parent stands elsewhere says which
 // session opened it (from).
-export function LiveLine({ session, pin = pinOf(session), kid = false, branch = "", from = "", notes, wait, exec, onOpen }) {
+export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = false, branch = "", from = "", notes, exec, onOpen }) {
     const run = useAction();
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
@@ -413,10 +413,11 @@ export function LiveLine({ session, pin = pinOf(session), kid = false, branch = 
                 <span class="pjsess">${shownName(session)}</span>
                 ${!session.outside && html`
                     <div class="pjacts">
-                        <button class="pjact" type="button" disabled=${!knows(exec, "session.pin")}
+                        <button class="pjact" type="button" disabled=${pin.pending || !knows(exec, "session.pin")}
                                 aria-label=${`${pin.on ? "unpin" : "pin"} session group ${pin.root.session}`}
                                 aria-pressed=${pin.on ? "true" : "false"}
-                                title=${whyNot(exec, "session.pin") || pin.tip}
+                                aria-busy=${pin.pending ? "true" : undefined}
+                                title=${pin.why || whyNot(exec, "session.pin") || pin.tip}
                                 onClick=${() => run("session.pin", pin.root.session, { on: !pin.on })}>${Icon.thumbtack()}</button>
                         ${!codex && html`
                             <button class="pjact" type="button" disabled=${!canRestart || Boolean(busy)}

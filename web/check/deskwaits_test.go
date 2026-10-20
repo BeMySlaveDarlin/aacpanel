@@ -232,8 +232,8 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		// A session taken from under its parent stays in the list: it stands
 		// on its own with the next snapshot, and nothing leaves or joins.
 		"session.detach": "",
-		// The pin moves the group on the next snapshot; no session leaves or joins.
-		"session.pin": "",
+		// The pin moves the group at the press and waits for the root's saved state.
+		"session.pin": "pin",
 	}
 
 	for id, body := range sessionActions(t, files[registryFile]) {

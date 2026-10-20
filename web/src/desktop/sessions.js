@@ -23,7 +23,7 @@ import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contourOfLive } from "../screens/sessions/map.js";
 import { kinOf, kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
-import { comparePins } from "../screens/sessions/pin.js";
+import { comparePins, pinAt, pinOf } from "../screens/sessions/pin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex, shownName, spoke } from "../agent.js";
 import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
@@ -90,7 +90,7 @@ export function raising(sessions, opening, at) {
 // projects as the person arranged them, the sessions no project holds after
 // them, and sessions of one place by name. The snapshot lists sessions by how
 // full they are, which changes by the minute.
-export function orderOf(sessions, map) {
+export function orderOf(sessions, map, wait = null) {
     const rank = new Map();
     const byPath = new Map();
     for (const entry of map || []) {
@@ -108,7 +108,7 @@ export function orderOf(sessions, map) {
     };
     const ordered = [...(sessions || [])].sort((a, b) => place(a) - place(b)
         || String(a.session).localeCompare(String(b.session)));
-    if (!ordered.some((s) => s.pinnedAt)) return ordered;
+    if (!ordered.some((s) => pinAt(s, wait))) return ordered;
     const pageOf = contourOfLive(map || [], ordered);
     const contours = new Map((map || []).map((p) => [p.profile, []]));
     for (const s of ordered) {
@@ -118,8 +118,8 @@ export function orderOf(sessions, map) {
     }
     return [...contours.values()].flatMap((list) => {
         const { rootOf } = kinOf(list);
-        const roots = list.filter((s) => rootOf(s) === s && s.pinnedAt)
-            .sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt));
+        const roots = list.filter((s) => rootOf(s) === s && pinAt(s, wait))
+            .sort((a, b) => comparePins(pinAt(a, wait), pinAt(b, wait)));
         return [...roots.flatMap((root) => [root, ...list.filter((s) => s !== root && rootOf(s) === root)]),
             ...list.filter((s) => !roots.includes(rootOf(s)))];
     });
@@ -209,6 +209,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     const open = () => onPick({ name: s.session, id: s.sessionId });
     // The session on screen is being seen: its call is no news to mark.
     const called = current === s.session ? "" : calledMark(s);
+    const pin = pinOf(s, (snapshot && snapshot.sessions) || [], wait);
 
     return html`
         <button
@@ -222,7 +223,10 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
         >
             <span class="dksessmain">
                 <span class="dkname" title=${shownName(s) !== s.session ? s.session : undefined}>${shownName(s)}</span>
-                ${s.pinnedAt && html`<span class="dkpinned" title="Pinned group" aria-label="Pinned group">${Icon.thumbtack()}</span>`}
+                ${pin.root === s && (pin.on || pin.pending) && html`
+                    <span class="dkpinned" data-on=${pin.on ? "true" : "false"} aria-busy=${pin.pending ? "true" : undefined}
+                          title=${pin.why || "Pinned group"} aria-label=${pin.why || "Pinned group"}>${Icon.thumbtack()}</span>
+                `}
                 ${s.home && html`<span class="dkhome">home</span>`}
                 ${s.outside && !kid && html`
                     <span class="dkmark" data-tip=${outsideNote(s)}>
@@ -705,7 +709,7 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
     const pageOf = useMemo(() => contourOfLive(map, all), [map, all]);
     useEffect(() => { if (onNames) onNames(names); }, [names.join("\n")]);
 
-    const ordered = useMemo(() => orderOf(all, map), [all, map]);
+    const ordered = useMemo(() => orderOf(all, map, wait), [all, map, wait]);
     const shown = picks.length ? ordered.filter((s) => picks.includes(pageOf(s))) : ordered;
 
     const ghosts = raising(all, wait ? wait.opening() : [], (snapshot && snapshot.at) || 0);
@@ -743,7 +747,7 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
     const entryOf = (name) => map.find((p) => p.profile === name) || null;
     const [folded, fold] = useFolds();
     const blocksIn = new Map(sections.map((n) => [n, liveBlocksOf({
-        profile: entryOf(n), sessions: byProfile.get(n) || [], opening: ghostsIn.get(n) || [],
+        profile: entryOf(n), sessions: byProfile.get(n) || [], opening: ghostsIn.get(n) || [], wait,
     }).map((block) => ({ block, rows: layoutOf(block.live, all, folded) }))]));
     const flat = [...blocksIn.values()].flat().flatMap((b) => b.rows)
         .filter((e) => e.kind === "row").map((e) => e.s);

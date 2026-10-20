@@ -1870,7 +1870,12 @@ journal names the session it stood under.
 **A pinned group stands first inside its contour on every device.**
 `session.pin` sets or clears the pin of the live root; a request naming a
 child resolves to that root. The phone's card and the desktop's context menu
-use the same action, and the next snapshot carries the change to both. Pins
+use the same action. The press moves the group and changes the pin at once;
+the pin stays dimmed until a fresh snapshot confirms the requested state or
+the root is gone. The same catch-up wait as a start or a close refreshes the
+snapshot while it waits. A refusal restores the snapshot's order and shows
+the reason; a change not seen by the wait's ceiling returns to the snapshot
+too. A pin being set takes its place by the time of the press. Pins
 stand in the order they were set, including when several roots work in one
 project. Only a root and its children move; unrelated sessions of its project
 keep their places, and contours keep the order of the map. Removing a pin
