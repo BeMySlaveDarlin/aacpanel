@@ -419,11 +419,11 @@ func executionCores(cores string, err error) string {
 }
 
 // keepLimits looks once a minute for a contour whose snapshot of the
-// subscription limits has aged past its interval, and renews it with a probe:
+// subscription limits ages past its interval, and renews it with a probe:
 // claude -p runs no status line to write it. A failure is logged when it
 // changes, not every minute it lasts.
 func keepLimits(ctx context.Context) {
-	tick := time.NewTicker(time.Minute)
+	tick := time.NewTicker(executor.LimitsLook)
 	defer tick.Stop()
 	said := ""
 	renew := func() {

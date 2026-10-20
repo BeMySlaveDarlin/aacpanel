@@ -16,6 +16,11 @@ import (
 // line, and then no probe runs at all.
 const LimitsEvery = 10 * time.Minute
 
+// LimitsLook is how often the executor looks for a snapshot to renew. A
+// snapshot that would age past its interval before the next look is renewed
+// at this one: otherwise an interval of a minute renews at every second look.
+const LimitsLook = time.Minute
+
 // limitsEveryEnv overrides it, in Go duration form: a probe costs a claude
 // start and a word on haiku, and how often it is worth that is the host's.
 const limitsEveryEnv = "AACP_LIMITS_EVERY"
@@ -46,7 +51,7 @@ func RenewLimits(ctx context.Context, now time.Time, every time.Duration) []stri
 			continue
 		}
 		path := filepath.Join(c.Config, "rate-limits.json")
-		if st, err := os.Stat(path); err == nil && now.Sub(st.ModTime()) < every {
+		if st, err := os.Stat(path); err == nil && now.Sub(st.ModTime())+LimitsLook <= every {
 			continue
 		}
 		dir, err := probeDir(c.Prefix)

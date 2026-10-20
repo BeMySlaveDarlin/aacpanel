@@ -44,6 +44,35 @@ func TestLimitsAreProbedOnlyWhereTheSnapshotHasAged(t *testing.T) {
 	}
 }
 
+// The executor looks once a minute: a snapshot that would age past its
+// interval before the next look is renewed at this one, so an interval of a
+// minute renews at every look and not at every second.
+func TestASnapshotAgingPastItsIntervalByTheNextLookIsRenewedNow(t *testing.T) {
+	home := t.TempDir()
+	config := filepath.Join(home, "minute")
+	if err := os.MkdirAll(config, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	snap := filepath.Join(config, "rate-limits.json")
+	if err := os.WriteFile(snap, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	last := time.Now().Add(-50 * time.Second)
+	if err := os.Chtimes(snap, last, last); err != nil {
+		t.Fatal(err)
+	}
+	reg := filepath.Join(home, "registry.conf")
+	if err := os.WriteFile(reg, []byte("minute | "+home+" | "+config+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AACP_CLAUDE_REGISTRY", reg)
+	t.Setenv(probeClaudeEnv, filepath.Join(home, "no-claude-here"))
+
+	if failed := RenewLimits(context.Background(), time.Now(), time.Minute); len(failed) != 1 {
+		t.Errorf("a snapshot 50 s old under an interval of a minute is not probed (%q): it renews at every second look", failed)
+	}
+}
+
 func TestTheIntervalOfTheProbeIsTheHosts(t *testing.T) {
 	t.Setenv(limitsEveryEnv, "")
 	if LimitsInterval() != LimitsEvery {

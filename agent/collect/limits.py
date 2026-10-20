@@ -30,6 +30,18 @@ def _number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def current(window, now):
+    """Returns a window of claude's limits as it stands at now.
+
+    A window whose reset has come has started over: the share the snapshot
+    holds is of the window that ended, so until a new snapshot the window
+    stands at nothing used, with no reset known.
+    """
+    if isinstance(window, dict) and _number(window.get("resetsAt")) and window["resetsAt"] <= now:
+        return {"pct": 0, "resetsAt": None}
+    return window
+
+
 def codex_block(data, now=None):
     """Returns the limits of a codex account as the snapshot carries them.
 
@@ -69,6 +81,7 @@ def limits():
     limits and no snapshot of claude's gets a row of its own with codex's alone.
     """
     found = []
+    now = time.time()
     for name, config_dir, path in limits_sources():
         try:
             with open(path, encoding="utf-8") as f:
@@ -78,7 +91,10 @@ def limits():
         if not isinstance(data, dict):
             continue
         at = data.get("at")
-        data["ageSec"] = max(0, int(time.time() - at)) if isinstance(at, (int, float)) else None
+        data["ageSec"] = max(0, int(now - at)) if isinstance(at, (int, float)) else None
+        for key in ("fiveHour", "sevenDay"):
+            if key in data:
+                data[key] = current(data[key], now)
         data["profile"] = name
         data["configDir"] = config_dir
         found.append(data)

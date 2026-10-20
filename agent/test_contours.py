@@ -390,6 +390,19 @@ class Contours(unittest.TestCase):
         self.assertLess(by["personal"]["ageSec"], 60)
         self.assertGreater(by["work"]["ageSec"], 3000)
 
+    def test_a_window_whose_reset_has_come_has_started_over(self):
+        now = int(time.time())
+        with open(os.path.join(self.home, "rate-limits.json"), "w", encoding="utf-8") as f:
+            json.dump({"at": now - 600, "fiveHour": {"pct": 96, "resetsAt": now - 240},
+                       "sevenDay": {"pct": 36, "resetsAt": now + 86400}}, f)
+
+        got = agent.limits()
+        self.assertEqual(got["contours"][0]["fiveHour"], {"pct": 0, "resetsAt": None},
+                         "the share of a window that ended is shown past its reset")
+        self.assertEqual(got["fiveHour"], {"pct": 0, "resetsAt": None})
+        self.assertEqual(got["contours"][0]["sevenDay"], {"pct": 36, "resetsAt": now + 86400},
+                         "a window still running is touched")
+
     def test_limits_with_no_snapshots_at_all_are_nothing(self):
         self.contour()
         self.assertIsNone(agent.limits())
