@@ -72,9 +72,20 @@ const doc = {
     closing: ["Everything marked as a reading is a proposal, not a finding."],
 };
 
+// A brief that asks nothing: a finding to read, with no question under it.
+const readOnly = {
+    id: "only-to-read",
+    sessionId: doc.sessionId,
+    cwd: "/srv/proj",
+    title: "The test went red when the day turned",
+    lede: "The cause is confirmed by a run.",
+    questions: [],
+};
+
 let saved = null;
 let sentMark = false;
 let removed = false;
+let readRemoved = false;
 const asked = [];
 window.fetch = counted(async (url, init) => {
     const u = String(url);
@@ -98,6 +109,15 @@ window.fetch = counted(async (url, init) => {
     if (u === "/api/briefs/seven-after-twelve" && method === "DELETE") {
         removed = true;
         return new Response(JSON.stringify({ ok: true, dropped: "seven-after-twelve" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/briefs/only-to-read" && method === "GET") {
+        return new Response(JSON.stringify({ brief: readOnly, draft: null, reply: "" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/briefs/only-to-read" && method === "DELETE") {
+        readRemoved = true;
+        return new Response(JSON.stringify({ ok: true, dropped: "only-to-read" }),
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     if (u.endsWith("/sent")) {
@@ -228,7 +248,30 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     removing.afterSecond = removed;
     removing.left = left.length - leftBefore;
 
-    window.done = { before, after, asked, sentMark, exit, locked, removing,
+    // A brief with nothing to answer is still put away from inside it: the
+    // dock stays, with the one act such a document has.
+    const root = document.getElementById("root");
+    render(null, root);
+    render(
+        h(ToastHost, null, h(GateHost, null,
+            h(Brief, { id: "only-to-read", snapshot, exec, onBack: () => left.push("back") }))),
+        root);
+    await quiet();
+    const reading = {
+        title: (document.querySelector(".bmast h1") || {}).textContent || "",
+        buttons: text(".bdock .bbtn"),
+    };
+    const readLeft = left.length;
+    const readDrop = document.querySelector(".bdock .bbtn.drop");
+    if (readDrop) readDrop.click();
+    await quiet();
+    const readAgain = document.querySelector(".bdock .bbtn.drop");
+    if (readAgain) readAgain.click();
+    await quiet();
+    reading.removed = readRemoved;
+    reading.left = left.length - readLeft;
+
+    window.done = { before, after, asked, sentMark, exit, locked, removing, reading,
         reply: (document.querySelector(".breply") || {}).textContent || "" };
 })();
 </script>

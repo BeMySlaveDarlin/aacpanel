@@ -405,8 +405,8 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                 ` : null}
             </div>
 
-            ${asking.length ? html`
-                <div class="bdock">
+            <div class="bdock">
+                ${asking.length ? html`
                     <div class="bdock-say">
                         ${sentAt
                             ? html`the answers have gone into <b>${name || "the session"}</b>`
@@ -430,20 +430,24 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                         ` : null}
                     </div>
                     <button type="button" class="bbtn" onClick=${() => setPeek(true)}>What goes</button>
-                    <button
-                        type="button"
-                        class=${`bbtn drop${dropping === "asking" ? " asking" : ""}`}
-                        disabled=${dropping === "going"}
-                        onClick=${remove}
-                    >${dropping === "going" ? "Removing…" : dropping === "asking" ? "Remove it?" : "Remove"}</button>
+                ` : html`
+                    <div class="bdock-say">nothing to answer · read it and put it away</div>
+                `}
+                <button
+                    type="button"
+                    class=${`bbtn drop${dropping === "asking" ? " asking" : ""}`}
+                    disabled=${dropping === "going"}
+                    onClick=${remove}
+                >${dropping === "going" ? "Removing…" : dropping === "asking" ? "Remove it?" : "Remove"}</button>
+                ${asking.length ? html`
                     <button
                         type="button"
                         class="bbtn go"
                         disabled=${Boolean(sentAt) || !canSend || !done || sending}
                         onClick=${send}
                     >${sending ? "Sending…" : sentAt ? "Sent" : "Send answers"}</button>
-                </div>
-            ` : null}
+                ` : null}
+            </div>
 
             <${Sheet} open=${peek} onClose=${() => setPeek(false)} label="what goes into the session">
                 <div class="shead">

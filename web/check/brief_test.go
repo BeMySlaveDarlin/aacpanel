@@ -66,6 +66,12 @@ type briefShot struct {
 		AfterSecond bool   `json:"afterSecond"`
 		Left        int    `json:"left"`
 	} `json:"removing"`
+	Reading struct {
+		Title   string   `json:"title"`
+		Buttons []string `json:"buttons"`
+		Removed bool     `json:"removed"`
+		Left    int      `json:"left"`
+	} `json:"reading"`
 	Exit struct {
 		There    bool   `json:"there"`
 		Stuck    string `json:"stuck"`
@@ -400,6 +406,19 @@ func TestRemovingABriefAsksFirst(t *testing.T) {
 	}
 	if got.Removing.Left != 1 {
 		t.Errorf("after the document was removed the screen stayed on it (%d exits)", got.Removing.Left)
+	}
+
+	// A brief with no question in it has nothing to send, and is put away all
+	// the same: it is the kind that is read once and done with.
+	if got.Reading.Title == "" {
+		t.Fatal("the brief with nothing to answer was never drawn")
+	}
+	if len(got.Reading.Buttons) != 1 || got.Reading.Buttons[0] != "Remove" {
+		t.Errorf("the dock of a brief with nothing to answer offers %q, want only Remove", got.Reading.Buttons)
+	}
+	if !got.Reading.Removed || got.Reading.Left != 1 {
+		t.Errorf("a brief with nothing to answer was not removed from inside it (removed %v, exits %d)",
+			got.Reading.Removed, got.Reading.Left)
 	}
 }
 
