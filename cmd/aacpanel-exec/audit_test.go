@@ -3,7 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
 
 	"aacpanel/internal/action"
@@ -202,5 +206,52 @@ func TestAuditedPassesOnTheSessionNewBroughtUp(t *testing.T) {
 	detail, session, err := audited{next: openingExec{}}.Open(t.Context(), action.Request{Kind: action.SessionOpen})
 	if err != nil || detail != "started" || session != "codex-0000beef" {
 		t.Errorf("New through the wrapper answered %q %q %v", detail, session, err)
+	}
+}
+
+// Every question the executor answers passes through the journal's wrapper:
+// one the wrapper leaves out is answered "does not know" in production, while
+// the executor's own tests stay green. The list is read from the sources of
+// the action package, so a new kind of question cannot slip past it.
+func TestTheWrapperPassesOnEveryQuestionOfTheExecutor(t *testing.T) {
+	askers := map[string]reflect.Type{
+		"Asker":            reflect.TypeFor[action.Asker](),
+		"WindowAsker":      reflect.TypeFor[action.WindowAsker](),
+		"ModelsAsker":      reflect.TypeFor[action.ModelsAsker](),
+		"McpAsker":         reflect.TypeFor[action.McpAsker](),
+		"StatusAsker":      reflect.TypeFor[action.StatusAsker](),
+		"SetupAsker":       reflect.TypeFor[action.SetupAsker](),
+		"SideAsker":        reflect.TypeFor[action.SideAsker](),
+		"CommandsAsker":    reflect.TypeFor[action.CommandsAsker](),
+		"TermsAsker":       reflect.TypeFor[action.TermsAsker](),
+		"SecretsAsker":     reflect.TypeFor[action.SecretsAsker](),
+		"CodexModelsAsker": reflect.TypeFor[action.CodexModelsAsker](),
+		"ProcessesAsker":   reflect.TypeFor[action.ProcessesAsker](),
+		"IntentAsker":      reflect.TypeFor[action.IntentAsker](),
+	}
+	files, err := filepath.Glob("../../internal/action/*.go")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("the sources of the action package were not found: %v", err)
+	}
+	declared := regexp.MustCompile(`(?m)^type (\w*Asker) interface`)
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range declared.FindAllStringSubmatch(string(body), -1) {
+			if _, ok := askers[m[1]]; !ok {
+				t.Errorf("action.%s is not in this test's list: add it, and the wrapper's method if the executor answers it", m[1])
+			}
+		}
+	}
+	ex, wrapped := reflect.TypeOf(executor.New(nil, "")), reflect.TypeFor[audited]()
+	for name, asker := range askers {
+		if ex.Implements(asker) && !wrapped.Implements(asker) {
+			t.Errorf("the executor answers action.%s, and the journal's wrapper does not pass it on", name)
+		}
 	}
 }

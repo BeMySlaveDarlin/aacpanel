@@ -25,6 +25,7 @@ import (
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
+	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/statusline"
 	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
@@ -535,6 +536,15 @@ func (a audited) Mcp(ctx context.Context, target string, discover bool) (*action
 		return nil, fmt.Errorf("this executor does not know the MCP servers of a session")
 	}
 	return asker.Mcp(ctx, target, discover)
+}
+
+// Intents asks the wrapped executor for the messages kept for a session.
+func (a audited) Intents(ctx context.Context, target string) (sessionintent.Values, error) {
+	asker, ok := a.next.(action.IntentAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know the messages of a session")
+	}
+	return asker.Intents(ctx, target)
 }
 
 // Status asks the wrapped executor what a session says about itself.
