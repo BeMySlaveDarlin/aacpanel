@@ -352,13 +352,14 @@ function Letter({ item }) {
 }
 
 // A message the panel wrote into the session on the person's behalf: the
-// secret a notepad saved, the answers to a brief, a reading of the branch.
+// secret a notepad saved, the answers to a brief or request, a reading of the branch.
 // It stands where the message stands and on the person's side, in the tone of
 // their bubble, and says what the message says rather than the sentence the
 // session read; the sentence is one row away, word for word. The head names
 // the kind, the gist is under it, and what there is more opens on a row.
 const PANEL_CARDS = {
     secret: { icon: Icon.key, label: "secret saved", Gist: SecretGist },
+    request: { icon: Icon.list, label: "request answered", Gist: RequestGist },
     brief: {
         icon: Icon.plan, label: "brief answers", Gist: BriefGist, Body: BriefAnswers,
         more: "The answers", fold: "Fold the answers", count: (said) => said.rows.length,
@@ -444,6 +445,15 @@ function SecretGist({ said }) {
             <span>${`${said.lines} ${plural(said.lines, "line", "lines")} · 0600`}</span>
             <${PathText} path=${said.dir} />
         </div>
+    `;
+}
+
+// RequestGist keeps the answer and note beside the title; the id belongs to
+// the text the session got, under its fold.
+function RequestGist({ said }) {
+    return html`
+        <div class="pnmtitle">${`You answered the request “${said.title}”: ${said.answer}`}</div>
+        ${said.note && html`<div class="pnmnote">${said.note}</div>`}
     `;
 }
 

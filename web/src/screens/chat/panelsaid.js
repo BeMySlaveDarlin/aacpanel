@@ -1,17 +1,17 @@
-// What the panel said to a session on the person's behalf. Four messages are
+// What the panel said to a session on the person's behalf. These messages are
 // written by the panel rather than typed: a secret saved, the answers to a
 // brief, a reading of the branch waiting, and the answer to a question codex
-// asked without waiting. The transcript keeps them as prompts of the person,
-// and the text the session got carries no mark of the panel — a mark would be
-// read by the model as well. So a message of the panel is told by the shape of
-// its whole text, and a text that only resembles one stays a message of the
-// person.
+// asked without waiting or to a request for the person's hands. The transcript
+// keeps them as prompts of the person, and their text carries no mark of the
+// panel — a mark would be read by the model as well. So a message of the panel
+// is told by the shape of its whole text, and a text that only resembles one
+// stays a message of the person.
 //
 // The writers are secretMessage in internal/executor/secret.go, briefReply in
-// cmd/aacpanel/briefs.go, signal in screens/repo/notes.js, and asyncAnswer and
-// asyncPutAway here, beside their reader. The words of the first three and the
-// shapes below are held together by the samples in
-// web/check/testdata/panel-said.json, the answer to codex by the fixture of
+// cmd/aacpanel/briefs.go, signal in screens/repo/notes.js, Reply in
+// internal/request/request.go, and asyncAnswer and asyncPutAway here, beside
+// their reader. The samples in web/check/testdata/panel-said.json hold the
+// writers' words and the shapes below together, the answer to codex by the fixture of
 // its question: a writer that changes a word turns a test red instead of
 // leaving the feed to draw a bubble.
 
@@ -35,6 +35,8 @@ const BRIEF = /^Brief ("(?:[^"\\\n]|\\.)*") · ([a-z0-9][a-z0-9-]{0,63})\nAnswer
 const QUESTION = /^(\S*) (.+)$/;
 const PICK = /^ {3}(\S+) · (.*)$/;
 const NOTE = "   note: ";
+
+const REQUEST = /^The person answered your request “([\s\S]+?)” \([a-f0-9]{32}\): (Done|Can't)\.(?:\n\nTheir note:\n([\s\S]+))?$/;
 
 // A reading is fetched back by the name of its file.
 const READING_ID = /^([A-Za-z0-9_-]{1,120})\.json$/;
@@ -61,6 +63,12 @@ function reading(text) {
     if (!one(notes, m[3])) return null;
     const file = READING_ID.exec(m[1].slice(m[1].lastIndexOf("/") + 1));
     return { kind: "reading", path: m[1], id: file ? file[1] : "", notes };
+}
+
+function request(text) {
+    const m = REQUEST.exec(text);
+    if (!m || !m[1].trim() || (m[3] !== undefined && m[3] !== m[3].trim())) return null;
+    return { kind: "request", title: m[1], answer: m[2], note: m[3] || "" };
 }
 
 // unquote reads the title the way Go wrote it with %q. JSON reads the same
@@ -235,6 +243,7 @@ export function panelSaid(text) {
     if (said.startsWith('The secret "')) return secret(said);
     if (said.startsWith('Brief "')) return brief(said);
     if (said.startsWith("A reading of this branch ")) return reading(said);
+    if (said.startsWith("The person answered your request “")) return request(said);
     if (said.startsWith("The answer") || said.startsWith("I put your ")) return asked(said);
     return null;
 }

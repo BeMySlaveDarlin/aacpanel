@@ -10,8 +10,8 @@
 // reads every sample, signal() of the reading writes its own, and the real
 // conversation draws them: a secret the session asked for and its notepad
 // saved, the answers to a brief published here and marked sent on the shelf,
-// a reading of the branch whose notes the panel keeps, a text one word away
-// from the panel's, and two messages still on their way.
+// a reading of the branch whose notes the panel keeps, the answers to requests,
+// texts one word away from the panel's, and two messages still on their way.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -54,6 +54,8 @@ const feed = (samples) => [
     { role: "me", text: samples.bubbles[0].text, at: "2026-01-01T09:12:00Z", pos: 7 },
     { role: "me", text: samples.brief[1].text, at: "2026-01-01T09:13:00Z", pos: 8, state: "queued" },
     { role: "me", text: samples.reading[1].text, at: "2026-01-01T09:14:00Z", pos: 9, state: "withdrawn" },
+    ...samples.request.map((s, i) => ({ role: "me", text: s.text, at: "2026-01-01T09:15:00Z", pos: 10 + i })),
+    ...samples.bubbles.slice(1).map((s, i) => ({ role: "me", text: s.text, at: "2026-01-01T09:16:00Z", pos: 10 + samples.request.length + i })),
 ];
 const requests = [];
 let items = [];
@@ -87,7 +89,8 @@ window.EventSource = class {
 
 const exec = { available: true, kinds: ["session.send", "secret.put"] };
 const session = { session: "helios", sessionId: "s1", status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
-    limit: 1000000, cwd: "/srv/proj", model: "claude-opus-5-5", effort: "xhigh", mode: "auto", profile: "personal" };
+    limit: 1000000, cwd: "/srv/proj", model: "claude-opus-5-5", effort: "xhigh", mode: "auto", profile: "personal",
+    lastRequestAt: new Date(Date.now() - 120000).toISOString() };
 
 const cards = () => Array.from(root.querySelectorAll(".sent.pnm"));
 const cardOf = (kind) => root.querySelector(`.sent.pnm.k-${kind}`);
@@ -114,6 +117,8 @@ const readCard = (card) => ({
     label: text(card.querySelector(".sentlabel")),
     at: text(card.querySelector(".sentat")),
     title: text(card.querySelector(".pnmtitle")),
+    note: card.querySelector(".pnmnote")?.textContent || "",
+    text: text(card),
     meta: Array.from(card.querySelectorAll(".pnmmeta")).map((m) => Array.from(m.children).map(text).join(" | ")),
     keys: Array.from(card.querySelectorAll(".pnmkey")).map(text),
     // The rows that open and fold are the last plate of the card: what they
@@ -142,21 +147,23 @@ window.done = (async () => {
             secret: samples.secret.map((s) => panelSaid(s.text)),
             brief: samples.brief.map((s) => panelSaid(s.text)),
             reading: samples.reading.map((s) => panelSaid(s.text)),
+            request: samples.request.map((s) => panelSaid(s.text)),
         };
         out.bubbles = samples.bubbles.map((b) => ({ why: b.why, said: panelSaid(b.text) }));
         out.signals = samples.reading.map((s) => signal(s.input.path, s.input.notes));
 
         render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${session}
             snapshot=${{ at: 1, sessions: [session] }} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
-        await until(() => cards().length === 5 && root.querySelector(".msecret .sksaved")
+        await until(() => cards().length === 5 + samples.request.length && root.querySelector(".msecret .sksaved")
             && root.querySelector(".mbrief .brstate"));
         await quiet();
 
         out.cards = cards().map((card) => ({ kind: card.className.replace(/.*\bk-(\w+).*/, "$1"), ...readCard(card) }));
-        out.bubbleTexts = Array.from(root.querySelectorAll(".msg.me")).map(text);
+        out.bubbleTexts = Array.from(root.querySelectorAll(".msg.me")).map((b) => b.innerText.replace(/\s+/g, " ").trim());
         out.briefMark = text(root.querySelector(".mbrief .brstate"));
         out.secretName = measure(root.querySelector(".msecret .armeta > span:first-child"));
         out.secretSaved = text(root.querySelector(".msecret .sksaved"));
+        out.lastReply = text(root.querySelector(".lastreq"));
 
         // A kind the feed did not draw as a card is said by the list of cards
         // above; the parts below read only the cards that are there.
@@ -166,6 +173,9 @@ window.done = (async () => {
 
         // The secret: the text the session got, word for word.
         if (secret) out.secretRaw = await raw(secret);
+
+        out.requestRaw = [];
+        for (const card of root.querySelectorAll(".sent.pnm.k-request")) out.requestRaw.push(await raw(card));
 
         // The brief: the answers a row a question, then the text.
         if (brief) {

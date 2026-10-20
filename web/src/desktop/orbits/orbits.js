@@ -396,9 +396,9 @@ function placeTip(x, y, tw, th, W, H, taken, hits) {
     return { left: Math.max(4, best[0]), top: Math.max(4, best[1]) };
 }
 
-function lastAsked(n) {
-    if (n.s.noRequests) return "no requests yet";
-    return n.idle < 1 ? "asked just now" : `last request ${short(n.idle)} ago`;
+function lastReply(n) {
+    if (n.s.noRequests) return "no replies yet";
+    return n.idle < 1 ? "last reply just now" : `last reply ${short(n.idle)} ago`;
 }
 
 function Tip({ tip, front, onPlaced }) {
@@ -420,7 +420,7 @@ function Tip({ tip, front, onPlaced }) {
     return html`
         <div class="dkorbtip" ref=${ref} role="tooltip">
             <b>${n.name}</b>
-            <span>${`${n.contour} · ${n.orbit} · context ${Math.round(n.pct)}% · ${lastAsked(n)}${parent}`}</span>
+            <span>${`${n.contour} · ${n.orbit} · context ${Math.round(n.pct)}% · ${lastReply(n)}${parent}`}</span>
             <span class=${n.tone === "wait" ? "dkorbwait" : ""}>
                 ${n.state.text}${n.state.work && n.tone !== "wait" ? ` · ${n.state.work}` : ""}
             </span>

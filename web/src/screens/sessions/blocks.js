@@ -53,7 +53,7 @@ export function stateOf(row) {
     }
     const work = workOf(s.work);
     if (s.status === "busy") return { tone: "busy", text: "working", since: work, when: "", work };
-    if (s.noRequests) return { tone: "idle", text: "no requests yet", since: work, when: "", work };
+    if (s.noRequests) return { tone: "idle", text: "no replies yet", since: work, when: "", work };
     const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
     const since = [when, work].filter(Boolean).join(" · ");
     // The answer is over and what it started still runs (see runningOf): the

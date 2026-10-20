@@ -5,16 +5,26 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
 // panelSamples are the messages the panel writes into a session on the
 // person's behalf, as the writers are checked against them: the Go tests of
-// secretMessage and briefReply rebuild each text from its input, and the
-// fixture reads every text with the parser of the feed.
+// secretMessage, briefReply and request.Reply rebuild each text from its input,
+// and the fixture reads every text with the parser of the feed.
 type panelSamples struct {
 	Secret  []panelSample `json:"secret"`
 	Brief   []panelSample `json:"brief"`
+	Request []struct {
+		panelSample
+		Input struct {
+			Title  string `json:"title"`
+			ID     string `json:"id"`
+			Answer string `json:"answer"`
+			Note   string `json:"note"`
+		} `json:"input"`
+	} `json:"request"`
 	Reading []struct {
 		panelSample
 		Input struct {
@@ -46,6 +56,8 @@ type panelCard struct {
 	Label     string   `json:"label"`
 	At        string   `json:"at"`
 	Title     string   `json:"title"`
+	Note      string   `json:"note"`
+	Text      string   `json:"text"`
 	Meta      []string `json:"meta"`
 	Keys      []string `json:"keys"`
 	Rows      []string `json:"rows"`
@@ -60,6 +72,7 @@ type panelSaidRun struct {
 		Secret  []any `json:"secret"`
 		Brief   []any `json:"brief"`
 		Reading []any `json:"reading"`
+		Request []any `json:"request"`
 	} `json:"parsed"`
 	Bubbles []struct {
 		Why  string `json:"why"`
@@ -96,6 +109,8 @@ type panelSaidRun struct {
 	} `json:"notes"`
 	Asked      []string `json:"asked"`
 	ReadingRaw string   `json:"readingRaw"`
+	RequestRaw []string `json:"requestRaw"`
+	LastReply  string   `json:"lastReply"`
 	Opened     bool     `json:"opened"`
 	Error      string   `json:"error"`
 }
@@ -110,9 +125,9 @@ func readPanelSamples(t *testing.T) panelSamples {
 	if err := json.Unmarshal(raw, &s); err != nil {
 		t.Fatalf("the samples do not parse: %v", err)
 	}
-	if len(s.Secret) == 0 || len(s.Brief) < 2 || len(s.Reading) < 2 || len(s.Bubbles) == 0 {
-		t.Fatalf("the samples are short of what the fixture draws: %d secrets, %d briefs, %d readings, %d bubbles",
-			len(s.Secret), len(s.Brief), len(s.Reading), len(s.Bubbles))
+	if len(s.Secret) == 0 || len(s.Brief) < 2 || len(s.Reading) < 2 || len(s.Request) < 4 || len(s.Bubbles) == 0 {
+		t.Fatalf("the samples are short of what the fixture draws: %d secrets, %d briefs, %d readings, %d requests, %d bubbles",
+			len(s.Secret), len(s.Brief), len(s.Reading), len(s.Request), len(s.Bubbles))
 	}
 	return s
 }
@@ -150,6 +165,8 @@ func TestPanelMessagesAreCards(t *testing.T) {
 				{"theCardsOpenWhatTheSessionGot", panelCardsOpenTheText},
 				{"theBriefOpensItsAnswers", panelBriefOpensItsAnswers},
 				{"theReadingOpensItsNotes", panelReadingOpensItsNotes},
+				{"theRequestShowsTheAnswerAndNote", panelRequestShowsTheAnswerAndNote},
+				{"theTimeNamesTheLastReply", panelTimeNamesTheLastReply},
 				{"theBriefOfTheFeedSaysSent", panelBriefSaysSent},
 				{"theNameOfASecretDoesNotBreak", panelSecretNameDoesNotBreak},
 			} {
@@ -205,6 +222,11 @@ func panelParserReadsTheSamples(t *testing.T, s panelSamples, got panelSaidRun) 
 	reads("secret", got.Parsed.Secret, saids(s.Secret))
 	reads("brief", got.Parsed.Brief, saids(s.Brief))
 	reads("reading", got.Parsed.Reading, readings)
+	requests := make([]any, len(s.Request))
+	for i, one := range s.Request {
+		requests[i] = one.Said
+	}
+	reads("request", got.Parsed.Request, requests)
 }
 
 func panelOffShapeStaysABubble(t *testing.T, s panelSamples, got panelSaidRun) {
@@ -216,7 +238,10 @@ func panelOffShapeStaysABubble(t *testing.T, s panelSamples, got panelSaidRun) {
 			t.Errorf("%s, and the feed still takes it for the panel's: %v", b.Why, b.Said)
 		}
 	}
-	want := []string{"check the notepad live", s.Bubbles[0].Text}
+	want := []string{"check the notepad live"}
+	for _, b := range s.Bubbles {
+		want = append(want, strings.Join(strings.Fields(b.Text), " "))
+	}
 	if !reflect.DeepEqual(got.BubbleTexts, want) {
 		t.Errorf("the bubbles of the person are\n%q\nwant\n%q", got.BubbleTexts, want)
 	}
@@ -233,12 +258,16 @@ func panelSignalIsTheSample(t *testing.T, s panelSamples, got panelSaidRun) {
 	}
 }
 
-func panelEachKindIsACard(t *testing.T, _ panelSamples, got panelSaidRun) {
+func panelEachKindIsACard(t *testing.T, s panelSamples, got panelSaidRun) {
 	kinds := make([]string, len(got.Cards))
 	for i, c := range got.Cards {
 		kinds[i] = c.Kind
 	}
-	if want := []string{"secret", "brief", "reading", "brief", "reading"}; !reflect.DeepEqual(kinds, want) {
+	want := []string{"secret", "brief", "reading", "brief", "reading"}
+	for range s.Request {
+		want = append(want, "request")
+	}
+	if !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("the feed drew the cards %v, want %v", kinds, want)
 	}
 	for _, c := range got.Cards {
@@ -303,6 +332,45 @@ func panelCardsOpenTheText(t *testing.T, s panelSamples, got panelSaidRun) {
 		if c.got != c.want {
 			t.Errorf("the %s card opens the text\n%q\nand the session got\n%q", c.kind, c.got, c.want)
 		}
+	}
+	want := make([]string, len(s.Request))
+	for i, one := range s.Request {
+		want[i] = one.Text
+	}
+	if !reflect.DeepEqual(got.RequestRaw, want) {
+		t.Errorf("the request cards open\n%q\nand the session got\n%q", got.RequestRaw, want)
+	}
+}
+
+func panelRequestShowsTheAnswerAndNote(t *testing.T, s panelSamples, got panelSaidRun) {
+	var cards []panelCard
+	for _, c := range got.Cards {
+		if c.Kind == "request" {
+			cards = append(cards, c)
+		}
+	}
+	if len(cards) != len(s.Request) {
+		t.Fatalf("the feed drew %d request replies, want %d", len(cards), len(s.Request))
+	}
+	for i, c := range cards {
+		input := s.Request[i].Input
+		word := "Done"
+		if input.Answer == "cant" {
+			word = "Can't"
+		}
+		title := "You answered the request “" + strings.Join(strings.Fields(input.Title), " ") + "”: " + word
+		if c.Label != "request answered" || c.Title != title || c.Note != strings.TrimSpace(input.Note) {
+			t.Errorf("the request reply reads %+v, want %q with note %q", c, title, strings.TrimSpace(input.Note))
+		}
+		if strings.Contains(c.Text, input.ID) || strings.Contains(c.Text, "The person answered") {
+			t.Errorf("the request card exposes the session's text before it is opened: %q", c.Text)
+		}
+	}
+}
+
+func panelTimeNamesTheLastReply(t *testing.T, _ panelSamples, got panelSaidRun) {
+	if got.LastReply != "last reply 2 min ago" {
+		t.Errorf("the time over the composer reads %q, want last reply 2 min ago", got.LastReply)
 	}
 }
 

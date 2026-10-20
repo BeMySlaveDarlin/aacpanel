@@ -123,6 +123,7 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 		{"a background command beside a wake", "bg", "background", row("idle", work("tasks", 2, "wakes", 1))},
 		{"only a wake of its own", "idle", "idle", row("idle", work("tasks", 1, "wakes", 1))},
 		{"only an alarm of the panel", "idle", "idle", row("idle", work("alarms", 1))},
+		{"no model reply", "idle", "no replies yet", row("idle", work(), "noRequests", true)},
 		{"a question beside an agent", "wait", "", row("idle", work("agents", 1), "ask", map[string]any{"header": "Screens", "count": 1})},
 		{"a permission beside an agent", "wait", "", row("waiting", work("agents", 1))},
 		{"an answer beside an agent", "busy", "working", row("busy", work("agents", 1))},

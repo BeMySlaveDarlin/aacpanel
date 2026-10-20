@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -95,5 +97,37 @@ func TestTheRequestReplyNamesTheTaskAndThePersonsAnswer(t *testing.T) {
 	}
 	if ValidateAnswer("skip", "") == nil || ValidateAnswer("done", strings.Repeat("x", NoteMax+1)) == nil {
 		t.Fatal("invalid answer accepted")
+	}
+}
+
+// The feed recognises the whole reply, so a change to its writer must agree
+// with the samples the browser reads before it can reach a transcript.
+func TestTheRequestReplyIsTheOneTheFeedReads(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "web", "check", "testdata", "panel-said.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var samples struct {
+		Request []struct {
+			Input struct {
+				Title  string `json:"title"`
+				ID     string `json:"id"`
+				Answer string `json:"answer"`
+				Note   string `json:"note"`
+			} `json:"input"`
+			Text string `json:"text"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(raw, &samples); err != nil {
+		t.Fatalf("the samples do not parse: %v", err)
+	}
+	if len(samples.Request) == 0 {
+		t.Fatal("no samples of a request reply: the check compares nothing")
+	}
+	for _, s := range samples.Request {
+		r := Record{ID: s.Input.ID, Title: s.Input.Title}
+		if got := Reply(r, s.Input.Answer, s.Input.Note); got != s.Text {
+			t.Errorf("the request %q is answered as\n%q\nand the feed reads\n%q", r.Title, got, s.Text)
+		}
 	}
 }

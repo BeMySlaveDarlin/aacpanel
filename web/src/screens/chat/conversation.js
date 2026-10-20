@@ -534,7 +534,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         </div>
         `}
         ${live && feedShown && !hasWork(state.work, live.status === "busy" || Boolean(live.compacting)) && live.lastRequestAt && html`
-            <p class="lastreq">request ${ago(live.lastRequestAt)}</p>
+            <p class="lastreq">last reply ${ago(live.lastRequestAt)}</p>
         `}
 
         ${live && feedShown && html`

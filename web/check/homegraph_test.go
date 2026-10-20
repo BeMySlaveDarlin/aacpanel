@@ -832,7 +832,7 @@ func TestTheHomeHasNoTileOfTheSessions(t *testing.T) {
 func TestTheGraphOpensASessionAsItsRowDoes(t *testing.T) {
 	got := runHomeGraph(t)
 
-	tip := []string{"blog", "client · blog · context 52% · last request 1 h ago", "waiting for an answer",
+	tip := []string{"blog", "client · blog · context 52% · last reply 1 h ago", "waiting for an answer",
 		"click — open the session · right-click — its menu"}
 	if !reflect.DeepEqual(got.Tip, tip) {
 		t.Errorf("the tip over blog reads %q", got.Tip)

@@ -37,6 +37,11 @@ the project.
 The panel's own container is not shut down from here, and a push about a
 session does not go to the device where that session is open right now.
 
+An answer to a request stands in the feed as a panel card with the title,
+Done or Can't, and the note. The text delivered to the session, including its
+request id, opens under "What the session got". The time over the composer
+and in the desktop graph is labelled "last reply".
+
 A pin moves its group as it is pressed, ahead of the ordinary sections on
 the phone and the project order at a desk. Its dimmed mark waits for the host
 snapshot to confirm; a refusal restores the order and says why.

@@ -379,6 +379,13 @@ message id for transports whose queues know it. A database failure after deliver
 is reported as delivered but not marked, rather than inviting a blind resend. There is
 no new executor action or host right.
 
+The feed recognises that reply by its whole text and draws a panel card with
+the title, Done or Can't, and the note. The request id stays in the folded text
+the session got. Shared samples check both `request.Reply` and the feed's
+reader; a text that only resembles the reply stays the person's bubble.
+The time over the composer and in the desktop graph says "last reply" so it
+does not read as the time of a task for the person's hands.
+
 **The notepad of secrets.** A session that needs a credential — a token, a
 password, the env file of a database — asks the person for it with
 `secret_ask`, not in the conversation, where the value would settle in the
