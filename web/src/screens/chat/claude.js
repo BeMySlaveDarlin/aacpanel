@@ -17,6 +17,7 @@ import { StatusSheet } from "./status.js";
 import { SetupSheet, SETUP_TITLES } from "./setup.js";
 import { CommandsChip, CommandsSheet } from "./commands.js";
 import { RenameSheet, takenNames } from "./rename.js";
+import { IntentSheet } from "./intent.js";
 import { RoleSheet } from "./role.js";
 import { PickBar, PickSheet, PickWords } from "./picker.js";
 import { SessionSections } from "./sessiontools.js";
@@ -30,7 +31,7 @@ import { useViewPick } from "./viewpick.js";
 // The sheets of claude's own kinds: its commands, the screens some of them
 // answer with, its MCP servers, the info of the session, its new name and its
 // role.
-const OWN_LOOKS = new Set(["commands", "mcp", "status", "setup", "rename", "role"]);
+const OWN_LOOKS = new Set(["commands", "mcp", "status", "setup", "rename", "role", "intent"]);
 
 export function ClaudeChat(props) {
     const { name, id, live, exec, snapshot, wait } = props;
@@ -106,6 +107,9 @@ export function ClaudeChat(props) {
                 ? (live ? html`<${RenameSheet} name=${name} exec=${exec} onDone=${() => setLook(null)}
                                                taken=${takenNames(snapshot)} />`
                     : html`<p class="cmdnote">The session has ended: there is nothing to rename.</p>`)
+                : look.kind === "intent"
+                ? (live ? html`<${IntentSheet} name=${name} exec=${exec} onDone=${() => setLook(null)} />`
+                    : html`<p class="cmdnote">The session has ended: its messages are set while it lives.</p>`)
                 : look.kind === "role"
                 ? (live ? html`<${RoleSheet} name=${name} live=${live} exec=${exec} onDone=${() => setLook(null)} />`
                     : html`<p class="cmdnote">The session has ended: its role is set while it lives.</p>`)

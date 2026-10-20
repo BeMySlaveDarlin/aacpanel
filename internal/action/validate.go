@@ -73,7 +73,7 @@ func (r Request) Validate() error {
 		return badRequest("only the question of the MCP servers discovers them")
 	}
 	if r.Ask != "" {
-		if r.Kind != "" || r.Resume != "" || r.Secret != nil || r.Agent != "" {
+		if r.Kind != "" || r.Resume != "" || r.Secret != nil || r.Agent != "" || r.Intents != nil {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
@@ -86,7 +86,7 @@ func (r Request) Validate() error {
 			}
 		case AskGuards:
 			return validateGuards(r)
-		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses:
+		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses, AskIntent:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -365,6 +365,13 @@ func (r Request) Validate() error {
 		}
 	} else if r.Remote != nil {
 		return badRequest("action %s switches no remote control", r.Kind)
+	}
+	if r.Kind == SessionIntent {
+		if err := validIntents(r.Intents); err != nil {
+			return err
+		}
+	} else if r.Intents != nil {
+		return badRequest("action %s sets no opening messages", r.Kind)
 	}
 	if r.Kind == SessionRole {
 		if r.Role == nil {

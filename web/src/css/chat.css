@@ -119,6 +119,8 @@
 /* A note of the person's own words, a role, stops at two lines. */
 .toolnote.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .rolecount { margin-top: -.3rem; text-align: right; }
+.intentfield { display: grid; gap: .4rem; min-width: 0; }
+.intentfield .inherited { white-space: pre-wrap; overflow-wrap: anywhere; }
 .toolbtn { flex: none; min-width: 5.5rem; min-height: 44px; }
 .toolsegs { flex: none; display: flex; gap: .4rem; margin-left: auto; }
 .toolseg {

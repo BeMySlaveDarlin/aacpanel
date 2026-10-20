@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} #app{height:100vh;display:flex;flex-direction:column}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="app"></div>
+<script type="module">
+import { h, render } from "preact";
+import { Chat } from "/src/screens/chat.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { MenuHost } from "/src/desktop/menu.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const wide = innerWidth > 1000;
+const own = { restartIntent: "Continue" };
+const sent = [];
+let reject = false;
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false });
+    if (u.startsWith("/api/session/intent")) {
+        if (reject) return new Response("The messages could not be read", { status: 503 });
+        return json({ own, inherited: [
+            { key: "intent", value: "Read the queue", layer: "contour" },
+            { key: "restartIntent", value: "Summary", layer: "project" },
+        ] });
+    }
+    if (u.startsWith("/api/session/window")) return json({ state: "none" });
+    if (u.startsWith("/api/session/switch")) return json({ to: "console" });
+    if (u === "/api/actions" && init?.method === "POST") {
+        const action = JSON.parse(init.body);
+        sent.push(action);
+        Object.assign(own, action.params);
+        return json({ ok: true, detail: "saved", logged: true });
+    }
+    return new Response("", { status: 404 });
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+const live = { session: "shop", sessionId: "s1", cwd: "/srv/shop", contour: 4, transport: "stream", status: "idle", pct: 20 };
+const exec = { available: true, kinds: ["session.intent", "session.role", "session.rename", "session.restart", "session.close", "session.send", "session.switch"] };
+const snapshot = { at: 1, sessions: [live], profileMap: [{ id: 4, profile: "Work", name: "Work", groups: [] }] };
+const component = wide
+    ? h("div", { class: "deskshell" }, h("div", { class: "dkbody" }, h(SessionColumn, {
+        snapshot, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec,
+    })))
+    : h(Chat, { name: live.session, id: live.sessionId, live, exec, snapshot, onBack() {}, onUsage() {} });
+render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component))), document.getElementById("app"));
+const text = (el) => el?.textContent.replace(/\s+/g, " ").trim() || "";
+const until = async (condition, label) => {
+    const end = performance.now() + 4000;
+    while (!condition() && performance.now() < end) await new Promise(requestAnimationFrame);
+    if (!condition()) throw new Error(`Waiting for ${label}: ${text(document.body)}`);
+};
+const sheet = () => document.querySelector(".sheet.on .intentsheet");
+const field = (key) => sheet().querySelector(`#session-${key}`);
+const save = () => sheet().querySelector(".btn.primary");
+const open = async () => {
+    await quiet();
+    if (wide) {
+        document.querySelector(".dksess.dklive").dispatchEvent(new MouseEvent("contextmenu", {
+            bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
+        }));
+    } else {
+        document.querySelector(".pmore").click();
+    }
+    const selector = wide ? ".ctxmenu .pkname" : ".sheet.on .toollabel";
+    await until(() => [...document.querySelectorAll(selector)].some((el) => text(el) === "Session messages…"), "the message menu");
+    const labels = [...document.querySelectorAll(selector)].map(text);
+    [...document.querySelectorAll(selector)].find((el) => text(el) === "Session messages…").closest("button").click();
+    await until(() => sheet() && (sheet().querySelector("textarea") || sheet().querySelector(".stpwarn")), "the messages sheet");
+    return labels;
+};
+const type = async (key, value) => {
+    field(key).value = value;
+    field(key).dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+};
+window.done = (async () => {
+    const out = { labels: await open() };
+    out.first = field("intent").value;
+    out.restart = field("restartIntent").value;
+    out.inherited = [...sheet().querySelectorAll(".inherited")].map(text);
+    out.sameOff = save().disabled;
+    await type("intent", "🙂".repeat(501));
+    out.longOff = save().disabled;
+    await type("intent", "🙂".repeat(500));
+    out.astralOff = save().disabled;
+    await type("intent", " Start with the plan ");
+    save().click();
+    await until(() => sent.length === 1 && !sheet(), "the first message saved");
+    await open();
+    field("restartIntent").closest(".intentfield").querySelector("button").click();
+    await until(() => field("restartIntent").value === "" && !save().disabled, "the override cleared");
+    save().click();
+    await until(() => sent.length === 2 && !sheet(), "the cleared override saved");
+    await open();
+    out.cleared = field("restartIntent").value;
+    out.restored = text(field("restartIntent").closest(".intentfield").querySelector(".inherited"));
+    out.firstKept = field("intent").value;
+    [...sheet().querySelectorAll("button")].find((b) => text(b) === "Cancel").click();
+    await until(() => !sheet(), "the sheet closed");
+    reject = true;
+    await open();
+    out.readError = text(sheet().querySelector(".stpwarn"));
+    out.errorOff = save().disabled;
+    out.sent = sent.map((a) => `${a.kind}:${a.target}:${JSON.stringify(a.params)}`);
+    out.confirmation = Boolean(document.querySelector(".confirm"));
+    return out;
+})();
+</script>

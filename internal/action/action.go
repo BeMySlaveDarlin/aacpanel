@@ -79,6 +79,9 @@ const (
 	// project, as the person gives it: the session is told it at its next start.
 	SessionRole Kind = "session.role"
 
+	// SessionIntent sets the messages a session opens and restarts with.
+	SessionIntent Kind = "session.intent"
+
 	// SessionParent stands a live session under another of its project, as
 	// session_open stands the session it opens under the one that calls it.
 	SessionParent Kind = "session.parent"
@@ -153,7 +156,7 @@ var Kinds = []Kind{
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionRole, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
-	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop,
+	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent,
 }
 
 // Valid reports whether the executor knows this kind of action.

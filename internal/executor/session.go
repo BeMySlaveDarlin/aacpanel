@@ -15,6 +15,7 @@ import (
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/schema"
+	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/stream"
 )
 
@@ -39,6 +40,8 @@ type project struct {
 	Parent   string
 	OpenedBy string
 	Codex    *action.CodexLaunch
+	// IntentKey selects the saved message at launch; see launcher.Spec.
+	IntentKey string
 	// Role is the role session_open gives the session; see action.Project.
 	Role *action.OpenRole
 }
@@ -108,6 +111,7 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 		}
 	}
 
+	p.IntentKey = sessionintent.First
 	rep, err := e.runLauncher(ctx, p, "")
 	if err != nil {
 		return "", "", err
@@ -237,6 +241,7 @@ func (e *Executor) sessionResume(ctx context.Context, target, resume string, wan
 			return "", fmt.Errorf("granting trust for the resumed project: %w", err)
 		}
 	}
+	p.IntentKey = sessionintent.First
 	rep, err := e.runLauncher(ctx, p, resume)
 	if err != nil {
 		return "", err

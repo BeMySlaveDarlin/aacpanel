@@ -3,6 +3,8 @@ package action
 import (
 	"errors"
 	"time"
+
+	"aacpanel/internal/sessionintent"
 )
 
 var (
@@ -45,6 +47,8 @@ type Response struct {
 	Mcp *Mcp `json:"mcp,omitempty"`
 
 	Status *Status `json:"status,omitempty"`
+
+	Intents sessionintent.Values `json:"intents,omitempty"`
 
 	Setup *Setup `json:"setup,omitempty"`
 

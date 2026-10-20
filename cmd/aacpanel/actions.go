@@ -318,6 +318,18 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Rename, _ = body.Params["name"].(string)
 		params = map[string]any{"name": req.Rename}
 	}
+	if req.Kind == action.SessionIntent {
+		req.Intents = map[string]string{}
+		params = map[string]any{}
+		for key, value := range body.Params {
+			text, ok := value.(string)
+			if !ok {
+				http.Error(w, "the session message did not arrive as text", http.StatusBadRequest)
+				return
+			}
+			req.Intents[key], params[key] = text, text
+		}
+	}
 	if req.Kind == action.SessionRole {
 		text, ok := body.Params["role"].(string)
 		if !ok {
@@ -1167,7 +1179,8 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 // restartLaunch returns a project's launch with the message after a restart
 // as its first message, in place of the one the project opens with. Where no
 // level names one, the session comes back without a message and waits: a
-// message nobody wrote would set it to work on its own.
+// message nobody wrote would set it to work on its own. The launcher lays
+// the session's own restart message over this once its name and account are known.
 func restartLaunch(raw json.RawMessage) (json.RawMessage, error) {
 	launch := map[string]any{}
 	if len(raw) > 0 {

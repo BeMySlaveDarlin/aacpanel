@@ -199,7 +199,8 @@ var instantActions = map[string]bool{
 	// A role is typed on its sheet and saved or cleared with the sheet's own
 	// buttons: the sheet is where the person chose, and the role can be typed
 	// back.
-	"session.role": true,
+	"session.role":   true,
+	"session.intent": true,
 	// Remote Control is a switch in the header: it says which way it stands,
 	// and the same press puts it back.
 	"session.remote": true,
@@ -248,6 +249,7 @@ var instantExecActions = map[string]bool{
 	"session.mcp":        true,
 	"session.rename":     true,
 	"session.role":       true,
+	"session.intent":     true,
 	"session.remote":     true,
 	"secret.put":         true,
 	"term.start":         true,

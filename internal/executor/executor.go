@@ -210,6 +210,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionMcp(ctx, req.Target, req.Mcp)
 	case action.SessionRename:
 		return e.sessionRename(ctx, req.Target, req.Rename)
+	case action.SessionIntent:
+		return e.sessionIntent(req.Target, req.Intents)
 	case action.SessionRole:
 		return e.sessionRole(req.Target, *req.Role)
 	case action.SessionRemote:

@@ -21,6 +21,7 @@ import { share, tokens } from "../../format.js";
 import { copyText } from "./copy.js";
 import { shortPath } from "./head.js";
 import { useRemote } from "./remote.js";
+import { intentWhy } from "./intent.js";
 import { roleWhy } from "./role.js";
 import { moveSession, stops } from "./switch.js";
 import { openedBy, outsideNote, placeOf } from "../sessions/kin.js";
@@ -331,6 +332,8 @@ function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
         <${ToolRow} icon=${Icon.pencil} label="Rename…" off=${renameWhy(live, exec)} onPress=${() => { onDone(); onLook("rename"); }} />
         <${ToolRow} icon=${Icon.badge} label="Role…" note=${live.role || ROLE_NONE} clamp off=${roleWhy(exec)}
                     onPress=${() => { onDone(); onLook("role"); }} />
+        <${ToolRow} icon=${Icon.pencil} label="Session messages…" note="the first message and the message after a restart"
+                    off=${intentWhy(exec)} onPress=${() => { onDone(); onLook("intent"); }} />
         <${ToolRow} icon=${Icon.info} label="Session info" note="the model, the context, the tokens in and out"
                     aside="/status" onPress=${() => { onDone(); onLook("status"); }} />
         <${IdLine} id=${id} />

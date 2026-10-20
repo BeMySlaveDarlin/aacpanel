@@ -23,9 +23,12 @@ import (
 
 // Spec describes what to launch.
 type Spec struct {
-	Dir       string          `json:"dir"`
-	Session   string          `json:"session"`
-	Resume    string          `json:"resume,omitempty"`
+	Dir     string `json:"dir"`
+	Session string `json:"session"`
+	Resume  string `json:"resume,omitempty"`
+	// IntentKey selects the saved session message; empty preserves the supplied
+	// launch, as a transport switch or a continuation with its own words needs.
+	IntentKey string          `json:"intentKey,omitempty"`
 	Launch    json.RawMessage `json:"launch,omitempty"`
 	ClaudeBin string          `json:"claudeBin,omitempty"`
 	ConfigDir string          `json:"configDir,omitempty"`
@@ -95,11 +98,6 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	if choice.Warn != "" {
 		warns = append(warns, choice.Warn)
 	}
-	if choice.OffRoute && params.Intent != "" {
-		params.Intent = ""
-		warns = append(warns, "the opening message was not sent: the session started outside its "+
-			"profile's route, and the first message would have started work in another account")
-	}
 
 	configDir, err := contourConfig(spec.ClaudeBin, spec.ConfigDir)
 	if err != nil {
@@ -127,6 +125,16 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	host := hostcfg.Load()
 	env, envWarns := childEnv(os.Environ(), params, host.Display, host.Lang, configDir)
 	env = withParent(env, spec.Parent)
+	params.Intent, err = sessionMessage(spec, name, env, params.Intent)
+	if err != nil {
+		warns = append(warns, err.Error())
+	}
+	if choice.OffRoute && params.Intent != "" {
+		params.Intent = ""
+		warns = append(warns, "the opening message was not sent: the session started outside its "+
+			"profile's route, and the first message would have started work in another account")
+	}
+
 	warns = append(warns, envWarns...)
 	if warn := keepRole(spec, name, env); warn != "" {
 		warns = append(warns, warn)

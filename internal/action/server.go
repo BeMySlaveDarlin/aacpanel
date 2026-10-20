@@ -301,6 +301,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Mcp: mcp}
 	}
 
+	if req.Ask == AskIntent {
+		asker, ok := s.exec.(IntentAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not know the messages of a session"), 0)
+		}
+		values, err := asker.Intents(ctx, req.Target)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Intents: values}
+	}
+
 	if req.Ask == AskStatus {
 		asker, ok := s.exec.(StatusAsker)
 		if !ok {

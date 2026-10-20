@@ -3,6 +3,8 @@ package action
 import (
 	"encoding/json"
 	"slices"
+
+	"aacpanel/internal/sessionintent"
 )
 
 // Request is what the service asks to be done.
@@ -91,6 +93,9 @@ type Request struct {
 
 	// Role is the role session.role gives a session; empty clears it.
 	Role *string `json:"role,omitempty"`
+
+	// Intents changes only the messages named; an empty text clears its override.
+	Intents sessionintent.Values `json:"intents,omitempty"`
 
 	// Parent is the session session.parent stands the target under, by its
 	// name, as Project.Parent names the session that had one opened.

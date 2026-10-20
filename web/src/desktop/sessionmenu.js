@@ -15,6 +15,8 @@ import { CODEX_CLOSE, isCodex, noTurn, shownName } from "../agent.js";
 import { copyId, copyResume, DETACH, detach, detachWhy, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
 import { LOOK_NAMES } from "../screens/chat/look.js";
 import { RenameSheet, takenNames } from "../screens/chat/rename.js";
+import { RoleSheet, roleWhy } from "../screens/chat/role.js";
+import { IntentSheet, intentWhy } from "../screens/chat/intent.js";
 import { useRemote } from "../screens/chat/remote.js";
 import { moveSession, sidesOf, useSwitchWay } from "../screens/chat/switch.js";
 import { useWindow, windowOf } from "../screens/chat/window.js";
@@ -130,6 +132,8 @@ function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lo
                         taken=${takenNames(snapshot)} />
     `);
 
+    // Stop follows the identity settings so optional transport and copy items
+    // cannot push it beyond the menu's digit keys.
     return html`<${MenuList} groups=${[
         [
             html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`,
@@ -138,6 +142,17 @@ function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lo
         ],
         [
             html`<${MenuItem} key="rename" label="Rename…" off=${renameWhy(s, exec)} onPick=${rename} />`,
+            html`<${MenuItem} key="role" label="Role…" off=${roleWhy(exec)}
+                onPick=${() => sheet(LOOK_NAMES.role, (close) => html`
+                    <${RoleSheet} name=${s.session} live=${s} exec=${exec} onDone=${close} />`)} />`,
+            html`<${MenuItem} key="intent" label="Session messages…" off=${intentWhy(exec)}
+                onPick=${() => sheet(LOOK_NAMES.intent, (close) => html`
+                    <${IntentSheet} name=${s.session} exec=${exec} onDone=${close} />`)} />`,
+        ],
+        [
+            s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn"
+                                                     off=${knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop")}
+                                                     onPick=${() => run("session.stop", s.session, {})} />`,
             to && html`<${MenuItem} key="move" label=${to === "console" ? "Move to tmux" : "Move to the stream"}
                                     note=${way.pending ? "asking…" : stops} off=${way.pending ? way.reason : sides.why}
                                     onPick=${() => moveSession({ run, exec, name: s.session, to, lost })} />`,
@@ -150,9 +165,6 @@ function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lo
         ],
         copies(s.sessionId, s.cwd, false, toast),
         [
-            s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn"
-                                                     off=${knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop")}
-                                                     onPick=${() => run("session.stop", s.session, {})} />`,
             html`<${MenuItem} key="restart" label="Restart the session" note=${stops} off=${restartWhy}
                               onPick=${() => run("session.restart", s.session, {})} />`,
             !s.home && html`<${MenuItem} key="close" label="Close the session" note=${stops} off=${closeWhy}

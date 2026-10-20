@@ -91,6 +91,7 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 	}
 
 	home := homeProject(p.Dir, p.Session)
+	home.IntentKey = restartIntentKey(resume, req.Text)
 	if home.Launch, err = goingOnLaunch(home.Launch, resume, req.Text); err != nil {
 		return "", err
 	}
@@ -157,6 +158,7 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 			resume, afresh = "", "; nothing had been said in the conversation, so it started anew"
 		}
 	}
+	next.IntentKey = restartIntentKey(resume, intent)
 	if next.Launch, err = goingOnLaunch(next.Launch, resume, intent); err != nil {
 		return "", err
 	}

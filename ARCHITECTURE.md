@@ -1392,7 +1392,7 @@ The list of actions is closed.
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
 | agents of the host | `codex.update`, `claude.update` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach`, `session.intent` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
@@ -2076,6 +2076,23 @@ server knows no thread before a call. A checklist nobody has sent for thirty day
 swept when a server starts. Nothing makes the model keep it true: a `Stop` hook, where
 the account has it, holds a turn that did work past an unfinished checklist it
 did not touch, once, to ask whether it changed.
+
+**A session can keep its own first and restart messages.** The tools of the
+conversation on the phone and the desktop open the Session messages sheet,
+which shows each override and the inherited text with its project or contour
+source. `session.intent` sets either message independently; an empty text
+removes that override. The executor keeps them under `aacpanel/intents/` in
+the owner's state, with the same account, repository and name key as a role.
+They survive a close, reopen and restart, and follow a rename through the panel.
+The launcher reads the override after choosing the free name and account:
+its own message wins over the project, then the contour; no message anywhere
+means the session waits. An unreadable override leaves the inherited message
+in place and adds a warning to the launch report, so it cannot block a start.
+Opening or resuming uses the first message; a restart
+uses the restart message. A continued conversation with words written by the
+session uses those words first. Switching transport sends no opening message.
+These overrides are edited only in the session sheet, not in `session_open`
+or the project settings.
 
 **The role of a session says which work of its repository is its.** Several
 sessions of one project often run in one directory and on one branch, and

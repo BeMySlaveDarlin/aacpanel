@@ -6,6 +6,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/role"
+	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/stream"
 )
 
@@ -42,6 +43,9 @@ func (e *Executor) sessionRename(ctx context.Context, target, name string) (stri
 	// The role is kept by the name, so it follows the session to the new one.
 	if err := role.Move(role.Dir(), placeOf(s), s.Name, name); err != nil {
 		return fmt.Sprintf("session %s is called %s now; its role stayed under the old name: %v", s.Name, name, err), nil
+	}
+	if err := sessionintent.Move(sessionintent.Dir(), placeOf(s), s.Name, name); err != nil {
+		return fmt.Sprintf("session %s is called %s now; its messages stayed under the old name: %v", s.Name, name, err), nil
 	}
 	return fmt.Sprintf("session %s is called %s now", s.Name, name), nil
 }

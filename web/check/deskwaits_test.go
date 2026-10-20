@@ -227,7 +227,8 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.remote": "",
 		// A role changes nothing in the make-up of the list: the line of the
 		// role follows the next snapshot.
-		"session.role": "",
+		"session.role":   "",
+		"session.intent": "",
 		// A session taken from under its parent stays in the list: it stands
 		// on its own with the next snapshot, and nothing leaves or joins.
 		"session.detach": "",
