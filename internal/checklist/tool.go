@@ -18,20 +18,19 @@ const ToolName = "checklist"
 
 // Instructions is the tool's line in the server's word to every session that
 // has it.
-const Instructions = "Keep work of several steps with the checklist tool, which the person sees " +
-	"in the panel: the whole list, sent before the work, when a step starts or ends and when the plan " +
-	"changes. A short task needs none."
+const Instructions = "For work with several steps, use checklist before starting; update the whole list " +
+	"as steps start, finish or change, and before the report."
 
 // Description is the tool's own word to the model.
-const Description = "The checklist of the current work, shown to the person in the panel on their phone and desk; " +
-	"the terminal does not show it. Send the whole list every time, in order, each step with its status: " +
-	"pending, active (being worked on now; one at a time), done, or dropped (no longer needed, kept for the record). " +
-	"Update it when a step starts or ends and when the checklist changes. Whether to keep a checklist and what makes a step " +
-	"is yours to decide: a question or a one-step task needs none. An empty list clears the checklist; " +
-	"a call without items changes nothing and returns the checklist as it stands. " +
-	"The checklist is this session's and outlives its restart; other sessions in the same directory keep their own. " +
-	"note is an optional short line about the checklist as a whole, such as what it waits on. " +
-	"The checklist belongs to the main conversation: a subagent does not call this."
+const Description = "Keeps this session's work visible in the panel on the person's phone and desk. " +
+	"Call without items to read it; with items, send the whole list in order, at most 40 steps of 200 characters " +
+	"each. Every step has text and status: pending, active (one at a time), done, or dropped (kept for the record). " +
+	"An empty items list clears it. note is optional, at most 300 characters, for what the work waits on. " +
+	"Read an existing checklist before replacing it; send one before work with several steps, update it as " +
+	"steps start, finish or change, and reconcile it before reporting. Continue work after the call; it asks " +
+	"nothing of the person. A question or a one-step task needs none. A checklist records work, not a request " +
+	"for an answer: use the client's question tool for that. It outlives this session's restart; other sessions " +
+	"keep their own. Only the main conversation calls it, never its subagents."
 
 // Tool is the checklist tool of the panel's server, keeping the checklists in
 // dir with the times now gives. It is allowed: a list of steps that asked the

@@ -17,18 +17,19 @@ const SecretAskName = "secret_ask"
 
 // secretInstructions is the tool's line in the server's word to every
 // session; secretDescription is read once the tool is looked up.
-const secretInstructions = "When the work needs a credential — a token, a password, a key — or the person offers " +
-	`one ("I will send the token"; in Russian "скину токен", "дам пароль", "вот доступы"), ask for it with ` +
-	"secret_ask, never in the conversation: the value lands in a file and you get its path."
+const secretInstructions = "For a needed or offered credential, use secret_ask " +
+	`("I will send the token"; "скину токен", "дам пароль", "вот доступы"); use the file path and keep values out of chat.`
 
-const secretDescription = "Asks the person for credentials without the values entering the conversation. " +
-	"The panel shows a card in this conversation and, on their phone or desk, a notepad prefilled with " +
-	"template; they fill it in and save, and the host writes it to a file only its owner reads. A message with " +
-	"the path comes into this session when they save it, possibly much later: do not wait for it, let the turn " +
-	"end. Use the file by its path — --env-file, < file, cp, source, --password-stdin — and never read, cat, " +
-	"grep or print it: whatever is read goes into the transcript. name is the file; the same name replaces the " +
-	"secret, which is how a token is rotated. template is KEY= lines with the values left empty and # comments " +
-	"on where to find each one. A refusal says which argument is wrong; nothing was asked then."
+const secretDescription = "Opens a credential notepad in the panel and calls the phone. The person saves its " +
+	"values to a file only its owner reads; this session receives a message with the path, never the values. " +
+	"Required name is 1-64 characters of a-z, 0-9, '.', '_' or '-', starting with a letter or digit; reusing " +
+	"it replaces that secret. Required title says what is needed in 1-120 characters. Optional template is " +
+	"at most 8192 bytes: empty KEY= lines and # comments on where to find each value. Do not put secrets in " +
+	"any argument, question dialog, brief, notify or conversation. Use the client's question tool for " +
+	"ordinary choices; do not add notify here, the tool calls already. Do not poll or wait in this turn: " +
+	"continue independent work, then let the turn end. Once the path arrives, pass it to --env-file, " +
+	"--password-stdin, input redirection or a file copy; never read, cat, grep or print its contents into " +
+	"the transcript. If the phone call fails the card still waits; invalid arguments create no request."
 
 // The arguments the notepad takes, as the panel holds them.
 const (

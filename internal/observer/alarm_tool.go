@@ -21,32 +21,36 @@ const (
 
 // The alarm tools' lines in the server's word to every session that has them.
 const (
-	AlarmSetInstructions = "To be woken at a moment or every so long — to come back to a task, to look at something " +
-		"again later — set an alarm of the panel with alarm_set: it outlives this turn, and it ends with this session."
-	AlarmListInstructions   = "alarm_list lists the alarms of this session."
-	AlarmCancelInstructions = "alarm_cancel ends an alarm that is no longer needed."
+	AlarmSetInstructions = "Use alarm_set for 'come back in ten minutes' or a repeated check; it wakes this " +
+		"session, not the phone, so end the turn instead of sleeping."
+	AlarmListInstructions   = "Use alarm_list to check scheduled wakes before adding, changing or cancelling one."
+	AlarmCancelInstructions = "Use alarm_cancel when a timed follow-up is no longer needed or before replacing its schedule."
 )
 
 // alarmSetDescription is the tool's own word to the model; busy says when a
 // busy session reads a letter.
 func alarmSetDescription(busy string) string {
-	return "Sets an alarm of the panel: the host keeps it, apart from this session, and wakes this session with a " +
-		"letter from the alarm at a moment — in, a span from now (90s, 10m, 1h30m), or at, a time of the day on " +
-		"the host's clock (23:30, the next to come) or a moment in RFC 3339 — and, with every, again every so long " +
-		"after; every alone rings first one span from now. note is said first in every letter: what to do when " +
-		"woken. A letter is not the person's words; " + busy + " The alarm runs nothing — to wait on a command, " +
-		"start an observer — and outlives a restart of the panel: a ring due while the panel was down comes once " +
-		"it is back, and says it is late. It does not outlive this session: when the session closes or starts " +
-		"again, its alarms end, and a session started again sets its own. A repeat is " + spanWords(EveryMin) +
-		" apart at least, the first ring " + fmt.Sprint(AheadDays) + " days ahead at most, and a session keeps " +
-		fmt.Sprint(AlarmsPerSession) + " alarms. " + wakeTransports
+	return "Schedules a letter to this session, running no command. Give name and either in (90s, 10m, " +
+		"1h30m) or at (the next 23:30 on the host's clock, or RFC 3339 with offset); do not combine in and at. " +
+		"Optional every repeats after that; every alone first rings one interval from now. note says what to " +
+		"do when woken. A repeat is at least " + spanWords(EveryMin) + ", the first ring at most " +
+		fmt.Sprint(AheadDays) + " days ahead; at most " + fmt.Sprint(AlarmsPerSession) + " alarms per session. " +
+		"Check alarm_list before adding one; cancel an existing name before replacing it. Continue independent " +
+		"work or end the turn, without sleeping or polling. For a command's result use observer_start; to call " +
+		"the person use notify. This is a session wake, not a phone reminder. The letter is from the alarm, " +
+		"not the person; " + busy + " It survives a panel restart and delivers an overdue ring on return, " +
+		"but ends when this session closes or restarts. Cancel repeating checks with alarm_cancel when done. " + wakeTransports
 }
 
 // The list's and the cancel's own words to the model.
 var (
-	alarmListDescription = "Lists the alarms of this session: when each rings next, how often it repeats, its " +
-		"note, and how often it has rung. An alarm that rings once is gone once it has rung."
-	alarmCancelDescription = "Cancels an alarm of this session by its name: it rings no more."
+	alarmListDescription = "Call with no arguments to read this session's alarms: names, next rings, repeat " +
+		"intervals, notes and ring counts. Check before adding, replacing or cancelling a schedule. A one-time " +
+		"alarm disappears after ringing. Use observer_list for command watches and alarm_cancel to remove " +
+		"a schedule. This call waits for no ring: continue work or end the turn, without polling."
+	alarmCancelDescription = "Pass name from alarm_list to cancel this session's alarm; it rings no more. " +
+		"Use when the follow-up is no longer needed or before alarm_set replaces its schedule. This stops no " +
+		"command: use observer_stop for a command watch. After success continue work; no wake or reply is needed."
 )
 
 // alarmTools are the three alarm tools. All are allowed: an alarm runs

@@ -83,11 +83,12 @@ const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"prot
 // checklist begins, to the byte: the lead and the checklist's line stand in the
 // system prompt of every session the panel starts, and the lines of the other
 // tools follow.
-const noChecklist = "The person follows this session in the panel, on their phone and desk: " +
-	"these tools reach them there, and the terminal does not show what they do.\n" +
-	"Keep work of several steps with the checklist tool, which the person sees " +
-	"in the panel: the whole list, sent before the work, when a step starts or ends and when the plan " +
-	"changes. A short task needs none."
+const noChecklist = "The person follows this session in the panel, on phone and desk. A blocking question: " +
+	"AskUserQuestion; a phone call: notify; a long read with questions: brief_publish; a credential: secret_ask; " +
+	"another session: send_to_session; a command to watch: observer_start; a time to return: alarm_set. " +
+	"Keep requests for the person's hands explicit; a phone call alone does not state the task.\n" +
+	"For work with several steps, use checklist before starting; update the whole list " +
+	"as steps start, finish or change, and before the report."
 
 // Both flags start the one server: the launcher writes -mcp into the MCP
 // configuration of a session, and a live session whose configuration names

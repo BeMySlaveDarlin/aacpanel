@@ -229,7 +229,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
 	}
-	if lines := strings.Split(said, "\n"); len(lines) != len(names)+1 || lines[0] != lead {
+	if lines := strings.Split(said, "\n"); len(lines) != len(names)+1 || lines[0] != codexLead {
 		t.Errorf("the word is not the lead and a line a tool:\n%s", said)
 	}
 	for _, name := range names {

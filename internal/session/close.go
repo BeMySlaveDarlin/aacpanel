@@ -16,23 +16,22 @@ const CloseName = "session_close"
 
 // CloseInstructions is the tool's line in the server's word to every session
 // that has it.
-const CloseInstructions = "When the person asks this session to close itself " +
-	"(«закройся», «выключись», «закрой сессию») or it was opened for one job — by session_open, say — and " +
-	"the job is done, close it with session_close."
+const CloseInstructions = "Use session_close when asked («закройся», «выключись», «закрой сессию») or a " +
+	"one-job Claude session finishes; name closes a child from session_open, after its report."
 
-const codexCloseInstructions = "Use session_close when the person asks to close this thread, or to close a " +
-	"child you opened. A helper opened by session_open stays open for follow-up turns until its parent or " +
-	"person explicitly asks it to close."
+const codexCloseInstructions = "Use session_close when asked to close this thread or a child from session_open; " +
+	"a Codex helper stays open for follow-ups until its parent or person asks it to close."
 
 // closeRules are what the tool says to a claude session and to a thread of
 // codex alike: whose word a close waits for, and what of the session's work
 // holds it.
 const closeRules = " Without name it closes only this session; with name, only a child this conversation opened " +
-	"through session_open. Close on the person's request or once the one job the session was opened for is done. " +
+	"through session_open. Close when asked or when a one-job Claude session has finished. " +
 	"A Codex helper stays open for follow-up turns until its parent or person explicitly asks it to close. " +
-	"Save the work on disk as the project requires and give the report before closing. A close ends the session's " +
-	"agents, workflows, background commands and observers, so their work holds the close; a wake-up or an alarm counts as no work. " +
-	"Wait until they finish, or tell the person what is at work. anyway ends that work too: only on the person's word."
+	"Save the work and give the report first. Agents, workflows, background commands and observers hold the " +
+	"close: wait for them or report what is running. anyway: true ends that work too, only on the person's word. " +
+	"Alarms do not hold the close but end with the session. Do not close just to await a reply; end the turn. " +
+	"Use session_open to start or resume another conversation. After a child close, this session can continue."
 
 // CloseDescription is the tool's own word to the model.
 const CloseDescription = "Closes this session through the panel, as Close on its screen does, and starts nothing " +
@@ -44,7 +43,7 @@ const CloseDescription = "Closes this session through the panel, as Close on its
 // makes the call — is interrupted, and the panel leaves the thread.
 const codexCloseDescription = "Closes this thread of codex through the panel, as Close on its screen does: the " +
 	"turn the thread runs — the one making this call — is interrupted and the panel leaves the thread; codex " +
-	"resume brings it back." + closeRules + helperCycle
+	"resume brings it back." + closeRules + " After an accepted self-close, do nothing more." + helperCycle
 
 // closeWait is how long the panel's answer is waited for, for the reason the
 // restart waits as long: a close the panel took on the stream is answered

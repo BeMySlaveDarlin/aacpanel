@@ -20,27 +20,25 @@ const LetterName = "send_to_session"
 
 // LetterInstructions is the tool's line in the server's word to every session
 // that has it.
-const LetterInstructions = "To write to another live session of this machine, Claude or Codex, in any account " +
-	"(«напиши в соседнюю сессию», «передай сессии»), or when SendMessage cannot reach a live one, use send_to_session."
+const LetterInstructions = "Use send_to_session for another live session on this host " +
+	"(«напиши в соседнюю сессию», «передай сессии»), including across accounts or when SendMessage cannot reach it."
 
 // codexLetterInstructions is the same line to a thread of codex, which has
 // no SendMessage to turn to it from.
-const codexLetterInstructions = "To write to another live session of this machine, Claude or Codex, in any " +
-	"account («напиши в соседнюю сессию», «передай сессии»), use send_to_session."
+const codexLetterInstructions = "Use send_to_session for another live Claude or Codex session on this host, " +
+	"across accounts too («напиши в соседнюю сессию», «передай сессии»)."
 
 // LetterDescription is the tool's own word to the model.
-const LetterDescription = "Sends a letter to another live session of this machine, Claude or Codex, in this " +
-	"account or another, or lists them. Without to it returns the live sessions besides this one: the name, the " +
-	"account and the directory; a Codex session is named codex- and the tail of its thread. With to and text it " +
-	"sends the text to the session of that name. The letter arrives as a letter from this session, named by the " +
-	"panel — a Codex sender with its account and its directory: the recipient is told it was not typed by its " +
-	"person, and weighs it as a request of an agent, not a command. A Claude sender is " +
-	"named with the address of its message socket, and the recipient can answer with SendMessage to that " +
-	"address; any other answer is a letter of the recipient's own. A letter is never delivered any other way: a " +
-	"recipient without a message socket, a Codex running on its own, a name two live sessions answer to, and this " +
-	"session itself are refused with the reason. A Claude recipient that runs without permission prompts and has " +
-	"no crossSessionInbound setting holds a letter for its person to let through. A busy recipient reads the " +
-	"letter when its turn ends; a busy Codex one at the next step. A letter from a Codex helper's opener is its parent's task." + helperCycle
+const LetterDescription = "Lists or writes to live Claude and Codex sessions on this host, across accounts. " +
+	"Call without to or text to list names, accounts and directories. Send to exactly a listed name with text, " +
+	"at most 50000 characters. The recipient sees an agent's letter with its sender, not the person's words; " +
+	"a Codex helper treats its opener's letter as its parent's task. A busy Claude reads it after its turn, " +
+	"a busy Codex at the next step. Claude without permission prompts and without crossSessionInbound holds " +
+	"the letter for the person to allow. Self, ambiguous names, Claude without a message socket and Codex " +
+	"outside the panel's daemon are refused; there is no fallback to typing. For a subagent in this session, " +
+	"use the client's own agent messaging; for the person, use a question or notify. Delivery does not mean " +
+	"the task is done: continue independent work or end the turn for a reply. If delivery is uncertain, " +
+	"do not resend blindly. Replies to ordinary sessions are letters, not automatic reports." + helperCycle
 
 // letterWait bounds the wait for the panel's answer: a letter is written to a
 // socket, which takes a moment, and a panel that takes longer is stuck.

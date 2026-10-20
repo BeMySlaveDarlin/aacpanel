@@ -28,49 +28,52 @@ const (
 
 // The tools' lines in the server's word to every session that has them.
 const (
-	StartInstructions = "To be woken by a command that runs past this turn — a CI run, a deploy, a log, a long build — " +
-		"start an observer of the panel with observer_start: unlike a background shell or Monitor it has no ceiling " +
-		"on how long it waits, and it ends with this session."
-	ListInstructions = "observer_list lists the observers of this session."
-	StopInstructions = "observer_stop ends an observer that is no longer needed."
-	TailInstructions = "observer_tail reads the last lines an observer's command printed."
+	StartInstructions = "Use observer_start to watch CI, a deploy or logs beyond this turn and wake on output " +
+		"or exit; end the turn instead of polling."
+	ListInstructions = "Use observer_list to check existing watches before starting another or choosing one to stop."
+	StopInstructions = "Use observer_stop when a watch is finished or unwanted; read needed logs first, as stopping deletes them."
+	TailInstructions = "Use observer_tail to inspect a watch's output or diagnose its exit, not to poll for a wake."
 )
 
 // startDescription is the tool's own word to the model; busy says when a
 // busy session reads a letter.
 func startDescription(busy string) string {
-	return "Starts an observer of the panel: the host runs the command in a unit of its own, apart from this " +
-		"session, and wakes this session with a letter from the observer when the command prints a line " +
-		"(wake: line), prints a line the pattern finds (wake: match), or ends (wake: exit) — and when the " +
-		"command ends whatever wake is. Lines that come within gather seconds of the first go in one letter. " +
-		"text is said first in every letter: what to do when woken. A letter is not the person's words; " + busy +
-		" The observer has no ceiling on how long it runs and outlives a restart of the panel, but not this " +
-		"session: when the session closes or starts again, its observers end, and a session started again " +
-		"starts its own. The command runs with sh -c in cwd — this session's directory unless named — with this " +
-		"session's PATH and nothing else of its environment, and its output goes to a log observer_tail reads. " +
-		"It is held to a few hundred megabytes and a twentieth of a core: it is for a command that waits and " +
-		"polls (gh run watch, tail -F with grep, a loop of curl and sleep), not for a build. A session keeps " +
-		fmt.Sprint(PerSession) + " observers at most. " + wakeTransports
+	return "Runs a lightweight watch on the host and sends this session a letter on output or exit. Give name, " +
+		"command (sh -c, at most 4000 bytes) and wake: line, match or exit; match needs pattern in Go regexp " +
+		"syntax. Exit always sends a letter. Optional cwd is absolute or relative to this session's directory; " +
+		"only PATH is inherited. gather groups lines for 1-3600 seconds, default 10; text says what to do when " +
+		"woken. Use a waiting command such as gh run watch or tail -F: limits of a few hundred megabytes and " +
+		"a twentieth of a core exclude builds and heavy jobs; run those separately and watch their result. " +
+		"Use alarm_set for a time, notify to call the person. Continue independent work or end the turn; " +
+		"do not poll. Letters are from the observer, not the person; " + busy +
+		" It survives a panel restart, has no time limit, but ends when this session closes or restarts. " +
+		"At most " + fmt.Sprint(PerSession) + " observers per session; inspect with observer_list or observer_tail, " +
+		"then observer_stop when done. " + wakeTransports
 }
 
 const (
 	claudeBusy     = "on the stream, a busy session reads it once its turn is over."
 	codexBusy      = "a busy thread reads it at the next step of the turn that runs."
 	wakeTransports = "A stream session takes the letter through its holder, a codex thread through its daemon. " +
-		"In tmux the panel types the wake, with its origin, into the composer after reading the pane. " +
-		"An open dialog or an unreadable screen gets no keys: the wake is refused and follows the bounded " +
-		"failed-wake retries. A stream holder that cannot take letters requires a session restart."
+		"In tmux it types the wake with its origin only into a ready composer; a dialog or unreadable screen " +
+		"refuses it, with bounded retries. A stream holder that cannot take letters needs a restart."
 )
 
 // The tools' own words to the model, the start's aside.
 var (
-	listDescription = "Lists the observers of this session: what each runs, what wakes the session, how often " +
-		"it has, and how the command ended where it has. An observer whose command ended stays listed, its " +
-		"log readable, until observer_stop."
-	stopDescription = "Stops an observer of this session by its name: its command is stopped, and its log is " +
-		"gone with it."
-	tailDescription = "Reads the last lines the command of an observer of this session printed, " +
-		fmt.Sprint(TailDefault) + " unless lines names how many, " + fmt.Sprint(TailMax) + " at most."
+	listDescription = "Call with no arguments to list this session's observers: names, commands, wake rules, " +
+		"wake counts and exit results. Check before adding a watch or selecting one to read or stop. Ended " +
+		"commands stay listed with readable logs until observer_stop. Use observer_tail for output, alarm_list " +
+		"for timed wakes. This is a snapshot, not a wait: continue work or end the turn for a letter, without polling."
+	stopDescription = "Pass name from observer_list to stop this session's observer and delete its log, even " +
+		"if the command already ended. Read needed output with observer_tail first. Use when the watch is " +
+		"finished or unwanted, not to pause it: restarting needs observer_start. For a timed wake use " +
+		"alarm_cancel. After success continue work; no reply from the observer is needed."
+	tailDescription = "Pass name from observer_list to read its command's last output lines; optional lines " +
+		"is 1-" + fmt.Sprint(TailMax) + ", default " + fmt.Sprint(TailDefault) + ". It also reports the watch's " +
+		"state and keeps the log. Use after a wake or to diagnose a failed command, then act on the result. " +
+		"Do not poll this tool to wait: the observer sends a letter. Use observer_list for all watches and " +
+		"observer_stop to remove one after reading its output."
 )
 
 // Tools are the observer and alarm tools of the panel's server for a claude

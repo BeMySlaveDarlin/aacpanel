@@ -31,49 +31,44 @@ var rules string
 // publishInstructions is the tool's line in the server's word to every
 // session: the model sees it and the name, so it says when to reach for the
 // tool. publishDescription is read once the tool is looked up.
-const publishInstructions = "When a question does not fit AskUserQuestion — over four questions or options, an " +
-	"option that needs a paragraph, facts the choice rests on — or a finished analysis is worth reading on the " +
-	"phone, publish a brief with brief_publish; also when the person asks for one " +
-	`("send me a brief", "I will answer later"; in Russian "бриф", "опросник", "скинь в панель", "отвечу потом").`
+const publishInstructions = "Use brief_publish for a long read or questions to answer later " +
+	`("send me a brief"; "бриф", "опросник", "скинь в панель", "отвечу потом"); a blocking choice goes to AskUserQuestion.`
 
-const publishDescription = "Publishes a brief to the panel: a long piece the person reads on their phone or desk " +
-	"and walks through — questions with what each rests on, the options and their cost, a place to answer — or " +
-	"a finished piece of reading with no question in it. Before the first brief in a session, call this without " +
-	"doc and read the rules it returns: the fields of the document, how its text reads, the ceilings. " +
-	"With doc, the brief is published under doc.id; the same id from the same project updates it in place " +
-	"and keeps the answers already given. Once the answers are sent the brief is closed and a reissue does not " +
-	"open it again: new questions go into a new brief under a new id. " +
-	"The answers come back later as a message in this session, whenever " +
-	"the person sends them: do not wait for them, let the turn end. check with doc reads the document and says " +
-	"what is in it, publishing nothing. When the work stops until they answer, ask with AskUserQuestion " +
-	"instead. A refusal says why nothing was published; say it in the conversation."
+const publishDescription = "Publishes a document the person reads and answers in the panel at their own pace. " +
+	"Use it for several questions, options needing paragraphs or evidence, or a finished analysis with no " +
+	"questions. Before the first publication, call without doc and read the returned rules for fields and " +
+	"limits. Pass the document as doc; a publication is at most 4 MB and 100 questions. check: true with doc " +
+	"previews its title and question counts without publishing or checking all fields. The same doc.id in " +
+	"the same project updates the brief and keeps its answers. Once answers " +
+	"are sent, a reissue does not open it again: new questions need a new brief under a new id. Answers arrive " +
+	"later as a message: continue independent work or end the turn, never poll or wait for them here. " +
+	"When the work stops until they answer, ask with AskUserQuestion instead. Use secret_ask for credentials; " +
+	"notify only calls the person and carries no answers. Do not bury a long questionnaire in the feed. " +
+	"A refusal means nothing was published; report it in the conversation."
 
 // codexPublishInstructions and codexPublishDescription are the same word to
-// a thread of codex, which has no AskUserQuestion: it asks in the
-// conversation, ending its turn on the question.
-const codexPublishInstructions = "When a question is more than a line of the conversation carries — several " +
-	"questions, an option that needs a paragraph, facts the choice rests on — or a finished analysis is worth " +
-	"reading on the phone, publish a brief with brief_publish; also when the person asks for one " +
-	`("send me a brief", "I will answer later"; in Russian "бриф", "опросник", "скинь в панель", "отвечу потом").`
+// a thread of codex, which has no AskUserQuestion by that name.
+const codexPublishInstructions = "Use brief_publish for a long read or questions to answer later " +
+	`("send me a brief"; "бриф", "опросник", "скинь в панель", "отвечу потом"); use the client's question tool for a blocking choice.`
 
 var codexPublishDescription = strings.Replace(publishDescription, "ask with AskUserQuestion instead",
-	"ask in the conversation instead", 1)
+	"use the client's question tool; if unavailable, ask in the conversation and end the turn", 1)
 
 // codexRules goes before the rules a thread of codex reads: they are written
-// for claude, and the question they weigh a brief against is a dialog codex
-// does not have.
+// for claude, whose question tool has a different name.
 const codexRules = "This session is a thread of codex. Where the rules below name AskUserQuestion, read a " +
-	"question asked in the conversation, the turn ending on it.\n\n"
+	"question through the client's question tool; if unavailable, ask in the conversation and end the turn.\n\n"
 
 // deleteInstructions and deleteDescription are the removal's line and its own
 // word.
-const deleteInstructions = "When the person asks for a brief of this project to go, take it off the panel's " +
-	"shelf with brief_delete."
+const deleteInstructions = "Use brief_delete when the person asks to remove a published brief of this project."
 
-const deleteDescription = "Takes a brief off the panel's shelf by its id, with the answers given to it: " +
-	"published again under the same id, it starts empty. A session removes only the briefs of the directory " +
-	"it works in; a brief from elsewhere is refused with the directory it belongs to. Remove one when the " +
-	"person asks: a brief nobody answered is swept on its own after a month."
+const deleteDescription = "Removes a published brief from the panel's shelf. Pass its id; only briefs of this " +
+	"session's directory can be removed, and a brief from elsewhere is refused. Republishing a removed id " +
+	"starts with no answers. Use only when the person asks to remove it, not to clear an unanswered brief or " +
+	"make it ask again. To revise a brief use brief_publish with the same id; for new questions after answers " +
+	"were sent, publish under a new id. An unanswered brief is swept after a month. After success, report the " +
+	"removal and continue; this call waits for no answer."
 
 // maxBrief is the collector's ceiling on a publication, kept here too: a
 // document over it is refused with the reason rather than cut off in the

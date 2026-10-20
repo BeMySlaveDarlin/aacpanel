@@ -22,8 +22,14 @@ import (
 
 // lead is the server's first sentence to a session: the tools reach the
 // person through the panel, and a line of every tool says when to reach for it.
-const lead = "The person follows this session in the panel, on their phone and desk: " +
-	"these tools reach them there, and the terminal does not show what they do."
+const (
+	leadStart = "The person follows this session in the panel, on phone and desk. A blocking question: "
+	leadWays  = "a phone call: notify; a long read with questions: brief_publish; a credential: secret_ask; " +
+		"another session: send_to_session; a command to watch: observer_start; a time to return: alarm_set. " +
+		"Keep requests for the person's hands explicit; a phone call alone does not state the task."
+	lead      = leadStart + "AskUserQuestion; " + leadWays
+	codexLead = leadStart + "the client's question tool, or ask in the conversation and end the turn if unavailable; " + leadWays
+)
 
 // WordEnv and WordMax lift what claude keeps of a server's word: by default it
 // keeps 2048 UTF-16 units and cuts the rest, and the lines of the last tools
@@ -81,7 +87,7 @@ func codexTools() []mcp.Tool {
 // each call comes from, since one codex holds many threads. Nothing is known
 // of the thread before a call, and the server's word says nothing of it.
 func CodexServer(caller func(meta json.RawMessage) (mcp.Binding, error)) *mcp.Server {
-	return &mcp.Server{Lead: lead, Tools: codexTools(),
+	return &mcp.Server{Lead: codexLead, Tools: codexTools(),
 		Bind: func() (mcp.Binding, error) {
 			return mcp.Binding{}, errors.New("a codex thread is known by its call alone")
 		},

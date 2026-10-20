@@ -16,19 +16,18 @@ const ToolName = "role"
 
 // Instructions is the tool's line in the server's word to every session that
 // has it.
-const Instructions = "Set this session's role with the role tool when the person or the session that opened it " +
-	"gives one, or its work changes for good."
+const Instructions = "At the start, read role and set it if assigned but missing; update it when the person " +
+	"or opener changes this session's lasting responsibility."
 
 // Description is the tool's own word to the model.
-const Description = "The role of this session in its project: a short text that tells it from the other " +
-	"sessions working in the same repository, shown to the person in the panel and told to the session before " +
-	"its first word and again with the prompt after it changes. It is kept by the account, the repository and " +
-	"the session's name, so it " +
-	"outlives a restart, a close and an open under the same name, and a move into a worktree. " +
-	"Without role the call reads it; a text sets it, at most 500 characters; an empty text clears it. " +
-	"Set it when the person or the session that opened this one assigns a role, or when the work of this " +
-	"session changes for good — not for each task. The role belongs to the main conversation: a subagent does " +
-	"not call this."
+const Description = "Reads or sets which work of this repository belongs to this session, shown in the panel " +
+	"and told to the session at its start and with the prompt after a change. Call without role to read it; " +
+	"role with at most 500 characters sets it, and an empty string clears it. At the start, read the role " +
+	"before choosing work from shared notes; set an assigned role if missing, and update it when the person " +
+	"or opener changes the responsibility or the work changes for good. Continue work after the call. " +
+	"Do not replace an assigned role with a task title or progress: use checklist for steps. The role is " +
+	"kept by account, repository and session name, surviving restart, reopen under that name and a move into " +
+	"a worktree. Only the main conversation calls this, never its subagents."
 
 // Tool is the role tool of the panel's server, keeping the roles in dir with
 // the times now gives. It is allowed: a role is the session's word about

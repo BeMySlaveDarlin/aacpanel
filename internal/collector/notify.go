@@ -18,22 +18,19 @@ const NotifyName = "notify"
 // notifyInstructions is the tool's line in the server's word to every
 // session, which says when to call; notifyDescription is read once the tool is
 // looked up and says when not to.
-const notifyInstructions = "When the work is blocked on what only the person can decide and they are away, " +
-	`or they asked to be called ("call me", "ping me"; in Russian "позови меня", "пингани", "дай знать на телефон"), ` +
-	"call them with notify: one line to their phone, not a question."
+const notifyInstructions = "Use notify to call the person for a blocker, urgent failure or an asked-for ping " +
+	`("call me"; "позови меня", "пингани", "дай знать на телефон"); not for progress or a question dialog.`
 
-const notifyDescription = "Calls the person to this session: the line arrives on their phone as a push, and a " +
-	"tap opens this session in the panel. The call stands in the conversation as a card with the line, and the " +
-	"session is marked in the person's lists until they open it. Not a question and not a permission request: " +
-	"nothing waits for an answer, and the turn goes on. Call when the work is blocked on a decision only " +
-	"they can make, when something broke that they would want to know about now, or when they asked to be called " +
-	"when a job finished. Not instead of finishing work that is merely hard, not for progress, and not in place " +
-	"of a question when an answer is what you need and they are there. The line stands on its own, read on a " +
-	"phone with no conversation around it: say what is stuck and why it needs them, not \"need you\". It goes " +
-	"to a device outside this machine: no keys, no tokens, no contents of a private file. One call a minute " +
-	"from a session, 300 characters to a line; the phone already showing this session gets nothing, and a push " +
-	"nobody came for goes stale in a few minutes, while the mark in the lists stays until they open the session. " +
-	"A refusal says why nobody was called; say it in the conversation instead."
+const notifyDescription = "Sends text as a phone push; a tap opens this session. The line also becomes a feed " +
+	"card and marks the session until the person opens it. Give one self-contained line of up to 300 characters: " +
+	"what is blocked or broken and what the person needs to do. One call per session per minute; a device " +
+	"already showing the session gets no push. No secrets or private file contents: the line leaves the host. " +
+	"Call when only the person can unblock work, something needs their attention now, or they asked for a ping " +
+	"when a job finishes. Put the actual question or instructions in the conversation or a brief first. " +
+	"For an answer, use the client's question tool; question and permission dialogs already call the person, " +
+	"so do not add notify. Use secret_ask for credentials, brief_publish for a long read. Do not call for " +
+	"routine progress or instead of work you can finish. This tool waits for no reply: continue independent " +
+	"work, or end the turn if blocked. A refusal means nobody was called; report it in the conversation."
 
 // maxCall is the length of a line the collector keeps. The rest is cut here
 // rather than there: the collector reads a call in one short read, and a line

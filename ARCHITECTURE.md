@@ -2029,7 +2029,14 @@ place, `internal/toolset`: the executor serves it and the launcher takes the
 allowed names from it, so a session is never allowed a tool the server does not
 have. The server's word to a session — in its system prompt — is a lead and a
 line from every tool, since a tool of a server is often deferred and its
-description unread. Claude keeps 2048 UTF-16 units of that word by default
+description unread. The lead routes a blocking question to the client's question
+tool, a phone call to `notify`, a long read to `brief_publish`, a credential to
+`secret_ask`, a letter to `send_to_session`, a command watch to `observer_start`
+and a timed return to `alarm_set`. Requests for the person's hands state the task
+in the conversation or brief; a call only brings them there. Each tool's line
+says when to reach for it; its description gives the arguments, limits, alternatives
+and whether to continue work or end the turn. Question and permission dialogs
+already call the person, so they need no extra `notify`. Claude keeps 2048 UTF-16 units of that word by default
 and cuts the rest mid-sentence. The launcher lifts the ceiling to 6656 with
 `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the environment of every session
 it hands the tools; claude holds the description of every tool of every
@@ -2069,8 +2076,9 @@ phone got; the answer only says whether anyone was called.
 
 **The checklist of a session is the model's own, kept by a tool of the
 panel.** The tool is `checklist` on the panel's server, allowed, so an update
-never waits on a person. The model decides whether to keep a checklist and
-what a step is, and sends the whole list each time. The checklist belongs to
+never waits on a person. The model keeps a checklist for work with several steps,
+sends the whole list before starting and as steps change, and reconciles it before
+reporting; a question or a one-step task needs none. The checklist belongs to
 the session, not to its conversation: the config directory of the account, the
 directory claude runs in and the name the session runs under. A session
 started again under its name — afresh, or going on with its conversation under
@@ -2242,8 +2250,9 @@ the call, is interrupted and the panel leaves the thread — and a call that
 names no thread the codex holds is refused by every one of them. The restart
 is claude's — the daemon keeps the thread, and the panel refuses it. A new
 session asks for confirmation as a Claude session's open does. The server's
-word to codex names only what it has: a brief is weighed against a question asked in the conversation, since
-codex has no dialog of claude's, and the letter is not offered as the way past
+word to codex names only what it has: a blocking choice goes through the client's
+question tool when available, otherwise into the conversation with the turn ending
+on it. A brief carries questions to answer later, and the letter is not offered as the way past
 a `SendMessage` it does not have. Codex writes a call of an MCP tool and its
 answer as one item of the rollout, and the feed draws the card of a brief or a
 secret from that item; a secret saved for a thread reaches it as a message of

@@ -16,25 +16,22 @@ const RestartName = "session_restart"
 
 // RestartInstructions is the tool's line in the server's word to every
 // session that has it.
-const RestartInstructions = "When the person asks to restart this session (“restart yourself”, " +
-	"«перезапустись», «перезапусти сессию») or a change to settings, a hook, CLAUDE.md or an MCP server " +
-	"needs a new start, restart it with session_restart; continue only if they ask to keep the conversation."
+const RestartInstructions = "Use session_restart for an asked-for restart («перезапустись», «перезапусти сессию») " +
+	"or a change needing a fresh start; continue only if asked to keep the conversation."
 
 // RestartDescription is the tool's own word to the model.
-const RestartDescription = "Restarts this session through the panel, as its project from the map: the same " +
-	"directory and account, the same launch parameters — tmux or the stream, the model — and the map's " +
-	"message after a restart as its first. It restarts only this session: never a service, a container or " +
-	"another session. Without continue the new session starts with an empty context, and that is the restart " +
-	"the person means when they ask for one: put the state of the work on disk first, the way the project " +
-	"keeps it — its finalize skill if it has one, otherwise notes, where the work stands, a commit. With continue it goes on with this conversation: only when the person asks to keep " +
-	"the conversation, never to spare the notes, and with intent, your message to yourself of what you were doing and " +
-	"the next step: it comes first in the resumed conversation, and without it nothing is restarted. " +
-	"The session is closed right after the call, a session on the stream at the end of the " +
-	"current turn: once the panel has taken the restart, end the turn and do nothing more. A restart ends everything the session runs — its agents, workflows, " +
-	"background commands and observers — so while any of them is at work nothing is restarted and the call says what " +
-	"is at work; a wake-up or an alarm the session set runs nothing and does not count. A restart you started on your " +
-	"own: end the turn and restart once that work is done. A restart the person asked for: tell them what " +
-	"is at work. anyway restarts all the same and ends that work: only on the person's word."
+const RestartDescription = "Restarts only this session through the panel with its project's directory, account " +
+	"and launch settings. Use when asked, or when settings, hooks, CLAUDE.md, an MCP server or the context cap " +
+	"require a new start. With no arguments it starts an empty context with the restart message. Save the work " +
+	"on disk first as the project requires: its finalize skill if it has one, otherwise notes of the work and " +
+	"next step. continue: true is only for an explicit request to keep the conversation, never to spare notes; " +
+	"it requires intent, a message to yourself of at most 500 characters with the work and next step. intent " +
+	"is accepted only with continue and arrives first in the resumed conversation. Active agents, workflows, " +
+	"background commands or observers block the restart; wait for them to finish, or tell the person what is " +
+	"running if they asked for the restart. anyway: true ends that work too, only on the person's word. Alarms " +
+	"do not block a restart but end with this session. Use session_close to finish without a replacement; this " +
+	"tool never restarts a service, container or another session. Once accepted, end the turn and do nothing " +
+	"more: a stream session closes at that point."
 
 // restartWait is how long the panel's answer is waited for. A refusal comes
 // at once. A restart the panel took is answered only once the session is

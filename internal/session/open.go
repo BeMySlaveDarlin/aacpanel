@@ -20,9 +20,8 @@ const OpenName = "session_open"
 
 // OpenInstructions is the tool's line in the server's word to every session
 // that has it.
-const OpenInstructions = "When the person asks for a new session («открой сессию в …», «подними сессию»), " +
-	"and only then, use session_open; its resume brings a closed conversation back, under this session when it is " +
-	"of this project."
+const OpenInstructions = "Use session_open only when asked for a new session or a resumed conversation " +
+	"(«открой сессию в …», «подними сессию»); send its task with send_to_session after it opens."
 
 // helperCycle is shared by the three tools so each names the whole channel.
 const helperCycle = " Open with agent codex, then send the task with send_to_session: its last message comes back " +
@@ -40,18 +39,18 @@ const (
 // work of the repository is its, told to it before its first word.
 const openRole = " role, at most 500 characters, is told to the Claude session as its role in its project."
 
-const openDescription = "Opens a session in dir: a project of the map, a directory inside it or a worktree of it; " +
-	"a directory outside the map is not opened. With resume, the id of a closed Claude conversation, it goes on " +
-	"with that conversation where it ran, under the caller by the same one-project rule and under the name it had " +
-	"unless name is given; dir is then optional and must be of the same project. The account and launch come " +
-	"from the map, with agent and Codex model, effort, sandbox and writableRoots overriding this start alone. " +
-	"A Codex helper lives in the daemon, with no first message, approvalPolicy never, and workspace-write with " +
-	"network on unless read-only is chosen. " +
-	"Extra writable roots are absolute host paths; no host-specific caches are added implicitly. Only on the " +
-	"person's word: opening spends the account's limits. Tell the person its name and account. The tool takes " +
-	"no task text: send the parent's task as a letter immediately after a Codex open returns; for Claude wait " +
-	"until it appears in send_to_session's list. Reports reach a live Claude parent on the stream or a Codex " +
-	"parent in the daemon; a tmux or gone parent gets none. Long reports arrive as a readable file path."
+const openDescription = "Opens only on the person's request: another session spends its account's limits. " +
+	"Give absolute dir in a mapped project or its worktree; outside the map it is not opened. Optional name " +
+	"overrides the map's; a busy name gets a free one. To resume a closed Claude conversation, give resume, " +
+	"its id; dir may be omitted or belong to that project, and agent and Codex options are forbidden. A " +
+	"same-project session opens under the caller. Account and launch come from the map; agent and Codex " +
+	"model, effort, sandbox and writableRoots override this start only. Codex uses approvalPolicy never, " +
+	"workspace-write with network on unless read-only is chosen; writableRoots adds absolute paths only " +
+	"with workspace-write. For an existing session use send_to_session, for an internal subagent use the " +
+	"client's agent tools. Tell the person the returned name and account, then send the task: immediately " +
+	"for Codex, after Claude appears in send_to_session's list. If the outcome is unknown, check that list " +
+	"before retrying. Continue independent work or end the turn for the report. Reports reach a live stream " +
+	"or daemon parent; tmux or gone parents get none. Long reports arrive as file paths."
 
 // openWait bounds the wait for the panel's answer. The panel answers once the
 // claude of the new session is up: the launcher waits a quarter of a minute
