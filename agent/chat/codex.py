@@ -31,7 +31,7 @@ import held
 
 from .harness import COMPACTED, STOPPED
 from .cards import (BRIEF_TOOL, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT, NOTIFY_TOOL, SECRET_TOOL,
-                    brief_card, call_card, secret_call, secret_card)
+                    brief_card, call_card, secret_call, secret_card, REQUEST_TOOL, request_card)
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
 from .mail import LETTER_TOOL, mails, peer_name, undelivered
 from .tools import one_line, tool_arg, tool_kind, tool_label
@@ -483,7 +483,9 @@ def _mcp_call(item, use, at, pos, shelf=None):
         return []
     args = _mcp_args(item)
     card = None
-    if name == SECRET_TOOL:
+    if name == REQUEST_TOOL:
+        card = request_card(_mcp_said(item), args, use, at, pos)
+    elif name == SECRET_TOOL:
         card = secret_card(_mcp_said(item), secret_call(args), use, at, pos)
     elif name == BRIEF_TOOL:
         card = brief_card(_mcp_said(item), "tool", shelf, use, at, pos)

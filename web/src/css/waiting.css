@@ -1,0 +1,28 @@
+/* A request is read and answered where the session left it in the feed. */
+.waitingmark { gap: .25rem; font-variant-numeric: tabular-nums; }
+.mrequest.blocking { border-left: 2px solid var(--wait); }
+.mrequest.blocking .sentico, .requestblocking { color: var(--wait); }
+.requesttitle { margin: .2rem 0; font-size: var(--t-base); font-weight: 600; }
+.requeststeps { min-width: 0; }
+.requeststeps > :first-child { margin-top: 0; }
+.requeststeps > :last-child { margin-bottom: 0; }
+.requestnote { display: grid; gap: .35rem; color: var(--ink-dim); font-size: var(--t-sm); }
+.requestnote textarea { width: 100%; min-height: 48px; resize: vertical; background: var(--surface); border: var(--hair) solid var(--line); border-radius: var(--r-small); padding: .5rem .6rem; font: inherit; color: var(--ink); }
+.requestanswer { margin-top: .3rem; }
+.requestanswer .btn { min-height: 44px; }
+.requeststate { margin: .2rem 0; color: var(--ink-dim); font-size: var(--t-sm); }
+.requestreply { white-space: pre-wrap; color: var(--ink-dim); font-size: var(--t-md); }
+.waitingqueue { flex: none; margin: .4rem 0; border: var(--hair) solid color-mix(in srgb, var(--wait) 35%, transparent); border-radius: var(--r-card); background: var(--strip-bg); overflow: hidden; }
+.waitinghead, .waitingitem { display: flex; align-items: center; width: 100%; gap: .55rem; min-height: 44px; border: 0; padding: .5rem .65rem; background: none; font: inherit; text-align: left; cursor: pointer; }
+.waitinghead { color: var(--wait); font-size: var(--t-sm); font-weight: 600; }
+.waitinghead svg, .waitingitem > svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
+.waitingchev { margin-left: auto; display: flex; transform: rotate(90deg); }
+.waitingchev.on { transform: rotate(-90deg); }
+.waitingitems { max-height: min(30dvh, 16rem); overflow-y: auto; overscroll-behavior: contain; }
+.waitingitem { color: var(--ink); border-top: var(--hair) solid var(--line); }
+.waitingitem:disabled { cursor: default; opacity: .6; }
+.waitingitem > span { min-width: 0; flex: 1; }
+.waitingitem b { display: block; overflow-wrap: anywhere; font-weight: 500; font-size: var(--t-sm); }
+.waitingitem small { display: block; color: var(--ink-faint); font-size: var(--t-xs); }
+.waitingitem > svg { color: var(--ink-faint); }
+.feedrow.waitingtarget { outline: 1px solid var(--wait); outline-offset: 3px; border-radius: var(--r-card); }

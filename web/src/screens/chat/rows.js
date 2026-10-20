@@ -19,6 +19,7 @@ import { bare } from "./feed.js";
 import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
+import { RequestCard } from "./request.js";
 import { savedAfter } from "../../data/secrets.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
@@ -36,7 +37,7 @@ export const FeedWrites = createContext(null);
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret }) {
+export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, requests, requestError, requestUnavailable, onRequestAnswer }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -84,6 +85,10 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         return html`<${PageCard} item=${item} copy=${copies && copies.of(item)} onOpen=${onPage} />`;
     }
 
+    if (item.role === "request") {
+        return html`<${RequestCard} item=${item} record=${requests && requests[item.id]} error=${requestError}
+                                  onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} />`;
+    }
     if (item.role === "brief") {
         const card = (briefs || []).find((c) => c.id === item.id) || null;
         return html`<${BriefDoc} item=${item} card=${card} onOpen=${onBrief} />`;

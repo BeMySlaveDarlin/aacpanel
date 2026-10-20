@@ -1,0 +1,137 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { LiveLine } from "/src/screens/sessions/blocks.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { quiet, counted } from "/check/fixtures/quiet.js";
+
+const until = async (ready) => {
+    const deadline = performance.now() + 5000;
+    while (!ready() && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+    if (!ready()) throw new Error("The waiting UI did not become ready");
+};
+const wide = innerWidth >= 1100;
+const id = "01234567-1234-4321-aaaa-123456789012";
+const requestID = "a".repeat(32);
+const at = new Date(Date.now() - 10000).toISOString();
+let record = { id: requestID, title: "Restart the router", steps: "Run this from the laptop:\n```sh\nssh root@192.168.1.1 reboot\n```\nWait for Wi-Fi to return.", blocking: true, created: at };
+const candidates = [
+    { kind: "request", id: requestID, title: record.title, at, pos: 10, blocking: true },
+    { kind: "brief", id: "rotation", title: "Token rotation", at, pos: 11 },
+    { kind: "secret", id: "release.env", title: "Release token", at, pos: 12 },
+    { kind: "call", title: "CI needs your choice", at, pos: 13 },
+    { kind: "asked", title: "A blocking question", at, pos: 14 },
+    { kind: "permit", title: "Permission", at, pos: 15 },
+];
+const session = { session: "work", sessionId: id, cwd: "/srv/proj", profile: "personal", status: "idle", transport: "stream", called: at, waiting: candidates, model: "claude-opus-4-6", pct: 12 };
+const snapshot = { at: 1, sessions: [session], profileMap: [] };
+const exec = { available: true, kinds: ["session.send", "secret.put"] };
+const old = [
+    { role: "request", id: requestID, title: record.title, steps: record.steps, blocking: true, pos: 10, at },
+    { role: "brief", id: "rotation", title: "Token rotation", questions: 6, pos: 11, at },
+    { role: "secret", title: "Release token", name: "release.env", pos: 12, at },
+    { role: "call", text: "CI needs your choice", pos: 13, at },
+];
+const tail = Array.from({ length: 40 }, (_, i) => ({ role: "ai", pos: 1000 + i, text: `Later answer ${i}: the session kept working on the independent part of its task.`, at }));
+const all = [...old, ...tail];
+const sent = [];
+const windows = [];
+let refuse = true;
+const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (input, options) => {
+    const url = new URL(String(input), location.href);
+    if (url.pathname === "/api/chat") {
+        const p = url.searchParams;
+        let items = tail;
+        if (p.has("before")) { windows.push("before"); items = all.filter(i => i.pos < Number(p.get("before"))).slice(-Number(p.get("limit"))); }
+        if (p.has("after")) { windows.push("after"); items = all.filter(i => i.pos > Number(p.get("after"))).slice(0, Number(p.get("limit"))); }
+        return json({ items, first: items[0]?.pos, last: items.at(-1)?.pos, total: items.length, moreBefore: !p.has("before"), state: null });
+    }
+    if (url.pathname === "/api/requests") return json({ requests: [record] });
+    if (url.pathname === "/api/briefs") return json({ briefs: [{ id: "rotation", sessionId: id, cwd: session.cwd, title: "Token rotation", questions: 6 }] });
+    if (url.pathname === "/api/secrets") return json({ secrets: [] });
+    if (url.pathname === "/api/actions") {
+        const body = JSON.parse(options.body);
+        sent.push(body);
+        if (refuse) return json({ error: "Delivery refused" }, 502);
+        record = { ...record, answer: body.params.answer, note: body.params.note, answered: new Date().toISOString() };
+        return json({ ok: true, detail: "queued" });
+    }
+    if (url.pathname === "/api/sessions/archive") return json({ archive: { rows: [] } });
+    if (url.pathname.startsWith("/api/term")) return json({ available: false });
+    if (url.pathname.startsWith("/api/session/window")) return json({ state: "none" });
+    if (url.pathname.startsWith("/api/session/")) return json({ to: "" });
+    return json({});
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() { this.readyState = 2; } };
+
+let back;
+function App() {
+    const [opened, setOpened] = useState(false);
+    back = () => setOpened(false);
+    const chat = opened && html`<${Chat} name="work" id=${id} live=${session} snapshot=${snapshot} exec=${exec} onBack=${back} onUsage=${() => {}} />`;
+    return wide ? html`<div class="deskshell"><div class="dkbody"><${SessionColumn} snapshot=${snapshot} exec=${exec} limits=${{}} picks=${[]} setPicks=${() => {}}
+        current=${opened ? "work" : ""} onPick=${() => setOpened(true)} /><section class="dkcenter dkchat">${chat}</section></div></div>`
+        : html`<div class="shell no-nav"><main class="body">${opened ? chat : html`<div class="pjblock"><${LiveLine} session=${session} exec=${exec} onOpen=${() => setOpened(true)} /></div>`}</main></div>`;
+}
+const mark = () => document.querySelector(".waitingmark");
+const queue = () => document.querySelector(".waitingqueue");
+const queueCount = () => Number(document.querySelector(".waitinghead")?.textContent.match(/·\s*(\d+)/)?.[1] || 0);
+const pick = async (title) => {
+    const head = document.querySelector(".waitinghead");
+    if (head.getAttribute("aria-expanded") !== "true") { head.click(); await quiet(); }
+    [...document.querySelectorAll(".waitingitem")].find(b => b.textContent.includes(title)).click();
+    await quiet();
+};
+window.done = (async () => {
+    render(html`<${ToastHost}><${GateHost}><${App} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
+    await document.fonts.ready;
+    await quiet();
+    const out = { wide, countBefore: Number(mark()?.dataset.waitingCount || 0) };
+    mark().click();
+    await until(() => queue() && document.querySelector(".feedrow"));
+    await quiet();
+    out.opened = Boolean(queue() && document.querySelector(".composer"));
+    out.countAfterOpening = queueCount();
+    out.callGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes("CI needs"));
+    await pick("Restart the router");
+    const card = document.querySelector(".mrequest");
+    out.loadedOlderWindow = windows.includes("before") && windows.includes("after");
+    out.requestHighlighted = Boolean(card?.closest(".waitingtarget"));
+    out.collapsedOnPick = document.querySelector(".waitinghead").getAttribute("aria-expanded") === "false";
+    out.commandCopies = Boolean(card?.querySelector(".mdcopy"));
+    out.requestVisible = card.getBoundingClientRect().top >= document.querySelector(".chatfeed").getBoundingClientRect().top - 1;
+    for (const [title, kind] of [["Token rotation", "brief"], ["Release token", "secret"]]) {
+        await pick(title);
+        out[kind + "Highlighted"] = Boolean(document.querySelector(`.r-${kind}.waitingtarget`));
+    }
+    await pick("Restart the router");
+    const field = card.querySelector("textarea");
+    field.value = "Wi-Fi is back.";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+    card.querySelector(".requestanswer .primary").click();
+    await quiet();
+    out.failureKeepsTask = queueCount() === 3 && Boolean(card.querySelector(".requestanswer")) && field.value === "Wi-Fi is back.";
+    refuse = false;
+    card.querySelector(".requestanswer .primary").click();
+    await quiet();
+    out.sent = sent.at(-1);
+    out.countAfterAnswer = queueCount();
+    out.answerVisible = card.querySelector(".requeststate")?.textContent === "Done" && card.querySelector(".requestreply")?.textContent === "Wi-Fi is back.";
+    out.horizontalOverflow = document.documentElement.scrollWidth > innerWidth;
+    back();
+    await quiet();
+    out.countBackInList = Number(mark()?.dataset.waitingCount || 0);
+    return out;
+})();
+</script>

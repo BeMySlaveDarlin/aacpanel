@@ -51,6 +51,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__brief_delete",
 		"mcp__aacpanel__notify",
 		"mcp__aacpanel__secret_ask",
+		"mcp__aacpanel__request",
 		"mcp__aacpanel__session_restart",
 		"mcp__aacpanel__session_close",
 		"mcp__aacpanel__observer_list",
@@ -69,10 +70,49 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
+	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
+	}
+}
+
+func TestRequestsOfBothAgentsCarryTheirBoundConversation(t *testing.T) {
+	var conversations []string
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Conversation string `json:"conversation"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		conversations = append(conversations, body.Conversation)
+		json.NewEncoder(w).Encode(map[string]string{"id": strings.Repeat("a", 32)})
+	}))
+	defer panel.Close()
+	t.Setenv("AACP_PANEL_URL", panel.URL)
+	here := mcp.Binding{SessionID: "567f4d24-cd5f-48fa-bdc1-04c89d203494", Name: "work"}
+	for _, test := range []struct {
+		server     *mcp.Server
+		meta, want string
+	}{
+		{Server(func() (mcp.Binding, error) { return here, nil }), "", here.SessionID},
+		{CodexServer(codexCaller), `{"threadId":"` + codexThread + `"}`, codexThread},
+	} {
+		replies := exchange(t, test.server, toolCall(1, "request", `{"title":"Sign in","steps":"Open the browser","blocking":false}`, test.meta))
+		result, _ := replies[1]["result"].(map[string]any)
+		if result == nil || result["isError"] == true {
+			t.Fatalf("request failed: %v", replies)
+		}
+		if len(conversations) == 0 || conversations[len(conversations)-1] != test.want {
+			t.Fatalf("request caller: %v, want %s", conversations, test.want)
+		}
+	}
+	before := len(conversations)
+	replies := exchange(t, CodexServer(codexCaller), toolCall(1, "request", `{"title":"Sign in","steps":"Open the browser","blocking":false}`, ""))
+	result, _ := replies[1]["result"].(map[string]any)
+	if result == nil || result["isError"] != true || len(conversations) != before {
+		t.Fatal("an unbound codex requested a task")
 	}
 }
 
@@ -224,7 +264,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close", "session_open",
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
@@ -446,6 +486,7 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 		t.Fatalf("the word does not carry the role of the session whole: %q", said)
 	}
 	// Claude counts the word as JavaScript counts a string, in UTF-16 units.
+	t.Logf("server word: %d UTF-16 units", len(utf16.Encode([]rune(said))))
 	if n := len(utf16.Encode([]rune(said))); n > WordMax {
 		t.Errorf("the server's word is %d units, claude keeps %d:\n%s", n, WordMax, said)
 	}

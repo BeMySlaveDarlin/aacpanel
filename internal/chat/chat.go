@@ -61,6 +61,9 @@ type Item struct {
 	// A card of a secret asked for: the notepad the person starts from. The
 	// secret is named in Name and said in Title.
 	Template string `json:"template,omitempty"`
+	// A task for the person's hands, with the steps the model wrote.
+	Steps    string `json:"steps,omitempty"`
+	Blocking bool   `json:"blocking,omitempty"`
 	// A card of permissions: each call a person was asked about and the answer.
 	Rows  []Permitted `json:"rows,omitempty"`
 	Files []FileRef   `json:"files,omitempty"`
@@ -531,18 +534,20 @@ type WorkPhase struct {
 
 // Reply is a window of the feed and its bounds.
 type Reply struct {
-	OK         bool   `json:"ok"`
-	Error      string `json:"error,omitempty"`
-	Session    string `json:"session,omitempty"`
-	Subagent   string `json:"subagent,omitempty"`
-	Items      []Item `json:"items"`
-	Total      int    `json:"total"`
-	MoreBefore bool   `json:"moreBefore"`
-	First      *int64 `json:"first"`
-	Last       *int64 `json:"last"`
-	Size       int64  `json:"size,omitempty"`
-	Media      string `json:"media,omitempty"`
-	Data       string `json:"data,omitempty"`
+	// Waiting carries only the anchors and titles of cards that can need the person.
+	Waiting    map[string][]Item `json:"waiting,omitempty"`
+	OK         bool              `json:"ok"`
+	Error      string            `json:"error,omitempty"`
+	Session    string            `json:"session,omitempty"`
+	Subagent   string            `json:"subagent,omitempty"`
+	Items      []Item            `json:"items"`
+	Total      int               `json:"total"`
+	MoreBefore bool              `json:"moreBefore"`
+	First      *int64            `json:"first"`
+	Last       *int64            `json:"last"`
+	Size       int64             `json:"size,omitempty"`
+	Media      string            `json:"media,omitempty"`
+	Data       string            `json:"data,omitempty"`
 	Call
 	Archive *ArchivePage `json:"archive,omitempty"`
 	Briefs  []BriefCard  `json:"briefs,omitempty"`
@@ -617,6 +622,7 @@ type Call struct {
 
 // Req is what is asked of the agent.
 type Req struct {
+	Waiting   []string    `json:"waiting,omitempty"`
 	Session   string      `json:"session"`
 	Limit     int         `json:"limit,omitempty"`
 	Before    *int64      `json:"before,omitempty"`

@@ -188,7 +188,10 @@ function saved(id) {
 }
 
 // deliver sends a message into a session, with files or without them.
-export function deliver(run, name, { text, files, messageId }) {
+export function deliver(run, name, { text, files, messageId, request, answer, note }) {
+    // The service builds a request reply from its stored title, so the browser
+    // sends the answer instead of another copy of that message template.
+    if (request) return run("session.send", name, { request, answer, note });
     const pack = files || [];
     return pack.length
         ? run("session.file", name, {

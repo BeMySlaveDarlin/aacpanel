@@ -347,6 +347,38 @@ thread of the collector held by the waiting request and a fresh request every
 few seconds while nobody calls. Whether the phone is looking at that session is
 still asked when the push is sent.
 
+**Tasks for the person's hands.** `request` reaches the local listener named
+by `AACP_PANEL_URL`, for Claude and Codex alike. Its caller supplies the
+conversation through the MCP binding; the service finds its live session
+name in the snapshot. The public listener cannot create or withdraw these
+tasks. The title (120 characters), Markdown steps (2000 characters), blocking
+flag and lifecycle live in `session_requests`. This short, explicit task is
+kept by the service; the transcript remains on the host. An agent can withdraw
+only its own open request. Every new request pushes with its title, regardless
+of push preferences; delivery skips devices already showing that session.
+
+The counter in both session lists opens the conversation. Its collapsible
+queue over the composer holds open requests, the unseen call, briefs with
+questions whose answers have not been sent, and secrets not saved after they
+were asked for. Questions and permission prompts keep their own docks and do
+not enter this count. Opening the session settles its call through
+`session_calls`, on every device, and none of the other items. The service
+adds this summary to the host snapshot: the collector supplies card anchors,
+the database supplies request and brief state, and the executor supplies secret
+file times. The collector indexes only these cards and reads new transcript
+records after the first listing; it keeps no second copy of the whole feed.
+
+A queue item opens the feed window around its card and collapses the queue to
+leave room to read. The request card renders its Markdown with the feed's copy
+buttons and sends Done or Can't with an optional note through the same action
+gate as the composer. `session.send` accepts a request id and answer; the service
+builds the message from the stored title and the person's answer, checks its
+conversation, and locks the row while the executor accepts the message. Only
+then is it marked answered. A failed send leaves it open. A retry keeps the
+message id for transports whose queues know it. A database failure after delivery
+is reported as delivered but not marked, rather than inviting a blind resend. There is
+no new executor action or host right.
+
 **The notepad of secrets.** A session that needs a credential — a token, a
 password, the env file of a database — asks the person for it with
 `secret_ask`, not in the conversation, where the value would settle in the
@@ -2031,9 +2063,10 @@ have. The server's word to a session — in its system prompt — is a lead and 
 line from every tool, since a tool of a server is often deferred and its
 description unread. The lead routes a blocking question to the client's question
 tool, a phone call to `notify`, a long read to `brief_publish`, a credential to
-`secret_ask`, a letter to `send_to_session`, a command watch to `observer_start`
-and a timed return to `alarm_set`. Requests for the person's hands state the task
-in the conversation or brief; a call only brings them there. Each tool's line
+`secret_ask`, a task for the person's hands to `request`, a letter to
+`send_to_session`, a command watch to `observer_start` and a timed return to
+`alarm_set`. A blocking request ends the turn until the person's answer arrives;
+a nonblocking one leaves the agent free to continue independent work. Each tool's line
 says when to reach for it; its description gives the arguments, limits, alternatives
 and whether to continue work or end the turn. Question and permission dialogs
 already call the person, so they need no extra `notify`. Claude keeps 2048 UTF-16 units of that word by default
@@ -2052,7 +2085,7 @@ MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries
 the brief — `brief_publish`, whose call without a document returns the rules of
 writing one, and `brief_delete` — the call to the person, `notify`, and the
-notepad of secrets, `secret_ask`. The machine's brief guide is edited in
+notepad of secrets, `secret_ask`, and tasks for the person, `request`. The machine's brief guide is edited in
 Settings → Briefs and kept in the database after a one-time import of
 `aacpanel/brief-guide.md` from the user's configuration directory through the
 collector; each call without a document reads it from the local panel within

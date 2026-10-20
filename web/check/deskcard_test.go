@@ -555,7 +555,7 @@ func TestDeskRowRingsUntilTheSessionIsOpened(t *testing.T) {
 	if len(got.Bells) != 1 || !ok {
 		t.Fatalf("the rows ringing are %v, wanted the one session that called", got.Bells)
 	}
-	if tip != "called you · 3 min ago" {
+	if tip != "1 waiting for you: call: Called you · 3 min ago" {
 		t.Errorf("the bell says %q, wanted when the session called", tip)
 	}
 	if len(got.BellsVisited) != 0 {

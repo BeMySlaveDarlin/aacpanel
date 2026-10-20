@@ -7,6 +7,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
+import { list as requestList } from "../../data/requests.js";
+import { settleWaiting, useWaiting } from "../../waiting.js";
+import { REQUEST_HELD, revealWaiting, WaitingQueue } from "./request.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -103,6 +106,21 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // of one: the card says when its file was saved, the notepad what it
     // would replace.
     const [secrets, setSecrets] = useState(null);
+    const [requests, setRequests] = useState({});
+    const [requestError, setRequestError] = useState("");
+    const waitingItems = useWaiting(live, true);
+    const requestCards = [...state.items, ...(away ? shown : [])].filter((item) => item.role === "request").map((item) => item.id).join("|");
+    useEffect(() => {
+        if (!id || (!requestCards && !(live && live.waiting || []).some((item) => item.kind === "request"))) return;
+        let active = true;
+        requestList(id).then((list) => {
+            if (!active) return;
+            setRequests(Object.fromEntries(list.map((row) => [row.id, row])));
+            setRequestError("");
+            for (const row of list) if (row.answered || row.withdrawn) settleWaiting(live, "request", row.id);
+        }).catch((err) => { if (active) setRequestError(String(err.message || err)); });
+        return () => { active = false; };
+    }, [id, requestCards, live && live.waiting]);
     const [local, setLocal] = useState([]);
     const [taken, setTaken] = useState(new Set());
     const [, redraw] = useState(0);
@@ -112,6 +130,17 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         redraw((n) => n + 1);
     };
     const run = useAction();
+    const answerRequest = async (request, answer, note) => {
+        const result = await deliver(run, name, { request, answer, note });
+        if (!result.ok) return;
+        setRequests((was) => ({ ...was, [request]: { ...was[request], answered: new Date().toISOString(), answer, note } }));
+        settleWaiting(live, "request", request);
+    };
+    const pickWaiting = async (item) => {
+        try {
+            if (!await revealWaiting(item, show, feedRef.current)) toast("The card is not in the transcript yet");
+        } catch (err) { toast("Could not open the card", String(err.message || err), true); }
+    };
     const [files, setFiles] = useState([]);
     const [asking, setAsking] = useState(false);
 
@@ -179,6 +208,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // Answers sent from here mark their card at once: the shelf was read when
     // the conversation opened, and its own mark is written after the send.
     const sentBrief = (briefId) => {
+        settleWaiting(live, "brief", briefId);
         setBriefs((was) => was.map((card) => (card.id === briefId ? { ...card, sent: true } : card)));
         setLook(null);
     };
@@ -199,6 +229,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     useEffect(() => {
         setSub(null);
         setSecrets(null);
+        setRequests({});
+        setRequestError("");
         setLocal([]);
         setTaken(new Set());
         setFiles([]);
@@ -478,6 +510,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         onFile=${(file) => setLook({ kind: "file", ...file })}
                         onBrief=${openBrief}
                         briefs=${briefs}
+                        requests=${requests}
+                        requestError=${requestError}
+                        onRequestAnswer=${live && !live.outside && !asksTurn && !permits && knows(exec, "session.send") ? answerRequest : null}
+                        requestUnavailable=${asksTurn || permits ? REQUEST_HELD : "This session cannot receive an answer."}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}
                         onCommand=${(row) => setLook({ kind: "command", item: row })}
@@ -503,6 +539,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
 
         ${live && feedShown && html`
             <div class="composerbox">
+                <${WaitingQueue} items=${waitingItems} onPick=${pickWaiting} />
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
                                turnOver=${Boolean(live.turnOver)}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""}
@@ -600,7 +637,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 ? html`<${ChecklistSheet} checklist=${checklist} />`
                 : look.kind === "secret"
                 ? (live ? html`<${SecretPad} key=${look.item.use || look.item.name} item=${look.item} session=${name}
-                                             exec=${exec} shelf=${secrets} onSaved=${loadSecrets}
+                                             exec=${exec} shelf=${secrets} onSaved=${() => { loadSecrets(); settleWaiting(live, "secret", look.item.name); }}
                                              onDone=${() => setLook(null)} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to hand the secret to.</p>`)
                 : look.kind === "tools"

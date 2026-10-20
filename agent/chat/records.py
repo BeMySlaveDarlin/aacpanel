@@ -7,7 +7,7 @@ import sesstate
 from sesstate.feed import TURN_ENDS
 
 from . import codex, commands
-from .cards import (BRIEF_TOOL, NOTIFY_TOOL, SECRET_TOOL, artifact_card, ask_round, brief_card, call_card,
+from .cards import (BRIEF_TOOL, NOTIFY_TOOL, SECRET_TOOL, REQUEST_TOOL, request_card, artifact_card, ask_round, brief_card, call_card,
                     permit_card, permit_row, secret_call, secret_card, sent_card, wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
                       service, strip_panel_note, unwrap_pasted)
@@ -377,7 +377,8 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     if briefs is not None and use in briefs:
                         by = briefs.pop(use)
                         if isinstance(by, dict):
-                            card = secret_card(sesstate.result_text(b), by, use, at, pos)
+                            card = (request_card(sesstate.result_text(b), by["request"], use, at, pos)
+                                    if "request" in by else secret_card(sesstate.result_text(b), by, use, at, pos))
                         else:
                             card = brief_card(sesstate.result_text(b), by, shelf, use, at, pos)
                         if card:
@@ -597,6 +598,8 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     # The call stays in the run as a call: whether a document
                     # reached the shelf is known only from its answer.
                     briefs[block.get("id") or ""] = "tool" if name == BRIEF_TOOL else "shell"
+                if name == REQUEST_TOOL and briefs is not None:
+                    briefs[block.get("id") or ""] = {"request": block.get("input")}
                 if name == SECRET_TOOL and briefs is not None:
                     # The call stays in the run as a call: whether anything
                     # was asked is known only from its answer, and the card

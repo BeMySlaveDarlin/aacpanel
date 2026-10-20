@@ -13,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
+	personrequest "aacpanel/internal/request"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
@@ -204,7 +205,20 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			params["line"] = work.Line
 		}
 	}
+	var requestAnswer *requestReply
 	if req.Kind == action.SessionSend {
+		if _, present := body.Params["request"]; present {
+			var err error
+			requestAnswer, err = s.prepareRequestAnswer(r, req.Target, body.Params)
+			if err != nil {
+				requestError(w, err)
+				return
+			}
+			defer requestAnswer.close()
+			row := requestAnswer.lease.Record
+			body.Params["text"] = personrequest.Reply(row, requestAnswer.answer, requestAnswer.note)
+			body.Params["messageId"] = requestMessageID(row.ID)
+		}
 		if voice, _ := r.Context().Value(voiceKey{}).(bool); voice {
 			req.Origin = action.OriginVoice
 		}
@@ -629,6 +643,12 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 		writeStatusJSON(w, status, out)
 		return
+	}
+	if requestAnswer != nil {
+		if err := requestAnswer.lease.Finish(ctx, requestAnswer.answer, requestAnswer.note); err != nil {
+			http.Error(w, "the answer was delivered but its mark was not saved; do not resend it blindly", http.StatusServiceUnavailable)
+			return
+		}
 	}
 	out := map[string]any{"ok": true, "detail": resp.Detail, "logged": logged}
 	if req.Kind == action.TermStart {

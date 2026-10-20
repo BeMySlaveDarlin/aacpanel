@@ -27,6 +27,7 @@ from .search import refusal, search
 from .spots import call, image
 from .uploads import sent_as, upload, uploads_home
 from .window import feed
+from .waiting import cards as waiting_cards
 
 import chat
 
@@ -62,6 +63,20 @@ def answer(request):
 
 
 def _answer(request):
+    want_waiting = request.get("waiting")
+    if isinstance(want_waiting, list):
+        if len(want_waiting) > 32 or any(not isinstance(s, str) for s in want_waiting):
+            return {"ok": False, "error": "waiting names at most 32 conversations"}
+        found = {}
+        for session in want_waiting:
+            path = transcript_path(session, None)
+            if path:
+                try:
+                    found[session] = waiting_cards(path)
+                except OSError as e:
+                    return {"ok": False, "error": f"the waiting cards were not read: {e}"}
+        return {"ok": True, "waiting": found}
+
     if request.get("briefGuide") is True:
         return briefs.legacy_guide()
 

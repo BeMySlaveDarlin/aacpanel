@@ -74,6 +74,8 @@ var notTheFeed = map[string]string{
 	"records.py:command_answer:unanswered": "the commands waiting for an answer, by the record it will name",
 	"window.py:fold:window":                "the list of the rows of a window, by place",
 	"window.py:fold:<return>":              "the window itself, under Reply",
+	"waiting.py:take:items":                "the newest card of each kind and identity, indexed by that pair",
+	"waiting.py:cards:_indexes":            "the incremental card indexes, by transcript path",
 	"search.py:take:counted":               "the hits of the rows a later record may draw again, by place, role and number",
 }
 

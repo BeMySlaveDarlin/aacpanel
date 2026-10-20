@@ -99,6 +99,10 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/repo/commit", g.page(s.apiRepoCommit))
 	mux.Handle("GET /api/repo/blame", g.page(s.apiRepoBlame))
 
+	if g.local {
+		mux.HandleFunc("POST /api/requests", s.apiRequest)
+	}
+	mux.Handle("GET /api/requests", g.page(s.apiRequests))
 	mux.Handle("GET /api/briefs", g.page(s.apiBriefs))
 	mux.Handle("GET /api/briefs/{id}", g.page(s.apiBrief))
 	mux.Handle("PUT /api/briefs/{id}", g.page(s.apiBriefDraft))

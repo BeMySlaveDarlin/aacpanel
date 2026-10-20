@@ -16,6 +16,7 @@ import (
 	"aacpanel/internal/collector"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
+	"aacpanel/internal/request"
 	"aacpanel/internal/role"
 	"aacpanel/internal/session"
 )
@@ -25,8 +26,7 @@ import (
 const (
 	leadStart = "The person follows this session in the panel, on phone and desk. A blocking question: "
 	leadWays  = "a phone call: notify; a long read with questions: brief_publish; a credential: secret_ask; " +
-		"another session: send_to_session; a command to watch: observer_start; a time to return: alarm_set. " +
-		"Keep requests for the person's hands explicit; a phone call alone does not state the task."
+		"a task for their hands: request; another session: send_to_session; a command to watch: observer_start; a time to return: alarm_set."
 	lead      = leadStart + "AskUserQuestion; " + leadWays
 	codexLead = leadStart + "the client's question tool, or ask in the conversation and end the turn if unavailable; " + leadWays
 )
@@ -53,6 +53,7 @@ func tools() []mcp.Tool {
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
 		collector.SecretAsk(collector.NotifySocket()),
+		request.Tool(session.Here().Panel),
 		session.Restart(session.Here()),
 		session.Close(session.Here()),
 		session.Letter(session.Here()),
@@ -77,6 +78,7 @@ func codexTools() []mcp.Tool {
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
 		collector.SecretAsk(collector.NotifySocket()),
+		request.Tool(session.Here().Panel),
 		session.CodexClose(session.Here()),
 		session.CodexOpen(session.Here()),
 		session.CodexLetter(session.Here()),

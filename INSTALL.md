@@ -237,11 +237,11 @@ plan into `<install>/plan.txt` and quits:
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 14 allow rules · 5 hooks                                                 │
+│   · 15 allow rules · 5 hooks                                                 │
 │   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
 │ In codex settings — ~/.codex/hooks.json, ~/.codex/config.toml                │
 │   · question hook · MCP server                                               │
-│   · 2 hooks, trusted · 12 tools approved                                     │
+│   · 2 hooks, trusted · 13 tools approved                                     │
 │ Values                                                                       │
 │   host lab (hostname) · home session lab (host name)                         │
 │   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │
@@ -1382,7 +1382,7 @@ first in the chain and passes the payload on to the command that was there:
     "mcp__aacpanel__checklist", "mcp__aacpanel__role",
     "mcp__aacpanel__brief_publish",
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
-    "mcp__aacpanel__secret_ask", "mcp__aacpanel__session_close",
+    "mcp__aacpanel__secret_ask", "mcp__aacpanel__request", "mcp__aacpanel__session_close",
     "mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop",
     "mcp__aacpanel__observer_tail", "mcp__aacpanel__alarm_set",
     "mcp__aacpanel__alarm_list", "mcp__aacpanel__alarm_cancel",

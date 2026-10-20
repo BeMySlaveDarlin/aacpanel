@@ -34,7 +34,7 @@ import { homeProject, homeSession } from "../ui/home.js";
 import { useSessionsArchive } from "../history.js";
 import { Popover } from "../ui/popover.js";
 import { useMenu } from "../ui/menu.js";
-import { calledMark } from "../viewing.js";
+import { WaitingMark } from "../waiting.js";
 import { resume } from "../screens/sessions/actions.js";
 import { ago as age } from "./panels/util.js";
 import { ClosedMenu, ProjectMenu, UNDER_WAY, liveMenuOf } from "./sessionmenu.js";
@@ -207,8 +207,6 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     const closeTip = isCodex(s) ? CODEX_CLOSE : lostTip;
     const full = s.pct || 0;
     const open = () => onPick({ name: s.session, id: s.sessionId });
-    // The session on screen is being seen: its call is no news to mark.
-    const called = current === s.session ? "" : calledMark(s);
     const pin = pinOf(s, (snapshot && snapshot.sessions) || [], wait);
 
     return html`
@@ -239,8 +237,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
                     </span>
                 `}
                 ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
-                ${called && html`<span class="dkcalled" role="img" data-tip=${`called you · ${when(stamp(called))}`}
-                                       aria-label=${`called you · ${when(stamp(called))}`}><${Icon.alerts} /></span>`}
+                ${html`<${WaitingMark} session=${s} desktop viewed=${current === s.session} />`}
             </span>
             <span class="dksay">
                 <span class=${`dkdot ${DOT[tone]}`}></span>

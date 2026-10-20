@@ -10,6 +10,7 @@ import (
 // an event raised before kinds existed still has one.
 const (
 	KindCall      = "call"
+	KindRequest   = "request"
 	KindAsk       = "ask"
 	KindWait      = "wait"
 	KindBrief     = "brief"
@@ -29,6 +30,7 @@ const (
 
 var keyKinds = []struct{ prefix, kind string }{
 	{"note:", KindCall},
+	{"request:", KindRequest},
 	{"ask:", KindAsk},
 	{"wait:", KindWait},
 	{"brief:", KindBrief},
@@ -125,7 +127,7 @@ func (p Prefs) Clean() Prefs {
 // Allows reports whether a message goes out under the choice.
 func (p Prefs) Allows(m Message) bool {
 	switch m.Kind {
-	case "", KindCall, KindBlind:
+	case "", KindCall, KindRequest, KindBlind:
 		return true
 	}
 	if slices.Contains(p.Off, m.Kind) {

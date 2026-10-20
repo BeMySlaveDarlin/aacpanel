@@ -343,6 +343,14 @@ func Called(s Session, n Note) Event {
 	}
 }
 
+// Requested is the push of a task left for the person's hands. It carries
+// the session so delivery skips devices already looking at that session.
+func Requested(s Session, id, title string) Message {
+	return (Event{Key: "request:" + id, Domain: DomainSession, Session: s.Name,
+		Title: title, Body: "A task from " + s.shown() + ". Open the session to answer Done or Can't.",
+		Severity: Critical, Source: s.source()}).raised()
+}
+
 // callMemory is how long a carried call is remembered: longer than the
 // collector keeps a call standing, so one it still lists is not carried twice.
 const callMemory = 10 * time.Minute

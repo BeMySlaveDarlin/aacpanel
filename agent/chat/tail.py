@@ -204,7 +204,7 @@ class Piece:
         except OSError:
             return False
 
-    def read_on(self, size):
+    def read_on(self, size, take=None):
         """Reads the records that appeared since the last read of this file, up to this length."""
         if self.pos >= size:
             return
@@ -228,7 +228,10 @@ class Piece:
                               self.sidechain, self.sent, self.briefs, shelf_of(),
                               self.calls, permits, self.unanswered)
                 if items:
-                    self.rows.append((line_pos, items))
+                    if take is None:
+                        self.rows.append((line_pos, items))
+                    else:
+                        take(items)
             if len(self.stamp) < STAMP:
                 # The piece was taken from a file shorter than the stamp: now
                 # that it holds more, the stamp is taken from what it holds.

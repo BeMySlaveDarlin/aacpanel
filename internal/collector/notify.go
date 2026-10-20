@@ -26,9 +26,10 @@ const notifyDescription = "Sends text as a phone push; a tap opens this session.
 	"what is blocked or broken and what the person needs to do. One call per session per minute; a device " +
 	"already showing the session gets no push. No secrets or private file contents: the line leaves the host. " +
 	"Call when only the person can unblock work, something needs their attention now, or they asked for a ping " +
-	"when a job finishes. Put the actual question or instructions in the conversation or a brief first. " +
+	"when a job finishes. Put the context in the conversation or a brief first. " +
 	"For an answer, use the client's question tool; question and permission dialogs already call the person, " +
-	"so do not add notify. Use secret_ask for credentials, brief_publish for a long read. Do not call for " +
+	"so do not add notify. Use request for a task outside the conversation; it already pushes. " +
+	"Use secret_ask for credentials, brief_publish for a long read. Do not call for " +
 	"routine progress or instead of work you can finish. This tool waits for no reply: continue independent " +
 	"work, or end the turn if blocked. A refusal means nobody was called; report it in the conversation."
 

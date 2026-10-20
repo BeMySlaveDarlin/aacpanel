@@ -114,6 +114,20 @@ def secret_card(text, call, use, at, pos):
             "at": at, "pos": pos}
 
 
+REQUEST_TOOL = "mcp__aacpanel__request"
+REQUEST_ASKED = re.compile(r"Requested as ([a-f0-9]{32})\.").match
+
+
+def request_card(text, data, use, at, pos):
+    """Draws only a request the service accepted, never a refused or withdrawn call."""
+    found = REQUEST_ASKED(text or "")
+    if not found or not isinstance(data, dict) or data.get("withdraw"):
+        return None
+    return {"role": "request", "id": found.group(1), "title": str(data.get("title") or ""),
+            "steps": str(data.get("steps") or ""), "blocking": data.get("blocking") is True,
+            "use": use or "", "at": at, "pos": pos}
+
+
 # The call of the person through the panel's server, by the name claude gives
 # it. The card is drawn from the call: the line is what the phone was handed,
 # and the answer says only whether anyone was called.

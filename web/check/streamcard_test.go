@@ -137,7 +137,7 @@ func TestACallMarksTheCardUntilTheSessionIsOpened(t *testing.T) {
 	if len(got.Before) != 1 || !ok {
 		t.Fatalf("the bells before the visit stand on %v, wanted the one session that called", got.Before)
 	}
-	if !bell.Icon || !bell.Inside || !strings.HasPrefix(bell.Title, "called you · ") {
+	if !bell.Icon || !bell.Inside || !strings.HasPrefix(bell.Title, "1 waiting for you: call: Called you · ") {
 		t.Errorf("the bell of the session that called is %+v: a mark inside its row that says when it called", bell)
 	}
 	if len(got.Visited) != 0 {
