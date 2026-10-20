@@ -201,6 +201,8 @@ var instantActions = map[string]bool{
 	// back.
 	"session.role":   true,
 	"session.intent": true,
+	// A pin is undone by the same button on the session group.
+	"session.pin": true,
 	// Remote Control is a switch in the header: it says which way it stands,
 	// and the same press puts it back.
 	"session.remote": true,
@@ -250,6 +252,7 @@ var instantExecActions = map[string]bool{
 	"session.rename":     true,
 	"session.role":       true,
 	"session.intent":     true,
+	"session.pin":        true,
 	"session.remote":     true,
 	"secret.put":         true,
 	"term.start":         true,

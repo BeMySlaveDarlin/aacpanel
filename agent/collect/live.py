@@ -13,6 +13,7 @@ import notes
 import observers
 import projects
 import roles
+import pins
 
 import agent
 from sesstate.wake import ALARMS
@@ -300,6 +301,9 @@ def sessions():
         role = roles.of(*place) if place else None
         if role:
             s["role"] = role
+        pinned = pins.of(*place) if place else None
+        if pinned:
+            s["pinnedAt"] = pinned
         wait = waits.get(s.get("session") or "")
         if wait:
             s["waitingFor"] = wait

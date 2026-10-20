@@ -9,6 +9,7 @@
 // a session started or stopped working could not be learned, and the eye and
 // the arrow keys go down the column by those places. What waits for the
 // person is said by its row and counted in the heading of its contour.
+// Pinned groups keep their creation order before the rest of that contour.
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
@@ -21,7 +22,8 @@ import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contourOfLive } from "../screens/sessions/map.js";
-import { kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
+import { kinOf, kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
+import { comparePins } from "../screens/sessions/pin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex, shownName, spoke } from "../agent.js";
 import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
@@ -104,8 +106,23 @@ export function orderOf(sessions, map) {
         if (s.cwd && byPath.has(s.cwd)) return byPath.get(s.cwd);
         return Number.MAX_SAFE_INTEGER;
     };
-    return [...(sessions || [])].sort((a, b) => place(a) - place(b)
+    const ordered = [...(sessions || [])].sort((a, b) => place(a) - place(b)
         || String(a.session).localeCompare(String(b.session)));
+    if (!ordered.some((s) => s.pinnedAt)) return ordered;
+    const pageOf = contourOfLive(map || [], ordered);
+    const contours = new Map((map || []).map((p) => [p.profile, []]));
+    for (const s of ordered) {
+        const page = pageOf(s);
+        if (!contours.has(page)) contours.set(page, []);
+        contours.get(page).push(s);
+    }
+    return [...contours.values()].flatMap((list) => {
+        const { rootOf } = kinOf(list);
+        const roots = list.filter((s) => rootOf(s) === s && s.pinnedAt)
+            .sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt));
+        return [...roots.flatMap((root) => [root, ...list.filter((s) => s !== root && rootOf(s) === root)]),
+            ...list.filter((s) => !roots.includes(rootOf(s)))];
+    });
 }
 
 // levelOf says how loud the share of a context is: marked from seventy, loud
@@ -205,6 +222,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
         >
             <span class="dksessmain">
                 <span class="dkname" title=${shownName(s) !== s.session ? s.session : undefined}>${shownName(s)}</span>
+                ${s.pinnedAt && html`<span class="dkpinned" title="Pinned group" aria-label="Pinned group">${Icon.thumbtack()}</span>`}
                 ${s.home && html`<span class="dkhome">home</span>`}
                 ${s.outside && !kid && html`
                     <span class="dkmark" data-tip=${outsideNote(s)}>

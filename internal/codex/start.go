@@ -86,6 +86,10 @@ func (l *Link) Up() bool {
 // Home is the codex home the link is to.
 func (l *Link) Home() string { return l.home }
 
+// Directory is where a live thread works. Session state kept by repository
+// uses the daemon's directory, not a path supplied by an action request.
+func (l *Link) Directory(threadID string) string { return l.cwdOf(threadID) }
+
 // Ready waits until the link holds a connection to its daemon, dialling at
 // once rather than at the next round.
 func (l *Link) Ready(ctx context.Context) error {

@@ -11,6 +11,7 @@ const stroke = {
 };
 
 export const Icon = {
+    thumbtack: () => html`<svg ...${stroke}><path d="m16 3 5 5-4 1-4 5-1 4-6-6 4-1 5-4ZM6 18l-3 3" /></svg>`,
     containers: () => html`<svg ...${stroke}><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /></svg>`,
 
     sessions: () => html`<svg ...${stroke}><rect x="2.5" y="4" width="19" height="14" rx="2" /><path d="m7 9 2.5 2L7 13M12.5 14H17" /></svg>`,

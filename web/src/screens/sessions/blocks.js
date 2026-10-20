@@ -1,7 +1,8 @@
 // The sessions of a contour as blocks of their projects. A person thinks in
 // projects — "is aacpanel waiting for me", not "is session four" — so a block
 // holds a project's live sessions as rows and its last conversation, and the
-// list puts first what needs the person, then what is working, then the rest.
+// list puts pinned groups first, then what needs the person, what is working
+// and the rest.
 
 import { useEffect, useState } from "preact/hooks";
 
@@ -21,6 +22,7 @@ import { backgroundOf, modelTitle, runningOf, workOf } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
 import { calledMark } from "../../viewing.js";
+import { comparePins, pinOf } from "./pin.js";
 
 // The order of the list: who waits for the person, who works — on an answer
 // or in its background — and who is quiet.
@@ -168,7 +170,21 @@ export function liveBlocksOf({ profile, sessions = [], opening = [] }) {
     for (const task of opening) {
         if (!raised.has(task)) put(`s:${task.target}`, { name: task.target, group: "", project: null }).ghosts.push(task);
     }
-    return [...out.values()];
+    // Only the pinned root and its children move. Moving its whole project
+    // would lift unrelated sessions and mix the order of several pins.
+    const pinned = [];
+    const rest = [];
+    for (const block of out.values()) {
+        const roots = block.live.filter((s) => rootOf(s) === s && s.pinnedAt);
+        for (const root of roots) {
+            const live = block.live.filter((s) => rootOf(s) === root);
+            pinned.push({ ...block, key: `pin:${root.session}`, live, ghosts: [],
+                home: live.some((s) => s.home), pinnedAt: root.pinnedAt });
+        }
+        block.live = block.live.filter((s) => !roots.includes(rootOf(s)));
+        if (block.live.length || block.ghosts.length) rest.push(block);
+    }
+    return [...pinned.sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt)), ...rest];
 }
 
 // blocksOf lays the sessions of a contour out as the blocks of the list: the
@@ -187,9 +203,11 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
     };
 
     const live = new Set(sessions.map((s) => s.sessionId).filter(Boolean));
+    const liveProjects = new Set([...out.values()].filter((b) => b.live.length && b.project).map((b) => b.project.id));
     let quiet = 0;
     for (const row of recent) {
         if (live.has(row.sessionId)) continue;
+        if (row.project && liveProjects.has(row.project.id)) continue;
         const key = row.project ? `p${row.project.id}` : `d:${row.cwd || row.name}`;
         let block = out.get(key);
         if (!block) {
@@ -222,7 +240,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
     // Among the quiet, a project with a session alive stands above one that has
     // only its past: the first can be written to right now.
     const alive = (b) => (b.live.length > 0 ? 0 : 1);
-    return [...out.values()].sort((a, b) => a.rank - b.rank || alive(a) - alive(b) || b.at - a.at
+    return [...out.values()].sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt) || a.rank - b.rank || alive(a) - alive(b) || b.at - a.at
         || a.name.localeCompare(b.name));
 }
 
@@ -269,6 +287,7 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
     const [folded, fold] = useFolds();
     const line = (s, kid = false, branch = "", from = "") => html`
         <${LiveLine} key=${s.session} session=${s} kid=${kid} branch=${branch} from=${from}
+                     pin=${pinOf(s, live || list)}
                      notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} exec=${exec} />
     `;
     return layoutOf(list, live, folded).map((e) => {
@@ -367,7 +386,7 @@ function KinFold({ kids, line }) {
 // session another opened stands a step in under it, on the line of the branch
 // (branch "mid" or "last"); one whose parent stands elsewhere says which
 // session opened it (from).
-export function LiveLine({ session, kid = false, branch = "", from = "", notes, wait, exec, onOpen }) {
+export function LiveLine({ session, pin = pinOf(session), kid = false, branch = "", from = "", notes, wait, exec, onOpen }) {
     const run = useAction();
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
@@ -394,6 +413,11 @@ export function LiveLine({ session, kid = false, branch = "", from = "", notes, 
                 <span class="pjsess">${shownName(session)}</span>
                 ${!session.outside && html`
                     <div class="pjacts">
+                        <button class="pjact" type="button" disabled=${!knows(exec, "session.pin")}
+                                aria-label=${`${pin.on ? "unpin" : "pin"} session group ${pin.root.session}`}
+                                aria-pressed=${pin.on ? "true" : "false"}
+                                title=${whyNot(exec, "session.pin") || pin.tip}
+                                onClick=${() => run("session.pin", pin.root.session, { on: !pin.on })}>${Icon.thumbtack()}</button>
                         ${!codex && html`
                             <button class="pjact" type="button" disabled=${!canRestart || Boolean(busy)}
                                     aria-label=${`restart session ${session.session}`}

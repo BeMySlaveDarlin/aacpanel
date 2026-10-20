@@ -135,5 +135,32 @@ class RoleOnTheCard(Layout):
             self.assertNotIn("role", self.only(), over)
 
 
+    def test_the_pin_follows_the_name_through_a_close_and_a_new_conversation(self):
+        stamp = "2026-01-01T01:02:03.000000004Z"
+        path = os.path.join(sessionfile.state_dir("pins"), roles.file_name(CONFIG, self.at("lab"), "lead"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"configDir": CONFIG, "repo": roles.repo(self.at("lab")), "name": "lead", "at": stamp}, f)
+        self.assertEqual(self.only().get("pinnedAt"), stamp)
+        self.rows = {"sessions": []}
+        self.assertEqual(live.sessions()["sessions"], [])
+        self.rows = {"sessions": [{"session": "lead", "sessionId": BESIDE, "cwd": self.at("worktrees/lab-fix")}]}
+        self.places = {BESIDE: (CONFIG, self.at("worktrees/lab-fix"), "lead")}
+        self.assertEqual(live.sessions()["sessions"][0].get("pinnedAt"), stamp)
+        os.remove(path)
+        self.rows = {"sessions": [{"session": "lead", "sessionId": BESIDE, "cwd": self.at("worktrees/lab-fix")}]}
+        self.assertNotIn("pinnedAt", live.sessions()["sessions"][0])
+
+    def test_a_pin_is_not_inherited_from_another_account_repository_or_name(self):
+        import pins
+        path = os.path.join(sessionfile.state_dir("pins"), roles.file_name(CONFIG, self.at("lab"), "lead"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        for over in ({"configDir": "/srv/other"}, {"repo": self.at("shop")}, {"name": "review"}):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"configDir": CONFIG, "repo": roles.repo(self.at("lab")), "name": "lead",
+                           "at": "2026-01-01T01:02:03.000000004Z", **over}, f)
+            self.assertIsNone(pins.of(CONFIG, self.at("lab"), "lead"))
+
+
 if __name__ == "__main__":
     unittest.main()

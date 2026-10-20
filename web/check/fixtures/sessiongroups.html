@@ -198,6 +198,8 @@ window.done = (async () => {
     out.digit = await press("1");
     out.back = await press("ArrowUp");
     render(null, shell);
+    const { sessionPins } = await import("/check/fixtures/sessionpins.js");
+    out.pins = await sessionPins();
     return out;
 })();
 </script>

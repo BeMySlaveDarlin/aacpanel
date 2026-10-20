@@ -44,8 +44,8 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	runFixture(t, "sessionstops.html", &got)
 
 	want := map[string]string{
-		"helios": "restart", "lab": "restart,close", "quiet": "restart,close",
-		"codex-5afc361b": "close", "outside": "",
+		"helios": "pin,restart", "lab": "pin,restart,close", "quiet": "pin,restart,close",
+		"codex-5afc361b": "pin,close", "outside": "",
 	}
 	if len(got.MobileActions) != len(want) {
 		t.Fatalf("the list has %d cards, expected %d", len(got.MobileActions), len(want))
@@ -53,8 +53,13 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	for name, labels := range want {
 		var words []string
 		for _, b := range got.MobileActions[name] {
-			words = append(words, strings.TrimSuffix(b.Label, " session "+name))
-			if b.Text != "" || !b.Top || b.Disabled || !b.Icon || b.Height > b.Line+1 || !b.Reach || !b.Clear || !b.Inside || !b.Hit {
+			pin := b.Label == "pin session group "+name
+			if pin {
+				words = append(words, "pin")
+			} else {
+				words = append(words, strings.TrimSuffix(b.Label, " session "+name))
+			}
+			if b.Text != "" || !b.Top || b.Disabled != pin || !b.Icon || b.Height > b.Line+1 || !b.Reach || !b.Clear || !b.Inside || !b.Hit {
 				// The icon is no taller than the name's line, so the card keeps the
 				// height it had with one mark there; a finger still takes it past its
 				// edge.
@@ -103,7 +108,7 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 			}
 		}
 	}
-	if len(got.Unavailable) != 2 || !got.Busy {
+	if len(got.Unavailable) != 3 || !got.Busy {
 		t.Errorf("unavailable actions %+v, busy disabled %v", got.Unavailable, got.Busy)
 	}
 	for _, b := range got.Unavailable {

@@ -330,6 +330,20 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			req.Intents[key], params[key] = text, text
 		}
 	}
+	if req.Kind == action.SessionPin {
+		on, ok := body.Params["on"].(bool)
+		if !ok {
+			http.Error(w, "the pin did not arrive as on or off", http.StatusBadRequest)
+			return
+		}
+		name, err := s.pinTarget(req.Target)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Target, body.Target, req.Pin = name, name, &on
+		params = map[string]any{"on": on}
+	}
 	if req.Kind == action.SessionRole {
 		text, ok := body.Params["role"].(string)
 		if !ok {

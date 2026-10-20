@@ -307,17 +307,17 @@ func TestTheKeyboardMenuStandsUnderTheRow(t *testing.T) {
 func TestEveryObjectHasItsMenu(t *testing.T) {
 	got := ctxMenuPage(t)
 	want := map[string]string{
-		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · | · " +
+		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
-		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · | · " +
+		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session",
 		"scratch": "Open · Terminal of the project · | · ~Rename… · ~Role… · ~Session messages… · | · Move to the stream · Open a window on this machine · " +
-			"~Turn Remote Control on · | · Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
-		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · | · " +
+			"~Turn Remote Control on · ~Pin the group · | · Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
+		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · ~Pin the group of aacpanel · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
 		"ext":          "Open · | · Copy the session ID · Copy the resume command",
-		"codex":        "Open · | · Copy the thread ID · | · Stop the turn · Close the session",
-		"codexChild":   "Open · | · Detach from parent · | · Copy the thread ID · | · Close the session",
+		"codex":        "Open · | · ~Pin the group · | · Copy the thread ID · | · Stop the turn · Close the session",
+		"codexChild":   "Open · | · Detach from parent · ~Pin the group of aacpanel · | · Copy the thread ID · | · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID",

@@ -556,6 +556,11 @@ export const ACTIONS = {
         effect: "The session keeps its opening messages across a restart and a reopen; empty fields inherit the project.",
         done: (target) => `${target}: the session messages are kept`,
     },
+    "session.pin": {
+        instant: true,
+        effect: "The session and its children stand first in their contour on every device; a restart or a reopen keeps the pin.",
+        done: (target, params) => `${target}: the group ${params && params.on ? "is pinned" : "is unpinned"}`,
+    },
     // A role is typed on its sheet and saved or cleared with the sheet's own
     // button: the sheet is where the person chose, and the role can be typed
     // back the same way.
@@ -1099,6 +1104,7 @@ const NAMES = {
     "session.rename": "Rename the session",
     "session.role": "Set the role of the session",
     "session.intent": "Set the messages of the session",
+    "session.pin": "Pin or unpin the session group",
     "session.remote": "Remote Control",
     "session.detach": "Detach a session from its parent",
     "secret.put": "Save a secret",

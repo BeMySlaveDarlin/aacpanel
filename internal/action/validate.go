@@ -373,6 +373,13 @@ func (r Request) Validate() error {
 	} else if r.Intents != nil {
 		return badRequest("action %s sets no opening messages", r.Kind)
 	}
+	if r.Kind == SessionPin {
+		if r.Pin == nil {
+			return badRequest("action %s without saying pinned or unpinned", r.Kind)
+		}
+	} else if r.Pin != nil {
+		return badRequest("action %s sets no pin", r.Kind)
+	}
 	if r.Kind == SessionRole {
 		if r.Role == nil {
 			return badRequest("action %s without the role: an empty one clears it", r.Kind)

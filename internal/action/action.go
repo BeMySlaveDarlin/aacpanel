@@ -142,6 +142,8 @@ const (
 	SecretPut Kind = "secret.put"
 	// SecretDrop removes a secret from the host. The target is its name.
 	SecretDrop Kind = "secret.drop"
+	// SessionPin keeps or clears the place of a session group in its contour.
+	SessionPin Kind = "session.pin"
 )
 
 // Agent updates have fixed programs and sources: the request carries neither.
@@ -156,7 +158,7 @@ var Kinds = []Kind{
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionRole, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
-	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent,
+	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent, SessionPin,
 }
 
 // Valid reports whether the executor knows this kind of action.

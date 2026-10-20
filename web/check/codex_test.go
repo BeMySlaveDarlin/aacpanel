@@ -177,10 +177,11 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	}
 
 	// A codex card closes the thread; restarting it is refused by the host.
-	if len(got.PhoneActions) != 1 || got.PhoneActions[0].Text != "" || got.PhoneActions[0].Label != "close session codex-5afc361b" || got.PhoneActions[0].Off {
-		t.Errorf("the phone's card offers %+v, expected Close alone", got.PhoneActions)
+	if len(got.PhoneActions) != 2 || got.PhoneActions[0].Label != "pin session group codex-5afc361b" || !got.PhoneActions[0].Off ||
+		got.PhoneActions[1].Text != "" || got.PhoneActions[1].Label != "close session codex-5afc361b" || got.PhoneActions[1].Off {
+		t.Errorf("the phone's card offers %+v, expected a pin unknown to this host and Close", got.PhoneActions)
 	} else {
-		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[0].Note)
+		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[1].Note)
 	}
 
 	// The conversation: the feed and its files, no terminal, no move.

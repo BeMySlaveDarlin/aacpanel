@@ -96,6 +96,8 @@ type Request struct {
 
 	// Intents changes only the messages named; an empty text clears its override.
 	Intents sessionintent.Values `json:"intents,omitempty"`
+	// Pin says whether session.pin pins the group or takes its pin away.
+	Pin *bool `json:"pin,omitempty"`
 
 	// Parent is the session session.parent stands the target under, by its
 	// name, as Project.Parent names the session that had one opened.

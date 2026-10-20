@@ -508,6 +508,7 @@ var sessionKinds = []action.Kind{
 	action.SessionMcp, action.SessionRename, action.SessionRemote, action.SessionRole, action.SessionIntent, action.SessionParent, action.SessionDetach, action.SessionLetter,
 	// A secret is saved for a session and told to it.
 	action.SecretPut,
+	action.SessionPin,
 }
 
 var windowKinds = []action.Kind{action.WindowOpen, action.WindowClose}

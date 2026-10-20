@@ -131,6 +131,22 @@ CHECKLIST = {"items": [{"text": "read the router", "status": "done", "since": "2
              "at": "2026-10-09T12:05:00Z"}
 
 
+class Pin(Runtime):
+    def test_the_pin_of_a_thread_is_read_under_its_codex_home(self):
+        import roles
+        import sessionfile
+        self.follow(cwd=self.root)
+        name = f"codex-{THREAD[-8:]}"
+        stamp = "2026-01-01T01:02:03.000000004Z"
+        path = os.path.join(sessionfile.state_dir("pins"), roles.file_name(self.home, self.root, name))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"configDir": self.home, "repo": roles.repo(self.root), "name": name, "at": stamp}, f)
+        self.assertEqual(ctx.codex_sessions()[0].get("pinnedAt"), stamp)
+        os.remove(path)
+        self.assertNotIn("pinnedAt", ctx.codex_sessions()[0])
+
+
 class Checklist(Runtime):
     """The checklist a thread keeps through the panel's tool, by its thread."""
 

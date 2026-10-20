@@ -1392,7 +1392,7 @@ The list of actions is closed.
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
 | agents of the host | `codex.update`, `claude.update` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach`, `session.intent` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach`, `session.intent`, `session.pin` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
@@ -1866,6 +1866,25 @@ starts the next process with no parent at all. A run inside the work of a
 session stands under that session while it runs and is refused. A codex thread
 is taken from under its session by the file the executor keeps for it. The
 journal names the session it stood under.
+
+**A pinned group stands first inside its contour on every device.**
+`session.pin` sets or clears the pin of the live root; a request naming a
+child resolves to that root. The phone's card and the desktop's context menu
+use the same action, and the next snapshot carries the change to both. Pins
+stand in the order they were set, including when several roots work in one
+project. Only a root and its children move; unrelated sessions of its project
+keep their places, and contours keep the order of the map. Removing a pin
+restores the ordinary order of each screen: the map on the desktop, attention
+and activity on the phone.
+
+The executor keeps each pin under `aacpanel/pins/` in the owner's state,
+using the role's key: the config directory of the account, the common git
+directory of the repository (the working directory outside git), and the
+session's name. A codex thread uses its codex home as its account. The
+collector reads the pin into the session row as `pinnedAt`. Restarting,
+closing and reopening under the same name keep it, as does moving between
+checkouts of the repository. Repeated pin requests keep the original stamp;
+unpinning removes it, and pinning again takes a new place at the end.
 
 **The archive is ordered by when a conversation last spoke, not by when its
 file was last written to.** Claude appends a title, a mode or a snapshot of file

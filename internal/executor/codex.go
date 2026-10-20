@@ -13,6 +13,7 @@ import (
 	"aacpanel/internal/codex"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/mcp"
 )
 
 // A codex session is a thread of the codex daemon of a contour, held by the
@@ -157,6 +158,8 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexMcpChange(ctx, th, req.Mcp)
 	case action.SessionParent:
 		return codexParent(th, req.Parent)
+	case action.SessionPin:
+		return keepPin(mcp.Place{ConfigDir: th.Link.Home(), Dir: th.Link.Directory(th.ID)}, th.Name, *req.Pin)
 	case action.SessionDetach:
 		return codexDetach(th)
 	case action.TaskStop:

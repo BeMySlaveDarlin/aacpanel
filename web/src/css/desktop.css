@@ -2782,4 +2782,6 @@
     .dkcol .pzbar { margin-left: 0; margin-right: 0; }
     .pzanchor { position: relative; }
     .pzanchor .dkpop { left: 0; right: auto; width: min(26rem, 100%); }
+    .dkpinned { display: inline-flex; color: var(--accent); flex: none; }
+    .dkpinned svg { width: var(--i-sm); height: var(--i-sm); }
 }

@@ -23,6 +23,7 @@ import { useWindow, windowOf } from "../screens/chat/window.js";
 import { useTermJump } from "../screens/terms/jump.js";
 import { projectOf, resume, startIn } from "../screens/sessions/actions.js";
 import { stopsOf } from "../screens/sessions/blocks.js";
+import { pinOf } from "../screens/sessions/pin.js";
 import { openedBy } from "../screens/sessions/kin.js";
 
 // What the close and the restart of a live session say while they are under
@@ -75,6 +76,13 @@ function detachItem(s, exec, run) {
                                        off=${detachWhy(exec)} onPick=${() => detach(run, s.session)} />`;
 }
 
+function pinItem(s, snapshot, exec, run) {
+    const pin = pinOf(s, (snapshot && snapshot.sessions) || []);
+    return html`<${MenuItem} key="pin" label=${pin.label} tip=${pin.tip}
+                            off=${knows(exec, "session.pin") ? "" : whyNot(exec, "session.pin")}
+                            onPick=${() => run("session.pin", pin.root.session, { on: !pin.on })} />`;
+}
+
 function OutsideMenu({ s, onOpen }) {
     const toast = useToast();
     return html`<${MenuList} groups=${[
@@ -92,14 +100,14 @@ function endsOf(exec, closing, restarting) {
     };
 }
 
-function ThreadMenu({ s, exec, onOpen, closing }) {
+function ThreadMenu({ s, exec, snapshot, onOpen, closing }) {
     const run = useAction();
     const toast = useToast();
     const { closeWhy } = endsOf(exec, closing, "");
     const stopWhy = noTurn(s) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
-        [detachItem(s, exec, run)],
+        [detachItem(s, exec, run), pinItem(s, snapshot, exec, run)],
         copies(s.sessionId, s.cwd, true, toast),
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}
@@ -162,6 +170,7 @@ function ClaudeMenu({ s, exec, snapshot, onOpen, onTerm, closing, restarting, lo
             html`<${MenuItem} key="remote" label=${rc.shown ? "Turn Remote Control off" : "Turn Remote Control on"}
                               off=${rc.why} onPick=${rc.press} />`,
             detachItem(s, exec, run),
+            pinItem(s, snapshot, exec, run),
         ],
         copies(s.sessionId, s.cwd, false, toast),
         [

@@ -115,10 +115,11 @@ export function placeMenu(at, size, vw, vh) {
 }
 
 // inside moves a box of the given size at x, y the least it takes to keep it
-// MARGIN away from every edge of the viewport.
+// MARGIN away from every edge of the viewport. Rounding a fractional edge
+// up would put a menu across that margin once another item changes its height.
 function inside(x, y, size, vw, vh) {
     return {
-        x: Math.round(Math.min(Math.max(x, MARGIN), vw - MARGIN - size.width)),
-        y: Math.round(Math.min(Math.max(y, MARGIN), vh - MARGIN - size.height)),
+        x: Math.floor(Math.min(Math.max(x, MARGIN), vw - MARGIN - size.width)),
+        y: Math.floor(Math.min(Math.max(y, MARGIN), vh - MARGIN - size.height)),
     };
 }
