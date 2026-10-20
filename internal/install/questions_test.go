@@ -92,7 +92,7 @@ func TestTheQuestionsOfAFreshDesktop(t *testing.T) {
 		{"claude", home + "/.local/bin/claude", "command -v claude"},
 		{"accounts", home + "/.claude", "found"},
 		{"transport", "stream", "recommended"},
-		{"kit", "relay,limits,tools,copies,cap,nudge,restart", "suggested"},
+		{"kit", "relay,limits,tools,copies,cap,nudge,restart,stamp", "suggested"},
 		{"tune", no, "default"},
 		{"push", "mailto:u@example.org", "git config user.email"},
 		{"life", "24h/720h", "the panel's default"},
@@ -171,26 +171,30 @@ func TestCodexCommandComesFromTheMachineAndKeepsTheSavedChoice(t *testing.T) {
 
 func TestCodexIsAskedOnlyWithAHomeOrAProgram(t *testing.T) {
 	for _, c := range []struct {
-		name string
-		set  func(*fake)
-		ask  bool
+		name  string
+		set   func(*fake)
+		ask   bool
+		homes string
 	}{
-		{"absent", func(*fake) {}, false},
-		{"not executable", func(m *fake) { m.Stats[home+"/.local/bin/codex"] = Stat{Mode: 0o644} }, false},
-		{"directory", func(m *fake) { m.Stats[home+"/.local/bin/codex"] = Stat{Mode: fs.ModeDir | 0o755} }, false},
-		{"personal home", func(m *fake) { m.Stats[home+"/.codex"] = Stat{Mode: fs.ModeDir | 0o700} }, true},
+		{"absent", func(*fake) {}, false, ""},
+		{"not executable", func(m *fake) { m.Stats[home+"/.local/bin/codex"] = Stat{Mode: 0o644} }, false, ""},
+		{"directory", func(m *fake) { m.Stats[home+"/.local/bin/codex"] = Stat{Mode: fs.ModeDir | 0o755} }, false, ""},
+		{"personal home", func(m *fake) { m.Stats[home+"/.codex"] = Stat{Mode: fs.ModeDir | 0o700} }, true, home + "/.codex"},
 		{"configured home", func(m *fake) {
 			m.Files[DefaultStateDir+"/host.env"] = contours.CodexHomesEnv + "=/srv/codex-work\n"
 			m.Stats["/srv/codex-work"] = Stat{Mode: fs.ModeDir | 0o700}
-		}, true},
+		}, true, "/srv/codex-work"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			m := desktop()
 			c.set(m)
 			s := survey(m, &Run{Yes: true})
 			qs := s.Questions(BlockX)
-			if (len(qs) == 1) != c.ask {
-				t.Fatalf("codex questions: %+v, want one: %v", qs, c.ask)
+			if got := ids(qs); c.ask != slices.Equal(got, []string{"codex", "codexhomes"}) || !c.ask && len(qs) > 0 {
+				t.Fatalf("codex questions: %v, want them: %v", got, c.ask)
+			}
+			if c.ask && qs[1].Default != c.homes {
+				t.Fatalf("the homes suggested are %q, want %q", qs[1].Default, c.homes)
 			}
 			if c.ask {
 				if !qs[0].Required || qs[0].Default != "" {
@@ -212,6 +216,66 @@ func TestCodexIsAskedOnlyWithAHomeOrAProgram(t *testing.T) {
 						t.Fatal("a machine without codex writes its command")
 					}
 				}
+			}
+		})
+	}
+}
+
+// The homes of codex the panel watches are asked with codex: the ones
+// host.env lists, or codex's own, and the answer goes into host.env. A home
+// codex has not made yet is watched all the same and gets nothing: the plan
+// and the end of the run say what makes it.
+func TestTheCodexHomesAreAskedAndWritten(t *testing.T) {
+	for _, c := range []struct {
+		name, saved, flag string
+		dirs              []string
+		want              string
+		missing           []string
+	}{
+		{name: "codex's own", dirs: []string{home + "/.codex"}, want: home + "/.codex"},
+		{name: "codex's own, not made yet", want: home + "/.codex",
+			missing: []string{"the codex home ~/.codex is not there yet and gets no hooks or tools: start codex once"}},
+		{name: "saved", saved: "/srv/codex-work:~/.codex-profiles/later", dirs: []string{"/srv/codex-work"},
+			want:    "/srv/codex-work," + home + "/.codex-profiles/later",
+			missing: []string{"start CODEX_HOME=~/.codex-profiles/later codex once"}},
+		{name: "flag", saved: "/srv/codex-work", flag: "~/.codex,/srv/codex-work", dirs: []string{"/srv/codex-work", home + "/.codex"},
+			want: home + "/.codex,/srv/codex-work"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m := desktop()
+			m.Path["codex"] = "/usr/bin/codex"
+			for _, d := range c.dirs {
+				m.Stats[d] = Stat{Mode: fs.ModeDir | 0o700}
+			}
+			if c.saved != "" {
+				m.Files[DefaultStateDir+"/host.env"] = contours.CodexHomesEnv + "=" + c.saved + "\n"
+			}
+			r := &Run{Yes: true, Answers: map[string]string{}}
+			if c.flag != "" {
+				r.Answers["--codex-home"] = c.flag
+			}
+			s := survey(m, r)
+			answerAll(t, s)
+			if g, _ := s.Value("codexhomes"); g.Value != c.want {
+				t.Fatalf("the homes are %q, want %q", g.Value, c.want)
+			}
+			if want := strings.ReplaceAll(c.want, ",", ":"); !slices.Contains(s.HostEnv(), Var{Key: contours.CodexHomesEnv, Value: want}) {
+				t.Errorf("host.env does not carry %s", want)
+			}
+			there := s.codexHomes()
+			for _, d := range split(c.want) {
+				if slices.Contains(there, d) != slices.Contains(c.dirs, d) {
+					t.Errorf("%s is wired: %v", d, slices.Contains(there, d))
+				}
+			}
+			mind := strings.Join(s.Mind(), "\n")
+			for _, want := range c.missing {
+				if !strings.Contains(mind, want) || !strings.Contains(planText(s), want) {
+					t.Errorf("the plan and the end of the run do not say %q:\n%s", want, planText(s))
+				}
+			}
+			if len(c.missing) == 0 && strings.Contains(mind, "codex home") {
+				t.Errorf("a home in place is said to be missing: %s", mind)
 			}
 		})
 	}
@@ -297,7 +361,7 @@ func TestEveryQuestionHasAFlag(t *testing.T) {
 	m := desktop()
 	m.Path["codex"] = "/usr/bin/codex"
 	noClaude(m)
-	for _, name := range []string{"tmux", "jq", "docker"} {
+	for _, name := range []string{"tmux", "docker"} {
 		delete(m.Path, name)
 	}
 	m.Files[home+"/.claude-work/settings.json"] = "{}"
@@ -331,8 +395,8 @@ func TestEveryQuestionHasAFlag(t *testing.T) {
 			s.Set(q, q.Default, "test")
 		}
 	}
-	for _, id := range []string{"pkg:tmux", "pkg:jq", "pkg:claude", "pkg:docker", "login:" + home + "/.claude-work",
-		"tskey", "lancert", "domain", "bind", "passkey", "term", "probes", "contour:" + home + "/.claude-work", "projects"} {
+	for _, id := range []string{"pkg:tmux", "pkg:claude", "pkg:docker", "login:" + home + "/.claude-work",
+		"codexhomes", "tskey", "lancert", "domain", "bind", "passkey", "term", "probes", "contour:" + home + "/.claude-work", "projects"} {
 		if _, ok := s.given[id]; !ok {
 			t.Errorf("the walk never met %s: the test no longer covers every question", id)
 		}

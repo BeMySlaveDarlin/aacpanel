@@ -1,6 +1,6 @@
 
 ────────────────────────────────────────────────────────────────────────────────
-  ■ codex 
+ ←  ■ codex  ☐ Homes  ✔ Submit  →
 
  What starts codex?
  The installer and the executor use this program even when it is not on their
@@ -10,4 +10,4 @@
       Found outside PATH; the link is kept so codex updates reach the panel.
    2. Type a path.
 
- Enter to select · ↑/↓ to navigate · Esc to go back
+ Enter to select · Tab/Arrow keys to navigate · Esc to go back

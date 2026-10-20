@@ -7,6 +7,7 @@ import (
 
 	"aacpanel/internal/install"
 	"aacpanel/internal/install/ui"
+	"aacpanel/internal/toolset"
 )
 
 const (
@@ -131,6 +132,7 @@ func planFrame(t ui.Theme, mc machine, a answers, width int) string {
 		ui.Row{Text: "In claude settings — " + settings, Head: true},
 		ui.Row{Text: "  · question hook · status line before yours · MCP server"},
 		ui.Row{Text: fmt.Sprintf("  · %d allow rules · %d hooks", a.allows(), a.hooks())},
+		ui.Row{Text: fmt.Sprintf("  · env %s raised to %d", toolset.WordEnv, toolset.WordMax)},
 		ui.Row{Text: "Values", Head: true},
 		ui.Row{Text: "  host " + a.host + a.src("host") + " · home session " + a.home + a.src("home")},
 		ui.Row{Text: "  state " + a.state + a.src("state") + " · projects under " + strings.Join(a.roots, ", ")},
@@ -192,10 +194,8 @@ echo "root.sh: apt-get install -y --no-install-recommends $pkgs"
 echo 'Reading package lists... Done'
 echo 'Building dependency tree... Done'
 echo 'The following NEW packages will be installed:'
-echo '  jq libjq1 libonig5 libutempter0 tmux'
-echo 'Setting up libonig5:amd64 (6.9.9-1build1) ...'
-echo 'Setting up libjq1:amd64 (1.7.1-3build1) ...'
-echo 'Setting up jq (1.7.1-3build1) ...'
+echo '  libutempter0 tmux'
+echo 'Setting up libutempter0:amd64 (1.2.1-3build1) ...'
 echo 'Setting up tmux (3.4-1ubuntu0.1) ...'
 echo "root.sh: install -d -m 0755 -o 1000 -g 1000 $state"
 echo "root.sh: install -m 0644 host.env.staged $state/host.env"

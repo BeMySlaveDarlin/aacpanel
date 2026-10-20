@@ -27,9 +27,10 @@ const (
 	DBRole   Kind = "dbrole"   // a role in the database; it goes with the volume
 	TestDB   Kind = "testdb"   // the container of the test database
 	Rev      Kind = "rev"      // the commit a run installed
-	JSON     Kind = "json"     // claude's settings.json of an account; meta: created or orig=, and sha= of the write
+	JSON     Kind = "json"     // claude's settings.json of an account; meta: created or orig=, sha= of the write, and CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH= what its env held before the installer raised it
 	MCP      Kind = "mcp"      // the panel's MCP server of an account; meta: claude=, file=
 	Codex    Kind = "codex"    // hooks.json of a codex home and their trust in its config.toml; meta: hooks= and config=, created or the copy
+	CodexMCP Kind = "codexmcp" // the panel's MCP server in config.toml of a codex home, with the approvals of its tools; meta: config=, created or the copy
 	TSNode   Kind = "tsnode"   // the node in the tailnet; the admin console removes it
 	Profile  Kind = "profile"  // an entry of the map; it lives in the database and goes with its volume
 )
@@ -42,7 +43,7 @@ func init() {
 		File: undoFile, Pkg: undoPkg, Group: undoGroup, Linger: undoRoot, SysUnit: undoRoot,
 		UserUnit: undoUserUnit, Enabled: undoEnabled, Compose: undoCompose, Volume: undoVolume,
 		Image: undoImage, EnvKey: undoNothing, DBRole: undoNothing, TestDB: undoTestDB, Rev: undoNothing,
-		JSON: undoJSON, MCP: undoMCP, Codex: undoCodex, TSNode: undoTSNode, Profile: undoNothing,
+		JSON: undoJSON, MCP: undoMCP, Codex: undoCodex, CodexMCP: undoCodexMCP, TSNode: undoTSNode, Profile: undoNothing,
 	} {
 		undos[k] = undo
 	}

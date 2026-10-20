@@ -54,6 +54,9 @@ func (s *Survey) HostEnv() []Var {
 	if c := s.valueOr("codex", ""); c != "" {
 		out = append(out, Var{Key: "AACP_CODEX", Value: c})
 	}
+	if g, ok := s.Value("codexhomes"); ok {
+		out = append(out, Var{Key: contours.CodexHomesEnv, Value: strings.Join(split(g.Value), ":")})
+	}
 	roots := split(s.valueOr("roots", home))
 	var scan []string
 	for _, r := range roots {
@@ -216,6 +219,7 @@ func (s *Survey) Mind() []string {
 		out = append(out, "A phone cannot sign in over the home network: without a domain or Tailscale the passkeys live at localhost, and there is no token.")
 	}
 	out = append(out, s.signInMind()...)
+	out = append(out, s.codexMind()...)
 	return append(out, s.onboardingMind()...)
 }
 

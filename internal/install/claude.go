@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"aacpanel/internal/contours"
+	"aacpanel/internal/toolset"
 )
 
 // ---- claude itself, when the machine has none ----
@@ -231,6 +234,9 @@ func (in *Install) claudeStep() *Step {
 				if !ownsStatus(statusLineOf(raw)) {
 					return &Failed{Diagnosis: path + " has no limits snapshot in its status line after the wiring"}
 				}
+				if v, _ := wordIn(raw); in.S.Has("tools") && !wordAtLeast(v) {
+					return &Failed{Diagnosis: fmt.Sprintf("%s does not give %s %d or more in its env after the wiring", path, toolset.WordEnv, toolset.WordMax)}
+				}
 				if have, ok := in.mcpHas(dir); !ok || !have.same(in.mcpWant()) {
 					return &Failed{Diagnosis: in.mcpFile(dir) + " holds no aacpanel server of this install after claude mcp add",
 						Fix: []string{in.claude() + " --version, and " + in.signInLine(dir) + " mcp get aacpanel"}}
@@ -275,7 +281,7 @@ func (in *Install) wireSettings(r *Run, dir string) error {
 	if err != nil {
 		return err
 	}
-	if err := r.Record(JSON, path, orig+" sha="+sha(out)); err != nil {
+	if err := r.Record(JSON, path, orig+" sha="+sha(out)+wordWas(r, path, raw, out)); err != nil {
 		return err
 	}
 	perm := os.FileMode(0o600)
@@ -311,6 +317,29 @@ func (in *Install) jsonOrig(r *Run, path string, there bool) (string, error) {
 		return "", fmt.Errorf("%s was not kept aside before the change: %w", path, err)
 	}
 	return "orig=" + b, nil
+}
+
+// wordWas is what the env of the settings held for the length of the panel's
+// word before the installer raised it, as a word of the line of the manifest:
+// carried from an earlier line that says it, else taken from the file when
+// this write raises it or the file holds the panel's value already — the
+// unwiring takes that value out as the panel's. Else nothing. An empty value
+// is a key that was not there.
+func wordWas(r *Run, path string, raw, out []byte) string {
+	key := toolset.WordEnv + "="
+	if r.Manifest != nil {
+		es, _ := ReadManifest(r.Manifest.Path)
+		for _, e := range es {
+			if e.Kind == string(JSON) && e.Target == path && metaHas(e.Meta, key) {
+				return " " + key + metaValue(e.Meta, toolset.WordEnv)
+			}
+		}
+	}
+	before, _ := wordIn(raw)
+	if after, _ := wordIn(out); after == before && before != strconv.Itoa(toolset.WordMax) {
+		return ""
+	}
+	return " " + key + url.QueryEscape(before)
 }
 
 // wiredSays is what the wiring put in, in a line.
@@ -417,6 +446,12 @@ func undoJSON(r *Run, e Entry) error {
 	if err != nil {
 		r.Say(Warn, (&BrokenSettings{Path: e.Target, Err: err}).Error()+": the panel's hooks stay in it until it parses")
 		return nil
+	}
+	if metaHas(e.Meta, toolset.WordEnv+"=") {
+		was, _ := url.QueryUnescape(metaValue(e.Meta, toolset.WordEnv))
+		var restored bool
+		out, restored = restoreWord(raw, out, was)
+		changed = changed || restored
 	}
 	if !changed {
 		return nil

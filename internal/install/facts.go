@@ -503,20 +503,12 @@ func (c *checker) onUnitPath(name string) bool {
 }
 
 func (c *checker) tools() {
-	why := map[string]string{
-		"tmux": "sessions live in it, and without it the executor turns off every action on sessions",
-		"jq":   "the status line script reads the limits with it",
+	if _, err := c.m.LookPath("tmux"); err != nil {
+		c.missing(Missing{Name: "tmux", Why: "sessions live in it, and without it the executor turns off every action on sessions",
+			Command: "sudo apt install tmux"})
+		return
 	}
-	all := true
-	for _, name := range []string{"tmux", "jq"} {
-		if _, err := c.m.LookPath(name); err != nil {
-			all = false
-			c.missing(Missing{Name: name, Why: why[name], Command: "sudo apt install " + name})
-		}
-	}
-	if all {
-		c.add(Pass, "tmux and jq are here")
-	}
+	c.add(Pass, "tmux is here")
 }
 
 // psFormat is what docker ps says of a container: its name, its compose
@@ -807,11 +799,11 @@ func (c *checker) clone() {
 	}
 	stops := len(c.out)
 	if sp, err := c.m.Space(dir); err == nil && sp.Tmpfs {
-		c.add(Stop, "stop: the clone lives on tmpfs (%s): it is gone after a reboot, and the collector and the hooks "+
-			"run from it. Clone into a permanent place: git clone %s ~/aacpanel", dir, Repository)
+		c.add(Stop, "stop: the clone lives on tmpfs (%s): it is gone after a reboot, and the collector runs "+
+			"from it. Clone into a permanent place: git clone %s ~/aacpanel", dir, Repository)
 	}
 	if !clonePath.MatchString(dir) {
-		c.add(Stop, "stop: %s has characters unit files and hook commands cannot carry (spaces, quotes). "+
+		c.add(Stop, "stop: %s has characters unit files cannot carry (spaces, quotes). "+
 			"Move the clone, e.g. to ~/aacpanel.", dir)
 	}
 	if st, err := c.m.Stat(dir); err == nil && st.UID != c.f.Account.UID {

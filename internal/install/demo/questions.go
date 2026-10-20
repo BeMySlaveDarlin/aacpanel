@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"aacpanel/internal/contours"
+	"aacpanel/internal/install"
 	"aacpanel/internal/install/ui"
 )
 
@@ -56,10 +57,6 @@ func prerequisites(mc machine) *ui.Block {
 		"tmux": {
 			"Sessions without the stream live in tmux, and a session on the stream moves into tmux when the panel is down (tmux attach). Windows to a session and the panel's live terminal go through it as well.",
 			"Without tmux the executor turns off every action on sessions: their buttons go grey. The run stops here.",
-		},
-		"jq": {
-			"The status line script reads the limits with it: without jq the 5-hour and weekly percentages are silently not written.",
-			"The run stops here; install it yourself and run again.",
 		},
 	}
 	var qs []ui.Question
@@ -179,43 +176,21 @@ func claude(mc machine) *ui.Block {
 	)
 }
 
-// The parts of the kit, by group. The first group is the panel itself and
-// does not come off; the second is checked for the person and stays quiet;
-// the rest waits to be asked for.
-const (
-	gAlways = "Always"
-	gQuiet  = "Quiet — checked for you"
-	gAsk    = "On request"
-	gLegs   = "Ways in besides this machine"
-	gDev    = "For development"
-)
-
+// kit is the kit of the installer as its screen shows it: the first group is
+// the panel itself and does not come off, the second is checked for the
+// person and stays quiet, the rest waits to be asked for.
 func kit() *ui.Block {
-	part := func(group, value, label, detail string) ui.Option {
-		return ui.Option{
-			Group: group, Value: value, Label: label, Detail: detail,
-			Locked: group == gAlways, On: group == gAlways || group == gQuiet,
-		}
+	var parts []ui.Option
+	for _, p := range install.Kit {
+		parts = append(parts, ui.Option{
+			Group: p.Group, Value: p.ID, Label: p.Label, Detail: p.Detail,
+			Locked: p.Group == install.GroupAlways, On: p.Group == install.GroupAlways || p.Group == install.GroupQuiet,
+		})
 	}
 	return ui.NewBlock("Kit", ui.Question{
 		ID: "kit", Tab: "Kit", Prompt: "What goes into this install?", Kind: ui.Multi,
-		Note: "Space checks a part, Enter takes the list as it stands.",
-		Options: []ui.Option{
-			part(gAlways, "relay", "Question relay", "a session's questions reach your phone"),
-			part(gAlways, "limits", "Limits snapshot", "5-hour and weekly limits, before your status line"),
-			part(gAlways, "tools", "Panel tools", "checklist, briefs, secrets, a phone call, restart"),
-			part(gQuiet, "copies", "Page copies", "a published page opens on the phone under any account"),
-			part(gQuiet, "cap", "Context cap", "stops a session at the cap, restarts it with your line"),
-			part(gQuiet, "nudge", "Checklist nudge", "reminds a session that forgot its checklist"),
-			part(gQuiet, "restart", "Self-restart", "a session may restart itself without asking you"),
-			part(gAsk, "stamp", "Prompt stamp", "time, context, limits and load before every prompt"),
-			part(gAsk, "background", "Background work", "reminds a session of work left running over an hour"),
-			part(gAsk, "gc", "Docker cleanup", "weekly prune of unused images — of the whole machine"),
-			part(gLegs, "tailscale", "Tailscale", "your phone from anywhere, through your tailnet"),
-			part(gLegs, "lan", "Home network, TLS", "straight at home, with a certificate you issue"),
-			part(gLegs, "domain", "Own domain", "behind your reverse proxy"),
-			part(gDev, "testdb", "Test database", "for make check: forty tests skip without it"),
-		},
+		Note:    "Space checks a part, Enter takes the list as it stands.",
+		Options: parts,
 	})
 }
 

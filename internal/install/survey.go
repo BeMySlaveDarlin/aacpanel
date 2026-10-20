@@ -438,7 +438,7 @@ func blockOf(id string) BlockID {
 		return BlockC
 	case "login":
 		return BlockL
-	case "codex":
+	case "codex", "codexhomes":
 		return BlockX
 	case "kit":
 		return BlockK

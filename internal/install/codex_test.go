@@ -3,12 +3,14 @@ package install
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	"aacpanel/internal/codex/codextest"
 	"aacpanel/internal/contours"
+	"aacpanel/internal/toolset"
 )
 
 // codexGolden are hooks of a hooks.json and the hash codex 0.162.1 answers
@@ -306,7 +308,7 @@ func TestTheCodexStepWiresEveryHomeAndTheUndoTakesItOut(t *testing.T) {
 	g.write(codexHooksFile(home), atlasCodex, 0o600)
 	config := strings.ReplaceAll(atlasConfig, codexPath, codexHooksFile(home))
 	g.write(codexConfigFile(home), config, 0o600)
-	srv.Hooks(codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, false))
+	srv.Hooks(codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, g.in.S.Has("stamp")))
 	step := g.step("codex")
 	if step == nil {
 		t.Fatal("no step for the hooks of codex")
@@ -319,10 +321,11 @@ func TestTheCodexStepWiresEveryHomeAndTheUndoTakesItOut(t *testing.T) {
 		t.Errorf("the relay: %q", got)
 	}
 	lines := g.lines()
-	last := lines[len(lines)-1]
-	if !strings.HasPrefix(last, "codex "+home+" hooks=") || !strings.Contains(last, " config=") {
-		t.Errorf("the manifest holds %q", last)
+	at := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, "codex "+home+" ") })
+	if at < 0 || !strings.HasPrefix(lines[at], "codex "+home+" hooks=") || !strings.Contains(lines[at], " config=") {
+		t.Fatalf("the manifest holds %q", lines)
 	}
+	last := lines[at]
 	if strings.Contains(g.read(codexConfigFile(home)), "user_prompt_submit") != g.in.S.Has("stamp") {
 		t.Errorf("the trust of the stamp does not follow the kit:\n%s", g.read(codexConfigFile(home)))
 	}
@@ -495,5 +498,302 @@ func TestNoCodexNoStep(t *testing.T) {
 	}
 	if slices.ContainsFunc(g.in.Steps(), func(s *Step) bool { return s.ID == "codex" }) {
 		t.Error("a machine without codex has a step for it")
+	}
+}
+
+// ---- the panel's server in config.toml ----
+
+// serverWant is the panel's server as a run with a state directory of its own
+// puts it into a home.
+var serverWant = codexServer{Command: executor, Args: []string{"-mcp"},
+	Env: map[string]string{"AACP_STATE_DIR": "/srv/state"}, Approve: toolset.CodexAllowed()}
+
+func wireServer(t *testing.T, config string, want codexServer) (string, bool) {
+	t.Helper()
+	out, changed, err := WireCodexServer([]byte(config), want)
+	if err != nil {
+		t.Fatalf("WireCodexServer: %v", err)
+	}
+	return string(out), changed
+}
+
+// serverTables are the tables of the panel's server in a config.toml, each
+// with its keys and their values as codex reads them.
+func serverTables(t *testing.T, config string) map[string]map[string]any {
+	t.Helper()
+	out := map[string]map[string]any{}
+	var keys map[string]any
+	for _, l := range parseTOML([]byte(config)).lines {
+		if parts, header := tableKey(l); header {
+			keys = nil
+			if hasPrefix(parts, codexServerKey) {
+				keys = map[string]any{}
+				out[strings.Join(parts[len(codexServerKey):], ".")] = keys
+			}
+			continue
+		}
+		key, value, ok := keyLine(l)
+		if !ok || keys == nil {
+			continue
+		}
+		v, ok := tomlLineValue(value)
+		if !ok {
+			t.Fatalf("%q does not read", l)
+		}
+		keys[strings.Join(key, ".")] = v
+	}
+	return out
+}
+
+// approved are the tools whose tables approve them.
+func approved(tables map[string]map[string]any) []string {
+	var out []string
+	for name, keys := range tables {
+		if tool, ok := strings.CutPrefix(name, "tools."); ok && keys["approval_mode"] == "approve" {
+			out = append(out, tool)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// A home without a config.toml gets the server with the command, the flag and
+// the state directory of claude's, and the approval of exactly the tools a
+// thread the panel starts calls without asking; taking it out leaves nothing.
+func TestThePanelsServerGoesIntoAFreshHome(t *testing.T) {
+	config, changed := wireServer(t, "", serverWant)
+	if !changed {
+		t.Fatal("nothing changed")
+	}
+	tables := serverTables(t, config)
+	server := tables[""]
+	if server["command"] != executor || !reflect.DeepEqual(server["args"], []any{"-mcp"}) ||
+		!reflect.DeepEqual(server["env"], map[string]any{"AACP_STATE_DIR": "/srv/state"}) {
+		t.Errorf("the server is %v:\n%s", server, config)
+	}
+	want := slices.Sorted(slices.Values(toolset.CodexAllowed()))
+	if got := approved(tables); !slices.Equal(got, want) || len(tables) != len(want)+1 {
+		t.Errorf("approved %q, want %q:\n%s", got, want, config)
+	}
+	if again, changed := wireServer(t, config, serverWant); changed || again != config {
+		t.Errorf("a second wiring changed the file:\n%s", again)
+	}
+	back, changed, err := UnwireCodexServer([]byte(config))
+	if err != nil || !changed || strings.TrimSpace(string(back)) != "" {
+		t.Errorf("unwired: %v, %v:\n%s", err, changed, back)
+	}
+}
+
+// personServer is a config.toml with a server of the panel's name from
+// another install and a table of a tool the person approved for themselves,
+// among the person's own tables.
+const personServer = `model = "gpt-6"
+
+[mcp_servers.aacpanel]
+command = "/old/bin/aacpanel-exec"   # an old clone
+args = [ '-mcp' ]
+startup_timeout_sec = 20
+
+[mcp_servers.aacpanel.tools.send_to_session]
+approval_mode = "approve"
+
+# the person's own servers
+[mcp_servers.github]
+command = "gh-mcp"
+
+[projects."/home/u/code"]
+trust_level = "trusted"
+`
+
+// A server of the name is the panel's: its command and environment are put
+// in place where they stand, an argument written in another form that reads
+// the same stays as it is written, the person's keys and tables stay, and
+// the approvals go after its last table; no line outside it changes. Taking
+// it out takes every table under it, and the rest of the file is as it was.
+func TestAServerOfTheNameIsPutInPlaceWhereItStands(t *testing.T) {
+	config, changed := wireServer(t, personServer, serverWant)
+	if !changed {
+		t.Fatal("nothing changed")
+	}
+	tables := serverTables(t, config)
+	if s := tables[""]; s["command"] != executor || s["startup_timeout_sec"] != "20" || s["env"] == nil {
+		t.Errorf("the server is %v:\n%s", s, config)
+	}
+	if !strings.Contains(config, "args = [ '-mcp' ]\n") {
+		t.Errorf("the arguments were rewritten:\n%s", config)
+	}
+	if tables["tools.send_to_session"]["approval_mode"] != "approve" {
+		t.Errorf("the person's approval is gone:\n%s", config)
+	}
+	if strings.Index(config, "[mcp_servers.aacpanel.tools.checklist]") > strings.Index(config, "# the person's own servers") {
+		t.Errorf("the approvals do not follow the server:\n%s", config)
+	}
+	outside := func(c string) []string {
+		var out []string
+		var in bool
+		for _, l := range parseTOML([]byte(c)).lines {
+			if parts, header := tableKey(l); header {
+				in = hasPrefix(parts, codexServerKey)
+			}
+			if !in && strings.TrimSpace(l) != "" {
+				out = append(out, l)
+			}
+		}
+		return out
+	}
+	if got, want := outside(config), outside(personServer); !slices.Equal(got, want) {
+		t.Errorf("the lines outside the server changed:\n%s", config)
+	}
+	if again, changed := wireServer(t, config, serverWant); changed || again != config {
+		t.Errorf("a second wiring changed the file:\n%s", again)
+	}
+	back, _, err := UnwireCodexServer([]byte(config))
+	want := "model = \"gpt-6\"\n\n# the person's own servers\n[mcp_servers.github]\ncommand = \"gh-mcp\"\n\n[projects.\"/home/u/code\"]\ntrust_level = \"trusted\"\n"
+	if err != nil || string(back) != want {
+		t.Errorf("unwired: %v:\n%s", err, back)
+	}
+}
+
+// The wiring gives a file back as it was once it is taken out: the server
+// and its approvals were all it added.
+func TestTheServerTakenOutGivesTheFileBack(t *testing.T) {
+	for _, raw := range []string{atlasConfig[:strings.Index(atlasConfig, "[mcp_servers")] + atlasConfig[strings.Index(atlasConfig, "[hooks.state]"):],
+		"model = \"gpt-6\"\n", "[projects.\"/x\"]\ntrust_level = \"trusted\"\n\n[plugins.\"x@y\"]\nenabled = true\n"} {
+		config, _ := wireServer(t, raw, serverWant)
+		back, changed, err := UnwireCodexServer([]byte(config))
+		if err != nil || !changed || string(back) != raw {
+			t.Errorf("unwired: %v, %v:\n%s\nwant:\n%s", err, changed, back, raw)
+		}
+	}
+}
+
+// The state directory is named to the server only where it is not the
+// default: a run back at the default takes the environment out.
+func TestTheStateDirectoryOfTheServerFollowsTheInstall(t *testing.T) {
+	config, _ := wireServer(t, "", serverWant)
+	plain := serverWant
+	plain.Env = nil
+	config, changed := wireServer(t, config, plain)
+	if !changed || serverTables(t, config)[""]["env"] != nil {
+		t.Errorf("the environment stayed:\n%s", config)
+	}
+}
+
+// A file that names the server in a form the wiring does not edit is left as
+// it is: a table added beside an inline one, or a key written past its line,
+// would leave codex a file it does not read.
+func TestAServerInAnotherFormIsLeftAlone(t *testing.T) {
+	for _, c := range []struct {
+		name, config string
+		unwires      bool
+	}{
+		{"inline in mcp_servers", "[mcp_servers]\naacpanel = { command = \"x\" }\n", false},
+		{"mcp_servers inline", "mcp_servers = { aacpanel = { command = \"x\" } }\n", false},
+		{"dotted from the root", "mcp_servers.aacpanel.command = \"x\"\n", false},
+		{"an array of its name", "[[mcp_servers.aacpanel]]\ncommand = \"x\"\n", false},
+		{"a tool as a dotted key", "[mcp_servers.aacpanel]\ncommand = \"x\"\ntools.checklist.approval_mode = \"prompt\"\n", true},
+		{"a tool as an inline table", "[mcp_servers.aacpanel.tools]\nchecklist = { approval_mode = \"prompt\" }\n", true},
+		{"the environment as a table", "[mcp_servers.aacpanel]\ncommand = \"x\"\n\n[mcp_servers.aacpanel.env]\nX = \"y\"\n", true},
+		{"arguments past their line", "[mcp_servers.aacpanel]\ncommand = \"x\"\nargs = [\n  \"-mcp\",\n]\n", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if _, _, err := WireCodexServer([]byte(c.config), serverWant); err == nil || !strings.Contains(err.Error(), "does not edit") {
+				t.Errorf("wired: %v", err)
+			}
+			if _, _, err := UnwireCodexServer([]byte(c.config)); (err == nil) != c.unwires {
+				t.Errorf("unwired: %v", err)
+			}
+		})
+	}
+}
+
+// codexStepRig is a rig with a codex home that the daemon of the fixture
+// lists as wired: its hooks trusted and enabled.
+func codexStepRig(t *testing.T) (*rig, string) {
+	srv := codextest.New(t)
+	t.Setenv("TMPDIR", srv.Home)
+	g := newRig(t)
+	g.m.Disk = srv.Home
+	g.in.S.was.host = map[string]string{contours.CodexHomesEnv: srv.Home}
+	srv.Hooks(codexHookListing(srv.Home, g.in.execPath(), g.in.state(), "trusted", true, g.in.S.Has("stamp")))
+	return g, srv.Home
+}
+
+// The step puts the server into a home, records it as a line of its own, and
+// the undo of that line takes it out; a config.toml the installer made goes
+// once nothing else is left in it.
+func TestTheCodexStepPutsTheServerInAndTheUndoTakesItOut(t *testing.T) {
+	g, home := codexStepRig(t)
+	step := g.step("codex")
+	if err := g.do(step); err != nil {
+		t.Fatal(err)
+	}
+	config := g.read(codexConfigFile(home))
+	tables := serverTables(t, config)
+	if s := tables[""]; s["command"] != g.in.execPath() || !reflect.DeepEqual(s["env"], map[string]any{"AACP_STATE_DIR": g.state}) {
+		t.Errorf("the server is %v:\n%s", s, config)
+	}
+	if got := approved(tables); len(got) != len(toolset.CodexAllowed()) {
+		t.Errorf("approved %q", got)
+	}
+	var mcpLine string
+	for _, l := range g.lines() {
+		if strings.HasPrefix(l, "codexmcp ") {
+			mcpLine = l
+		}
+	}
+	if mcpLine != "codexmcp "+home+" config=created" {
+		t.Fatalf("the manifest holds %q", g.lines())
+	}
+	if !g.already(step) {
+		t.Error("the step is not done after it ran")
+	}
+	g.undoAll(step)
+	if _, err := os.Stat(codexConfigFile(home)); !os.IsNotExist(err) {
+		t.Errorf("the config.toml the installer made is left:\n%s", g.read(codexConfigFile(home)))
+	}
+}
+
+// A server in place as this install writes it is not the installer's to take
+// back: nothing is recorded for it, and the undo leaves it, as a claude
+// account's server in place is left.
+func TestAServerInPlaceIsNotRecorded(t *testing.T) {
+	g, home := codexStepRig(t)
+	config, _ := wireServer(t, "model = \"gpt-6\"\n", g.in.codexServerWant())
+	g.write(codexConfigFile(home), config, 0o600)
+	step := g.step("codex")
+	if err := g.do(step); err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(g.lines(), func(l string) bool { return strings.HasPrefix(l, "codexmcp ") }) {
+		t.Fatalf("a server in place was recorded: %q", g.lines())
+	}
+	g.undoAll(step)
+	if !codexHasServer([]byte(g.read(codexConfigFile(home)))) {
+		t.Errorf("the undo took out a server it did not write:\n%s", g.read(codexConfigFile(home)))
+	}
+}
+
+// An install by hand whose codex home holds the server is taken over with it,
+// as a claude account's server is: uninstall takes it out by its name.
+func TestAServerOfAnInstallByHandIsTakenOver(t *testing.T) {
+	g, home := codexStepRig(t)
+	g.write(codexConfigFile(home), "[mcp_servers.aacpanel]\ncommand = \"/srv/old/aacpanel-exec\"\n", 0o600)
+	if !slices.Contains(g.in.traces(g.r), trace{CodexMCP, home, ""}) {
+		t.Errorf("the traces are %v", g.in.traces(g.r))
+	}
+}
+
+// Uninstall names the server it takes out of a codex home in its plan.
+func TestUninstallNamesTheServerOfCodex(t *testing.T) {
+	g := newRig(t)
+	home := filepath.Join(g.home, ".codex")
+	rm := NewRemoval(g.m, g.in.f(), []Entry{{Step: "codex", Kind: string(CodexMCP), Target: home, Meta: "config=created"}}, filepath.Join(g.home, ".cache"))
+	var plan []string
+	for _, r := range rm.Plan() {
+		plan = append(plan, r.Text)
+	}
+	if !slices.Contains(plan, "  · ~/.codex/config.toml: the server aacpanel taken out, with the tables under it") {
+		t.Errorf("the plan is %q", plan)
 	}
 }

@@ -49,15 +49,13 @@ var facts = install.Facts{
 // registry: two stops, a warning, and passes enough to fold.
 func stopped() install.Inspection {
 	tmux := install.Missing{Name: "tmux", Why: "sessions live in it, and without it the executor turns off every action on sessions", Command: "sudo apt install tmux"}
-	jq := install.Missing{Name: "jq", Why: "the status line script reads the limits with it", Command: "sudo apt install jq"}
 	return install.Inspection{Facts: facts, Findings: []install.Finding{
 		{Mark: install.Pass, Text: "Ubuntu 24.04.3 LTS · x86_64 · systemd 255"},
 		{Mark: install.Pass, Text: "docker 27.5.1 · compose 2.33.1 · system daemon"},
 		{Mark: install.Pass, Text: "claude 2.1.283 · ~/.local/bin/claude"},
 		{Mark: install.Stop, Text: tmux.Stop(), Missing: &tmux},
-		{Mark: install.Stop, Text: jq.Stop(), Missing: &jq},
 		{Mark: install.Pass, Text: "ports 8776, 8777, 8443 are free"},
-		{Mark: install.Pass, Text: "python3 3.12.3 for the collector"},
+		{Mark: install.Stop, Text: "stop: python3 3.9 or newer is needed by the collector (found none)."},
 		{Mark: install.Pass, Text: "sudo asks for a password: the root step runs one sudo"},
 		{Mark: install.Pass, Text: "the clone ~/aacpanel belongs to u and is not on tmpfs"},
 		{Mark: install.Pass, Text: "no container is named aacpanel, aacpanel-db, aacpanel-socket-proxy, aacpanel-tailscale"},

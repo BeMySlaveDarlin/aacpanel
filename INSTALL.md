@@ -37,11 +37,15 @@ default, and `<install>` is the installer's own directory,
 | `aacpanel-exec` | systemd user unit, the Go binary `<home>/bin/aacpanel-exec` | the panel only shows, not a single button |
 
 Smaller traces: the machine description `<state>/host.env`, the secrets in the
-clone's `.env`, the question hook, the status line and the parts of the kit you
-choose in the `settings.json` of every claude account, the panel's MCP server in
-every account, the hooks codex runs as well in the `hooks.json` of every codex
-home and their trust in its `config.toml`, linger for your user, the executor's state in
-`<home>/.local/state/aacpanel` and `<home>/.local/state/aacpanel-stream`.
+clone's `.env`, the question hook, the status line, the parts of the kit you
+choose and `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the `settings.json` of
+every claude account, the panel's MCP server in every account, the hooks codex
+runs as well in the `hooks.json` of every codex home, their trust and the
+panel's MCP server with the approvals of its tools in its `config.toml`, the
+user units `aacpanel-codex-update.timer` and `aacpanel-codex-update.service`,
+which update the standalone codex every six hours, linger for your user, the
+executor's state in `<home>/.local/state/aacpanel` and
+`<home>/.local/state/aacpanel-stream`.
 
 On request, with the kit: the weekly cleanup of docker, the user units
 `aacpanel-docker-gc.timer` and `aacpanel-docker-gc.service`. Where the machine
@@ -54,11 +58,12 @@ changed in `<install>`, and the Go it builds itself and the executor with in
 
 ## Before you run it
 
-**The clone stays where it is, for good.** The collector and the hooks of claude
-run straight from the tree, and its path is written into the machine
-description and into every account's settings: moving the directory is a
-reinstall. It has to belong to you, lie on a disk and not on tmpfs, and its
-path takes no spaces or quotes — unit files and hook commands cannot carry them.
+**The clone stays where it is, for good.** The collector runs straight from the
+tree, and its path is written into the machine description: moving the
+directory is a reinstall. The hooks of claude and codex do not run from it:
+each runs `<home>/bin/aacpanel-exec hook <name>`, the executor the install
+builds from the tree. The clone has to belong to you, lie on a disk and not on
+tmpfs, and its path takes no spaces or quotes — unit files cannot carry them.
 
 **Run it as the user whose claude sessions the panel manages**, not as root: the
 executor refuses to run as root, and the panel's container runs under your uid.
@@ -127,7 +132,7 @@ run before the first change, with the command that fixes it.
 | docker, the system daemon, answering you | `docker version`, `docker info`, `/var/run/docker.sock` | missing: offered with apt; `permission denied`: `sudo usermod -aG docker <user>` and a new login; rootless docker, Docker Desktop, docker from snap: stop |
 | docker compose v2, 2.18.0 or newer | `docker compose version --short` | missing: offered with apt, when apt has one that new; otherwise stop. The `docker-compose` package of Debian 12 is compose v1: there docker comes from `download.docker.com` |
 | claude | `command -v claude`, else `~/.local/bin/claude`; and what its first line runs | missing: offered with Anthropic's native installer, as you, and curl with apt where the machine has neither curl nor wget for it. One that runs on a node the executor's unit does not see: stop |
-| tmux and jq | `PATH` | offered with apt |
+| tmux | `PATH` | offered with apt |
 | python3 3.9 or newer | `python3 -c …` | stop |
 | sudo | `sudo -n true`, `sudo -n -l` | a password is asked at the terminal; without a terminal the run stops, unless the root part of an earlier install is in place |
 | ports 8776 and 8777 | `/proc/net/tcp`, `ss`, `docker ps` | taken by something else: stop, the ports are fixed. 8443 taken: the home-network listener takes a free port of 18443–18499 |
@@ -191,19 +196,20 @@ the quiet group is checked for you, the rest waits to be asked for:
    Always
    [✔] Question relay     a session's questions reach your phone
    [✔] Limits snapshot    5-hour and weekly limits, before your status line
-   [✔] Panel tools        checklist, briefs, secrets, a phone call, restart
+   [✔] Panel tools        checklist, role, briefs, secrets, a phone call, its
+                          own close, its observers, alarms
    Quiet — checked for you
  ❯ [✔] Page copies        a published page opens on the phone under any account
    [✔] Context cap        stops a session at the cap, restarts it with your line
    [✔] Checklist nudge    reminds a session that forgot its checklist
    [✔] Self-restart       a session may restart itself without asking you
+   [✔] Prompt stamp       time, context, limits, load; the role after a restart
    On request
-   [ ] Prompt stamp       time, context, limits and load before every prompt
    [ ] Background work    reminds a session of work left running over an hour
    [ ] Docker cleanup     weekly prune of unused images — of the whole machine
    Ways in besides this machine
    [ ] Tailscale          your phone from anywhere, through your tailnet
-   [ ] Home network, TLS  straight at home, with a certificate you issue
+   [ ] Home network, TLS  straight at home, with a TLS certificate
    [ ] Own domain         behind your reverse proxy
    For development
    [ ] Test database      for make check: forty tests skip without it
@@ -223,6 +229,7 @@ plan into `<install>/plan.txt` and quits:
 │   · linger for dev                                                       new │
 │ As you                                                                       │
 │   · ~/bin/aacpanel-exec, built with the installer's Go                   new │
+│   · aacpanel-codex-update.timer, every six hours                         new │
 │   · aacpanel-exec.service, user unit                                     new │
 │   · ~/aacpanel/.env                                                      new │
 │   · compose: aacpanel, aacpanel-db, socket-proxy                         new │
@@ -230,7 +237,11 @@ plan into `<install>/plan.txt` and quits:
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 7 allow rules · 5 hooks                                                  │
+│   · 14 allow rules · 5 hooks                                                 │
+│   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
+│ In codex settings — ~/.codex/hooks.json, ~/.codex/config.toml                │
+│   · question hook · MCP server                                               │
+│   · 2 hooks, trusted · 12 tools approved                                     │
 │ Values                                                                       │
 │   host lab (hostname) · home session lab (host name)                         │
 │   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │
@@ -279,6 +290,7 @@ everything it printed:
      ☒ Panel settings
      ■ Build the executor
      ☐ Executor unit
+     ☐ Codex update timer
      ☐ Panel stack
 ```
 
@@ -351,14 +363,14 @@ taken over only with `--adopt` next to `--yes`.
 
 ```bash
 ./install.sh --yes --plain                                     # the suggested answers, all of them
-./install.sh --yes --plain --transport tmux --no-windows --kit +stamp,-cap
+./install.sh --yes --plain --transport tmux --no-windows --kit +background,-cap
 ./install.sh --yes --plain --kit +tailscale --ts-authkey-file ~/ts.key
 ```
 
 | Flag | Answers |
 |---|---|
 | `--keep yes\|review\|access` | Keep the current settings? — over an earlier install |
-| `--install-docker`, `--install-compose`, `--install-tmux`, `--install-jq` `yes\|no` | whether the root step installs what is missing with apt |
+| `--install-docker`, `--install-compose`, `--install-tmux` `yes\|no` | whether the root step installs what is missing with apt |
 | `--install-claude yes\|no` | claude is not installed: install it with Anthropic's native installer? |
 | `--host NAME` | What does the panel call this machine? |
 | `--home-session NAME` | Name of the home session? |
@@ -370,6 +382,7 @@ taken over only with `--adopt` next to `--yes`.
 | `--locale LOCALE` | Which locale do sessions run in? |
 | `--claude PATH` | What starts claude? |
 | `--codex PATH` | What starts codex, when its home or program is found? |
+| `--codex-home DIR` | Which codex homes does the panel watch? Again for more |
 | `--account DIR` | Which claude accounts does the panel serve? Again for more |
 | `--transport stream\|tmux` | How are sessions kept? |
 | `--claude-login [DIR=]now\|later` | Sign in to an account now? |
@@ -433,59 +446,29 @@ What no command checks:
    executor's probe writes them shortly after its start, and the status line
    keeps them fresh while a terminal of the account is open.
 
-**Codex.** The installer gives the panel's server to claude accounts alone. A
-codex thread the panel starts gets it on its own; for the threads of codex in a
-terminal and the runs of `codex exec`, every codex home the panel watches
-(`AACP_CODEX_HOMES`, `~/.codex` unset) gets it through codex's own command,
-which writes `[mcp_servers.aacpanel]` into the home's `config.toml`:
+**Codex.** A codex thread the panel starts gets the panel's server on its own
+command line. For the threads of codex in a terminal and the runs of
+`codex exec`, the installer puts the server into the `config.toml` of every
+codex home it wires (S12a): `[mcp_servers.aacpanel]` with the executor in its
+MCP mode, and a table a tool with `approval_mode = "approve"` for the tools a
+thread the panel starts calls without asking — the checklist, publishing and
+deleting a brief, the call to the person, the notepad of secrets, the thread's
+own close, the list, the stop and the log of its observers, and its alarms.
+`CODEX_HOME=<codex home> <codex> mcp get aacpanel` shows what codex reads;
+`<codex>` is the program `AACP_CODEX` names, since a wrapper that picks the
+home by the directory reads another home.
 
-```bash
-CODEX_HOME=<codex home> <codex> mcp add aacpanel -- <home>/bin/aacpanel-exec -mcp   # every codex home
-CODEX_HOME=<codex home> <codex> mcp get aacpanel                                    # the command above
-```
-
-`<codex>` is the program `AACP_CODEX` names, or `codex` without it: a wrapper
-that picks the home by the directory writes into another home. A second `add`
-of the name replaces the first. The server under codex offers a thread the
-checklist, the briefs, the call to the person, the notepad of secrets and its
-own close beside the letter, each for the thread that makes the call: one codex serves
-many threads, and the server takes the thread from the call itself. Codex
-asks the person before every call of a tool of a server, and a run that may
-not ask (`approval_policy = "never"`) has the call refused. A thread the panel
-starts runs the tools a claude session is allowed without asking, and the
-letter asks; a thread of a terminal and a run read the same from the home,
-a tool at a time:
-
-```toml
-[mcp_servers.aacpanel.tools.checklist]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.brief_publish]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.brief_delete]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.notify]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.secret_ask]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.session_close]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.observer_list]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.observer_stop]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.observer_tail]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.alarm_set]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.alarm_list]
-approval_mode = "approve"
-[mcp_servers.aacpanel.tools.alarm_cancel]
-approval_mode = "approve"
-```
-
-The letter and the start of an observer are left to ask; a home whose runs may not ask and still
-write letters or start observers lets them through the same way,
-`[mcp_servers.aacpanel.tools.send_to_session]` and `[mcp_servers.aacpanel.tools.observer_start]`.
+The server under codex offers a thread the checklist, the briefs, the call to
+the person, the notepad of secrets and its own close beside the letter, each for
+the thread that makes the call: one codex serves many threads, and the server
+takes the thread from the call itself. Codex asks the person before every call
+of a tool of a server, and a run that may not ask (`approval_policy = "never"`)
+has the call refused. The letter, opening a session and the start of an
+observer are left to ask; a home whose runs may not ask and still write letters
+or start observers lets them through the same way,
+`[mcp_servers.aacpanel.tools.send_to_session]` and
+`[mcp_servers.aacpanel.tools.observer_start]` — tables under the server, which
+uninstall takes out with it.
 
 A run started with `--ignore-user-config` reads no `config.toml` and gets the
 server only from its own command line:
@@ -496,7 +479,8 @@ line a link: `/healthz` on the panel's address and on the local listener, the
 age of the collector's snapshot, `aacpanel-exec -list`, the executor's socket and
 whether the panel reaches it, the database under the application role, the
 containers, both units and linger, the socket of the questions, the wiring of
-claude in every account, the contours on the map, the tailnet node when there
+claude in every account, the hooks and the server of every codex home, the
+contours on the map, the tailnet node when there
 is one, and the timer of the docker cleanup when the kit holds it — a warning,
 not a break, when it is off. `--session` opens the test session
 `aacpanel-check` through the executor, waits for the collector to see it and
@@ -517,8 +501,9 @@ collector is restarted on the new tree. The report names the keys
 `.env.example` gained since the tree the clone was on.
 
 **`./install.sh uninstall`** takes back what the manifest lists, and nothing
-else, in the order that keeps the machine working to the end: claude's settings
-first, while the clone the hooks run from is there; your units; the executor;
+else, in the order that keeps the machine working to the end: the settings of
+claude and codex first, while the executor their hooks run is there; your
+units; the executor;
 the stack with its images; the part as root in one sudo, with linger last of
 what goes through systemd — and only when the installer turned it on; the data
 you chose, the caches; and the installer's own directory last of all. A
@@ -601,6 +586,7 @@ lists what the machine holds of the panel: an install by hand goes away as
 | Tailscale | the tailnet gives the node no name with a certificate | MagicDNS and HTTPS Certificates in the tailnet admin console → DNS |
 | Claude settings | a `settings.json` does not parse; nothing was written to it | `python3 -m json.tool <file>` shows where |
 | Claude settings | `claude mcp add` failed | `claude --version`, and the lines above it |
+| Codex hooks and tools | `config.toml` names the hooks' trust or the server `aacpanel` in a line the installer does not edit; nothing was written | write the server as the tables `[mcp_servers.aacpanel]` and `[mcp_servers.aacpanel.tools.<tool>]`, or take it out, then `./install.sh` |
 | Map | a contour of that name stands for another account | `--contour <dir>=<name>`, or rename it on the Profiles screen |
 | Check | a link of the chain is broken | the line under it says where to look |
 
@@ -621,7 +607,7 @@ whatever a command echoes back of one is cut out.
 | the "cookie without Secure" chip in the header | the panel is opened over https while `AACP_SECURE=0` stayed: remove the line and recreate the container |
 | a session opens without a window | an empty `AACP_TERMINAL` or a machine without `DISPLAY`; the button in the conversation header opens a window where there are graphics |
 | the window opened, but it is not on the screen | `DISPLAY` points at a service display; the right one is named by `systemctl --user show-environment` |
-| the limits of an account are empty or old | `journalctl --user -u aacpanel-exec` names a probe that failed; no `jq` or no status line leaves them to the probe alone |
+| the limits of an account are empty or old | `journalctl --user -u aacpanel-exec` names a probe that failed; without the status line they come from the probe alone |
 | there is a button, and the journal says "unknown action" | the executor is of an older tree: `./install.sh update` |
 | a session on the stream answers that it was started before the panel could do this | its holder runs the executor it was started with: restart the session, the conversation is kept |
 | the feed of a session on the stream broke after claude updated itself | `make stream-contract` names the request that changed: every request the feed needs against the installed claude, a dozen short turns on haiku |
@@ -684,7 +670,6 @@ uninstall removes only where it knows it for the panel's beyond doubt; and
 | docker without sudo | `docker version` — the call itself, not `command -v` | half the steps will need rights |
 | tmux | `tmux -V` | **no session will open**, in tmux or on the stream: a session in tmux lives there and the window is only attached to it, and a session on the stream goes into tmux when it is moved there |
 | python3 3.9 or newer | `python3 -V` | the collector will not start, the panel is blind |
-| jq | `jq --version` | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in tmux shows only with its next request |
 | Go of the version `go.mod` names | `go version` | the executor cannot be built |
 | git, openssl | `git --version`, `openssl version` | the secrets below are drawn by `openssl` |
 | claude, installed natively | `claude --version` | there is nothing to show; S5a installs it |
@@ -693,7 +678,7 @@ uninstall removes only where it knows it for the panel's beyond doubt; and
 On Debian and Ubuntu:
 
 ```bash
-sudo apt install docker.io tmux python3 jq git openssl
+sudo apt install docker.io tmux python3 git openssl
 sudo apt install docker-compose-v2   # Ubuntu; on Debian 13 the package is docker-compose
 sudo usermod -aG docker "$USER"      # then log in again
 ```
@@ -772,14 +757,21 @@ is a display; the locale always.
   `AACP_SIGN_IN_LATER`, joined by `:`, so that a run keeping the settings does
   not open claude for them again.
 
+**Codex** — only where a codex program or a codex home is found.
+- *What starts codex?* — see `AACP_CODEX` in S3.
+- *Which codex homes does the panel watch?* — the homes `host.env` lists, or
+  `~/.codex`, codex's own. `AACP_CODEX_HOMES`, joined by `:`. Each home that is
+  there gets the hooks and the server of S12a; a home codex has not made yet is
+  watched all the same and gets them from the run after codex's first start in
+  it — the plan and the report say so.
+
 **Prerequisites** — asked only for what the check found missing, yes each:
 *docker is not installed. Install it with apt as part of the root step?*,
-*docker compose v2 is missing…*, *tmux is missing. Install it?*, *jq is
-missing. Install it?* — the packages of S4; *claude is not installed. Install
-it with Anthropic's native installer?* — S5a, with curl among the packages of
-S4 on a machine with neither curl nor wget, and then *What starts claude?*
-suggests `~/.local/bin/claude`. A no stops the run with the command that
-installs it by hand.
+*docker compose v2 is missing…*, *tmux is missing. Install it?* — the packages
+of S4; *claude is not installed. Install it with Anthropic's native
+installer?* — S5a, with curl among the packages of S4 on a machine with neither
+curl nor wget, and then *What starts claude?* suggests `~/.local/bin/claude`.
+A no stops the run with the command that installs it by hand.
 
 **Kit** — *What goes into this install?* The parts and what each puts where:
 
@@ -787,12 +779,12 @@ installs it by hand.
 |---|---|---|
 | Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `aacpanel-exec hook ask-hook` |
 | Limits snapshot | always | the status line, `aacpanel-exec statusline`, before yours |
-| Panel tools | always | the MCP server `aacpanel`: checklist, role, briefs, secrets and a phone call, with the allow rules of its tools but the restart; answered briefs of the directory are named at the handshake |
+| Panel tools | always | the MCP server `aacpanel` with thirteen allow rules: the checklist, the role, publishing and deleting a brief, the call to the person, the notepad of secrets, the session's own close, the list, the stop and the log of its observers, and its alarms — a letter, opening a session and starting an observer still ask, and so does the restart without Self-restart; `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the `env` of the settings, so that a session started by hand keeps the server's word whole; in every codex home, the server and the approval of the same tools (S12a); answered briefs of the directory are named at the handshake |
 | Page copies | yes | the `PostToolUse` hook on `Artifact`, `aacpanel-exec hook artifact-copy` |
 | Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
 | Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
-| Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `aacpanel-exec hook prompt-stamp`, its throttle files `<state>/stamp-*.state` and the marks of the role it told `<state>/role-*.state` |
+| Prompt stamp | yes | the `UserPromptSubmit` and `PostToolBatch` hooks, `aacpanel-exec hook prompt-stamp`, its throttle files `<state>/stamp-*.state` and the marks of the role it told `<state>/role-*.state`. After a restart, a resume or a reopen the session's role reaches the model only through the stamp: claude keeps the word of the server a conversation started with |
 | Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
 | Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
@@ -872,12 +864,14 @@ the collector and the executor.
 
 Among the keys the template carries and no question asks is how many processes
 parse transcripts for usage (`AACP_USAGE_WORKERS`). One key the executor reads is not
-in the template: `AACP_LIMITS_EVERY`, how old the snapshot of an account's
+in the template: `AACP_LIMITS_EVERY`, how old the snapshot of a contour's
 limits may grow before the executor renews it with a probe — a `claude -p` on
-haiku that says one word, a share of the very limit it reads. Ten minutes by
-default, in Go duration form (`30m`), never under a minute; an account with a
-terminal open keeps its snapshot fresh through the status line and is not
-probed.
+haiku that says one word. A minute by default, in Go duration form (`30m`),
+never under a minute. Its price is a claude start and a word on haiku for every
+contour every minute, out of the very limit it reads. The executor looks once a
+minute and renews a snapshot that would age past the interval before its next
+look, so a terminal of the contour, whose status line keeps the snapshot fresh,
+spares a probe only under a longer interval.
 
 `AACP_CLAUDE_REGISTRY` points at the registry of a contour router, if the
 machine has one: a line an account, `name | prefix | config dir | token file`,
@@ -887,9 +881,9 @@ the accounts from it after `AACP_CLAUDE_HOME`, and a new contour on the map is
 taken from them — without a registry a contour's paths are typed by hand.
 
 `AACP_CODEX_HOMES` names the codex accounts the panel watches, joined by `:`
-like the claude ones; unset, it is `~/.codex`. No question asks for it: a
-machine with codex in another `CODEX_HOME` adds the directory by hand. The
-panel shows the conversations of each of them under the contour it pairs
+like the claude ones; unset or empty, it is `~/.codex`. With codex on the
+machine the installer asks *Which codex homes does the panel watch?* and writes
+the answer here. The panel shows the conversations of each of them under the contour it pairs
 with. A home is named the way a claude account is — `~/.codex` is the personal
 one, any other directory its name without the leading dot — and pairs with the
 claude account of that name: the registry's name where the registry holds the
@@ -940,11 +934,11 @@ whole. By the script, which prints a manifest line before every change:
 
 ```bash
 sudo bash <clone>/deploy/install/root.sh apply --user <user> --state <state> \
-  --staged <install>/host.env.staged --package tmux --package jq
+  --staged <install>/host.env.staged --package tmux
 bash <clone>/deploy/install/root.sh apply --user <user> --dry-run   # what it would do, without root
 ```
 
-`--package` takes only `tmux`, `jq`, `curl`, `docker.io`, `docker-compose-v2`,
+`--package` takes only `tmux`, `curl`, `docker.io`, `docker-compose-v2`,
 `docker-compose-plugin` and `docker-compose` — curl for claude's native
 installer on a machine with neither curl nor wget; `--staged` only when S3
 staged the file. Or the same by hand, as root:
@@ -1094,13 +1088,13 @@ docker compose up -d --build aacpanel
 Without this persistent overlay, the next plain `docker compose up` removes
 the socket mount and disables the listener. Explicit `-f` options override
 `COMPOSE_FILE`, so those calls must include `-f deploy/voice.yml` as well.
-Build the matching executor as in S7: for voice input, its `session.send`
-must refuse a recipient without a stream or reachable terminal instead of
-substituting a letter, and report lookup error codes. The composer's letter
-fallback is unchanged.
+The executor has to be the one S7 builds from the same tree: for voice input
+its `session.send` refuses a recipient without a stream or a reachable
+terminal rather than send a letter, and reports lookup errors by their codes,
+while the composer sends such a recipient a letter.
 
 The service creates `/run/aacpanel-voice/sock`, visible on the host as
-`<AACP_VOICE_DIR>/sock`. In `atlas-voice`, mount the **directory** read-only,
+`<AACP_VOICE_DIR>/sock`. In the consumer's container, mount the **directory** read-only,
 for example `<AACP_VOICE_DIR>:/run/aacpanel-voice:ro`, and run the consumer under
 the same numeric `AACP_UID:AACP_GID` (without a user namespace remapping those
 ids). Both `sock` and `token` are `0600`; do not share the executor's socket
@@ -1210,6 +1204,31 @@ and `timers.target.wants` removed if nothing else lives there. Their lines
 then leave the manifest; the directories the executor's unit shares stay on
 record. Done when the manifest holds no line of the cleanup; units of it the
 manifest does not hold are not the installer's and stay.
+
+## S8b. `codex-timer` — Codex update timer
+
+On every install. Every six hours the timer asks the executor to update the
+standalone codex in `~/.codex/packages/standalone` and to check its protocol;
+the service passes by a machine without that codex. Its installed file is how
+another updater of codex on the machine knows that the panel owns the updates.
+
+- **Done when** `~/.config/systemd/user/aacpanel-codex-update.service` and
+  `aacpanel-codex-update.timer` are the shipped files, and the timer is enabled
+  and active.
+- **Do.**
+
+  ```bash
+  install -Dm644 deploy/systemd/aacpanel-codex-update.service ~/.config/systemd/user/aacpanel-codex-update.service
+  install -Dm644 deploy/systemd/aacpanel-codex-update.timer   ~/.config/systemd/user/aacpanel-codex-update.timer
+  systemctl --user daemon-reload
+  systemctl --user enable --now aacpanel-codex-update.timer
+  ```
+
+  A timer enabled already, whose files changed, is restarted instead.
+- **Check.** `systemctl --user is-enabled aacpanel-codex-update.timer` and
+  `is-active` say `enabled` and `active`.
+- **Manifest.** As in S8a, with `codex-timer` and the names of these units.
+  Uninstall disables the timer and removes both files and the link.
 
 ## S9. `compose` — Panel stack
 
@@ -1453,12 +1472,21 @@ directory other than the default, `-e AACP_STATE_DIR=<state>` goes after the
 name. A second `add` of the name is refused: a new path goes in after
 `claude mcp remove aacpanel -s user`. A session the panel starts gets the same
 server on its command line anyway, and claude keeps one server of a name, so
-the server in the account serves the sessions started by hand. Such a session
-keeps 2048 UTF-16 units of the server's word, claude's default, and cuts the
-rest, the lines of the last tools first: the launcher lifts the ceiling for its
-own sessions with `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=6656`, and a session
-started by hand gets the same with the variable in the environment claude
-starts in.
+the server in the account serves the sessions started by hand. claude keeps
+2048 UTF-16 units of a server's word by default and cuts the rest, the lines of
+the last tools first. The launcher lifts the ceiling for its own sessions with
+`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=6656`; for a session started by hand the
+Panel tools part writes the same into the `env` of the account's
+`settings.json`, which claude puts into its own environment as it starts, and
+the ceiling is read from there each time it takes a server's word in. A value
+of yours at least as large stays; a smaller one is raised, and uninstall gives
+it back:
+
+```json
+{
+  "env": {"CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH": "6656"}
+}
+```
 
 Rules of the machine's own for a brief are edited in Settings → Briefs and kept
 in the panel's database; the first start imports an existing
@@ -1478,20 +1506,25 @@ it is signed in.
   ```bash
   jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("hook ask-hook"))] | length' ~/.claude/settings.json      # 1
   jq '.statusLine.command | contains("aacpanel-exec statusline")' ~/.claude/settings.json                                     # true
+  jq -r '.env.CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH' ~/.claude/settings.json                                              # 6656 or more
   claude mcp get aacpanel                                                                                                  # Scope: User config
   <home>/bin/aacpanel-exec statusline </dev/null                                                                           # exits 0
   ```
 
 - **Manifest.** `claude	json	<account>/settings.json	orig=<copy> sha=<sha256 of the file as written>`,
-  or `created sha=…` for a file that was not there; and
+  or `created sha=…` for a file that was not there, with
+  `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=<what the env held>` after it once the
+  install raised the value — empty for a key that was not there; and
   `claude	mcp	<account>	claude=<what starts claude> file=<its .claude.json>`.
   The sum lets uninstall tell whether the file is still as it was written: then
-  the copy goes back byte for byte.
+  the copy goes back byte for byte. A file changed since loses the panel's
+  lines, and the value of the env goes back to what the line names while it is
+  still 6656.
 
-## S12a. `codex` — Codex hooks
+## S12a. `codex` — Codex hooks and tools
 
-Only on a machine with codex: for every codex home `AACP_CODEX_HOMES` of
-host.env lists, or `~/.codex`, that is there. codex runs hooks from
+Only on a machine with codex: for every codex home of the answer to *Which
+codex homes does the panel watch?* (`AACP_CODEX_HOMES`) that is there. codex runs hooks from
 `<codex home>/hooks.json`, in the shape of claude's settings, and the kit puts
 there the hooks codex runs as well, in the same form and by the same rules as
 in S12 — an entry of the panel's rewritten where it stands, the retired hooks
@@ -1520,14 +1553,42 @@ trust of every entry it wrote — `/hooks` in codex shows them as trusted — an
 since the trust goes with the place, carries the table of every other hook to
 where that hook stands after the change: a hook of the person's after the
 panel's in its event moves up when the panel's goes. A table of a place the
-file no longer has goes. The rest of `config.toml` is codex's and the
-person's: the installer changes only the lines of these tables, never runs
-`codex mcp add`, which prints the whole file anew, and stops without writing
-either file when `config.toml` names the trust of `hooks.json` in another form,
-an inline table say.
+file no longer has goes.
+
+**The panel's server.** codex started by hand reads its MCP servers from
+`config.toml`, and asks the person before every call of a tool of a server
+unless the tool's table approves it. The installer puts the server there with
+the command, the arguments and the state directory of claude's (S12), and
+approves the tools a thread the panel starts calls without asking:
+
+```toml
+[mcp_servers.aacpanel]
+command = "<home>/bin/aacpanel-exec"
+args = ["-mcp"]
+env = { AACP_STATE_DIR = "<state>" }   # only for a state directory other than the default
+
+[mcp_servers.aacpanel.tools.checklist]
+approval_mode = "approve"
+```
+
+— and a table of the same form for `brief_publish`, `brief_delete`, `notify`,
+`secret_ask`, `session_close`, `observer_list`, `observer_stop`,
+`observer_tail`, `alarm_set`, `alarm_list` and `alarm_cancel` — the very list
+a thread the panel starts is given. A server of the name already
+in the file is the panel's, as in a claude account: its `command`, `args` and
+`env` are put in place where they stand, its other keys and the tables of other
+tools stay, and the new tables go after its last one.
+
+The rest of `config.toml` is codex's and the person's: the installer changes
+only the lines of these tables, never runs `codex mcp add`, which prints the
+whole file anew, and stops without writing either file when `config.toml` names
+the trust of `hooks.json` or the server in another form — an inline table, a
+dotted key from another table, a value of its own keys that goes on past its
+line — with the line named.
 
 - **Done when** every home's `hooks.json` carries the hooks of the kit, each
-  trusted and enabled as the daemon sees it.
+  trusted and enabled as the daemon sees it, and its `config.toml` holds the
+  server and the approvals as above.
 - **Check.** Verify and `./install.sh check` ask each home's running daemon
   for `hooks/list`. If its socket is absent, they start the program selected
   by *What starts codex?* as a private `app-server --stdio` with that `CODEX_HOME`, then
@@ -1541,16 +1602,24 @@ an inline table say.
   installed release's protocol. Neither check opens a thread, spends tokens or
   starts or stops the shared daemon.
 
+  The server is checked against `config.toml` itself, and
+  `CODEX_HOME=<codex home> <codex> mcp get aacpanel` shows it as codex reads it.
+
   ```bash
   jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("hook ask-hook"))] | length' ~/.codex/hooks.json      # 1
+  CODEX_HOME=~/.codex <codex> mcp get aacpanel
   ./install.sh check
   ```
 
 - **Manifest.** `codex	codex	<codex home>	hooks=<copy> config=<copy>`, `created`
-  for a file that was not there. Uninstall takes the panel's hooks out of
-  `hooks.json` and their tables out of `config.toml`, carrying the person's as
-  above, whatever codex wrote there since; a `hooks.json` the installer made and
-  that holds nothing else goes.
+  for a file that was not there; and, when the run wrote the server,
+  `codex	codexmcp	<codex home>	config=<copy>` or `created`. A server already in
+  place as the install writes it gets no line, and uninstall leaves it. Uninstall
+  takes the panel's hooks out of `hooks.json` and their tables out of
+  `config.toml`, carrying the person's as above, and the server with every table
+  under it — `claude mcp remove` takes an account's whole — whatever codex wrote
+  there since; a `hooks.json` or a `config.toml` the installer made and that
+  holds nothing else goes.
 
 ## S13. `map` — Map
 
@@ -1649,7 +1718,9 @@ Nothing for the manifest.
 
 Say what was changed, what was in place and left, and what is left to the
 person: an account to sign in to, a phone that signs in with the token, a
-docker group that reaches new terminals only after a new login.
+docker group that reaches new terminals only after a new login, a codex home
+codex has not made yet — start codex in it once, then `./install.sh` again
+puts the hooks and the server into it.
 
 ## Updating by hand
 
@@ -1693,18 +1764,18 @@ missing MCP server fails to connect at every session start.
 1. In every account's `settings.json`: the question hook, the status line
    (put back the command after `AACP_STATUSLINE_NEXT=`, or remove the status
    line), the hooks of `aacpanel-exec hook` and their older script forms, the rules
-   allowing `mcp__aacpanel__*`. In every codex home: the same hooks of
-   `hooks.json`, and their `[hooks.state."…/hooks.json:…"]` tables in
+   allowing `mcp__aacpanel__*`, and `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`
+   from `env` where it is 6656 and you did not set it. In every codex home: the
+   same hooks of `hooks.json`, their `[hooks.state."…/hooks.json:…"]` tables in
    `config.toml` — the trust of a hook of yours that moves up in `hooks.json`
-   goes with it to its new place.
+   goes with it to its new place — and `[mcp_servers.aacpanel]` with every
+   `[mcp_servers.aacpanel.…]` table under it.
    Then `claude mcp remove aacpanel -s user` in every account that has the
-   server, or each session there starts with a server that fails to connect,
-   and `CODEX_HOME=<codex home> codex mcp remove aacpanel` in every codex home
-   given it.
+   server, or each session there starts with a server that fails to connect.
 2. The units and the executor:
 
    ```bash
-   systemctl --user disable --now aacpanel-exec.service aacpanel-docker-gc.timer
+   systemctl --user disable --now aacpanel-exec.service aacpanel-codex-update.timer aacpanel-docker-gc.timer
    rm -f ~/.config/systemd/user/aacpanel-*.{service,timer} ~/bin/aacpanel-exec
    systemctl --user daemon-reload
    ```

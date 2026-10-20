@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"aacpanel/internal/toolset"
 )
 
 // SecretShown is what stands for a secret anywhere an answer is shown.
@@ -86,10 +88,24 @@ func (s *Survey) Plan() []PlanRow {
 		PlanRow{Text: "  · question hook · status line before yours · MCP server"},
 		PlanRow{Text: fmt.Sprintf("  · %s · %s", count(s.allows(), "allow rule"), count(s.hooks(), "hook"))},
 	)
+	if s.Has("tools") {
+		rows = append(rows, PlanRow{Text: fmt.Sprintf("  · env %s raised to %d", toolset.WordEnv, toolset.WordMax)})
+	}
 	for _, dir := range split(s.valueOr("accounts", "")) {
 		if s.valueOr("login:"+dir, "") == "now" {
 			rows = append(rows, PlanRow{Text: "  · sign in to " + f.Short(dir) + ": claude opens here"})
 		}
+	}
+	if homes := s.codexHomes(); len(homes) > 0 {
+		var files []string
+		for _, h := range homes {
+			files = append(files, f.Short(codexHooksFile(h)), f.Short(codexConfigFile(h)))
+		}
+		rows = append(rows,
+			PlanRow{Text: "In codex settings — " + strings.Join(files, ", "), Head: true},
+			PlanRow{Text: "  · question hook · MCP server"},
+			PlanRow{Text: fmt.Sprintf("  · %s, trusted · %s approved", count(s.codexHooks(), "hook"), count(len(toolset.CodexAllowed()), "tool"))},
+		)
 	}
 
 	rows = append(rows, PlanRow{Text: "Values", Head: true})
@@ -201,6 +217,18 @@ func (s *Survey) hooks() int {
 	return n
 }
 
+// codexHooks is how many hooks the kit wires into codex: the question relay
+// and the checked parts codex runs as well.
+func (s *Survey) codexHooks() int {
+	n := 0
+	for _, h := range kitHooks {
+		if h.Codex && s.Has(h.Part) {
+			n++
+		}
+	}
+	return n
+}
+
 // allows is how many allow rules go into permissions: the panel's tools, and
 // the restart with Self-restart.
 func (s *Survey) allows() int {
@@ -246,7 +274,7 @@ func (s *Survey) values() []string {
 	}
 	add(s.shown("claude", "claude "), sessions)
 	add(s.shown("accounts", "accounts "))
-	add(s.shown("codex", "codex "))
+	add(s.shown("codex", "codex "), s.shown("codexhomes", "homes "))
 	host, why := s.PasskeyHome()
 	add("passkeys " + host + " (" + why + ")")
 	if s.Has("tailscale") {

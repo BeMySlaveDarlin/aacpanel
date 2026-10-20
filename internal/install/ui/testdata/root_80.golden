@@ -2,7 +2,7 @@
 │ sudo bash deploy/install/root.sh apply --user u \                            │
 │   --staged /srv/state/host.env.staged                                        │
 │                                                                              │
-│ Installs tmux jq with apt, creates /var/lib/aacpanel, installs the collector │
+│ Installs tmux with apt, creates /var/lib/aacpanel, installs the collector    │
 │ unit and enables linger. Nothing else runs as root.                          │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 

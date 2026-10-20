@@ -5,8 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/toolset"
 )
 
 func TestOnboardingIsAWarningInThePlanAndCheck(t *testing.T) {
@@ -607,5 +610,53 @@ func TestAnAccountTheWrapperSignsInIsSignedIn(t *testing.T) {
 	}
 	if got := ids(s.Questions(BlockL)); !slices.Equal(got, []string{"login:" + home + "/.claude-profiles/lab"}) {
 		t.Errorf("block L asks %v: only the account without a token is not signed in", got)
+	}
+}
+
+// The length of the panel's word the wiring raised goes back to what the
+// person had, and goes away where they had none, even after a change of
+// theirs keeps the undo from giving the copy back; a length they changed
+// since stays theirs. The manifest keeps what it was.
+func TestTheLengthOfTheWordGoesBackToThePersons(t *testing.T) {
+	key := toolset.WordEnv
+	for _, c := range []struct{ name, was, theirs, after string }{
+		{"theirs", `"100"`, "", "100"},
+		{"none", "", "", "none"},
+		{"changed since", `"100"`, "9000", "9000"},
+		{"the panel's own already", `"6656"`, "", "6656"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			raw := "{\n  \"model\": \"opus\"\n}\n"
+			if c.was != "" {
+				raw = "{\n  \"model\": \"opus\",\n  \"env\": {\n    \"" + key + "\": " + c.was + "\n  }\n}\n"
+			}
+			g := newRig(t, homeFile(".claude/settings.json", raw))
+			g.claudeMachine()
+			step := g.step("claude")
+			if err := g.do(step); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(g.home, ".claude", "settings.json")
+			if got := wordIs(t, g.read(path)); got != strconv.Itoa(toolset.WordMax) {
+				t.Fatalf("the length is %s after the wiring", got)
+			}
+			at := slices.IndexFunc(g.lines(), func(l string) bool { return strings.HasPrefix(l, "json ") })
+			if at < 0 || !strings.Contains(g.lines()[at], " "+key+"="+strings.Trim(c.was, `"`)) {
+				t.Errorf("the manifest holds %q", g.lines())
+			}
+			changed := strings.Replace(g.read(path), `"opus"`, `"sonnet"`, 1)
+			if c.theirs != "" {
+				changed = strings.Replace(changed, `"`+key+`": "`+strconv.Itoa(toolset.WordMax)+`"`, `"`+key+`": "`+c.theirs+`"`, 1)
+			}
+			g.write(path, changed, 0o600)
+			g.undoAll(step)
+			back := g.read(path)
+			if got := wordIs(t, back); got != c.after {
+				t.Errorf("the undo left the length %s, want %s:\n%s", got, c.after, back)
+			}
+			if c.after == "none" && strings.Contains(back, "\"env\"") {
+				t.Errorf("an env the installer made is left:\n%s", back)
+			}
+		})
 	}
 }

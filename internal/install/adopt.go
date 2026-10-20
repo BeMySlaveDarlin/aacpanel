@@ -83,6 +83,11 @@ func (in *Install) traces(r *Run) []trace {
 			out = append(out, trace{MCP, dir, "claude=" + in.claude() + " file=" + in.mcpFile(dir)})
 		}
 	}
+	for _, home := range in.codexHomes() {
+		if config, err := in.M.ReadFile(codexConfigFile(home)); err == nil && codexHasServer(config) {
+			out = append(out, trace{CodexMCP, home, ""})
+		}
+	}
 	return out
 }
 

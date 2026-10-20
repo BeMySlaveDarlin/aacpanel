@@ -14,7 +14,11 @@
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 14 allow rules · 4 hooks                                                 │
+│   · 14 allow rules · 5 hooks                                                 │
+│   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
+│ In codex settings — ~/.codex/hooks.json, ~/.codex/config.toml                │
+│   · question hook · MCP server                                               │
+│   · 2 hooks, trusted · 12 tools approved                                     │
 │ Values                                                                       │
 │   host lab (hostname) · home session lab (host name)                         │
 │   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │
@@ -24,7 +28,7 @@
 │   (recommended)                                                              │
 │   accounts ~/.claude (found)                                                 │
 │   codex ~/.codex/packages/standalone/current/bin/codex (the native           │
-│   installer)                                                                 │
+│   installer) · homes ~/.codex (codex's own)                                  │
 │   passkeys localhost (only this machine signs in with a passkey)             │
 │   cores No binding — the system picks the cores (default)                    │
 │   push contact Leave it to the panel (the panel's default) · sign-in 24h     │

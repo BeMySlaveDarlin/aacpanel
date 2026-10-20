@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -467,7 +468,7 @@ func TestAnEmptyContainerOfThePersonStays(t *testing.T) {
 		t.Errorf("unwired:\n%s", back)
 	}
 	wired, _ := wire(t, raw, fullKit)
-	if got := keysOf(t, wired); !slices.Equal(got, []string{"hooks", "permissions", "statusLine"}) {
+	if got := keysOf(t, wired); !slices.Equal(got, []string{"hooks", "permissions", "statusLine", "env"}) {
 		t.Errorf("the keys are %q:\n%s", got, wired)
 	}
 	if hooked(t, wired, "Stop", "deploy/claude/context-guard.py") != 1 || groupsOf(t, wired, "Stop") != 2 {
@@ -503,5 +504,54 @@ func TestAStatusLineOfThePanelsItCannotReadKeepsItsForm(t *testing.T) {
 	out, _ := wire(t, raw, fullKit)
 	if got := statusLineOf([]byte(out)); got != executor+" statusline | cat" {
 		t.Errorf("the status line is %q", got)
+	}
+}
+
+// wordIs is the length the env of the settings gives a server's word, as
+// written, or none.
+func wordIs(t *testing.T, raw string) string {
+	t.Helper()
+	v, ok := wordIn([]byte(raw))
+	if !ok {
+		return "none"
+	}
+	return v
+}
+
+// The wiring raises the length of a server's word claude keeps to the
+// launcher's, in the env claude puts into its own environment: a session
+// started by hand keeps the panel's word whole. A length of the person's at
+// least as large stays, a smaller one is raised, and the person's other
+// variables stay; without the panel's tools there is nothing to raise it for.
+// The unwiring takes out the panel's length alone.
+func TestTheLengthOfTheWordIsRaisedInTheEnv(t *testing.T) {
+	want := strconv.Itoa(toolset.WordMax)
+	for _, c := range []struct{ name, raw, after string }{
+		{"no env", "{}", want},
+		{"smaller", `{"env": {"FOO": "1", "` + toolset.WordEnv + `": "100"}}`, want},
+		{"not a number", `{"env": {"` + toolset.WordEnv + `": "lots"}}`, want},
+		{"larger", `{"env": {"` + toolset.WordEnv + `": "10000"}}`, "10000"},
+		{"larger, as a number", `{"env": {"` + toolset.WordEnv + `": 8000}}`, "8000"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out, _ := wire(t, c.raw, fullKit)
+			if got := wordIs(t, out); got != c.after {
+				t.Errorf("the length is %s, want %s:\n%s", got, c.after, out)
+			}
+			if strings.Contains(c.raw, "FOO") && !strings.Contains(out, `"FOO": "1"`) {
+				t.Errorf("the person's variable is gone:\n%s", out)
+			}
+			back, _, err := Unwire([]byte(out))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := wordIs(t, string(back)); c.after == want && got != "none" || c.after != want && got != c.after {
+				t.Errorf("unwired, the length is %s:\n%s", got, back)
+			}
+		})
+	}
+	bare := Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits"}}
+	if out, _ := wire(t, "{}", bare); wordIs(t, out) != "none" {
+		t.Errorf("a kit without the panel's tools raised the length:\n%s", out)
 	}
 }

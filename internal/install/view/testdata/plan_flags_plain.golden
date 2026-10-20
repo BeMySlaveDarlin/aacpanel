@@ -63,6 +63,7 @@
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
 │   · 14 allow rules · 4 hooks                                                 │
+│   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
 │ Values                                                                       │
 │   host studio (flag) · home session studio (host name)                       │
 │   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │

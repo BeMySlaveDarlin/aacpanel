@@ -140,7 +140,7 @@ func rootView(width int) string {
 		{Text: "sudo bash deploy/install/root.sh apply --user u \\"},
 		{Text: "  --staged /srv/state/host.env.staged"},
 		{},
-		{Text: "Installs tmux jq with apt, creates /var/lib/aacpanel, installs the collector unit and enables linger. Nothing else runs as root."},
+		{Text: "Installs tmux with apt, creates /var/lib/aacpanel, installs the collector unit and enables linger. Nothing else runs as root."},
 	}}, width)
 	b := NewBlock("Root command", Question{ID: "confirm", Prompt: "Do you want to run it?", Options: []Option{
 		{Label: "Yes"}, {Label: "Show the script first"}, {Label: "No — print the command for an administrator and stop"},

@@ -118,12 +118,12 @@ func (r *run) said(s string) bool {
 func TestEnterEverywhereInstalls(t *testing.T) {
 	r := start(t, Options{})
 	r.until(stAsk)
-	// Eighteen questions on the path of Enter — two packages, four of this
+	// Seventeen questions on the path of Enter — one package, four of this
 	// machine, four of windows, three of claude, the kit, the offer of more
-	// settings, three of the map — and a Submit for each of the five blocks
+	// settings, three of the map — and a Submit for each of the four blocks
 	// of several. A change here is a change of the plan's list of questions.
-	if n := r.answer(); n != 18+5 {
-		t.Errorf("the defaults took %d keys, want 23", n)
+	if n := r.answer(); n != 17+4 {
+		t.Errorf("the defaults took %d keys, want 21", n)
 	}
 	r.install()
 	if r.m.Status() != 0 || r.m.stage != stDone {
@@ -203,12 +203,11 @@ func TestAFailureStopsAtThePanelStack(t *testing.T) {
 func TestEscOnTheFirstTabGoesToTheBlockBefore(t *testing.T) {
 	r := start(t, Options{})
 	r.until(stAsk)
-	r.keys("enter", "enter", "enter") // tmux, jq, Submit
-	if got := r.m.slots[r.m.cur].name; got != "A" {
-		t.Fatalf("after the prerequisites the block is %s", got)
+	for keys := 0; r.m.slots[r.m.cur].name != "B" && keys < 20; keys++ {
+		r.keys("enter")
 	}
 	r.keys("esc")
-	if got := r.m.slots[r.m.cur].name; got != "P" || !r.m.ask.OnSubmit() {
+	if got := r.m.slots[r.m.cur].name; got != "A" || !r.m.ask.OnSubmit() {
 		t.Fatalf("Esc on the first tab of a block went to %s, not to the Submit of the one before", got)
 	}
 }
@@ -270,7 +269,7 @@ func TestTheRootShellNeverPrintsThePassword(t *testing.T) {
 		t.Skip("no bash here")
 	}
 	shell := func(stdin string) (string, error) {
-		cmd := exec.Command("bash", "-c", rootScript, "root.sh", rootCommand(helios), "demo", "/var/lib/aacpanel", "tmux jq")
+		cmd := exec.Command("bash", "-c", rootScript, "root.sh", rootCommand(helios), "demo", "/var/lib/aacpanel", "tmux")
 		cmd.Stdin = strings.NewReader(stdin)
 		var out bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &out, &out

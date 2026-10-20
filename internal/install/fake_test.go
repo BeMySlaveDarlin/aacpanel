@@ -44,7 +44,7 @@ func healthy() *fake {
 		},
 		Path: map[string]string{
 			"apt-get": "/usr/bin/apt-get", "dpkg": "/usr/bin/dpkg",
-			"docker": "/usr/bin/docker", "tmux": "/usr/bin/tmux", "jq": "/usr/bin/jq",
+			"docker": "/usr/bin/docker", "tmux": "/usr/bin/tmux",
 			"claude": home + "/.local/bin/claude", "python3": "/usr/bin/python3", "sudo": "/usr/bin/sudo",
 			"curl": "/usr/bin/curl",
 		},

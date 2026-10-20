@@ -126,12 +126,12 @@ func TestTheClone(t *testing.T) {
 		want     string
 	}{
 		{"tmpfs", clone, func(m *fake) { m.Spaces[clone] = Space{Free: gb, Tmpfs: true} },
-			"✗ stop: the clone lives on tmpfs (" + clone + "): it is gone after a reboot, and the collector and the hooks run from it. " +
+			"✗ stop: the clone lives on tmpfs (" + clone + "): it is gone after a reboot, and the collector runs from it. " +
 				"Clone into a permanent place: git clone https://github.com/BeMySlaveDarlin/aacpanel ~/aacpanel"},
 		{"a space in the path", "/home/u/my panel", func(m *fake) {
 			m.Files["/home/u/my panel/install.sh"] = ""
 			m.Files["/home/u/my panel/docker-compose.yml"] = ""
-		}, "✗ stop: /home/u/my panel has characters unit files and hook commands cannot carry (spaces, quotes). Move the clone, e.g. to ~/aacpanel."},
+		}, "✗ stop: /home/u/my panel has characters unit files cannot carry (spaces, quotes). Move the clone, e.g. to ~/aacpanel."},
 		{"somebody else's", clone, func(m *fake) { m.Stats[clone] = Stat{Mode: fs.ModeDir | 0o755, UID: 0} },
 			"✗ stop: " + clone + " belongs to root; the installer writes .env there. Clone it as u."},
 		{"not a clone", "/home/u", func(*fake) {},

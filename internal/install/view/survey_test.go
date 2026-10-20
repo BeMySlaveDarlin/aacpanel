@@ -211,13 +211,19 @@ func TestCodexAndThePlanOnTheScreen(t *testing.T) {
 		for keys := 0; s.m.stage == questioning && s.m.ask.block != install.BlockX && keys < 30; keys++ {
 			s.send(press("enter"))
 		}
-		if s.m.stage != questioning || s.m.ask.block != install.BlockX || len(s.m.ask.specs) != 1 {
-			t.Fatalf("codex did not get its own question: %s", ui.Strip(s.m.View().Content))
+		if s.m.stage != questioning || s.m.ask.block != install.BlockX || len(s.m.ask.specs) != 2 {
+			t.Fatalf("codex did not get its questions: %s", ui.Strip(s.m.View().Content))
 		}
 		golden(t, "codex_"+strconv.Itoa(width), s.m.View().Content)
-		s.send(press("enter"))
+		// The program, the homes and the Submit of the block.
+		for range 3 {
+			s.send(press("enter"))
+		}
 		if g, ok := s.m.s.Value("codex"); !ok || g.Value != program || s.m.ask.block != install.BlockK {
 			t.Fatalf("Enter did not accept the native program and move to the kit: %+v", g)
+		}
+		if g, ok := s.m.s.Value("codexhomes"); !ok || g.Value != home+"/.codex" {
+			t.Fatalf("Enter did not accept codex's own home: %+v", g)
 		}
 		for keys := 0; s.m.stage == questioning && keys < 30; keys++ {
 			s.send(press("enter"))

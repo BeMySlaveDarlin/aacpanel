@@ -86,12 +86,12 @@ const (
 var Kit = []Part{
 	{"relay", "Question relay", "a session's questions reach your phone", GroupAlways, "agent/ask-hook.py"},
 	{"limits", "Limits snapshot", "5-hour and weekly limits, before your status line", GroupAlways, "aacpanel-exec statusline"},
-	{"tools", "Panel tools", "checklist, briefs, secrets, a phone call, restart", GroupAlways, ""},
+	{"tools", "Panel tools", "checklist, role, briefs, secrets, a phone call, its own close, its observers, alarms", GroupAlways, ""},
 	{"copies", "Page copies", "a published page opens on the phone under any account", GroupQuiet, "deploy/claude/artifact-copy.py"},
 	{"cap", "Context cap", "stops a session at the cap, restarts it with your line", GroupQuiet, "deploy/claude/context-guard.py"},
 	{"nudge", "Checklist nudge", "reminds a session that forgot its checklist", GroupQuiet, "deploy/claude/checklist-reminder.py"},
 	{"restart", "Self-restart", "a session may restart itself without asking you", GroupQuiet, "mcp__aacpanel__session_restart"},
-	{"stamp", "Prompt stamp", "time, context, limits and load before every prompt", GroupAsk, "deploy/claude/prompt-stamp.py"},
+	{"stamp", "Prompt stamp", "time, context, limits, load; the role after a restart", GroupQuiet, "deploy/claude/prompt-stamp.py"},
 	{"background", "Background work", "reminds a session of work left running over an hour", GroupAsk, "deploy/claude/background-reminder.py"},
 	{"gc", "Docker cleanup", "weekly prune of unused images — of the whole machine", GroupAsk, ""},
 	{"tailscale", "Tailscale", "your phone from anywhere, through your tailnet", GroupLegs, ""},
@@ -216,14 +216,12 @@ func (s *Survey) prerequisites() []Question {
 		"docker compose": "The panel is a stack of compose services, and this docker has no compose v2. The root step installs it with apt.",
 		"claude":         "The panel starts and watches claude sessions. Anthropic's native installer puts claude into ~/.local/bin as you, without root; signing in is asked with the accounts.",
 		"tmux":           "Sessions without the stream live in tmux, and a session on the stream moves into it when the panel is down (tmux attach). Windows to a session and the panel's live terminal go through it too. Without tmux the executor turns off every action on sessions: their buttons go grey. Choosing the stream still keeps tmux as the way back.",
-		"jq":             "The status line script reads the limits with it: without jq the 5-hour and weekly percentages are silently not written.",
 	}
 	prompt := map[string]string{
 		"docker":         "docker is not installed. Install it with apt as part of the root step?",
 		"docker compose": "docker compose v2 is missing. Install it with apt as part of the root step?",
 		"claude":         "claude is not installed. Install it with Anthropic's native installer?",
 		"tmux":           "tmux is missing. Install it?",
-		"jq":             "jq is missing. Install it?",
 	}
 	var qs []Question
 	for _, m := range s.missing {
@@ -377,7 +375,7 @@ func (s *Survey) windows() []Question {
 
 func (s *Survey) codex() []Question {
 	cmd := s.codexCommand()
-	if cmd.Value == "" && len(s.codexHomes()) == 0 {
+	if cmd.Value == "" && len(s.codexHomesThere(s.codexHomesNamed())) == 0 {
 		return nil
 	}
 	q := Question{
@@ -389,7 +387,33 @@ func (s *Survey) codex() []Question {
 		cmd.Label = s.Facts.Short(cmd.Value)
 		q.Options = []Option{cmd}
 	}
-	return []Question{q}
+	return []Question{q, s.codexHomesQuestion()}
+}
+
+// codexHomesQuestion asks which homes of codex the panel watches: the ones
+// host.env lists, or codex's own ~/.codex. A home codex has not made yet is
+// watched all the same, and wired once codex makes it.
+func (s *Survey) codexHomesQuestion() Question {
+	f := s.Facts
+	q := Question{
+		ID: "codexhomes", Tab: "Homes", Prompt: "Which codex homes does the panel watch?", Form: Many,
+		Note: "A home is a CODEX_HOME: its threads show under the contour it pairs with, and it gets the panel's hooks and tools.",
+		Own:  typePath, Flag: "--codex-home", Check: checkPaths,
+		Writes: []Target{{HostEnvFile, contours.CodexHomesEnv}, {File: "codex settings"}},
+	}
+	personal := filepath.Join(f.Account.Home, ".codex")
+	q.Options = []Option{{Value: personal, Label: f.Short(personal), On: true, Source: "codex's own"}}
+	q.source = "codex's own"
+	if v, ok := s.before(HostEnvFile, contours.CodexHomesEnv); ok && strings.TrimSpace(v) != "" {
+		s.preferParts(&q, s.codexHomesNamed())
+	}
+	for i, o := range q.Options {
+		q.Options[i].Detail = ""
+		if len(s.codexHomesThere([]string{o.Value})) == 0 {
+			q.Options[i].Detail = "not there yet: codex makes it on its first start"
+		}
+	}
+	return q
 }
 
 // codexCommand keeps the configured launcher ahead of discovery. The links

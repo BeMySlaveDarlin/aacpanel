@@ -414,7 +414,6 @@ func (m *Model) onAsk(out ui.Outcome) {
 func (m *Model) refuse(pkg string) {
 	why := map[string]string{
 		"tmux": "sessions live in it, and without it the executor turns off every action on sessions",
-		"jq":   "the status line script reads the limits with it",
 	}
 	m.say(m.t.Entry(ui.Bad, "Prerequisites", []string{
 		m.t.Result(ui.Fail, fmt.Sprintf("stop: %s is needed: %s. sudo apt install %s, then run ./install.sh again.", pkg, why[pkg], pkg)),

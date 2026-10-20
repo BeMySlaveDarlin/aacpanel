@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"aacpanel/internal/hostcfg"
+	"aacpanel/internal/mcp"
 )
 
 // ---- uninstall ----
@@ -36,7 +37,7 @@ const PurgeAll = "--purge-data"
 
 // Removal is uninstall: the lines of the manifest, a line a thing, taken
 // back part by part in the order that keeps the machine working until the
-// end — claude's wiring first, while the clone its hooks run from is
+// end — claude's wiring first, while the executor its hooks run is
 // there; the user's units; the executor's binary; the stack; the part as
 // root, linger last of all that goes through systemd; the data chosen; the
 // installer's cache; and its own directory last of everything.
@@ -185,7 +186,10 @@ func (rm *Removal) Plan() []PlanRow {
 	for _, e := range rm.of(Codex) {
 		claude = append(claude, rm.short(codexHooksFile(e.Target))+": the panel's hooks taken out, and their trust in config.toml")
 	}
-	add("Claude settings — first, while the hooks' clone is there", claude...)
+	for _, e := range rm.of(CodexMCP) {
+		claude = append(claude, rm.short(codexConfigFile(e.Target))+": the server "+mcp.ServerName+" taken out, with the tables under it")
+	}
+	add("Claude settings — first, while the executor of their hooks is there", claude...)
 	var units []string
 	for _, e := range rm.of(UserUnit) {
 		units = append(units, filepath.Base(e.Target)+": disabled and its file removed")
@@ -338,7 +342,7 @@ func (rm *Removal) LastStep() *Step {
 	}}
 }
 
-// U2: claude's wiring, first, while the clone the hooks run from is there.
+// U2: claude's wiring, first, while the executor the hooks run is there.
 func (rm *Removal) unwire(r *Run) error {
 	var dirs []string
 	for _, e := range rm.of(JSON) {
@@ -360,6 +364,12 @@ func (rm *Removal) unwire(r *Run) error {
 			return err
 		}
 		r.Say(Pass, rm.short(codexHooksFile(e.Target)))
+	}
+	for _, e := range rm.of(CodexMCP) {
+		if err := undoCodexMCP(r, e); err != nil {
+			return err
+		}
+		r.Say(Pass, "no "+mcp.ServerName+" server in "+rm.short(codexConfigFile(e.Target)))
 	}
 	// What the status line and the executor wrote into an account.
 	for _, dir := range dirs {

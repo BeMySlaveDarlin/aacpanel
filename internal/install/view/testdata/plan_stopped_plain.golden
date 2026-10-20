@@ -14,10 +14,8 @@
      ✗ stop: tmux is needed: sessions live in it, and without it the executor
        turns off every action on sessions. sudo apt install tmux, then run
        again.
-     ✗ stop: jq is needed: the status line script reads the limits with it. sudo
-       apt install jq, then run again.
      ✓ ports 8776, 8777, 8443 are free
-     ✓ python3 3.12.3 for the collector
+     ✗ stop: python3 3.9 or newer is needed by the collector (found none).
      ✓ sudo asks for a password: the root step runs one sudo
      ✓ the clone ~/aacpanel belongs to u and is not on tmpfs
      ✓ no container is named aacpanel, aacpanel-db, aacpanel-socket-proxy,

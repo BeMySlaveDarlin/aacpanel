@@ -473,6 +473,10 @@ func TestAnInstallByHandIsTakenOverAsFound(t *testing.T) {
 
 // ---- uninstall ----
 
+// codexOrig is the config.toml of the codex home of installed before the
+// installer put the panel's server into it.
+const codexOrig = "model = \"gpt-6\"\n"
+
 // installed is a machine the installer put the panel on, with the lines
 // its steps would have written.
 func (g *rig) installed(linger string) (*Removal, string) {
@@ -488,6 +492,11 @@ func (g *rig) installed(linger string) (*Removal, string) {
 	wired, _, _ := Wire([]byte(orig), g.in.wiring())
 	g.write(settings, string(wired), 0o600)
 	g.claudeMachine()
+	codexConfig, _, err := WireCodexServer([]byte(codexOrig), g.in.codexServerWant())
+	if err != nil {
+		g.t.Fatal(err)
+	}
+	g.write(codexConfigFile(filepath.Join(g.home, ".codex")), string(codexConfig), 0o600)
 	// What the part as root put down is on the machine until it is taken back.
 	g.m.Stats[collectorUnitPath] = Stat{Mode: 0o644}
 	g.m.Stats[lingerPath("u")] = Stat{Mode: 0o644}
@@ -537,6 +546,7 @@ func (g *rig) installed(linger string) (*Removal, string) {
 		{"compose", "image", "postgres:18-alpine", "pulled"},
 		{"claude", "json", settings, "orig=" + backup + " sha=" + sha(wired)},
 		{"claude", "mcp", personal, "claude=/usr/bin/claude file=" + g.in.mcpFile(personal)},
+		{"codex", "codexmcp", filepath.Join(g.home, ".codex"), "config=" + backup},
 		{"collector-restart", "rev", "3f1c2ab", ""},
 	} {
 		if err := g.r.Manifest.Append(e); err != nil {
@@ -578,8 +588,8 @@ func (g *rig) uninstall(rm *Removal, rootArgs ...string) []string {
 	return began
 }
 
-// TestUninstallTakesBackTheManifestInItsOrder: claude's wiring first,
-// while the hooks' clone is there; the user's units before the part as
+// TestUninstallTakesBackTheManifestInItsOrder: claude's and codex's wiring
+// first, while the executor of the hooks is there; the user's units before the part as
 // root, which is one call with linger in it; the executor and the
 // directories the installer made; the stack with the images it brought;
 // the installer's cache — and the data stays.
@@ -606,6 +616,9 @@ func TestUninstallTakesBackTheManifestInItsOrder(t *testing.T) {
 	}
 	if got := g.read(filepath.Join(g.home, ".claude", "settings.json")); got != orig {
 		t.Errorf("the settings came back as\n%s", got)
+	}
+	if got := g.read(codexConfigFile(filepath.Join(g.home, ".codex"))); got != codexOrig {
+		t.Errorf("the config.toml of codex came back as\n%s", got)
 	}
 	for _, gone := range []string{g.in.execPath(), g.in.execUnitPath(), filepath.Join(g.home, "bin"), filepath.Join(g.home, ".config"), rm.Cache,
 		filepath.Join(g.home, ".cache", "aacpanel")} {

@@ -42,7 +42,7 @@ func TestAMachineOfTheProfileGoesThrough(t *testing.T) {
 		"✓ Ubuntu 24.04.3 LTS · x86_64 · systemd 255",
 		"✓ docker 27.5.1 · compose 2.33.1 · system daemon",
 		"✓ claude 2.1.283 · ~/.local/bin/claude",
-		"✓ tmux and jq are here",
+		"✓ tmux is here",
 		"✓ ports 8776, 8777, 8443 are free",
 		"✓ python3 3.12.3 for the collector",
 		"✓ sudo goes through without a password",
@@ -254,17 +254,18 @@ func TestAMissingProgramIsOfferedNotJustRefused(t *testing.T) {
 			}
 		}
 	}
-	if !slices.Equal(names, []string{"docker", "claude", "tmux", "jq"}) {
+	// The status line is the executor's own: a machine without jq lacks
+	// nothing the panel runs.
+	if !slices.Equal(names, []string{"docker", "claude", "tmux"}) {
 		t.Errorf("missing programs %q", names)
 	}
 	says(t, in, "✗ stop: tmux is needed: sessions live in it, and without it the executor turns off every action on sessions. sudo apt install tmux, then run again.")
-	says(t, in, "✗ stop: jq is needed: the status line script reads the limits with it. sudo apt install jq, then run again.")
 	says(t, in, "✗ stop: claude is needed: the panel starts and watches claude sessions. curl -fsSL https://claude.ai/install.sh | bash, then run again.")
 }
 
 // TestCurlComesForClaudesInstaller: the native installer downloads claude
 // with curl or wget, so on a machine with neither a yes to claude puts curl
-// into the root step's apt, with tmux and jq; with either, nothing more.
+// into the root step's apt, with tmux; with either, nothing more.
 func TestCurlComesForClaudesInstaller(t *testing.T) {
 	m := desktop()
 	noClaude(m)

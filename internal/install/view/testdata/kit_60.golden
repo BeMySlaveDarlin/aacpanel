@@ -9,8 +9,9 @@
                           phone
    [✔] Limits snapshot    5-hour and weekly limits, before
                           your status line
-   [✔] Panel tools        checklist, briefs, secrets, a
-                          phone call, restart
+   [✔] Panel tools        checklist, role, briefs, secrets,
+                          a phone call, its own close, its
+                          observers, alarms
    Quiet — checked for you
  ❯ [✔] Page copies        a published page opens on the
                           phone under any account
@@ -20,9 +21,9 @@
                           checklist
    [✔] Self-restart       a session may restart itself
                           without asking you
+   [✔] Prompt stamp       time, context, limits, load; the
+                          role after a restart
    On request
-   [ ] Prompt stamp       time, context, limits and load
-                          before every prompt
    [ ] Background work    reminds a session of work left
                           running over an hour
    [ ] Docker cleanup     weekly prune of unused images — of

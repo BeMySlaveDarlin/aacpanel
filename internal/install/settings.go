@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"aacpanel/internal/hook"
+	"aacpanel/internal/toolset"
 )
 
 // claude's settings.json is the person's file: their own hooks, status line
@@ -401,6 +402,9 @@ func Wire(raw []byte, w Wiring) ([]byte, bool, error) {
 	}
 	changed = allow(o, want) || changed
 	changed = disallow(o, gone) || changed
+	if w.has("tools") {
+		changed = liftWord(o) || changed
+	}
 	if !changed {
 		return raw, false, nil
 	}
@@ -423,6 +427,7 @@ func Unwire(raw []byte) ([]byte, bool, error) {
 	}
 	changed = unchainStatus(o) || changed
 	changed = disallow(o, append(append([]string{}, toolRules...), restartRule)) || changed
+	changed = dropWord(o) || changed
 	if !changed {
 		return raw, false, nil
 	}
@@ -833,6 +838,122 @@ func disallow(o *object, rules []string) bool {
 		o.del("permissions")
 	}
 	return true
+}
+
+// ---- the length of the panel's word ----
+
+// liftWord gives the env of the settings the length of a server's word the
+// launcher gives the sessions it starts. claude puts the env of its settings
+// into its own environment at its start and reads the length from there
+// whenever it takes a tool in, so a session started by hand keeps the panel's
+// word whole too. A value of the person's at least as large stays.
+func liftWord(o *object) bool {
+	env := o.child("env")
+	if env == nil {
+		return false
+	}
+	if n, ok := wordOf(env); ok && n >= toolset.WordMax {
+		return false
+	}
+	env.set(toolset.WordEnv, strconv.Itoa(toolset.WordMax))
+	return true
+}
+
+// wordOf is the length the env names, read as claude reads it: digits alone,
+// a number or a string of them.
+func wordOf(env *object) (int, bool) {
+	v, ok := env.get(toolset.WordEnv)
+	if !ok {
+		return 0, false
+	}
+	switch v := v.(type) {
+	case string:
+		return wordNumber(v)
+	case json.Number:
+		return wordNumber(v.String())
+	}
+	return 0, false
+}
+
+func wordNumber(s string) (int, bool) {
+	if s == "" || strings.Trim(s, "0123456789") != "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	return n, err == nil
+}
+
+// wordAtLeast tells whether a length as written keeps the panel's word whole.
+func wordAtLeast(s string) bool {
+	n, ok := wordNumber(s)
+	return ok && n >= toolset.WordMax
+}
+
+// wordIn is what the env of the settings holds for the length, as written,
+// and whether it holds the key at all.
+func wordIn(raw []byte) (string, bool) {
+	o, err := parseSettings(raw)
+	if err != nil {
+		return "", false
+	}
+	v, _ := o.get("env")
+	env, ok := v.(*object)
+	if !ok {
+		return "", false
+	}
+	w, ok := env.get(toolset.WordEnv)
+	if !ok {
+		return "", false
+	}
+	switch w := w.(type) {
+	case string:
+		return w, true
+	case json.Number:
+		return w.String(), true
+	}
+	return fmt.Sprint(w), true
+}
+
+// dropWord takes the length the wiring gives out of the env, and the env
+// with it when that emptied it: the panel's value is the panel's, any other is
+// the person's and stays.
+func dropWord(o *object) bool {
+	v, _ := o.get("env")
+	env, ok := v.(*object)
+	if !ok {
+		return false
+	}
+	if n, ok := wordOf(env); !ok || n != toolset.WordMax {
+		return false
+	}
+	env.del(toolset.WordEnv)
+	if len(env.members) == 0 {
+		o.del("env")
+	}
+	return true
+}
+
+// restoreWord puts back into the unwired settings out the length the env held
+// before the installer raised it, was, when the file raw still holds the
+// length the installer wrote: a value the person changed since stays as
+// Unwire left it.
+func restoreWord(raw, out []byte, was string) ([]byte, bool) {
+	if was == "" {
+		return out, false
+	}
+	if v, _ := wordIn(raw); v != strconv.Itoa(toolset.WordMax) {
+		return out, false
+	}
+	o, err := parseSettings(out)
+	if err != nil {
+		return out, false
+	}
+	env := o.child("env")
+	if env == nil {
+		return out, false
+	}
+	env.set(toolset.WordEnv, was)
+	return encodeSettings(o), true
 }
 
 // ---- what the check after the wiring reads ----

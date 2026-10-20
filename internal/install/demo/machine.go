@@ -52,7 +52,7 @@ var helios = machine{
 	claude:     "2.1.283",
 	claudePath: "~/.local/bin/claude",
 	python:     "3.12.3",
-	missing:    []string{"tmux", "jq"},
+	missing:    []string{"tmux"},
 
 	terminals: []found{
 		{"konsole", "Found on this machine."},
@@ -111,7 +111,7 @@ func (mc machine) inspection() (shown, folded []string) {
 		"✓ " + mc.osName + " · " + mc.arch + " · systemd " + mc.systemd,
 		"✓ docker " + mc.docker + " · compose " + mc.compose + " · system daemon",
 		"✓ claude " + mc.claude + " · native · signed in",
-		"⚠ tmux, jq are missing — the root step installs them with apt",
+		"⚠ tmux is missing — the root step installs it with apt",
 		"✓ ports 8776, 8777, 8443 are free",
 	}
 	folded = []string{

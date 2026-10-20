@@ -17,8 +17,9 @@
 #
 # It then clones the release it belongs to into ${AACP_DIR:-~/aacpanel} and
 # runs the install.sh of the clone with the same arguments and the terminal
-# as its input. The clone stays for good: the collector and the hooks run
-# from it. Run again, the same line goes on in the clone it made.
+# as its input. The clone stays for good: the collector runs from it, and
+# the hooks run the executor built from it. Run again, the same line goes on
+# in the clone it made.
 #
 # AACP_VERSION names another release to clone, vP.M.m. AACP_ORIGIN is the
 # repository to clone from, AACP_GO_DOWNLOADS a mirror of go.dev/dl with the
