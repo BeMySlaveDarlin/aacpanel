@@ -10,6 +10,48 @@ type pinLists struct {
 	Phone, Desk, Keys, Ordered []string
 }
 
+func TestPhoneSectionsKeepPinsAndMapOrder(t *testing.T) {
+	type section struct {
+		Title string
+		Rows  []string
+	}
+	var got struct {
+		Sections struct {
+			Before, Changed, Answered   []section
+			StatesBefore, StatesChanged map[string]string
+			DeskBefore, DeskChanged     []string
+		}
+	}
+	runFixture(t, "sessionpins.html", &got)
+	p := got.Sections
+	want := []section{
+		{"pinned", []string{"review", "audit"}},
+		{"needs you", []string{"asking"}},
+		{"sessions", []string{"a-helper", "quiet", "z-helper", "beta", "alpha", "outside-a", "outside-z"}},
+	}
+	if !reflect.DeepEqual(p.Before, want) || !reflect.DeepEqual(p.Changed, want) {
+		t.Errorf("the phone sections read %+v, then %+v after activity changed; expected %+v", p.Before, p.Changed, want)
+	}
+	for name, state := range map[string][2]string{
+		"quiet": {"idle", "working"}, "alpha": {"working", "idle"}, "audit": {"working", "idle"},
+	} {
+		if p.StatesBefore[name] != state[0] || p.StatesChanged[name] != state[1] {
+			t.Errorf("%s says %q, then %q; expected %q, then %q without moving", name,
+				p.StatesBefore[name], p.StatesChanged[name], state[0], state[1])
+		}
+	}
+	answered := []section{
+		{"pinned", []string{"review", "audit"}},
+		{"sessions", []string{"a-helper", "quiet", "z-helper", "beta", "asking", "alpha", "outside-a", "outside-z"}},
+	}
+	if !reflect.DeepEqual(p.Answered, answered) {
+		t.Errorf("after the question is answered the sections read %+v; expected the project back in the map, %+v", p.Answered, answered)
+	}
+	if !slices.Equal(p.DeskBefore, p.DeskChanged) || !slices.Equal(p.DeskBefore, append([]string{"review", "audit"}, answered[1].Rows...)) {
+		t.Errorf("the desktop order reads %v, then %v; it keeps the map's order after the pins", p.DeskBefore, p.DeskChanged)
+	}
+}
+
 func TestPinnedGroupsKeepTheirChildrenAndTheirContour(t *testing.T) {
 	var got struct {
 		Pins struct {

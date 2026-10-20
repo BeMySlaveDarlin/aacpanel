@@ -2,9 +2,9 @@
 <meta charset="utf-8">
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// The live sessions of a project as the list lays them out: the session named
-// after the project first whatever it does, the rest by their last request,
-// the latest on top — a run a session started stays folded under it.
+// The phone keeps a project's sessions by name, with a run folded under its
+// parent. The project's own screen puts its named session first and the rest
+// by their last request, the latest on top.
 import { blocksOf } from "/src/screens/sessions/blocks.js";
 import { inOrder } from "/src/screens/sessions/of.js";
 import { kinOf } from "/src/screens/sessions/kin.js";

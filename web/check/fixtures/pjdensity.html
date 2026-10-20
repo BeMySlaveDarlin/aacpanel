@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="pfcol" id="root"></div>
 <script type="module">
-// The phone's list of a contour: a section heading, a working project with a
-// live session and its last conversation, and quiet projects under it — laid
+// The phone's list of a contour: a section heading, a pinned project with a
+// live session and its last conversation, and other projects under it — laid
 // out without spans between the blocks and the rows.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -27,9 +27,9 @@ const blocks = [
 ];
 const exec = { available: true, kinds: ["session.open", "session.resume"] };
 render(h(ToastHost, null, h(GateHost, null, html`
-    <div class="grouphead pjsection">working<span class="pjcount">1</span></div>
+    <div class="grouphead pjsection">pinned<span class="pjcount">1</span></div>
     <${ProjectBlock} block=${blocks[0]} exec=${exec} wait=${null} notes=${null} checked=${null} onOpen=${() => {}} onProject=${() => {}} />
-    <div class="grouphead pjsection">quiet</div>
+    <div class="grouphead pjsection">sessions</div>
     ${blocks.slice(1).map((b) => html`<${ProjectBlock} key=${b.key} block=${b} exec=${exec} wait=${null} notes=${null} checked=${null}
                                                       onOpen=${() => {}} onProject=${() => {}} />`)}
 `)), document.getElementById("root"));

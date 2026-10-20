@@ -40,6 +40,10 @@ session does not go to the device where that session is open right now.
 A pin moves its group as it is pressed, ahead of the ordinary sections on
 the phone and the project order at a desk. Its dimmed mark waits for the host
 snapshot to confirm; a refusal restores the order and says why.
+The phone reads **pinned → needs you → sessions**: pins in the order they
+were set, unpinned projects waiting for you, then the rest in map order.
+Working and idle rows keep their places; projects with only a past
+conversation close the list, at most five.
 
 **Dictation into the composer** is off until it is switched on for a device, in
 Settings. With nothing to send the button is a switch — one press starts

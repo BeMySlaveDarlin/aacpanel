@@ -144,7 +144,7 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		t.Errorf("the closed fold is kept as %v, expected by the name of its parent", got.Kept)
 	}
 
-	plain := []groupBlock{{"person", []string{"person"}}, {"lead", []string{"lead", "review the protocol"}},
+	plain := []groupBlock{{"person", []string{"person"}}, {"lead", []string{"review the protocol", "lead"}},
 		{"wiki", []string{"wiki"}}, {"shop", []string{"shop"}}}
 	if !reflect.DeepEqual(got.Plain, plain) || got.PlainMarks != 0 {
 		t.Errorf("a list where nobody opened anybody reads %v with %d marks of a group", got.Plain, got.PlainMarks)

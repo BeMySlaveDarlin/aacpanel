@@ -1,8 +1,8 @@
 // The sessions of a contour as blocks of their projects. A person thinks in
 // projects — "is aacpanel waiting for me", not "is session four" — so a block
 // holds a project's live sessions as rows and its last conversation, and the
-// list puts pinned groups first, then what needs the person, what is working
-// and the rest.
+// list puts pinned groups first, then what needs the person, and the rest
+// in the order of the map.
 
 import { useEffect, useState } from "preact/hooks";
 
@@ -14,7 +14,7 @@ import { waitText } from "../../ui/waits.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { checklistShort } from "../chat/checklist.js";
-import { inOrder, sessionsOf } from "./of.js";
+import { sessionsOf } from "./of.js";
 import { kinLabel, kinOf, layoutOf, openedLabel, placeOf } from "./kin.js";
 import { useFolds } from "./folds.js";
 import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../../agent.js";
@@ -24,8 +24,8 @@ import { stamp, when } from "./card.js";
 import { calledMark } from "../../viewing.js";
 import { comparePins, pinAt, pinOf } from "./pin.js";
 
-// The order of the list: who waits for the person, who works — on an answer
-// or in its background — and who is quiet.
+// The most pressing state of a block: who waits for the person, who works —
+// on an answer or in its background — and who is quiet.
 export const RANK = { wait: 0, busy: 1, quiet: 2 };
 
 // How many projects with nothing live the list shows under the live ones: the
@@ -57,7 +57,7 @@ export function stateOf(row) {
     const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
     const since = [when, work].filter(Boolean).join(" · ");
     // The answer is over and what it started still runs (see runningOf): the
-    // row says so rather than idle, and its project stands among the working.
+    // row says so rather than idle.
     if (runningOf(s.work) > 0) return { tone: "bg", text: "background", since, when, work };
     return { tone: "idle", text: "idle", since, when, work };
 }
@@ -189,14 +189,17 @@ export function liveBlocksOf({ profile, sessions = [], opening = [], wait = null
 
 // blocksOf lays the sessions of a contour out as the blocks of the list: the
 // live ones as liveBlocksOf has them, and the last conversation of a block
-// with nothing live. The block of a group of sessions stands where the most
-// pressing of the group puts it. A block with a live session shows none of
-// its past: the way into the project is the live session, and a closed
-// conversation beside it reads as that session. Projects with nothing live
-// come last and at most QUIET_MAX of them.
+// with nothing live. After the pins, a block that needs the person comes
+// first; the rest keep the map's order whatever their activity. A block with
+// a live session shows none of its past: the way into the project is the live
+// session, and a closed conversation beside it reads as that session.
+// Projects with nothing live come last and at most QUIET_MAX of them.
 export function blocksOf({ profile, sessions = [], recent = [], opening = [], wait = null }) {
     const projects = projectsIn(profile);
-    const out = new Map(liveBlocksOf({ profile, sessions, opening, wait }).map((block) => [block.key, { ...block, past: null }]));
+    // The snapshot follows context fill; names keep rows within a project
+    // and outside the map from moving whenever their work changes.
+    const ordered = [...sessions].sort((a, b) => a.session.localeCompare(b.session));
+    const out = new Map(liveBlocksOf({ profile, sessions: ordered, opening, wait }).map((block) => [block.key, { ...block, past: null }]));
     const put = (key, init) => {
         if (!out.has(key)) out.set(key, { key, live: [], ghosts: [], past: null, home: false, ...init });
         return out.get(key);
@@ -226,22 +229,15 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [], wa
     }
 
     for (const block of out.values()) {
-        block.live = inOrder(block.project, block.live);
         const tones = block.live.map((s) => stateOf(s).tone);
         block.rank = tones.includes("wait") ? RANK.wait
             : tones.includes("busy") || tones.includes("bg") || block.ghosts.length > 0 ? RANK.busy
                 : RANK.quiet;
-        const times = [
-            ...block.live.map((s) => stamp(s.lastRequestAt || s.startedAt)),
-            block.past ? stamp(block.past.lastAt) : 0,
-        ];
-        block.at = Math.max(0, ...times);
     }
-    // Among the quiet, a project with a session alive stands above one that has
-    // only its past: the first can be written to right now.
-    const alive = (b) => (b.live.length > 0 ? 0 : 1);
-    return [...out.values()].sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt) || a.rank - b.rank || alive(a) - alive(b) || b.at - a.at
-        || a.name.localeCompare(b.name));
+    // liveBlocksOf supplies the map's order and the archive is appended.
+    // Only attention lifts an unpinned block; activity cannot move the rest.
+    const attention = (b) => !b.pinnedAt && b.rank === RANK.wait ? 0 : 1;
+    return [...out.values()].sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt) || attention(a) - attention(b));
 }
 
 // ProjectBlock is one project: its name, a new session in it, and its live

@@ -211,10 +211,9 @@ export function ghostsOf(profiles, opening) {
 
 // The sections of a contour's page, in the order the list is read.
 const SECTIONS = [
-    { pin: true, title: "pinned", tone: "" },
-    { rank: RANK.wait, title: "needs you", tone: " pjwaits" },
-    { rank: RANK.busy, title: "working", tone: "" },
-    { rank: RANK.quiet, title: "quiet", tone: "" },
+    { title: "pinned", tone: "", count: true, has: (b) => Boolean(b.pinnedAt) },
+    { title: "needs you", tone: " pjwaits", count: true, has: (b) => !b.pinnedAt && b.rank === RANK.wait },
+    { title: "sessions", tone: "", has: (b) => !b.pinnedAt && b.rank !== RANK.wait },
 ];
 
 function Page({ name, profile, limits, stale, sessions, everyone, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
@@ -225,11 +224,11 @@ function Page({ name, profile, limits, stale, sessions, everyone, opening, recen
         ${blocks.length === 0
             ? !blind && html`<p class="empty">There are no live sessions.</p>`
             : SECTIONS.map((section) => {
-                const list = blocks.filter((b) => section.pin ? b.pinnedAt : !b.pinnedAt && b.rank === section.rank);
+                const list = blocks.filter(section.has);
                 if (list.length === 0) return null;
                 return html`
                     <div class=${`grouphead pjsection${section.tone}`} key=${section.title}>
-                        ${section.title}${section.rank !== RANK.quiet && html`<span class="pjcount">${list.length}</span>`}
+                        ${section.title}${section.count && html`<span class="pjcount">${list.length}</span>`}
                     </div>
                     ${list.map((block) => html`
                         <${ProjectBlock} key=${block.key} block=${block} exec=${exec} wait=${wait} notes=${notes}

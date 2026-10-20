@@ -1880,7 +1880,15 @@ stand in the order they were set, including when several roots work in one
 project. Only a root and its children move; unrelated sessions of its project
 keep their places, and contours keep the order of the map. Removing a pin
 restores the ordinary order of each screen: the map on the desktop, attention
-and activity on the phone.
+then the map on the phone.
+
+The phone's contour reads **pinned → needs you → sessions**. Pins form one
+section whatever their state. An unpinned block with a session waiting for
+the person stands in needs you; the rest keep the map's order, with sessions
+outside the map after its projects. Rows within a project and outside the map
+stand by name, with children under their parents. Activity changes what a row
+says without moving it. Projects with only a past conversation close the list
+in archive order, at most `QUIET_MAX` of them.
 
 The executor keeps each pin under `aacpanel/pins/` in the owner's state,
 using the role's key: the config directory of the account, the common git

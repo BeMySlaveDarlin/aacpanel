@@ -240,6 +240,46 @@ export async function sessionPins(phoneOnly = false) {
         out.expired = read();
         out.polled = refreshed > asked;
         out.expiredLook = look("audit");
+
+        // Working and idle share one section in map order, even when the
+        // snapshot arrives in a different order and every activity changes.
+        const resting = project(84, "quiet"), asking = project(85, "asking");
+        profileMap[0].groups[0].projects = [resting, beta, asking, alpha];
+        sessions = [
+            row(alpha, "alpha", { status: "busy" }),
+            row(beta, "audit", { status: "busy", pinnedAt: "2026-01-01T00:00:02Z" }),
+            row(beta, "review", { pinnedAt: "2026-01-01T00:00:01Z" }),
+            row(asking, "asking", { status: "waiting" }),
+            row(beta, "beta"), row(resting, "quiet"),
+            row(resting, "z-helper", { lastRequestAt: "2026-01-01T00:02:00Z" }),
+            row(resting, "a-helper", { lastRequestAt: "2026-01-01T00:01:00Z" }),
+            row(alpha, "outside-z", { project: null, cwd: "/srv/outside-z" }),
+            row(alpha, "outside-a", { project: null, cwd: "/srv/outside-a" }),
+        ];
+        const sections = () => [...mount.querySelectorAll(".phone .pjsection")].map((head) => {
+            const rows = [];
+            for (let block = head.nextElementSibling; block && block.classList.contains("pjblock"); block = block.nextElementSibling) {
+                rows.push(...[...block.querySelectorAll(".pjsess")].map(text));
+            }
+            return { title: head.firstChild.textContent.trim(), rows };
+        });
+        const states = () => Object.fromEntries([...mount.querySelectorAll(".phone .pjcard")]
+            .map((card) => [text(card.querySelector(".pjsess")), text(card.querySelector(".pjtext"))]));
+        await paint();
+        out.sections = { before: sections(), statesBefore: states(), deskBefore: read().desk };
+        sessions = sessions.map((s) => ({ ...s,
+            status: s.session === "review" || s.session === "asking" ? "waiting" : s.session === "quiet" ? "busy" : "idle",
+            lastRequestAt: s.session === "a-helper" ? "2026-01-01T00:03:00Z" : s.lastRequestAt,
+        })).reverse();
+        await paint();
+        await until(() => states().quiet === "working" && states().alpha === "idle");
+        out.sections.changed = sections();
+        out.sections.statesChanged = states();
+        out.sections.deskChanged = read().desk;
+        sessions = sessions.map((s) => s.session === "asking" ? { ...s, status: "idle" } : s);
+        await paint();
+        await until(() => states().asking === "idle");
+        out.sections.answered = sections();
         return out;
     } finally {
         if (reply) reply(new Response("", { status: 503 }));

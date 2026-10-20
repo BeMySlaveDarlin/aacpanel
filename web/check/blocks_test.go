@@ -7,7 +7,7 @@ import (
 
 // The sessions of a contour are laid out by project, and the list is read in
 // the order of what needs the person: a project whose session asks stands
-// above one that works, and that above the quiet ones. A project with a live
+// above the rest, which keep the map's order. A project with a live
 // session shows none of its past; one with nothing live closes the list with
 // its last conversation, and not more of them than the page is meant to hold.
 func TestSessionsAreLaidOutByProjectInTheOrderOfWhatWaits(t *testing.T) {
@@ -50,7 +50,7 @@ func TestSessionsAreLaidOutByProjectInTheOrderOfWhatWaits(t *testing.T) {
 		}
 	}
 	if strings.Join(order[:3], ",") != "person,aacpanel,stray" {
-		t.Errorf("the list reads %v — the project that asks comes first, the working one next, then the quiet", order)
+		t.Errorf("the list reads %v — the project that asks comes first, then the map and the sessions outside it", order)
 	}
 	if p, ok := past["aacpanel"]; ok {
 		t.Errorf("aacpanel has a live session and still shows its past %q — a closed conversation beside it reads as the session", p)
@@ -96,8 +96,8 @@ func TestAConversationIsNamedByTheLastWordsThatSaySomething(t *testing.T) {
 // its background, not quiet; a timer runs nothing, and a session with only a
 // wake of its own or an alarm of the panel ahead is idle. A question and a
 // permission still come first, and an answer at work stays busy. The project
-// of a session at work in its background stands among the working, above a
-// quiet one that asked later.
+// of a session at work in its background keeps its place in the map beside
+// a quiet one that asked later.
 func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 	row := func(status string, work map[string]any, more ...any) map[string]any {
 		out := map[string]any{"session": "s", "status": status, "work": work, "lastRequestAt": "2026-09-27T09:00:00Z"}
@@ -162,8 +162,8 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 		order = append(order, b["name"].(string))
 		rank[b["name"].(string)] = b["rank"].(float64)
 	}
-	if strings.Join(order, ",") != "runs,quiet" || rank["runs"] != 1 || rank["quiet"] != 2 {
-		t.Errorf("the list reads %v with ranks %v — a project at work in its background stands among the working, above the quiet", order, rank)
+	if strings.Join(order, ",") != "quiet,runs" || rank["runs"] != 1 || rank["quiet"] != 2 {
+		t.Errorf("the list reads %v with ranks %v — background work is said by the row while the projects keep the map's order", order, rank)
 	}
 }
 
