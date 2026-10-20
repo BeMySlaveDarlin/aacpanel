@@ -933,8 +933,12 @@ after the install pairs only by its account's name.
   contour wrappers and the panel use one installation. It downloads the native
   installer and pins the release from its release channel, clears `CODEX_HOME`,
   and sends its shim to `packages/standalone/bin` with that directory in PATH,
-  leaving the user's command wrapper and shell profile alone. It shares the
-  host updater's `.atlas-update.lock`. Each package root keeps its current
+  leaving the user's command wrapper and shell profile alone. It holds the
+  lock file `.atlas-update.lock` in the package root for the handover, so it
+  and another updater of the same installation that takes that lock never
+  switch the link at once — the timer file alone does not stop an updater that
+  started before it was installed; a lock already held refuses the panel's
+  update. Each package root keeps its current
   release and the previous selection for rollback. Older releases are removed
   after a successful restart; a pending restart keeps its packages intact.
   The installed binary runs the same protocol checker as `cmd/codex-contract`.
@@ -1387,6 +1391,7 @@ The list of actions is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
+| agents of the host | `codex.update`, `claude.update` |
 | sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
@@ -1395,7 +1400,9 @@ The list of actions is closed.
 | secrets | `secret.put`, `secret.drop` |
 
 What is deliberately not on the list: removing containers, images and volumes,
-`docker exec`, editing compose, package operations, restarting itself.
+`docker exec`, editing compose, package operations, restarting itself. The two
+agent updates are the narrow exception to packages: the program and the source
+of each are fixed in the executor, and the request carries neither.
 
 **A terminal of the panel is the owner's shell on a tmux server of its own.**
 It lives on the socket `tmux -L aacpanel-term`, apart from the sessions the
@@ -2246,17 +2253,22 @@ claude asks before the call is the person's word to open it.
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line
 of a terminal, in the payload on stdin, and with every answer it gives on the
-stream. So one snapshot per contour has two writers — a script the install
-puts first in the status line chain, and a probe the executor starts for a
-contour whose snapshot has aged past ten minutes (`AACP_LIMITS_EVERY`): a
-`claude -p` on haiku, started in the root of the contour so the wrapper picks
-its account, says one word and hands over the windows claude tells with the
-answer. The probe keeps no session and no transcript and loads no MCP server
-or tool; the sessions of the contour are not asked anything. Its price is a
-claude start and a word on haiku a contour every interval, a share of the very
-limit it reads — which is why the interval is the host's to set, and a contour
-with a terminal open keeps its snapshot fresh and is not probed. The screens
-show the age of the snapshot beside old percentages.
+stream. So one snapshot per contour has two writers — the executor's
+`statusline`, which the install puts first in the status line chain, and a
+probe the executor starts for a contour whose snapshot has aged past its
+interval: a minute, or longer where `AACP_LIMITS_EVERY` says so — a value under
+a minute is ignored. The probe is a `claude -p` on haiku, started in the root
+of the contour so the wrapper picks its account; it says one word and hands
+over the windows claude tells with the answer. It keeps no session and no
+transcript and loads no MCP server or tool; the sessions of the contour are not
+asked anything. Its price is a claude start and a word on haiku a contour every
+minute, a share of the very limit it reads — which is why the interval is the
+host's to set; a terminal of the contour keeps the snapshot fresh through its
+status line and spares a probe only under a longer interval. A window whose
+reset time has passed is handed out by the collector as started over — nothing
+used, no reset known — until the next snapshot: the share the snapshot holds is
+of the window that ended. The screens show the age of the snapshot beside old
+percentages.
 
 **The snapshot is parsed block by block, and a failed block is visible.** One
 field handed over as a fraction where an integer is expected does not bring down
