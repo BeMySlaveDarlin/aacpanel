@@ -1,0 +1,128 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell" id="shell"></div>
+<script type="module">
+// The limits of a contour page with a list long enough to scroll: claude's
+// two windows and codex's week, the widest share a window carries. The page
+// is scrolled down to the last pixel the limits are still seen at, past it,
+// back to a pixel short of the top and to the top, and the limits and the
+// first card are measured at every stop, after the frames a fold would take
+// to undo itself.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Sessions } from "/src/screens/sessions.js";
+import { Nav } from "/src/ui/nav.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    return json({});
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const now = Math.floor(Date.now() / 1000);
+const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 + 1800 });
+const profileMap = [
+    { id: 4, profile: "Acme", name: "Acme", groups: [] },
+    { id: 3, profile: "personal", name: "personal", groups: [] },
+];
+const limits = { contours: [
+    { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(99.5, 1), sevenDay: part(88, 132),
+      codex: { at: now - 30, ageSec: 30, codexHome: "/home/u/.codex", windows: [], sevenDay: part(44, 132) } },
+    { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2), sevenDay: part(24, 100) },
+] };
+const run = (session, contour) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream",
+    pct: 12, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
+const sessions = Array.from({ length: 14 }, (_, i) => run(`shop${i}`, 4)).concat([run("notes", 3)]);
+const exec = { available: true, kinds: ["session.send"] };
+const wait = { opening: () => [], of: () => null };
+const shell = document.getElementById("shell");
+
+render(h(ToastHost, null, h(GateHost, null, html`
+    <main class="body">
+        <${Sessions} snapshot=${{ at: 1, sessions, profileMap, limits }} error=${null} ageSec=${1} exec=${exec}
+                     wait=${wait} faults=${[]} onLayer=${() => {}} onUsage=${() => {}} />
+    </main>
+    <${Nav} current="sessions" onSelect=${() => {}} home=${null} />
+`)), shell);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+window.done = (async () => {
+    await document.fonts.ready;
+    localStorage.removeItem("aacpanel.sessions.profile");
+    if (!await until(() => document.querySelectorAll(".pfpage .pflimits .limit").length >= 3)) {
+        throw new Error("the contour page did not show its limits");
+    }
+    const page = document.querySelector(".pfpage");
+    const box = page.querySelector(".pflimits");
+    const card = () => page.querySelector(".pflimits ~ :not(.grouphead)");
+    // at scrolls the page to y and lets it settle the frames a fold and its
+    // own scroll would take, and measures the limits there.
+    const at = async (y) => {
+        page.scrollTop = y;
+        for (let i = 0; i < 6; i += 1) await frame();
+        const edge = page.getBoundingClientRect();
+        const rect = box.getBoundingClientRect();
+        const mid = document.elementFromPoint(rect.left + rect.width / 2, rect.top + 2);
+        const cut = [];
+        for (const el of box.querySelectorAll("*")) {
+            const style = getComputedStyle(el);
+            if (style.display === "inline" || style.display === "none") continue;
+            if (el.scrollWidth > el.clientWidth) cut.push(`${el.className}: ${text(el)} (${el.scrollWidth} > ${el.clientWidth})`);
+        }
+        return {
+            asked: y,
+            scrollTop: Math.round(page.scrollTop),
+            tucked: box.classList.contains("tucked"),
+            top: Math.round(rect.top - edge.top),
+            bottom: Math.round(rect.bottom - edge.top),
+            card: Math.round(card().getBoundingClientRect().top - edge.top),
+            onTop: Boolean(mid && box.contains(mid)),
+            cut,
+            plates: Array.from(box.querySelectorAll(".limit")).map((l) => {
+                const shown = Array.from(l.querySelectorAll(".lname, .lval, .lsub"))
+                    .filter((el) => getComputedStyle(el).display !== "none" && el.getClientRects().length > 0);
+                // Lines are told apart by the middles of the words, half a
+                // letter apart at least: a share in mono stands a pixel off
+                // the word beside it.
+                const mids = shown.map((el) => {
+                    const r = el.getBoundingClientRect();
+                    return r.top + r.height / 2;
+                }).sort((a, b) => a - b);
+                const half = parseFloat(getComputedStyle(l).fontSize) / 2;
+                const r = l.getBoundingClientRect();
+                const bar = l.querySelector(".track").getBoundingClientRect();
+                return {
+                    reads: shown.map(text).join(" "),
+                    height: Math.round(r.height),
+                    lines: mids.filter((m, i) => i === 0 || m - mids[i - 1] > half).length,
+                    barGap: Math.round(r.bottom - bar.bottom),
+                };
+            }),
+        };
+    };
+    const open = await at(0);
+    const seen = open.bottom - 1;
+    const stops = [open, await at(seen), await at(open.bottom + 40)];
+    stops.push(await at(1));
+    stops.push(await at(0));
+    return { height: page.clientHeight, scrollHeight: page.scrollHeight, stops };
+})();
+</script>

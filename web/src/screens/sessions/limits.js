@@ -1,5 +1,7 @@
 // The subscription limits on a profile page.
 
+import { useEffect, useRef, useState } from "preact/hooks";
+
 import { html } from "../../html.js";
 import { share } from "../../format.js";
 import { pageNames, pickedPage } from "./pages.js";
@@ -81,13 +83,16 @@ export function openLimits(snapshot) {
 // in a row of two and in a row of three. Each agent renews its own numbers,
 // so numbers one of them has left old are dimmed apart from the other's,
 // and the whole block only once all of them are old or the agent that
-// brings them is silent.
+// brings them is silent. Past them down the list they fold to a line and
+// stay over it.
 export function ProfileLimits({ limits, profile, contour, stale }) {
+    const box = useRef(null);
+    const tucked = useTucked(box);
     const c = contourOf(limits, profile, contour);
 
     if (!c) {
         return html`
-            <div class="pflimits none">
+            <div class="pflimits none" ref=${box}>
                 <span class="limitnone">nobody has worked in this profile yet</span>
             </div>
         `;
@@ -109,7 +114,7 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
     const codexWord = html`<span class="agentword" data-agent="codex">Codex</span>`;
 
     return html`
-        <div class=${`pflimits${three ? " pfthree" : ""}${allOld ? " stale" : ""}`}>
+        <div class=${`pflimits${three ? " pfthree" : ""}${allOld ? " stale" : ""}${tucked ? " tucked" : ""}`} ref=${box}>
             ${claude && html`
                 <div class=${`limits pfclaude${claudeOld && !allOld ? " pfold" : ""}`}>
                     <${Limit} name=${claudeWord} span="5h" full="Claude · 5 hours" data=${c.fiveHour} />
@@ -127,6 +132,38 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
             ${ages.map((line) => html`<p class="limits-note calm" key=${line}>${line}</p>`)}
         </div>
     `;
+}
+
+// useTucked says whether the list under the limits has been scrolled past
+// them: they fold to a line then and stay over the list, and open again once
+// the list is back at its very top. They fold only after scrolling out of
+// sight and open only at the top, because folding takes their height from
+// the page and the page keeps its place by moving its scroll: with nearer
+// bounds that move would carry the list back over the bound and the limits
+// would fold and open by themselves. The list scrolls in its page of the
+// pager, or in the body where there is no pager.
+function useTucked(ref) {
+    const [tucked, setTucked] = useState(false);
+
+    useEffect(() => {
+        const el = ref.current;
+        const list = el && el.closest(".pfpage, .body");
+        if (!list) return undefined;
+        let now = false;
+        const onScroll = () => {
+            const next = now
+                ? list.scrollTop > 0
+                : el.getBoundingClientRect().bottom <= list.getBoundingClientRect().top;
+            if (next === now) return;
+            now = next;
+            setTucked(next);
+        };
+        list.addEventListener("scroll", onScroll, { passive: true });
+        onScroll();
+        return () => list.removeEventListener("scroll", onScroll);
+    }, []);
+
+    return tucked;
 }
 
 // What codex has not told, or has run into, in the same words wherever its
