@@ -1,4 +1,4 @@
-// A command the person ran with "!": a card in the feed, and its whole output
+// A command the person ran: a card in the feed, and its whole output
 // in a sheet.
 //
 // A session in tmux writes the command and what it printed into the
@@ -8,6 +8,7 @@
 // running.
 
 import { html } from "../../html.js";
+import { knows } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
 import { copyText } from "./copy.js";
@@ -23,6 +24,41 @@ export function shellOf(text) {
     const body = String(text || "").trim();
     if (!body.startsWith("!")) return null;
     return { command: body.slice(1).trim() };
+}
+
+export function canRunShell(exec, stream, shell) {
+    return Boolean(stream && shell && knows(exec, "session.shell"));
+}
+
+// A fence keeps its indentation; only empty edge lines and the composer's
+// leading bang leave it. Python goes through a quoted heredoc so the shell
+// cannot expand its words, with an end marker the code cannot close early.
+export function blockCommand(text, lang) {
+    const code = text.replace(/^(?:[ \t]*\r?\n)+|(?:\r?\n[ \t]*)+$/g, "").replace(/^[ \t]*![ \t]*/, "");
+    if (!/^(python|py|python3)$/i.test(lang)) return code;
+    const lines = code.split(/\r?\n/);
+    let end = "PY";
+    for (let n = 1; lines.includes(end); n += 1) end = `PY_${n}`;
+    return `python3 - <<'${end}'\n${code}\n${end}`;
+}
+
+// The page owns the row until the transcript takes it over. A fence waits
+// for the gate before that row appears; a typed bang goes out at once.
+export async function sendShell(run, name, { command, sent, messageId, onLocal, onLocalDone, confirm = false }) {
+    const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const result = await run("session.shell", name, messageId ? { text: command, messageId } : { text: command }, {
+        confirm,
+        onSend: () => {
+            if (onLocal) onLocal({ role: "shell", key, at: new Date().toISOString(), text: command,
+                                   sent, messageId, state: "sending" });
+        },
+    });
+    if (!result.cancelled && onLocalDone) {
+        onLocalDone(key, result.ok
+            ? { state: "running", since: new Date().toISOString() }
+            : { state: "failed", error: result.error || "the session did not take it" });
+    }
+    return result;
 }
 
 // tailOf keeps the last lines of an output and counts the ones left above.

@@ -91,8 +91,9 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
    and wraps rather than sliding under it. */
 .mdcode.oneline pre { padding-right: 2.8rem; }
 .mdcode.oneline code { color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mdcode.oneline.runnable pre { padding-right: 5rem; }
 
-.mdcopy {
+:is(.mdcopy, .mdrun) {
     flex: 0 0 auto;
     width: 1.9rem;
     height: 1.4rem;
@@ -106,12 +107,12 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
     cursor: pointer;
 }
 
-.mdcopy svg { width: var(--i-sm); height: var(--i-sm); }
-.mdcopy:active { background: rgba(var(--tint), .12); color: var(--ink); }
+:is(.mdcopy, .mdrun) svg { width: var(--i-sm); height: var(--i-sm); }
+:is(.mdcopy, .mdrun):active { background: rgba(var(--tint), .12); color: var(--ink); }
 
 /* The copy button of a block lies over its corner: half seen through, with
    the text under it blurred rather than struck through. */
-:is(.mdcode, .mdtab) > .mdcopy {
+:is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun) {
     position: absolute;
     top: .3rem;
     right: .3rem;
@@ -124,8 +125,10 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
     color: var(--ink-dim);
     opacity: .78;
 }
-:is(.mdcode, .mdtab) > .mdcopy:active { opacity: 1; color: var(--ink); background: var(--glass-2); }
-:is(.mdcode, .mdtab) > .mdcopy svg { width: var(--i-sm); height: var(--i-sm); }
+:is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun):active { opacity: 1; color: var(--ink); background: var(--glass-2); }
+:is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun) svg { width: var(--i-sm); height: var(--i-sm); }
+.mdcode > .mdrun { right: 2.5rem; }
+.mdcode.runnable.oneline > :is(.mdcopy, .mdrun) { top: 50%; transform: translateY(-50%); }
 
 /* The colours of code are the tokens of the panel and nothing of their own. */
 .hl-com, .hl-op, .hl-meta { color: var(--ink-faint); }

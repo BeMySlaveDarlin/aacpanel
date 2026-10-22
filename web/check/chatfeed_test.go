@@ -23,7 +23,7 @@ func TestFeedsWireCodeCopy(t *testing.T) {
 		}
 	}
 
-	block := cssBlockFile(t, "src/css/markdown.css", ":is(.mdcode, .mdtab) > .mdcopy")
+	block := cssBlockFile(t, "src/css/markdown.css", ":is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun)")
 	if !strings.Contains(block, "position: absolute") {
 		t.Error("the copy button of a block is not laid over its corner — it takes a bar of its own over every block again")
 	}
@@ -110,7 +110,7 @@ func TestOwnReplyKeepsLineBreaks(t *testing.T) {
 	// The words of a message are its text less the lines of the pictures drawn
 	// over it, and they are what the bubble renders.
 	if !regexp.MustCompile(`const said = [^;]*item\.text`).MatchString(row) ||
-		!regexp.MustCompile(`render\(\s*said\s*,\s*\{\s*breaks:\s*mine\s*\}`).MatchString(row) {
+		!regexp.MustCompile(`render\(\s*said\s*,\s*\{\s*breaks:\s*mine\b`).MatchString(row) {
 		t.Errorf("%s: the reply is rendered without hard breaks — three paragraphs become one again", chatFile)
 	}
 	mail := jsBlock(t, chatFile, screen, "function Letter(")

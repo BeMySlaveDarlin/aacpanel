@@ -97,10 +97,11 @@ export function GateHost({ children }) {
     const fired = useRef(null);
     const toast = useToast();
 
-    const run = useCallback(async (id, target, params = {}) => {
+    const run = useCallback(async (id, target, params = {}, options = {}) => {
         if (!known(id)) return Promise.reject(new Error(`unknown action: ${id}`));
 
-        if (ACTIONS[id].instant) {
+        if (ACTIONS[id].instant && !options.confirm) {
+            if (options.onSend) options.onSend();
             const result = await send(id, target, params);
             const onField = ACTIONS[id].fieldConflict && result.status === 409;
             if (!result.ok && !onField) toast("Not done", result.error, true);
@@ -111,7 +112,8 @@ export function GateHost({ children }) {
         // it is what goes, even if a snapshot changes the map under the sheet.
         const choice = ACTIONS[id].choice ? ACTIONS[id].choice(target, params) : null;
         return new Promise((resolve) => {
-            setPending({ id, target, params, step: 1, resolve, choice, picked: choice ? choice.value : undefined });
+            setPending({ id, target, params, step: 1, resolve, choice, picked: choice ? choice.value : undefined,
+                         onSend: options.onSend });
         });
     }, [toast]);
 
@@ -150,6 +152,7 @@ export function GateHost({ children }) {
             : pending.params;
         setPending(null);
 
+        if (pending.onSend) pending.onSend();
         const result = await send(id, target, params);
         let journal = null;
         if (action.journaled !== false) {
@@ -188,9 +191,9 @@ export function GateHost({ children }) {
                             <div class="ssub">${action.journaled === false ? "the action is not journalled" : "the action goes into the journal"}</div>
                         </div>
                     </div>
-                    <div class="warnline">
+                    ${screen.preview ? html`<pre class="gtpreview">${screen.preview(pending.params)}</pre>` : html`<div class="warnline">
                         ${typeof screen.effect === "function" ? screen.effect(pending.params, pending.target) : screen.effect}
-                    </div>
+                    </div>`}
                     ${pending.choice && html`
                         <${Choice} choice=${pending.choice} value=${pending.picked} onPick=${pick} />
                     `}
@@ -214,6 +217,8 @@ export function GateHost({ children }) {
 }
 
 // useAction returns the only way to run an action: run(id, target, params).
+// Options may ask for confirmation of an instant action; onSend waits for
+// that decision so a cancelled command never appears in the local feed.
 export function useAction() {
     const api = useContext(GateContext);
     if (!api) throw new Error("useAction outside GateHost: there is nobody to confirm the action");

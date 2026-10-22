@@ -176,9 +176,12 @@ export function render(text, opts) {
             while (i < lines.length && !lines[i].startsWith("```")) body.push(lines[i++]);
             i += 1;
             const code = body.join("\n");
+            const runnable = opts && opts.onRun && /^(sh|bash|shell|zsh|python|py|python3|)$/i.test(lang);
             out.push(html`
-                <div class=${`mdcode${body.length === 1 ? " oneline" : ""}`}>
+                <div class=${`mdcode${body.length === 1 ? " oneline" : ""}${runnable ? " runnable" : ""}`}>
                     <pre><${Code} lang=${lang}>${code}<//></pre>
+                    ${runnable && html`<button type="button" class="mdrun" onClick=${() => opts.onRun(code, lang)}
+                        title="Run in the session" aria-label="Run in the session">${Icon.play()}</button>`}
                     <button type="button" class="mdcopy"
                         title="Copy the code" aria-label="Copy the code">${Icon.copy()}</button>
                 </div>

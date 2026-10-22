@@ -28,7 +28,7 @@ import { onShelf, sealed, signal } from "../repo/notes.js";
 import { FeedWrites, Row } from "./rows.js";
 import { callsOf, FeedGrid } from "./timeline.js";
 import { CommandSheet } from "./command.js";
-import { ShellSheet } from "./shell.js";
+import { blockCommand, canRunShell, sendShell, ShellSheet } from "./shell.js";
 import { SecretPad } from "./secret.js";
 import { Calls } from "./calls.js";
 import { Look, LOOK_NAMES, pageLook, WORK_LISTS } from "./look.js";
@@ -39,7 +39,7 @@ import { shelf as briefShelf } from "../../data/briefs.js";
 import { list as secretShelf } from "../../data/secrets.js";
 import { hasWork, WorkList, WorkRefs, WorkStatus } from "./work.js";
 import { ChecklistSheet } from "./checklist.js";
-import { Composer, deliver, outcome } from "./composer.js";
+import { Composer, deliver, messageID, outcome } from "./composer.js";
 import { knows, whyNot } from "../../exec.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./answered.js";
 import { useAction } from "../../actions/gate.js";
@@ -274,9 +274,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         const queue = queueOf(row);
         return queue && html`<${TakeBack} row=${row} ...${queue} />`;
     };
-    // What the rows of the feed lend their menus: the words of a message go
-    // into the composer only where there is a composer to take them.
-    const lent = live && !live.outside ? { quote: takeQuote, edit: putBack, queueOf, exec } : { queueOf, exec };
     const openPath = (path) => setLook({ kind: "file", path });
     const pathMenu = usePathMenu(openPath);
 
@@ -377,6 +374,15 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
 
     const ctx = { wide, view, feedShown, feedRef, work: state.work, setLook, setInsert };
     const own = look ? parts.look(look, ctx) : null;
+    const composer = parts.composer(ctx);
+    const onLocal = (row) => setLocal((was) => [...was, { ...row, after: lastPos(state.items) }]);
+    const onLocalDone = (key, patch) => setLocal((was) => was.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    const onRun = live && !live.outside && canRunShell(exec, live.transport === "stream", composer.shell)
+        ? (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
+                                               onLocal, onLocalDone, confirm: true }) : null;
+    // The feed lends these to its rows alone: a file or a brief opened beside
+    // it cannot acquire the session's command buttons.
+    const lent = live && !live.outside ? { quote: takeQuote, edit: putBack, queueOf, exec, onRun } : { queueOf, exec };
 
     // What stands in the place of the composer: a question of the agent, and
     // a permission it waits on. A question codex asked without waiting holds
@@ -562,16 +568,15 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                       onAnswered=${() => mark(answered(live, ""))} />`
                     : html`
                         <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"} stream=${live.transport === "stream"}
-                                     ...${parts.composer(ctx)}
+                                     ...${composer}
                                      hold=${holding}
                                      files=${files}
                                      onAsk=${() => setAsking(true)}
                                      onFiles=${(picked) => setFiles((was) => [...was, ...picked])}
                                      onDropFile=${(i) => setFiles((was) => was.filter((_, n) => n !== i))}
                                      onDropFiles=${() => setFiles([])}
-                                     onLocal=${(row) => setLocal((was) => [...was, { ...row, after: lastPos(state.items) }])}
-                                     onLocalDone=${(key, patch) => setLocal((was) =>
-                                         was.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
+                                     onLocal=${onLocal}
+                                     onLocalDone=${onLocalDone}
                                      insert=${insert}
                                      strip=${wide
                                          ? html`${parts.strip(ctx)}

@@ -585,6 +585,9 @@ output reaches the transcript the card says how the command ended, shows the
 last lines of what it printed and opens the whole. A running command holds off
 a switch — closing claude would stop it, and its output would never arrive. A
 session in tmux gets the line as typed, since its own composer runs the command.
+In a stream session's feed, shell, Python and unlabelled code blocks also offer
+a run button through the same path, after the gate shows the exact command for
+confirmation.
 
 **A question on the stream is answered with structure, not with keys**, so the
 limits a terminal dialog puts on a layout do not hold there: a free answer and

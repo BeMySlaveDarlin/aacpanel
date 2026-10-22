@@ -11,7 +11,7 @@ import { WIDE } from "../../ui/wide.js";
 import { dictation, HOLD_MS, join, listen, speech } from "./dictate.js";
 import { clipName, FILES_MAX, intake, mb, PickFile } from "./tools.js";
 import { withQuote } from "./quote.js";
-import { shellOf } from "./shell.js";
+import { canRunShell, sendShell, shellOf } from "./shell.js";
 
 const MAX_COMPOSER = 112;
 
@@ -206,7 +206,7 @@ export function deliver(run, name, { text, files, messageId, request, answer, no
 // messageID names a message to a session whose queue the panel can take it
 // back from while it waits there. A message with files goes as files, and the
 // queue knows no name for it.
-function messageID(named, pack) {
+export function messageID(named, pack) {
     if (!named || pack.length || typeof crypto === "undefined" || !crypto.randomUUID) return undefined;
     return crypto.randomUUID();
 }
@@ -279,7 +279,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const canFile = knows(exec, "session.file");
     const fileWhy = whyNot(exec, "session.file");
     const canCmd = commands && knows(exec, "session.command");
-    const canShell = shell && knows(exec, "session.shell");
+    const canShell = canRunShell(exec, stream, shell);
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
     const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
@@ -341,27 +341,11 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
         if (result.ok) setText("");
     };
 
-    // sendShell has claude run the command beside the conversation. The row is
-    // the page's own until the command ends and the transcript takes it over:
-    // going out, then running since the host took it, or why it did not start.
-    // It is not held back behind an answer the way a message is: it goes to
-    // the shell, not into the composer of the session.
-    const sendShell = async (body) => {
-        const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const runId = messageID(ids, pack);
+    const sendBang = async (body) => {
         setText("");
         setSending(true);
-        if (onLocal) {
-            onLocal({ role: "shell", key, at: new Date().toISOString(), text: bang.command, sent: body,
-                      messageId: runId, state: "sending" });
-        }
-        const result = await run("session.shell", name, runId ? { text: bang.command, messageId: runId } : { text: bang.command });
+        await sendShell(run, name, { command: bang.command, sent: body, messageId: messageID(ids, pack), onLocal, onLocalDone });
         setSending(false);
-        if (onLocalDone) {
-            onLocalDone(key, result.ok
-                ? { state: "running", since: new Date().toISOString() }
-                : { state: "failed", error: result.error || "the session did not take it" });
-        }
     };
 
     const paste = async (event) => {
@@ -399,7 +383,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
         }
         taken.current = true;
         if (cmd) return sendCommand();
-        if (bang) return sendShell(body);
+        if (bang) return sendBang(body);
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");
         const messageId = messageID(ids, pack);

@@ -62,7 +62,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         return html`
             <div class="msg ai mmind">
                 ${item.head !== false && html`<div class="mmtag">thinking</div>`}
-                ${render(item.text)}
+                ${render(item.text, { onRun: writes.onRun })}
                 ${item.cut && html`<p class="hint warn">The thinking is longer than shown — cut.</p>`}
             </div>
         `;
@@ -192,7 +192,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
                  onContextMenu=${menu && messageMenu(menu, writes, item, mine ? copied : String(said || ""), again)}>
                 ${copied !== "" && html`<button class="cmdcopy msgcopy" type="button" aria-label="copy the message"
                                         data-md=${copied}>${Icon.copy()}</button>`}
-                ${render(said, { breaks: mine })}
+                ${render(said, { breaks: mine, onRun: writes.onRun })}
                 ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} onSave=${save} />`}
                 ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
                 ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}
@@ -302,6 +302,7 @@ const MAIL_WORD = {
 // its menu as well.
 function Letter({ item }) {
     const menu = useMenu();
+    const writes = useContext(FeedWrites) || {};
     const [open, setOpen] = useState(false);
     const cap = useRef(null);
     const [clamped, setClamped] = useState(false);
@@ -335,7 +336,7 @@ function Letter({ item }) {
             </div>
             ${who && html`<div class="mletterwho" title=${item.from || ""}>${who}</div>`}
             ${open && lost && html`<p class="hint warn mletterwhy">${item.undelivered}</p>`}
-            <div class=${`sentcap mletterbody${open ? "" : " closed"}`} ref=${cap}>${render(open ? text : lead)}</div>
+            <div class=${`sentcap mletterbody${open ? "" : " closed"}`} ref=${cap}>${render(open ? text : lead, { onRun: writes.onRun })}</div>
             ${open && item.cut && html`<p class="hint warn">The ${word} is longer than shown — cut.</p>`}
             ${more && html`
                 <div class="mflist">

@@ -449,6 +449,9 @@ export const ACTIONS = {
     // the composer of a terminal: the press is the decision.
     "session.shell": {
         instant: true,
+        title: (target) => `Run in ${target}?`,
+        preview: (params) => params.text,
+        ok: "Run",
         effect: "The session's shell runs the command in its directory beside the conversation; "
             + "what it printed goes into the conversation when it ends, and the model answers it.",
         done: (target) => `Running in ${target}`,

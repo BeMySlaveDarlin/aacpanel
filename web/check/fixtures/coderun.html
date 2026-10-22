@@ -1,0 +1,180 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box} @media(min-width:1100px){.shell{width:900px;margin:auto}}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// The shared conversation offers runnable fences only where its composer
+// can run a bang. Every press goes through the real gate and local feed.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { render as md } from "/src/md.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const blocks = [
+    ["sh", "printf ready"],
+    ["", "\n  \nprintf plain\n \n"],
+    ["python", "\nif True:\n    print('$HOME')\n\n"],
+    ["go", "fmt.Println(1)"],
+    ["console", "$ ls"],
+    ["sh", "\n!   printf bang\n\n"],
+    ["bash", "printf bash"],
+    ["shell", "printf shell"],
+    ["zsh", "printf zsh"],
+    ["py", "PY\nPY_1\nprint('done')"],
+    ["python3", "print(3)"],
+    ["json", "{}"],
+    ["sh", `printf '${"x".repeat(200)}'\n${Array.from({ length: 45 }, (_, i) => `printf 'line ${i}'`).join("\n")}`],
+];
+const markdown = blocks.map(([lang, code]) => `\`\`\`${lang}\n${code}\n\`\`\``).join("\n\n");
+const base = [{ role: "ai", pos: 1, text: markdown }];
+let items = base.slice();
+let feed = null;
+let release = null;
+const sent = [];
+const json = (value) => new Response(JSON.stringify(value), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: items.at(-1).pos, total: items.length, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        await new Promise((resolve) => { release = resolve; });
+        return json({ logged: true });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; this.listeners = {}; feed = this; }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    close() { this.readyState = 2; }
+};
+const bring = (more) => {
+    items.push(...more);
+    for (const fn of feed.listeners.chat || []) fn({ data: JSON.stringify({ items: more }) });
+};
+const root = document.getElementById("root");
+const q = (sel) => root.querySelector(sel);
+const all = (sel) => [...root.querySelectorAll(sel)];
+const until = async (ok) => {
+    const end = performance.now() + 5000;
+    while (!ok()) {
+        if (performance.now() > end) throw new Error(`did not arrive: ${ok}`);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+};
+const exec = { available: true, kinds: ["session.send", "session.shell"] };
+const live = { session: "demo", sessionId: "demo-code", transport: "stream", status: "idle", pct: 12, tokens: 12000, limit: 100000 };
+let mountId = 0;
+async function mount(session = live, executor = exec) {
+    render(null, root);
+    await until(() => !history.state);
+    items = base.slice();
+    feed = null;
+    render(html`<${ToastHost}><${GateHost}>
+        <${Chat} name="demo" id=${`demo-code-${mountId++}`} live=${session} exec=${executor} onBack=${() => {}} onUsage=${() => {}} />
+        <div id="outside" class="msg">${md(markdown)}</div>
+    <//><//>`, root);
+    await until(() => all(".chatfeed .mdcode").length === blocks.length);
+}
+const codeBlocks = () => all(".chatfeed .mdcode");
+const cards = () => all(".chatfeed .mshell");
+const preview = () => q(".sheet.on .gtpreview");
+const closeGate = () => until(() => !q(".sheet.on") && history.state?.depth === 1);
+async function open(index) {
+    const button = codeBlocks()[index].querySelector(".mdrun");
+    if (!button) throw new Error(`no run button on block ${index}`);
+    button.click();
+    await until(preview);
+}
+function geometry(block, index) {
+    const run = block.querySelector(".mdrun");
+    if (!run) return null;
+    const copy = block.querySelector(".mdcopy");
+    const r = run.getBoundingClientRect(), c = copy.getBoundingClientRect(), b = block.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(block.querySelector("code"));
+    const clear = [...range.getClientRects()].every((line) => line.right <= r.left + .5);
+    const styleOf = (el) => {
+        const pre = getComputedStyle(el.querySelector("pre")), code = getComputedStyle(el.querySelector("code"));
+        return { preWhiteSpace: pre.whiteSpace, codeWhiteSpace: code.whiteSpace, paddingRight: pre.paddingRight,
+            overflowX: pre.overflowX, overflowWrap: code.overflowWrap };
+    };
+    return { clear, oneLine: block.classList.contains("oneline"),
+        style: styleOf(block), plainStyle: styleOf(all("#outside .mdcode")[index]),
+        top: r.top - b.top, gap: c.left - r.right, edge: b.right - c.right, runHeight: r.height, copyHeight: c.height,
+        aligned: Math.abs(r.top - c.top) < .5, centered: Math.abs(r.top + r.height / 2 - b.top - b.height / 2) < .5,
+        inside: r.left >= b.left && c.right <= b.right && r.top >= b.top && r.bottom <= b.bottom,
+        label: run.getAttribute("aria-label"), title: run.title };
+}
+async function runBlock(index) {
+    const before = sent.length, rows = cards().length;
+    await open(index);
+    const pane = preview();
+    const style = getComputedStyle(pane);
+    const out = { index, preview: pane.textContent, title: q(".sheet.on .stitle").textContent,
+        before: sent.length - before, beforeRows: cards().length - rows,
+        wraps: style.whiteSpace === "pre-wrap" && style.overflowWrap === "anywhere",
+        scrolls: style.overflowY === "auto", bounded: pane.getBoundingClientRect().height <= innerHeight / 2 + 1,
+        font: style.fontFamily, yes: q(".sheet.on .btn.primary").textContent };
+    q(".sheet.on .btn.primary").click();
+    await until(() => sent.length > before && cards().length > rows && release);
+    out.going = cards().at(-1).querySelector(".mshellat").textContent;
+    out.local = cards().at(-1).querySelector(".mshellcmd").textContent;
+    release();
+    release = null;
+    await until(() => cards().at(-1).querySelector(".mshellat").textContent.startsWith("running"));
+    await closeGate();
+    out.sends = sent.slice(before);
+    const pos = items.at(-1).pos + 1;
+    bring([{ role: "shell", pos, text: out.preview, code: 0 }, { role: "shellout", pos, text: "finished", command: out.preview, code: 0 }]);
+    await until(() => cards().some((card) => card.querySelector(".mshellcmd").textContent === out.preview
+        && card.querySelector(".mshellat").textContent.includes("exit 0")));
+    out.ended = cards().length - rows;
+    out.output = all(".chatfeed .mshellout").at(-1).textContent;
+    return out;
+}
+
+window.done = (async () => {
+    try {
+        await document.fonts.ready;
+        await mount();
+        const out = { buttons: codeBlocks().map((b) => Boolean(b.querySelector(".mdrun"))),
+            outside: all("#outside .mdrun").length, geometry: codeBlocks().map(geometry).filter(Boolean) };
+        await until(() => q(".composer textarea"));
+        const area = q(".composer textarea");
+        area.value = "keep my draft";
+        area.dispatchEvent(new Event("input", { bubbles: true }));
+        out.runs = [];
+        for (const index of [0, 1, 2, 5, 9, 12]) out.runs.push(await runBlock(index));
+        out.draft = q(".composer textarea").value;
+        const before = sent.length, rows = cards().length;
+        await open(0);
+        const cancel = all(".sheet.on .btn").find((b) => b.textContent === "Cancel");
+        if (!cancel) throw new Error("the gate has no Cancel");
+        cancel.click();
+        await closeGate();
+        out.cancelled = { sends: sent.length - before, rows: cards().length - rows };
+        out.absent = {};
+        for (const [key, session, executor] of [
+            ["console", { ...live, transport: "console" }, exec],
+            ["unknown", live, { available: true, kinds: ["session.send"] }],
+            ["offline", live, { available: false }],
+            ["codex", { ...live, agent: "codex" }, exec],
+            ["outsideSession", { ...live, outside: true }, exec],
+            ["archive", null, exec],
+        ]) {
+            await mount(session, executor);
+            out.absent[key] = all(".chatfeed .mdrun").length;
+        }
+        return out;
+    } finally {
+        if (release) release();
+        render(null, root);
+        await until(() => !history.state);
+    }
+})();
+</script>

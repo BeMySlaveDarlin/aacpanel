@@ -166,6 +166,19 @@
     padding: .55rem .7rem;
 }
 
+.gtpreview {
+    margin: 0;
+    padding: .6rem .8rem;
+    max-height: 50vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: var(--t-sm)/1.55 var(--code);
+    color: var(--ink);
+    background: var(--code-bg);
+    border-radius: var(--r-small);
+}
+
 /* A pick the sheet asks beside its question, over its buttons: the segments
    of the picker, the one the project names marked with a quiet word, and why
    a segment is off said beneath it. */

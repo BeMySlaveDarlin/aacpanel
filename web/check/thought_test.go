@@ -1,6 +1,7 @@
 package check
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestThoughtWithTextIsReadAsTextNotAsACounter(t *testing.T) {
 		row = row[:end]
 	}
 
-	if !strings.Contains(row, "render(item.text)") {
+	if !regexp.MustCompile(`render\(item\.text[,)]`).MatchString(row) {
 		t.Error("the thought text is not rendered through markdown — yet it is the same prose " +
 			"as the model's answer")
 	}
