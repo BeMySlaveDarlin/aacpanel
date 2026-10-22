@@ -1,6 +1,6 @@
 // The “Sessions” tab: one page per profile, paged by swipe.
 
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { follow, liveOf } from "../catchup.js";
@@ -216,7 +216,31 @@ const SECTIONS = [
     { title: "sessions", tone: "", has: (b) => !b.pinnedAt && b.rank !== RANK.wait },
 ];
 
+// Where the list of each contour was left, by the name of the contour. A
+// conversation, a project, the archive or the settings of a contour open in
+// place of the list, and the way back finds the list where it was left
+// rather than at its top.
+const kept = new Map();
+
+// useKeptScroll keeps the place of the list a contour's page stands in: the
+// list scrolls in its page of the pager, or in the body where there is no
+// pager, as the limits read it (see useTucked). The ref goes on an element
+// the page always draws.
+function useKeptScroll(name) {
+    const ref = useRef(null);
+    useLayoutEffect(() => {
+        const list = ref.current && ref.current.closest(".pfpage, .body");
+        if (!list) return undefined;
+        if (kept.has(name)) list.scrollTop = kept.get(name);
+        const onScroll = () => kept.set(name, list.scrollTop);
+        list.addEventListener("scroll", onScroll, { passive: true });
+        return () => list.removeEventListener("scroll", onScroll);
+    }, [name]);
+    return ref;
+}
+
 function Page({ name, profile, limits, stale, sessions, everyone, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
+    const keep = useKeptScroll(name);
     const blocks = blocksOf({ profile, sessions, recent, opening, wait });
     const toProject = (project, group) => onProject({ ...project, profile: name, contour: profile ? profile.id : 0, group });
     return html`
@@ -237,7 +261,7 @@ function Page({ name, profile, limits, stale, sessions, everyone, opening, recen
                     `)}
                 `;
             })}
-        <button class="crumb wide" type="button" onClick=${onPast}>
+        <button class="crumb wide" type="button" ref=${keep} onClick=${onPast}>
             all projects and the archive
             <span class="chev">${Icon.chevron()}</span>
         </button>

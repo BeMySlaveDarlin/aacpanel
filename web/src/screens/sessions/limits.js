@@ -87,7 +87,7 @@ export function openLimits(snapshot) {
 // stay over it.
 export function ProfileLimits({ limits, profile, contour, stale }) {
     const box = useRef(null);
-    const tucked = useTucked(box);
+    const tucked = useTucked(box, profile);
     const c = contourOf(limits, profile, contour);
 
     if (!c) {
@@ -134,6 +134,9 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
     `;
 }
 
+// Whether the limits of each contour were last left folded.
+const folded = new Map();
+
 // useTucked says whether the list under the limits has been scrolled past
 // them: they fold to a line then and stay over the list, and open again once
 // the list is back at its very top. They fold only after scrolling out of
@@ -141,21 +144,25 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
 // the page and the page keeps its place by moving its scroll: with nearer
 // bounds that move would carry the list back over the bound and the limits
 // would fold and open by themselves. The list scrolls in its page of the
-// pager, or in the body where there is no pager.
-function useTucked(ref) {
-    const [tucked, setTucked] = useState(false);
+// pager, or in the body where there is no pager. A list drawn again comes
+// back where it was left (see useKeptScroll), so the limits come back folded
+// as they were left, by the name of the contour: drawn open for a frame, they
+// would push the list down by the height they fold away.
+function useTucked(ref, profile) {
+    const [tucked, setTucked] = useState(() => folded.get(profile) || false);
 
     useEffect(() => {
         const el = ref.current;
         const list = el && el.closest(".pfpage, .body");
         if (!list) return undefined;
-        let now = false;
+        let now = folded.get(profile) || false;
         const onScroll = () => {
             const next = now
                 ? list.scrollTop > 0
                 : el.getBoundingClientRect().bottom <= list.getBoundingClientRect().top;
             if (next === now) return;
             now = next;
+            folded.set(profile, next);
             setTucked(next);
         };
         list.addEventListener("scroll", onScroll, { passive: true });
