@@ -22,6 +22,7 @@ type deskCardFacts struct {
 	Shown  []string `json:"shown"`
 	Lines  int      `json:"lines"`
 	Cut    []string `json:"cut"`
+	Row    int      `json:"row"`
 }
 
 type deskCardRow struct {
@@ -241,7 +242,8 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 // how long it has been up, and its compactions; the group of its project is
 // said by the heading over the row, not again on it. One line: what does not fit drops from the end, a
 // whole fact at a time. The share is quiet while there is room and loud when
-// the context is nearly spent.
+// the context is nearly spent. The lines of a row stand close, so the column
+// holds more sessions to a screen.
 func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -261,6 +263,9 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 		}
 		if f.Lines != 1 {
 			t.Errorf("%s: the line of what it runs on takes %d lines", name, f.Lines)
+		}
+		if f.Row > 70 {
+			t.Errorf("%s: the row is %d px tall — its lines stand apart rather than close", name, f.Row)
 		}
 		if len(f.Shown) == 0 || strings.Join(f.Shown, "|") != strings.Join(f.All[:len(f.Shown)], "|") {
 			t.Errorf("%s shows %v of %v — what does not fit drops from the end", name, f.Shown, f.All)

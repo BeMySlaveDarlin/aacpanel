@@ -167,14 +167,14 @@ const facts = (name) => {
     if (!d) return { all: [], shown: [], lines: 0 };
     const spans = Array.from(d.children);
     const top = spans.length ? spans[0].offsetTop : 0;
-    const size = parseFloat(getComputedStyle(d).fontSize);
     return {
         all: spans.map(text),
         // Whose word opens the line: the agent it is painted as.
         agent: spans.length && spans[0].classList.contains("agentword") ? spans[0].dataset.agent || "" : "",
         levels: spans.map((sp) => sp.dataset.level || ""),
         shown: spans.filter((s) => s.offsetTop === top).map(text),
-        lines: Math.round(d.getBoundingClientRect().height / (size * 1.4)),
+        lines: Math.round(d.getBoundingClientRect().height / parseFloat(getComputedStyle(d).lineHeight)),
+        row: Math.round(rowOf(name).getBoundingClientRect().height),
         // A fact on the line stands whole inside it: what does not fit is
         // not cut, it is gone.
         cut: spans.filter((sp) => sp.offsetTop === top && sp !== spans[0]

@@ -40,13 +40,13 @@ func TestThePhoneListHasNoSpansBetweenItsBlocks(t *testing.T) {
 	if got.BeforeSection > 16 || got.UnderSection > 6 {
 		t.Errorf("a section heading stands %d px under the block above and %d px over its own", got.BeforeSection, got.UnderSection)
 	}
-	if got.Head > 38 {
+	if got.Head > 33 {
 		t.Errorf("the head of a block is %d px tall", got.Head)
 	}
 	if got.Past > 50 {
 		t.Errorf("the last conversation of a block is %d px tall", got.Past)
 	}
-	if got.Live > 110 {
+	if got.Live > 58 {
 		t.Errorf("a live row of a block is %d px tall — more than its words, icons and padding", got.Live)
 	}
 	if got.Button < 28 {

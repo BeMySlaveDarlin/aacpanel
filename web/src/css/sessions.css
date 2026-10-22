@@ -439,7 +439,7 @@
    idle the session is. */
 .pjblock.pjquiet { background: none; box-shadow: none; border-style: dashed; }
 
-.pjhead { display: flex; align-items: center; gap: .45rem; min-height: 2.35rem; padding: .15rem .4rem .15rem .75rem; }
+.pjhead { display: flex; align-items: center; gap: .45rem; min-height: 2.15rem; padding: .1rem .4rem .1rem .75rem; }
 .pjname {
     min-width: 0;
     overflow: hidden;
@@ -489,19 +489,22 @@ span.pjname { cursor: default; }
 .pjrow > .ctxbar.edge { top: auto; bottom: 0; }
 /* The name and its actions take the whole first line. Under them the state
    includes where the session lives; the figure keeps the bottom right corner
-   beside the last words, leaving the checklist as much width as it can. */
+   beside the last words, leaving the checklist as much width as it can. The
+   lines of a card stand close, with no gap between them: a list of sessions
+   is read down a screen, and the leading alone keeps them apart. */
 .pjrow.pjcard {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
-    gap: .12rem .5rem;
-    padding: .45rem .75rem;
+    gap: 0 .5rem;
+    padding: .3rem .75rem;
+    line-height: 1.25;
 }
 .pjtop { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; }
 /* The buttons keep their touch targets when a name is long: only the name
    gives up width, and its full value stays in the conversation's label. */
 .pjtop > .pjsess { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pjcard > .pjopen { padding: 0; }
+.pjcard > .pjopen { padding: 0; gap: 0; }
 .pjcard > .pjpct { align-self: end; }
 /* The whole row opens the conversation, not only its words: the open button
    reaches over the row, and the buttons in the row stand above it. */
@@ -565,12 +568,12 @@ span.pjname { cursor: default; }
     bottom: 0;
     border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
 }
-.pjrow.pjbranchend::before { bottom: auto; height: 1.15rem; }
+.pjrow.pjbranchend::before { bottom: auto; height: .93rem; }
 .pjrow.pjbranch .pjtop::before {
     content: "";
     position: absolute;
     left: 1.12rem;
-    top: 1.15rem;
+    top: .93rem;
     width: .5rem;
     border-top: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
 }
@@ -657,7 +660,7 @@ button.pjstub { cursor: pointer; }
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
-    height: 1.15rem;
+    height: 1.05rem;
     padding: 0 .3rem;
     border-radius: var(--r-pill);
     color: var(--wait);
@@ -691,7 +694,7 @@ button.pjstub { cursor: pointer; }
     color: var(--ink-dim);
 }
 .pjsince, .pjwork { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
-.pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.65em - .25rem); border-radius: 50%; background: currentColor; }
+.pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.57em - .25rem); border-radius: 50%; background: currentColor; }
 .pj-wait { color: var(--wait); }
 .pj-wait .pjdot { box-shadow: 0 0 10px currentColor; }
 .pj-busy { color: var(--accent); }
@@ -715,7 +718,7 @@ button.pjstub { cursor: pointer; }
     display: inline-flex;
     align-items: center;
     gap: .22rem;
-    height: 1.15rem;
+    height: 1.05rem;
     padding: 0 .3rem;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
@@ -728,8 +731,9 @@ button.pjstub { cursor: pointer; }
 }
 .pjtag svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
 /* The icons are marks of the name's line, no taller than it, so the card
-   keeps its height. A finger takes each past its edge: up and down to the
-   row's padding, and sideways to half the gap, never onto its neighbour. */
+   keeps its height. A finger takes each past its edge: up to the edge of the
+   row, down into the state's line, and sideways to half the gap, never onto
+   its neighbour — some thirty pixels tall however close the lines stand. */
 .pjacts { display: flex; flex: none; gap: .5rem; }
 .pjact {
     box-sizing: border-box;
@@ -737,7 +741,7 @@ button.pjstub { cursor: pointer; }
     flex: none;
     align-items: center;
     justify-content: center;
-    height: 1.15rem;
+    height: 1.05rem;
     padding: 0 .3rem;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
@@ -745,7 +749,7 @@ button.pjstub { cursor: pointer; }
     color: var(--crit);
     cursor: pointer;
 }
-.pjact::before { content: ""; position: absolute; inset: -.45rem -.25rem; }
+.pjact::before { content: ""; position: absolute; inset: -.35rem -.25rem -.6rem; }
 .pjact svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
 .pjact:disabled { opacity: .45; cursor: default; }
 .pjpct { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
