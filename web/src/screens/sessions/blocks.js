@@ -276,9 +276,11 @@ export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onP
 // had the panel open stand a step in under it, behind a fold that is open
 // until the person closes it and says who of them waits; the runs it started
 // inside its work fold under it, closed; the sessions of a parent that closed
-// stand under what is left of it. live is every live session the screen
-// knows of, and past the closed conversations it has read: they tell a parent
-// alive elsewhere from one that closed, and when it closed.
+// stand under what is left of it. Descendants stop at the third level, with
+// the branch to the parent's next sister running past them. live is every
+// live session the screen knows of, and past the closed conversations it has
+// read: they tell a parent alive elsewhere from one that closed, and when
+// it closed.
 export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen }) {
     const [folded, fold] = useFolds();
     const line = (s, kid = false, branch = "", from = "") => html`
@@ -286,10 +288,10 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
                      pin=${pinOf(s, live || list, wait)}
                      notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} exec=${exec} />
     `;
-    return layoutOf(list, live, folded).map((e) => {
+    const row = (e) => {
         switch (e.kind) {
         case "fold":
-            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} open=${e.open}
+            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
                                       onToggle=${() => fold(e.parent.session)} />`;
         case "runs":
             return html`<${KinFold} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
@@ -299,11 +301,17 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
         default:
             return line(e.s, false, e.branch || "", e.from || "");
         }
-    });
+    };
+    return layoutOf(list, live, folded).map((e) => html`
+        <div key=${`${e.kind}:${e.s ? e.s.session : e.parent.session || e.parent}`}
+             class=${`pjtree${e.depth > (e.kind === "row" ? 2 : 1) ? " pjnested" : ""}${e.trail ? " pjtrail" : ""}`}>
+            ${row(e)}
+        </div>
+    `);
 }
 
-// waitsOf says who of the sessions a session opened waits for the person: by
-// name where one does, by count where several do.
+// waitsOf says who under a fold waits for the person: by name where one does,
+// by count where several do.
 export function waitsOf(kids) {
     const waiting = kids.filter((s) => stateOf(s).tone === "wait");
     if (waiting.length === 0) return "";
@@ -318,10 +326,11 @@ export function closedRow(past, name) {
 }
 
 // OpenedFold heads the sessions a session had the panel open: how many, and
-// who of them waits for the person — in the colour of waiting, so a closed
-// fold does not hide a question. Closed, it shows the state of each by a dot.
-function OpenedFold({ kids, open, onToggle }) {
-    const waits = waitsOf(kids);
+// who in their subtree waits for the person — in the colour of waiting, so
+// a closed fold does not hide a question. Its count and dots name only the
+// children standing directly under it.
+function OpenedFold({ kids, hidden, open, onToggle }) {
+    const waits = waitsOf(hidden);
     return html`
         <button class="pjrow pjfold" type="button" aria-expanded=${open ? "true" : "false"}
                 onClick=${onToggle}>

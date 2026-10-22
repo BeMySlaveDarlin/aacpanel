@@ -23,9 +23,9 @@ export function placeOf(s) {
 
 // kinOf splits live sessions into those standing on their own and, under each
 // of them, the sessions it started: the runs started inside its work and the
-// sessions it had the panel open. One goes under the eldest of its ancestors
-// in the list; one whose parent is not in the list stands on its own. rootOf
-// is that eldest ancestor, or the session itself.
+// sessions it had the panel open. kids keeps the immediate links; one whose
+// parent is not in the list stands on its own. rootOf is the eldest ancestor
+// in the list, or the session itself, for groups that move as a whole.
 export function kinOf(list) {
     const by = new Map((list || []).map((s) => [s.session, s]));
     const rootOf = (s) => {
@@ -40,13 +40,13 @@ export function kinOf(list) {
     const own = [];
     const kids = new Map();
     for (const s of list || []) {
-        const root = rootOf(s);
-        if (root === s) {
+        const parent = s.parent && by.get(s.parent.session);
+        if (rootOf(s) === s) {
             own.push(s);
             continue;
         }
-        if (!kids.has(root.session)) kids.set(root.session, []);
-        kids.get(root.session).push(s);
+        if (!kids.has(parent.session)) kids.set(parent.session, []);
+        kids.get(parent.session).push(s);
     }
     return { own, kids, rootOf };
 }
@@ -87,20 +87,43 @@ export function openedLabel(count) {
 // live is every live session the screen knows of, the other contours among
 // them: a parent there is alive and elsewhere, one nowhere has closed. Without
 // it a parent out of the list is only named. folded holds the parents whose
-// fold the person closed.
+// fold the person closed. The root or its stub is level one; its children
+// are level two, and all their descendants share level three. A trail keeps
+// the branch of a second-level parent running past its subtree to its sister.
 export function layoutOf(list, live = null, folded = new Set()) {
     const { own, kids } = kinOf(list);
     const here = new Set((list || []).map((s) => s.session));
     const alive = live ? new Set(live.map((s) => s.session)) : null;
     const out = [];
-    const under = (s) => {
-        const { opened, runs } = branchesOf(kids.get(s.session));
+    const descendants = (s) => {
+        const found = [];
+        const seen = new Set([s.session]);
+        const visit = (parent) => {
+            for (const child of kids.get(parent.session) || []) {
+                if (seen.has(child.session)) continue;
+                seen.add(child.session);
+                found.push(child);
+                visit(child);
+            }
+        };
+        visit(s);
+        return found;
+    };
+    const under = (s, depth, trail = false) => {
+        const family = depth === 2 ? descendants(s) : (kids.get(s.session) || [])
+            .flatMap((k) => k.outside ? [k, ...descendants(k)] : [k]);
+        const { opened, runs } = branchesOf(family);
         if (opened.length > 0) {
             const open = !folded.has(s.session);
-            out.push({ kind: "fold", parent: s, kids: opened, open });
-            if (open) opened.forEach((k, i) => out.push({ kind: "row", s: k, branch: i === opened.length - 1 ? "last" : "mid" }));
+            const hidden = depth === 2 ? opened : opened.flatMap((k) => [k, ...descendants(k)]);
+            out.push({ kind: "fold", parent: s, kids: opened, hidden, open, depth, trail });
+            if (open) opened.forEach((k, i) => {
+                const branch = i === opened.length - 1 ? "last" : "mid";
+                out.push({ kind: "row", s: k, branch, depth: depth + 1, trail });
+                if (depth < 2) under(k, depth + 1, branch === "mid");
+            });
         }
-        if (runs.length > 0) out.push({ kind: "runs", parent: s, kids: runs });
+        if (runs.length > 0) out.push({ kind: "runs", parent: s, kids: runs, depth, trail });
     };
     const placed = new Set();
     for (const s of own) {
@@ -108,18 +131,19 @@ export function layoutOf(list, live = null, folded = new Set()) {
         const parent = openedBy(s);
         const away = parent && !here.has(parent);
         if (away && alive && !alive.has(parent)) {
-            const orphans = own.filter((o) => openedBy(o) === parent);
-            out.push({ kind: "stub", parent });
+            const { opened: orphans } = branchesOf(own.filter((o) => openedBy(o) === parent));
+            out.push({ kind: "stub", parent, depth: 1 });
             orphans.forEach((o, i) => {
                 placed.add(o.session);
-                out.push({ kind: "row", s: o, branch: i === orphans.length - 1 ? "last" : "mid" });
-                under(o);
+                const branch = i === orphans.length - 1 ? "last" : "mid";
+                out.push({ kind: "row", s: o, branch, depth: 2 });
+                under(o, 2, branch === "mid");
             });
             continue;
         }
         placed.add(s.session);
-        out.push({ kind: "row", s, from: away ? parent : "" });
-        under(s);
+        out.push({ kind: "row", s, from: away ? parent : "", depth: 1 });
+        under(s, 1);
     }
     return out;
 }

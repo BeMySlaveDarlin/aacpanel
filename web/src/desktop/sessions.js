@@ -289,11 +289,11 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
 }
 
 // OpenedFold heads the sessions a session had the panel open, as the phone's
-// does: how many and who of them waits, and the dots of their states while it
-// is closed. The arrow keys pass the sessions of a closed fold by: they go
-// down the rows the column shows.
-function OpenedFold({ kids, open, onToggle }) {
-    const waits = waitsOf(kids);
+// does: how many direct children and the dots of their states while closed,
+// with who waits anywhere in their subtree. The arrow keys pass the sessions
+// of a closed fold by: they go down the rows the column shows.
+function OpenedFold({ kids, hidden, open, onToggle }) {
+    const waits = waitsOf(hidden);
     return html`
         <button class="dkkin dkfold" type="button" aria-expanded=${open ? "true" : "false"}
                 onClick=${onToggle}>
@@ -534,7 +534,8 @@ function ProjectHead({ block, entry, exec, onTerm, onSettings }) {
 // its projects, each under a heading of its own, with their live sessions,
 // the sessions those opened and the runs they started under them, and the
 // sessions being raised in them. blocks holds the projects as the column lays
-// them out, with the rows of each.
+// them out, with the rows of each. Descendants share the third level once
+// they reach it; the parent's branch carries past them to its next sister.
 function ContourSection({ name, entry, list, blocks, archive, onFold, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
     const waits = list.filter((s) => stateOf(s).tone === "wait").length;
     const line = (s, kid = false, branch = "", from = "") => html`<${SessionLine}
@@ -554,7 +555,7 @@ function ContourSection({ name, entry, list, blocks, archive, onFold, limits, ma
     const row = (e) => {
         switch (e.kind) {
         case "fold":
-            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} open=${e.open}
+            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
                                       onToggle=${() => onFold(e.parent.session)} />`;
         case "runs":
             return html`<${KinFold} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
@@ -580,7 +581,12 @@ function ContourSection({ name, entry, list, blocks, archive, onFold, limits, ma
             ${blocks.flatMap(({ block, rows }) => [
                 html`<${ProjectHead} key=${`head:${block.key}`} block=${block} entry=${entry} exec=${exec}
                                     onTerm=${onTerm} onSettings=${onSettings} />`,
-                ...rows.map(row),
+                ...rows.map((e) => html`
+                    <div key=${`${e.kind}:${e.s ? e.s.session : e.parent.session || e.parent}`}
+                         class=${`dktree${e.depth > (e.kind === "row" ? 2 : 1) ? " dknested" : ""}${e.trail ? " dktrail" : ""}`}>
+                        ${row(e)}
+                    </div>
+                `),
                 ...block.ghosts.map((task) => html`<${GhostLine} key=${`+${task.target}`} task=${task} />`),
             ])}
             ${blocks.length === 0 && html`<p class="dkempty">nothing live</p>`}

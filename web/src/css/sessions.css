@@ -512,7 +512,7 @@ span.pjname { cursor: default; }
 .pjact, .pjresume { position: relative; z-index: 1; }
 /* The runs a session started inside its work: a fold under it, and the runs
    themselves a step in when it is open. */
-.pjrow.pjkid { padding-left: 1.6rem; }
+.pjrow.pjkid { padding-left: 1.85rem; }
 .pjkin {
     display: flex;
     align-items: center;
@@ -536,10 +536,23 @@ span.pjname { cursor: default; }
    many and who of them waits, and the sessions themselves a step in, on the
    line of a branch that comes down from the fold — straight past a session
    with another below it, turning in at the last. The line is a hairline of
-   the faint ink, so it reads as a guide and not as a border. */
+   the faint ink, so it reads as a guide and not as a border. The third level
+   takes the same step; the parent's line carries past its subtree only when
+   a sister follows. */
+.pjtree { position: relative; }
+.pjtree.pjnested { padding-left: 1.1rem; }
+.pjtree.pjtrail::before {
+    content: "";
+    position: absolute;
+    left: 1.12rem;
+    top: 0;
+    bottom: 0;
+    border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
+    pointer-events: none;
+}
 .pjrow.pjfold {
     width: 100%;
-    min-height: 2.25rem;
+    min-height: 1.8rem;
     gap: .45rem;
     padding: 0 .75rem;
     border: 0;

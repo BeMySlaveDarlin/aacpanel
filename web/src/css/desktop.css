@@ -451,13 +451,28 @@
 
     .dkkinchev.open { transform: rotate(90deg); }
 
-    .dksess.dkkid { padding-left: 1.4rem; }
+    .dksess.dkkid { padding-left: 1.45rem; }
 
     /* The sessions a session had the panel open, as on the phone: a fold
        under it, and the sessions a step in on the line of a branch. They keep
        their names and rows of their own — they are sessions like any other,
-       not runs. */
-    .dkkin.dkfold { gap: .4rem; padding-left: .55rem; }
+       not runs. The third level takes the same step; the parent's line runs
+       past its subtree only when another sister follows. */
+    .dktree { position: relative; }
+
+    .dktree.dknested { padding-left: .9rem; }
+
+    .dktree.dktrail::before {
+        content: "";
+        position: absolute;
+        left: .8rem;
+        top: 0;
+        bottom: 0;
+        border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
+        pointer-events: none;
+    }
+
+    .dkkin.dkfold { gap: .4rem; min-height: 1.4rem; padding: .05rem .55rem; }
 
     .dkfoldtext { font-weight: 600; color: var(--ink-dim); }
 
@@ -653,7 +668,7 @@
 
     .dklive > .dksay { grid-column: 1 / -1; grid-row: 2; }
 
-    .dksess.dklive.dkkid { padding-left: 1.4rem; }
+    .dksess.dklive.dkkid { padding-left: 1.45rem; }
 
     .dksess.dklive[data-tone="wait"] { box-shadow: inset 2px 0 0 var(--wait); }
 

@@ -3,11 +3,13 @@
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{margin:0} .deskshell{position:static;height:900px} .dkbody{height:900px} .phone{width:390px;padding:.6rem 17px;display:flex;flex-direction:column;gap:.55rem}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="root">
 <div class="deskshell"><div class="dkbody" id="desk"></div></div>
 <div class="phone" id="phone1"></div>
 <div class="phone" id="phone2"></div>
 <div class="phone" id="plain"></div>
 <div id="shell"></div>
+</div>
 <script type="module">
 // The sessions a session had the panel open, in both lists. On the phone a
 // child stands in the block of its parent whatever its project, a step in
@@ -200,6 +202,8 @@ window.done = (async () => {
     render(null, shell);
     const { sessionPins } = await import("/check/fixtures/sessionpins.js");
     out.pins = await sessionPins();
+    const { sessionLevels } = await import("/check/fixtures/sessionlevels.js");
+    out.levels = await sessionLevels();
     return out;
 })();
 </script>

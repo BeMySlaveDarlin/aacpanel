@@ -1857,10 +1857,15 @@ reads the parent as the session's `parent`, the field that names the session
 a run runs inside of — without `outside`, since the panel opened this one.
 The lists stand the child a
 step in under its parent, in the parent's block whatever its own project, behind
-a fold that is open until the person closes it: the children are the work in
-view, and the block stands where the most pressing of the group puts it. The
-link is by name, not by conversation: a restart starts another conversation
-under the same name, and a restart or a move of the child starts its next
+a fold that is open until the person closes it. The root and its children and
+grandchildren occupy three levels; deeper descendants stand beside the
+grandchildren under their second-level ancestor, in opening order. Each of
+the first two levels keeps its own folds of opened sessions and runs. A fold
+counts its direct children but says who waits throughout their subtree, so
+closing it hides no question. A closed parent's stub takes the root's place.
+The children are the work in view, and the block stands where the most pressing
+of the group puts it. The link is by name, not by conversation: a restart starts
+another conversation under the same name, and a restart or a move of the child starts its next
 process with the parent again, as the snapshot holds it. The person's Resume
 from the archive does not: a conversation the person brings back from there is
 the person's, and a claude session and a codex thread alike come back with no
