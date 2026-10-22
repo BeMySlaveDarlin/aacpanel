@@ -8,8 +8,9 @@
 <div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section></div></div>
 <script type="module">
 // Three sessions of one project in one directory, two of them with a role:
-// the role is a line of its own on their rows, in the desktop column and in
-// the phone's list, cut at its end; the third has no such line. The session
+// the role is a line of its own on their rows in the desktop column, cut at
+// its end, and stays off the cards of the phone's list; the third has no such
+// line. The session
 // tools name the role next to Rename and open its sheet, which counts the
 // characters, holds back a role past its length, and saves or clears it with
 // its own buttons.
@@ -110,7 +111,12 @@ window.done = (async () => {
     await quiet();
     const out = {};
     out.desk = rows(document.getElementById("desk"), ".dksess.dklive", ".dkname", ".dkrole", ".dksay", ".dkdetail");
-    out.phone = rows(document.getElementById("phone"), ".pjcard", ".pjsess", ".pjrole", ".pjstate", ".pjsince");
+    // A phone's card is read whole for the words of its role.
+    out.phone = [...document.getElementById("phone").querySelectorAll(".pjcard")].map((card) => {
+        const name = text(card.querySelector(".pjsess"));
+        const role = (sessions.find((s) => s.session === name) || {}).role;
+        return { name, role: role && text(card).includes(role.replace(/\s+/g, " ").trim()) ? role : null };
+    });
 
     talk(sessions[1]);
     const panel = await openRole();

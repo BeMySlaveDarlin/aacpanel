@@ -13,9 +13,10 @@ type roleLine struct {
 	Placed  bool    `json:"placed"`
 }
 
-// The role of a session is a line of its own on its row, in the desktop column
-// and in the phone's list: under the state, on one line cut at its end. A
-// session without a role has no such line. The tools of the conversation name
+// The role of a session is a line of its own on its row in the desktop column:
+// under the state, on one line cut at its end. A session without a role has no
+// such line, and the cards of the phone's list carry none: the phone keeps its
+// cards to what the sessions do. The tools of the conversation name
 // the role next to Rename and open its sheet, which counts the characters as
 // the host does, holds back a role past its length, saves a trimmed role and
 // clears one with its own buttons, asking nothing a second time.
@@ -44,21 +45,24 @@ func TestTheRoleIsALineOfTheRowAndASheetOfTheTools(t *testing.T) {
 	}
 	runWideFixture(t, "role.html", &got)
 
-	for where, list := range map[string][]roleLine{"desktop": got.Desk, "phone": got.Phone} {
-		if len(list) != 3 {
-			t.Fatalf("the %s list has %d rows: %+v", where, len(list), list)
+	if len(got.Desk) != 3 || len(got.Phone) != 3 {
+		t.Fatalf("the desktop list has %d rows and the phone's %d: %+v %+v", len(got.Desk), len(got.Phone), got.Desk, got.Phone)
+	}
+	for _, r := range got.Desk {
+		hasRole := r.Name != "shop-queue-watch"
+		if (r.Role != nil) != hasRole || r.Role != nil && *r.Role == "" {
+			t.Errorf("desktop: %s shows the role %v", r.Name, r.Role)
 		}
-		for _, r := range list {
-			hasRole := r.Name != "shop-queue-watch"
-			if (r.Role != nil) != hasRole || r.Role != nil && *r.Role == "" {
-				t.Errorf("%s: %s shows the role %v", where, r.Name, r.Role)
-			}
-			if !r.OneLine || !r.Placed {
-				t.Errorf("%s: the role of %s is on one line %v, under the state %v", where, r.Name, r.OneLine, r.Placed)
-			}
-			if r.Cut != (r.Name == "shop") {
-				t.Errorf("%s: the role of %s is cut %v — only the long one is", where, r.Name, r.Cut)
-			}
+		if !r.OneLine || !r.Placed {
+			t.Errorf("desktop: the role of %s is on one line %v, under the state %v", r.Name, r.OneLine, r.Placed)
+		}
+		if r.Cut != (r.Name == "shop") {
+			t.Errorf("desktop: the role of %s is cut %v — only the long one is", r.Name, r.Cut)
+		}
+	}
+	for _, r := range got.Phone {
+		if r.Role != nil {
+			t.Errorf("phone: the card of %s carries the role %q", r.Name, *r.Role)
 		}
 	}
 

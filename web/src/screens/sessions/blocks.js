@@ -368,9 +368,10 @@ function KinFold({ kids, line }) {
 
 // LiveLine is a live session inside its project, a line for each question:
 // what it is called, what it is doing, for how long it has lived and whether
-// Remote Control is up, which work of the repository is its — its role, where
-// it has one — where it is in the checklist of its work, who runs it
-// on which model and when it last asked, and what runs in its background. On
+// Remote Control is up, where it is in the checklist of its work, who runs it
+// on which model and when it last asked, and what runs in its background. The
+// role of the session stays off the card: a phone's list is read for what the
+// sessions do, and the role is a press away in its tools. On
 // a phone one line holds no more than one of these: the state is read whole,
 // the checklist cut at its end. Every row opens with the name of its session,
 // the only session of its project included, and Restart and Close at the
@@ -438,7 +439,6 @@ export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = 
                     ${html`<${WaitingMark} session=${session} />`}
                     <span class="pjtag">${tag()}${place}</span>
                 </span>
-                ${session.role && html`<span class="pjrole">${session.role}</span>`}
                 ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
                 ${state.work && html`<span class="pjwork">${state.work}</span>`}
