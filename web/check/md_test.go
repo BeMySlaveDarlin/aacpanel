@@ -129,8 +129,8 @@ func TestCodeBlockCarriesItsCopyButtonWithoutABar(t *testing.T) {
 	}
 }
 
-// A table copies its markdown whole; a list is prose, copied by selecting it,
-// and carries no button.
+// A table and a quote copy their markdown whole, a quote without its marks;
+// a list is prose, copied by selecting it, and carries no button.
 func TestATableCopiesItsMarkdownAndAListIsProse(t *testing.T) {
 	cases := []struct {
 		name, in, want string
@@ -148,6 +148,12 @@ func TestATableCopiesItsMarkdownAndAListIsProse(t *testing.T) {
 			`<div class="mdtab"><div class="mdtable"><table><thead><tr><th>a</th><th>b</th><th>c</th><th>d</th></tr></thead>` +
 				`<tbody><tr><td>w</td><td>x</td><td>y</td><td>z</td></tr></tbody></table></div>` +
 				copyBtn("| a | b | c | d |\n|---|---|---|---|\n| w | x | y | z |", "Copy the table") + `</div>`,
+		},
+		{
+			"quote: data-md keeps its lines and their code, without the marks",
+			"> Posted the `ctr` chart\n> to the registry.",
+			`<blockquote class="mdquote">` + copyBtn("Posted the `ctr` chart\nto the registry.", "Copy the quote") +
+				`Posted the <code class="copyable">ctr</code> chart to the registry.</blockquote>`,
 		},
 		{
 			"list: no button, no block around it",

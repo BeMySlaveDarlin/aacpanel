@@ -37,6 +37,15 @@
     border-left: 2px solid rgba(150, 170, 255, .3);
     color: var(--ink-dim);
 }
+/* The copy button of a quote stands in its top right corner and the words
+   flow around it: a quote has no ground of its own for a button laid over
+   its words to stand on. */
+.mdquote > .mdcopy {
+    float: right;
+    margin: 0 0 .2rem .5rem;
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    color: var(--ink-dim);
+}
 
 /* Code in a line is copied by a tap; a path opens its file instead. The word
    "copied" stands over the line the finger touched. */

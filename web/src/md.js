@@ -1,7 +1,8 @@
 // Renders markdown from model answers into preact nodes.
 //
 // A block of code or a table carries its copy button over its corner rather
-// than on a bar of its own; a list is prose and carries none. Code in a line
+// than on a bar of its own, and a quote — often words to pass on, a comment
+// to post — carries one in its corner; a list is prose and carries none. Code in a line
 // is copied by a tap, and a block of code in a language the highlighter knows
 // is coloured when it comes near the screen.
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -233,7 +234,13 @@ export function render(text, opts) {
                 quote.push(lines[i].replace(/^\s*>\s?/, ""));
                 i += 1;
             }
-            out.push(html`<blockquote class="mdquote">${inline(quote.join(" "))}</blockquote>`);
+            out.push(html`
+                <blockquote class="mdquote">
+                    <button type="button" class="mdcopy" data-md=${quote.join("\n")}
+                        title="Copy the quote" aria-label="Copy the quote">${Icon.copy()}</button>
+                    ${inline(quote.join(" "))}
+                </blockquote>
+            `);
             continue;
         }
 
