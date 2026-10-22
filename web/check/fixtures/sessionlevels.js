@@ -1,5 +1,6 @@
 // The same chain is read in both lists: its deepest descendant stays beside
-// its parent at the third level, and its question survives either fold.
+// its parent at the third level, its question survives either fold, and the
+// child with nothing under it stands before its sisters with subtrees.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
@@ -20,8 +21,8 @@ export async function sessionLevels() {
         project, contour: 1, profile: "Personal", cwd: project.path, transport: "stream", status: "idle", pct: 20,
         startedAt: new Date(Date.now() - (100 - minute) * 60e3).toISOString(), ...extra,
     });
-    const chain = [make("D", "C", 4, { status: "waiting" }), make("E", "A", 5),
-        make("C", "B", 3), make("A", "", 1), make("B", "A", 2)];
+    const chain = [make("D", "C", 4, { status: "waiting" }), make("E", "A", 5), make("G", "A", 11),
+        make("C", "B", 3), make("A", "", 1), make("B", "A", 2), make("F", "E", 10)];
     const panels = [
         { root: mount.querySelector(".phone"), prefix: "pj", row: ".pjrow.pjcard", name: ".pjsess" },
         { root: mount.querySelector(".dkbody"), prefix: "dk", row: ".dksess.dklive", name: ".dkname" },
@@ -91,28 +92,31 @@ export async function sessionLevels() {
         return { rows, trails, folds };
     };
     draw(chain);
-    await until(() => rowsAre("A,fold: opened 2 sessions,B,fold: opened 2 sessions,C,D,E") && order.join(",") === "A,B,C,D,E");
+    const tree = "A,fold: opened 3 sessions,G,B,fold: opened 2 sessions,C,D,E,fold: opened 1 session,F";
+    const childClosed = "A,fold: opened 3 sessions,G,B,fold: opened 2 sessions,E,fold: opened 1 session,F";
+    await until(() => rowsAre(tree) && order.join(",") === "A,G,B,C,D,E,F");
     const out = { root: kinOf(chain).rootOf(chain[0]).session, phone: {}, desk: {} };
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].open = { ...read(p), ...geometry(p) }; });
     out.order = order.slice();
     for (const p of panels) foldOf(p, "B").click();
-    await until(() => rowsAre("A,fold: opened 2 sessions,B,fold: opened 2 sessions,E") && order.join(",") === "A,B,E");
+    await until(() => rowsAre(childClosed) && order.join(",") === "A,G,B,E,F");
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].childClosed = read(p); });
     out.childOrder = order.slice();
     for (const p of panels) foldOf(p, "A").click();
-    await until(() => rowsAre("A,fold: opened 2 sessions") && order.join(",") === "A");
+    await until(() => rowsAre("A,fold: opened 3 sessions") && order.join(",") === "A");
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].rootClosed = read(p); });
     out.kept = JSON.parse(localStorage.getItem("aacpanel.folds") || "[]").filter((name) => name === "A" || name === "B").sort();
     for (const p of panels) foldOf(p, "A").click();
-    await until(() => rowsAre("A,fold: opened 2 sessions,B,fold: opened 2 sessions,E"));
+    await until(() => rowsAre(childClosed));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].reopened = read(p); });
     for (const p of panels) foldOf(p, "B").click();
-    await until(() => rowsAre("A,fold: opened 2 sessions,B,fold: opened 2 sessions,C,D,E"));
+    await until(() => rowsAre(tree));
 
     const runs = [make("RA", "A", 6, { outside: true }), make("RB", "B", 7, { outside: true }),
         make("RC", "C", 8, { outside: true }), make("RD", "D", 9, { outside: true })];
     draw([...chain, ...runs]);
-    await until(() => rowsAre("A,fold: opened 2 sessions,B,fold: opened 2 sessions,C,D,runs: 3 runs started by it,E,runs: 1 run started by it"));
+    await until(() => rowsAre("A,fold: opened 3 sessions,G,B,fold: opened 2 sessions,C,D,runs: 3 runs started by it,"
+        + "E,fold: opened 1 session,F,runs: 1 run started by it"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].runsClosed = read(p); });
     for (const p of panels) {
         for (const fold of p.root.querySelectorAll(`.${p.prefix}kin:not(.${p.prefix}fold)`)) fold.click();
@@ -126,10 +130,10 @@ export async function sessionLevels() {
     await until(() => panels.every((p) => rowOf(p, "B")));
 
     draw(chain.filter((s) => s.session !== "A"));
-    await until(() => rowsAre("stub: A,B,fold: opened 2 sessions,C,D,E"));
+    await until(() => rowsAre("stub: A,G,B,fold: opened 2 sessions,C,D,E,fold: opened 1 session,F"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].stub = { ...read(p), ...geometry(p) }; });
-    draw(chain.filter((s) => s.session !== "A" && s.session !== "E"));
-    await until(() => rowsAre("stub: A,B,fold: opened 2 sessions,C,D"));
+    draw(chain.filter((s) => !["A", "E", "F"].includes(s.session)));
+    await until(() => rowsAre("stub: A,G,B,fold: opened 2 sessions,C,D"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].last = geometry(p); });
     for (const p of panels) render(null, p.root);
     mount.remove();

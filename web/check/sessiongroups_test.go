@@ -48,7 +48,8 @@ type levelScreen struct {
 }
 
 // Geometry guards the extra step as well as the cap: a class on a row says
-// nothing about where its name or the branch beside it actually stands.
+// nothing about where its name or the branch beside it actually stands. G,
+// opened last with nothing under it, stands first among A's children.
 func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 	var got struct {
 		Levels struct {
@@ -59,7 +60,7 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 	}
 	runWideFixture(t, "sessiongroups.html", &got)
 	levels := got.Levels
-	if levels.Root != "A" || strings.Join(levels.Order, ",") != "A,B,C,D,E" || strings.Join(levels.ChildOrder, ",") != "A,B,E" {
+	if levels.Root != "A" || strings.Join(levels.Order, ",") != "A,G,B,C,D,E,F" || strings.Join(levels.ChildOrder, ",") != "A,G,B,E,F" {
 		t.Errorf("root %q, open order %v, child closed order %v: the root keeps its group and the arrows follow visible rows",
 			levels.Root, levels.Order, levels.ChildOrder)
 	}
@@ -77,14 +78,17 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 	for name, screen := range map[string]levelScreen{"phone": levels.Phone, "desk": levels.Desk} {
 		t.Run(name, func(t *testing.T) {
 			rows := byName(screen.Open.Rows)
-			if len(rows) != 5 {
+			if len(rows) != 7 {
 				t.Fatalf("the open tree has rows %+v", screen.Open.Rows)
 			}
-			a, b, c, d, e := rows["A"], rows["B"], rows["C"], rows["D"], rows["E"]
+			a, b, c, d, e, f, g := rows["A"], rows["B"], rows["C"], rows["D"], rows["E"], rows["F"], rows["G"]
 			step := b.X - a.X
-			if step < 10 || !near(c.X-b.X, step) || !near(c.X, d.X) || !near(b.X, e.X) {
-				t.Errorf("names stand at %v, %v, %v, %v, %v: two equal steps, with D beside C and E beside B",
-					a.X, b.X, c.X, d.X, e.X)
+			if step < 10 || !near(c.X-b.X, step) || !near(c.X, d.X) || !near(b.X, e.X) || !near(b.X, g.X) || !near(c.X, f.X) {
+				t.Errorf("names stand at %v, %v, %v, %v, %v, %v, %v: two equal steps, with D and F beside C, E and G beside B",
+					a.X, b.X, c.X, d.X, e.X, f.X, g.X)
+			}
+			if g.Bottom > b.Top+1 || !near(g.GuideHeight, g.Height) {
+				t.Errorf("G, with nothing under it, does not stand over B on a running branch: %+v, %+v", g, b)
 			}
 			if !near(c.GuideX-b.GuideX, step) || !near(c.GuideX, d.GuideX) || !near(b.GuideHeight, b.Height) ||
 				!near(c.GuideHeight, c.Height) || d.GuideHeight <= 0 || d.GuideHeight >= d.Height/2 {
@@ -93,7 +97,7 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 			if name == "phone" && c.Width < 120 {
 				t.Errorf("the third-level name has only %.1f pixels on a 390px phone", c.Width)
 			}
-			if len(screen.Open.Folds) != 2 {
+			if len(screen.Open.Folds) != 3 {
 				t.Fatalf("the first two levels have folds %+v", screen.Open.Folds)
 			}
 			if !near(screen.Open.Folds[1].X-screen.Open.Folds[0].X, step) {
@@ -117,18 +121,18 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 			if !near(bottom, e.Top) {
 				t.Errorf("B's branch ends at %.1f before E at %.1f", bottom, e.Top)
 			}
-			childClosed := []string{"A", "fold: opened 2 sessions", "B", "fold: opened 2 sessions", "E"}
+			childClosed := []string{"A", "fold: opened 3 sessions", "G", "B", "fold: opened 2 sessions", "E", "fold: opened 1 session", "F"}
 			if !reflect.DeepEqual(screen.ChildClosed.Rows, childClosed) || !reflect.DeepEqual(screen.Reopened.Rows, childClosed) {
 				t.Errorf("B's fold hides the wrong rows or is lost when A reopens: %+v, %+v", screen.ChildClosed, screen.Reopened)
 			}
-			if !reflect.DeepEqual(screen.RootClosed.Rows, []string{"A", "fold: opened 2 sessions"}) {
+			if !reflect.DeepEqual(screen.RootClosed.Rows, []string{"A", "fold: opened 3 sessions"}) {
 				t.Errorf("A's fold leaves descendants behind: %+v", screen.RootClosed)
 			}
 			if strings.Join(screen.ChildClosed.Waits, ",") != "· D waits,· D waits" || strings.Join(screen.RootClosed.Waits, ",") != "· D waits" {
 				t.Errorf("D's question was hidden: child closed %+v, root closed %+v", screen.ChildClosed, screen.RootClosed)
 			}
 			if !reflect.DeepEqual(screen.ChildClosed.Dots, [][]string{{"idle", "wait"}}) ||
-				!reflect.DeepEqual(screen.RootClosed.Dots, [][]string{{"idle", "idle"}}) {
+				!reflect.DeepEqual(screen.RootClosed.Dots, [][]string{{"idle", "idle", "idle"}}) {
 				t.Errorf("fold dots must describe their direct children: child %+v, root %+v", screen.ChildClosed.Dots, screen.RootClosed.Dots)
 			}
 			runs := byName(screen.RunsOpen.Rows)
@@ -140,15 +144,16 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 			if row, ok := runs["RA"]; !ok || !near(row.X, b.X) {
 				t.Errorf("root run stands at %+v, expected the second level at %.1f", row, b.X)
 			}
-			if !reflect.DeepEqual(screen.RunsClosed.Rows, []string{"A", "fold: opened 2 sessions", "B", "fold: opened 2 sessions",
-				"C", "D", "runs: 3 runs started by it", "E", "runs: 1 run started by it"}) {
+			if !reflect.DeepEqual(screen.RunsClosed.Rows, []string{"A", "fold: opened 3 sessions", "G", "B", "fold: opened 2 sessions",
+				"C", "D", "runs: 3 runs started by it", "E", "fold: opened 1 session", "F", "runs: 1 run started by it"}) {
 				t.Errorf("runs do not follow their parent's subtree: %v", screen.RunsClosed.Rows)
 			}
-			if !reflect.DeepEqual(screen.RunsHidden.Rows, []string{"A", "fold: opened 2 sessions", "runs: 1 run started by it", "RA"}) {
+			if !reflect.DeepEqual(screen.RunsHidden.Rows, []string{"A", "fold: opened 3 sessions", "runs: 1 run started by it", "RA"}) {
 				t.Errorf("the root's fold leaves a child's runs behind: %v", screen.RunsHidden.Rows)
 			}
 			stub := byName(screen.Stub.Rows)
-			if len(stub) != 4 || !near(stub["B"].X, b.X) || !near(stub["C"].X, c.X) || !near(stub["D"].X, c.X) || len(screen.Stub.Trails) != 3 {
+			if len(stub) != 6 || !near(stub["G"].X, b.X) || !near(stub["B"].X, b.X) || !near(stub["C"].X, c.X) || !near(stub["D"].X, c.X) ||
+				!near(stub["F"].X, c.X) || len(screen.Stub.Trails) != 3 {
 				t.Errorf("a closed parent does not hold the root's place: %+v", screen.Stub)
 			}
 			if len(screen.Last.Trails) != 0 {

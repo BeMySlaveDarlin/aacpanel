@@ -88,8 +88,11 @@ export function openedLabel(count) {
 // them: a parent there is alive and elsewhere, one nowhere has closed. Without
 // it a parent out of the list is only named. folded holds the parents whose
 // fold the person closed. The root or its stub is level one; its children
-// are level two, and all their descendants share level three. A trail keeps
-// the branch of a second-level parent running past its subtree to its sister.
+// are level two, and all their descendants share level three. A second-level
+// child with nothing under it stands before the sisters whose subtrees follow
+// them, so a long branch does not push it down the screen; each kind keeps
+// the order of opening. A trail keeps the branch of a second-level parent
+// running past its subtree to its sister.
 export function layoutOf(list, live = null, folded = new Set()) {
     const { own, kids } = kinOf(list);
     const here = new Set((list || []).map((s) => s.session));
@@ -109,10 +112,13 @@ export function layoutOf(list, live = null, folded = new Set()) {
         visit(s);
         return found;
     };
+    const bareFirst = (sisters) => [...sisters.filter((k) => !kids.has(k.session)),
+        ...sisters.filter((k) => kids.has(k.session))];
     const under = (s, depth, trail = false) => {
         const family = depth === 2 ? descendants(s) : (kids.get(s.session) || [])
             .flatMap((k) => k.outside ? [k, ...descendants(k)] : [k]);
-        const { opened, runs } = branchesOf(family);
+        const { opened: byTime, runs } = branchesOf(family);
+        const opened = depth < 2 ? bareFirst(byTime) : byTime;
         if (opened.length > 0) {
             const open = !folded.has(s.session);
             const hidden = depth === 2 ? opened : opened.flatMap((k) => [k, ...descendants(k)]);
@@ -131,7 +137,7 @@ export function layoutOf(list, live = null, folded = new Set()) {
         const parent = openedBy(s);
         const away = parent && !here.has(parent);
         if (away && alive && !alive.has(parent)) {
-            const { opened: orphans } = branchesOf(own.filter((o) => openedBy(o) === parent));
+            const orphans = bareFirst(branchesOf(own.filter((o) => openedBy(o) === parent)).opened);
             out.push({ kind: "stub", parent, depth: 1 });
             orphans.forEach((o, i) => {
                 placed.add(o.session);

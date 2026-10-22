@@ -1862,7 +1862,10 @@ The lists stand the child a
 step in under its parent, in the parent's block whatever its own project, behind
 a fold that is open until the person closes it. The root and its children and
 grandchildren occupy three levels; deeper descendants stand beside the
-grandchildren under their second-level ancestor, in opening order. Each of
+grandchildren under their second-level ancestor, in opening order. At the
+second level, a session with nothing under it stands before its sisters with
+subtrees, each kind in opening order, so a long branch does not push it down
+the screen. Each of
 the first two levels keeps its own folds of opened sessions and runs. A fold
 counts its direct children but says who waits throughout their subtree, so
 closing it hides no question. A closed parent's stub takes the root's place.
