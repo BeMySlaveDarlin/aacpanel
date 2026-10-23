@@ -9,14 +9,15 @@ import { html } from "../../html.js";
 import { ContextBar } from "../../ui/bar.js";
 import { fill, share } from "../../format.js";
 import { useAsOf } from "../../ui/asof.js";
-import { MidName, modelTitle, shortPath, stateOf } from "./head.js";
+import { modelTitle, shortPath, stateOf } from "./head.js";
+import { HeadName } from "./headname.js";
 import { CODEX_NOTE, agentKey, agentName, isCodex } from "../../agent.js";
 import { outsideNote } from "../sessions/kin.js";
 
 // DeskHead renders the conversation header on the wide screen; the tools come
 // ready from the conversation. A thread of codex in the archive says what it
 // spent (spent) where a conversation says how full its context grew (pct).
-export function DeskHead({ name, live, archive, pct, spent, move, tools }) {
+export function DeskHead({ name, live, archive, pct, spent, move, tools, exec, taken }) {
     const state = stateOf(live, useAsOf(), move);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
@@ -25,7 +26,7 @@ export function DeskHead({ name, live, archive, pct, spent, move, tools }) {
                 <div class="dkwho">
                     <div class="dkwhoname">
                         <span class=${`dkdot ${state.tone ? `dk${state.tone}` : ""}`.trim()} title=${state.say}></span>
-                        <span class="dkheadname dkchatname"><${MidName} text=${name} /></span>
+                        <span class="dkheadname dkchatname"><${HeadName} key=${name} name=${name} live=${live} exec=${exec} taken=${taken} /></span>
                     </div>
                     <div class="dkwhosub">
                         ${live && html`

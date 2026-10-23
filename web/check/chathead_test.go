@@ -1,7 +1,9 @@
 package check
 
 import (
+	"math"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +25,101 @@ type chatHeadSeen struct {
 	StripChipTall   float64 `json:"stripChipTall"`
 	StripWordsTall  float64 `json:"stripWordsTall"`
 	StripChipsRight float64 `json:"stripChipsRight"`
+}
+
+type headRenameSeen struct {
+	Rename struct {
+		Value           string   `json:"value"`
+		Selected        bool     `json:"selected"`
+		SameOff         bool     `json:"sameOff"`
+		SameSent        int      `json:"sameSent"`
+		FontMatches     bool     `json:"fontMatches"`
+		NameHeight      float64  `json:"nameHeight"`
+		FieldHeight     float64  `json:"fieldHeight"`
+		Before          float64  `json:"before"`
+		Editing         float64  `json:"editing"`
+		Invalid         float64  `json:"invalid"`
+		ControlsVisible bool     `json:"controlsVisible"`
+		BadOff          bool     `json:"badOff"`
+		BadWhy          string   `json:"badWhy"`
+		BadSent         int      `json:"badSent"`
+		TakenOff        bool     `json:"takenOff"`
+		TakenWhy        string   `json:"takenWhy"`
+		EmptyOff        bool     `json:"emptyOff"`
+		EmptyWhy        string   `json:"emptyWhy"`
+		Escaped         bool     `json:"escaped"`
+		Cancelled       bool     `json:"cancelled"`
+		Busy            bool     `json:"busy"`
+		Once            bool     `json:"once"`
+		Refused         string   `json:"refused"`
+		RefusedWhy      string   `json:"refusedWhy"`
+		ErrorCleared    bool     `json:"errorCleared"`
+		Saved           string   `json:"saved"`
+		Another         string   `json:"another"`
+		Followed        bool     `json:"followed"`
+		Sent            []string `json:"sent"`
+		Blocked         []struct {
+			Kind   string `json:"kind"`
+			Text   bool   `json:"text"`
+			Cursor string `json:"cursor"`
+		} `json:"blocked"`
+	} `json:"rename"`
+}
+
+func TestTheConversationHeaderRenamesInPlace(t *testing.T) {
+	for _, screen := range []string{"phone", "desk"} {
+		t.Run(screen, func(t *testing.T) {
+			var seen headRenameSeen
+			if screen == "phone" {
+				runFixture(t, "chathead.html", &seen)
+			} else {
+				runWideFixture(t, "chathead.html", &seen)
+			}
+			got := seen.Rename
+			if got.Value != "helios" || !got.Selected || !got.SameOff || got.SameSent != 0 {
+				t.Errorf("the name did not open selected and unchanged: value %q, selected %v, save off %v, sent %d",
+					got.Value, got.Selected, got.SameOff, got.SameSent)
+			}
+			if !got.FontMatches || math.Abs(got.NameHeight-got.FieldHeight) > .5 {
+				t.Errorf("the name changed typography: same font %v, name %.2f px, field %.2f px", got.FontMatches, got.NameHeight, got.FieldHeight)
+			}
+			if got.Before == 0 || math.Abs(got.Before-got.Editing) > .5 || math.Abs(got.Before-got.Invalid) > .5 {
+				t.Errorf("the header jumps: before %.2f px, editing %.2f px, invalid %.2f px", got.Before, got.Editing, got.Invalid)
+			}
+			t.Logf("header height: before %.2f px, editing %.2f px, invalid %.2f px", got.Before, got.Editing, got.Invalid)
+			if !got.ControlsVisible {
+				t.Error("the save and cancel icons are not visible without hovering")
+			}
+			if !got.BadOff || !strings.Contains(got.BadWhy, "latin") || got.BadSent != 0 {
+				t.Errorf("an invalid name can be saved: save off %v, reason %q, sent %d", got.BadOff, got.BadWhy, got.BadSent)
+			}
+			if !got.TakenOff || !strings.Contains(got.TakenWhy, "already") || !got.EmptyOff || got.EmptyWhy != "Enter a name." {
+				t.Errorf("taken or empty names are allowed: taken off %v (%q), empty off %v (%q)", got.TakenOff, got.TakenWhy, got.EmptyOff, got.EmptyWhy)
+			}
+			if !got.Escaped || !got.Cancelled {
+				t.Errorf("cancel changed or submitted the name: Escape %v, cross %v", got.Escaped, got.Cancelled)
+			}
+			if !got.Busy || !got.Once || got.Refused != "helios-pilot" || !strings.Contains(got.RefusedWhy, "reserved") || !got.ErrorCleared {
+				t.Errorf("a pending or refused rename lost its state: busy %v, sent once %v, value %q, reason %q, cleared %v",
+					got.Busy, got.Once, got.Refused, got.RefusedWhy, got.ErrorCleared)
+			}
+			want := `session.rename:helios:{"name":"helios-pilot"}|session.rename:helios:{"name":"helios-pilot-2"}`
+			if strings.Join(got.Sent, "|") != want || got.Saved != "helios-pilot-2" || !got.Followed {
+				t.Errorf("Enter and the check did not rename and follow the session: sent %v, saved %q, followed %v", got.Sent, got.Saved, got.Followed)
+			}
+			if got.Another != "shop" {
+				t.Errorf("the header kept the renamed session's name for another session: %q", got.Another)
+			}
+			if len(got.Blocked) != 4 {
+				t.Fatalf("only %d kinds of read-only names were checked", len(got.Blocked))
+			}
+			for _, blocked := range got.Blocked {
+				if !blocked.Text || blocked.Cursor == "pointer" {
+					t.Errorf("%s name offers renaming: plain text %v, cursor %q", blocked.Kind, blocked.Text, blocked.Cursor)
+				}
+			}
+		})
+	}
 }
 
 // On a phone the header of a conversation says where the session works on a

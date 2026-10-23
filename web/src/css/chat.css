@@ -50,6 +50,32 @@
    and a flex item would drop it, gluing the words together. */
 .midtail { flex: none; white-space: pre; }
 
+.headrename { display: flex; flex: 1 1 auto; min-width: 0; }
+.headrename-open, .headrename-field, .headrename-action {
+    min-width: 0;
+    border: 0;
+    padding: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+}
+.headrename-open { display: block; max-width: 100%; text-align: left; cursor: pointer; }
+.headrename-edit { position: relative; display: flex; align-items: center; gap: .2rem; width: 100%; min-width: 0; }
+/* Controls keep the name's line height; a refusal floats below it so the
+   conversation does not jump when editing or validation begins. */
+.headrename-field { flex: 1 1 0; width: 0; height: 1lh; background: var(--surface); box-shadow: inset 0 -1px var(--line); }
+.headrename-action { display: grid; place-items: center; flex: none; width: 1.5em; height: 1lh; cursor: pointer; }
+.headrename-action svg { width: 1em; height: 1em; }
+.headrename-action:disabled { opacity: .4; cursor: default; }
+.headrename-edit[aria-busy="true"] { opacity: .6; cursor: progress; }
+.headrename-note {
+    position: absolute; z-index: 2; top: 100%; left: 0; right: 0;
+    margin: .2rem 0 0; padding: .35rem .45rem;
+    background: var(--surface); border: var(--hair) solid var(--line); border-radius: var(--r-small);
+    font-weight: 400; line-height: 1.4; letter-spacing: normal;
+}
+
 .chatsub {
     display: flex;
     align-items: baseline;
@@ -460,6 +486,7 @@ a.mcprow.toolrow { text-decoration: none; }
     }
 
     .dkchatname { min-width: 0; }
+    .dkheadtop .dkheadname:has(.headrename-edit) { flex: 1 1 0; }
 
     .dkchatgrow { flex: 1 1 auto; }
 

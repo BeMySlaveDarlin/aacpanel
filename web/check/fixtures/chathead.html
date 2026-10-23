@@ -2,7 +2,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
-<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="module">
 // The chat screen of a live session whose directory is too long for a line:
@@ -10,17 +10,32 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
+import { Sessions } from "/src/screens/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const items = [{ role: "me", pos: 10, text: "where are we", at: new Date().toISOString() },
                { role: "ai", pos: 20, text: "In the project.", at: new Date().toISOString() }];
-const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = counted(async (url) => {
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const sent = [];
+const chats = [];
+let answer;
+window.fetch = counted(async (url, init) => {
     const u = String(url);
-    if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 20, total: 2, moreBefore: false, state: null });
+    if (u.startsWith("/api/chat?")) {
+        chats.push(new URL(u, location.href).searchParams.get("session"));
+        return json({ items, first: 10, last: 20, total: 2, moreBefore: false, state: null });
+    }
     if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u === "/api/actions") {
+        const action = JSON.parse(init.body);
+        sent.push(action);
+        if (action.params.name === "my session") return json({ error: "Invalid session name." }, 400);
+        return new Promise((resolve) => { answer = resolve; });
+    }
     return new Response("", { status: 404 });
 });
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
@@ -34,6 +49,132 @@ render(h(ToastHost, null, h(GateHost, null,
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const round = (n) => Math.round(n);
+const until = async (ok, ms = 5000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(10);
+    if (!ok()) throw new Error(`The screen did not reach: ${ok}`);
+};
+const typeInto = async (field, value) => {
+    field.value = value;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+};
+const key = (field, value) => field.dispatchEvent(new KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true }));
+
+async function renameHeader() {
+    const root = document.getElementById("root");
+    render(null, root);
+    const session = { ...live, session: "helios", sessionId: "s1", transport: "stream" };
+    const other = { ...session, session: "shop", sessionId: "s2" };
+    const exec = { available: true, kinds: ["session.rename"] };
+    const snapshot = { at: 1, sessions: [session, other] };
+    const waits = { opening: () => [], of: () => null };
+    const show = (snap, want) => render(h(ToastHost, null, h(GateHost, null, html`
+        <${Sessions} snapshot=${snap} error=${null} ageSec=${1} exec=${exec} wait=${waits} faults=${[]}
+                     want=${want} onWanted=${() => {}} onLayer=${() => {}} onUsage=${() => {}} />`)), root);
+    show(snapshot, { name: "helios", id: "s1" });
+    await until(() => document.querySelector(".headrename-open"));
+    // Preact installs the handlers after inserting the elements; presence
+    // alone is not permission to click the newly drawn name.
+    await quiet();
+    const header = () => document.querySelector(".phead, .dkhead");
+    const field = () => document.querySelector(".headrename-field");
+    const save = () => document.querySelector(".headrename-action");
+    const cancel = () => document.querySelector('[aria-label="cancel renaming"]');
+    const note = () => document.querySelector(".headrename-note")?.textContent || "";
+    const font = (el) => {
+        const s = getComputedStyle(el);
+        return [s.fontFamily, s.fontSize, s.fontWeight, s.lineHeight, s.letterSpacing].join(":");
+    };
+    const before = header().getBoundingClientRect().height;
+    const nameFont = font(document.querySelector(".headrename-open"));
+    const nameHeight = document.querySelector(".headrename-open").getBoundingClientRect().height;
+    const open = async () => {
+        document.querySelector(".headrename-open").click();
+        await until(() => field() && document.activeElement === field());
+        await quiet();
+    };
+    await open();
+    const out = {
+        value: field().value,
+        selected: field().selectionStart === 0 && field().selectionEnd === field().value.length,
+        sameOff: save().disabled,
+        fontMatches: nameFont === font(field()),
+        nameHeight, fieldHeight: field().getBoundingClientRect().height,
+        before, editing: header().getBoundingClientRect().height,
+        controlsVisible: [save(), cancel()].every((b) => b.getBoundingClientRect().width > 0
+            && getComputedStyle(b).visibility === "visible" && getComputedStyle(b).opacity !== "0"),
+    };
+    key(field(), "Enter");
+    await quiet();
+    out.sameSent = sent.length;
+    await typeInto(field(), "my session");
+    out.badOff = save().disabled;
+    out.badWhy = note();
+    out.invalid = header().getBoundingClientRect().height;
+    key(field(), "Enter");
+    await quiet();
+    out.badSent = sent.length;
+    await typeInto(field(), "shop");
+    out.takenOff = save().disabled;
+    out.takenWhy = note();
+    await typeInto(field(), "");
+    out.emptyOff = save().disabled;
+    out.emptyWhy = note();
+    await typeInto(field(), "helios-draft");
+    key(field(), "Escape");
+    await until(() => !field());
+    out.escaped = document.querySelector(".headrename-open").textContent === "helios" && sent.length === 0;
+    await open();
+    await typeInto(field(), "helios-draft");
+    cancel().click();
+    await until(() => !field());
+    out.cancelled = document.querySelector(".headrename-open").textContent === "helios" && sent.length === 0;
+
+    await open();
+    await typeInto(field(), "helios-pilot");
+    const beforeSave = sent.length;
+    key(field(), "Enter");
+    await until(() => sent.length === beforeSave + 1 && field().disabled);
+    out.busy = save().disabled && cancel().disabled
+        && document.querySelector(".headrename-edit").getAttribute("aria-busy") === "true";
+    key(field(), "Enter");
+    out.once = sent.length === beforeSave + 1;
+    answer(json({ error: "The session name is reserved." }, 409));
+    await until(() => field() && !field().disabled && note().includes("reserved"));
+    out.refused = field().value;
+    out.refusedWhy = note();
+    await typeInto(field(), "helios-pilot-2");
+    out.errorCleared = !note();
+    save().click();
+    await until(() => sent.length === beforeSave + 2);
+    answer(json({ ok: true, logged: true }));
+    await until(() => !field());
+    out.saved = document.querySelector(".headrename-open").textContent;
+    show({ at: 2, sessions: [{ ...session, session: "helios-pilot-2" }, other] }, null);
+    await until(() => chats.includes("helios-pilot-2"));
+    out.followed = header().textContent.includes("helios-pilot-2");
+    show({ at: 3, sessions: [{ ...session, session: "helios-pilot-2" }, other] }, { name: "shop", id: "s2" });
+    await until(() => header() && header().textContent.includes("shop"));
+    out.another = document.querySelector(".headrename-open")?.textContent || "";
+    out.sent = sent.map((b) => `${b.kind}:${b.target}:${JSON.stringify(b.params)}`);
+
+    out.blocked = [];
+    for (const [kind, row] of [["tmux", { ...session, transport: "tmux" }],
+        ["outside", { ...session, outside: true }], ["codex", { ...session, agent: "codex" }], ["closed", null]]) {
+        render(null, root);
+        render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${row}
+            exec=${exec} snapshot=${snapshot} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+        await until(() => header()?.querySelector(".midname"));
+        await quiet();
+        const name = header().querySelector(".midname");
+        name.click();
+        await quiet();
+        out.blocked.push({ kind, text: !field() && !header().querySelector(".headrename-open"),
+            cursor: getComputedStyle(name).cursor });
+    }
+    return out;
+}
 
 window.done = (async () => {
     await document.fonts.ready;
@@ -94,6 +235,7 @@ window.done = (async () => {
             out.cut = where.scrollWidth > where.clientWidth;
         }
     }
+    out.rename = await renameHeader();
     return out;
 })();
 </script>

@@ -1,5 +1,5 @@
-// The sheet that renames a session on the stream, as the client's own does: a
-// field with the name the session has, saved when the person says so. The
+// Renaming a session on the stream, in its header or a sheet: a field with
+// the name the session has, saved when the person says so. The
 // name is the key the panel and the host find the session by, so it keeps to
 // what those take, and a name another live session answers to is refused
 // before it is sent. The open conversation follows the session to the name.
@@ -28,10 +28,11 @@ export function takenNames(snapshot) {
     return ((snapshot && snapshot.sessions) || []).map((s) => s.session);
 }
 
-export function RenameSheet({ name, exec, taken, onDone }) {
+export function useRename({ name, exec, taken, onDone }) {
     const run = useAction();
     const [value, setValue] = useState(name);
     const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
     const can = knows(exec, "session.rename");
     const next = value.trim();
     const trouble = nameTrouble(value, name, (taken || []).filter((n) => n !== name));
@@ -40,11 +41,22 @@ export function RenameSheet({ name, exec, taken, onDone }) {
     const save = async () => {
         if (!ready) return;
         setBusy(true);
+        setError("");
         const result = await run("session.rename", name, { name: next });
         setBusy(false);
-        if (result && result.ok) onDone();
+        if (result && result.ok) onDone(next);
+        else if (result && result.error) setError(result.error);
     };
 
+    const change = (value) => {
+        setValue(value);
+        setError("");
+    };
+    return { value, change, busy, can, trouble, error, ready, save };
+}
+
+export function RenameSheet({ name, exec, taken, onDone }) {
+    const { value, change, busy, can, trouble, error, ready, save } = useRename({ name, exec, taken, onDone });
     return html`
         <div class="cmdsheet">
             <div class="shead cmdtitle"><span class="cmdhead">Rename the session</span></div>
@@ -52,9 +64,10 @@ export function RenameSheet({ name, exec, taken, onDone }) {
                 find the session by the new name.</p>
             <input class="rnname" type="text" aria-label="the new name of the session" value=${value}
                    autocomplete="off" autocapitalize="off" spellcheck=${false}
-                   onInput=${(e) => setValue(e.currentTarget.value)}
+                   disabled=${busy} onInput=${(e) => change(e.currentTarget.value)}
                    onKeyDown=${(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
             ${trouble && html`<p class="cmdnote stpwarn">${trouble}</p>`}
+            ${error && html`<p class="cmdnote stpwarn">${error}</p>`}
             ${!can && html`<p class="cmdnote">${whyNot(exec, "session.rename")}</p>`}
             <div class="btnrow">
                 <button class="btn" type="button" onClick=${onDone}>Cancel</button>

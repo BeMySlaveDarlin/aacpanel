@@ -45,7 +45,9 @@ import { knows, whyNot } from "../../exec.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./answered.js";
 import { useAction } from "../../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./quotetip.js";
-import { MidName, modelTitle, shortPath, stateOf } from "./head.js";
+import { modelTitle, shortPath, stateOf } from "./head.js";
+import { HeadName } from "./headname.js";
+import { takenNames } from "./rename.js";
 import { MoreButton, SessionButton, SessionTools, ViewTabs } from "./sessiontools.js";
 import { AttachSheet } from "./tools.js";
 import { DeskHead } from "./deskhead.js";
@@ -432,7 +434,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     return html`
         ${wide
             ? html`<${DeskHead} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} spent=${spent}
-                                move=${move} tools=${deskTools} />`
+                                move=${move} tools=${deskTools} exec=${exec} taken=${takenNames(snapshot)} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
                      foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
@@ -440,7 +442,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             <div class="chathead">
                 <h2>
                     <span class="talkdot" data-tone=${stand.tone} title=${stand.say}></span>
-                    <${MidName} text=${shownName(live, name)} />
+                    <${HeadName} key=${name} name=${shownName(live, name)} live=${live} exec=${exec} taken=${takenNames(snapshot)} />
                 </h2>
                 <div class="chatsub">
                     ${live && html`
