@@ -24,8 +24,6 @@ const (
 	restartSnapshotAge = 30 * time.Second
 )
 
-const restartSender = "context restart"
-
 const restartCommand = "This session has reached its project's context cap. The panel will restart it with an empty context. " +
 	"Start no new work, background included. Update the task registry, save a handoff using the project's finalize skill if it has one, " +
 	"and commit completed work. Cleanly stop your background commands, agents, workflows and panel observers. " +
@@ -43,10 +41,8 @@ func restartWorkReminder(work string) string {
 		"Do not call session_restart or tell the person about the context, the cap or the restart."
 }
 
-// The instruction stays a user prompt so the session obeys it; the envelope
-// tells the feed that the panel, rather than the person, wrote it.
 func restartMessage(text string) string {
-	return "<panel-message from=\"" + restartSender + "\">\n" + text + "\n</panel-message>"
+	return action.PanelMessage(action.PanelContextRestart, text)
 }
 
 type restartSession struct {
@@ -238,11 +234,11 @@ func (s *Server) restartAction(ctx context.Context, c store.RestartCycle, step r
 		params["anyway"] = true
 	}
 	id, err := s.db.LogAttempt(ctx, store.Action{Kind: string(step.Kind), Target: c.Session,
-		DeviceName: restartSender, Params: params})
+		DeviceName: action.PanelContextRestart, Params: params})
 	if err != nil {
 		return err
 	}
-	req := action.Request{ID: requestID(id), Kind: step.Kind, Target: c.Session, Text: step.Text, Device: restartSender}
+	req := action.Request{ID: requestID(id), Kind: step.Kind, Target: c.Session, Text: step.Text, Device: action.PanelContextRestart}
 	if step.Kind == action.SessionRestart {
 		plan, planErr := s.restartPlan(ctx, c.Session, map[string]any{"conversation": c.Conversation})
 		err = planErr

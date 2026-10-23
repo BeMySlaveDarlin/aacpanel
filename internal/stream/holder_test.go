@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"aacpanel/internal/action"
 )
 
 // The test binary plays claude when asked to: it speaks just enough of the
@@ -1060,11 +1062,31 @@ func TestAnEndedTurnEndsTheCompaction(t *testing.T) {
 // for claude to have read the message. A conversation that goes on gets it the
 // same way as a new one: it is what a restart that goes on comes back with.
 func TestTheOpeningMessageIsSentAfterTheHandshake(t *testing.T) {
-	r := start(t, func(s *Spec) { s.Intent = "start with the tests"; s.Resumed = true })
-	got := r.eventually("start with the tests")
-	init, intent := strings.Index(got, `"initialize"`), strings.Index(got, "start with the tests")
-	if init < 0 || intent < 0 || intent < init {
-		t.Fatalf("the opening message did not follow the handshake:\n%s", got)
+	text := action.PanelMessage(action.PanelSessionNote, "start with the tests\nthen read the handoff")
+	for _, resumed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("resumed=%v", resumed), func(t *testing.T) {
+			r := start(t, func(s *Spec) { s.Intent = text; s.Resumed = resumed })
+			got := r.eventually("start with the tests")
+			init, intent := strings.Index(got, `"initialize"`), strings.Index(got, "start with the tests")
+			if init < 0 || intent < 0 || intent < init {
+				t.Fatalf("the opening message did not follow the handshake:\n%s", got)
+			}
+			var prompt struct {
+				Message struct{ Content string }
+			}
+			for _, line := range strings.Split(strings.TrimSpace(got), "\n") {
+				if !strings.Contains(line, "start with the tests") {
+					continue
+				}
+				if err := json.Unmarshal([]byte(line), &prompt); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if prompt.Message.Content != text {
+				t.Fatalf("the opening panel prompt changed in delivery: %q", prompt.Message.Content)
+			}
+			r.waitFor("the opening message to be read", func(s State) bool { return s.Said && len(s.Queue) == 0 })
+		})
 	}
 }
 

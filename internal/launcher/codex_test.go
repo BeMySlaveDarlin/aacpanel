@@ -129,7 +129,7 @@ func TestCodexStartsInTmuxOnTheThread(t *testing.T) {
 	launch := json.RawMessage(`{"agent":"codex","codexTransport":"tmux","codexModel":"gpt-5.5","codexEffort":"high",` +
 		`"codexApproval":"untrusted","codexSandbox":"workspace-write","intent":"go on"}`)
 
-	rep, err := Run(context.Background(), Spec{Dir: dir, Session: "shop", Launch: launch,
+	rep, err := Run(context.Background(), Spec{Dir: dir, Session: "shop", Launch: launch, IntentKey: "intent",
 		Codex: &CodexSpec{Thread: codexThread, Home: "/home/u/.codex-profiles/acme", Bin: "/opt/codex/bin/codex"}})
 	if err != nil {
 		t.Fatal(err)

@@ -2,7 +2,9 @@ package launcher
 
 import (
 	"fmt"
+	"strings"
 
+	"aacpanel/internal/action"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/sessionintent"
@@ -31,4 +33,20 @@ func sessionMessage(spec Spec, name string, env []string, inherited string) (str
 		return inherited, fmt.Errorf("the session messages were not read: %w", err)
 	}
 	return values.Pick(spec.IntentKey, inherited), nil
+}
+
+// Only delivery carries the envelope: the launch report and saved parameters
+// keep the words themselves. An empty message must still leave the session idle.
+func openingMessage(key, text string) string {
+	if strings.TrimSpace(text) == "" {
+		return text
+	}
+	from := action.PanelSessionStart
+	switch key {
+	case sessionintent.Restart:
+		from = action.PanelSessionRestart
+	case "":
+		from = action.PanelSessionNote
+	}
+	return action.PanelMessage(from, text)
 }

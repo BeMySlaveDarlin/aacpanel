@@ -152,7 +152,9 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 		return runStream(ctx, spec, params, name, choice.Path, drop, warns)
 	}
 
-	windowPID, startWarns, err := start(spec.Dir, name, choice.Path, claudeArgs(name, spec.Resume, params), drop)
+	delivery := params
+	delivery.Intent = openingMessage(spec.IntentKey, params.Intent)
+	windowPID, startWarns, err := start(spec.Dir, name, choice.Path, claudeArgs(name, spec.Resume, delivery), drop)
 	if err != nil {
 		return Report{}, err
 	}
@@ -197,7 +199,7 @@ func runStream(ctx context.Context, spec Spec, params Params, name, bin string, 
 		Dir:       spec.Dir,
 		SessionID: conversation,
 		Argv:      append([]string{"env", "-i", "sh", env.path, bin}, streamArgs(name, conversation, spec.Resume, params)...),
-		Intent:    params.Intent,
+		Intent:    openingMessage(spec.IntentKey, params.Intent),
 		// Remote control is on only when the map says so, the same as in a terminal.
 		RemoteControl: params.RemoteControl != nil && *params.RemoteControl,
 		Resumed:       spec.Resume != "",

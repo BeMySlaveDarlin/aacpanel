@@ -197,6 +197,7 @@ refuses to close a replacement under the same name. The readiness intent, when
 present, is the first message and wins over the session sheet, project and
 contour. Without it the usual restart message inheritance applies, ending in
 an empty composer when no level names a message.
+The opening message travels in a `panel-message` tag and the feed draws it as a panel card.
 
 A turn ending without readiness gets one reminder. Readiness followed by idle
 with running work gets one reminder naming that work. Five minutes after the
@@ -2220,6 +2221,7 @@ in place and adds a warning to the launch report, so it cannot block a start.
 Opening or resuming uses the first message; a restart
 uses the restart message. Words written by the session for a continued
 conversation or in readiness for an automatic fresh restart take precedence.
+Claude receives the opening message in a `panel-message` tag, and the feed draws a panel card.
 Switching transport sends no opening message.
 These overrides are edited only in the session sheet, not in `session_open`
 or the project settings.
@@ -2279,10 +2281,11 @@ none a resumed conversation comes up and waits for nobody. The request carries
 the message as its text, and the executor lays it over the launch as the first
 message of the resumed conversation in place of the map's, so it rides the way
 any first message does — an argument of claude in tmux, a message after the
-handshake on the stream. That way sets its bounds: the ceiling of the map's
-first message, no leading dash, which claude in a terminal would take for an
-option and leave the session closed with nothing in its place, and no leading
-slash, which claude runs as a command. The `session_restart` tool accepts
+handshake on the stream. It travels in a `panel-message` tag and the feed draws
+it as a panel card. The text keeps the ceiling of the map's first message and
+the validation that refuses a leading dash or slash; the delivery envelope
+starts with `<`, so claude cannot read it as an option or a slash command.
+The `session_restart` tool accepts
 intent only with `continue`; a fresh restart through that tool inherits the
 saved restart message. So does a conversation on the
 stream that starts anew because nobody said a word in it: the words were

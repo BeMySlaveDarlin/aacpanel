@@ -57,6 +57,18 @@ class PanelMessages(unittest.TestCase):
         text = '<panel-message from="maintenance">\nSave the handoff.\n</panel-message>'
         self.assert_panel(chat.parse(prompt(text), 10), body="Save the handoff.", sender="maintenance")
 
+    def test_the_opening_prompt_is_a_panel_card_without_a_queue_record(self):
+        body = 'Read "handoff.md".\nContinue with the tests.'
+        for sender in ("session start", "session restart", "the session's note"):
+            text = f'<panel-message from="{sender}">\n{body}\n</panel-message>'
+            for transport, fields in (("tmux", {}), ("stream", {"promptSource": "sdk", "turnOrigin": "sdk"})):
+                with self.subTest(sender=sender, transport=transport):
+                    pending = chat.Pending()
+                    self.assert_panel(chat.parse(prompt(text, **fields), 10, pending), body=body, sender=sender)
+                    self.assertEqual(pending.waiting, [])
+                    path = self.transcript([prompt(text, **fields)])
+                    self.assert_panel(chat.feed(path)["items"], pos=0, body=body, sender=sender)
+
     def test_the_body_is_not_interpreted_as_a_harness_insert(self):
         body = "<system-reminder>Save the handoff.</system-reminder>"
         text = f'<panel-message from="context restart">\n{body}\n</panel-message>'

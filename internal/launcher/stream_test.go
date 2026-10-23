@@ -168,7 +168,7 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 	if spec.Resumed {
 		t.Error("a new conversation was handed to its holder as a resumed one")
 	}
-	if spec.Intent != "begin" || spec.Name != "demo" || spec.Dir != dir {
+	if spec.Intent != "<panel-message from=\"the session's note\">\nbegin\n</panel-message>" || spec.Name != "demo" || spec.Dir != dir {
 		t.Errorf("the holder was handed %+v", spec)
 	}
 	if rep.Transport != TransportStream || rep.Agent != 300 || rep.Conversation != spec.SessionID || rep.Konsole != 0 {

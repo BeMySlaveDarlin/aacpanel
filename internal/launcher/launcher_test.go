@@ -507,6 +507,7 @@ func fakeTmux(t *testing.T, proc, name string, agent, parent int, setOption stri
 		"case \"$1\" in\n" +
 		"new-session)\n" +
 		"  echo \"$@\" > " + log + "\n" +
+		"  printf '%s\\0' \"$@\" > " + log + ".argv\n" +
 		"  prev=\n" +
 		"  for a in \"$@\"; do\n" +
 		"    if [ \"$prev\" = sh ]; then cat \"$a\" > " + envLog(log) + " 2>/dev/null; fi\n" +
