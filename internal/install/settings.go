@@ -240,9 +240,6 @@ type kitHook struct {
 var kitHooks = []kitHook{
 	{Part: "relay", Event: "PreToolUse", Matcher: "AskUserQuestion", Hook: "ask-hook", Script: "agent/ask-hook.py", Timeout: 5, Codex: true},
 	{Part: "copies", Event: "PostToolUse", Matcher: "Artifact", Hook: "artifact-copy", Script: "deploy/claude/artifact-copy.py", Timeout: 10},
-	// The guard looks at the work of the session in a snapshot newer than
-	// the stop for up to hook.Wait: its timeout is past that.
-	{Part: "cap", Event: "Stop", Hook: "context-guard", Script: "deploy/claude/context-guard.py", Timeout: 20, State: true},
 	{Part: "nudge", Event: "Stop", Hook: "checklist-reminder", Script: "deploy/claude/checklist-reminder.py", Timeout: 5},
 	{Part: "stamp", Event: "UserPromptSubmit", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
 	{Part: "stamp", Event: "PostToolBatch", Matcher: "*", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Args: "PostToolBatch", Timeout: 5, State: true},
@@ -254,6 +251,7 @@ var kitHooks = []kitHook{
 // the kit: a script taken out of the tree leaves no hook behind that runs
 // nothing.
 var retiredHooks = []kitHook{
+	{Event: "Stop", Hook: "context-guard", Script: "deploy/claude/context-guard.py"},
 	{Event: "SessionStart", Script: "deploy/claude/brief-waiting.py"},
 	{Event: "Stop", Script: "deploy/claude/cost-snapshot.py"},
 	{Event: "SubagentStop", Script: "deploy/claude/cost-snapshot.py"},
@@ -284,7 +282,7 @@ const StatusNextEnv = "AACP_STATUSLINE_NEXT"
 // which lets a session restart itself with nobody at the screen.
 var (
 	toolRules = []string{"mcp__aacpanel__checklist", "mcp__aacpanel__role", "mcp__aacpanel__brief_publish", "mcp__aacpanel__brief_delete",
-		"mcp__aacpanel__notify", "mcp__aacpanel__secret_ask", "mcp__aacpanel__request", "mcp__aacpanel__session_close",
+		"mcp__aacpanel__notify", "mcp__aacpanel__secret_ask", "mcp__aacpanel__request", "mcp__aacpanel__session_close", "mcp__aacpanel__session_ready",
 		"mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop", "mcp__aacpanel__observer_tail",
 		"mcp__aacpanel__alarm_set", "mcp__aacpanel__alarm_list", "mcp__aacpanel__alarm_cancel"}
 	restartRule = "mcp__aacpanel__session_restart"

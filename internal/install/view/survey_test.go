@@ -257,7 +257,7 @@ func TestEscGoesBackABlock(t *testing.T) {
 func TestPlainWithFlags(t *testing.T) {
 	var out bytes.Buffer
 	r := &install.Run{Yes: true, Answers: map[string]string{"--host": "studio", "--terminal": "",
-		"--kit": "+stamp,-cap", "--transport": "tmux"}}
+		"--kit": "+stamp,-copies", "--transport": "tmux"}}
 	status := planPlain(PlanOptions{Theme: ui.NewTheme(false), Out: &out, Inspect: fresh, Survey: surveyOn(desktop(), r)})
 	if status != 0 {
 		t.Errorf("status %d:\n%s", status, out.String())

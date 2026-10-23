@@ -88,7 +88,6 @@ var Kit = []Part{
 	{"limits", "Limits snapshot", "5-hour and weekly limits, before your status line", GroupAlways, "aacpanel-exec statusline"},
 	{"tools", "Panel tools", "checklist, role, briefs, secrets, a phone call, its own close, its observers, alarms", GroupAlways, ""},
 	{"copies", "Page copies", "a published page opens on the phone under any account", GroupQuiet, "deploy/claude/artifact-copy.py"},
-	{"cap", "Context cap", "stops a session at the cap, restarts it with your line", GroupQuiet, "deploy/claude/context-guard.py"},
 	{"nudge", "Checklist nudge", "reminds a session that forgot its checklist", GroupQuiet, "deploy/claude/checklist-reminder.py"},
 	{"restart", "Self-restart", "a session may restart itself without asking you", GroupQuiet, "mcp__aacpanel__session_restart"},
 	{"stamp", "Prompt stamp", "time, context, limits, load; the role after a restart", GroupQuiet, "deploy/claude/prompt-stamp.py"},
@@ -105,7 +104,7 @@ var Kit = []Part{
 var Legs = []string{"tailscale", "lan", "domain"}
 
 // hookParts are the parts that wire a hook into claude, besides the relay.
-var hookParts = []string{"copies", "cap", "nudge", "stamp", "background"}
+var hookParts = []string{"copies", "nudge", "stamp", "background"}
 
 const (
 	typeOwn  = "Type something."

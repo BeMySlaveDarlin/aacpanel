@@ -62,9 +62,8 @@ func (e *Executor) sessionClose(ctx context.Context, target, conversation string
 // A session restarting itself names its conversation, and the restart goes
 // ahead only while the session still runs it: a late repeat of the call would
 // otherwise close the session an earlier restart brought up under the name.
-// A session going on with its conversation names the message it wrote itself
-// to go on with as the text of the request, and that message comes first in
-// the resumed conversation in place of the map's.
+// The request's text is the session's own next message, for a continued
+// conversation or for a fresh start after readiness. It wins over saved messages.
 func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (string, error) {
 	target, resume := req.Target, req.Resume
 	p, err := lookupAgent(target)
@@ -80,7 +79,7 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 		}
 	}
 	if req.Project != nil {
-		return e.restartFromMap(ctx, target, p, req.Project, resume, req.Text)
+		return e.restartFromMap(ctx, target, p, req.Project, resume, req.Text, req.Anyway)
 	}
 	if !p.Home {
 		return "", fmt.Errorf(
@@ -91,8 +90,8 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 	}
 
 	home := homeProject(p.Dir, p.Session)
-	home.IntentKey = restartIntentKey(resume, req.Text)
-	if home.Launch, err = goingOnLaunch(home.Launch, resume, req.Text); err != nil {
+	home.IntentKey = restartIntentKey(req.Text)
+	if home.Launch, err = goingOnLaunch(home.Launch, req.Text); err != nil {
 		return "", err
 	}
 	var from string
@@ -137,7 +136,7 @@ func restartedWith(resume, more string) string {
 	return " with an empty context" + more
 }
 
-func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume, intent string) (string, error) {
+func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume, intent string, anyway bool) (string, error) {
 	next, err := chooseProject(target, want)
 	if err != nil {
 		return "", err
@@ -156,13 +155,14 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 	if held && resume != "" {
 		if st, err := streamState(ctx, s); err == nil && !st.Said {
 			resume, afresh = "", "; nothing had been said in the conversation, so it started anew"
+			intent = ""
 		}
 	}
-	next.IntentKey = restartIntentKey(resume, intent)
-	if next.Launch, err = goingOnLaunch(next.Launch, resume, intent); err != nil {
+	next.IntentKey = restartIntentKey(intent)
+	if next.Launch, err = goingOnLaunch(next.Launch, intent); err != nil {
 		return "", err
 	}
-	if held {
+	if held && !anyway {
 		closed, err = e.closeGently(ctx, s, p, true)
 	} else {
 		closed, err = e.closeAgent(ctx, p)
@@ -191,15 +191,11 @@ func passChildren(from string, rep launcher.Report) string {
 	return ""
 }
 
-// goingOnLaunch is the launch a restart brings the session up with: with the
-// message the session wrote itself as the first one where it goes on with its
-// conversation, in place of the map's message after a restart. A session that
-// starts anew opens with the map's: the words were written for a conversation
-// the new one does not have. The message rides as the opening message of any
-// start does — an argument of claude in a terminal, the first message after
-// the handshake on the stream.
-func goingOnLaunch(raw json.RawMessage, resume, intent string) (json.RawMessage, error) {
-	if resume == "" || intent == "" {
+// goingOnLaunch carries the session's next message as an ordinary opening
+// message: a terminal argument or the first message after the stream handshake.
+// With no message, the launch keeps the map's restart message.
+func goingOnLaunch(raw json.RawMessage, intent string) (json.RawMessage, error) {
+	if intent == "" {
 		return raw, nil
 	}
 	launch := map[string]any{}

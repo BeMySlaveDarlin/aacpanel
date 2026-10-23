@@ -16,7 +16,7 @@
 │ In claude settings — ~/.claude/settings.json             │
 │   · question hook · status line before yours · MCP       │
 │     server                                               │
-│   · 15 allow rules · 5 hooks                             │
+│   · 16 allow rules · 4 hooks                             │
 │   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to │
 │     6656                                                 │
 │ In codex settings — ~/.codex/hooks.json,                 │

@@ -29,7 +29,7 @@
 
 ⏺ Kit
   ⎿  · What goes into this install? → Question relay, Limits snapshot, Panel
-     tools, Page copies, Checklist nudge, Self-restart, Prompt stamp (flag)
+     tools, Checklist nudge, Self-restart, Prompt stamp (flag)
 
 ⏺ More settings
   ⎿  · Tune more settings? → No — defaults (default)
@@ -62,7 +62,7 @@
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 15 allow rules · 4 hooks                                                 │
+│   · 16 allow rules · 3 hooks                                                 │
 │   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
 │ Values                                                                       │
 │   host studio (flag) · home session studio (host name)                       │

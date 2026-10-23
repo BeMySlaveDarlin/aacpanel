@@ -7,9 +7,9 @@ import (
 	"aacpanel/internal/sessionintent"
 )
 
-// A message written for a continued conversation wins over either saved rule.
-func restartIntentKey(resume, intent string) string {
-	if resume != "" && intent != "" {
+// The session's message for its next start wins over either saved rule.
+func restartIntentKey(intent string) string {
+	if intent != "" {
 		return ""
 	}
 	return sessionintent.Restart

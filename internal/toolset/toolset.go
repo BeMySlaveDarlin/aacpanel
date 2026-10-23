@@ -55,6 +55,7 @@ func tools() []mcp.Tool {
 		collector.SecretAsk(collector.NotifySocket()),
 		request.Tool(session.Here().Panel),
 		session.Restart(session.Here()),
+		session.Ready(session.Here()),
 		session.Close(session.Here()),
 		session.Letter(session.Here()),
 		session.Open(session.Here()),

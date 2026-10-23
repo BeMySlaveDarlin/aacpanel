@@ -21,7 +21,7 @@ const RestartInstructions = "Use session_restart for an asked-for restart («п�
 
 // RestartDescription is the tool's own word to the model.
 const RestartDescription = "Restarts only this session through the panel with its project's directory, account " +
-	"and launch settings. Use when asked, or when settings, hooks, CLAUDE.md, an MCP server or the context cap " +
+	"and launch settings. Use when asked, or when settings, hooks, CLAUDE.md, or an MCP server " +
 	"require a new start. With no arguments it starts an empty context with the restart message. Save the work " +
 	"on disk first as the project requires: its finalize skill if it has one, otherwise notes of the work and " +
 	"next step. continue: true is only for an explicit request to keep the conversation, never to spare notes; " +
@@ -41,7 +41,7 @@ const RestartDescription = "Restarts only this session through the panel with it
 var restartWait = 3 * time.Second
 
 // Restart is the tool that restarts the session calling it, on the host h.
-// It is not allowed: a restart asks the person, as any tool does.
+// It touches only its caller and waits out the caller's work.
 func Restart(h Host) mcp.Tool {
 	return mcp.Tool{
 		Name:         RestartName,
@@ -49,10 +49,7 @@ func Restart(h Host) mcp.Tool {
 		Description:  RestartDescription,
 		InputSchema:  restartSchema(),
 		Instructions: RestartInstructions,
-		// The restart past the context cap is done by the session alone,
-		// with nobody at the screen to answer a prompt; the tool restarts
-		// only the session that calls it and waits out its work.
-		Allowed: true,
+		Allowed:      true,
 		Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 			return restart(ctx, h, bind, args)
 		},

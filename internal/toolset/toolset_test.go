@@ -53,6 +53,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__secret_ask",
 		"mcp__aacpanel__request",
 		"mcp__aacpanel__session_restart",
+		"mcp__aacpanel__session_ready",
 		"mcp__aacpanel__session_close",
 		"mcp__aacpanel__observer_list",
 		"mcp__aacpanel__observer_stop",

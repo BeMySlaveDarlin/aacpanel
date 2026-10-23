@@ -19,13 +19,16 @@ def sessions_worker(shared, lock):
             chat.observe_names()
         except Exception as e:  # noqa: BLE001
             print(f"aacpanel-agent: the names of the sessions: {e}", file=sys.stderr, flush=True)
+        # A readiness received during this read must wait for the next
+        # snapshot; dating its end could make an earlier idle look fresh.
+        started = int(time.time())
         try:
             data = sessions()
         except Exception as e:  # noqa: BLE001
             data = {"sessions": [], "notes": [f"the session collector crashed: {e}"]}
             print(f"aacpanel-agent: the sessions: {e}", file=sys.stderr, flush=True)
         with lock:
-            shared["at"] = int(time.time())
+            shared["at"] = started
             shared["sessions"] = data.get("sessions", [])
             shared["notes"] = data.get("notes", [])
         time.sleep(agent.SESSIONS_EVERY)

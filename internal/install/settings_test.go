@@ -19,7 +19,7 @@ const (
 )
 
 // fullKit is the kit a run suggests: the parts always in and the quiet ones.
-var fullKit = Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits", "tools", "copies", "cap", "nudge", "restart"}}
+var fullKit = Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits", "tools", "copies", "nudge", "restart"}}
 
 func wire(t *testing.T, raw string, w Wiring) (string, bool) {
 	t.Helper()
@@ -208,7 +208,7 @@ func TestTheirsStaysAndOrderHolds(t *testing.T) {
 	if groupsOf(t, out, "PreToolUse") != 2 || hooked(t, out, "PreToolUse", "agent/ask-hook.py") != 1 {
 		t.Errorf("the question hook is not a group of its own beside theirs:\n%s", out)
 	}
-	if hooked(t, out, "Stop", "deploy/claude/context-guard.py") != 1 || hooked(t, out, "Stop", "cost.sh") != 1 {
+	if hooked(t, out, "Stop", "deploy/claude/context-guard.py") != 0 || hooked(t, out, "Stop", "cost.sh") != 1 {
 		t.Errorf("the Stop hooks:\n%s", out)
 	}
 }
@@ -389,7 +389,7 @@ func TestAStateDirectoryOfItsOwnIsNamedToTheHooksThatReadIt(t *testing.T) {
 	w := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "background")}
 	w.State = "/srv/aacpanel-state"
 	out, _ := wire(t, "{}", w)
-	if !strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state `+executor+` hook context-guard"`) ||
+	if strings.Contains(out, "context-guard") ||
 		!strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state `+executor+` hook background-reminder"`) ||
 		!strings.Contains(out, `"command": "`+executor+` hook ask-hook"`) {
 		t.Errorf("the state directory:\n%s", out)
@@ -471,7 +471,7 @@ func TestAnEmptyContainerOfThePersonStays(t *testing.T) {
 	if got := keysOf(t, wired); !slices.Equal(got, []string{"hooks", "permissions", "statusLine", "env"}) {
 		t.Errorf("the keys are %q:\n%s", got, wired)
 	}
-	if hooked(t, wired, "Stop", "deploy/claude/context-guard.py") != 1 || groupsOf(t, wired, "Stop") != 2 {
+	if hooked(t, wired, "Stop", "deploy/claude/context-guard.py") != 0 || groupsOf(t, wired, "Stop") != 1 {
 		t.Errorf("the Stop hooks:\n%s", wired)
 	}
 }

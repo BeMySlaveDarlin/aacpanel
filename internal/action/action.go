@@ -20,8 +20,10 @@ const (
 	// session as it was otherwise. It starts with an empty context, or goes on
 	// with the conversation it closed when the request names it to resume.
 	SessionRestart Kind = "session.restart"
-	SessionKill    Kind = "session.kill"
-	SessionSend    Kind = "session.send"
+	// SessionReady records readiness in the service, never in the executor.
+	SessionReady Kind = "session.ready"
+	SessionKill  Kind = "session.kill"
+	SessionSend  Kind = "session.send"
 	// SessionLetter sends a letter from one live session to another: to the
 	// message socket of the recipient's claude, from the session that runs the
 	// conversation the request names. It is a kind of its own rather than a

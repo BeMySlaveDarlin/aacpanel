@@ -348,16 +348,14 @@ func lineDisks(state map[string]any) string {
 	return "          Disks " + strings.Join(said, " · ")
 }
 
-// lineAlarms is what is wrong, nothing when there is nothing to say. Past the
-// cap of a project that restarts its sessions, the alarm says what holds the
-// restart back: the guard waits for the session's agents and background
-// work, and a session that keeps starting more of it is never restarted.
+// lineAlarms names what is wrong. A session past its cap must leave room
+// to save its state when the panel asks, including by starting no background work.
 func lineAlarms(state map[string]any, id string, g action.Guard) string {
 	var alarms []string
 	if id != "" && pastCap(state, id, g.Cap) {
 		if g.Restart {
 			alarms = append(alarms, "CONTEXT past the cap: start no new work, background included; "+
-				"the restart waits for what already runs")
+				"the panel asks this session to save its state before the restart")
 		} else {
 			alarms = append(alarms, "CONTEXT past the cap")
 		}

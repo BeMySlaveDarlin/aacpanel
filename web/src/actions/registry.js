@@ -1097,6 +1097,7 @@ const NAMES = {
     "task.stop": "Stop background work",
     "agent.stop": "Stop subagent",
     // Sessions record starts after the private socket accepts them; no screen starts them.
+    "session.ready": "Ready for restart",
     "observer.start": "Start an observer",
     "alarm.set": "Set an alarm",
     "observer.stop": "Stop an observer",

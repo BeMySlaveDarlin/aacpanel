@@ -108,14 +108,13 @@ func call(t *testing.T, tool mcp.Tool, bind mcp.Bind, args any) (string, bool) {
 	return tool.Call(context.Background(), bind, raw)
 }
 
-// The restart is allowed, since the restart past the context cap is done with
-// nobody at the screen; the letter asks the person, as claude asks of any
+// The restart is allowed and touches only its caller; the letter asks the person, as claude asks of any
 // tool. Both say when to reach for them in a line the model reads without the
 // description, since the tools of a server are deferred.
 func TestTheLetterAsksThePersonAndBothSayWhenToReachForThem(t *testing.T) {
 	h := Host{}
 	if !Restart(h).Allowed {
-		t.Error("session_restart asks the person: the restart past the context cap would wait on a prompt")
+		t.Error("session_restart unexpectedly asks for permission")
 	}
 	if Letter(h).Allowed {
 		t.Error("send_to_session is allowed: it would put words before another agent without asking the person")
@@ -446,7 +445,7 @@ func TestARestartThePersonAsksForIsAFreshOne(t *testing.T) {
 
 // A fresh start keeps only what is on disk, so before one the session hands
 // its work over the way its project does: with the finalize skill where the
-// project has one, the way the context guard asks for it too.
+// project has one, before the session is replaced.
 func TestAFreshRestartAsksForTheFinalizeSkillFirst(t *testing.T) {
 	if !strings.Contains(RestartDescription, "its finalize skill if it has one") {
 		t.Errorf("the tool's word does not ask for the project's finalize skill before a fresh start: %q", RestartDescription)

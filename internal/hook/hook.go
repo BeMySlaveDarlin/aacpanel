@@ -11,8 +11,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"aacpanel/internal/session"
 )
 
 // A hook never holds the session it serves, so every one of them exits 0,
@@ -64,7 +62,7 @@ var handlers = map[string]handler{
 	"ask-hook":            {Event: "PreToolUse", Wait: relayWait, Answer: relayQuestion},
 	"background-reminder": {Event: "Stop", Answer: remindBackground},
 	"checklist-reminder":  {Event: "Stop", Answer: remindChecklist},
-	"context-guard":       {Event: "Stop", Wait: session.LongestLook, Answer: guardContext},
+	"context-guard":       {Event: "Stop", Answer: guardContext},
 	"prompt-stamp":        {Event: "UserPromptSubmit", Also: []string{"PostToolBatch"}, Answer: stampPrompt},
 }
 

@@ -110,7 +110,7 @@
       ]},
     {"what": "past the cap of a project that restarts, the alarm holds new work back", "guards": "/srv/proj\t80\t1\n",
       "steps": [
-        {"state": "base", "payload": {"session_id": "other", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  900k/1M (90%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "Alarms:   CONTEXT past the cap: start no new work, background included; the restart waits for what already runs"]}
+        {"state": "base", "payload": {"session_id": "other", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  900k/1M (90%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "Alarms:   CONTEXT past the cap: start no new work, background included; the panel asks this session to save its state before the restart"]}
       ]},
     {"what": "just short of the cap the stamp names the cap, not the guard's margin, and no alarm", "guards": "/srv/proj\t80\t1\n",
       "steps": [

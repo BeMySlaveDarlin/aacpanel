@@ -13,7 +13,7 @@ import (
 // observers of the panel it started. The restart waits while any of that is at
 // work; a wake-up the session set itself, of claude or an alarm of the panel,
 // runs nothing and is not waited for. The collector counts the work of every
-// session into its snapshot. The hook and the tool read those counts through
+// session into its snapshot. The service and the tools read those counts through
 // this package, covered by deploy/claude/testdata/background.json.
 
 // The collector reads the sessions every six seconds and writes them out on
@@ -25,11 +25,6 @@ const (
 	freshWait = 15 * time.Second
 	freshStep = 500 * time.Millisecond
 )
-
-// LongestLook is the longest a look at the work of a session takes: the wait
-// and the step that began just before its end. A hook that looks is given a
-// timeout past it, or claude kills the hook mid-look and its answer is lost.
-const LongestLook = freshWait + freshStep
 
 // work is what of a session is at work in the background.
 type work struct {
@@ -47,13 +42,24 @@ func workOf(s snapshot, session string) work {
 		if r.SessionID != session {
 			continue
 		}
-		var counts map[string]json.RawMessage
-		_ = json.Unmarshal(r.Work, &counts)
-		tasks := count(counts["tasks"]) - count(counts["wakes"])
-		return work{Agents: count(counts["agents"]), Tasks: max(tasks, 0), Workflows: count(counts["workflows"]),
-			Observers: count(counts["observers"])}
+		return backgroundWork(r.Work)
 	}
 	return work{}
+}
+
+// BackgroundWork shares the tool's definition of running work with the
+// service's restart cycle. Wake-ups and alarms have no running command.
+func BackgroundWork(raw json.RawMessage) (bool, string) {
+	w := backgroundWork(raw)
+	return w.any(), w.words()
+}
+
+func backgroundWork(raw json.RawMessage) work {
+	var counts map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &counts)
+	tasks := count(counts["tasks"]) - count(counts["wakes"])
+	return work{Agents: count(counts["agents"]), Tasks: max(tasks, 0), Workflows: count(counts["workflows"]),
+		Observers: count(counts["observers"])}
 }
 
 // count is a count the collector wrote: a whole number above nought, or none.
@@ -84,13 +90,6 @@ func (h Host) atWork(session string, wait time.Duration) work {
 		}
 	}
 	return w
-}
-
-// Busy tells whether anything of the session is at work in the background,
-// looked at again as atWork does: the context guard hook asks it before it
-// asks a session past its cap for a restart, which would end that work.
-func (h Host) Busy(session string) bool {
-	return h.atWork(session, freshWait).any()
 }
 
 func plural(n int, one, many string) string {

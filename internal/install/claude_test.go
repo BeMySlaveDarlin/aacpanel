@@ -269,8 +269,8 @@ func TestClaudeSettingsAreWiredInEveryAccount(t *testing.T) {
 		if n, _ := wiredHooks([]byte(raw), askHook); n != 1 {
 			t.Errorf("%s: the question hook %d times:\n%s", dir, n, raw)
 		}
-		if !strings.Contains(raw, `"command": "AACP_STATE_DIR=`+g.state+` `+g.in.execPath()+` hook context-guard"`) {
-			t.Errorf("%s: the context guard is not told the state directory:\n%s", dir, raw)
+		if !strings.Contains(raw, `"command": "AACP_STATE_DIR=`+g.state+` `+g.in.execPath()+` hook prompt-stamp"`) {
+			t.Errorf("%s: the prompt stamp is not told the state directory:\n%s", dir, raw)
 		}
 	}
 	raw := g.read(filepath.Join(mine, "settings.json"))

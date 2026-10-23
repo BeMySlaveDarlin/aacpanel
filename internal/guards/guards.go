@@ -1,7 +1,7 @@
 // Package guards is the context guard of every place the map knows, as the
 // executor keeps it on the host for the hooks of sessions: guards.tsv, and
-// the marker of a restart under way. The executor writes both; the context
-// guard and the prompt stamp read them through this package. The file format
+// the marker of a restart under way. The executor writes both; the
+// prompt stamp reads the guards through this package. The file format
 // is covered by deploy/claude/testdata/guards.json.
 package guards
 
@@ -21,7 +21,7 @@ import (
 const CapDefault = 80
 
 // RestartMargin is how far under the cap, in points of the window, a session
-// of a project that restarts its sessions is restarted at the end of a turn.
+// of a project that restarts its sessions is asked to save at the end of a turn.
 // A session wraps its work up for the restart it sees coming and stops a
 // little short of the cap, and a session stopped under it does not stop again
 // until someone writes to it. The prompt stamp names the cap itself, never the
@@ -44,16 +44,14 @@ func Home() string {
 
 // Path is the file of the guards. A line a place — the directory, the cap in
 // percent of the model's window, and 1 where a session past it restarts
-// itself — so that a hook in any language, a shell one included, reads it
-// without a parser.
+// through the panel — so that a hook in any language, a shell one included,
+// reads it without a parser.
 func Path() string {
 	return filepath.Join(Home(), "guards.tsv")
 }
 
-// RestartingPath is the marker a restart of the session keeps while it is
-// under way, named by the session escaped to one path element. The context
-// guard reads it: the close of a restart lets the session stop once more, and
-// a hook that asked for a restart there would ask for a second one.
+// RestartingPath is the executor's marker of a restart under way, named by
+// the session escaped to one path element.
 func RestartingPath(session string) string {
 	return filepath.Join(Home(), "restarting", url.PathEscape(session))
 }

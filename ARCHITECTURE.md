@@ -160,23 +160,51 @@ being parsed.
 One question does write: the service hands the executor the context guard of
 every place the map knows — the cap and whether a session past it restarts —
 and the executor keeps them in `~/.local/state/aacpanel/guards.tsv`, where the
-context guard hook and the prompt stamp read them. That file is the only thing
-it touches, and it is replaced whole. The guards go out at the start of the
+prompt stamp reads them. That file is the only thing it touches, and it is
+replaced whole. The guards go out at the start of the
 service, after every change of the map and every five minutes, and every
 fifteen seconds while they fail: an executor that was down when the map changed
 catches up on its own, and a deploy does not leave the host unguarded while the
 database migrates.
 
-A restart of a session keeps a marker in `~/.local/state/aacpanel/restarting/`,
-named by the session, from its start to its end, whatever it ends with. The
-context guard hook asks a session for a restart once a conversation, at the end
-of a turn at its cap or within a point under it, and not while a marker of it
-younger than five minutes is there: the close of a restart lets the session stop
-once more, and an ask there would bring up a second session. The point under the
-cap is there because a session wraps its work up for the restart it sees coming
-and stops a little short, and a session stopped under the cap does not stop again
-until someone writes to it; the prompt stamp names the cap alone, since a session
-told of the margin would stop short of that.
+**The service coordinates restarts at the context cap.** Every five seconds it
+reads the collector's snapshot. A Claude session in a project with
+`autoRestart`, with its turn over and no question or permission pending, is
+asked to save once its context reaches the cap minus `guards.RestartMargin`. Background work
+does not delay this command: the command asks the session to update its task
+registry, save a handoff through its project's finalize skill where present,
+commit completed work and cleanly stop its agents, workflows, background
+commands and panel observers. It travels through `session.send`, the same path
+as a message from the phone. The session calls `session_ready` and ends its turn;
+it does not call `session_restart` or tell the person about the context or restart.
+Codex, sessions outside the map and projects without `autoRestart` are excluded.
+The prompt stamp names the cap itself, never the margin: a session told of the
+margin would stop short of that instead.
+
+The cycle is kept by conversation in `session_restarts`. A service replacement
+keeps its command, readiness, reminder and restart attempt. Readiness alone
+cannot end a process: a snapshot newer than readiness must show an idle session
+with no agents, workflows, background commands or observers at work. The
+collector dates the start of its read, so an idle read before readiness cannot
+look newer just because collection ended later. Wake-ups
+and alarms run nothing and do not hold it. On the stream, the holder's
+`turnOver` also proves idleness when Claude still reports busy for a background
+agent. The service then asks for a fresh
+`session.restart`, naming the conversation; the executor's `runsConversation`
+refuses to close a replacement under the same name. The readiness intent, when
+present, is the first message and wins over the session sheet, project and
+contour. Without it the usual restart message inheritance applies, ending in
+an empty composer when no level names a message.
+
+A turn ending without readiness gets one reminder. Readiness followed by idle
+with running work gets one reminder naming that work. Five minutes after the
+reminder, an unmet condition permits a forced fresh restart, including stopping
+an unfinished turn and its background work. A failed action is logged and
+journaled and is retried no sooner than five minutes later. Completed cycles
+remain while their conversation lives; absent conversations older than a week
+are pruned. Snapshots older than thirty seconds cannot advance a cycle.
+The `context-guard` hook answers nothing so an installed Stop entry cannot
+block finalization; the installer removes that entry and offers no cap hook.
 
 **The delivery socket.** The executor has no access to transcripts, yet typing
 into a session in tmux is blind without them: whether the message landed, whether the
@@ -1441,6 +1469,9 @@ The list of actions is closed.
 | terminals | `term.start`, `term.close`, `term.rename`, `term.console`, `tmux.close` |
 | secrets | `secret.put`, `secret.drop` |
 
+`session.ready` belongs to the service alone: it records readiness in the
+database, appears in the journal and grants the executor no new action.
+
 What is deliberately not on the list: removing containers, images and volumes,
 `docker exec`, editing compose, package operations, restarting itself. The two
 agent updates are the narrow exception to packages: the program and the source
@@ -1514,7 +1545,7 @@ is restarted only if it is the host's main one. The phone's live cards offer
 Restart and Close directly, with Restart alone on the main session, Close
 alone for codex and neither for a session outside the panel. A project session
 can also ask for its own restart through the local listener, naming its
-conversation, which is how the context guard brings it back.
+conversation. The service coordinates automatic context restarts separately.
 
 **A conversation is resumed where it ran, with the parameters of the project
 it belongs to.** Its transcript is kept by the directory it ran in, so a
@@ -1730,8 +1761,9 @@ card of the session count the observers whose command runs and the alarms
 among the background tasks, under names of their own in the snapshot. A
 restart and a close wait for an observer whose command runs, as for the
 session's own work: the session started it to hear how that command ends, and
-the restart past the context cap would end it halfway. An alarm runs nothing
-and is not waited for. A press ends one through an action of the executor,
+the restart would end it halfway. The context cycle asks the session to stop it
+cleanly; its reminder permits a forced restart after five minutes. An alarm
+runs nothing and is not waited for. A press ends one through an action of the executor,
 `observer.stop` or `alarm.cancel`, by the id the collector read it under and
 only for the conversation of the session the action names. The session gets
 one letter saying which observer was stopped or which alarm was cancelled
@@ -2180,8 +2212,9 @@ its own message wins over the project, then the contour; no message anywhere
 means the session waits. An unreadable override leaves the inherited message
 in place and adds a warning to the launch report, so it cannot block a start.
 Opening or resuming uses the first message; a restart
-uses the restart message. A continued conversation with words written by the
-session uses those words first. Switching transport sends no opening message.
+uses the restart message. Words written by the session for a continued
+conversation or in readiness for an automatic fresh restart take precedence.
+Switching transport sends no opening message.
 These overrides are edited only in the session sheet, not in `session_open`
 or the project settings.
 
@@ -2243,8 +2276,9 @@ any first message does — an argument of claude in tmux, a message after the
 handshake on the stream. That way sets its bounds: the ceiling of the map's
 first message, no leading dash, which claude in a terminal would take for an
 option and leave the session closed with nothing in its place, and no leading
-slash, which claude runs as a command. A restart that starts anew takes no
-such message and opens with the map's, and so does a conversation on the
+slash, which claude runs as a command. The `session_restart` tool accepts
+intent only with `continue`; a fresh restart through that tool inherits the
+saved restart message. So does a conversation on the
 stream that starts anew because nobody said a word in it: the words were
 written for a conversation the new one does not have. Either way the executor restarts it
 only while it still runs the conversation that asked — a late repeat of the call
@@ -2254,9 +2288,9 @@ name — and a conversation on the stream nobody said a word in starts anew. A r
 `continue` to spare itself the notes a fresh start wants first. Nothing is asked while the collector's snapshot shows the session's
 agents, workflows, background commands or observers at work, since a restart ends them;
 the snapshot can be eleven seconds old, so work seen is read again in a
-snapshot written after the look began, through `internal/session`, which the
-context guard uses too. A session on the stream is closed only at
-the end of its turn, which cannot end while the call waits, so the panel's
+snapshot written after the look began, through `internal/session`. The service
+uses the same definition of running work for its context cycle. A session
+restarted through this tool on the stream is closed only at the end of its turn, which cannot end while the call waits, so the panel's
 answer would come after the call: the tool waits three seconds and takes
 silence for a restart under way. `session_close` without a name asks for
 `session.close` with the calling conversation: the panel finds the live session
@@ -2349,11 +2383,13 @@ session its model takes for its
 person's, so work goes to the new session as a letter once it is up. The open
 waits a minute for the panel, which answers once the new claude is up; silence
 past that is an open whose outcome is not known, and the tool says not to open
-again blindly. The restart and the close are allowed: the restart past the
-context cap is done with nobody at the screen, and so is the close of a session
-done with the one job it was opened for; the restart touches only the calling
-session, and the close also takes a child that conversation opened. Both wait
-out the work of the session they close. The letter is not: it puts words before
+again blindly. The restart and the close are allowed: the restart touches only
+the calling session, and the close also takes a child that conversation opened.
+Both wait out the work of the session they close.
+`session_ready` is allowed too: it only records readiness in the service through
+`session.ready` on the local listener, and refuses a conversation the panel has
+not asked to prepare, directing an asked-for restart to `session_restart`.
+The letter is not allowed: it puts words before
 another agent,
 and claude asks the person first, as it does for any tool. Nor is the open: a
 new session starts work in its account and spends its limits, and the question
@@ -2665,18 +2701,10 @@ stays the base.
   chart nobody looks at.
 - **A task registry.** It lives as a claude plugin, not everybody has it, and on
   somebody else's install the buttons would honestly answer "not found".
-- **Actions of its own on a session.** The panel never types into a session by
-  itself, not even to save it from a full context. What a session does about
-  its own context is decided inside it: the context guard needs both its
-  `Stop` hook installed in the account and `autoRestart` enabled on the
-  contour or project. The service hands the map's caps and restart settings to
-  the executor, which keeps them in a file on the host for the hook. At a
-  stop the hook checks the session's background work and subagents, waiting
-  for a fresh snapshot while they are busy, and asks the model to finalize
-  and call `session_restart` only when the session is free. A watchdog
-  outside would
-  have to guess whether the session can take a keystroke right now, and a guess
-  that lands in an open dialog is an answer given blind.
+- **Unrequested work in sessions.** The service sends only the preparation
+  command and reminder of the context cycle enabled by `autoRestart`. It waits
+  for an idle snapshot with no pending question or permission before typing;
+  it does not answer a dialog blindly or choose tasks for the new session.
 - **Quiet hours and reminders for pushes.** What is heard is chosen by kind and
   by source; when is not a setting. A reason that stands is not pushed again
   until it is gone and comes back.

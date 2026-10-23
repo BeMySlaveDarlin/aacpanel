@@ -114,8 +114,7 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 		"PreToolUse":    {executor + " hook ask-hook"},
 		"PostToolUse":   {executor + " hook artifact-copy"},
 		"PostToolBatch": {state + executor + " hook prompt-stamp PostToolBatch", atlasBudget},
-		"Stop": {state + executor + " hook context-guard",
-			state + executor + " hook background-reminder",
+		"Stop": {state + executor + " hook background-reminder",
 			executor + " hook checklist-reminder"},
 	}
 	for event, cmds := range want {
@@ -123,7 +122,7 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 			t.Errorf("%s runs\n  %s\nwant\n  %s", event, strings.Join(got, "\n  "), strings.Join(cmds, "\n  "))
 		}
 	}
-	if groupsOf(t, out, "Stop") != 3 || groupsOf(t, out, "PostToolBatch") != 1 || groupsOf(t, out, "SubagentStop") != 0 {
+	if groupsOf(t, out, "Stop") != 2 || groupsOf(t, out, "PostToolBatch") != 1 || groupsOf(t, out, "SubagentStop") != 0 {
 		t.Errorf("the groups: Stop %d, PostToolBatch %d, SubagentStop %d:\n%s",
 			groupsOf(t, out, "Stop"), groupsOf(t, out, "PostToolBatch"), groupsOf(t, out, "SubagentStop"), out)
 	}
@@ -131,10 +130,8 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 	if got := commandsOf(t, out, "UserPromptSubmit"); !slices.Equal(got, []string{state + executor + " hook prompt-stamp"}) {
 		t.Errorf("the stamp before a prompt: %q", got)
 	}
-	// The guard's timeout is rewritten with its command: the guard looks at
-	// the work of the session for longer than the former form's 5 seconds.
-	if got := timeoutOf(t, out, "Stop", state+executor+" hook context-guard"); got != "20" {
-		t.Errorf("the guard keeps a timeout of %s:\n%s", got, out)
+	if strings.Contains(out, "context-guard") {
+		t.Errorf("the compatibility hook was installed again:\n%s", out)
 	}
 	// An entry written by hand without a timeout gets the kit's.
 	if got := timeoutOf(t, out, "Stop", executor+" hook checklist-reminder"); got != "5" {
@@ -208,12 +205,6 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 			"python3 /opt/elsewhere/deploy/claude/checklist-reminder.py":                                       true,
 			"/home/u/bin/aacpanel-exec hook background-reminder":                                               false,
 		},
-		"cap": {
-			"/home/u/bin/aacpanel-exec hook context-guard":                                                               true,
-			"test -f /a/deploy/claude/context-guard.py && AACP_STATE_DIR='/s' python3 /a/deploy/claude/context-guard.py": true,
-			"python3 /srv/old/deploy/claude/context-guard.py":                                                            true,
-			"/home/u/bin/aacpanel-exec hook prompt-stamp":                                                                false,
-		},
 		"stamp": {
 			"AACP_STATE_DIR=/x /opt/other/aacpanel-exec hook prompt-stamp PostToolBatch":                         true,
 			"test -f /a/deploy/claude/prompt-stamp.py && python3 /a/deploy/claude/prompt-stamp.py PostToolBatch": true,
@@ -236,8 +227,7 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 
 // A hook of the executor that waits before it answers has a timeout past
 // the wait with a second to spare: claude kills a hook at its timeout, and
-// the answer of the guard killed mid-look is lost — the session past its cap
-// is not asked to restart, and stays there until someone writes to it.
+// an answer lost at the timeout cannot reach the session.
 func TestEveryTimeoutOfTheKitCoversTheHooksWait(t *testing.T) {
 	for _, h := range kitHooks {
 		if h.Hook == "" {

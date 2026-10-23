@@ -31,6 +31,11 @@ type Request struct {
 	// still runs that one.
 	Conversation string `json:"conversation,omitempty"`
 
+	// AutoRestart marks the service's context cycle: its intent opens a fresh
+	// conversation. Anyway ends unfinished work after the cycle's reminder.
+	AutoRestart bool `json:"autoRestart,omitempty"`
+	Anyway      bool `json:"anyway,omitempty"`
+
 	// Caller closes a child by the conversation that opened it. It is checked
 	// on the host against the opening record, never against visual grouping.
 	Caller string `json:"caller,omitempty"`

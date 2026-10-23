@@ -321,6 +321,7 @@ var entailed = regexp.MustCompile(`entails:\s*"([a-z]+\.[a-zA-Z]+)"`)
 // screen offers it.
 var askedOffScreen = map[string]string{
 	"session.letter": "a session, with the send_to_session tool",
+	"session.ready":  "a session replying to the panel's request to save",
 	"session.parent": "a request on the local listener",
 	"observer.start": "a session after its private observer start",
 	"alarm.set":      "a session after its private alarm set",
@@ -341,9 +342,9 @@ func TestActionsAskedOffScreenAreNamedForTheJournal(t *testing.T) {
 		if !strings.Contains(names, `"`+id+`":`) {
 			t.Errorf("%s has no name: the journal would show its kind as it is", id)
 		}
-		if action.RecordOnly(action.Kind(id)) {
+		if action.RecordOnly(action.Kind(id)) || action.Kind(id) == action.SessionReady {
 			if action.Valid(action.Kind(id)) || instantActions[id] || instantExecActions[id] {
-				t.Errorf("%s records completed work and must not be offered as a gate or executor action", id)
+				t.Errorf("%s belongs to the service and must not be offered as a gate or executor action", id)
 			}
 			continue
 		}

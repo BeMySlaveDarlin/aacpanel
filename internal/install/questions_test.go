@@ -92,7 +92,7 @@ func TestTheQuestionsOfAFreshDesktop(t *testing.T) {
 		{"claude", home + "/.local/bin/claude", "command -v claude"},
 		{"accounts", home + "/.claude", "found"},
 		{"transport", "stream", "recommended"},
-		{"kit", "relay,limits,tools,copies,cap,nudge,restart,stamp", "suggested"},
+		{"kit", "relay,limits,tools,copies,nudge,restart,stamp", "suggested"},
 		{"tune", no, "default"},
 		{"push", "mailto:u@example.org", "git config user.email"},
 		{"life", "24h/720h", "the panel's default"},
@@ -477,9 +477,9 @@ func TestTheWaysInAskOnlyWhatIsChecked(t *testing.T) {
 }
 
 func TestTheKitFlag(t *testing.T) {
-	suggested := "relay,limits,tools,copies,cap,nudge,restart"
+	suggested := "relay,limits,tools,copies,nudge,restart"
 	for _, c := range []struct{ raw, want, err string }{
-		{"+stamp,-cap", "relay,limits,tools,copies,nudge,restart,stamp", ""},
+		{"+stamp,-copies", "relay,limits,tools,nudge,restart,stamp", ""},
 		{"+background", suggested + ",background", ""},
 		{"gc,lan", "relay,limits,tools,gc,lan", ""},
 		{"-relay", suggested, ""},
@@ -617,11 +617,11 @@ func TestAnInstallByHandKeepsItsKit(t *testing.T) {
 		`/agent/ask-hook.py"}]}],"Stop":[{"hooks":[{"command":"python3 ` + clone + `/deploy/claude/context-guard.py"}]},` +
 		`{"hooks":[{"command":"python3 ` + clone + `/deploy/claude/background-reminder.py"}]}]}`
 	for _, c := range []struct{ allow, kit string }{
-		{``, "relay,limits,tools,cap,restart,background,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel"]}`, "relay,limits,tools,cap,restart,background,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel__*"]}`, "relay,limits,tools,cap,restart,background,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__notify"]}`, "relay,limits,tools,cap,background,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__session_restart"]}`, "relay,limits,tools,cap,restart,background,tailscale"},
+		{``, "relay,limits,tools,restart,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel"]}`, "relay,limits,tools,restart,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__*"]}`, "relay,limits,tools,restart,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__notify"]}`, "relay,limits,tools,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__session_restart"]}`, "relay,limits,tools,restart,background,tailscale"},
 	} {
 		m := desktop()
 		m.Files[DefaultStateDir+"/host.env"] = "AACP_REPO=" + clone + "\n"

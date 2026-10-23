@@ -340,6 +340,7 @@ func run() error {
 		go srv.watch.Run(ctx)
 		srv.guards = make(chan struct{}, 1)
 		go srv.runGuards(ctx)
+		go srv.runRestarts(ctx)
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

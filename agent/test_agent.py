@@ -4,7 +4,9 @@ import shutil
 import subprocess
 import sys
 import time
+import threading
 import unittest
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -14,10 +16,37 @@ import asked  # noqa: E402
 import ctx  # noqa: E402
 import paths  # noqa: E402
 import sesstate  # noqa: E402
+from collect import workers  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 UUID_A = "11111111-1111-4111-8111-111111111111"
+
+class SnapshotTime(unittest.TestCase):
+    def test_a_session_snapshot_is_dated_before_its_sessions_are_read(self):
+        now = [100]
+        shared = {}
+
+        def sessions():
+            now[0] = 105
+            return {"sessions": [{"status": "idle"}], "notes": []}
+
+        def stop(_):
+            raise StopIteration
+
+        for name, value in {
+            "chat": SimpleNamespace(observe_names=lambda: None),
+            "time": SimpleNamespace(time=lambda: now[0], sleep=stop),
+            "sessions": sessions,
+        }.items():
+            self.addCleanup(setattr, workers, name, getattr(workers, name))
+            setattr(workers, name, value)
+        with self.assertRaises(StopIteration):
+            workers.sessions_worker(shared, threading.Lock())
+        self.assertEqual(shared["at"], 100,
+                         "an idle read before readiness looks newer than readiness")
+        self.assertEqual(shared["sessions"], [{"status": "idle"}])
+
 
 class NetLink(unittest.TestCase):
     def test_the_state_and_the_address_are_read_from_a_live_interface(self):

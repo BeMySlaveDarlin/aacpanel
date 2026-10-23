@@ -9,6 +9,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/sessionintent"
+	"aacpanel/internal/stream"
 )
 
 func TestSessionMessagesAreSavedWithoutSendingThem(t *testing.T) {
@@ -47,11 +48,13 @@ func TestSessionMessagesAreSavedWithoutSendingThem(t *testing.T) {
 	}
 }
 
-func TestRestartSelectsItsRuleUnlessTheContinuedConversationHasWords(t *testing.T) {
+func TestRestartSelectsItsRuleUnlessTheSessionHasNextWords(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	for _, c := range []struct {
 		name, resume, text, key string
 	}{
 		{"fresh", "", "", "restartIntent"},
+		{"ready for fresh start", "", "Read the saved handoff", ""},
 		{"continue with words", consoleSID, "The next step", ""},
 		{"continue without words", consoleSID, "", "restartIntent"},
 	} {
@@ -62,6 +65,9 @@ func TestRestartSelectsItsRuleUnlessTheContinuedConversationHasWords(t *testing.
 			withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
 			r := restartOf(dir, c.resume)
 			r.Text = c.text
+			if c.name == "ready for fresh start" {
+				r.AutoRestart, r.Conversation = true, consoleSID
+			}
 			if _, err := e.Execute(t.Context(), r); err != nil {
 				t.Fatal(err)
 			}
@@ -73,10 +79,42 @@ func TestRestartSelectsItsRuleUnlessTheContinuedConversationHasWords(t *testing.
 			if err := json.Unmarshal(raw[strings.IndexByte(string(raw), '{'):strings.LastIndexByte(string(raw), '}')+1], &spec); err != nil {
 				t.Fatal(err)
 			}
+			if c.text != "" {
+				var launch struct {
+					Intent string `json:"intent"`
+				}
+				if err := json.Unmarshal(spec.Launch, &launch); err != nil || launch.Intent != c.text {
+					t.Fatalf("the session's words lost to the project's restart message: %s, %v", spec.Launch, err)
+				}
+			}
 			if spec.IntentKey != c.key {
 				t.Fatalf("the restart selects %q, want %q", spec.IntentKey, c.key)
 			}
 		})
+	}
+}
+
+func TestAutomaticRestartForcesAStreamAfterItsReminder(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	dir, held := streamStand(t, func(s *stream.State) { s.Busy = true })
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportStream})
+	e, _ := newTest(t, "")
+	signals := withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+	r := restartOf(dir, "")
+	r.Conversation, r.AutoRestart, r.Anyway, r.Text = streamSID, true, true, "Read the handoff"
+	if _, err := e.Execute(t.Context(), r); err != nil {
+		t.Fatal(err)
+	}
+	for _, request := range held.asked() {
+		if request.Op == stream.OpClose {
+			t.Fatal("the forced restart waited for an unfinished turn")
+		}
+	}
+	if len(signals.sent) == 0 {
+		t.Fatal("the unfinished turn was not stopped")
+	}
+	if got := launched(t, log); got["_resume"] != "" || got["intent"] != r.Text {
+		t.Fatalf("forced launch: %v", got)
 	}
 }
 

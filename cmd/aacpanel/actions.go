@@ -78,6 +78,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 	req := action.Request{Kind: action.Kind(body.Kind), Target: body.Target}
+	if req.Kind == action.SessionReady {
+		s.sessionReady(w, r, body.Target, body.Params)
+		return
+	}
 	if action.RecordOnly(req.Kind) {
 		s.recordWork(w, r, req.Kind, req.Target, body.Params)
 		return
