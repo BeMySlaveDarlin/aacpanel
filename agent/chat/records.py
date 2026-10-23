@@ -37,7 +37,9 @@ def service_once(text, at, pos, pending, read=False):
 
 
 SHELL_IN_RE = re.compile(r"\A<bash-input>(.*)</bash-input>\Z", re.S)
-SHELL_OUT = (r"<bash-stdout>(.*)</bash-stdout>\s*<bash-stderr>(.*)</bash-stderr>"
+# A command claude refuses to start, while another of the person's is
+# running, comes back with its refusal on the error stream and no output.
+SHELL_OUT = (r"(?:<bash-stdout>(.*)</bash-stdout>\s*)?<bash-stderr>(.*)</bash-stderr>"
              r"\s*(?:<bash-exit-code>(-?\d+)</bash-exit-code>)?")
 SHELL_OUT_RE = re.compile(r"\A" + SHELL_OUT + r"\Z", re.S)
 SHELL_RAN_RE = re.compile(r"\A<bash-input>(.*?)</bash-input>" + SHELL_OUT + r"\Z", re.S)
@@ -75,7 +77,7 @@ def command_item(command, at, pos):
 
 
 def output_item(stdout, stderr, code, at, pos):
-    body, trimmed = cut(html.unescape(stdout).strip(), MAX_TEXT)
+    body, trimmed = cut(html.unescape(stdout or "").strip(), MAX_TEXT)
     err, err_trimmed = cut(html.unescape(stderr).strip(), MAX_TEXT)
     item = {"role": "shellout", "text": body, "cut": trimmed or err_trimmed,
             "at": at, "pos": pos}

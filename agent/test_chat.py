@@ -489,6 +489,14 @@ class ShellCommands(unittest.TestCase):
         self.assertEqual([(i["role"], i["text"], i["err"]) for i in got],
                          [("shellout", "", "no such file")])
 
+    def test_a_command_claude_refused_to_start_is_a_command_and_its_refusal(self):
+        got = self.items(user("<bash-input>./apply.sh --drop</bash-input><bash-stderr>Not run: another '!' "
+                              "command is still running. Wait for it to finish or press Stop, then send this "
+                              "again.</bash-stderr>"))
+        self.assertEqual([(i["role"], i["text"]) for i in got],
+                         [("shell", "./apply.sh --drop"), ("shellout", "")])
+        self.assertTrue(got[1]["err"].startswith("Not run: another '!' command is still running."))
+
     def test_a_silent_command_gives_an_empty_output_row(self):
         got = self.items(user("<bash-stdout></bash-stdout><bash-stderr></bash-stderr>"))
         self.assertEqual([(i["role"], i["text"]) for i in got], [("shellout", "")])
