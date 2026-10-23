@@ -39,23 +39,28 @@ func fakeClaude() int {
 	var held []map[string]any
 	// Shell commands claude runs on and on, until a message wakes them.
 	var sleeping []map[string]any
-	// A command claude has ended, as claude -p 2.1.283 reports it: the output
-	// as a user message of its own, then the end of the command by its id.
+	// Whether claude reports on a shell command as claude -p 2.1.309 does: the
+	// start and the end of the command first, the echo, then its output alone.
+	newer := os.Getenv("FAKE_SHELL_309") == "1"
+	lifecycle := func(id any, state string) {
+		out(map[string]any{"type": "command_lifecycle", "command_uuid": id, "state": state})
+	}
+	// The output of a command claude has ended: a user message of its own,
+	// and from an older claude the end of the command by its id after it.
 	shellDone := func(msg map[string]any) {
 		command, _ := msg["command"].(string)
-		out, err, code := "ran: "+command, "", 0
+		stdout, stderr, code := "ran: "+command, "", 0
 		if command == "false" {
-			out, err, code = "", "it failed & said so", 1
+			stdout, stderr, code = "", "it failed & said so", 1
 		}
-		out = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(out)
-		err = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(err)
-		fake := fmt.Sprintf("<bash-stdout>%s</bash-stdout><bash-stderr>%s</bash-stderr><bash-exit-code>%d</bash-exit-code>", out, err, code)
-		out2 := map[string]any{"type": "user", "uuid": NewSessionID(), "isReplay": true, "parent_tool_use_id": nil,
-			"message": map[string]any{"role": "user", "content": fake}}
-		b, _ := json.Marshal(out2)
-		fmt.Println(string(b))
-		b, _ = json.Marshal(map[string]any{"type": "command_lifecycle", "command_uuid": msg["uuid"], "state": "completed"})
-		fmt.Println(string(b))
+		stdout = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(stdout)
+		stderr = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(stderr)
+		out(map[string]any{"type": "user", "uuid": NewSessionID(), "isReplay": true, "parent_tool_use_id": nil,
+			"message": map[string]any{"role": "user", "content": fmt.Sprintf(
+				"<bash-stdout>%s</bash-stdout><bash-stderr>%s</bash-stderr><bash-exit-code>%d</bash-exit-code>", stdout, stderr, code)}})
+		if !newer {
+			lifecycle(msg["uuid"], "completed")
+		}
 	}
 	model, ultra, effort := "claude-sonnet-5", false, "xhigh"
 	// The calls a turn waits on, as claude -p 2.1.283 registers them: a
@@ -86,17 +91,32 @@ func fakeClaude() int {
 		case "bash_command":
 			command, _ := msg["command"].(string)
 			if command == recordedShell {
+				recorded := recordedShellLines
+				if newer {
+					recorded = recordedShellLines309
+				}
 				ids := strings.NewReplacer("{session}", fmt.Sprint(msg["session_id"]), "{command}", fmt.Sprint(msg["uuid"]))
-				for _, line := range recordedShellLines {
+				for _, line := range recorded {
 					fmt.Println(ids.Replace(line))
 				}
 				continue
 			}
+			if newer {
+				lifecycle(msg["uuid"], "started")
+				lifecycle(msg["uuid"], "completed")
+			}
 			// Claude echoes the command at once, escaped for markup, and runs
 			// it with no turn: no init, no result.
-			escaped := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(command)
-			out(map[string]any{"type": "user", "uuid": NewSessionID(), "isReplay": true, "parent_tool_use_id": nil,
-				"message": map[string]any{"role": "user", "content": "<bash-input>" + escaped + "</bash-input>"}})
+			replay := func(text string) {
+				out(map[string]any{"type": "user", "uuid": NewSessionID(), "isReplay": true, "parent_tool_use_id": nil,
+					"message": map[string]any{"role": "user", "content": text}})
+			}
+			replay("<bash-input>" + strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(command) + "</bash-input>")
+			if newer && len(sleeping) > 0 {
+				replay("<bash-stderr>Not run: another '!' command is still running. " +
+					"Wait for it to finish or press Stop, then send this again.</bash-stderr>")
+				continue
+			}
 			if strings.HasPrefix(command, "sleep") {
 				sleeping = append(sleeping, msg)
 				continue
@@ -203,15 +223,12 @@ func fakeClaude() int {
 			case "/plugins":
 				// A command claude runs itself: no echo of the message, only
 				// the lifecycle of the command, as claude -p 2.1.282 writes it.
-				lifecycle := func(state string) {
-					out(map[string]any{"type": "command_lifecycle", "command_uuid": msg["uuid"], "state": state})
-				}
-				lifecycle("queued")
-				lifecycle("started")
+				lifecycle(msg["uuid"], "queued")
+				lifecycle(msg["uuid"], "started")
 				out(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
 					map[string]any{"type": "text", "text": "/plugins isn't available in this environment."}}}})
 				result()
-				lifecycle("completed")
+				lifecycle(msg["uuid"], "completed")
 				continue
 			case "news":
 				// The turn for the message ends, and claude starts one of its

@@ -51,51 +51,80 @@ func (h *Holder) shell(command, id string) (string, error) {
 	return id, nil
 }
 
-// shellPrinted notes the output of a command claude has just ended. Claude
-// writes it as a user message of its own and says which command it was only
-// in the word that comes right after — the end of the command.
+// Claude reports the end of a command and hands back its output in one of two
+// orders, and names the command in neither the output nor anything near it.
+// An older claude writes the output first and then the end of the command by
+// its id. A newer one reports the start and the end of the command the moment
+// it has it, echoes the command, and only then writes one message for it: the
+// output, or why it did not run the command at all. It runs one command at a
+// time and turns down a second while the first runs, right after the echo of
+// the second.
+
+// shellPrinted takes the output of a command. A command claude has already
+// reported ended takes it at once: a refusal is the latest command's, any
+// other output the oldest one's. Otherwise the output waits for the end of
+// the command that comes right after it.
 func (h *Holder) shellPrinted(text string) {
 	if !strings.HasPrefix(text, "<bash-stdout>") && !strings.HasPrefix(text, "<bash-stderr>") {
 		return
 	}
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	if len(h.state.Shells) > 0 {
-		h.printed = text
+	if len(h.accepted) == 0 {
+		if len(h.state.Shells) > 0 {
+			h.printed = text
+		}
+		h.mu.Unlock()
+		return
 	}
+	at := 0
+	if strings.HasPrefix(text, "<bash-stderr>Not run:") {
+		at = len(h.accepted) - 1
+	}
+	ran := h.accepted[at]
+	h.accepted = append(h.accepted[:at], h.accepted[at+1:]...)
+	h.mu.Unlock()
+	go h.passOutput(ran, text)
 }
 
-// shellEnded takes a command whose end claude reports with the output noted
-// before it, and hands that output on to the conversation. It says whether the
-// id was a command of the panel's.
+// shellEnded takes the end of a command claude reports. The output noted
+// before it is that command's; a command ended with none noted gets the output
+// that comes next. It says whether the id was a command of the panel's.
 func (h *Holder) shellEnded(id string) bool {
 	h.mu.Lock()
-	var ran Shell
-	found := false
-	for _, s := range h.state.Shells {
-		if s.UUID == id {
-			ran, found = s, true
-			break
-		}
-	}
-	out := h.printed
-	if found {
-		h.printed = ""
-	}
-	h.mu.Unlock()
+	ran, found := h.shellOf(id)
 	if !found {
+		h.mu.Unlock()
 		return false
 	}
-	// Not from the reading of claude's lines: the message is written to
-	// claude, and a write that waits for claude to read must not stop the
-	// holder from reading what claude writes meanwhile.
-	go h.passOutput(ran, out)
+	out := h.printed
+	h.printed = ""
+	if out == "" {
+		h.accepted = append(h.accepted, ran)
+	}
+	h.mu.Unlock()
+	if out != "" {
+		go h.passOutput(ran, out)
+	}
 	return true
+}
+
+// shellOf finds a command of the panel's among the running ones. The caller
+// holds h.mu.
+func (h *Holder) shellOf(id string) (Shell, bool) {
+	for _, s := range h.state.Shells {
+		if s.UUID == id {
+			return s, true
+		}
+	}
+	return Shell{}, false
 }
 
 // passOutput puts what a command printed into the conversation. The command
 // stays among the running ones until the message is on its way, so a switch
-// in between is refused rather than losing it.
+// in between is refused rather than losing it. It runs apart from the reading
+// of claude's lines: the message is written to claude, and a write that waits
+// for claude to read must not stop the holder from reading what claude writes
+// meanwhile.
 func (h *Holder) passOutput(ran Shell, out string) {
 	defer func() {
 		if p := recover(); p != nil {
@@ -103,10 +132,6 @@ func (h *Holder) passOutput(ran Shell, out string) {
 		}
 		h.dropShell(ran.UUID)
 	}()
-	if out == "" {
-		h.logf("claude ended a shell command without its output")
-		out = "<bash-stdout></bash-stdout><bash-stderr>claude did not hand back the output of the command</bash-stderr>"
-	}
 	// Composed by the host: claude delivers it as written, with no files
 	// looked up by an @ in the output and nothing attached to the turn, as a
 	// terminal does with a command's output.

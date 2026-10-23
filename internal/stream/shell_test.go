@@ -24,6 +24,33 @@ var recordedShellLines = []string{
 	`{"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"3e4f5061-7283-494a-b5bc-6d7e8f900112","session_id":"{session}"}`,
 }
 
+// recordedShellLines309 are the lines claude -p 2.1.309 writes for the same
+// command. They are put together from its source, not recorded by a run: the
+// start and the end of the command come the moment claude has it, then the
+// echo, then the output alone, with an id of its own and no word of the
+// command; no status follows.
+var recordedShellLines309 = []string{
+	`{"type":"command_lifecycle","command_uuid":"{command}","state":"started","uuid":"4f506172-8394-4a5b-86cd-7e8f90011223","session_id":"{session}"}`,
+	`{"type":"command_lifecycle","command_uuid":"{command}","state":"completed","uuid":"50617283-94a5-4b6c-97de-8f9001122334","session_id":"{session}"}`,
+	`{"type":"user","message":{"role":"user","content":"<bash-input>printf 'out\\n'; printf 'err\\n' &gt;&amp;2; exit 3</bash-input>"},"session_id":"{session}","parent_tool_use_id":null,"uuid":"61728394-a5b6-4c7d-a8ef-900112233445","timestamp":"2026-01-01T00:00:00.795Z","isReplay":true}`,
+	`{"type":"user","message":{"role":"user","content":"<bash-stdout>out</bash-stdout><bash-stderr>err</bash-stderr><bash-exit-code>3</bash-exit-code>"},"session_id":"{session}","parent_tool_use_id":null,"uuid":"728394a5-b6c7-4d8e-b9f0-011223344556","timestamp":"2026-01-01T00:00:00.796Z","isReplay":true}`,
+}
+
+// newerClaude has the fake report on shell commands as claude 2.1.309 does.
+func newerClaude(t *testing.T) {
+	t.Setenv("FAKE_SHELL_309", "1")
+}
+
+// settled waits for claude to answer a request written after everything
+// before it: the holder reads claude's lines in order, so whatever claude
+// wrote before the answer has been read.
+func (r *rig) settled() {
+	r.t.Helper()
+	if reply := r.ask(Request{Op: OpControl, Subtype: "get_settings"}); !reply.OK {
+		r.t.Fatalf("claude did not answer: %+v", reply)
+	}
+}
+
 // lines returns what claude read, one message a line, of one type.
 func (r *rig) lines(kind string) []map[string]any {
 	r.t.Helper()
@@ -109,50 +136,67 @@ func TestAShellCommandIsRunByClaudeAndItsOutputJoinsTheConversation(t *testing.T
 
 // What claude itself writes for a command is read as it is: the escaped echo
 // is not the output, the output goes into the conversation under the command
-// as typed, and nothing else reaches claude.
+// as typed, and nothing else reaches claude. A newer claude reports the end of
+// the command before its output, and the output still goes in under it.
 func TestTheLinesClaudeWritesForACommandPassItsOutputOn(t *testing.T) {
-	r := start(t, nil)
-	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	for _, newer := range []bool{false, true} {
+		t.Run(map[bool]string{false: "2.1.283", true: "2.1.309"}[newer], func(t *testing.T) {
+			if newer {
+				newerClaude(t)
+			}
+			r := start(t, nil)
+			r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
 
-	if reply := r.ask(Request{Op: OpShell, Text: recordedShell, UUID: shellID}); !reply.OK {
-		t.Fatalf("the command was answered %+v", reply)
-	}
-	msg := r.passedFor(recordedShell)
-	want := "<bash-input>" + recordedShell + "</bash-input>" +
-		"<bash-stdout>out</bash-stdout><bash-stderr>err</bash-stderr><bash-exit-code>3</bash-exit-code>"
-	if got := content(msg); got != want {
-		t.Errorf("the conversation got\n%s\nwhere the terminal writes\n%s", got, want)
-	}
-	if prompts := r.lines("user"); len(prompts) != 1 {
-		t.Errorf("claude read %d messages where the output is the only one: %+v", len(prompts), prompts)
-	}
-	s := r.waitFor("the command to be over", func(s State) bool { return len(s.Shells) == 0 && !s.Busy })
-	if s.Compacting != nil || s.Mode != "default" {
-		t.Errorf("the status after the command changed the session: compacting %v, mode %q", s.Compacting, s.Mode)
+			if reply := r.ask(Request{Op: OpShell, Text: recordedShell, UUID: shellID}); !reply.OK {
+				t.Fatalf("the command was answered %+v", reply)
+			}
+			msg := r.passedFor(recordedShell)
+			want := "<bash-input>" + recordedShell + "</bash-input>" +
+				"<bash-stdout>out</bash-stdout><bash-stderr>err</bash-stderr><bash-exit-code>3</bash-exit-code>"
+			if got := content(msg); got != want {
+				t.Errorf("the conversation got\n%s\nwhere the terminal writes\n%s", got, want)
+			}
+			if prompts := r.lines("user"); len(prompts) != 1 {
+				t.Errorf("claude read %d messages where the output is the only one: %+v", len(prompts), prompts)
+			}
+			s := r.waitFor("the command to be over", func(s State) bool { return len(s.Shells) == 0 && !s.Busy })
+			if s.Compacting != nil || s.Mode != "default" {
+				t.Errorf("the status after the command changed the session: compacting %v, mode %q", s.Compacting, s.Mode)
+			}
+		})
 	}
 }
 
 // Claude runs a command beside the conversation: the session is not busy
 // while it runs, and the command is known to be running until it ends.
+// A newer claude reports the start of the command, and that is no turn either.
 func TestARunningCommandIsKnownAndStartsNoTurn(t *testing.T) {
-	r := start(t, nil)
-	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	for _, newer := range []bool{false, true} {
+		t.Run(map[bool]string{false: "2.1.283", true: "2.1.309"}[newer], func(t *testing.T) {
+			if newer {
+				newerClaude(t)
+			}
+			r := start(t, nil)
+			r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
 
-	r.ask(Request{Op: OpShell, Text: "sleep 60", UUID: shellID})
-	r.eventually(`"type":"bash_command"`)
-	s := r.waitFor("the command to run", func(s State) bool { return len(s.Shells) == 1 })
-	if s.Shells[0].UUID != shellID || s.Shells[0].Command != "sleep 60" || s.Shells[0].Since.IsZero() {
-		t.Errorf("the running command is %+v", s.Shells[0])
-	}
-	if s.Busy {
-		t.Error("a running command made the session busy, and it would take a message for a queued one")
-	}
-	if len(r.passed()) != 0 {
-		t.Errorf("an output went into the conversation before the command ended: %+v", r.passed())
-	}
-	raw := r.summary(func(Summary) bool { return true })
-	if body, _ := json.Marshal(raw); strings.Contains(string(body), "sleep 60") {
-		t.Errorf("the command reached the state file the collector reads: %s", body)
+			r.ask(Request{Op: OpShell, Text: "sleep 60", UUID: shellID})
+			r.eventually(`"type":"bash_command"`)
+			r.settled()
+			s := r.state()
+			if len(s.Shells) != 1 || s.Shells[0].UUID != shellID || s.Shells[0].Command != "sleep 60" || s.Shells[0].Since.IsZero() {
+				t.Fatalf("the running commands are %+v", s.Shells)
+			}
+			if s.Busy {
+				t.Error("a running command made the session busy, and it would take a message for a queued one")
+			}
+			if len(r.passed()) != 0 {
+				t.Errorf("an output went into the conversation before the command ended: %+v", r.passed())
+			}
+			raw := r.summary(func(Summary) bool { return true })
+			if body, _ := json.Marshal(raw); strings.Contains(string(body), "sleep 60") {
+				t.Errorf("the command reached the state file the collector reads: %s", body)
+			}
+		})
 	}
 }
 
@@ -181,6 +225,38 @@ func TestEachOutputGoesInUnderItsOwnCommand(t *testing.T) {
 		t.Errorf("the long command went in as %q", got["<bash-input>sleep 5"])
 	}
 	r.waitFor("both commands to be over", func(s State) bool { return len(s.Shells) == 0 })
+}
+
+// A newer claude runs one command at a time and turns a second one down
+// while the first runs: the refusal goes in under the second command, and the
+// output of the first, when it comes, under the first.
+func TestACommandTurnedDownGoesInUnderItself(t *testing.T) {
+	newerClaude(t)
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+
+	r.ask(Request{Op: OpShell, Text: "sleep 5"})
+	r.eventually("sleep 5")
+	r.ask(Request{Op: OpShell, Text: "false"})
+	want := "<bash-input>false</bash-input><bash-stderr>Not run: another '!' command is still running. " +
+		"Wait for it to finish or press Stop, then send this again.</bash-stderr>"
+	if got := content(r.passedFor("false")); got != want {
+		t.Errorf("the turned-down command went in as\n%s\nwhere claude said\n%s", got, want)
+	}
+	s := r.waitFor("the turned-down command to be over", func(s State) bool { return len(s.Shells) == 1 })
+	if s.Shells[0].Command != "sleep 5" {
+		t.Errorf("the command left running is %+v", s.Shells[0])
+	}
+
+	r.ask(Request{Op: OpSend, Text: "wake"})
+	if got := content(r.passedFor("sleep 5")); got != "<bash-input>sleep 5</bash-input>"+
+		"<bash-stdout>ran: sleep 5</bash-stdout><bash-stderr></bash-stderr><bash-exit-code>0</bash-exit-code>" {
+		t.Errorf("the long command went in as %q", got)
+	}
+	r.waitFor("both commands to be over", func(s State) bool { return len(s.Shells) == 0 })
+	if n := len(r.passed()); n != 2 {
+		t.Errorf("%d outputs went into the conversation for two commands", n)
+	}
 }
 
 // A command's end claude reports for a message the panel sent is no command

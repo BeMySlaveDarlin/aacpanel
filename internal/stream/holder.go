@@ -73,6 +73,9 @@ type Holder struct {
 	// The output of the shell command claude has just ended, until the end
 	// of the command that comes right after it names which one it was.
 	printed string
+	// The shell commands claude has reported ended before handing back their
+	// output, oldest first; see shellPrinted.
+	accepted []Shell
 
 	stderr *tail
 	log    *os.File
@@ -467,12 +470,15 @@ func (h *Holder) callsAnswered(content json.RawMessage) {
 // now: a message left in the queue when the turn before it ended, a scheduled
 // prompt, a turn resumed — claude starts them itself. The session is busy from
 // that word to the result, or a switch would take it for free and cut the
-// answer off.
+// answer off. A shell command claude starts is no turn: it runs beside the
+// conversation, and no result ends it.
 func (h *Holder) onCommand(ev event) {
 	switch ev.State {
 	case "started":
 		h.mu.Lock()
-		h.state.Busy = true
+		if _, shell := h.shellOf(ev.CommandUUID); !shell {
+			h.state.Busy = true
+		}
 		h.mu.Unlock()
 		h.take(ev.CommandUUID, "")
 		h.saveSummary()
