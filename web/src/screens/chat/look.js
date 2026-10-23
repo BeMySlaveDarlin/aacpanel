@@ -36,6 +36,7 @@ export const LOOK_NAMES = {
     rename: "rename",
     role: "role",
     intent: "session messages",
+    parent: "parent of the session",
     secret: "secret notepad",
     tools: "tools of the session",
     checklist: "checklist",

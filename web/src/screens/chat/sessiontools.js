@@ -23,6 +23,7 @@ import { shortPath } from "./head.js";
 import { useRemote } from "./remote.js";
 import { intentWhy } from "./intent.js";
 import { roleWhy } from "./role.js";
+import { PARENT_LABEL, PARENT_NOTE, parentWhy } from "./parent.js";
 import { moveSession, stops } from "./switch.js";
 import { openedBy, outsideNote, placeOf } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
@@ -163,6 +164,7 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
             <ul class="mcplist toollist">
                 <${SessionLines} name=${name} live=${live} exec=${exec} cwd=${cwd} onDone=${onDone} onLook=${onLook} />
                 <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
+                <${ParentLine} live=${live} exec=${exec} snapshot=${snapshot} onDone=${onDone} onLook=${onLook} />
             </ul>
         </section>
         <section class="toolsec toolend">
@@ -309,6 +311,12 @@ export function DetachLine({ name, live, exec, run, onDone }) {
     if (!parent) return null;
     return html`<${ToolRow} icon=${Icon.flow} label="Detach from parent" note=${`under ${parent} · ${DETACH}`}
                             off=${detachWhy(exec)} onPress=${() => { onDone(); detach(run, name); }} />`;
+}
+
+export function ParentLine({ live, exec, snapshot, onDone, onLook }) {
+    return html`<${ToolRow} icon=${Icon.flow} label=${PARENT_LABEL} note=${PARENT_NOTE} more
+                            off=${parentWhy(exec, live, snapshot)}
+                            onPress=${() => { onDone(); onLook("parent"); }} />`;
 }
 
 // IdLine copies the id a session is found again by.

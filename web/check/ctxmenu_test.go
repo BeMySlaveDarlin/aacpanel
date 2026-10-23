@@ -131,9 +131,13 @@ type ctxMenu struct {
 		Menu     bool   `json:"menu"`
 		FocusRow bool   `json:"focusRow"`
 	} `json:"rename"`
-	Restarted       *ctxSent `json:"restarted"`
-	Detached        *ctxSent `json:"detached"`
-	DetachTitle     string   `json:"detachTitle"`
+	Restarted   *ctxSent `json:"restarted"`
+	Detached    *ctxSent `json:"detached"`
+	DetachTitle string   `json:"detachTitle"`
+	Stood       []struct {
+		Choices []string `json:"choices"`
+		Sent    ctxSent  `json:"sent"`
+	} `json:"stood"`
 	ClosedByMenu    *ctxSent `json:"closedByMenu"`
 	ClosedByButton  *ctxSent `json:"closedByButton"`
 	Stopped         *ctxSent `json:"stopped"`
@@ -307,17 +311,17 @@ func TestTheKeyboardMenuStandsUnderTheRow(t *testing.T) {
 func TestEveryObjectHasItsMenu(t *testing.T) {
 	got := ctxMenuPage(t)
 	want := map[string]string{
-		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · ~Pin the group · | · " +
+		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
-		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · ~Pin the group · | · " +
+		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session",
 		"scratch": "Open · Terminal of the project · | · ~Rename… · ~Role… · ~Session messages… · | · Move to the stream · Open a window on this machine · " +
-			"~Turn Remote Control on · ~Pin the group · | · Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
-		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · ~Pin the group of aacpanel · | · " +
+			"~Turn Remote Control on · ~Stand under… · ~Pin the group · | · Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
+		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
 		"ext":          "Open · | · Copy the session ID · Copy the resume command",
-		"codex":        "Open · | · ~Pin the group · | · Copy the thread ID · | · Stop the turn · Close the session",
-		"codexChild":   "Open · | · Detach from parent · ~Pin the group of aacpanel · | · Copy the thread ID · | · Close the session",
+		"codex":        "Open · | · ~Stand under… · ~Pin the group · | · Copy the thread ID · | · Stop the turn · Close the session",
+		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · Copy the thread ID · | · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID",
@@ -356,6 +360,9 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		!strings.Contains(m.Tip, "stands on its own in the list") {
 		t.Errorf("the detach of a session aacpanel opened stands as %+v — expected naming aacpanel and what it does", m)
 	}
+	if m := got.About["parent"]; m == nil || m.Off || m.Opacity != 1 || !strings.Contains(m.Tip, "same project") {
+		t.Errorf("the parent choice must be visible without hover and explain its scope: %+v", m)
+	}
 }
 
 // An item that cannot be pressed now stays in its place, dimmed, says why on
@@ -367,6 +374,7 @@ func TestAnItemThatCannotBePressedSaysWhy(t *testing.T) {
 		"remote":           "the host does not know the action “session.remote”",
 		"containerRestart": "the host does not know the action “container.restart”",
 		"rename":           "a session in tmux is renamed on its own screen",
+		"parentEmpty":      "no other live session in this project can be its parent",
 	} {
 		m := got.About[name]
 		if m == nil {
@@ -427,6 +435,22 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 	}
 	if got.DetachTitle != "Detach review from aacpanel?" {
 		t.Errorf("the sheet before the detach asks %q — it should name the session and its parent", got.DetachTitle)
+	}
+	wantParents := []struct{ target, parent, label string }{
+		{"codex-2", "review", "review"}, {"review", "codex-2", "cx-review"},
+	}
+	if len(got.Stood) != len(wantParents) {
+		t.Errorf("the parent choices sent %+v, want %d requests", got.Stood, len(wantParents))
+	} else {
+		for i, want := range wantParents {
+			pick := got.Stood[i]
+			if !reflect.DeepEqual(pick.Choices, []string{want.label}) {
+				t.Errorf("the parent picker for %s offers %v, want only %s", want.target, pick.Choices, want.label)
+			}
+			if a := pick.Sent; a.Kind != "session.parent" || a.Target != want.target || len(a.Params) != 1 || a.Params["parent"] != want.parent {
+				t.Errorf("the parent choice for %s sent %+v, want parent %s", want.target, a, want.parent)
+			}
+		}
 	}
 	if m := got.Moved; m == nil || m.Kind != "session.switch" || m.Target != "scratch" || m.Params["to"] != "stream" {
 		t.Errorf("the move of scratch sent %+v — expected session.switch to the stream", m)

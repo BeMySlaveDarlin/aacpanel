@@ -539,12 +539,16 @@ export const ACTIONS = {
         effect: "Remote Control makes the session reachable from the Claude app and claude.ai; switched off, the bridge goes and the session stays where it is.",
         done: (target, params) => `${target}: Remote Control ${params && params.on ? "is on" : "is off"}`,
     },
-    // No screen stands a session back under the one it was taken from: a
-    // request on the local listener does, so the sheet says so before the press.
+    // Choosing the parent on its sheet is the decision; Detach undoes it.
+    "session.parent": {
+        instant: true,
+        effect: "The session stands under the chosen parent in the list and after a restart; its conversation goes on as it is.",
+        done: (target, params) => `${target} stands under ${params.parent}`,
+    },
     "session.detach": {
         title: (target) => `Detach ${target} from ${parentOf(target) || "its parent"}?`,
         effect: "The session stands on its own in the list of sessions and comes back on its own after a restart; "
-            + "its conversation goes on as it is. No screen stands it under a session again.",
+            + "its conversation goes on as it is. Stand under… chooses a parent again.",
         done: (target) => `${target} stands on its own`,
         ok: "Detach",
     },

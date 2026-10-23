@@ -22,7 +22,7 @@ import { LOOK_NAMES } from "./look.js";
 import { AgentsChip, HeldChip } from "./work.js";
 import { McpSheet } from "./mcp.js";
 import { SetupSheet } from "./setup.js";
-import { DetachLine, IdLine, PlaceLine, ToolRow } from "./sessiontools.js";
+import { DetachLine, IdLine, ParentLine, PlaceLine, ToolRow } from "./sessiontools.js";
 import { outsideNote } from "../sessions/kin.js";
 import { useTermAvailable } from "./term.js";
 
@@ -115,7 +115,7 @@ function CodexWork({ work, processes, onOpen }) {
 // turn and its close — no move, no window and no bridge.
 // Its name is changed from the thread, behind the band. A codex running on
 // its own has where it lives and its id alone: the panel asks it nothing.
-export function CodexSections({ name, live, exec, onDone, onLook }) {
+export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
     const run = useAction();
     if (live.outside) {
         return html`
@@ -150,6 +150,7 @@ export function CodexSections({ name, live, exec, onDone, onLook }) {
             <ul class="mcplist toollist">
                 <${IdLine} id=${live.sessionId || ""} />
                 <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
+                <${ParentLine} live=${live} exec=${exec} snapshot=${snapshot} onDone=${onDone} onLook=${onLook} />
             </ul>
         </section>
         <section class="toolsec toolend">

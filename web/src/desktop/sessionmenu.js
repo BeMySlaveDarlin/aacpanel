@@ -17,6 +17,7 @@ import { LOOK_NAMES } from "../screens/chat/look.js";
 import { RenameSheet, takenNames } from "../screens/chat/rename.js";
 import { RoleSheet, roleWhy } from "../screens/chat/role.js";
 import { IntentSheet, intentWhy } from "../screens/chat/intent.js";
+import { PARENT_LABEL, PARENT_NOTE, ParentSheet, parentWhy } from "../screens/chat/parent.js";
 import { useRemote } from "../screens/chat/remote.js";
 import { moveSession, sidesOf, useSwitchWay } from "../screens/chat/switch.js";
 import { useWindow, windowOf } from "../screens/chat/window.js";
@@ -76,6 +77,13 @@ function detachItem(s, exec, run) {
                                        off=${detachWhy(exec)} onPick=${() => detach(run, s.session)} />`;
 }
 
+function parentItem(s, snapshot, exec, sheet) {
+    return html`<${MenuItem} key="parent" label=${PARENT_LABEL} tip=${PARENT_NOTE}
+                            off=${parentWhy(exec, s, snapshot)}
+                            onPick=${() => sheet(LOOK_NAMES.parent, (close) => html`
+                                <${ParentSheet} name=${s.session} live=${s} snapshot=${snapshot} exec=${exec} onDone=${close} />`)} />`;
+}
+
 function pinItem(s, snapshot, exec, run, wait) {
     const pin = pinOf(s, (snapshot && snapshot.sessions) || [], wait);
     return html`<${MenuItem} key="pin" label=${pin.label} tip=${pin.tip} note=${pin.why}
@@ -102,12 +110,13 @@ function endsOf(exec, closing, restarting) {
 
 function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing }) {
     const run = useAction();
+    const sheet = useMenuSheet();
     const toast = useToast();
     const { closeWhy } = endsOf(exec, closing, "");
     const stopWhy = noTurn(s) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
-        [detachItem(s, exec, run), pinItem(s, snapshot, exec, run, wait)],
+        [detachItem(s, exec, run), parentItem(s, snapshot, exec, sheet), pinItem(s, snapshot, exec, run, wait)],
         copies(s.sessionId, s.cwd, true, toast),
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}
@@ -170,6 +179,7 @@ function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarti
             html`<${MenuItem} key="remote" label=${rc.shown ? "Turn Remote Control off" : "Turn Remote Control on"}
                               off=${rc.why} onPick=${rc.press} />`,
             detachItem(s, exec, run),
+            parentItem(s, snapshot, exec, sheet),
             pinItem(s, snapshot, exec, run, wait),
         ],
         copies(s.sessionId, s.cwd, false, toast),

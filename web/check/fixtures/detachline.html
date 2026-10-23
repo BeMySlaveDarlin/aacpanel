@@ -9,58 +9,86 @@
 // have the line, a session standing on its own has none, and the press goes
 // through the sheet that names the parent.
 import { render } from "preact";
+import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { SessionSections } from "/src/screens/chat/sessiontools.js";
 import { CodexSections } from "/src/screens/chat/codex.js";
+import { ParentSheet } from "/src/screens/chat/parent.js";
+import { Sheet } from "/src/ui/sheet.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const sent = [];
+let refuseParent = false;
 window.fetch = async (url, init) => {
     if (String(url) === "/api/actions") {
-        sent.push(JSON.parse((init && init.body) || "{}"));
+        const action = JSON.parse((init && init.body) || "{}");
+        sent.push(action);
+        if (action.kind === "session.parent" && refuseParent) {
+            return new Response("the chosen parent has ended", { status: 400 });
+        }
         return new Response(JSON.stringify({ logged: true, ok: true, detail: "ok" }),
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
 };
 
-const child = { session: "review", transport: "stream", profile: "personal", sessionId: "id-review", status: "idle",
+const project = { id: 11, name: "aacpanel", session: "aacpanel", path: "/srv/aacpanel" };
+const child = { session: "review", transport: "stream", profile: "personal", project, sessionId: "id-review", status: "idle",
     parent: { session: "aacpanel" } };
 const alone = { ...child, session: "solo", sessionId: "id-solo", parent: null };
-const thread = { session: "codex-2", agent: "codex", transport: "stream", sessionId: "th-2", status: "idle",
+const thread = { session: "codex-2", agent: "codex", title: "Codex parent", project, transport: "stream", sessionId: "th-2", status: "idle",
     parent: { session: "aacpanel" } };
-setLiveSessions([child, alone, thread]);
-const exec = { available: true, kinds: ["session.detach", "session.close", "session.stop", "session.remote", "session.rename"] };
-const snapshot = { profiles: [{ name: "personal", auth: "builtin" }] };
-const claude = (id, live) => html`
-    <div id=${id}><${SessionSections} name=${live.session} live=${live} exec=${exec} snapshot=${snapshot} cwd="/srv/aacpanel"
-        sides=${{ moves: "" }} win=${{ kind: "closed" }} way=${{ to: "" }} work=${null}
-        onDone=${() => {}} onWindow=${() => {}} onLook=${() => {}} /></div>`;
+const empty = { ...alone, session: "only", project: { ...project, id: 90 } };
+const offMap = { ...alone, session: "off-map", project: null };
+const outside = { ...child, session: "outside", outside: true };
+const sessions = [child, alone, thread, empty, offMap,
+    { ...alone, session: "aacpanel" },
+    { ...child, session: "kid", parent: { session: "review" } },
+    { ...child, session: "grandkid", parent: { session: "kid" } },
+    { ...child, session: "other-project-kid", project: { ...project, id: 12 }, parent: { session: "review" } },
+    { ...child, session: "returning-kid", parent: { session: "other-project-kid" } },
+    { ...alone, session: "same-name-project", project: { ...project, id: 12 } },
+    { ...alone, session: "aacpanel-unknown", project: undefined },
+];
+setLiveSessions(sessions);
+const exec = { available: true, kinds: ["session.parent", "session.detach", "session.close", "session.stop", "session.remote", "session.rename"] };
+const snapshot = { sessions, profiles: [{ name: "personal", auth: "builtin" }] };
+function Tools() {
+    const [picking, setPicking] = useState(null);
+    const one = (id, live, host = exec) => {
+        const Sections = live.agent === "codex" ? CodexSections : SessionSections;
+        return html`<div id=${id}><${Sections} name=${live.session} live=${live} exec=${host} snapshot=${snapshot} cwd="/srv/aacpanel"
+            sides=${{ moves: "" }} win=${{ kind: "closed" }} way=${{ to: "" }} work=${null}
+            onDone=${() => {}} onWindow=${() => {}} onLook=${(kind) => { if (kind === "parent") setPicking(live); }} /></div>`;
+    };
+    return html`
+        ${one("child", child)}${one("alone", alone)}${one("thread", thread)}${one("empty", empty)}
+        ${one("off-map", offMap)}${one("outside", outside)}${one("old-host", child, { available: true, kinds: [] })}
+        <${Sheet} open=${Boolean(picking)} onClose=${() => setPicking(null)} label="parent of the session" inner>
+            ${picking && html`<${ParentSheet} name=${picking.session} live=${picking} snapshot=${snapshot} exec=${exec}
+                                            onDone=${() => setPicking(null)} />`}
+        <//>
+    `;
+}
 
-render(html`
-    <${ToastHost}><${GateHost}>
-        ${claude("child", child)}
-        ${claude("alone", alone)}
-        <div id="thread"><${CodexSections} name=${thread.session} live=${thread} exec=${exec}
-                                           onDone=${() => {}} onLook=${() => {}} /></div>
-    <//><//>
-`, document.getElementById("root"));
+render(html`<${ToastHost}><${GateHost}><${Tools} /><//><//>`, document.getElementById("root"));
 
 const until = async (ok, ms = 3000) => {
     const end = performance.now() + ms;
     let got = ok();
     while (!got && performance.now() < end) {
-        await new Promise((r) => setTimeout(r, 25));
+        await new Promise((r) => requestAnimationFrame(r));
         got = ok();
     }
     return got;
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const labels = (id) => Array.from(document.querySelectorAll(`#${id} .toollabel`)).map(text);
-const line = (id) => Array.from(document.querySelectorAll(`#${id} .toolrow`))
-    .find((b) => text(b.querySelector(".toollabel")) === "Detach from parent");
+const root = document.getElementById("root");
+const labels = (id) => Array.from(root.querySelectorAll(`#${id} .toollabel`)).map(text);
+const line = (id, label = "Detach from parent") => Array.from(root.querySelectorAll(`#${id} .toolrow`))
+    .find((b) => text(b.querySelector(".toollabel")) === label);
 const confirmSel = ".sheet.on .btnrow .btn.primary";
 // detach presses the line of one session and says yes on the sheet; it
 // answers the title of the sheet.
@@ -82,6 +110,38 @@ window.done = (async () => {
         note: text(line("child") && line("child").querySelector(".toolnote")) };
     out.titles = [await detach("child"), await detach("thread")];
     out.sent = sent.map((s) => `${s.kind}:${s.target}:${JSON.stringify(s.params)}`);
+    out.blocked = Object.fromEntries(["empty", "off-map", "old-host"].map((id) => {
+        const row = line(id, "Stand under…");
+        return [id, { off: row && row.disabled, reason: text(row && row.querySelector(".toolnote")) }];
+    }));
+    out.outside = labels("outside");
+    const picker = () => root.querySelector('.sheet.on[aria-label="parent of the session"]');
+    const choose = async (id, name) => {
+        line(id, "Stand under…").click();
+        const sheet = await until(picker);
+        if (!sheet) throw new Error("the parent picker did not open");
+        const rows = Array.from(sheet.querySelectorAll(".pkrow"));
+        const options = rows.map((r) => text(r.querySelector(".pkname")));
+        const row = rows.find((r) => text(r.querySelector(".pkname")) === name);
+        if (!row) throw new Error(`the parent picker has no ${name}`);
+        row.click();
+        return options;
+    };
+    refuseParent = true;
+    out.parents = await choose("child", "Codex parent");
+    await until(() => text(root.querySelector(".toast.bad")).includes("the chosen parent has ended"));
+    out.refused = { message: text(root.querySelector(".toast.bad")), open: Boolean(picker()) };
+    refuseParent = false;
+    const retry = await until(() => Array.from(picker().querySelectorAll(".pkrow"))
+        .find((r) => !r.disabled && text(r.querySelector(".pkname")) === "Codex parent"));
+    if (!retry) throw new Error("the parent picker did not allow retry");
+    retry.click();
+    await until(() => !picker());
+    await choose("thread", "solo");
+    await until(() => !picker());
+    await choose("alone", "review");
+    await until(() => !picker());
+    out.parentSent = sent.filter((s) => s.kind === "session.parent");
     return out;
 })();
 </script>

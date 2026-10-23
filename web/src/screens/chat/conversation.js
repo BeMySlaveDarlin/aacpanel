@@ -13,6 +13,7 @@ import { REQUEST_HELD, revealWaiting, WaitingQueue } from "./request.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
+import { ParentSheet } from "./parent.js";
 import { useToast } from "../../ui/toasts.js";
 import * as codecopy from "./copy.js";
 import { ContextBar } from "../../ui/bar.js";
@@ -645,6 +646,9 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                              exec=${exec} shelf=${secrets} onSaved=${() => { loadSecrets(); settleWaiting(live, "secret", look.item.name); }}
                                              onDone=${() => setLook(null)} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to hand the secret to.</p>`)
+                : look.kind === "parent"
+                ? html`<${ParentSheet} name=${name} live=${live} snapshot=${snapshot} exec=${exec}
+                                      onDone=${() => setLook(null)} />`
                 : look.kind === "tools"
                 ? html`<${SessionTools} ...${tools}
                                         onRepo=${here ? () => { setLook(null); setRepo(true); } : null}

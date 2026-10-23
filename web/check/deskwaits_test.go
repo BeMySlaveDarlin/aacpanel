@@ -232,6 +232,8 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		// A session taken from under its parent stays in the list: it stands
 		// on its own with the next snapshot, and nothing leaves or joins.
 		"session.detach": "",
+		// A different parent rearranges the same live sessions on the next snapshot.
+		"session.parent": "",
 		// The pin moves the group at the press and waits for the root's saved state.
 		"session.pin": "pin",
 	}

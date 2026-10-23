@@ -1938,8 +1938,12 @@ parent in its environment: the one the file of the old process names, and
 else the one the snapshot holds — the snapshot reads the file a moment after
 the executor wrote it, and a move with the panel down knows only the parent
 the session was started with. A codex thread is stood under a session where a
-thread started for one keeps its parent. No screen offers it: a request on the
-local listener does it, and the journal names it.
+thread started for one keeps its parent. Stand under… in the session's tools
+on a phone and at a desk, and in its desktop menu, chooses a live parent from
+the same project of the map, claude or codex. The choice leaves out the session
+itself, its descendants and its current parent; a session already under one
+can move under another. Without a candidate the entry says why it cannot be
+pressed. The choice goes through the action gate, and the journal names it.
 
 **A live session is taken from under its parent with `session.detach`**, from
 its menu and its tools while it stands under one. The parent it was opened with

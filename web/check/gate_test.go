@@ -203,6 +203,8 @@ var instantActions = map[string]bool{
 	"session.intent": true,
 	// A pin is undone by the same button on the session group.
 	"session.pin": true,
+	// The parent is chosen on its sheet and can be changed there or detached.
+	"session.parent": true,
 	// Remote Control is a switch in the header: it says which way it stands,
 	// and the same press puts it back.
 	"session.remote": true,
@@ -253,6 +255,7 @@ var instantExecActions = map[string]bool{
 	"session.role":       true,
 	"session.intent":     true,
 	"session.pin":        true,
+	"session.parent":     true,
 	"session.remote":     true,
 	"secret.put":         true,
 	"term.start":         true,
@@ -315,14 +318,10 @@ var entailed = regexp.MustCompile(`entails:\s*"([a-z]+\.[a-zA-Z]+)"`)
 // askedOffScreen are the actions no screen presses, by who asks for them
 // over the local listener instead, and the person meets them in the journal
 // alone, by the name the registry gives them. A letter is a session's, sent
-// with a tool of the panel's server. Standing a live session under another is
-// done once for the sessions started before the panel kept a parent, and later
-// for one the person names: a request on the local listener does it, and no
-// screen offers it.
+// with a tool of the panel's server.
 var askedOffScreen = map[string]string{
 	"session.letter": "a session, with the send_to_session tool",
 	"session.ready":  "a session replying to the panel's request to save",
-	"session.parent": "a request on the local listener",
 	"observer.start": "a session after its private observer start",
 	"alarm.set":      "a session after its private alarm set",
 }

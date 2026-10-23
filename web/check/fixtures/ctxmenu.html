@@ -3,12 +3,12 @@
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>
 html,body{margin:0}
-#app .deskshell{position:static;height:900px}
-#app .dkbody{height:450px}
+#root .deskshell{position:static;height:900px}
+#root .dkbody{height:450px}
 #narrow{position:fixed;left:0;bottom:0;width:900px;height:120px;border:0;opacity:0;pointer-events:none}
 </style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
-<div id="app"></div>
+<div id="root"></div>
 <iframe id="narrow"></iframe>
 <script type="module">
 // The menu of the right click at a desk: one host in the shell, the menus of
@@ -84,7 +84,7 @@ const tree = { running: 1, total: 2, stacks: [{ name: "shop", running: 1, total:
 // The host knows every kind the menus press but Remote Control and the
 // restart of a container: those two are dimmed, and say why.
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.resume", "session.open",
-    "session.switch", "session.rename", "session.stop", "session.detach", "window.open", "window.close", "term.start",
+    "session.switch", "session.rename", "session.stop", "session.detach", "session.parent", "window.open", "window.close", "term.start",
     "container.stop", "container.start", "stack.up", "stack.down"] };
 setLiveSessions(sessions);
 
@@ -170,7 +170,7 @@ function Shell() {
         </div>
     `;
 }
-render(h(ToastHost, null, h(GateHost, null, h(Shell))), document.getElementById("app"));
+render(h(ToastHost, null, h(GateHost, null, h(Shell))), document.getElementById("root"));
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const until = async (fn, ms = 3000) => {
@@ -421,14 +421,32 @@ window.done = (async () => {
     await openOn(rowOf("cx-thread"));
     out.lists.codex = read();
     out.about.codexClose = about("Close the session");
+    out.about.parentEmpty = about("Stand under…");
     await shut();
     // A session standing under another is taken from under it, after the
     // sheet that names the parent; a thread of codex the same way.
     await openOn(rowOf("cx-review"));
     out.lists.codexChild = read();
-    await shut();
+    const stand = async (name) => {
+        const before = sent.length;
+        itemOf("Stand under…").click();
+        const root = document.getElementById("root");
+        const sheet = await until(() => root.querySelector('.sheet.on[aria-label="parent of the session"]'));
+        if (!sheet) throw new Error("the parent picker did not open from the menu");
+        const rows = Array.from(sheet.querySelectorAll(".pkrow"));
+        const choices = rows.map((r) => text(r.querySelector(".pkname")));
+        const row = rows.find((r) => text(r.querySelector(".pkname")) === name);
+        if (!row) throw new Error(`the parent picker has no ${name}`);
+        row.click();
+        await until(() => sent.length > before && !root.querySelector(".sheet.on"));
+        return { choices, sent: sent[sent.length - 1] };
+    };
+    out.stood = [await stand("review")];
     await openOn(rowOf("review"), true);
     out.lists.child = read();
+    out.about.parent = about("Stand under…");
+    out.stood.push(await stand("cx-review"));
+    await openOn(rowOf("review"), true);
     out.about.detach = about("Detach from parent");
     const detachedBefore = sent.length;
     itemOf("Detach from parent").click();
