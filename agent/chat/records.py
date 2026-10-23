@@ -11,7 +11,7 @@ from .cards import (BRIEF_TOOL, NOTIFY_TOOL, SECRET_TOOL, REQUEST_TOOL, request_
                     permit_card, permit_row, secret_call, secret_card, sent_card, wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
                       service, strip_panel_note, unwrap_pasted)
-from .mail import LETTER_TOOL, peer_name, peer_pid, undelivered
+from .mail import LETTER_TOOL, panel_message, peer_name, peer_pid, undelivered
 from .notices import hook_call, system_notice
 from .limits import MAX_NOTE, MAX_TEXT, cut
 from .queue import delivered, withdrawn
@@ -276,6 +276,8 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         answer = command_answer(record, text, at, pos, unanswered)
         if answer is not None:
             return answer
+        if panel_message(text) is not None:
+            return service_once(text, at, pos, pending)
         role, shown = classify(text)
         if role == "note":
             return [{"role": "note", "text": shown, "at": at, "pos": pos}]
@@ -406,6 +408,10 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         letter = coordinator_letter(record.get("origin"), text, at, pos) if text else None
         if letter is not None:
             return out + letter
+        # A panel instruction is a prompt as the person's is, so it is told
+        # apart before any path that would draw it as theirs.
+        if panel_message(text) is not None:
+            return out + service_once(text, at, pos, pending, read=True)
         if not text or "system-reminder" in text[:200]:
             return out
         # Only a record the harness wrote can be an answer: a person pasting

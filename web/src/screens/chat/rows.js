@@ -258,8 +258,8 @@ function onTheWay(state) {
 
 // What a letter is: a session next door, an agent of this one, a hook of the
 // session speaking at the end of a turn, an alarm of the session waking it up,
-// an alarm or an observer the session asked the panel for, or the task of a
-// thread of codex another drives. All of them arrive among the prompts, most
+// an alarm or an observer the session asked the panel for, a panel instruction,
+// or the task of a thread of codex another drives. All arrive among the prompts, most
 // wrapped in a preamble nobody reads twice, so all are drawn the same way — a
 // card of the build of the files sent to the person: who and when on its
 // head, the first lines of the letter, and the rest opened by a row under
@@ -269,6 +269,7 @@ function onTheWay(state) {
 // tell.
 const MAIL_KINDS = {
     session: "session", agent: "agent", hook: "hook", wake: "wake", task: "task", alarm: "alarm", observer: "observer",
+    panel: "panel",
 };
 
 const MAIL_WHO = { session: "agent", agent: "agent", hook: "stop hook" };
@@ -283,17 +284,19 @@ const MAIL_LABEL = {
     task: ["task", "task"],
     alarm: ["alarm", "alarm"],
     observer: ["observer", "observer"],
+    panel: ["panel", "panel"],
 };
 
 const MAIL_ICONS = {
     session: Icon.envelope, agent: Icon.envelope, hook: Icon.hook, wake: Icon.clock, task: Icon.robot,
-    alarm: Icon.clock, observer: Icon.eye,
+    alarm: Icon.clock, observer: Icon.eye, panel: Icon.artifact,
 };
 
 // What the row under a letter calls it: a wake-up is the prompt the session
 // set itself, a task what a thread was given, not a letter anyone wrote.
 const MAIL_WORD = {
     session: "letter", agent: "letter", hook: "letter", wake: "prompt", task: "task", alarm: "letter", observer: "letter",
+    panel: "message",
 };
 
 // A letter sent is drawn when it is sent, and whether it reached anyone comes

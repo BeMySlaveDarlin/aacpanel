@@ -174,9 +174,11 @@ asked to save once its context reaches the cap minus `guards.RestartMargin`. Bac
 does not delay this command: the command asks the session to update its task
 registry, save a handoff through its project's finalize skill where present,
 commit completed work and cleanly stop its agents, workflows, background
-commands and panel observers. It travels through `session.send`, the same path
-as a message from the phone. The session calls `session_ready` and ends its turn;
-it does not call `session_restart` or tell the person about the context or restart.
+commands and panel observers. The command and its reminders travel through
+`session.send` inside a `<panel-message from="context restart">` tag: the session
+receives a user prompt, and the feed draws a panel card. The session calls
+`session_ready` and ends its turn; it does not call `session_restart` or tell
+the person about the context or restart.
 Codex, sessions outside the map and projects without `autoRestart` are excluded.
 The prompt stamp names the cap itself, never the margin: a session told of the
 margin would stop short of that instead.

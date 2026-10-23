@@ -785,10 +785,10 @@ div.mtask { cursor: default; }
 .mflist > .artifact .brico { width: 16px; height: 16px; }
 .mflist > .artifact .crgo { width: 12px; height: 12px; }
 
-/* A wake-up is the session's own alarm, not a correspondent, and so are the
-   alarms and the observers the panel keeps for it: their mark is the quiet ink
-   rather than the accent. */
-.mletter.k-wake .sentico, .mletter.k-alarm .sentico, .mletter.k-observer .sentico { color: var(--ink-dim); }
+/* Alarms, observers and the panel's instructions are not correspondents:
+   their mark uses the quiet ink rather than the accent. */
+.mletter.k-wake .sentico, .mletter.k-alarm .sentico, .mletter.k-observer .sentico,
+.mletter.k-panel .sentico { color: var(--ink-dim); }
 
 /* What the panel said for the person — a secret saved, the answers to a
    brief, a reading of the branch: a card of the same build, on the person's

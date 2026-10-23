@@ -330,6 +330,7 @@ func TestAMessageIsTypedRatherThanHandedOverAsAPaste(t *testing.T) {
 		{name: "a short line", text: "ok", paste: false},
 		{name: "a long line", text: strings.Repeat("check the stack logs and say what crashed, ", 5), paste: false},
 		{name: "several lines", text: "check the stack logs\nand say what crashed", paste: false},
+		{name: "a panel instruction", text: "<panel-message from=\"context restart\">\nSave the handoff.\n</panel-message>", paste: false},
 		{name: "an at-sign in the middle", text: "ask about @CLAUDE.md and the base", paste: false},
 		// What typing would change into something else.
 		{name: "a slash command", text: "/status", paste: true},

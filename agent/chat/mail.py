@@ -1,4 +1,4 @@
-"""Mail between claude sessions: from a subagent and from a neighbour session."""
+"""Letters from sessions and subagents, and instructions from the panel."""
 import json
 import os
 import re
@@ -12,6 +12,21 @@ from .limits import MAX_NOTE, MAX_RESULT, cut
 MAIL_RE = re.compile(
     r"<(teammate|cross-session|agent)-message\s+([^>]*)>(.*?)</\1-message>", re.S)
 MAIL_ATTR_RE = re.compile(r'(\w[\w-]*)\s*=\s*"([^"]*)"')
+PANEL_MESSAGE_RE = re.compile(r'<panel-message\s+from="([^"]*)"\s*>(.*?)</panel-message>', re.S)
+
+
+def panel_message(text):
+    """Returns the sender and body of a whole panel prompt, or None for ordinary text.
+
+    The wrapper identifies an instruction sent as a user prompt. A person
+    discussing the tag in their own words still wrote an ordinary message.
+    """
+    text = text.strip()
+    found = PANEL_MESSAGE_RE.match(text)
+    if found is None or found.end() != len(text):
+        return None
+    return found.group(1), found.group(2).strip()
+
 
 # What a subagent's final report is wrapped in before it reaches the session,
 # and where the report itself begins inside that wrapping. The preamble says

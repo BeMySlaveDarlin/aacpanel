@@ -420,6 +420,23 @@ func TestTmuxSendRefusesNUL(t *testing.T) {
 	}
 }
 
+func TestTmuxSendKeepsPanelMessageLiteral(t *testing.T) {
+	log := fakeTmux(t, nil, "")
+	pane := tmuxPane{Target: "aacpanel:0.0"}
+	const text = "<panel-message from=\"context restart\">\nSave the handoff.\nCall session_ready.\n</panel-message>"
+	if err := pane.send(t.Context(), text); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "send-keys\n-t\naacpanel:0.0\n-l\n--\n" + text + "\n--\n"
+	if string(raw) != want {
+		t.Fatalf("tmux did not receive the literal panel message: %q", raw)
+	}
+}
+
 func TestTmuxScreenReadsPane(t *testing.T) {
 	const screen = "❯ a reply\n"
 	log := fakeTmux(t, nil, screen)

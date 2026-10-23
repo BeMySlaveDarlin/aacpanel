@@ -19,7 +19,7 @@ func TestRestartCycleWaitsForTheTurnAndThenForReadiness(t *testing.T) {
 	c := store.RestartCycle{Conversation: switchSID, CommandAt: now}
 	row := restartSession{Status: "idle", StatusAt: now.Add(-time.Minute).UnixMilli()}
 	step := nextRestart(c, row, now, now)
-	if step.Kind != action.SessionSend || step.Text != restartCommand {
+	if step.Kind != action.SessionSend || step.Text != restartMessage(restartCommand) {
 		t.Fatalf("command: %+v", step)
 	}
 	c.Commanded = true
@@ -35,7 +35,7 @@ func TestRestartCycleWaitsForTheTurnAndThenForReadiness(t *testing.T) {
 	row.StatusAt = now.Add(2 * time.Second).UnixMilli()
 	now = now.Add(3 * time.Second)
 	step = nextRestart(c, row, now, now)
-	if step.Kind != action.SessionSend || step.Text != restartReminder {
+	if step.Kind != action.SessionSend || step.Text != restartMessage(restartReminder) {
 		t.Fatalf("reminder: %+v", step)
 	}
 	c.RemindedAt = &now
@@ -54,7 +54,7 @@ func TestRestartCycleSeesAStreamTurnOverBesideItsAgents(t *testing.T) {
 	c := store.RestartCycle{CommandAt: now.Add(-time.Minute), Commanded: true}
 	row := restartSession{Status: "busy", TurnOver: true, LastRequestAt: now.Format(time.RFC3339), Work: json.RawMessage(`{"agents":1}`)}
 	step := nextRestart(c, row, now.Add(time.Second), now.Add(time.Second))
-	if step.Kind != action.SessionSend || step.Text != restartReminder {
+	if step.Kind != action.SessionSend || step.Text != restartMessage(restartReminder) {
 		t.Fatalf("no reminder after the stream's turn: %+v", step)
 	}
 	c.ReadyAt = &now
@@ -108,6 +108,33 @@ func TestRestartCycleReadinessWaitsForFreshIdleAndAllWork(t *testing.T) {
 	c.Done = true
 	if step := nextRestart(c, row, now.Add(time.Hour), now.Add(time.Hour)); step.Kind != "" {
 		t.Fatalf("second cycle: %+v", step)
+	}
+}
+
+func TestRestartMessagesArePanelPrompts(t *testing.T) {
+	now := time.Unix(2000, 0)
+	for _, tc := range []struct {
+		name  string
+		cycle store.RestartCycle
+		work  string
+		text  string
+	}{
+		{name: "command", text: restartCommand},
+		{name: "readiness reminder", cycle: store.RestartCycle{Commanded: true, CommandAt: now.Add(-time.Minute)}, text: restartReminder},
+		{name: "work reminder", cycle: store.RestartCycle{Commanded: true, ReadyAt: &now}, work: `{"agents":1}`, text: restartWorkReminder("1 agent")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			row := restartSession{Status: "idle", StatusAt: now.UnixMilli(), Work: json.RawMessage(tc.work)}
+			step := nextRestart(tc.cycle, row, now.Add(time.Second), now.Add(time.Second))
+			want := "<panel-message from=\"context restart\">\n" + tc.text + "\n</panel-message>"
+			if step.Kind != action.SessionSend || step.Text != want {
+				t.Fatalf("the instruction is not a panel prompt: %+v", step)
+			}
+			req := action.Request{ID: "restart-message", Kind: step.Kind, Target: "aacpanel", Text: step.Text}
+			if err := req.Validate(); err != nil {
+				t.Fatalf("session.send rejects the wrapped instruction: %v", err)
+			}
+		})
 	}
 }
 
@@ -171,7 +198,7 @@ func TestRestartCycleSurvivesServiceReplacementPG(t *testing.T) {
 	if err := srv.restartOnce(t.Context(), now); err != nil {
 		t.Fatal(err)
 	}
-	if req := <-fake.got; req.Kind != action.SessionSend || req.Text != restartCommand {
+	if req := <-fake.got; req.Kind != action.SessionSend || req.Text != restartMessage(restartCommand) {
 		t.Fatalf("command: %+v", req)
 	}
 	if w := readyPost(t, srv, false, "Next step"); w.Code != http.StatusForbidden {

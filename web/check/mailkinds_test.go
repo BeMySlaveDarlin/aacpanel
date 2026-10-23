@@ -6,13 +6,15 @@ import (
 )
 
 type mailRow struct {
-	Cls    string `json:"cls"`
-	Label  string `json:"label"`
-	From   string `json:"from"`
-	Peek   string `json:"peek"`
-	Icon   string `json:"icon"`
-	More   bool   `json:"more"`
-	Tables int    `json:"tables"`
+	Cls      string `json:"cls"`
+	Label    string `json:"label"`
+	From     string `json:"from"`
+	Peek     string `json:"peek"`
+	Icon     string `json:"icon"`
+	Glyph    string `json:"glyph"`
+	More     bool   `json:"more"`
+	MoreText string `json:"moreText"`
+	Tables   int    `json:"tables"`
 }
 
 type mailShot struct {
@@ -23,6 +25,10 @@ type mailShot struct {
 		Body   string `json:"body"`
 		Tables int    `json:"tables"`
 	} `json:"opened"`
+	PanelOpened struct {
+		Body string `json:"body"`
+		Fold string `json:"fold"`
+	} `json:"panelOpened"`
 }
 
 // A session next door, a subagent of this session and a hook of it all arrive
@@ -39,8 +45,8 @@ func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 		t.Fatal(shot.Error)
 	}
 
-	if len(shot.Rows) != 5 {
-		t.Fatalf("%d letters drawn, wanted five: %+v", len(shot.Rows), shot.Rows)
+	if len(shot.Rows) != 6 {
+		t.Fatalf("%d letters drawn, wanted six: %+v", len(shot.Rows), shot.Rows)
 	}
 	for i, want := range []struct{ kind, label, from, peek string }{
 		{"session", "from agent", "infra-rework", "Four sets green"},
@@ -48,6 +54,7 @@ func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 		{"hook", "stop hook", "", "the router did not pass"},
 		{"alarm", "alarm", "shelf-watch", "Alarm shelf-watch"},
 		{"observer", "observer", "ci", "Observer ci"},
+		{"panel", "panel", "context restart", "Save the handoff."},
 	} {
 		got := shot.Rows[i]
 		if !strings.Contains(got.Cls, "sent") || !strings.Contains(got.Cls, "k-"+want.kind) {
@@ -73,11 +80,22 @@ func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 
 	// The hook and the panel's letters are not correspondents, and their mark
 	// says so.
-	for _, i := range []int{2, 3, 4} {
+	for _, i := range []int{2, 3, 4, 5} {
 		if shot.Rows[i].Icon == shot.Rows[0].Icon {
 			t.Errorf("the %s and the neighbour session are marked in the same colour (%q) — "+
 				"it reads as a letter of a correspondent", shot.Rows[i].Label, shot.Rows[i].Icon)
 		}
+	}
+	panel := shot.Rows[5]
+	if panel.Glyph == "" || panel.Glyph == shot.Rows[0].Glyph {
+		t.Error("the panel instruction uses the correspondent's envelope")
+	}
+	if panel.MoreText != "The whole message" || shot.PanelOpened.Fold != "Fold the message" {
+		t.Errorf("the panel instruction is not called a message: %+v, %+v", panel, shot.PanelOpened)
+	}
+	if !strings.Contains(shot.PanelOpened.Body, "Save the handoff.") ||
+		!strings.Contains(shot.PanelOpened.Body, "Call session_ready and end the turn.") {
+		t.Errorf("the opened panel instruction lost its body: %+v", shot.PanelOpened)
 	}
 
 	if !shot.Opened.Open {

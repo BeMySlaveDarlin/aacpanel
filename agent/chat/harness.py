@@ -2,7 +2,7 @@
 import re
 
 from .limits import MAX_TEXT, cut
-from .mail import mails
+from .mail import mails, panel_message
 
 
 # What claude writes when the person stops an answer: the turn is over there,
@@ -122,6 +122,12 @@ def hook_feedback(text):
 
 def service(text, at, pos):
     """Returns feed items for a record the human did not write, or None for plain text."""
+    panel = panel_message(text)
+    if panel is not None:
+        who, said = panel
+        body, trimmed = cut(said, MAX_TEXT)
+        return [{"role": "mail", "from": who, "source": "panel",
+                 "text": body, "cut": trimmed, "at": at, "pos": pos}]
     said = delivery(text)
     if said:
         return [{"role": "note", "text": said, "at": at, "pos": pos}]

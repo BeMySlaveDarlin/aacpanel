@@ -24,6 +24,8 @@ const (
 	restartSnapshotAge = 30 * time.Second
 )
 
+const restartSender = "context restart"
+
 const restartCommand = "This session has reached its project's context cap. The panel will restart it with an empty context. " +
 	"Start no new work, background included. Update the task registry, save a handoff using the project's finalize skill if it has one, " +
 	"and commit completed work. Cleanly stop your background commands, agents, workflows and panel observers. " +
@@ -39,6 +41,12 @@ func restartWorkReminder(work string) string {
 	return "Readiness was accepted, but this session still has " + work + " at work. Cleanly stop that work, then end the turn and wait. " +
 		"The panel will restart this session even if that work is unfinished five minutes after this reminder. " +
 		"Do not call session_restart or tell the person about the context, the cap or the restart."
+}
+
+// The instruction stays a user prompt so the session obeys it; the envelope
+// tells the feed that the panel, rather than the person, wrote it.
+func restartMessage(text string) string {
+	return "<panel-message from=\"" + restartSender + "\">\n" + text + "\n</panel-message>"
 }
 
 type restartSession struct {
@@ -77,7 +85,7 @@ func nextRestart(c store.RestartCycle, s restartSession, snapshotAt, now time.Ti
 	}
 	if !c.Commanded {
 		if s.idle() {
-			return restartStep{Kind: action.SessionSend, Text: restartCommand}
+			return restartStep{Kind: action.SessionSend, Text: restartMessage(restartCommand)}
 		}
 		return restartStep{}
 	}
@@ -93,11 +101,11 @@ func nextRestart(c store.RestartCycle, s restartSession, snapshotAt, now time.Ti
 		return restartStep{}
 	}
 	if readyIdle && busy {
-		return restartStep{Kind: action.SessionSend, Text: restartWorkReminder(work)}
+		return restartStep{Kind: action.SessionSend, Text: restartMessage(restartWorkReminder(work))}
 	}
 	requestAt, _ := time.Parse(time.RFC3339Nano, s.LastRequestAt)
 	if c.ReadyAt == nil && s.idle() && (s.StatusAt > c.CommandAt.UnixMilli() || requestAt.After(c.CommandAt)) && snapshotAt.After(c.CommandAt) {
-		return restartStep{Kind: action.SessionSend, Text: restartReminder}
+		return restartStep{Kind: action.SessionSend, Text: restartMessage(restartReminder)}
 	}
 	return restartStep{}
 }
@@ -230,11 +238,11 @@ func (s *Server) restartAction(ctx context.Context, c store.RestartCycle, step r
 		params["anyway"] = true
 	}
 	id, err := s.db.LogAttempt(ctx, store.Action{Kind: string(step.Kind), Target: c.Session,
-		DeviceName: "context restart", Params: params})
+		DeviceName: restartSender, Params: params})
 	if err != nil {
 		return err
 	}
-	req := action.Request{ID: requestID(id), Kind: step.Kind, Target: c.Session, Text: step.Text, Device: "context restart"}
+	req := action.Request{ID: requestID(id), Kind: step.Kind, Target: c.Session, Text: step.Text, Device: restartSender}
 	if step.Kind == action.SessionRestart {
 		plan, planErr := s.restartPlan(ctx, c.Session, map[string]any{"conversation": c.Conversation})
 		err = planErr

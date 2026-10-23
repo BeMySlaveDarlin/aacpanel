@@ -6,8 +6,9 @@
 <script type="module">
 // The kinds of letter a session gets among the prompts: a neighbour session, a
 // subagent of its own, a hook of the session speaking at the end of a turn, and
-// an alarm and an observer the panel keeps for it. All are cards of the build
-// of the files sent to the person; what differs is the word on the head, who
+// an alarm and an observer the panel keeps for it, and an instruction from the
+// panel itself. All are cards of the build of the files sent to the person;
+// what differs is the word on the head, who
 // signs it and, for the hook and the panel's, the colour of its mark. The
 // report of the subagent is long and comes indented.
 import { h, render } from "preact";
@@ -25,11 +26,19 @@ const items = [
       text: "Alarm shelf-watch, which this session set with alarm_set to ring every 1h." },
     { role: "mail", from: "ci", source: "observer", pos: 50, at,
       text: "Observer ci: the command ended with code 0." },
+    { role: "mail", from: "context restart", source: "panel", pos: 60, at,
+      text: "Save the handoff.\n\nCall session_ready and end the turn." },
 ];
 render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: item.pos }))),
     document.getElementById("root"));
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await quiet();
+    return ok();
+};
 (async () => {
   try {
+    if (!await until(() => document.querySelectorAll(".mletter").length === items.length)) throw new Error("the letters did not come");
     await quiet();
     const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
     const rows = Array.from(document.querySelectorAll(".mletter")).map((el) => ({
@@ -38,7 +47,9 @@ render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: i
         from: text(el.querySelector(".mletterwho")),
         peek: text(el.querySelector(".mletterbody")),
         icon: getComputedStyle(el.querySelector(".sentico")).color,
+        glyph: el.querySelector(".sentico svg").outerHTML,
         more: Boolean(el.querySelector(".mlettermore")),
+        moreText: text(el.querySelector(".mlettermore .mfname")),
         tables: el.querySelectorAll(".mdtab").length,
     }));
     // The report opens on a press of the row under it and shows the rest,
@@ -51,7 +62,14 @@ render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: i
         body: text(report.querySelector(".mletterbody")),
         tables: report.querySelectorAll(".mdtab").length,
     };
-    window.done = { rows, opened };
+    const panel = document.querySelector(".mletter.k-panel");
+    panel.querySelector(".mlettermore").click();
+    if (!await until(() => panel.classList.contains("open"))) throw new Error("the panel message did not open");
+    const panelOpened = {
+        body: text(panel.querySelector(".mletterbody")),
+        fold: text(panel.querySelector(".mlettermore .mfname")),
+    };
+    window.done = { rows, opened, panelOpened };
   } catch (err) {
     window.done = { error: String(err && err.stack || err) };
   }
