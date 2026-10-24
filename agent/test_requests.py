@@ -73,3 +73,60 @@ class Requests(unittest.TestCase):
             with open(path, "w", encoding="utf-8") as stream:
                 stream.write(json.dumps({"type": "user", "message": {"content": "new conversation"}}) + "\n")
             self.assertEqual(cards(path), [], "a replaced transcript kept the previous task")
+
+
+class TextQuestions(unittest.TestCase):
+    def test_only_prose_can_be_a_question(self):
+        from chat.waiting import question_in
+        for text in ["Before. Shall I publish? I can wait.", "[Shall I publish?](https://example.test)",
+                     "`x?` and the real question?", "``x`?`` and this?"]:
+            with self.subTest(text=text):
+                self.assertTrue(question_in(text))
+        for text in ["Done.", "Use `x ? a : b`.", "Use ``a`?``.",
+                     "```js\nx ? a : b\n```\nDone.", "~~~\nwhy?\n~~~", "```\nwhy?",
+                     "    x ? a : b", "https://example.test/path?q=1", "<https://example.test/?q=1>",
+                     "[link](/page?q=1)", "[link][one]\n[one]: https://example.test/?q=1"]:
+            with self.subTest(text=text):
+                self.assertFalse(question_in(text))
+
+    def test_a_candidate_has_the_feed_anchor_and_leaves_on_human_input(self):
+        with test_barrier.tmp_dir() as directory:
+            path = os.path.join(directory, "conversation.jsonl")
+            def append(record):
+                with open(path, "a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(record) + "\n")
+            append({"type": "assistant", "uuid": "message-one", "message": {"content": [
+                {"type": "text", "text": "Shall I publish? The checks passed."}]}})
+            found = cards(path)
+            self.assertEqual(len(found), 1)
+            self.assertEqual(found[0]["role"], "question")
+            self.assertEqual(found[0]["id"], "message-one")
+            self.assertEqual(found[0]["pos"], chat.feed(path)["items"][0]["pos"])
+            self.assertEqual(cards(path), found)
+            append(result("The tool finished."))
+            self.assertEqual(cards(path), found, "a tool result settled the question")
+            append({"type": "user", "message": {"content": "Yes, publish."}})
+            self.assertEqual(cards(path), [])
+            append({"type": "assistant", "uuid": "message-two", "message": {"content": [
+                {"type": "text", "text": "Another question?"}]}})
+            self.assertEqual(cards(path)[0]["id"], "message-two")
+            append({"type": "assistant", "uuid": "message-three", "message": {"content": [
+                {"type": "text", "text": "I have the answer."}]}})
+            self.assertEqual(cards(path), [], "an older assistant message remained a candidate")
+
+    def test_a_question_past_the_feed_limit_is_still_a_candidate(self):
+        from chat.limits import MAX_TEXT
+        index = Index("/unused/conversation.jsonl")
+        record = {"type": "assistant", "uuid": "long-message", "message": {"content": [
+            {"type": "text", "text": "x" * MAX_TEXT + " Shall I publish?"}]}}
+        index.inspect(record, chat.parse(record, 42))
+        self.assertIsNotNone(index.question)
+        self.assertTrue(index.question["cut"])
+
+    def test_codex_and_sidechains_never_supply_a_candidate(self):
+        index = Index("/unused/conversation.jsonl")
+        item = {"role": "ai", "text": "Publish?", "pos": 1}
+        index.inspect({"type": "response_item", "payload": {}}, [item])
+        self.assertIsNone(index.question)
+        index.inspect({"type": "assistant", "isSidechain": True}, [item])
+        self.assertIsNone(index.question)

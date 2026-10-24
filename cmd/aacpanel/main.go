@@ -341,6 +341,7 @@ func run() error {
 		srv.guards = make(chan struct{}, 1)
 		go srv.runGuards(ctx)
 		go srv.runRestarts(ctx)
+		go srv.runTextQuestions(ctx)
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

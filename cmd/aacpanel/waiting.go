@@ -63,8 +63,11 @@ func waitingFor(requests []personrequest.Record, called string, cards []chat.Ite
 		}
 	}
 	for _, card := range cards {
-		// Questions and permission cards are already visible turn stops. The
-		// queue counts only the four kinds the person can leave outstanding.
+		if card.Role == "question" && card.BriefID != "" {
+			add(waitingItem{Kind: "question", ID: card.BriefID, Title: card.Title, At: card.At}, &card)
+			continue
+		}
+		// Tool questions and permissions have their own visible turn stops.
 		if card.Role != "secret" {
 			continue
 		}
@@ -115,19 +118,9 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 			requests[row.Conversation] = append(requests[row.Conversation], row)
 		}
 	}
-	cards := map[string][]chat.Item{}
+	cards := s.questionCards(ctx, rows, s.waitingCards(ctx, ids))
 	var briefs []chat.BriefCard
 	if s.chat != nil && s.chat.Available() {
-		for start := 0; start < len(ids); start += 32 {
-			got, err := s.chat.Feed(ctx, chat.Req{Waiting: ids[start:min(start+32, len(ids))]})
-			if err != nil {
-				log.Printf("the waiting cards: %v", err)
-				break
-			}
-			for id, list := range got.Waiting {
-				cards[id] = list
-			}
-		}
 		var err error
 		briefs, err = s.chat.Briefs(ctx, "")
 		if err != nil {

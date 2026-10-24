@@ -87,3 +87,34 @@ func TestTheIntervalOfTheProbeIsTheHosts(t *testing.T) {
 		t.Errorf("an interval under a minute is taken: %s", LimitsInterval())
 	}
 }
+
+func TestQuestionClassifierRunsInTheSessionsContour(t *testing.T) {
+	root := t.TempDir()
+	config := filepath.Join(root, "account")
+	t.Setenv(sessionsEnv, "")
+	t.Setenv("AACP_CLAUDE_HOME", "")
+	reg := filepath.Join(root, "registry")
+	if err := os.WriteFile(reg, []byte("work|"+root+"|"+config+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(registryEnv, reg)
+	procFS(t, fakeProc{pid: 7001, comm: "claude", args: []string{"claude"}, start: "71"})
+	sessionFilesIn(t, filepath.Join(config, "sessions"), fakeSession{pid: 7001, name: "demo", start: "71", sid: senderSID})
+	bin := filepath.Join(root, "claude")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\ncat > candidate.json\nprintf '%s' '{\"result\":\"yes\"}'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(probeClaudeEnv, bin)
+	e, _ := newTest(t, "")
+	yes, err := e.Question(t.Context(), "demo", senderSID, "Publish?")
+	if err != nil || !yes {
+		t.Fatalf("classification: %v %v", yes, err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "candidate.json"))
+	if err != nil || !strings.Contains(string(raw), "Publish?") {
+		t.Fatalf("wrong contour: %s %v", raw, err)
+	}
+	if _, err := e.Question(t.Context(), "demo", streamSID, "Publish?"); err == nil {
+		t.Fatal("a replacement conversation spent a call")
+	}
+}

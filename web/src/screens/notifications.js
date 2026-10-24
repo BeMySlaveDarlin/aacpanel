@@ -95,6 +95,7 @@ function whole(prefs) {
     const p = prefs || {};
     return {
         off: p.off || [],
+        checkQuestions: p.checkQuestions !== false,
         rules: p.rules || [],
         sessions: p.sessions || [],
         stacks: p.stacks || [],
@@ -220,6 +221,9 @@ function Choice({ prefs, sources, change }) {
                     <div class="grouphead">needs you</div>
                     <section class="card nfcard">
                         <${Always} title="A session calls you" sub="it was asked to — always comes" />
+                        <${Kind} title="A question in text" on=${heard("question")} onFlip=${kind("question")} />
+                        <${Kind} title="Check questions in text with haiku" sub="off shows every candidate" on=${prefs.checkQuestions}
+                            onFlip=${() => change((p) => ({ ...p, checkQuestions: !p.checkQuestions }))} />
                         <${Kind} title="A question" on=${heard("ask")} onFlip=${kind("ask")} />
                         <${Kind} title="Waits for a permission" on=${heard("wait")} onFlip=${kind("wait")} />
                         <${Kind} title="A brief is ready" on=${heard("brief")} onFlip=${kind("brief")} />

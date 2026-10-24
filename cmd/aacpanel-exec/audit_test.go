@@ -181,7 +181,7 @@ func TestAuditedAnswersEveryQuestionTheExecutorAnswers(t *testing.T) {
 	askers := []reflect.Type{
 		reflect.TypeFor[action.Asker](), reflect.TypeFor[action.WindowAsker](), reflect.TypeFor[action.ModelsAsker](),
 		reflect.TypeFor[action.McpAsker](), reflect.TypeFor[action.StatusAsker](), reflect.TypeFor[action.CommandsAsker](),
-		reflect.TypeFor[action.SideAsker](), reflect.TypeFor[action.SetupAsker](), reflect.TypeFor[action.GuardKeeper](),
+		reflect.TypeFor[action.QuestionAsker](), reflect.TypeFor[action.SideAsker](), reflect.TypeFor[action.SetupAsker](), reflect.TypeFor[action.GuardKeeper](),
 		reflect.TypeFor[action.Capable](), reflect.TypeFor[action.Opener](), reflect.TypeFor[action.CodexModelsAsker](),
 		reflect.TypeFor[action.TermsAsker](), reflect.TypeFor[action.SecretsAsker](),
 	}
@@ -222,6 +222,7 @@ func TestTheWrapperPassesOnEveryQuestionOfTheExecutor(t *testing.T) {
 		"StatusAsker":      reflect.TypeFor[action.StatusAsker](),
 		"SetupAsker":       reflect.TypeFor[action.SetupAsker](),
 		"SideAsker":        reflect.TypeFor[action.SideAsker](),
+		"QuestionAsker":    reflect.TypeFor[action.QuestionAsker](),
 		"CommandsAsker":    reflect.TypeFor[action.CommandsAsker](),
 		"TermsAsker":       reflect.TypeFor[action.TermsAsker](),
 		"SecretsAsker":     reflect.TypeFor[action.SecretsAsker](),

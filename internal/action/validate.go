@@ -92,7 +92,7 @@ func (r Request) Validate() error {
 			}
 		case AskGuards:
 			return validateGuards(r)
-		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses, AskIntent:
+		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses, AskIntent, AskQuestion:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -101,6 +101,9 @@ func (r Request) Validate() error {
 			}
 			if err := safeTarget(r.Target); err != nil {
 				return err
+			}
+			if r.Ask == AskQuestion {
+				return validateQuestion(r)
 			}
 			if r.Ask == AskSide {
 				return validateSide(r)

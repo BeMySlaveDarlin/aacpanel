@@ -228,3 +228,17 @@ func TestTheNewsOfASessionNamesWhereItComesFrom(t *testing.T) {
 		t.Errorf("the source is not kept with the event: %s", b)
 	}
 }
+
+func TestTextQuestionsHaveTheirOwnPushChoice(t *testing.T) {
+	m := TextQuestion(Session{ID: "conversation", Name: "project"}, "message")
+	if m.Kind != KindQuestion || m.Session != "project" {
+		t.Fatalf("question push lost its kind or destination: %+v", m)
+	}
+	if !(Prefs{}).Allows(m) || (Prefs{Off: []string{KindQuestion}}).Allows(m) {
+		t.Fatal("text questions ignore the push choice")
+	}
+	off := false
+	if !(Prefs{}).ClassifyQuestions() || (Prefs{CheckQuestions: &off}).Clean().ClassifyQuestions() {
+		t.Fatal("classification default or saved choice was lost")
+	}
+}

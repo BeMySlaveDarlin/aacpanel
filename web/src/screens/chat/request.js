@@ -38,7 +38,7 @@ export function RequestCard({ item, record, onAnswer, error = "", unavailable = 
     </article>`;
 }
 
-const icons = { request: Icon.list, call: Icon.alerts, brief: Icon.plan, secret: Icon.key };
+const icons = { question: Icon.envelope, request: Icon.list, call: Icon.alerts, brief: Icon.plan, secret: Icon.key };
 
 // WaitingQueue is a set of places in this conversation, not another reply form.
 export function WaitingQueue({ items, onPick }) {
@@ -61,7 +61,7 @@ export function WaitingQueue({ items, onPick }) {
 export async function revealWaiting(item, show, box) {
     if (item.pos == null || !await show(item.pos)) return false;
     const row = [...box.querySelectorAll(".feedrow[data-pos]")].find((node) =>
-        Number(node.dataset.pos) === item.pos && node.classList.contains(`r-${item.kind}`)
+        Number(node.dataset.pos) === item.pos && node.classList.contains(`r-${item.kind === "question" ? "ai" : item.kind}`)
         && Number(node.dataset.nth || 0) === (item.nth || 0));
     if (!row) return false;
     for (const was of box.querySelectorAll(".waitingtarget")) was.classList.remove("waitingtarget");

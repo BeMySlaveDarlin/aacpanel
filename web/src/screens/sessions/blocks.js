@@ -21,7 +21,7 @@ import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, shownName, spok
 import { backgroundOf, modelTitle, runningOf, workOf } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
-import { WaitingMark } from "../../waiting.js";
+import { WaitingMark, waitingOf } from "../../waiting.js";
 import { comparePins, pinAt, pinOf } from "./pin.js";
 
 // The most pressing state of a block: who waits for the person, who works —
@@ -53,6 +53,7 @@ export function stateOf(row) {
     }
     const work = workOf(s.work);
     if (s.status === "busy") return { tone: "busy", text: "working", since: work, when: "", work };
+    if (waitingOf(s).some((item) => item.kind === "question")) return { tone: "wait", text: "asks in text", since: "", when: "", work: "" };
     if (s.noRequests) return { tone: "idle", text: "no replies yet", since: work, when: "", work };
     const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
     const since = [when, work].filter(Boolean).join(" · ");

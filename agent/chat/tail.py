@@ -204,7 +204,7 @@ class Piece:
         except OSError:
             return False
 
-    def read_on(self, size, take=None):
+    def read_on(self, size, take=None, inspect=None):
         """Reads the records that appeared since the last read of this file, up to this length."""
         if self.pos >= size:
             return
@@ -227,6 +227,8 @@ class Piece:
                 items = parse(record, line_pos, self.pending, self.asks,
                               self.sidechain, self.sent, self.briefs, shelf_of(),
                               self.calls, permits, self.unanswered)
+                if inspect is not None:
+                    inspect(record, items)
                 if items:
                     if take is None:
                         self.rows.append((line_pos, items))

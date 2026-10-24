@@ -2,13 +2,13 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <div id="root"></div>
-<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <script type="module">
 import { render } from "preact";
 import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
-import { LiveLine } from "/src/screens/sessions/blocks.js";
+import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -29,11 +29,12 @@ const candidates = [
     { kind: "brief", id: "rotation", title: "Token rotation", at, pos: 11 },
     { kind: "secret", id: "release.env", title: "Release token", at, pos: 12 },
     { kind: "call", title: "CI needs your choice", at, pos: 13 },
+    { kind: "question", id: "message-question", title: "Asks in text", at, pos: 16 },
     { kind: "asked", title: "A blocking question", at, pos: 14 },
     { kind: "permit", title: "Permission", at, pos: 15 },
 ];
-const session = { session: "work", sessionId: id, cwd: "/srv/proj", profile: "personal", status: "idle", transport: "stream", called: at, waiting: candidates, model: "claude-opus-4-6", pct: 12 };
-const snapshot = { at: 1, sessions: [session], profileMap: [] };
+const session = { session: "work", sessionId: id, cwd: "/srv/proj", profile: "personal", contour: 1, status: "idle", transport: "stream", called: at, waiting: candidates, model: "claude-opus-4-6", pct: 12 };
+const snapshot = { at: 1, sessions: [session], profileMap: [{ id: 1, profile: "personal", name: "personal", groups: [] }, { id: 2, profile: "work", name: "work", groups: [] }] };
 const exec = { available: true, kinds: ["session.send", "secret.put"] };
 const old = [
     { role: "request", id: requestID, title: record.title, steps: record.steps, blocking: true, pos: 10, at },
@@ -41,6 +42,7 @@ const old = [
     { role: "secret", title: "Release token", name: "release.env", pos: 12, at },
     { role: "call", text: "CI needs your choice", pos: 13, at },
 ];
+old.push({ role: "ai", text: "Shall I publish? The checks passed.", pos: 16, at });
 const tail = Array.from({ length: 40 }, (_, i) => ({ role: "ai", pos: 1000 + i, text: `Later answer ${i}: the session kept working on the independent part of its task.`, at }));
 const all = [...old, ...tail];
 const sent = [];
@@ -81,7 +83,7 @@ function App() {
     const chat = opened && html`<${Chat} name="work" id=${id} live=${session} snapshot=${snapshot} exec=${exec} onBack=${back} onUsage=${() => {}} />`;
     return wide ? html`<div class="deskshell"><div class="dkbody"><${SessionColumn} snapshot=${snapshot} exec=${exec} limits=${{}} picks=${[]} setPicks=${() => {}}
         current=${opened ? "work" : ""} onPick=${() => setOpened(true)} /><section class="dkcenter dkchat">${chat}</section></div></div>`
-        : html`<div class="shell no-nav"><main class="body">${opened ? chat : html`<div class="pjblock"><${LiveLine} session=${session} exec=${exec} onOpen=${() => setOpened(true)} /></div>`}</main></div>`;
+        : html`<div class="shell no-nav"><main class="body">${opened ? chat : html`<${Sessions} snapshot=${snapshot} ageSec=${0} exec=${exec} wait=${{ opening: () => [], of: () => null }} pick=${() => setOpened(true)} />`}</main></div>`;
 }
 const mark = () => document.querySelector(".waitingmark");
 const queue = () => document.querySelector(".waitingqueue");
@@ -97,6 +99,11 @@ window.done = (async () => {
     await document.fonts.ready;
     await quiet();
     const out = { wide, countBefore: Number(mark()?.dataset.waitingCount || 0) };
+    out.needsYou = wide ? document.querySelector(".dklive")?.textContent.includes("asks in text")
+        : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && document.querySelector(".pjcard")?.textContent.includes("asks in text"));
+    out.contourMark = wide ? document.querySelector(".dkwaitn")?.textContent.trim() === "1"
+        : document.querySelector('.pftab .waitn')?.getAttribute("aria-label") === "1 waiting for you";
+    if (new URLSearchParams(location.search).has("screenshot")) return out;
     mark().click();
     await until(() => queue() && document.querySelector(".feedrow"));
     await quiet();
@@ -110,7 +117,7 @@ window.done = (async () => {
     out.collapsedOnPick = document.querySelector(".waitinghead").getAttribute("aria-expanded") === "false";
     out.commandCopies = Boolean(card?.querySelector(".mdcopy"));
     out.requestVisible = card.getBoundingClientRect().top >= document.querySelector(".chatfeed").getBoundingClientRect().top - 1;
-    for (const [title, kind] of [["Token rotation", "brief"], ["Release token", "secret"]]) {
+    for (const [title, kind] of [["Token rotation", "brief"], ["Release token", "secret"], ["Asks in text", "ai"]]) {
         await pick(title);
         out[kind + "Highlighted"] = Boolean(document.querySelector(`.r-${kind}.waitingtarget`));
     }
@@ -121,7 +128,7 @@ window.done = (async () => {
     await quiet();
     card.querySelector(".requestanswer .primary").click();
     await quiet();
-    out.failureKeepsTask = queueCount() === 3 && Boolean(card.querySelector(".requestanswer")) && field.value === "Wi-Fi is back.";
+    out.failureKeepsTask = queueCount() === 4 && Boolean(card.querySelector(".requestanswer")) && field.value === "Wi-Fi is back.";
     refuse = false;
     card.querySelector(".requestanswer .primary").click();
     await quiet();

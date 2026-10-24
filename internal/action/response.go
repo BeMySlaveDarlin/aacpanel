@@ -52,6 +52,8 @@ type Response struct {
 
 	Setup *Setup `json:"setup,omitempty"`
 
+	Question *bool `json:"question,omitempty"`
+
 	Side *Side `json:"side,omitempty"`
 
 	Commands *SessionCommands `json:"commands,omitempty"`

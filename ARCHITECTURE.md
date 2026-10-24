@@ -209,6 +209,21 @@ are pruned. Snapshots older than thirty seconds cannot advance a cycle.
 The `context-guard` hook answers nothing so an installed Stop entry cannot
 block finalization; the installer removes that entry and offers no cap hook.
 
+**Questions left in prose are waiting work.** The collector finds a question
+mark outside code and URLs in the last assistant message, until the person
+speaks again. Busy sessions and codex threads contribute none. The service
+classifies candidates off the snapshot path, with at most two concurrent
+requests and a deadline. The executor starts a tool-free, non-persistent
+haiku call in the session's contour, carrying only that message on stdin.
+The database claims the message before the call and keeps its verdict: no
+poll or restart spends a second call. An error, including an interrupted
+claim past its deadline, leaves the question visible. A message cut by the
+feed limit stays visible too: its missing tail cannot earn a negative verdict. Waiting items open the
+assistant's feed row and mark its contour; a separate persisted claim sends
+one push per message through the notification choice. Notifications also
+holds the live switch for haiku, on by default: off shows every candidate
+without classification, including a candidate with a stored negative verdict.
+
 **The delivery socket.** The executor has no access to transcripts, yet typing
 into a session in tmux is blind without them: whether the message landed, whether the
 turn is over, which permission mode the session was last in — only the
@@ -579,7 +594,7 @@ edit by and which hold the headers of an http hook.
 Claude answers an ultracode it cannot run with success and turns nothing on,
 so the holder asks what the session runs with before it says ultracode is on.
 
-**A question aside is the one piece of conversation the executor carries.**
+**A question aside carries only what the person sends.**
 On the stream `/btw` is a request of its own: claude answers it from what the
 conversation holds and writes neither the question nor the answer into the
 transcript, so the collector has nothing to read it from. It goes to the

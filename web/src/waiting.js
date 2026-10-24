@@ -9,7 +9,7 @@ import { calledMark } from "./viewing.js";
 
 const settled = new Set();
 const listeners = new Set();
-const kinds = new Set(["request", "call", "brief", "secret"]);
+const kinds = new Set(["request", "call", "brief", "secret", "question"]);
 const keyOf = (session, item) => `${session.sessionId}|${item.kind}|${item.id || ""}|${item.at || ""}`;
 
 // waitingOf returns only outstanding work; questions and permissions have

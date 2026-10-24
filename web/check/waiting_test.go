@@ -3,6 +3,9 @@ package check
 import "testing"
 
 type waitingResult struct {
+	NeedsYou           bool
+	ContourMark        bool
+	AiHighlighted      bool
 	Wide               bool
 	CountBefore        int
 	Opened             bool
@@ -40,10 +43,10 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 			} else {
 				runFixture(t, "waiting.html", &got)
 			}
-			if got.CountBefore != 4 || got.CountAfterOpening != 3 || got.CountAfterAnswer != 2 || got.CountBackInList != 2 {
+			if got.CountBefore != 5 || got.CountAfterOpening != 4 || got.CountAfterAnswer != 3 || got.CountBackInList != 3 {
 				t.Errorf("waiting counts: %+v", got)
 			}
-			for name, ok := range map[string]bool{"opens conversation": got.Opened, "call leaves": got.CallGone, "loads old card": got.LoadedOlderWindow,
+			for name, ok := range map[string]bool{"needs you": got.NeedsYou, "contour mark": got.ContourMark, "question anchor": got.AiHighlighted, "opens conversation": got.Opened, "call leaves": got.CallGone, "loads old card": got.LoadedOlderWindow,
 				"request highlighted": got.RequestHighlighted, "tray collapses": got.CollapsedOnPick, "command copies": got.CommandCopies,
 				"request visible": got.RequestVisible, "brief highlighted": got.BriefHighlighted, "secret highlighted": got.SecretHighlighted,
 				"failed send stays": got.FailureKeepsTask, "answer visible": got.AnswerVisible} {

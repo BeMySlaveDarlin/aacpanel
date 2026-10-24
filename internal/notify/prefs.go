@@ -12,6 +12,7 @@ const (
 	KindCall      = "call"
 	KindRequest   = "request"
 	KindAsk       = "ask"
+	KindQuestion  = "question"
 	KindWait      = "wait"
 	KindBrief     = "brief"
 	KindDone      = "done"
@@ -32,6 +33,7 @@ var keyKinds = []struct{ prefix, kind string }{
 	{"note:", KindCall},
 	{"request:", KindRequest},
 	{"ask:", KindAsk},
+	{"question:", KindQuestion},
 	{"wait:", KindWait},
 	{"brief:", KindBrief},
 	{"done:", KindDone},
@@ -60,7 +62,7 @@ func kindOf(key string) string {
 // kindsOff are the kinds a person may turn off. A call is a session asked to
 // fetch the person and a blind panel is a failure that would pass in silence:
 // neither is on the list, so neither is ever held back.
-var kindsOff = []string{KindAsk, KindWait, KindBrief, KindDone, KindGone, KindStack, KindContainer,
+var kindsOff = []string{KindQuestion, KindAsk, KindWait, KindBrief, KindDone, KindGone, KindStack, KindContainer,
 	KindBack, KindProbe, KindLimit, KindCodex}
 
 // Source is where an event comes from, as far as a push can be quieted by it.
@@ -79,7 +81,9 @@ type Source struct {
 // Prefs is what the person chose to hear, the same on every device. Each list
 // names what is off, so a kind or a source the panel learns later is heard.
 type Prefs struct {
-	Off []string `json:"off"`
+	// Nil keeps classification on for a choice saved before it was offered.
+	CheckQuestions *bool    `json:"checkQuestions,omitempty"`
+	Off            []string `json:"off"`
 	// Rules are the rules whose alerts do not push.
 	Rules []int64 `json:"rules"`
 	// Sessions are contours and directories whose turns and closings do not
@@ -116,11 +120,12 @@ func (p Prefs) Clean() Prefs {
 	}
 	slices.Sort(rules)
 	return Prefs{
-		Off:      words(p.Off, func(k string) bool { return slices.Contains(kindsOff, k) }),
-		Rules:    rules,
-		Sessions: words(p.Sessions, all),
-		Stacks:   words(p.Stacks, all),
-		Limits:   words(p.Limits, all),
+		CheckQuestions: p.CheckQuestions,
+		Off:            words(p.Off, func(k string) bool { return slices.Contains(kindsOff, k) }),
+		Rules:          rules,
+		Sessions:       words(p.Sessions, all),
+		Stacks:         words(p.Stacks, all),
+		Limits:         words(p.Limits, all),
 	}
 }
 
@@ -241,3 +246,6 @@ func (p Prefs) Mute(q Quiet) (Prefs, bool) {
 	}
 	return p.Clean(), true
 }
+
+// ClassifyQuestions is live: every scan reads the stored choice again.
+func (p Prefs) ClassifyQuestions() bool { return p.CheckQuestions == nil || *p.CheckQuestions }

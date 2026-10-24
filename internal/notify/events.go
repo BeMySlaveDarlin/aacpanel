@@ -954,3 +954,12 @@ func shortID(id string) string {
 	}
 	return id
 }
+
+// TextQuestion is news once per assistant message; the database keeps the
+// delivery claim even after the question has left the waiting list.
+func TextQuestion(s Session, message string) Message {
+	return (Event{Key: "question:" + s.ID + ":" + message, Domain: DomainSession,
+		Session: s.Name, Title: "Question in text · " + s.shown(),
+		Body:     "The session asks for your answer or decision. Open the conversation to reply.",
+		Severity: Critical}).raised()
+}

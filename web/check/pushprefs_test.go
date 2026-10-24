@@ -17,7 +17,8 @@ type prefsRow struct {
 }
 
 type prefsShot struct {
-	Alerts struct {
+	CheckDefault, CheckOff, CheckOn bool
+	Alerts                          struct {
 		Door     string   `json:"door"`
 		Heads    []string `json:"heads"`
 		OldBlock bool     `json:"oldBlock"`
@@ -161,6 +162,8 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 
 	want := []prefsRow{
 		{Title: "A session calls you", Sub: "it was asked to — always comes", Role: "switch", On: "true", Disabled: true, Lock: "always"},
+		{Title: "A question in text", Role: "switch", On: "true"},
+		{Title: "Check questions in text with haiku", Sub: "off shows every candidate", Role: "switch", On: "true"},
 		{Title: "A question", Role: "switch", On: "true"},
 		{Title: "Waits for a permission", Role: "switch", On: "true"},
 		{Title: "A brief is ready", Role: "switch", On: "true"},
@@ -174,6 +177,9 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		{Title: "A claude limit past 80%", Role: "switch", On: "true"},
 		{Title: "Codex updated itself", Sub: "past the release its protocol was checked against", Role: "switch", On: "true"},
 		{Title: "The panel went blind", Sub: "otherwise a failure passes in silence", Role: "switch", On: "true", Disabled: true, Lock: "always"},
+	}
+	if !got.CheckDefault || !got.CheckOff || !got.CheckOn {
+		t.Errorf("question classifier switch: %+v", got)
 	}
 	if len(got.Rows) != len(want) {
 		t.Fatalf("rows drawn: %+v", got.Rows)

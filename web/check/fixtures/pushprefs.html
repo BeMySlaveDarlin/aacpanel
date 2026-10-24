@@ -15,6 +15,7 @@ import { h, render } from "preact";
 import { Alerts } from "/src/screens/alerts.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet, counted } from "/check/fixtures/quiet.js";
 import { WIDE } from "/src/ui/wide.js";
 
 const desk = window.matchMedia(WIDE).matches;
@@ -67,13 +68,13 @@ let prefs = {
 };
 
 // What the service does with a choice: sorted lists without repeats.
-const clean = (p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, [...new Set(v)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))]));
+const clean = (p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, Array.isArray(v) ? [...new Set(v)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) : v]));
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const puts = [];
 const asked = [];
 let refuse = false;
-window.fetch = async (input, init) => {
+window.fetch = counted(async (input, init) => {
     const u = typeof input === "string" ? input : input.url;
     const method = (init && init.method) || "GET";
     asked.push(`${method} ${u}`);
@@ -92,7 +93,7 @@ window.fetch = async (input, init) => {
         return json({ prefs });
     }
     return new Response("", { status: 404 });
-};
+});
 
 const alerts = { kind: "ready", alerts: [], older: [], more: () => {} };
 render(h(ToastHost, null, h(GateHost, null, h(Alerts, { alerts, onAction: () => {}, onBack: () => {} }))),
@@ -131,7 +132,7 @@ const press = async (el) => {
     const before = puts.length;
     el.click();
     await until(() => puts.length > before);
-    await sleep(30);
+    await quiet();
     return puts[puts.length - 1];
 };
 
@@ -167,6 +168,9 @@ window.done = (async () => {
     out.overflow = document.documentElement.scrollWidth > window.innerWidth
         || all(".nfrow").some((r) => r.scrollWidth > r.clientWidth + 1);
 
+    out.checkDefault = row("Check questions in text with haiku").getAttribute("aria-checked") === "true";
+    out.checkOff = (await press(row("Check questions in text with haiku"))).checkQuestions === false;
+    out.checkOn = (await press(row("Check questions in text with haiku"))).checkQuestions === true;
     // A kind turned off, then on again.
     out.question = (await press(row("A question"))).off;
     out.questionShown = row("A question").getAttribute("aria-checked");
@@ -208,9 +212,8 @@ window.done = (async () => {
     // Rules, from their own list.
     row("Rules").click();
     const rules = await until(sheet);
-    await sleep(40);
     // The sheet lays its scrim over the whole window, not the column of the page.
-    const scrim = document.querySelector(".scrim.on");
+    const scrim = await until(() => document.querySelector(".scrim.on"));
     out.scrimCovers = Boolean(scrim) && scrim.getBoundingClientRect().width >= window.innerWidth - 1;
     out.rules = all(".nfrow", rules).map((r) => ({ ...rowOf(r), dim: r.getAttribute("data-dim") || "" }));
     out.ruleOff = (await press(row("Host CPU is loaded", rules))).rules;
@@ -233,7 +236,7 @@ window.done = (async () => {
     const saves = puts.length;
     row("A session calls you").click();
     row("The panel went blind").click();
-    await sleep(80);
+    await quiet();
     out.lockedPuts = puts.length - saves;
     out.lockedShown = [row("A session calls you"), row("The panel went blind")].map((r) => r.getAttribute("aria-checked"));
 

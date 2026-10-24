@@ -687,3 +687,11 @@ func startTerminals(ctx context.Context, socket string) (net.Listener, error) {
 	}()
 	return ln, nil
 }
+
+func (a audited) Question(ctx context.Context, target, conversation, text string) (bool, error) {
+	asker, ok := a.next.(action.QuestionAsker)
+	if !ok {
+		return false, fmt.Errorf("this executor does not classify questions")
+	}
+	return asker.Question(ctx, target, conversation, text)
+}

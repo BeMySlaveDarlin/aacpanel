@@ -349,6 +349,20 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Commands: commands}
 	}
 
+	if req.Ask == AskQuestion {
+		asker, ok := s.exec.(QuestionAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not classify questions"), 0)
+		}
+		ctx, cancel := context.WithTimeout(ctx, s.timeout)
+		defer cancel()
+		answer, err := asker.Question(ctx, req.Target, req.Conversation, req.Text)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Question: &answer}
+	}
+
 	if req.Ask == AskSide {
 		asker, ok := s.exec.(SideAsker)
 		if !ok {
