@@ -380,6 +380,13 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const composer = parts.composer(ctx);
     const onLocal = (row) => setLocal((was) => [...was, { ...row, after: lastPos(state.items) }]);
     const onLocalDone = (key, patch) => setLocal((was) => was.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    // A message the session took answers what it asked in text: the mark goes
+    // at once, while the host learns of the answer with its next look.
+    const onSent = (key, patch) => {
+        onLocalDone(key, patch);
+        if (patch.state !== "queued") return;
+        for (const item of waitingItems) if (item.kind === "question") settleWaiting(live, "question", item.id);
+    };
     const onRun = live && !live.outside && canRunShell(exec, live.transport === "stream", composer.shell)
         ? (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
                                                onLocal, onLocalDone, confirm: true }) : null;
@@ -579,7 +586,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                      onDropFile=${(i) => setFiles((was) => was.filter((_, n) => n !== i))}
                                      onDropFiles=${() => setFiles([])}
                                      onLocal=${onLocal}
-                                     onLocalDone=${onLocalDone}
+                                     onLocalDone=${onSent}
                                      insert=${insert}
                                      strip=${wide
                                          ? html`${parts.strip(ctx)}

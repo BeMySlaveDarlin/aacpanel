@@ -135,6 +135,16 @@ window.done = (async () => {
     out.sent = sent.at(-1);
     out.countAfterAnswer = queueCount();
     out.answerVisible = card.querySelector(".requeststate")?.textContent === "Done" && card.querySelector(".requestreply")?.textContent === "Wi-Fi is back.";
+    // A reply from the composer answers the question asked in text: its
+    // item leaves the queue with the send, not with the next look of the host.
+    const reply = document.querySelector(".composer textarea");
+    reply.value = "Publish it.";
+    reply.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+    document.querySelector(".composer .sendbtn").click();
+    await until(() => sent.at(-1)?.params?.text === "Publish it.");
+    await quiet();
+    out.countAfterReply = queueCount();
     out.horizontalOverflow = document.documentElement.scrollWidth > innerWidth;
     back();
     await quiet();

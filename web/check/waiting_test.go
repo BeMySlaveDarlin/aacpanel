@@ -20,6 +20,7 @@ type waitingResult struct {
 	SecretHighlighted  bool
 	FailureKeepsTask   bool
 	CountAfterAnswer   int
+	CountAfterReply    int
 	CountBackInList    int
 	AnswerVisible      bool
 	HorizontalOverflow bool
@@ -43,7 +44,7 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 			} else {
 				runFixture(t, "waiting.html", &got)
 			}
-			if got.CountBefore != 5 || got.CountAfterOpening != 4 || got.CountAfterAnswer != 3 || got.CountBackInList != 3 {
+			if got.CountBefore != 5 || got.CountAfterOpening != 4 || got.CountAfterAnswer != 3 || got.CountAfterReply != 2 || got.CountBackInList != 2 {
 				t.Errorf("waiting counts: %+v", got)
 			}
 			for name, ok := range map[string]bool{"needs you": got.NeedsYou, "contour mark": got.ContourMark, "question anchor": got.AiHighlighted, "opens conversation": got.Opened, "call leaves": got.CallGone, "loads old card": got.LoadedOlderWindow,
