@@ -814,19 +814,9 @@
 
     /* The heading of a contour counts the sessions that wait for the person,
        and holds the way to a new session before its limit. */
-    .dkwaitn {
-        flex: none;
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-        font-size: var(--t-xs);
-        font-weight: 600;
-        color: var(--wait);
-    }
+    .dkwaitn { flex: none; font-size: var(--t-xs); }
 
     .dklimhead ~ .dkempty { margin: 0; border-bottom: var(--hair) solid var(--line); }
-
-    .dkwaitn i { width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
 
     /* The plus lays its projects over the width of the column: the heading,
        sticky, is what it drops from. */

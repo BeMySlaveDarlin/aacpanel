@@ -11,7 +11,7 @@ import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
 import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
-import { blocksOf, ProjectBlock, RANK, useAnswers } from "./sessions/blocks.js";
+import { blocksOf, ProjectBlock, RANK, stateOf, useAnswers } from "./sessions/blocks.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
@@ -152,6 +152,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     const byPage = pagesOf(profiles, sessions, names);
     const ghosts = ghostsOf(profiles, wait.opening());
     const live = new Map([...byPage].map(([name, own]) => [name, own.length]));
+    const waits = new Map([...byPage].map(([name, own]) => [name, own.filter((s) => stateOf(s).tone === "wait").length]));
 
     return html`
         <${Stale} ageSec=${ageSec} />
@@ -171,6 +172,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             onPick=${pickProfile}
             onShown=${setShown}
             live=${live}
+            waits=${waits}
             page=${(name) => html`
                 <${Page}
                     key=${name}

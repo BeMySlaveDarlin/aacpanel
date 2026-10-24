@@ -12,7 +12,8 @@
 // column, not in the work contour listed first. A map that marks none puts it
 // in the first. The page is drawn the way the panel draws it on the screen it
 // runs on: the pager of the phone on a narrow one, the column of the desktop
-// on a wide one, each for both maps.
+// on a wide one, each for both maps. The session of Acme waits for the person,
+// and only the place of Acme says so.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sessions } from "/src/screens/sessions.js";
@@ -44,7 +45,7 @@ const map = (marked) => [
 const run = (session, o) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream", pct: 12,
     tokens: 120000, limit: 1000000, model: "claude-opus-5-5", ...o });
 const sessions = [
-    run("shop", { contour: 1, profile: "Acme", cwd: shop.path, project: { id: shop.id, name: shop.name } }),
+    run("shop", { contour: 1, profile: "Acme", status: "waiting", cwd: shop.path, project: { id: shop.id, name: shop.name } }),
     run("notes", { contour: 2, profile: "Personal", cwd: notes.path, project: { id: notes.id, name: notes.name } }),
     // The stray: no contour named, no project, a directory the map does not list.
     run("stray", { cwd: "/srv/scratch", project: null }),
@@ -85,20 +86,23 @@ const until = async (ok) => {
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
-// phoneOf reads the pager: each page by the name of its tab, the number the
-// tab counts and the blocks the page holds.
+// phoneOf reads the pager: each page by the name of its tab, the numbers the
+// tab counts — live and waiting — and the blocks the page holds.
 const phoneOf = (box) => {
     const tabs = Array.from(box.querySelectorAll(".pftab"));
     const pages = Array.from(box.querySelectorAll(".pfpages > .pfpage"));
     return tabs.map((tab, i) => ({
         name: text(tab.firstChild),
         count: Number(text(tab.querySelector(".n")) || 0),
+        waits: Number(text(tab.querySelector(".waitn")) || 0),
         sessions: Array.from((pages[i] || tab).querySelectorAll(".pjblock .pjname")).map(text),
     }));
 };
-// deskOf reads the column: each section by its name, with its live sessions.
+// deskOf reads the column: each section by its name, with how many wait and
+// its live sessions.
 const deskOf = (box) => Array.from(box.querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((section) => ({
     name: text(section.querySelector(".dkcontourname")),
+    waits: Number(text(section.querySelector(".waitn")) || 0),
     sessions: Array.from(section.querySelectorAll(".dksess.dklive .dkname")).map(text),
 }));
 

@@ -144,6 +144,19 @@
 }
 
 .pftab .n { font-size: .82em; font-weight: 400; opacity: .65; }
+.pftab .waitn { font-size: .82em; }
+
+/* How many sessions of a contour wait for the person: a glowing dot and the
+   count in the colour of waiting, on its tab and on its heading at a desk. */
+.waitn {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-weight: 600;
+    color: var(--wait);
+}
+
+.waitn i { width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
 
 .pfpages {
     flex: 1 1 auto;

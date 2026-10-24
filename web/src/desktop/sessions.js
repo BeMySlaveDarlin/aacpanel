@@ -571,7 +571,7 @@ function ContourSection({ name, entry, list, blocks, archive, onFold, limits, ma
             <div class="dkcontour dklimhead">
                 <span class="dkcontourname">${name}</span>
                 ${waits > 0 && html`
-                    <span class="dkwaitn" data-tip=${`${waits} ${plural(waits, "session waits", "sessions wait")} for you`}>
+                    <span class="waitn dkwaitn" data-tip=${`${waits} ${plural(waits, "session waits", "sessions wait")} for you`}>
                         <i></i>${waits}
                     </span>
                 `}

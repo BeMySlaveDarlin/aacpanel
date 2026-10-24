@@ -7,10 +7,12 @@ import (
 )
 
 // contourPlace is a page of the phone or a section of the desktop column: its
-// contour, how many sessions its tab counts and the sessions it holds.
+// contour, how many sessions its tab counts, how many of them wait for the
+// person and the sessions it holds.
 type contourPlace struct {
 	Name     string   `json:"name"`
 	Count    int      `json:"count"`
+	Waits    int      `json:"waits"`
 	Sessions []string `json:"sessions"`
 }
 
@@ -23,18 +25,21 @@ type contourPlace struct {
 // Personal in the desktop column. Taken for the first contour instead, it
 // would stand among the work of Acme. A map that marks no contour puts it in
 // the first: nothing else says which one is personal.
+//
+// The session of Acme waits for the person: the tab of Acme and the heading
+// of its section say so, the place of Personal does not.
 func TestASessionNoContourClaimsStandsInThePersonalOne(t *testing.T) {
 	parallel(t)
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	marked := []contourPlace{
-		{"Acme", 1, []string{"shop"}},
-		{"Personal", 2, []string{"notes", "stray"}},
+		{"Acme", 1, 1, []string{"shop"}},
+		{"Personal", 2, 0, []string{"notes", "stray"}},
 	}
 	unmarked := []contourPlace{
-		{"Acme", 2, []string{"shop", "stray"}},
-		{"Personal", 1, []string{"notes"}},
+		{"Acme", 2, 1, []string{"shop", "stray"}},
+		{"Personal", 1, 0, []string{"notes"}},
 	}
 	for _, screen := range []struct {
 		name string
