@@ -144,10 +144,9 @@
 }
 
 .pftab .n { font-size: .82em; font-weight: 400; opacity: .65; }
-.pftab .waitn { font-size: .82em; }
-
-/* How many sessions of a contour wait for the person: a glowing dot and the
-   count in the colour of waiting, on its tab and on its heading at a desk. */
+/* Sessions of a contour wait for the person: a glowing dot in the colour of
+   waiting before the name of its tab, and with their count on its heading at
+   a desk. */
 .waitn {
     display: inline-flex;
     align-items: center;

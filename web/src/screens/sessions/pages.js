@@ -107,7 +107,8 @@ const same = (name) => name;
 // over every column of the wide screen, and tools stand beside the choice —
 // with either, the wide screen keeps its columns for a single page too.
 // row lays the columns side by side instead of one under another. waits
-// counts, by name, what on a page waits for the person; its tab says so.
+// counts, by name, what on a page waits for the person; a dot before the
+// name of its tab says so.
 export function Pages({
     names, current, onPick, live, waits, page, onShown,
     label = same, what = "contours", keep = SHOW_KEY, head = null, tools = null, row = false,
@@ -172,13 +173,11 @@ export function Pages({
                         aria-pressed=${name === current ? "true" : "false"}
                         onClick=${() => onPick(name)}
                     >
+                        ${waits && waits.get(name) > 0 && html`
+                            <span class="waitn" role="img" aria-label=${`${waits.get(name)} waiting for you`}><i></i></span>
+                        `}
                         ${label(name)}
                         ${live && live.get(name) > 0 && html`<span class="n">${live.get(name)}</span>`}
-                        ${waits && waits.get(name) > 0 && html`
-                            <span class="waitn" role="img" aria-label=${`${waits.get(name)} waiting for you`}>
-                                <i></i>${waits.get(name)}
-                            </span>
-                        `}
                     </button>
                 `)}
             </div>

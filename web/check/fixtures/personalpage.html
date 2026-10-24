@@ -86,23 +86,29 @@ const until = async (ok) => {
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
-// phoneOf reads the pager: each page by the name of its tab, the numbers the
-// tab counts — live and waiting — and the blocks the page holds.
+// bare is the name of a tab without its marks.
+const bare = (tab) => {
+    const name = tab.cloneNode(true);
+    name.querySelectorAll(".n, .waitn").forEach((mark) => mark.remove());
+    return name;
+};
+// phoneOf reads the pager: each page by the name of its tab, the number the
+// tab counts, whether it marks a wait and the blocks the page holds.
 const phoneOf = (box) => {
     const tabs = Array.from(box.querySelectorAll(".pftab"));
     const pages = Array.from(box.querySelectorAll(".pfpages > .pfpage"));
     return tabs.map((tab, i) => ({
-        name: text(tab.firstChild),
+        name: text(bare(tab)),
         count: Number(text(tab.querySelector(".n")) || 0),
-        waits: Number(text(tab.querySelector(".waitn")) || 0),
+        waiting: Boolean(tab.querySelector(".waitn")),
         sessions: Array.from((pages[i] || tab).querySelectorAll(".pjblock .pjname")).map(text),
     }));
 };
-// deskOf reads the column: each section by its name, with how many wait and
-// its live sessions.
+// deskOf reads the column: each section by its name, whether its heading
+// marks a wait and its live sessions.
 const deskOf = (box) => Array.from(box.querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((section) => ({
     name: text(section.querySelector(".dkcontourname")),
-    waits: Number(text(section.querySelector(".waitn")) || 0),
+    waiting: Boolean(section.querySelector(".waitn")),
     sessions: Array.from(section.querySelectorAll(".dksess.dklive .dkname")).map(text),
 }));
 

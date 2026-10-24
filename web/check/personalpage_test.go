@@ -7,12 +7,12 @@ import (
 )
 
 // contourPlace is a page of the phone or a section of the desktop column: its
-// contour, how many sessions its tab counts, how many of them wait for the
-// person and the sessions it holds.
+// contour, how many sessions its tab counts, whether it marks one waiting for
+// the person and the sessions it holds.
 type contourPlace struct {
 	Name     string   `json:"name"`
 	Count    int      `json:"count"`
-	Waits    int      `json:"waits"`
+	Waiting  bool     `json:"waiting"`
 	Sessions []string `json:"sessions"`
 }
 
@@ -34,12 +34,12 @@ func TestASessionNoContourClaimsStandsInThePersonalOne(t *testing.T) {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	marked := []contourPlace{
-		{"Acme", 1, 1, []string{"shop"}},
-		{"Personal", 2, 0, []string{"notes", "stray"}},
+		{"Acme", 1, true, []string{"shop"}},
+		{"Personal", 2, false, []string{"notes", "stray"}},
 	}
 	unmarked := []contourPlace{
-		{"Acme", 2, 1, []string{"shop", "stray"}},
-		{"Personal", 1, 0, []string{"notes"}},
+		{"Acme", 2, true, []string{"shop", "stray"}},
+		{"Personal", 1, false, []string{"notes"}},
 	}
 	for _, screen := range []struct {
 		name string
