@@ -102,7 +102,9 @@ export function QuoteTip({ quote, onQuote }) {
             setSpot(null);
             return;
         }
-        const size = node.current.getBoundingClientRect();
+        // The size before transforms: the button is measured again as the
+        // selection moves, sometimes while it still grows in.
+        const size = { width: node.current.offsetWidth, height: node.current.offsetHeight };
         if (touchScreen()) {
             const feed = document.querySelector(".chatfeed");
             const foot = feed ? feed.getBoundingClientRect().bottom : window.innerHeight;
@@ -120,7 +122,7 @@ export function QuoteTip({ quote, onQuote }) {
             class=${`quotetip${spot ? " on" : ""}`}
             type="button"
             ref=${node}
-            style=${spot ? `transform: translate(${spot.x}px, ${spot.y}px)` : ""}
+            style=${spot ? `translate: ${spot.x}px ${spot.y}px` : ""}
             aria-label="reply with a quote of the selection"
             onPointerDown=${(e) => e.preventDefault()}
             onClick=${take}
