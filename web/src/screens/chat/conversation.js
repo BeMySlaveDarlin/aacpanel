@@ -29,7 +29,7 @@ import { onShelf, sealed, signal } from "../repo/notes.js";
 import { FeedWrites, Row } from "./rows.js";
 import { callsOf, FeedGrid } from "./timeline.js";
 import { CommandSheet } from "./command.js";
-import { blockCommand, canRunShell, sendShell, ShellSheet } from "./shell.js";
+import { blockCommand, canRunShell, sendShell, ShellBar, shellNow, ShellSheet } from "./shell.js";
 import { SecretPad } from "./secret.js";
 import { Calls } from "./calls.js";
 import { Look, LOOK_NAMES, pageLook, WORK_LISTS } from "./look.js";
@@ -556,6 +556,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ${live && feedShown && html`
             <div class="composerbox">
                 <${WaitingQueue} items=${waitingItems} onPick=${pickWaiting} />
+                <${ShellBar} item=${shellNow(feed, pending)} onOpen=${toEnd} />
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
                                turnOver=${Boolean(live.turnOver)}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""}

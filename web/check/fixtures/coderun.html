@@ -83,6 +83,8 @@ async function mount(session = live, executor = exec) {
 const codeBlocks = () => all(".chatfeed .mdcode");
 const cards = () => all(".chatfeed .mshell");
 const preview = () => q(".sheet.on .gtpreview");
+// The bar above the composer that says where the last command stands.
+const bar = () => (q(".composerbox .nowshell")?.textContent || "").replace(/\s+/g, " ").trim();
 const closeGate = () => until(() => !q(".sheet.on") && history.state?.depth === 1);
 async function open(index) {
     const button = codeBlocks()[index].querySelector(".mdrun");
@@ -123,10 +125,13 @@ async function runBlock(index) {
     q(".sheet.on .btn.primary").click();
     await until(() => sent.length > before && cards().length > rows && release);
     out.going = cards().at(-1).querySelector(".mshellat").textContent;
+    out.barGoing = bar();
     out.local = cards().at(-1).querySelector(".mshellcmd").textContent;
     release();
     release = null;
     await until(() => cards().at(-1).querySelector(".mshellat").textContent.startsWith("running"));
+    await until(() => bar().includes("running"));
+    out.barRunning = bar();
     await closeGate();
     out.sends = sent.slice(before);
     const pos = items.at(-1).pos + 1;
@@ -134,6 +139,8 @@ async function runBlock(index) {
     await until(() => cards().some((card) => card.querySelector(".mshellcmd").textContent === out.preview
         && card.querySelector(".mshellat").textContent.includes("exit 0")));
     out.ended = cards().length - rows;
+    await until(() => bar().includes("exit 0"));
+    out.barEnded = bar();
     out.output = all(".chatfeed .mshellout").at(-1).textContent;
     return out;
 }
@@ -151,6 +158,16 @@ window.done = (async () => {
         out.runs = [];
         for (const index of [0, 1, 2, 5, 9, 12]) out.runs.push(await runBlock(index));
         out.draft = q(".composer textarea").value;
+        // A press on the bar takes the feed down to the card it mirrors.
+        const feedBox = q(".chatfeed");
+        feedBox.scrollTop = 0;
+        await until(() => q(".composerbox .nowshell") && feedBox.scrollTop === 0);
+        q(".composerbox .nowshell").click();
+        await until(() => feedBox.scrollHeight - feedBox.scrollTop - feedBox.clientHeight < 4);
+        out.barTakesDown = true;
+        bring([{ role: "me", pos: items.at(-1).pos + 1, text: "next" }]);
+        await until(() => !q(".composerbox .nowshell"));
+        out.barGoneAfterMessage = true;
         const before = sent.length, rows = cards().length;
         await open(0);
         const cancel = all(".sheet.on .btn").find((b) => b.textContent === "Cancel");

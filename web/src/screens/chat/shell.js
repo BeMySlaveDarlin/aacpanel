@@ -93,6 +93,43 @@ function Running({ since }) {
     return html`<span class="mshellat run"><i class="mshelldot"></i>running ${took}</span>`;
 }
 
+// shellNow is the command the person ran last while it is still the last
+// thing in the conversation: the page's own row on its way, or the command
+// the transcript ended with, followed by nothing but its output. Anything said
+// after it — a message, the session's next turn — takes the bar away.
+export function shellNow(feed, pending) {
+    if (pending.length > 0) {
+        const last = pending[pending.length - 1];
+        return last.role === "shell" ? last : null;
+    }
+    for (let i = feed.length - 1; i >= 0; i--) {
+        if (feed[i].role === "shellout") continue;
+        return feed[i].role === "shell" ? feed[i] : null;
+    }
+    return null;
+}
+
+// ShellBar says above the composer where the command the person ran stands,
+// the way its card says it in the feed: a command started from a fence far up
+// the conversation is followed from here, and a press takes the feed down to
+// its card, the last one there is.
+export function ShellBar({ item, onOpen }) {
+    if (!item) return null;
+    return html`
+        <div class="workbar status">
+            <button class="nowbar nowshell" type="button" onClick=${onOpen}
+                    aria-label=${`the command ${item.text} — go to its card`}>
+                <span class="nowtop">
+                    <span class="mshellmark" aria-hidden="true">!</span>
+                    <code class="nowshellcmd">${item.text}</code>
+                    <${Stand} item=${item} />
+                </span>
+            </button>
+        </div>
+        ${item.state === "failed" && html`<p class="mwait crit">did not start: ${item.error}</p>`}
+    `;
+}
+
 // ShellCommand is the head of the card: the mark, the command as typed, and
 // where it stands.
 export function ShellCommand({ item }) {

@@ -704,6 +704,12 @@
 .nowarg { font-family: var(--code); font-size: var(--t-xs); color: var(--ink-dim); }
 .nowcall:active .nowname { color: var(--accent); }
 .nowchips { flex: none; margin-left: auto; display: flex; align-items: center; gap: .3rem; }
+/* The bar of a command the person ran is one button too, the command cut at
+   its end and where it stands kept whole at the right: the card it mirrors
+   stays down at the end of the feed, and the press goes there. */
+.nowshell { width: 100%; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.nowshellcmd { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--code); font-size: var(--t-xs); color: var(--ink); }
+.nowshell .mshellmark { font-family: var(--code); }
 /* The bar of a session waiting on its agents is one button: it opens their list. */
 .nowwait { width: 100%; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .nowwait .nowkind { color: var(--accent-2); }

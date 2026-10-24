@@ -23,6 +23,7 @@ type codeRunShot struct {
 	Runs []struct {
 		Index                                           int
 		Preview, Title, Going, Local, Output, Font, Yes string
+		BarGoing, BarRunning, BarEnded                  string
 		Before, BeforeRows, Ended                       int
 		Wraps, Scrolls, Bounded                         bool
 		Sends                                           []struct {
@@ -32,8 +33,10 @@ type codeRunShot struct {
 			}
 		}
 	}
-	Cancelled struct{ Sends, Rows int }
-	Absent    map[string]int
+	Cancelled           struct{ Sends, Rows int }
+	BarTakesDown        bool
+	BarGoneAfterMessage bool
+	Absent              map[string]int
 }
 
 func TestCodeBlocksRunThroughTheSessionGate(t *testing.T) {
@@ -99,6 +102,17 @@ func checkCodeRun(t *testing.T, got codeRunShot) {
 		if r.Local != r.Preview || r.Going != "starting" || r.Ended != 1 || r.Output != "finished" {
 			t.Errorf("block %d did not follow the command in one shell card: %+v", r.Index, r)
 		}
+		// The bar above the composer says what the card says, at every step:
+		// the command started from far up the feed is followed from there.
+		command := "!" + strings.Join(strings.Fields(r.Preview), " ")
+		for step, bar := range map[string]string{"starting": r.BarGoing, "running": r.BarRunning, "exit 0": r.BarEnded} {
+			if !strings.HasPrefix(bar, command) || !strings.Contains(bar[len(command):], step) {
+				t.Errorf("block %d: the bar over the composer reads %q, want the command and %q", r.Index, bar, step)
+			}
+		}
+	}
+	if !got.BarTakesDown || !got.BarGoneAfterMessage {
+		t.Errorf("the command bar: takes the feed down %v, leaves after the next message %v", got.BarTakesDown, got.BarGoneAfterMessage)
 	}
 	if len(got.Geometry) != 10 {
 		t.Fatalf("measured %d button pairs, want 10", len(got.Geometry))
