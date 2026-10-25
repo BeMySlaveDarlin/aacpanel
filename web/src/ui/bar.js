@@ -3,13 +3,24 @@ import { html } from "../html.js";
 import { fill } from "../format.js";
 
 // ContextBar shows how much of the context has been lived through.
-export function ContextBar({ pct, edge, peak }) {
+export function ContextBar({ pct, edge, peak, cap, autoRestart }) {
     if (pct == null) return null;
     return html`
         <div class=${`ctxbar ${edge ? "edge" : "head"} ${peak ? "peak" : fill(pct)}`} role="presentation">
+            <${ContextBurn} cap=${cap} autoRestart=${autoRestart} />
             <i style=${`width:${Math.max(0, Math.min(pct, 100))}%`}></i>
         </div>
     `;
+}
+
+// The used fill stays above the spent track when a session passes its cap.
+export function ContextBurn({ cap, autoRestart }) {
+    if (!autoRestart || cap == null || cap >= 100) return null;
+    return html`<span class="ctxburn" style=${`left:${Math.max(0, cap)}%`} aria-hidden="true"></span>`;
+}
+
+export function autoRestartTip(cap) {
+    return `At ${cap}% context, the session saves its work and restarts with an empty context`;
 }
 
 // SegBar shows how many containers of a stack are up.

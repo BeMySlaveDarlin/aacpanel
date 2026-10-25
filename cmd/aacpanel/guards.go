@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strconv"
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/guards"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
@@ -83,6 +85,42 @@ func (s *Server) handGuards(ctx context.Context, failed string) string {
 		return failed
 	}
 	return ""
+}
+
+// sessionsGuarded uses the host's choice of the nearest place, so the card
+// and the prompt stamp name the same cap. Codex has no context restart.
+func sessionsGuarded(payload []byte, list []store.Profile) []byte {
+	body := guards.Lines(guardsOf(list))
+	if body == "" {
+		return payload
+	}
+	var snapshot struct {
+		Sessions []map[string]json.RawMessage `json:"sessions"`
+	}
+	if err := json.Unmarshal(payload, &snapshot); err != nil {
+		return payload
+	}
+	marked := false
+	for _, row := range snapshot.Sessions {
+		if textField(row, "agent") == schema.AgentCodex {
+			continue
+		}
+		guard, ok := guards.Closest(body, textField(row, "cwd"))
+		if !ok {
+			continue
+		}
+		row["cap"] = json.RawMessage(strconv.Itoa(guard.Cap))
+		row["autoRestart"] = json.RawMessage(strconv.FormatBool(guard.Restart))
+		marked = true
+	}
+	if !marked {
+		return payload
+	}
+	out, err := spliceField(payload, "sessions", snapshot.Sessions)
+	if err != nil {
+		return payload
+	}
+	return out
 }
 
 // guardsOf returns the guard of every place the map knows: every project's

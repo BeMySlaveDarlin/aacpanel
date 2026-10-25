@@ -9,7 +9,7 @@ import { useEffect, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { ago, plural, since, tokens } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { ContextBar } from "../../ui/bar.js";
+import { ContextBar, autoRestartTip } from "../../ui/bar.js";
 import { waitText } from "../../ui/waits.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
@@ -446,6 +446,7 @@ export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = 
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
                     ${lived && html`<span class="pjlived">${lived}</span>`}
                     ${session.remote && html`<span class="pjremote" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+                    ${session.autoRestart && html`<span class="pjrestart" title=${autoRestartTip(session.cap)}><${Icon.refresh} />auto</span>`}
                     ${html`<${WaitingMark} session=${session} />`}
                     <span class="pjtag">${tag()}${place}</span>
                 </span>
@@ -455,7 +456,7 @@ export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = 
                 ${from && html`<span class="pjfrom">opened by <b>${from}</b></span>`}
             </button>
             <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
-            ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
+            ${!session.noRequests && html`<${ContextBar} pct=${session.pct} cap=${session.cap} autoRestart=${session.autoRestart} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
         </div>
         ${(notes || []).map((note) => html`<div class="pjnote" key=${note}>${note}</div>`)}

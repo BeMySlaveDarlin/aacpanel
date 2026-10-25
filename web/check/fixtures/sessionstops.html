@@ -12,6 +12,7 @@
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
+import { shownName } from "/src/agent.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -40,9 +41,11 @@ window.fetch = counted(async (url, init) => {
     if (String(url).startsWith("/api/sessions")) return json({ rows: [], total: 0 });
     return new Response("", { status: 404 });
 });
-render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
-    snapshot, limits: null, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
-}))), document.getElementById("desk"));
+const desk = document.getElementById("desk");
+const mountDesk = (host = exec, wait = null) => render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot, limits: null, current: "", onPick(p) { opened.push(p); }, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec: host, wait,
+}))), desk);
+mountDesk();
 
 const phone = document.getElementById("phone");
 const mount = (host = exec, wait = { of: () => null, opening: () => [] }) => render(h(ToastHost, null, h(GateHost, null, h(Sessions, {
@@ -106,6 +109,42 @@ window.done = (async () => {
         out.gates.push(shot);
     }
     for (const [name, kind] of [["helios", "restart"], ["lab", "close"], ["quiet", "close"]]) out.tips[name] = tip(`${kind} session ${name}`);
+    out.desktopActions = Object.fromEntries(sessions.map((s) => {
+        const card = [...desk.querySelectorAll(".dklive")].find((r) => text(r.querySelector(".dkname")) === shownName(s));
+        return [s.session, [...card.querySelectorAll(".dkact")].map((b) => ({
+            label: b.getAttribute("aria-label"), off: b.getAttribute("aria-disabled") === "true",
+            pressed: b.getAttribute("aria-pressed"), icon: Boolean(b.querySelector("svg")),
+        }))];
+    }));
+    const deskGate = () => desk.querySelector('.sheet.on[aria-label="action confirmation"]');
+    out.desktopGates = [];
+    for (const [name, kind] of [["lab", "restart"], ["lab", "close"], ["helios", "restart"], ["codex-5afc361b", "close"]]) {
+        const before = sent.length, picked = opened.length;
+        desk.querySelector(`[aria-label="${kind} session ${name}"]`).click();
+        await until(() => deskGate()?.querySelector(".btnrow .btn:last-child"));
+        const shot = { name, kind, before: sent.length - before, opened: opened.length - picked };
+        deskGate().querySelector(".btnrow .btn:last-child").click();
+        await until(() => sent.length === before + 1 && !deskGate());
+        shot.sent = sent.slice(before);
+        out.desktopGates.push(shot);
+    }
+    mountDesk({ available: true, kinds: [] });
+    await quiet();
+    out.desktopUnavailable = [...desk.querySelectorAll('[aria-label$=" lab"]')].map((b) => ({
+        off: b.getAttribute("aria-disabled") === "true", why: b.getAttribute("data-tip"),
+    }));
+    out.desktopBusy = true;
+    for (const kind of ["restart", "close"]) {
+        mountDesk(exec, { of: (act, name) => name === "lab" && act === kind ? { since: 1 } : null, opening: () => [] });
+        await quiet();
+        const before = sent.length;
+        for (const b of desk.querySelectorAll('[aria-label$="session lab"]')) {
+            out.desktopBusy = out.desktopBusy && b.getAttribute("aria-disabled") === "true";
+            b.click();
+        }
+        out.desktopBusy = out.desktopBusy && sent.length === before && !deskGate();
+    }
+    mountDesk();
     mount({ available: true, kinds: [] });
     await until(() => button("lab", "close").disabled && button("lab", "restart").disabled);
     out.unavailable = [...row("lab").querySelectorAll(".pjact")].map((b) => ({ off: b.disabled, why: b.title }));

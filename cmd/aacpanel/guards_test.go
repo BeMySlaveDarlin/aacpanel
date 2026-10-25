@@ -12,6 +12,54 @@ import (
 	"aacpanel/internal/store"
 )
 
+func TestSessionsCarryTheGuardOfTheirDirectory(t *testing.T) {
+	list := []store.Profile{{Prefix: "/srv/work", Launch: json.RawMessage(`{"contextCap":90}`),
+		Groups: []store.ProfileGroup{{Projects: []store.ProfileProject{
+			{Path: "/srv/work/shop", Launch: json.RawMessage(`{"contextCap":70,"autoRestart":true}`)},
+		}}},
+	}}
+	payload := []byte(`{"at":42,"sessions":[
+		{"session":"project","cwd":"/srv/work/shop","agent":"claude","pct":35},
+		{"session":"contour","cwd":"/srv/work/notes"},
+		{"session":"worktree","cwd":"/srv/work/shop/.claude/worktrees/review"},
+		{"session":"codex","cwd":"/srv/work/shop","agent":"codex"},
+		{"session":"outside","cwd":"/srv/personal"},
+		{"session":"neighbour","cwd":"/srv/workshop"},
+		{"session":"unknown"}
+	]}`)
+	var got struct {
+		At       int
+		Sessions []map[string]json.RawMessage
+	}
+	if err := json.Unmarshal(sessionsGuarded(payload, list), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.At != 42 || len(got.Sessions) != 7 || string(got.Sessions[0]["pct"]) != "35" {
+		t.Fatalf("the guard changed the rest of the snapshot: %+v", got)
+	}
+	for _, row := range got.Sessions {
+		name := textField(row, "session")
+		cap, restart := "", ""
+		switch name {
+		case "project", "worktree":
+			cap, restart = "70", "true"
+		case "contour":
+			cap, restart = "90", "false"
+		}
+		if string(row["cap"]) != cap || string(row["autoRestart"]) != restart {
+			t.Errorf("%s: cap=%s autoRestart=%s, want %q and %q", name, row["cap"], row["autoRestart"], cap, restart)
+		}
+	}
+	for _, body := range []string{`{`, `{"sessions":null}`, `{"sessions":[{"agent":"codex","cwd":"/srv/work"}]}`} {
+		if got := string(sessionsGuarded([]byte(body), list)); got != body {
+			t.Errorf("a snapshot with no guarded session changed: %s", got)
+		}
+	}
+	if got := string(sessionsGuarded(payload, nil)); got != string(payload) {
+		t.Errorf("a snapshot with no map changed: %s", got)
+	}
+}
+
 // Every project's directory gets what it starts with, and every contour's
 // directories its defaults: a session no project lies closer to is still
 // capped by its contour. Where nobody says anything the panel's own cap

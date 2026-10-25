@@ -26,17 +26,17 @@ func TestDesktopHidesCloseForTheHomeSession(t *testing.T) {
 	if gate == nil {
 		t.Fatalf("%s: the desktop row offers to close the home session — the panel does not close the main session of the host, just as it does not stop its own container", desk)
 	}
-	if icon := strings.Index(acts, "<i"); icon < 0 || icon < gate[0] {
+	if icon := strings.Index(acts, `aria-label=${`+"`"+`close session`); icon < 0 || icon < gate[0] {
 		t.Errorf("%s: the home check comes after the close icon — the button is still drawn, only its handler is gated", desk)
 	}
 }
 
 // The home session gets the one action the panel does have for it: a restart
-// from scratch. The desktop offers it where the other sessions have their
-// close, with the same icon and host check, and to the home session only.
+// from scratch. Every Claude row offers that action through the host check;
+// the home row offers no close.
 func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 	files := srcFiles(t)
-	homeOnly := regexp.MustCompile(`[^!]s(?:ession)?\.home\s*&&`)
+	claudeOnly := regexp.MustCompile(`!isCodex\(s\)\s*&&`)
 
 	const desk = "src/desktop/sessions.js"
 	src := stripComments(files[desk])
@@ -45,11 +45,11 @@ func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 	}
 	row := funcBody(t, src, "function SessionLine(")
 	acts := jsUntil(t, desk, row, `<span class="dkrowacts"`, "</span>")
-	gate := homeOnly.FindStringIndex(acts)
+	gate := claudeOnly.FindStringIndex(acts)
 	if gate == nil {
-		t.Fatalf("%s: the row actions slot has no block for the home session — there is nothing to restart it with", desk)
+		t.Fatalf("%s: the row actions slot has no block for Claude sessions — there is nothing to restart it with", desk)
 	}
-	home := acts[gate[0]:]
+	home := acts[gate[0] : strings.Index(acts[gate[0]:], "</i>")+gate[0]]
 	for _, want := range []string{`"session.restart"`, "Icon.refresh"} {
 		if !strings.Contains(home, want) {
 			t.Errorf("%s: the home row's block has no %s", desk, want)

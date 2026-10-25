@@ -198,6 +198,7 @@ a.mcprow.toolrow { text-decoration: none; }
 }
 .chatpct .u { font-size: .78em; font-weight: 600; margin-left: .05em; }
 .ctxbar {
+    position: relative;
     flex: none;
     height: 3px;
     background: rgba(var(--tint), .12);
@@ -213,6 +214,7 @@ a.mcprow.toolrow { text-decoration: none; }
 
 .ctxbar.head { margin-top: .25rem; border-radius: 2px; }
 .ctxbar i {
+    position: relative;
     display: block; height: 100%;
     border-radius: 2px;
     background: var(--ctx-1);
@@ -227,6 +229,15 @@ a.mcprow.toolrow { text-decoration: none; }
     background: none;
     box-shadow: none;
     border-right: 3px solid var(--ink-dim);
+}
+
+.ctxburn {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    background: repeating-linear-gradient(125deg, transparent 0 3px, color-mix(in srgb, var(--ctx-4) 35%, transparent) 3px 4px),
+        color-mix(in srgb, var(--void) 75%, var(--ctx-4));
 }
 
 .segbar {

@@ -135,7 +135,7 @@ window.fetch = counted(async (url, init) => {
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
 
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.resume", "session.open", "session.switch",
-    "window.open", "session.send", "session.set"] };
+    "window.open", "session.send", "session.set", "session.pin"] };
 const picked = [];
 const orders = [];
 let archiveOpened = 0;
@@ -192,7 +192,7 @@ const rows = () => Array.from(root().querySelectorAll(".dklive:not(.dkghost)")).
     const r = box(row);
     const left = Array.from(row.querySelectorAll(".dksessmain > *")).map((el) => [el.className || "name", box(el)]);
     const icon = row.querySelector(".dkrowacts .dkact");
-    const act = box(icon);
+    const act = box(row.querySelector(".dkrowacts"));
     const name = box(row.querySelector(".dkname"));
     const detail = box(row.querySelector(".dkdetail"));
     const say = box(row.querySelector(".dksay"));
@@ -288,7 +288,7 @@ window.done = (async () => {
     out.bells = bells();
     out.columnText = text(root().querySelector(".dkscroll"));
     out.rows = rows();
-    out.homeAct = (rowOf("helios").querySelector(".dkrowacts .dkact") || {}).getAttribute?.("aria-label") || "";
+    out.homeAct = [...rowOf("helios").querySelectorAll(".dkrowacts .dkact")].map((b) => b.getAttribute("aria-label")).join(",");
     out.hiding = hiding();
 
     // The shelf.

@@ -99,14 +99,14 @@ export async function sessionPins(phoneOnly = false) {
     const deskRow = (name) => [...mount.querySelectorAll(".dklive")].find((r) => text(r.querySelector(".dkname")) === name);
     const look = (name) => {
         const button = phoneButton(name);
-        const mark = deskRow(name).querySelector(".dkpinned");
+        const mark = deskRow(name).querySelector(".dkact[aria-pressed]");
         return {
             pressed: button.getAttribute("aria-pressed") === "true",
             pending: button.getAttribute("aria-busy") === "true",
             off: button.disabled,
             dim: Number(getComputedStyle(button).opacity) < 1,
             mark: Boolean(mark),
-            markOn: mark && mark.getAttribute("data-on") === "true",
+            markOn: mark && mark.getAttribute("aria-pressed") === "true",
             markPending: mark && mark.getAttribute("aria-busy") === "true",
             markDim: mark && Number(getComputedStyle(mark).opacity) < 1,
         };
@@ -118,6 +118,17 @@ export async function sessionPins(phoneOnly = false) {
         button.click();
         await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
         await until(() => phoneButton(name).getAttribute("aria-busy") === "true");
+        await until(() => order.join("\n") === names(".dklive .dkname").join("\n"));
+    };
+    const deskPin = async (name) => {
+        const button = deskRow(name).querySelector(".dkact[aria-pressed]");
+        if (!button || button.getAttribute("aria-disabled") === "true") throw new Error(`no pin button for ${name}`);
+        const before = sent.length;
+        button.click();
+        await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
+        await until(() => button.getAttribute("aria-busy") === "true");
+        button.click();
+        if (sent.length !== before + 1) throw new Error("a pending pin was sent twice");
         await until(() => order.join("\n") === names(".dklive .dkname").join("\n"));
     };
     const menuItem = async (name, label) => {
@@ -192,7 +203,7 @@ export async function sessionPins(phoneOnly = false) {
         await paint();
         out.reopened = read();
         if (phoneOnly) await phonePin("child");
-        else await menuPin("child", "Unpin the group of review");
+        else await deskPin("child");
         out.unpinning = read();
         out.unpinLook = look("review");
         if (!phoneOnly) out.unpinMenu = await pendingMenu("thread", "Pin the group of review");

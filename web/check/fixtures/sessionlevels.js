@@ -21,8 +21,12 @@ export async function sessionLevels() {
         project, contour: 1, profile: "Personal", cwd: project.path, transport: "stream", status: "idle", pct: 20,
         startedAt: new Date(Date.now() - (100 - minute) * 60e3).toISOString(), ...extra,
     });
-    const chain = [make("D", "C", 4, { status: "waiting" }), make("E", "A", 5), make("G", "A", 11),
-        make("C", "B", 3), make("A", "", 1), make("B", "A", 2), make("F", "E", 10)];
+    const chain = [make("D", "C", 4, { status: "waiting" }), make("E", "A", 5), make("G", "A", 11, { cap: 70, autoRestart: false }),
+        make("C", "B", 3, { cap: 65, autoRestart: true, pct: 82 }),
+        make("A", "", 1, { cap: 80, autoRestart: true, checklist: { items: [{ text: "Review the branch", status: "active" }] } }),
+        make("B", "A", 2, { cap: 70, autoRestart: true, remote: true,
+            checklist: { items: [{ text: "Read the brief", status: "done" }, { text: "Check the layout", status: "active" }] } }),
+        make("F", "E", 10, { cap: 100, autoRestart: true })];
     const panels = [
         { root: mount.querySelector(".phone"), prefix: "pj", row: ".pjrow.pjcard", name: ".pjsess" },
         { root: mount.querySelector(".dkbody"), prefix: "dk", row: ".dksess.dklive", name: ".dkname" },
@@ -68,11 +72,27 @@ export async function sessionLevels() {
         const rows = Array.from(p.root.querySelectorAll(p.row)).map((row) => {
             const box = row.getBoundingClientRect();
             const name = row.querySelector(p.name).getBoundingClientRect();
+            const bar = row.querySelector(p.prefix === "pj" ? ".ctxbar" : ".dksessbar");
+            const track = bar.getBoundingClientRect();
+            const burn = bar.querySelector(".ctxburn");
+            const burned = burn && burn.getBoundingClientRect();
+            const fill = bar.querySelector("i");
+            const mark = row.querySelector(`.${p.prefix}restart`);
             const branch = row.matches(`.${p.prefix}branch`);
             const guide = getComputedStyle(row, p.prefix === "pj" ? "::before" : null);
             const guideHeight = p.prefix === "pj" ? guide.height : guide.backgroundSize.split(" ")[1];
             return { name: text(row.querySelector(p.name)), x: name.left - origin, width: name.width,
                 top: box.top, bottom: box.bottom, height: box.height,
+                branch, rowX: box.left - origin + (p.prefix === "dk" ? parseFloat(getComputedStyle(row).paddingLeft) : 0),
+                barX: track.left - origin, barWidth: track.width,
+                burn: Boolean(burn), burnLeft: burned ? (burned.left - track.left) / track.width * 100 : 0,
+                burnWidth: burned ? burned.width / track.width * 100 : 0,
+                burnPaint: burn ? getComputedStyle(burn).backgroundImage : "",
+                fillWidth: fill.getBoundingClientRect().width / track.width * 100,
+                fillAbove: getComputedStyle(fill).position === "relative" && (!burn || Boolean(burn.compareDocumentPosition(fill) & Node.DOCUMENT_POSITION_FOLLOWING)),
+                restart: text(mark), restartIcon: Boolean(mark?.querySelector("svg")),
+                restartTip: mark ? mark.getAttribute(p.prefix === "pj" ? "title" : "data-tip") : "",
+                checklist: text(row.querySelector(`.${p.prefix}checklist`)),
                 guideX: branch ? box.left - origin + parseFloat(p.prefix === "pj" ? guide.left : guide.backgroundPositionX) : 0,
                 guideHeight: branch ? guideHeight.endsWith("%") ? box.height : parseFloat(guideHeight) : 0 };
         });

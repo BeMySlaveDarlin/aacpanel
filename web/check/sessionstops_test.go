@@ -128,7 +128,7 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 		t.Errorf("the end of a session with nothing at work reads %q", got.Notes["quiet"])
 	}
 	saysCodexClose(t, "the phone card", got.Notes["codex-5afc361b"])
-	for name, want := range map[string]string{"helios": "Stops 1 background task, 2 agents", "lab": "Stops 3 background tasks, 1 workflow", "quiet": ""} {
+	for name, want := range map[string]string{"helios": "stops 1 background task, 2 agents · a new session with an empty context; this one stays in the archive", "lab": "stops 3 background tasks, 1 workflow · the conversation stays in the archive", "quiet": "the conversation stays in the archive"} {
 		if got.Tips[name] == nil || *got.Tips[name] != want {
 			t.Errorf("the desktop button of %s tips %v, expected %q", name, got.Tips[name], want)
 		}

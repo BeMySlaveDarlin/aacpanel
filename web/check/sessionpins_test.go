@@ -156,8 +156,8 @@ func TestPinPressMovesBothListsBeforeTheSnapshot(t *testing.T) {
 				p.UnpinLook.MarkOn || !p.UnpinLook.MarkPending {
 				t.Errorf("unpinning did not show the expected state: %+v", p.UnpinLook)
 			}
-			if p.UnpinnedLook.Pressed || p.UnpinnedLook.Pending || p.UnpinnedLook.Off || p.UnpinnedLook.Mark {
-				t.Errorf("the confirmed unpin kept a mark: %+v", p.UnpinnedLook)
+			if p.UnpinnedLook.Pressed || p.UnpinnedLook.Pending || p.UnpinnedLook.Off || !p.UnpinnedLook.Mark || p.UnpinnedLook.MarkOn || p.UnpinnedLook.MarkPending {
+				t.Errorf("the confirmed unpin left the button pressed or pending: %+v", p.UnpinnedLook)
 			}
 			if screen == "desk" && (p.PinMenu.Label != "Unpin the group of review" || !p.PinMenu.Off || p.PinMenu.Note != "Pinning the group" ||
 				p.UnpinMenu.Label != "Pin the group of review" || !p.UnpinMenu.Off || p.UnpinMenu.Note != "Unpinning the group") {

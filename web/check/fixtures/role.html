@@ -7,13 +7,9 @@
 <div id="phone"></div>
 <div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section></div></div>
 <script type="module">
-// Three sessions of one project in one directory, two of them with a role:
-// the role is a line of its own on their rows in the desktop column, cut at
-// its end, and stays off the cards of the phone's list; the third has no such
-// line. The session
-// tools name the role next to Rename and open its sheet, which counts the
-// characters, holds back a role past its length, and saves or clears it with
-// its own buttons.
+// The lists keep the role in the tools and show the checklist on the card.
+// The session tools name the role next to Rename; its sheet counts, saves
+// and clears the role without asking a second time.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
@@ -42,8 +38,8 @@ const lead = "The lead of the project: picks the next task from the queue, revie
 const split = "The database split and its migrations";
 const base = { contour: 4, transport: "stream", cwd: "/srv/shop", model: "claude-opus-5-5" };
 const sessions = [
-    { ...base, session: "shop", sessionId: "s1", status: "busy", pct: 41, role: lead },
-    { ...base, session: "shop-db-split", sessionId: "s2", status: "idle", pct: 12, role: split },
+    { ...base, session: "shop", sessionId: "s1", status: "busy", pct: 41, role: lead, checklist: { items: [{ text: "Review the branch and the changes to all the migrations before handing the work to the next session", status: "active" }] } },
+    { ...base, session: "shop-db-split", sessionId: "s2", status: "idle", pct: 12, role: split, checklist: { items: [{ text: "Read the schema", status: "done" }, { text: "Run migrations", status: "active" }] } },
     { ...base, session: "shop-queue-watch", sessionId: "s3", status: "idle", pct: 7 },
 ];
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.rename", "session.role", "session.switch", "session.send"] };
@@ -66,16 +62,18 @@ const until = async (ok, what, ms = 4000) => {
     while (!ok() && performance.now() < end) await new Promise((r) => requestAnimationFrame(r));
     if (!ok()) throw new Error(`the screen did not come to ${what}: ${text(document.querySelector(".dkpanel")) || text(chat).slice(0, 300)}`);
 };
-// rows reads the role line of every row: its text, whether it is cut at its
-// end on one line, and whether it stands between the state and what follows.
-const rows = (root, row, name, role, state, after) => [...root.querySelectorAll(row)].map((r) => {
-    const line = r.querySelector(role);
+// rows reads the checklist between the state and the facts, and checks
+// the whole card for the role, even if it moved to another element.
+const rows = (root, row, name, checklist, state, after) => [...root.querySelectorAll(row)].map((r) => {
+    const line = r.querySelector(checklist);
+    const role = sessions.find((s) => s.session === text(r.querySelector(name)))?.role;
     const box = line && line.getBoundingClientRect();
     const said = r.querySelector(state).getBoundingClientRect();
     const next = r.querySelector(after);
     return {
         name: text(r.querySelector(name)),
-        role: line ? line.textContent : null,
+        role: role && text(r).includes(role) ? role : null,
+        checklist: text(line),
         cut: Boolean(line) && line.scrollWidth > line.clientWidth + 1,
         oneLine: !line || box.height < 2 * parseFloat(getComputedStyle(line).fontSize),
         placed: !line || (box.top >= said.bottom - 1 && (!next || box.bottom <= next.getBoundingClientRect().top + 1)),
@@ -110,7 +108,7 @@ window.done = (async () => {
     await document.fonts.ready;
     await quiet();
     const out = {};
-    out.desk = rows(document.getElementById("desk"), ".dksess.dklive", ".dkname", ".dkrole", ".dksay", ".dkdetail");
+    out.desk = rows(document.getElementById("desk"), ".dksess.dklive", ".dkname", ".dkchecklist", ".dksay", ".dkdetail");
     // A phone's card is read whole for the words of its role.
     out.phone = [...document.getElementById("phone").querySelectorAll(".pjcard")].map((card) => {
         const name = text(card.querySelector(".pjsess"));

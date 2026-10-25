@@ -295,9 +295,8 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	}
 }
 
-// A row does one thing besides opening and shows it on every row, not under
-// the pointer: a cross to close a session, a restart for the home one. The
-// action stands in the top right corner of the row, on the line of the name
+// A row offers pin, restart and close without the pointer; the home session
+// has no close. The action group stands in the top right corner of the row, on the line of the name
 // at the right edge, where no share of the context stands any more, and
 // nothing of the row runs into it: not a long name, not its marks, not the
 // state or the line of what it runs on. The column stands as narrow as it
@@ -310,15 +309,19 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 		t.Fatalf("the column shows %d live rows: %+v", len(got.Rows), got.Rows)
 	}
 	for _, row := range got.Rows {
-		if row.Icons != 1 || !row.Shown {
-			t.Errorf("%s has %d actions, shown %v — every row the panel started shows its one action without the pointer", row.Name, row.Icons, row.Shown)
+		want := 3
+		if row.Name == "helios" {
+			want = 2
+		}
+		if row.Icons != want || !row.Shown {
+			t.Errorf("%s has %d actions, shown %v — every row the panel started shows its actions without the pointer", row.Name, row.Icons, row.Shown)
 		}
 		if len(row.Bad) > 0 {
 			t.Errorf("%s: %v — the action keeps the corner of its own", row.Name, row.Bad)
 		}
 	}
-	if got.HomeAct != "restart session helios" {
-		t.Errorf("the home session offers %q, expected its restart alone", got.HomeAct)
+	if got.HomeAct != "pin session group helios,restart session helios" {
+		t.Errorf("the home session offers %q, expected pin and restart", got.HomeAct)
 	}
 	if len(got.Hiding) > 0 {
 		t.Errorf("the stylesheet takes off the screen %v — the actions of the column stand without the pointer", got.Hiding)

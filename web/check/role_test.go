@@ -6,21 +6,17 @@ import (
 )
 
 type roleLine struct {
-	Name    string  `json:"name"`
-	Role    *string `json:"role"`
-	Cut     bool    `json:"cut"`
-	OneLine bool    `json:"oneLine"`
-	Placed  bool    `json:"placed"`
+	Checklist string  `json:"checklist"`
+	Name      string  `json:"name"`
+	Role      *string `json:"role"`
+	Cut       bool    `json:"cut"`
+	OneLine   bool    `json:"oneLine"`
+	Placed    bool    `json:"placed"`
 }
 
-// The role of a session is a line of its own on its row in the desktop column:
-// under the state, on one line cut at its end. A session without a role has no
-// such line, and the cards of the phone's list carry none: the phone keeps its
-// cards to what the sessions do. The tools of the conversation name
-// the role next to Rename and open its sheet, which counts the characters as
-// the host does, holds back a role past its length, saves a trimmed role and
-// clears one with its own buttons, asking nothing a second time.
-func TestTheRoleIsALineOfTheRowAndASheetOfTheTools(t *testing.T) {
+// The cards show the checklist, cut to one line under the state; the role
+// stays in the tools. Its sheet still counts, saves and clears the words.
+func TestTheChecklistTakesTheRowAndTheRoleStaysInTheTools(t *testing.T) {
 	var got struct {
 		Desk         []roleLine `json:"desk"`
 		Phone        []roleLine `json:"phone"`
@@ -49,15 +45,22 @@ func TestTheRoleIsALineOfTheRowAndASheetOfTheTools(t *testing.T) {
 		t.Fatalf("the desktop list has %d rows and the phone's %d: %+v %+v", len(got.Desk), len(got.Phone), got.Desk, got.Phone)
 	}
 	for _, r := range got.Desk {
-		hasRole := r.Name != "shop-queue-watch"
-		if (r.Role != nil) != hasRole || r.Role != nil && *r.Role == "" {
+		if r.Role != nil {
 			t.Errorf("desktop: %s shows the role %v", r.Name, r.Role)
 		}
+		want := map[string]string{
+			"shop":             "1/1 · Review the branch and the changes to all the migrations before handing the work to the next session",
+			"shop-db-split":    "2/2 · Run migrations",
+			"shop-queue-watch": "",
+		}[r.Name]
+		if r.Checklist != want {
+			t.Errorf("desktop: %s shows checklist %q, want %q", r.Name, r.Checklist, want)
+		}
 		if !r.OneLine || !r.Placed {
-			t.Errorf("desktop: the role of %s is on one line %v, under the state %v", r.Name, r.OneLine, r.Placed)
+			t.Errorf("desktop: the checklist of %s is on one line %v, under the state %v", r.Name, r.OneLine, r.Placed)
 		}
 		if r.Cut != (r.Name == "shop") {
-			t.Errorf("desktop: the role of %s is cut %v — only the long one is", r.Name, r.Cut)
+			t.Errorf("desktop: the checklist of %s is cut %v — only the long one is", r.Name, r.Cut)
 		}
 	}
 	for _, r := range got.Phone {

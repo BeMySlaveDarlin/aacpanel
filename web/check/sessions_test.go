@@ -1,12 +1,144 @@
 package check
 
 import (
+	"math"
 	"regexp"
 	"strings"
 	"testing"
 
 	"aacpanel/internal/store"
 )
+
+type sessionCardTrack struct {
+	Name, BurnPaint, Restart, RestartTip, Checklist string
+	Branch, Burn, FillAbove, RestartIcon            bool
+	RowX, BarX, BarWidth, GuideX                    float64
+	BurnLeft, BurnWidth, FillWidth                  float64
+}
+
+func sessionCardTracks(t *testing.T) map[string][]sessionCardTrack {
+	t.Helper()
+	type screen struct {
+		Open struct{ Rows []sessionCardTrack }
+	}
+	var got struct {
+		Levels struct{ Phone, Desk screen }
+	}
+	runWideFixture(t, "sessiongroups.html", &got)
+	return map[string][]sessionCardTrack{"phone": got.Levels.Phone.Open.Rows, "desk": got.Levels.Desk.Open.Rows}
+}
+
+func TestSessionContextBarsBeginAtTheirBranches(t *testing.T) {
+	for screen, rows := range sessionCardTracks(t) {
+		if len(rows) != 7 {
+			t.Fatalf("%s: expected seven rows at three levels, got %+v", screen, rows)
+		}
+		for _, row := range rows {
+			want := row.RowX
+			if row.Branch {
+				want = row.GuideX
+			}
+			if row.BarWidth <= 0 || math.Abs(row.BarX-want) > 1 {
+				t.Errorf("%s/%s: context starts at %.2f, branch or plain edge at %.2f (width %.2f)", screen, row.Name, row.BarX, want, row.BarWidth)
+			}
+		}
+	}
+}
+
+func TestSessionContextBarsReserveTheRestartCap(t *testing.T) {
+	for screen, rows := range sessionCardTracks(t) {
+		for _, row := range rows {
+			cap, burn := map[string]float64{"A": 80, "B": 70, "C": 65}[row.Name]
+			if row.Burn != burn {
+				t.Errorf("%s/%s: spent track %v, want %v", screen, row.Name, row.Burn, burn)
+			}
+			if burn && (math.Abs(row.BurnLeft-cap) > .1 || math.Abs(row.BurnWidth-(100-cap)) > .1 ||
+				!strings.Contains(row.BurnPaint, "repeating-linear-gradient") || !row.FillAbove) {
+				t.Errorf("%s/%s: the cap does not leave a painted track under the fill: %+v", screen, row.Name, row)
+			}
+			if row.Name == "C" && math.Abs(row.FillWidth-82) > .1 {
+				t.Errorf("%s: context past the cap was cut back: %+v", screen, row)
+			}
+		}
+	}
+}
+
+func TestSessionCardsMarkAutomaticRestart(t *testing.T) {
+	for screen, rows := range sessionCardTracks(t) {
+		for _, row := range rows {
+			cap := map[string]string{"A": "80", "B": "70", "C": "65", "F": "100"}[row.Name]
+			if cap == "" {
+				if row.Restart != "" || row.RestartIcon || row.RestartTip != "" {
+					t.Errorf("%s/%s: a session without automatic restart carries its mark: %+v", screen, row.Name, row)
+				}
+			} else if row.Restart != "auto" || !row.RestartIcon || !strings.Contains(row.RestartTip, cap+"%") ||
+				!strings.Contains(row.RestartTip, "saves its work") || !strings.Contains(row.RestartTip, "restarts") {
+				t.Errorf("%s/%s: the restart mark loses its consequence: %+v", screen, row.Name, row)
+			}
+		}
+	}
+}
+
+func TestDesktopSessionActionsFollowThePhone(t *testing.T) {
+	var got struct {
+		DesktopActions map[string][]struct {
+			Label     string
+			Off, Icon bool
+			Pressed   *string
+		}
+		DesktopGates []struct {
+			Name, Kind     string
+			Before, Opened int
+			Sent           []struct{ Kind, Target string }
+		}
+		DesktopUnavailable []struct {
+			Off bool
+			Why string
+		}
+		DesktopBusy bool
+	}
+	runFixture(t, "sessionstops.html", &got)
+	for name, want := range map[string]string{
+		"helios": "pin,restart", "lab": "pin,restart,close", "quiet": "pin,restart,close",
+		"codex-5afc361b": "pin,close", "outside": "",
+	} {
+		var actions []string
+		for _, b := range got.DesktopActions[name] {
+			pin := b.Label == "pin session group "+name
+			if pin {
+				actions = append(actions, "pin")
+				if b.Pressed == nil || *b.Pressed != "false" {
+					t.Errorf("%s: the pin has no unpressed state: %+v", name, b)
+				}
+			} else {
+				actions = append(actions, strings.TrimSuffix(b.Label, " session "+name))
+			}
+			if !b.Icon || b.Off != pin {
+				t.Errorf("%s: the action has the wrong icon or availability: %+v", name, b)
+			}
+		}
+		if strings.Join(actions, ",") != want {
+			t.Errorf("%s offers %v, want %s", name, actions, want)
+		}
+	}
+	if len(got.DesktopGates) != 4 {
+		t.Fatalf("desktop actions reached %d confirmations, want four", len(got.DesktopGates))
+	}
+	for _, gate := range got.DesktopGates {
+		if gate.Before != 0 || gate.Opened != 0 || len(gate.Sent) != 1 ||
+			gate.Sent[0].Kind != "session."+gate.Kind || gate.Sent[0].Target != gate.Name {
+			t.Errorf("the desktop press bypassed the gate or opened the conversation: %+v", gate)
+		}
+	}
+	if len(got.DesktopUnavailable) != 3 || !got.DesktopBusy {
+		t.Errorf("desktop availability: %+v, busy held back: %v", got.DesktopUnavailable, got.DesktopBusy)
+	}
+	for _, b := range got.DesktopUnavailable {
+		if !b.Off || !strings.Contains(b.Why, "the host does not know") {
+			t.Errorf("an unknown desktop action is available or unexplained: %+v", b)
+		}
+	}
+}
 
 func TestSessionNotesReachTheScreen(t *testing.T) {
 	src := screenSrc(t, "src/screens/sessions.js")

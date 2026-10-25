@@ -518,7 +518,7 @@ window.done = (async () => {
     out.restarted = await press("Restart the session");
     await openOn(aac);
     out.closedByMenu = await press("Close the session");
-    out.closedByButton = await confirmClick(aac.querySelector(".dkrowacts .dkact"));
+    out.closedByButton = await confirmClick(aac.querySelector('[aria-label="close session aacpanel"]'));
 
     await openOn(contOf("shop-web"));
     out.lists.running = read();

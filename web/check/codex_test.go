@@ -136,14 +136,14 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("Codex is painted %q and Claude %q on the desktop rows, expected %s and %s, the colours of their marks",
 			got.DeskAgent.Colour, got.ClaudeAgent.Colour, codexWordHue, claudeWordHue)
 	}
-	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 1 {
-		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked and closable",
+	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 3 {
+		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked, pinnable, restartable and closable",
 			got.ClaudeMarks, got.ClaudeActs)
 	}
-	if len(got.DeskActs) != 1 || got.DeskActs[0].Label != "close session "+name {
-		t.Errorf("the desktop row of the codex thread offers %+v, expected its close alone: a codex thread is not restarted", got.DeskActs)
+	if len(got.DeskActs) != 2 || got.DeskActs[0].Label != "pin session group "+name || got.DeskActs[1].Label != "close session "+name {
+		t.Errorf("the desktop row of the codex thread offers %+v, expected pin and close: a codex thread is not restarted", got.DeskActs)
 	} else {
-		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[0].Tip)
+		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[1].Tip)
 	}
 	if !strings.Contains(got.DeskSay, "waiting") {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)

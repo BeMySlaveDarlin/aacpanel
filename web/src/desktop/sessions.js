@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
+import { ContextBurn, autoRestartTip } from "../ui/bar.js";
 import { fill, pct, plural, tokens } from "../format.js";
 import { knows, whyNot } from "../exec.js";
 import { useAction } from "../actions/gate.js";
@@ -29,6 +30,7 @@ import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex, shownName, spoke
 import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
+import { checklistShort } from "../screens/chat/checklist.js";
 import { effortName, modeLoud, modeName, usualMode } from "../screens/chat/picker.js";
 import { homeProject, homeSession } from "../ui/home.js";
 import { useSessionsArchive } from "../history.js";
@@ -37,7 +39,7 @@ import { useMenu } from "../ui/menu.js";
 import { WaitingMark } from "../waiting.js";
 import { resume } from "../screens/sessions/actions.js";
 import { ago as age } from "./panels/util.js";
-import { ClosedMenu, ProjectMenu, UNDER_WAY, liveMenuOf } from "./sessionmenu.js";
+import { ClosedMenu, ProjectMenu, liveMenuOf } from "./sessionmenu.js";
 
 // How many closed conversations the shelf shows, and how many it asks the
 // archive for to find them: the shelf keeps the latest conversation of a
@@ -177,8 +179,8 @@ function GhostLine({ task }) {
 }
 
 // SessionLine is one live session: its name and the marks of what is unusual
-// about it, with the one thing done to it besides opening in the corner on
-// the line of the name; its state in the words of the phone; the quiet line
+// about it, with pin, restart and close in the corner on the line of the
+// name; its state in the words of the phone; its checklist; the quiet line
 // of what it runs on, how full its context is among it. A session another
 // opened stands a step in under it, on the line of the branch (branch "mid"
 // or "last"), a row like any other; one whose parent stands elsewhere says
@@ -192,26 +194,29 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     const restarting = wait ? wait.of("restart", s.session) : null;
     const busy = closing || restarting;
     const known = knows(exec, "session.close");
-    const can = known && !closing;
+    const can = known && !busy;
     const restartKnown = knows(exec, "session.restart");
-    const canRestart = restartKnown && !restarting;
+    const canRestart = restartKnown && !busy;
     const state = stateOf(s);
     const tone = busy ? "off" : state.tone;
     const said = closing ? "closing" : restarting ? "restarting" : state.text;
     const since = busy ? `${held(busy)} s` : state.since;
     const facts = factsOf(s, usual);
+    const steps = checklistShort(s.checklist);
     // What a close or a restart ends with the session, said before the press;
     // a codex thread says what a close does to it instead.
     const lost = stopsOf(s);
-    const lostTip = lost ? `Stops ${lost}` : undefined;
-    const closeTip = isCodex(s) ? CODEX_CLOSE : lostTip;
+    const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
+    const restartNote = ends("a new session with an empty context; this one stays in the archive");
+    const closeTip = isCodex(s) ? CODEX_CLOSE : ends("the conversation stays in the archive");
     const full = s.pct || 0;
     const open = () => onPick({ name: s.session, id: s.sessionId });
     const pin = pinOf(s, (snapshot && snapshot.sessions) || [], wait);
+    const canPin = knows(exec, "session.pin") && !pin.pending;
 
     return html`
         <button
-            class=${`dksess dklive${current === s.session ? " on" : ""}${kid ? " dkkid" : ""}${branch ? ` dkbranch${branch === "last" ? " dkbranchend" : ""}` : ""}${s.role ? " dkhasrole" : ""}`}
+            class=${`dksess dklive${current === s.session ? " on" : ""}${kid ? " dkkid" : ""}${branch ? ` dkbranch${branch === "last" ? " dkbranchend" : ""}` : ""}${steps ? " dkhaschecklist" : ""}`}
             type="button"
             data-tone=${tone}
             data-fill=${s.noRequests ? undefined : fill(full)}
@@ -221,10 +226,6 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
         >
             <span class="dksessmain">
                 <span class="dkname" title=${shownName(s) !== s.session ? s.session : undefined}>${shownName(s)}</span>
-                ${pin.root === s && (pin.on || pin.pending) && html`
-                    <span class="dkpinned" data-on=${pin.on ? "true" : "false"} aria-busy=${pin.pending ? "true" : undefined}
-                          title=${pin.why || "Pinned group"} aria-label=${pin.why || "Pinned group"}>${Icon.thumbtack()}</span>
-                `}
                 ${s.home && html`<span class="dkhome">home</span>`}
                 ${s.outside && !kid && html`
                     <span class="dkmark" data-tip=${outsideNote(s)}>
@@ -237,6 +238,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
                     </span>
                 `}
                 ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+                ${s.autoRestart && html`<span class="dkmark dkrestart" data-tip=${autoRestartTip(s.cap)}><${Icon.refresh} />auto</span>`}
                 ${html`<${WaitingMark} session=${s} desktop viewed=${current === s.session} />`}
             </span>
             <span class="dksay">
@@ -244,14 +246,45 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
                 <span class="dksaytext">${said}</span>
                 ${since && html`<span class="dksaysince">· ${since}</span>`}
             </span>
-            ${s.role && html`<span class="dkrole" data-tip=${s.role}>${s.role}</span>`}
+            ${steps && html`<span class="dkchecklist" data-tip=${steps}>${steps}</span>`}
             <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
+                ${!s.outside && html`
+                    <i
+                        class=${`dkact${canPin ? "" : " off"}`}
+                        aria-label=${`${pin.on ? "unpin" : "pin"} session group ${pin.root.session}`}
+                        aria-pressed=${pin.on ? "true" : "false"}
+                        aria-busy=${pin.pending ? "true" : undefined}
+                        aria-disabled=${!canPin ? "true" : undefined}
+                        data-tip=${pin.why || whyNot(exec, "session.pin") || pin.tip}
+                        data-tipside="left"
+                        onClick=${async () => {
+                            if (!canPin) return;
+                            await run("session.pin", pin.root.session, { on: !pin.on });
+                        }}
+                    ><${Icon.thumbtack} /></i>
+                `}
+                ${!isCodex(s) && !s.outside && html`
+                    <i
+                        class=${`dkact danger${canRestart ? "" : " off"}`}
+                        aria-label=${`restart session ${s.session}`}
+                        aria-disabled=${!canRestart ? "true" : undefined}
+                        data-tip=${busy
+                            ? "the session is already closing or restarting"
+                            : restartKnown ? restartNote : whyNot(exec, "session.restart")}
+                        data-tipside="left"
+                        onClick=${async () => {
+                            if (!canRestart) return;
+                            await run("session.restart", s.session, {});
+                        }}
+                    ><${Icon.refresh} /></i>
+                `}
                 ${!s.home && !s.outside && html`
                     <i
                         class=${`dkact danger${can ? "" : " off"}`}
                         aria-label=${`close session ${s.session}`}
-                        data-tip=${closing
-                            ? UNDER_WAY.close
+                        aria-disabled=${!can ? "true" : undefined}
+                        data-tip=${busy
+                            ? "the session is already closing or restarting"
                             : known ? closeTip : whyNot(exec, "session.close")}
                         data-tipside="left"
                         onClick=${async () => {
@@ -259,20 +292,6 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
                             await run("session.close", s.session, {});
                         }}
                     ><${Icon.close} /></i>
-                `}
-                ${s.home && html`
-                    <i
-                        class=${`dkact danger${canRestart ? "" : " off"}`}
-                        aria-label=${`restart session ${s.session}`}
-                        data-tip=${restarting
-                            ? UNDER_WAY.restart
-                            : restartKnown ? lostTip : whyNot(exec, "session.restart")}
-                        data-tipside="left"
-                        onClick=${async () => {
-                            if (!canRestart) return;
-                            await run("session.restart", s.session, {});
-                        }}
-                    ><${Icon.refresh} /></i>
                 `}
             </span>
             ${facts.length > 0 && html`
@@ -282,7 +301,10 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
             `}
             ${from && html`<span class="dkfrom">opened by <b>${from}</b></span>`}
             ${!s.noRequests && html`
-                <span class=${`dksessbar ${fill(full)}`}><i style=${`width:${Math.min(100, full)}%`}></i></span>
+                <span class=${`dksessbar ${fill(full)}`}>
+                    <${ContextBurn} cap=${s.cap} autoRestart=${s.autoRestart} />
+                    <i style=${`width:${Math.min(100, full)}%`}></i>
+                </span>
             `}
         </button>
     `;

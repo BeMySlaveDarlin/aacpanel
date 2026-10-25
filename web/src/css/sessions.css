@@ -585,6 +585,7 @@ span.pjname { cursor: default; }
 .pjfolddots i[data-tone="bg"] { background: transparent; opacity: 1; box-shadow: inset 0 0 0 1.5px var(--accent); }
 .pjfolddots i[data-tone="wait"] { background: var(--wait); opacity: 1; box-shadow: 0 0 8px var(--wait); }
 .pjrow.pjcard.pjbranch { padding-left: 1.85rem; }
+.pjrow.pjbranch > .ctxbar.edge { left: 1.12rem; }
 .pjrow.pjbranch::before {
     content: "";
     position: absolute;
@@ -671,11 +672,13 @@ button.pjstub { cursor: pointer; }
     overflow: hidden;
     overflow-wrap: anywhere;
 }
-/* How long the session has lived, and Remote Control when it is up — the
-   session is open on claude.ai as well — after its state on the state's line,
-   both as quiet words. */
-.pjlived, .pjremote { flex: none; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
-.pjlived::before, .pjremote::before { content: "·"; margin-right: .45rem; }
+/* The age, Remote Control and automatic restart follow the state as quiet
+   words; their tips say where the session is reached and when it restarts. */
+.pjlived, .pjremote, .pjrestart { flex: none; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
+.pjlived::before, .pjremote::before, .pjrestart::before { content: "·"; margin-right: .45rem; }
+.pjrestart { display: inline-flex; align-items: center; gap: .2rem; }
+.pjrestart::before { margin-right: .25rem; }
+.pjrestart svg { width: var(--i-sm); height: var(--i-sm); }
 /* A call the person has not come for yet: a bell in the colour of waiting on
    the state's line, as tall as the place after it, until the session is
    opened. */

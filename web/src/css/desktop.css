@@ -606,10 +606,9 @@
 
     .dkfrom b { font-family: var(--mono); font-weight: 500; color: var(--ink-dim); }
 
-    /* The role of the session, the person's or its opener's words: a line of
-       its own under the state, cut at its end; the lines under it step down
-       one. */
-    .dklive > .dkrole {
+    /* The checklist takes its own line under the state, cut at its end;
+       the facts and the parent below it step down one. */
+    .dklive > .dkchecklist {
         grid-column: 1 / -1;
         grid-row: 3;
         min-width: 0;
@@ -617,13 +616,13 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         font-size: var(--t-xs);
-        font-style: italic;
+        font-weight: 500;
         color: var(--ink-dim);
     }
 
-    .dklive.dkhasrole > .dkdetail { grid-row: 4; }
+    .dklive.dkhaschecklist > .dkdetail { grid-row: 4; }
 
-    .dklive.dkhasrole > .dkfrom { grid-row: 5; }
+    .dklive.dkhaschecklist > .dkfrom { grid-row: 5; }
 
     .dksessbody { min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
 
@@ -645,14 +644,14 @@
 
     /* The fill of the bar is the fill of the context, in the four steps the
        phone uses too: what colour a session is tells how full it is. */
-    .dksessbar i { display: block; height: 100%; background: var(--ctx-1); }
+    .dksessbar i { position: relative; display: block; height: 100%; background: var(--ctx-1); }
     .dksessbar.s2 i { background: var(--ctx-2); }
     .dksessbar.s3 i { background: var(--ctx-3); }
     .dksessbar.s4 i { background: var(--ctx-4); }
 
     /* A live session of the column: the name with the marks of what is
-       unusual about it, and the action of the row in the corner beside it;
-       its state in the words of the phone; a quiet line of what it runs on
+       unusual about it, and its actions in the corner beside it;
+       its state and checklist in the words of the phone; a quiet line of what it runs on
        under all of it, how full the context is among it. The bar of its
        context runs along the bottom edge, and a session that waits for the
        person has an edge of its own on the left. Its lines stand with no gap
@@ -764,8 +763,8 @@
 
     .dkdetail > [data-level="crit"] { font-weight: 600; color: var(--crit); }
 
-    /* The action of a row stands in its top right corner, on the line of the
-       name and at the same place on every row, so the actions read down one
+    /* The actions stand in the top right corner, on the line of the
+       name and at the same place on every row, so they read down one
        edge; a long name or its marks give way to it. */
     .dklive > .dkrowacts { grid-column: 2; grid-row: 1; justify-self: end; margin: 0; }
 
@@ -784,6 +783,8 @@
         border-radius: 0;
         background: none;
     }
+
+    .dksess.dklive.dkbranch > .dksessbar { grid-column: auto; left: .8rem; }
 
     /* The ground of a live row fills faintly as far as its context, in the
        colour of its bar and over the bar's own columns, so the fill starts and
@@ -2788,8 +2789,6 @@
     .dkcol .pzbar { margin-left: 0; margin-right: 0; }
     .pzanchor { position: relative; }
     .pzanchor .dkpop { left: 0; right: auto; width: min(26rem, 100%); }
-    .dkpinned { display: inline-flex; color: var(--accent); flex: none; }
-    .dkpinned[aria-busy="true"] { opacity: .45; }
-    .dkpinned[data-on="false"] { color: var(--ink-dim); }
-    .dkpinned svg { width: var(--i-sm); height: var(--i-sm); }
+    .dkrowacts .dkact[aria-pressed="true"] { color: var(--accent); }
+    .dkrowacts .dkact[aria-busy="true"] { opacity: .45; }
 }
