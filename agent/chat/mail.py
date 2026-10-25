@@ -12,7 +12,7 @@ from .limits import MAX_NOTE, MAX_RESULT, cut
 MAIL_RE = re.compile(
     r"<(teammate|cross-session|agent)-message\s+([^>]*)>(.*?)</\1-message>", re.S)
 MAIL_ATTR_RE = re.compile(r'(\w[\w-]*)\s*=\s*"([^"]*)"')
-PANEL_MESSAGE_RE = re.compile(r'<panel-message\s+from="([^"]*)"\s*>(.*?)</panel-message>', re.S)
+PANEL_MESSAGE_RE = re.compile(r'<panel-message\s+from="([^"]*)"(?:\s+until="([^"]*)")?\s*>(.*?)</panel-message>', re.S)
 
 
 def panel_message(text):
@@ -25,7 +25,7 @@ def panel_message(text):
     found = PANEL_MESSAGE_RE.match(text)
     if found is None or found.end() != len(text):
         return None
-    return found.group(1), found.group(2).strip()
+    return found.group(1), found.group(3).strip(), found.group(2) or ""
 
 
 # What a subagent's final report is wrapped in before it reaches the session,

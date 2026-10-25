@@ -402,6 +402,13 @@ def sessions():
     # directory the walk of the projects stops at, so the repository a session
     # works in is read off the .git file of its worktree here.
     for s in data["sessions"]:
+        alarms = held_by.get(s.get("sessionId")) or {}
+        counts = {key: alarms[key] for key in HELD if alarms.get(key)}
+        if counts:
+            s.setdefault("work", {}).update(counts)
+        for key in ("nextAlarm", "pauseAlarm"):
+            if alarms.get(key):
+                s[key] = alarms[key]
         checkout = projects.checkout_of(s.get("cwd") or "")
         if checkout:
             s["checkout"] = checkout

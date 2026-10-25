@@ -2791,4 +2791,10 @@
     .pzanchor .dkpop { left: 0; right: auto; width: min(26rem, 100%); }
     .dkrowacts .dkact[aria-pressed="true"] { color: var(--accent); }
     .dkrowacts .dkact[aria-busy="true"] { opacity: .45; }
+    .dkprojpause { display: grid; place-items: center; margin-left: auto; width: 1.4rem; height: 1.3rem; padding: 0; border: 0; background: none; color: var(--ink-faint); cursor: pointer; }
+    .dkprojpause svg { width: var(--i-sm); height: var(--i-sm); }
+    .dkprojpause[aria-disabled="true"] { opacity: .45; cursor: default; }
+    .dkprojpause ~ .dkprojnew { margin-left: 0; }
+    .dkdot.dkpaused { background: var(--ink-dim); }
+    .dklive[data-tone="paused"] .dksay, .dkword[data-tone="paused"] { color: var(--ink-dim); }
 }

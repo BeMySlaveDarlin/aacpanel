@@ -66,7 +66,7 @@ func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 	if block == "" {
 		t.Fatalf("%s: the registry has no session.restart — the buttons would press an unknown action", registryFile)
 	}
-	for _, want := range []string{"danger: true", `ok: "Restart"`, "from scratch?", "empty context", "transcript"} {
+	for _, want := range []string{"danger: true", `ok: "Restart"`, "choice: restartChoice"} {
 		if !strings.Contains(block, want) {
 			t.Errorf("%s: session.restart does not say %q — the sheet has to name what the person loses and what stays", registryFile, want)
 		}

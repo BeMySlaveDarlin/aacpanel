@@ -63,7 +63,7 @@ export async function sessionPins(phoneOnly = false) {
         const end = performance.now() + 3000;
         while (!check()) {
             if (performance.now() >= end) throw new Error("the pin did not reach the screen");
-            await new Promise((resolve) => setTimeout(resolve, 20));
+            await new Promise(requestAnimationFrame);
         }
     };
     const text = (el) => el.textContent.trim();

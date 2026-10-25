@@ -60,6 +60,9 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Clean && (r.Kind != SessionRestart || r.Resume != "" || r.Text != "" || r.AutoRestart) {
+		return badRequest("a clean restart starts a new conversation without a message or preparation cycle")
+	}
 	if r.AutoRestart && (r.Kind != SessionRestart || r.Resume != "" || !safeUUID(r.Conversation)) {
 		return badRequest("an automatic restart needs its conversation and starts with an empty context")
 	}

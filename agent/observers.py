@@ -16,6 +16,7 @@ Both belong to the conversation of the session that started them — a claude
 by its conversation, a codex by its thread — and the executor takes them away
 when that session ends.
 """
+import datetime as dt
 import json
 import os
 import re
@@ -159,6 +160,10 @@ def _alarm(oid, rec):
     name, due = _text(rec.get("name")), _text(rec.get("next"))
     if rec.get("id") != oid or not name or not due:
         return None
+    try:
+        dt.datetime.fromisoformat(due.replace("Z", "+00:00"))
+    except ValueError:
+        return None
     view = {"id": oid, "name": name, "at": _text(rec.get("set")), "next": due, "rang": _count(rec.get("rang"))}
     note = _text(rec.get("note")).strip()
     if note:
@@ -189,7 +194,7 @@ def _all_alarms():
         view, conversation = _alarm(oid, rec), _owner(rec)
         if view is not None and conversation:
             out.append((conversation, view))
-    out.sort(key=lambda pair: pair[1]["next"])
+    out.sort(key=lambda pair: dt.datetime.fromisoformat(pair[1]["next"].replace("Z", "+00:00")).timestamp())
     return out
 
 
@@ -211,9 +216,13 @@ def held_by_conversation():
         if "done" not in view:
             counts = out.setdefault(owner, {})
             counts["observers"] = counts.get("observers", 0) + 1
-    for owner, _ in _all_alarms():
+    for owner, view in _all_alarms():
         counts = out.setdefault(owner, {})
         counts["alarms"] = counts.get("alarms", 0) + 1
+        alarm = {key: view[key] for key in ("id", "name", "next")}
+        counts.setdefault("nextAlarm", alarm)
+        if view["name"] == "pause":
+            counts.setdefault("pauseAlarm", alarm)
     return out
 
 

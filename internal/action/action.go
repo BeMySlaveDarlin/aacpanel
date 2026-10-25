@@ -122,6 +122,8 @@ const (
 	// ProjectMove carries a project's Claude history between accounts with
 	// an undo kept until the service commits the map.
 	ProjectMove Kind = "project.move"
+	// ProjectPause coordinates messages in the service, with no new host action.
+	ProjectPause Kind = "project.pause"
 
 	// TermStart starts a terminal of the panel: the user's own shell in a
 	// tmux session on the panel's socket, in a place from the map. The

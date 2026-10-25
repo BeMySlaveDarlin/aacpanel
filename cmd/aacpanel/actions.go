@@ -73,6 +73,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 
+	if body.Kind == string(action.ProjectPause) {
+		s.pauseProject(w, r, body.Params)
+		return
+	}
+	if body.Kind == string(action.SessionRestart) && body.Params["prepare"] != nil {
+		s.prepareRestart(w, r, body.Target, body.Params)
+		return
+	}
 	if body.Kind == string(action.ProjectMove) {
 		s.runProjectMove(w, r, body.Target, body.Params)
 		return
@@ -537,10 +545,16 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			return
 		}
 		req.Target, body.Target, req.Resume, req.Conversation = plan.Name, plan.Name, plan.Resume, plan.Conversation
-		req.Text = plan.Intent
+		req.Text, req.Clean = plan.Intent, plan.Clean
 		if plan.Project != nil {
 			req.Project = plan.Project
 			params = map[string]any{"project": plan.ProjectID, "path": plan.Project.Path}
+		}
+		if plan.Clean {
+			if params == nil {
+				params = map[string]any{}
+			}
+			params["clean"] = true
 		}
 		if plan.Resume != "" {
 			if params == nil {
@@ -1148,6 +1162,7 @@ type restartWay struct {
 	// executor sends it first in the resumed conversation, in place of the
 	// map's message after a restart.
 	Intent string
+	Clean  bool
 }
 
 // restartPlan finds the session a restart is about and the project it comes
@@ -1162,10 +1177,24 @@ type restartWay struct {
 // The conversation a session names goes to the executor either way, which
 // restarts the session only while it still runs it.
 func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (restartWay, error) {
-	conversation, _ := params["conversation"].(string)
-	resume, _ := params["resume"].(bool)
-	intent, _ := params["intent"].(string)
-	way := restartWay{Name: name, Conversation: conversation, Intent: intent}
+	var options struct {
+		Conversation string `json:"conversation"`
+		Resume       bool   `json:"resume"`
+		Clean        bool   `json:"clean"`
+		Intent       string `json:"intent"`
+	}
+	raw, err := json.Marshal(params)
+	if err == nil {
+		err = json.Unmarshal(raw, &options)
+	}
+	if err != nil {
+		return restartWay{}, fmt.Errorf("invalid restart options: %w", err)
+	}
+	if options.Clean && (options.Resume || options.Intent != "") {
+		return restartWay{}, fmt.Errorf("a clean restart starts a new conversation without a message")
+	}
+	conversation, resume, intent := options.Conversation, options.Resume, options.Intent
+	way := restartWay{Name: name, Conversation: conversation, Intent: intent, Clean: options.Clean}
 	if s.host == nil {
 		if resume {
 			if conversation == "" {
@@ -1208,6 +1237,17 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 	launch, err := restartLaunch(want.Launch)
 	if err != nil {
 		return restartWay{}, fmt.Errorf("session %s cannot be restarted from the map: %w", way.Name, err)
+	}
+	if way.Clean {
+		var values map[string]any
+		if err := json.Unmarshal(launch, &values); err != nil {
+			return restartWay{}, err
+		}
+		values["intent"] = ""
+		launch, err = json.Marshal(values)
+		if err != nil {
+			return restartWay{}, err
+		}
 	}
 	want.Launch = launch
 	way.Project, way.ProjectID = want, found.project.ID
@@ -1259,6 +1299,14 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil || len(kinds) == 0 {
 		writeJSON(w, map[string]any{"available": true})
 		return
+	}
+	if s.db != nil && s.host != nil {
+		for _, kind := range kinds {
+			if kind == action.SessionSend {
+				kinds = append(kinds, action.ProjectPause)
+				break
+			}
+		}
 	}
 	writeJSON(w, map[string]any{"available": true, "kinds": kinds})
 }

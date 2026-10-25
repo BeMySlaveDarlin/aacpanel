@@ -1,6 +1,7 @@
 // Registry of state-changing actions: what to tell the person before it happens.
 
 import { isCodex } from "../agent.js";
+import { stopsOf } from "../screens/chat/head.js";
 import { openedBy } from "../screens/sessions/kin.js";
 
 let hostName = "";
@@ -64,6 +65,21 @@ function agentChoice(target, params) {
             mark: found && value === own ? "project" : "",
             off: value === "codex" ? noCodex : "",
         })),
+    };
+}
+
+function restartChoice(target) {
+    const live = liveSessions.find((s) => s.session === target);
+    const lost = stopsOf(live);
+    const stops = lost ? ` Stops ${lost}.` : "";
+    return {
+        label: "restart mode", layout: "list", value: "clean",
+        apply: (value) => value === "continue" ? { resume: true } : value === "prepare" ? { prepare: true } : { clean: true },
+        options: [
+            { value: "clean", label: "Clean restart", note: "A new conversation with an empty context and no first message; the old transcript stays in the archive." + stops },
+            { value: "continue", label: "Restart and continue", note: "Restart the process and resume this same conversation." + stops },
+            { value: "prepare", label: "Restart as auto-restart", note: "Ask the session to save its work and stop background work, wait for readiness, then start a fresh conversation with its restart message." + stops },
+        ],
     };
 }
 
@@ -415,10 +431,16 @@ export const ACTIONS = {
         escalate: (target) => (codexTarget(target) ? null : "session.kill"),
         escalateLabel: "Kill right now (kill -9)",
     },
+    "project.pause": {
+        instant: true,
+        effect: "Send a pause or resume instruction to the live sessions of the selected project or group.",
+        done: () => "Pause request sent",
+    },
     "session.restart": {
         watch: "restart",
-        title: (target) => `Restart ${target} from scratch?`,
-        effect: "The conversation ends and a new one starts with an empty context; the old transcript stays in the archive.",
+        choice: restartChoice,
+        title: (target) => `Restart ${target}?`,
+        effect: "Choose what happens to the conversation and its work before restarting.",
         done: (target) => `Session ${target} is restarting`,
         ok: "Restart",
         danger: true,
@@ -1102,6 +1124,7 @@ const NAMES = {
     "agent.stop": "Stop subagent",
     // Sessions record starts after the private socket accepts them; no screen starts them.
     "session.ready": "Ready for restart",
+    "project.pause": "Pause sessions",
     "observer.start": "Start an observer",
     "alarm.set": "Set an alarm",
     "observer.stop": "Stop an observer",

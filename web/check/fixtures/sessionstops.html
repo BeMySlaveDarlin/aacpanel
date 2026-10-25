@@ -100,7 +100,7 @@ window.done = (async () => {
         button(name, kind).click();
         await until(() => gate()?.querySelector(".btnrow .btn:last-child"));
         const confirm = gate().querySelector(".btnrow .btn:last-child");
-        const shot = { name, kind, title: text(gate().querySelector(".stitle")), effect: text(gate().querySelector(".warnline")),
+        const shot = { name, kind, title: text(gate().querySelector(".stitle")), effect: text(gate().querySelector(".warnline")) + " " + text(gate().querySelector(".pkseg.on")),
             ok: text(confirm), harsher: [...gate().querySelectorAll("button.item")].map(text), before: sent.length - before,
             opened: opened.length - out.opened.length };
         confirm.click();
@@ -159,6 +159,8 @@ window.done = (async () => {
     await until(() => phone.querySelectorAll(".pjcard").length === sessions.length);
     await quiet();
     window.scrollTo(0, 0);
+    const { sessionPause } = await import("/check/fixtures/sessionpause.js");
+    out.pause = await sessionPause();
     return out;
 })();
 </script>

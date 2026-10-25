@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { plural } from "../../format.js";
 import { waitText } from "../../ui/waits.js";
+import { alarmTime } from "../sessions/alarms.js";
 import { shown } from "./answered.js";
 
 // Marquee renders a heading that does not fit as a running line.
@@ -80,6 +81,7 @@ export function stateOf(row, still = null, move = null) {
     }
     if (!row) return { tone: "off", say: "the conversation is gone", word: "closed" };
     const live = shown(row);
+    if (live.restarting) return { tone: "busy", say: "preparing a fresh restart", word: "restarting" };
     if (still !== null) {
         return still
             ? { tone: "off", say: `no fresh data since ${still} — the session may stand otherwise now`, word: `as of ${still}` }
@@ -111,6 +113,7 @@ export function stateOf(row, still = null, move = null) {
         const work = workOf(live.work);
         return { tone: "bg", say: `the answer is over, background work goes on${work ? `: ${work}` : ""}`, word: "background" };
     }
+    if (live.pauseAlarm) return { tone: "paused", say: `paused until ${alarmTime(live.pauseAlarm.next, true)}`, word: `paused · until ${alarmTime(live.pauseAlarm.next)}` };
     return { tone: "idle", say: "waiting for a message", word: "idle" };
 }
 
@@ -173,4 +176,16 @@ export function MidName({ text }) {
             ${tail && html`<span class="midtail" aria-hidden="true">${tail}</span>`}
         </span>
     `;
+}
+
+// stopsOf names what a close or a restart of a live session ends with it: its
+// background tasks, agents and workflows at work, as the snapshot counts them.
+export function stopsOf(s) {
+    const w = (s && s.work) || {};
+    const out = [];
+    const tasks = backgroundOf(w);
+    if (tasks > 0) out.push(`${tasks} ${plural(tasks, "background task", "background tasks")}`);
+    if (w.agents > 0) out.push(`${w.agents} ${plural(w.agents, "agent", "agents")}`);
+    if (w.workflows > 0) out.push(`${w.workflows} ${plural(w.workflows, "workflow", "workflows")}`);
+    return out.join(", ");
 }

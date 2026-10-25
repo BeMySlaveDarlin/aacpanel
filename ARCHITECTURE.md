@@ -209,6 +209,30 @@ are pruned. Snapshots older than thirty seconds cannot advance a cycle.
 The `context-guard` hook answers nothing so an installed Stop entry cannot
 block finalization; the installer removes that entry and offers no cap hook.
 
+**A restart can be prepared at the person's request.** The restart sheet offers
+an empty conversation with no opening message, a restart that resumes the same
+conversation, and the readiness cycle above. A clean restart suppresses the
+session's saved message as well as the map's. A requested preparation is kept
+with `manual` in `session_restarts`; it needs a live Claude session in a mapped
+project, but no context threshold or enabled automatic restart. It waits for
+the same idle and readiness conditions, tells the session the person requested
+it, and marks its live row as restarting until the cycle finishes. A repeated
+request preserves readiness and the cycle's deadlines.
+
+**A project pause is a message to its sessions, not a host timer.** The
+`project.pause` service action resolves a project or its map group and sends
+one panel instruction to each live session it can reach. The session finishes
+its current step, sets its own `pause` alarm and ends its turn. One journal
+entry records the scope action and its delivery failures. Resume selects only
+sessions with that alarm, cancels it by its snapshot id through `alarm.cancel`,
+and sends the instruction to continue; a failed cancellation is reported and
+that session gets no resume instruction. No new executor action is admitted.
+The snapshot keeps the numeric alarm count and adds `nextAlarm` and
+`pauseAlarm`, each with its id, name and next ring. Only the alarm's presence
+means paused: delivery alone cannot prove the model set it. Work and questions
+still take precedence. The pause instruction carries its time and UTC offset
+as envelope metadata, so the feed's pause card does not parse prose.
+
 **Questions left in prose are waiting work.** The collector finds a question
 mark outside code and URLs in the last assistant message, until the person
 speaks again. Busy sessions and codex threads contribute none. The service

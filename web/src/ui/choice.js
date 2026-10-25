@@ -7,7 +7,7 @@ import { html } from "../html.js";
 export function Choice({ choice, value, onPick }) {
     const off = choice.options.filter((o) => o.off);
     return html`
-        <div class="gtchoice">
+        <div class=${`gtchoice${choice.layout === "list" ? " gtchoicelist" : ""}`}>
             <div class="pkscope" role="radiogroup" aria-label=${choice.label}>
                 ${choice.options.map((o) => html`
                     <button key=${o.value} type="button" role="radio"
@@ -15,7 +15,7 @@ export function Choice({ choice, value, onPick }) {
                             aria-checked=${value === o.value ? "true" : "false"}
                             disabled=${Boolean(o.off)}
                             onClick=${() => onPick(o.value)}>
-                        ${o.label}${o.mark && html`<span class="gtmark">${o.mark}</span>`}
+                        ${o.label}${o.note && html`<small>${o.note}</small>`}${o.mark && html`<span class="gtmark">${o.mark}</span>`}
                     </button>
                 `)}
             </div>

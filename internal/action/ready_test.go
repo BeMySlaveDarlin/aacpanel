@@ -20,6 +20,10 @@ func TestReadinessBelongsToTheServiceAndFreshIntentToItsCycle(t *testing.T) {
 		{Request{ID: "restart", Kind: SessionRestart, Target: "lab", Text: "Read the handoff", AutoRestart: true}, false},
 		{Request{ID: "restart", Kind: SessionRestart, Target: "lab", Conversation: conversation, AutoRestart: true, Resume: conversation}, false},
 		{Request{ID: "restart", Kind: SessionRestart, Target: "lab", Anyway: true}, false},
+		{Request{ID: "restart", Kind: SessionRestart, Target: "lab", Clean: true}, true},
+		{Request{ID: "restart", Kind: SessionRestart, Target: "lab", Clean: true, Text: "Continue"}, false},
+		{Request{ID: "restart", Kind: SessionRestart, Target: "lab", Clean: true, Resume: conversation}, false},
+		{Request{ID: "send", Kind: SessionSend, Target: "lab", Clean: true, Text: "Continue"}, false},
 	} {
 		if err := c.req.Validate(); (err == nil) != c.ok {
 			t.Errorf("%+v: %v", c.req, err)

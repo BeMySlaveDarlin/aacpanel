@@ -87,6 +87,7 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 	payload = limitsByContour(payload, list)
 	payload = sessionsByContour(payload, list)
 	payload = sessionsGuarded(payload, list)
+	payload = s.sessionsRestarting(ctx, payload)
 	payload = s.sessionsCalled(ctx, payload)
 	payload = s.sessionsWaiting(ctx, payload)
 	if len(list) == 0 {

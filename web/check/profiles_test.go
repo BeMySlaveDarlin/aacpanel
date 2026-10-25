@@ -28,7 +28,12 @@ func TestEveryMapActionReachableFromProfilesScreen(t *testing.T) {
 
 	screen := screenSrc(t, profilesFile)
 	for _, m := range ids {
-		if strings.Contains(screen, `"`+m[1]+`"`) {
+		source := screen
+		// A pause operates on live sessions; it does not edit the map entry.
+		if m[1] == "project.pause" {
+			source = screenSrc(t, "src/screens/sessions/pause.js")
+		}
+		if strings.Contains(source, `"`+m[1]+`"`) {
 			continue
 		}
 		t.Errorf("action %q is in the registry, but nobody calls it on the map screen — "+

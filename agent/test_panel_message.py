@@ -53,6 +53,14 @@ class PanelMessages(unittest.TestCase):
             with self.subTest(record=record):
                 self.assert_panel(chat.parse(record, 10, chat.Pending()))
 
+    def test_pause_time_travels_as_data_on_every_input_path(self):
+        until = "2026-10-26T12:00:00+07:00"
+        text = f'<panel-message from="pause" until="{until}">Words without a date.</panel-message>'
+        for record in (prompt(text), queued(text), attachment(text)):
+            rows = chat.parse(record, 10, chat.Pending())
+            self.assert_panel(rows, body="Words without a date.", sender="pause")
+            self.assertEqual(rows[0]["until"], until)
+
     def test_the_sender_comes_from_the_tag(self):
         text = '<panel-message from="maintenance">\nSave the handoff.\n</panel-message>'
         self.assert_panel(chat.parse(prompt(text), 10), body="Save the handoff.", sender="maintenance")

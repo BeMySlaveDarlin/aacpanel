@@ -62,6 +62,22 @@ func TestSessionRestartComesBackAsItsProjectPG(t *testing.T) {
 		t.Errorf("a restart going on reached the executor as %+v", got)
 	}
 
+	w = post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":{"clean":true}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("clean: %d %s", w.Code, w.Body.String())
+	}
+	got = <-fake.got
+	if !got.Clean || got.Resume != "" || got.Text != "" {
+		t.Fatalf("clean options lost: %+v", got)
+	}
+	if err := json.Unmarshal(got.Project.Launch, &launch); err != nil || launch["intent"] != "" {
+		t.Fatalf("clean retained the map's message: %s %v", got.Project.Launch, err)
+	}
+	for _, params := range []string{`{"clean":true,"resume":true}`, `{"clean":true,"intent":"Continue"}`, `{"clean":"yes"}`} {
+		if w := post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":`+params+`}`); w.Code != http.StatusBadRequest {
+			t.Fatalf("invalid clean: %s -> %d", params, w.Code)
+		}
+	}
 	w = post(t, srv, `{"kind":"session.restart","params":{"conversation":"99999999-9999-4999-8999-999999999999"}}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("a conversation no session runs gave %d", w.Code)

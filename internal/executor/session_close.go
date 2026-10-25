@@ -79,7 +79,7 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 		}
 	}
 	if req.Project != nil {
-		return e.restartFromMap(ctx, target, p, req.Project, resume, req.Text, req.Anyway)
+		return e.restartFromMap(ctx, target, p, req.Project, resume, req.Text, req.Anyway, req.Clean)
 	}
 	if !p.Home {
 		return "", fmt.Errorf(
@@ -91,7 +91,10 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 
 	home := homeProject(p.Dir, p.Session)
 	home.IntentKey = restartIntentKey(req.Text)
-	if home.Launch, err = goingOnLaunch(home.Launch, req.Text); err != nil {
+	if req.Clean {
+		home.IntentKey = ""
+	}
+	if home.Launch, err = restartOpening(home.Launch, req.Text, req.Clean); err != nil {
 		return "", err
 	}
 	var from string
@@ -136,7 +139,7 @@ func restartedWith(resume, more string) string {
 	return " with an empty context" + more
 }
 
-func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume, intent string, anyway bool) (string, error) {
+func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume, intent string, anyway, clean bool) (string, error) {
 	next, err := chooseProject(target, want)
 	if err != nil {
 		return "", err
@@ -159,7 +162,10 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 		}
 	}
 	next.IntentKey = restartIntentKey(intent)
-	if next.Launch, err = goingOnLaunch(next.Launch, intent); err != nil {
+	if clean {
+		next.IntentKey = ""
+	}
+	if next.Launch, err = restartOpening(next.Launch, intent, clean); err != nil {
 		return "", err
 	}
 	if held && !anyway {
@@ -189,6 +195,21 @@ func passChildren(from string, rep launcher.Report) string {
 		return "; the sessions it had opened stay with its previous conversation: " + err.Error()
 	}
 	return ""
+}
+
+// Clean restarts ignore the saved message as well as the inherited one.
+func restartOpening(raw json.RawMessage, intent string, clean bool) (json.RawMessage, error) {
+	if !clean {
+		return goingOnLaunch(raw, intent)
+	}
+	launch := map[string]any{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &launch); err != nil {
+			return nil, err
+		}
+	}
+	launch["intent"] = ""
+	return json.Marshal(launch)
 }
 
 // goingOnLaunch carries the session's next message as an ordinary opening

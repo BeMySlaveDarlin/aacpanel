@@ -826,3 +826,18 @@ button.pjstub { cursor: pointer; }
 .pjempty { margin: 0; padding: .6rem .75rem; border-top: var(--hair) solid var(--line); font-size: var(--t-sm); color: var(--ink-faint); }
 
 .pjact[aria-pressed="true"] { color: var(--accent); }
+
+.pjpause { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; padding: .3rem; border: var(--hair) solid var(--line); border-radius: var(--r-pill); background: none; color: var(--ink-dim); cursor: pointer; }
+.pjpause svg { width: var(--i-sm); height: var(--i-sm); }
+.pjpause[aria-disabled="true"] { opacity: .45; cursor: default; }
+.pjpause ~ .pjnew { margin-left: 0; }
+.pj-paused { color: var(--ink-dim); font-weight: 500; }
+.pjalarm { display: inline-flex; align-items: center; gap: .2rem; flex: none; color: var(--ink-faint); font-size: var(--t-xs); white-space: nowrap; }
+.sessionalarm svg { width: var(--i-sm); height: var(--i-sm); }
+.pausesheet .cxfield { display: block; width: 100%; margin-top: .3rem; }
+.pausepresets { display: flex; gap: .4rem; flex-wrap: wrap; margin: .7rem 0; }
+.pauserecipients { max-height: 8rem; overflow: auto; font-size: var(--t-sm); }
+.pauseresult { color: var(--warn); }
+.gtchoicelist .pkscope { flex-direction: column; border: 0; background: none; gap: .4rem; }
+.gtchoicelist .pkseg { width: 100%; white-space: normal; text-align: left; border: var(--hair) solid var(--line); border-radius: var(--r-small); padding: .7rem; }
+.gtchoicelist small { display: block; margin-top: .3rem; font-size: var(--t-sm); font-weight: 400; color: var(--ink-dim); }

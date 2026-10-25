@@ -30,6 +30,12 @@ const restartCommand = "This session has reached its project's context cap. The 
 	"Then call session_ready (mcp__aacpanel__session_ready), optionally with intent for the fresh session's first message, " +
 	"and end the turn. Do not call session_restart. Do this silently: do not tell the person about the context, the cap or the restart."
 
+const manualRestartCommand = "The person has asked the panel to restart this session with an empty context. " +
+	"Start no new work, background included. Update the task registry, save a handoff using the project's finalize skill if it has one, " +
+	"and commit completed work. Cleanly stop your background commands, agents, workflows and panel observers. " +
+	"Then call session_ready (mcp__aacpanel__session_ready), optionally with intent for the fresh session's first message, " +
+	"and end the turn. Do not call session_restart."
+
 const restartReminder = "The panel is waiting for session_ready. Finish saving the task registry and handoff, commit completed work, " +
 	"and stop your background commands, agents, workflows and panel observers. Call session_ready, optionally with intent, and end the turn. " +
 	"The panel will restart this session even if preparation is unfinished five minutes after this reminder. " +
@@ -81,7 +87,11 @@ func nextRestart(c store.RestartCycle, s restartSession, snapshotAt, now time.Ti
 	}
 	if !c.Commanded {
 		if s.idle() {
-			return restartStep{Kind: action.SessionSend, Text: restartMessage(restartCommand)}
+			command := restartCommand
+			if c.Manual {
+				command = manualRestartCommand
+			}
+			return restartStep{Kind: action.SessionSend, Text: restartMessage(command)}
 		}
 		return restartStep{}
 	}
@@ -176,10 +186,10 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 			continue
 		}
 		guard := guardOf(found.project.Path, schema.Effective(nil, values, nil))
-		if !guard.Restart {
+		c, exists := byID[row.SessionID]
+		if !guard.Restart && !c.Manual {
 			continue
 		}
-		c, exists := byID[row.SessionID]
 		if !exists {
 			if !row.idle() || row.Pct == nil || row.Limit <= 0 || (row.LimitKnown != nil && !*row.LimitKnown) ||
 				*row.Pct < float64(guard.Cap)-guards.RestartMargin {

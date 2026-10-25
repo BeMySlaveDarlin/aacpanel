@@ -34,7 +34,9 @@ type Request struct {
 	// AutoRestart marks the service's context cycle: its intent opens a fresh
 	// conversation. Anyway ends unfinished work after the cycle's reminder.
 	AutoRestart bool `json:"autoRestart,omitempty"`
-	Anyway      bool `json:"anyway,omitempty"`
+	// Clean suppresses both the map and the session's saved opening message.
+	Clean  bool `json:"clean,omitempty"`
+	Anyway bool `json:"anyway,omitempty"`
 
 	// Caller closes a child by the conversation that opened it. It is checked
 	// on the host against the opening record, never against visual grouping.

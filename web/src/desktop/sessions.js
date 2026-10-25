@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
+import { SessionAlarms } from "../screens/sessions/alarms.js";
+import { PauseControl } from "../screens/sessions/pause.js";
 import { ContextBurn, autoRestartTip } from "../ui/bar.js";
 import { fill, pct, plural, tokens } from "../format.js";
 import { knows, whyNot } from "../exec.js";
@@ -49,7 +51,7 @@ const SHELF = 6;
 const SHELF_ASK = 30;
 
 // The dot of a row by the tone of its state.
-const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", off: "dkoff" };
+const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", paused: "dkpaused", off: "dkoff" };
 
 // ContourPick chooses which contours the column shows.
 export function ContourPick({ names, picks, onToggle, onAll }) {
@@ -192,7 +194,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     const menu = useMenu();
     const closing = wait ? wait.of("close", s.session) : null;
     const restarting = wait ? wait.of("restart", s.session) : null;
-    const busy = closing || restarting;
+    const busy = closing || restarting || s.restarting;
     const known = knows(exec, "session.close");
     const can = known && !busy;
     const restartKnown = knows(exec, "session.restart");
@@ -200,7 +202,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     const state = stateOf(s);
     const tone = busy ? "off" : state.tone;
     const said = closing ? "closing" : restarting ? "restarting" : state.text;
-    const since = busy ? `${held(busy)} s` : state.since;
+    const since = closing || restarting ? `${held(closing || restarting)} s` : state.since;
     const facts = factsOf(s, usual);
     const steps = checklistShort(s.checklist);
     // What a close or a restart ends with the session, said before the press;
@@ -238,6 +240,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
                     </span>
                 `}
                 ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+                <${SessionAlarms} session=${s} paused=${state.tone === "paused"} desktop />
                 ${s.autoRestart && html`<span class="dkmark dkrestart" data-tip=${autoRestartTip(s.cap)}><${Icon.refresh} />auto</span>`}
                 ${html`<${WaitingMark} session=${s} desktop viewed=${current === s.session} />`}
             </span>
@@ -527,7 +530,7 @@ function NewSession({ name, entry, snapshot, exec }) {
 // project to start a session in. The heading of a project opens its menu on a
 // right click: the new session, its terminal, its page in the settings of the
 // map (onSettings, with where the page stands).
-function ProjectHead({ block, entry, exec, onTerm, onSettings }) {
+function ProjectHead({ block, entry, snapshot, exec, onTerm, onSettings }) {
     const run = useAction();
     const menu = useMenu();
     const p = block.project;
@@ -535,11 +538,12 @@ function ProjectHead({ block, entry, exec, onTerm, onSettings }) {
     const start = p && !block.home ? () => run("session.open", p.session || p.name, { project: p.id }) : null;
     return html`
         <div class="dkproj" onContextMenu=${menu && p && menu(ProjectMenu, {
-            project: p, exec, onNew: start, onTerm,
+            project: p, profile: entry, sessions: snapshot?.sessions || [], exec, onNew: start, onTerm,
             onSettings: onSettings && entry ? () => onSettings({ contour: entry.id, project: p.id }) : null,
         }, `project ${block.name}`)}>
             <span class="dkprojname">${block.name}</span>
             ${block.group && html`<span class="dkprojgroup">${block.group}</span>`}
+            ${p && html`<${PauseControl} project=${p} profile=${entry} sessions=${snapshot?.sessions || []} exec=${exec} desktop />`}
             ${start && html`
                 <button class="dkprojnew" type="button" aria-disabled=${ready ? undefined : "true"}
                         aria-label=${`a new session in project ${block.name}`}
@@ -601,7 +605,7 @@ function ContourSection({ name, entry, list, blocks, archive, onFold, limits, ma
                 <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
             </div>
             ${blocks.flatMap(({ block, rows }) => [
-                html`<${ProjectHead} key=${`head:${block.key}`} block=${block} entry=${entry} exec=${exec}
+                html`<${ProjectHead} key=${`head:${block.key}`} block=${block} entry=${entry} snapshot=${snapshot} exec=${exec}
                                     onTerm=${onTerm} onSettings=${onSettings} />`,
                 ...rows.map((e) => html`
                     <div key=${`${e.kind}:${e.s ? e.s.session : e.parent.session || e.parent}`}

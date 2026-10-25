@@ -19,6 +19,7 @@ import { bare } from "./feed.js";
 import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
+import { alarmTime } from "../sessions/alarms.js";
 import { RequestCard } from "./request.js";
 import { savedAfter } from "../../data/secrets.js";
 import { state as briefState } from "../../data/briefs.js";
@@ -68,6 +69,8 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         `;
     }
     if (item.role === "mail") {
+        if ((item.source === "panel" && ["pause", "pause over"].includes(item.from)) ||
+            (item.source === "alarm" && item.from === "pause")) return html`<${PauseCard} item=${item} />`;
         return html`<${Letter} item=${item} />`;
     }
 
@@ -303,6 +306,17 @@ const MAIL_WORD = {
 // later, from claude's answer: one that reached nobody says so on its head and
 // gives claude's reason once opened. A letter copied by its head is copied by
 // its menu as well.
+function PauseCard({ item }) {
+    const paused = item.source === "panel" && item.from === "pause";
+    const title = paused ? `Pause${item.until ? ` until ${alarmTime(item.until, true)}` : " requested"}`
+        : item.source === "alarm" ? "Pause over" : "Pause lifted";
+    return html`<div class="sent pausecard">
+        <div class="senthead"><span class="sentico">${paused ? Icon.pause() : Icon.play()}</span>
+            <span class="sentlabel">${title}</span>${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}</div>
+        <details><summary>The instruction</summary><div class="sentcap">${render(item.text)}</div></details>
+    </div>`;
+}
+
 function Letter({ item }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};

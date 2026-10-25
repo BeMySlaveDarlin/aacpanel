@@ -18,10 +18,12 @@ import { sessionsOf } from "./of.js";
 import { kinLabel, kinOf, layoutOf, openedLabel, placeOf } from "./kin.js";
 import { useFolds } from "./folds.js";
 import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../../agent.js";
-import { backgroundOf, modelTitle, runningOf, workOf } from "../chat/head.js";
+import { modelTitle, runningOf, stopsOf, workOf } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
 import { WaitingMark, waitingOf } from "../../waiting.js";
+import { alarmTime, SessionAlarms } from "./alarms.js";
+import { PauseControl } from "./pause.js";
 import { comparePins, pinAt, pinOf } from "./pin.js";
 
 // The most pressing state of a block: who waits for the person, who works —
@@ -44,6 +46,7 @@ const ABOUT_MIN = 12;
 // whatever the snapshot has not caught up with yet (see shown in answered.js).
 export function stateOf(row) {
     const s = shown(row);
+    if (s.restarting) return { tone: "busy", text: "restarting", since: "", when: "", work: "" };
     if (s.ask) {
         const more = s.ask.count > 1 ? `${s.ask.count} ${plural(s.ask.count, "question", "questions")}` : "";
         return { tone: "wait", text: `asks you${s.ask.header ? ` · ${s.ask.header}` : ""}`, since: more, when: more, work: "" };
@@ -60,6 +63,7 @@ export function stateOf(row) {
     // The answer is over and what it started still runs (see runningOf): the
     // row says so rather than idle.
     if (runningOf(s.work) > 0) return { tone: "bg", text: "background", since, when, work };
+    if (s.pauseAlarm) return { tone: "paused", text: `paused · until ${alarmTime(s.pauseAlarm.next)}`, since, when, work };
     return { tone: "idle", text: "idle", since, when, work };
 }
 
@@ -72,17 +76,7 @@ export function useAnswers() {
     useEffect(() => listen(() => redraw((n) => n + 1)), []);
 }
 
-// stopsOf names what a close or a restart of a live session ends with it: its
-// background tasks, agents and workflows at work, as the snapshot counts them.
-export function stopsOf(s) {
-    const w = (s && s.work) || {};
-    const out = [];
-    const tasks = backgroundOf(w);
-    if (tasks > 0) out.push(`${tasks} ${plural(tasks, "background task", "background tasks")}`);
-    if (w.agents > 0) out.push(`${w.agents} ${plural(w.agents, "agent", "agents")}`);
-    if (w.workflows > 0) out.push(`${w.workflows} ${plural(w.workflows, "workflow", "workflows")}`);
-    return out.join(", ");
-}
+export { stopsOf } from "../chat/head.js";
 
 // intentOf returns the first message a project opens with, as its launch line
 // names it: a conversation is not named by the words it was opened with.
@@ -243,7 +237,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [], wa
 
 // ProjectBlock is one project: its name, a new session in it, and its live
 // sessions or, with none, its last conversation.
-export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onProject }) {
+export function ProjectBlock({ block, profile, exec, wait, notes, live, past, onOpen, onProject }) {
     const run = useAction();
     const project = block.project;
     const canNew = project && !block.home;
@@ -256,6 +250,7 @@ export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onP
                                    onClick=${() => onProject(project, block.group)}>${block.name}</button>`
                     : html`<span class="pjname">${block.name}</span>`}
                 ${block.group && html`<span class="pjgroup">${block.group}</span>`}
+                ${project && html`<${PauseControl} project=${project} profile=${profile} sessions=${live || block.live} exec=${exec} />`}
                 ${canNew && html`
                     <button class="pjnew" type="button" disabled=${!ready}
                             aria-label=${`new session in project ${block.name}`}
@@ -399,7 +394,7 @@ export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = 
     const steps = checklistShort(session.checklist);
     const closing = wait ? wait.of("close", session.session) : null;
     const restarting = wait ? wait.of("restart", session.session) : null;
-    const busy = closing || restarting;
+    const busy = closing || restarting || session.restarting;
     const codex = isCodex(session);
     const canRestart = knows(exec, "session.restart");
     const canClose = knows(exec, "session.close");
@@ -446,6 +441,7 @@ export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = 
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
                     ${lived && html`<span class="pjlived">${lived}</span>`}
                     ${session.remote && html`<span class="pjremote" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+                    <${SessionAlarms} session=${session} paused=${state.tone === "paused"} />
                     ${session.autoRestart && html`<span class="pjrestart" title=${autoRestartTip(session.cap)}><${Icon.refresh} />auto</span>`}
                     ${html`<${WaitingMark} session=${session} />`}
                     <span class="pjtag">${tag()}${place}</span>

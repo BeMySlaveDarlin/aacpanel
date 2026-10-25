@@ -33,11 +33,9 @@ export async function sessionLevels() {
     ];
     const text = (el) => el ? el.textContent.replace(/\s+/g, " ").trim() : "";
     const until = async (ok) => {
-        for (let i = 0; i < 100; i++) {
-            if (ok()) return;
-            await new Promise((resolve) => setTimeout(resolve, 30));
-        }
-        throw new Error("the session tree did not reach its expected state");
+        const end = performance.now() + 3000;
+        while (!ok() && performance.now() < end) await new Promise(requestAnimationFrame);
+        if (!ok()) throw new Error("the session tree did not reach its expected state");
     };
     const wrap = (node) => h(ToastHost, null, h(GateHost, null, node));
     let order = [];

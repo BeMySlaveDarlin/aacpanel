@@ -124,10 +124,11 @@ def service(text, at, pos):
     """Returns feed items for a record the human did not write, or None for plain text."""
     panel = panel_message(text)
     if panel is not None:
-        who, said = panel
+        who, said, until = panel
         body, trimmed = cut(said, MAX_TEXT)
         return [{"role": "mail", "from": who, "source": "panel",
-                 "text": body, "cut": trimmed, "at": at, "pos": pos}]
+                 "text": body, "cut": trimmed, "at": at, "pos": pos,
+                 **({"until": until} if until else {})}]
     said = delivery(text)
     if said:
         return [{"role": "note", "text": said, "at": at, "pos": pos}]

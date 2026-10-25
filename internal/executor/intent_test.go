@@ -54,6 +54,7 @@ func TestRestartSelectsItsRuleUnlessTheSessionHasNextWords(t *testing.T) {
 		name, resume, text, key string
 	}{
 		{"fresh", "", "", "restartIntent"},
+		{"clean", "", "", ""},
 		{"ready for fresh start", "", "Read the saved handoff", ""},
 		{"continue with words", consoleSID, "The next step", ""},
 		{"continue without words", consoleSID, "", "restartIntent"},
@@ -65,6 +66,7 @@ func TestRestartSelectsItsRuleUnlessTheSessionHasNextWords(t *testing.T) {
 			withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
 			r := restartOf(dir, c.resume)
 			r.Text = c.text
+			r.Clean = c.name == "clean"
 			if c.name == "ready for fresh start" {
 				r.AutoRestart, r.Conversation = true, consoleSID
 			}
@@ -79,7 +81,7 @@ func TestRestartSelectsItsRuleUnlessTheSessionHasNextWords(t *testing.T) {
 			if err := json.Unmarshal(raw[strings.IndexByte(string(raw), '{'):strings.LastIndexByte(string(raw), '}')+1], &spec); err != nil {
 				t.Fatal(err)
 			}
-			if c.text != "" {
+			if c.text != "" || r.Clean {
 				var launch struct {
 					Intent string `json:"intent"`
 				}

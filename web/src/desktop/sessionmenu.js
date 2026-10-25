@@ -24,6 +24,7 @@ import { useWindow, windowOf } from "../screens/chat/window.js";
 import { useTermJump } from "../screens/terms/jump.js";
 import { projectOf, resume, startIn } from "../screens/sessions/actions.js";
 import { stopsOf } from "../screens/sessions/blocks.js";
+import { PauseSheet, pauseWhy } from "../screens/sessions/pause.js";
 import { pinOf } from "../screens/sessions/pin.js";
 import { openedBy } from "../screens/sessions/kin.js";
 
@@ -41,7 +42,7 @@ export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm }) {
     const restarting = wait ? wait.of("restart", s.session) : null;
     return [SessionMenu, {
         s, exec, snapshot, wait, onOpen, onTerm, lost: stopsOf(s),
-        closing: closing ? UNDER_WAY.close : "", restarting: restarting ? UNDER_WAY.restart : "",
+        closing: closing ? UNDER_WAY.close : "", restarting: restarting || s.restarting ? UNDER_WAY.restart : "",
     }, `session ${shownName(s)}`];
 }
 
@@ -103,8 +104,8 @@ function OutsideMenu({ s, onOpen }) {
 // now: under way already, or not known to the host.
 function endsOf(exec, closing, restarting) {
     return {
-        closeWhy: closing || (knows(exec, "session.close") ? "" : whyNot(exec, "session.close")),
-        restartWhy: restarting || (knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart")),
+        closeWhy: closing || restarting || (knows(exec, "session.close") ? "" : whyNot(exec, "session.close")),
+        restartWhy: restarting || closing || (knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart")),
     };
 }
 
@@ -215,10 +216,13 @@ export function ClosedMenu({ row, exec, onOpen }) {
 // ProjectMenu is the menu of a project's heading in the column: a new session
 // in it as its plus starts one (onNew, none for the home project), its
 // terminal, and its page in the settings of the map.
-export function ProjectMenu({ project, exec, onNew, onTerm, onSettings }) {
+export function ProjectMenu({ project, profile, sessions, exec, onNew, onTerm, onSettings }) {
     const jump = useTermJump(project.path, exec, onTerm);
+    const sheet = useMenuSheet();
     return html`<${MenuList} groups=${[
         [
+            html`<${MenuItem} key="pause" label="Pause…" off=${pauseWhy(project, profile, sessions, exec)}
+                onPick=${() => sheet("pause sessions", (close) => html`<${PauseSheet} project=${project} profile=${profile} sessions=${sessions} exec=${exec} onDone=${close} />`)} />`,
             onNew && html`<${MenuItem} key="new" label="New session" off=${whyNot(exec, "session.open")} onPick=${onNew} />`,
             onTerm && project.path && html`
                 <${MenuItem} key="term" label="Terminal of the project" off=${whyNot(exec, "term.start")} onPick=${jump.press} />`,

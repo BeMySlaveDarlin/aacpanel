@@ -148,7 +148,7 @@ export function GateHost({ children }) {
         // The pick goes by name every time, the one left as offered too: the
         // host starts what the sheet showed rather than work it out again.
         const params = pending.choice
-            ? { ...pending.params, [pending.choice.param]: pending.picked }
+            ? { ...pending.params, ...(pending.choice.apply ? pending.choice.apply(pending.picked) : { [pending.choice.param]: pending.picked }) }
             : pending.params;
         setPending(null);
 
@@ -182,7 +182,7 @@ export function GateHost({ children }) {
     return html`
         <${GateContext.Provider} value=${api}>
             ${children}
-            <${Sheet} open=${Boolean(pending)} onClose=${cancel} label="action confirmation">
+            <${Sheet} open=${Boolean(pending)} onClose=${cancel} label="action confirmation" tall=${pending?.choice?.layout === "list"}>
                 ${pending && html`
                     <div class="shead">
                         <span class="dot ${danger ? "crit" : "warn"}"></span>

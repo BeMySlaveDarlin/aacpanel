@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -152,9 +153,23 @@ class Held(OnDisk):
         self.ring(alarm(WOKE, "standup"))
         self.ring(alarm(WAITS, "thread", conversation=THREAD))
         self.assertEqual(observers.held_by_conversation(), {
-            SESSION: {"observers": 1, "alarms": 1},
-            THREAD: {"observers": 1, "alarms": 1},
+            SESSION: {"observers": 1, "alarms": 1, "nextAlarm": {"id": WOKE, "name": "standup", "next": "2026-10-11T21:00:00+03:00"}},
+            THREAD: {"observers": 1, "alarms": 1, "nextAlarm": {"id": WAITS, "name": "thread", "next": "2026-10-11T21:00:00+03:00"}},
         })
+
+    def test_snapshot_keeps_the_pause_and_the_nearest_alarm_without_changing_counts(self):
+        self.ring(alarm(WOKE, "pause", next="2026-10-11T21:00:00+03:00"))
+        self.ring(alarm(WAITS, "review", next="2026-10-11T22:30:00+05:00"))
+        with patch.object(live.ctx, "sessions", return_value={"sessions": [{"session": "lab", "sessionId": SESSION}]}):
+            row = live.sessions()["sessions"][0]
+        self.assertEqual(row["pauseAlarm"], {"id": WOKE, "name": "pause", "next": "2026-10-11T21:00:00+03:00"})
+        self.assertEqual(row["nextAlarm"]["id"], WAITS)
+        self.assertEqual(row["work"]["alarms"], 2)
+        os.unlink(os.path.join(self.dir.name, "aacpanel", "alarms", WOKE + ".json"))
+        with patch.object(live.ctx, "sessions", return_value={"sessions": [{"session": "lab", "sessionId": SESSION}]}):
+            row = live.sessions()["sessions"][0]
+        self.assertNotIn("pauseAlarm", row)
+        self.assertEqual(row["work"]["alarms"], 1)
 
     def test_held_work_is_counted_apart_from_the_tasks_a_restart_waits_for(self):
         busy = {"tasks": [{"id": "b1", "kind": "bash"}], "agents": []}

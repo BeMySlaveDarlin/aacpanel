@@ -160,6 +160,8 @@ func TestGateKeepsSendPrivate(t *testing.T) {
 }
 
 var instantActions = map[string]bool{
+	// The pause sheet names the scope and time before its own Pause or Resume press.
+	"project.pause":  true,
 	"alert.ack":      true,
 	"session.send":   true,
 	"session.answer": true,
@@ -240,6 +242,7 @@ var instantActions = map[string]bool{
 }
 
 var instantExecActions = map[string]bool{
+	"project.pause":      true,
 	"session.send":       true,
 	"session.shell":      true,
 	"session.answer":     true,
@@ -420,7 +423,8 @@ func TestEveryActionButtonChecksHostKnowsIt(t *testing.T) {
 	call := regexp.MustCompile(`run\("([a-z]+\.[a-zA-Z]+)"`)
 	check := regexp.MustCompile(`knows\(exec, "([a-z]+\.[a-zA-Z]+)"\)`)
 
-	onHost := map[string]bool{}
+	// A project pause is coordinated and journaled by the service.
+	onHost := map[string]bool{string(action.ProjectPause): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}
@@ -641,7 +645,8 @@ func TestJournalClaimOnlyForJournaledActions(t *testing.T) {
 	}
 	body := actionsBlock(t, registry)
 
-	onHost := map[string]bool{}
+	// A project pause is coordinated and journaled by the service.
+	onHost := map[string]bool{string(action.ProjectPause): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}

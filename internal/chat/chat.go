@@ -28,6 +28,7 @@ type Item struct {
 	Run    int64      `json:"run,omitempty"`
 	From   string     `json:"from,omitempty"`
 	Source string     `json:"source,omitempty"`
+	Until  string     `json:"until,omitempty"`
 	Dir    string     `json:"dir,omitempty"`
 	Count  int        `json:"count,omitempty"`
 	Tokens int        `json:"tokens,omitempty"`

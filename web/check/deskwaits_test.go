@@ -190,6 +190,7 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 	files := srcFiles(t)
 
 	watch := map[string]string{
+		"project.pause":   "",
 		"session.open":    "open",
 		"session.resume":  "open",
 		"session.close":   "close",

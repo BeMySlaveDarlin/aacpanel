@@ -325,8 +325,8 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID",
-		"project":      "New session · Terminal of the project · | · Settings of the project",
-		"projectHome":  "Terminal of the project · | · Settings of the project",
+		"project":      "~Pause… · New session · Terminal of the project · | · Settings of the project",
+		"projectHome":  "~Pause… · Terminal of the project · | · Settings of the project",
 		"running":      "~Restart · Stop · | · Logs · Copy the name",
 		"exited":       "~Restart · Start · | · Logs · Copy the name",
 		"stack":        "Bring up · Bring down",
@@ -427,7 +427,7 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 			t.Errorf("%s: the menu sent %+v and the button %+v", p.what, p.menu, p.button)
 		}
 	}
-	if r := got.Restarted; r == nil || r.Kind != "session.restart" || r.Target != "aacpanel" || len(r.Params) != 0 {
+	if r := got.Restarted; r == nil || r.Kind != "session.restart" || r.Target != "aacpanel" || len(r.Params) != 1 || r.Params["clean"] != true {
 		t.Errorf("Restart of a session that is not the home one sent %+v — expected session.restart of aacpanel", r)
 	}
 	if d := got.Detached; d == nil || d.Kind != "session.detach" || d.Target != "review" || len(d.Params) != 0 {

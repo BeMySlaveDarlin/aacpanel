@@ -257,7 +257,7 @@ function Page({ name, profile, limits, stale, sessions, everyone, opening, recen
                         ${section.title}${section.count && html`<span class="pjcount">${list.length}</span>`}
                     </div>
                     ${list.map((block) => html`
-                        <${ProjectBlock} key=${block.key} block=${block} exec=${exec} wait=${wait} notes=${notes}
+                        <${ProjectBlock} key=${block.key} block=${block} profile=${profile} exec=${exec} wait=${wait} notes=${notes}
                                          live=${everyone} past=${recent}
                                          onOpen=${onChat} onProject=${toProject} />
                     `)}

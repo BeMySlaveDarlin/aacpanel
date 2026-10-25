@@ -607,3 +607,8 @@ a.mcprow.toolrow { text-decoration: none; }
 }
 
 @media (prefers-reduced-motion: reduce) { .quotetip.on { animation: none; } }
+
+.talkdot[data-tone="paused"] { background: var(--ink-dim); box-shadow: none; }
+.talkword[data-tone="paused"] { color: var(--ink-dim); }
+.pausecard .sentlabel { text-transform: none; }
+.pausecard summary { padding: .5rem .7rem; font-size: var(--t-xs); color: var(--ink-dim); cursor: pointer; }
