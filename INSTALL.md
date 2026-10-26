@@ -1453,10 +1453,12 @@ keeps `rate-limits.json` and `session-models/<session id>.json` in the account
 directory and then runs the person's line with the payload on stdin.
 
 For a state directory other than `/var/lib/aacpanel`, the commands of the
-context cap, the prompt stamp and the background reminder set
-`AACP_STATE_DIR='<state>'` before the executor: the first two read the
+context cap, the prompt stamp, the turn reminder and the background reminder
+set `AACP_STATE_DIR='<state>'` before the executor: the first three read the
 collector's snapshot there, the stamp keeps there what it last said between
-prompts and the reminder when it first saw each task.
+prompts and the background reminder when it first saw each task. The turn
+reminder reads observers and alarms from the owner's state beside the panel's
+other session files; an unavailable wake source never proves a stall.
 
 **The panel's server**, through claude's own command — claude rewrites its
 `.claude.json` all the time, so the file is never edited by hand:

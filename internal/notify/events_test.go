@@ -628,8 +628,13 @@ func TestYourMoveRaisesOnceAndStaysUntilTheDeclarationEnds(t *testing.T) {
 		owner.Turn = turn
 		cleared.Sessions = []Session{owner}
 		report := Look(next, cleared)
-		if len(report.Raise) != 0 || len(report.Hold) != 0 {
-			t.Fatalf("a finished declaration still stands: %+v", report)
+		if len(report.Raise) != 0 {
+			t.Fatalf("a finished declaration still raises: %+v", report)
+		}
+		for _, held := range report.Hold {
+			if strings.HasPrefix(held, "yours:") {
+				t.Fatalf("a finished owner declaration still stands: %s", held)
+			}
 		}
 		if news := tracker.Step(t.Context(), report); len(news) != 0 {
 			t.Fatalf("a finished declaration pushed %+v", news)
@@ -637,5 +642,48 @@ func TestYourMoveRaisesOnceAndStaysUntilTheDeclarationEnds(t *testing.T) {
 		if tracker.Active() != 0 || len(journal.rows) != 1 || journal.rows[bootKey].Key != bootKey {
 			t.Fatalf("a finished declaration remains in the journal: %+v", journal.rows)
 		}
+	}
+}
+
+func TestAStallPushesOncePerDeclarationEvenWhenAWakeComesAndGoes(t *testing.T) {
+	world := func(stalled bool, at int64) World {
+		w := snapshotWorld()
+		s := sess()
+		s.Turn = &Turn{Next: "self", At: at, Stalled: stalled}
+		w.Sessions = []Session{s}
+		return w
+	}
+	journal := newJournal()
+	tracker := started(journal)
+	at := ms(when)
+	healthy, stalled := world(false, at), world(true, at)
+	if report := Look(snapshotWorld(), healthy); len(report.Raise) != 0 {
+		t.Fatalf("a waiting self turn raised %+v", report)
+	}
+	report := Look(healthy, stalled)
+	if len(report.Raise) != 1 || report.Raise[0].Key != "stalled:4d89ed41:"+strconv.FormatInt(at, 10) || report.Raise[0].Severity != Critical {
+		t.Fatalf("a stall raised %+v", report)
+	}
+	news := tracker.Step(t.Context(), report)
+	if len(news) != 1 || news[0].Kind != KindStalled || news[0].Session != "aacpanel" {
+		t.Fatalf("a stall pushed %+v", news)
+	}
+	if news := tracker.Step(t.Context(), Look(stalled, stalled)); len(news) != 0 {
+		t.Fatalf("a repeated look pushed %+v", news)
+	}
+	if news := tracker.Step(t.Context(), Look(stalled, healthy)); len(news) != 0 {
+		t.Fatalf("a wake pushed %+v", news)
+	}
+	if news := tracker.Step(t.Context(), Look(healthy, stalled)); len(news) != 0 {
+		t.Fatalf("the same declaration pushed again: %+v", news)
+	}
+	next := world(true, at+1)
+	if news := tracker.Step(t.Context(), Look(stalled, next)); len(news) != 1 {
+		t.Fatalf("a new declaration pushed %+v", news)
+	}
+	done := world(false, at+2)
+	done.Sessions[0].Turn.Next = "done"
+	if news := tracker.Step(t.Context(), Look(next, done)); len(news) != 0 || tracker.Active() != 0 {
+		t.Fatalf("the finished declaration leaves news %+v, active %d", news, tracker.Active())
 	}
 }

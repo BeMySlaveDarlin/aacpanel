@@ -133,6 +133,10 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 		{"a question beside an agent", "wait", "", row("idle", work("agents", 1), "ask", map[string]any{"header": "Screens", "count": 1})},
 		{"a permission beside an agent", "wait", "", row("waiting", work("agents", 1))},
 		{"an answer beside an agent", "busy", "working", row("busy", work("agents", 1))},
+		{"a stalled self turn", "wait", "stalled: nothing will wake it", row("idle", work(), "turn", map[string]any{"next": "self", "stalled": true})},
+		{"owner above a stale stall", "wait", "your move", row("idle", work(), "turn", map[string]any{"next": "owner", "stalled": true})},
+		{"busy above a stale stall", "busy", "working", row("busy", work(), "turn", map[string]any{"next": "self", "stalled": true})},
+		{"a question above a stall", "wait", "asks you", row("idle", work(), "turn", map[string]any{"next": "self", "stalled": true}, "ask", map[string]any{})},
 	}
 	calls := make([][]any, len(cases))
 	for i, c := range cases {
@@ -185,7 +189,17 @@ func TestTheHeadSaysBackgroundWorkAsTheRowDoes(t *testing.T) {
 		{map[string]any{"session": "s", "status": "idle", "turn": map[string]any{"next": "done"}}},
 		{map[string]any{"session": "s", "status": "busy", "turn": map[string]any{"next": "owner"}}},
 		{map[string]any{"session": "s", "status": "waiting", "turn": map[string]any{"next": "owner"}}},
+		{map[string]any{"session": "s", "status": "idle", "turn": map[string]any{"next": "self", "stalled": true}}},
+		{map[string]any{"session": "s", "status": "idle", "turn": map[string]any{"next": "owner", "stalled": true}}},
+		{map[string]any{"session": "s", "status": "busy", "turn": map[string]any{"next": "self", "stalled": true}}},
 	})
+	stalled := got[6].(map[string]any)
+	if stalled["tone"] != "wait" || stalled["word"] != "stalled: nothing will wake it" || stalled["say"] != stalled["word"] {
+		t.Errorf("a stalled turn reads %v", stalled)
+	}
+	if got[7].(map[string]any)["word"] != "your move" || got[8].(map[string]any)["tone"] != "busy" {
+		t.Errorf("a stale stall won over owner or busy: %v", got[7:])
+	}
 	owner := got[2].(map[string]any)
 	if owner["tone"] != "wait" || owner["word"] != "your move" || owner["say"] != "Choose the release window" {
 		t.Errorf("the owner declaration reads %v", owner)

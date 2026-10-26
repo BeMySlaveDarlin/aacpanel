@@ -416,6 +416,7 @@ def sessions():
         checkout = projects.checkout_of(s.get("cwd") or "")
         if checkout:
             s["checkout"] = checkout
+    turns.reconcile(data["sessions"])
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
     asked.BOOK.sweep(alive)
     notes.BOARD.sweep(alive)

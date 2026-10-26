@@ -604,7 +604,7 @@ func TestTheTurnReminderBelongsToTheClaudeNudge(t *testing.T) {
 		t.Fatal("the turn reminder is not wired")
 	}
 	h := kitHooks[i]
-	if h.Part != "nudge" || h.Event != "Stop" || h.Timeout != 5 || h.Codex {
+	if h.Part != "nudge" || h.Event != "Stop" || h.Timeout != 5 || h.Codex || !h.State {
 		t.Fatalf("the turn reminder is wired as %+v", h)
 	}
 }

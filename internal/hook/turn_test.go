@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"aacpanel/internal/hostcfg"
 )
 
 func TestTheSharedCasesOfTheTurnReminder(t *testing.T) {
@@ -23,7 +25,22 @@ func TestTheSharedCasesOfTheTurnReminder(t *testing.T) {
 	if len(c.Cases) == 0 {
 		t.Fatal("the fixture has no cases")
 	}
+	c.Setup = turnSources
 	runReminderCases(t, c, "turn-reminder")
+}
+
+func turnSources(t *testing.T, dir string, stop checklistStop) {
+	t.Helper()
+	t.Setenv(hostcfg.StateDirEnv, filepath.Join(dir, "panel"))
+	writeJSON(t, filepath.Join(dir, "panel", "state.json"), map[string]any{"sessions": []any{}})
+	for file, value := range stop.Files {
+		writeJSON(t, filepath.Join(dir, file), value)
+	}
+	for _, file := range stop.Missing {
+		if err := os.Remove(filepath.Join(dir, file)); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func TestTheTwoRemindersShareOneStopRound(t *testing.T) {

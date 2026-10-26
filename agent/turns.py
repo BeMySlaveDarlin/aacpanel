@@ -11,6 +11,37 @@ import os
 import sessionfile
 
 
+def reconcile(rows):
+    """Marks a self declaration stalled when the finished snapshot names no wake.
+
+    A child can stand before or after its parent, so declarations marked on
+    the way are cleared when a later row proves a child is still expected.
+    Only the child's own declaration matters: a child stalled on its own is
+    still a live child the parent awaits, without walking its descendants.
+    """
+    parents = set()
+    waiting = {}
+    for row in rows:
+        turn = row.get("turn") or {}
+        parent = (row.get("parent") or {}).get("session")
+        if parent and (row.get("status") != "idle" or turn.get("next") != "done"):
+            parents.add(parent)
+            for declaration in waiting.pop(parent, []):
+                declaration.pop("stalled", None)
+        if not turn or row.get("agent") == "codex":
+            continue
+        turn.pop("stalled", None)
+        if turn.get("next") != "self" or row.get("status") in ("busy", "waiting"):
+            continue
+        work = row.get("work") or {}
+        if any(work.get(key, 0) > 0 for key in ("tasks", "agents", "wakes", "workflows", "observers", "alarms")):
+            continue
+        name = row.get("session")
+        if name not in parents:
+            turn["stalled"] = True
+            waiting.setdefault(name, []).append(turn)
+
+
 def of(config_dir, cwd, name=None, *, sid, prompted):
     """Returns the current declaration for a Claude row, or None when it has expired."""
     file = sessionfile.file_name(config_dir, cwd, name)

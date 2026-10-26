@@ -107,6 +107,7 @@ export function stateOf(row, still = null, move = null) {
     }
     if (live.status === "busy") return { tone: "busy", say: "handling the request", word: "answering" };
     if (live.turn?.next === "owner") return { tone: "wait", say: live.turn.what || "your move", word: "your move" };
+    if (live.turn?.stalled) return { tone: "wait", say: "stalled: nothing will wake it", word: "stalled: nothing will wake it" };
     if (!live.status) return { tone: "", say: "the session state is unknown", word: "" };
     // The answer is over and what it started still runs: the session takes a
     // message, but it is not quiet.

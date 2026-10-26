@@ -165,11 +165,19 @@ async function renameHeader() {
     await quiet();
     out.turnOwnerHead = Boolean(header().querySelector('.talkdot[data-tone="wait"], .dkdot.dkwait'));
     out.turnFullWhat = Boolean(header().querySelector(`[title="${what}"]`));
+    const stalledText = "stalled: nothing will wake it";
+    const stalled = { ...session, turn: { next: "self", at: 2, stalled: true } };
+    show({ at: 4, sessions: [stalled, other] }, null);
+    await until(() => header()?.querySelector('.talkword, .dkword[data-tone="wait"]')?.textContent === stalledText);
+    out.turnStalledHead = Boolean(header().querySelector('.talkdot[data-tone="wait"], .dkdot.dkwait'));
     render(null, root);
     show({ at: 4, sessions: [{ ...session, turn: { next: "owner", what, at: 1 } }, other] }, null);
     await until(() => document.querySelector(".pjstate.pj-wait"));
     out.turnOwnerRow = [...document.querySelectorAll(".pjstate.pj-wait")].some((el) =>
         el.querySelector(".pjtext")?.textContent === what && Boolean(el.querySelector(".pjdot")));
+    show({ at: 4, sessions: [stalled, other] }, null);
+    await until(() => [...document.querySelectorAll(".pjstate.pj-wait .pjtext")].some((el) => el.textContent === stalledText));
+    out.turnStalledRow = Boolean(document.querySelector(".pjstate.pj-wait .pjdot"));
     show({ at: 5, sessions: [{ ...session, turn: { next: "done", at: 2 } }, other] }, null);
     await until(() => !document.querySelector(".pjstate.pj-wait"));
     out.turnDoneRow = Boolean(document.querySelector(".pjstate.pj-idle"));

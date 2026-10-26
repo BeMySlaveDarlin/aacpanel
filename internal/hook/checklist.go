@@ -100,7 +100,7 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 		return Reply{}
 	}
 	path, _ := p["transcript_path"].(string)
-	began, known, called := turnOf(path, "")
+	began, known, called, _ := turnOf(path, "")
 	if !called || !known || written >= began {
 		return Reply{}
 	}
@@ -333,20 +333,21 @@ func unfinished(list map[string]any) bool {
 
 // turnOf is when the turn whose end the hook answers began, and whether it
 // called the named tool (any tool when empty); the time is not known when
-// no record read names one.
-func turnOf(path, tool string) (began float64, known, called bool) {
+// no record read names one. input belongs to the last matching call in the
+// turn, including when several calls share an assistant record.
+func turnOf(path, tool string) (began float64, known, called bool, input map[string]any) {
 	for record := range newestFirst(path) {
 		if at, ok := stampOf(record); ok {
 			began, known = at, true
 		}
-		if calledTools(record, tool) {
-			called = true
+		if !called {
+			input, called = callOf(record, tool)
 		}
 		if isPrompt(record) {
 			break
 		}
 	}
-	return began, known, called
+	return began, known, called, input
 }
 
 // newestFirst are the records of the tail of a transcript, newest first,
@@ -482,15 +483,19 @@ func isPrompt(record map[string]any) bool {
 	return false
 }
 
-func calledTools(record map[string]any, tool string) bool {
+func callOf(record map[string]any, tool string) (map[string]any, bool) {
 	if record["type"] != "assistant" {
-		return false
+		return nil, false
 	}
 	blocks, _ := contentOf(record).([]any)
-	return slices.ContainsFunc(blocks, func(b any) bool {
+	for _, b := range slices.Backward(blocks) {
 		block, ok := b.(map[string]any)
-		return ok && block["type"] == "tool_use" && (tool == "" || block["name"] == tool)
-	})
+		if ok && block["type"] == "tool_use" && (tool == "" || block["name"] == tool) {
+			input, _ := block["input"].(map[string]any)
+			return input, true
+		}
+	}
+	return nil, false
 }
 
 func contentOf(record map[string]any) any {

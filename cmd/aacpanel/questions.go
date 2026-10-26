@@ -13,7 +13,11 @@ import (
 )
 
 func questionSession(row map[string]json.RawMessage) bool {
-	return len(row["turn"]) == 0 && textField(row, "agent") != schema.AgentCodex && textField(row, "status") != "busy"
+	var turn notify.Turn
+	if json.Unmarshal(row["turn"], &turn) == nil && turn.Next == "owner" {
+		return false
+	}
+	return textField(row, "agent") != schema.AgentCodex && textField(row, "status") != "busy"
 }
 
 func questionVisible(classify bool, verdict string) bool {

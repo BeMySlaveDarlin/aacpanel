@@ -24,7 +24,7 @@ func TestTheKindOfAPushIsReadOffItsKey(t *testing.T) {
 		"done:4d89:1": KindDone, "gone:4d89": KindGone, "stack:shop": KindStack, "container:shop-php": KindContainer,
 		"health:shop-php": KindContainer, "alert:152": KindRule, "probe:3": KindProbe,
 		"limit:5h:globex:1790": KindLimit, "codex:personal:0.163.0": KindCodex, "blind:agent": KindBlind,
-		"test": "", "push:1": "", "yours:x:1": KindYours,
+		"test": "", "push:1": "", "yours:x:1": KindYours, "stalled:x:1": KindStalled,
 	} {
 		if got := kindOf(key); got != want {
 			t.Errorf("%q is a %q push, want %q", key, got, want)
@@ -265,5 +265,19 @@ func TestYourMoveCanBeQuietedLikeATextQuestion(t *testing.T) {
 	}
 	if quietOf(KindYours, source) != nil {
 		t.Fatal("the push offers a place mute even though questions come from every place")
+	}
+}
+
+func TestStalledPushesAreOnByDefaultAndCanBeQuieted(t *testing.T) {
+	message := msg("stalled:x:1", Source{Contour: acme})
+	if !(Prefs{}).Allows(message) {
+		t.Fatal("stalls are off by default")
+	}
+	p := Prefs{Off: []string{KindStalled}}.Clean()
+	if !reflect.DeepEqual(p.Off, []string{KindStalled}) || p.Allows(message) {
+		t.Fatalf("a stall ignores the saved choice: %+v", p)
+	}
+	if muted, ok := (Prefs{}).Mute(Quiet{What: "off", Key: KindStalled}); !ok || muted.Allows(message) {
+		t.Fatal("the kind cannot be muted")
 	}
 }

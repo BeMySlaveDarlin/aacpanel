@@ -29,6 +29,8 @@ type chatHeadSeen struct {
 
 type headRenameSeen struct {
 	Rename struct {
+		TurnStalledHead bool     `json:"turnStalledHead"`
+		TurnStalledRow  bool     `json:"turnStalledRow"`
 		TurnOwnerHead   bool     `json:"turnOwnerHead"`
 		TurnOwnerRow    bool     `json:"turnOwnerRow"`
 		TurnFullWhat    bool     `json:"turnFullWhat"`
@@ -81,6 +83,9 @@ func TestTheConversationHeaderRenamesInPlace(t *testing.T) {
 				runWideFixture(t, "chathead.html", &seen)
 			}
 			got := seen.Rename
+			if !got.TurnStalledHead || !got.TurnStalledRow {
+				t.Errorf("stalled declaration: head %v, row %v", got.TurnStalledHead, got.TurnStalledRow)
+			}
 			if !got.TurnOwnerHead || !got.TurnOwnerRow || !got.TurnFullWhat || !got.TurnDoneHead || !got.TurnDoneRow {
 				t.Errorf("turn declaration: owner head %v row %v full what %v; done head %v row %v", got.TurnOwnerHead, got.TurnOwnerRow, got.TurnFullWhat, got.TurnDoneHead, got.TurnDoneRow)
 			}

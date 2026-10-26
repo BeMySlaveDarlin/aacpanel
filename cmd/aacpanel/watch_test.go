@@ -232,3 +232,13 @@ func TestPanelDidForgetsOldDoings(t *testing.T) {
 		t.Errorf("a stale mark stayed in memory: %v", w.did)
 	}
 }
+
+func TestWatcherCarriesAStalledDeclaration(t *testing.T) {
+	path := snapshotWith(t, `{"sessions":[{"session":"lab","sessionId":"conversation","status":"idle","turn":{"next":"self","at":1,"stalled":true}}]}`)
+	w := newWatcher(&Server{host: host.NewReader(path)}, nil)
+	var cur notify.World
+	w.readSnapshot(t.Context(), &cur)
+	if len(cur.Sessions) != 1 || cur.Sessions[0].Turn == nil || !cur.Sessions[0].Turn.Stalled || cur.Sessions[0].Status != "idle" {
+		t.Fatalf("the declaration reached the watcher as %+v", cur.Sessions)
+	}
+}

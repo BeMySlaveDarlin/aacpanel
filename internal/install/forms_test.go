@@ -115,7 +115,7 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 		"PostToolUse":   {executor + " hook artifact-copy"},
 		"PostToolBatch": {atlasBudget},
 		"Stop": {state + executor + " hook background-reminder",
-			executor + " hook checklist-reminder", executor + " hook turn-reminder"},
+			executor + " hook checklist-reminder", state + executor + " hook turn-reminder"},
 	}
 	for event, cmds := range want {
 		if got := commandsOf(t, out, event); !slices.Equal(got, cmds) {

@@ -223,6 +223,8 @@ function Choice({ prefs, sources, change }) {
                         <${Always} title="A session calls you" sub="it was asked to — always comes" />
                         <${Kind} title="Your move" sub="the session needs your answer, decision or action"
                             on=${heard("yours")} onFlip=${kind("yours")} />
+                        <${Kind} title="A session stalled" sub="it expects a wake, but nothing is set"
+                            on=${heard("stalled")} onFlip=${kind("stalled")} />
                         <${Kind} title="A question in text" on=${heard("question")} onFlip=${kind("question")} />
                         <${Kind} title="Check questions in text with haiku" sub="off shows every candidate" on=${prefs.checkQuestions}
                             onFlip=${() => change((p) => ({ ...p, checkQuestions: !p.checkQuestions }))} />
