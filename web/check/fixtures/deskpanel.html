@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{height:100%;margin:0} .deskshell{position:static;height:100%} .dkbody{height:100%}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
-<div class="deskshell"><div class="dkbody withpanel"><aside class="dkleft"></aside><section class="dkcenter"></section><div id="root"></div></div></div>
+<div class="deskshell"><div class="dkbody withpanel"><div id="left" style="display:contents"></div><section class="dkcenter"></section><div id="root"></div></div></div>
 <script type="module">
 // The right-hand panel of the desktop under the styles it ships with: the
 // archive over a fake service, on a screen wide enough for the desktop rules
@@ -13,6 +13,7 @@
 import { h, render } from "preact";
 import { useState } from "preact/hooks";
 import { RightPanel } from "/src/desktop/panels.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -22,7 +23,9 @@ const profiles = { profiles: [
     { id: 3, name: "personal", configDir: "/home/u/.claude" },
 ] };
 
-const names = ["Acme Labs", "personal"];
+const names = ["Acme Labs", "personal", "design", "ops", "docs", "research", "a contour with a name longer than its button"];
+const fullNames = [...names, "build", "mobile", "web", "data", "tools", "support", "staging", "sandbox"];
+const chosen = {};
 
 const row = (id, profile, at) => ({
     sessionId: id, name: `the conversation about the build ${id.slice(0, 4)}`,
@@ -50,8 +53,9 @@ window.fetch = counted(async (url) => {
 
 const exec = { available: true };
 
-function Panel() {
+function Panel({ names }) {
     const [picks, setPicks] = useState([]);
+    chosen.right = picks;
     return h(RightPanel, {
         tab: "archive",
         title: "Session archive",
@@ -67,7 +71,20 @@ function Panel() {
     });
 }
 
-render(h(ToastHost, null, h(GateHost, null, h(Panel))), document.getElementById("root"));
+function Column({ names }) {
+    const [picks, setPicks] = useState([]);
+    chosen.left = picks;
+    return h(SessionColumn, {
+        snapshot: { sessions: [], profileMap: names.map((profile, i) => ({ id: i + 1, profile, groups: [] })) },
+        picks, setPicks, exec, onPick: () => {},
+    });
+}
+
+function paint(names) {
+    render(h(ToastHost, null, h(GateHost, null, h(Panel, { names }))), document.getElementById("root"));
+    render(h(ToastHost, null, h(GateHost, null, h(Column, { names }))), document.getElementById("left"));
+}
+paint(names);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const settle = async () => {
@@ -111,9 +128,35 @@ const sizes = () => {
 const byText = (selector, text) =>
     [...document.querySelectorAll(selector)].find((e) => e.textContent.trim() === text);
 
+const buttons = (side) => [...document.querySelectorAll(`.dk${side} .dkpick button`)];
+const selection = (side) => ({
+    picks: chosen[side],
+    pressed: buttons(side).map((b) => b.getAttribute("aria-pressed")),
+    shown: [...document.querySelectorAll(`.dk${side} .dkscroll .dkcontourname`)].map((e) => e.textContent.trim()),
+});
+
+function layout(side) {
+    const group = document.querySelector(`.dk${side} .dkpick`);
+    const style = getComputedStyle(group);
+    const rowCounts = new Map();
+    const boxes = buttons(side).map((b) => b.getBoundingClientRect());
+    for (const box of boxes) {
+        const top = Math.round(box.top);
+        rowCounts.set(top, (rowCounts.get(top) || 0) + 1);
+    }
+    const long = buttons(side).find((b) => b.textContent === names[6]);
+    return {
+        display: style.display, wrap: style.flexWrap, rows: [...rowCounts.values()],
+        widths: boxes.map((box) => box.width),
+        title: long.title, ellipsis: getComputedStyle(long).textOverflow,
+        clipped: long.scrollWidth > long.clientWidth,
+    };
+}
+
 window.done = (async () => {
     await settle();
     const plain = { overlap: overlap(), ...sizes() };
+    const seven = { left: layout("left"), right: layout("right") };
 
     document.documentElement.style.setProperty("--ui-scale", "1.4");
     await sleep(50);
@@ -121,13 +164,24 @@ window.done = (async () => {
     document.documentElement.style.removeProperty("--ui-scale");
     await sleep(50);
 
-    asked.length = 0;
-    document.querySelector(".dkright .dkpickbtn").click();
-    await sleep(50);
-    const rowsShown = [...document.querySelectorAll(".dkright .dkpickrow")].map((e) => e.textContent.trim());
-    byText(".dkright .dkpickrow", "Acme Labs").click();
-    await settle();
+    const pickRows = buttons("right").map((e) => e.textContent.trim());
+    const toggles = {};
+    let picked = "";
+    for (const side of ["right", "left"]) {
+        toggles[side] = [selection(side)];
+        for (const name of [names[0], names[6], names[0], names[6]]) {
+            asked.length = 0;
+            byText(`.dk${side} .dkpick button`, name).click();
+            await settle();
+            toggles[side].push(selection(side));
+            if (side === "right" && toggles[side].length === 2) picked = query();
+        }
+    }
 
-    return { plain, scaled, picked: query(), pickRows: rowsShown };
+    paint(fullNames);
+    await settle();
+    const fifteen = { left: layout("left"), right: layout("right") };
+
+    return { plain, scaled, picked, pickRows, seven, fifteen, toggles };
 })();
 </script>

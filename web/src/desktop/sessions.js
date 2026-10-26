@@ -54,28 +54,14 @@ const SHELF_ASK = 30;
 const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", paused: "dkpaused", off: "dkoff" };
 
 // ContourPick chooses which contours the column shows.
-export function ContourPick({ names, picks, onToggle, onAll }) {
-    const [open, setOpen] = useState(false);
-    const label = picks.length === 0 || picks.length === names.length
-        ? `all (${names.length})`
-        : picks.join(" · ");
+export function ContourPick({ names, picks, onToggle }) {
     return html`
-        <div class="dkpick">
-            <button class="dkpickbtn" type="button" onClick=${() => setOpen((v) => !v)}>
-                <span class="dkpicklabel">contours</span>
-                <span class="dkpickvalue">${label}</span>
-                <span class=${`dkpickchev${open ? " open" : ""}`}><${Icon.chevron} /></span>
-            </button>
-            ${open && html`
-                <div class="dkpicklist">
-                    <button class="dkpickrow" type="button" onClick=${() => { onAll(); setOpen(false); }}>all contours</button>
-                    ${names.map((n) => html`
-                        <button class="dkpickrow" key=${n} type="button" onClick=${() => onToggle(n)}>
-                            <span class=${`dkcheck${picks.includes(n) ? " on" : ""}`}></span>${n}
-                        </button>
-                    `)}
-                </div>
-            `}
+        <div class="dkpick" role="group" aria-label="contours">
+            ${names.map((name) => html`
+                <button class="dkpickbtn" key=${name} type="button" title=${name}
+                        aria-pressed=${picks.includes(name) ? "true" : "false"}
+                        onClick=${() => onToggle(name)}>${name}</button>
+            `)}
         </div>
     `;
 }
@@ -822,7 +808,6 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
                 names=${names}
                 picks=${picks}
                 onToggle=${(name) => setPicks((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]))}
-                onAll=${() => setPicks([])}
             />
             <div class="dkscroll">
                 ${sections.map((name) => html`

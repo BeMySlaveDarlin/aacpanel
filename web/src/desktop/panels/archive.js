@@ -142,7 +142,6 @@ export function Archive({ profiles, names, picks, setPicks, onOpen, exec }) {
                     names=${known}
                     picks=${picks}
                     onToggle=${(name) => setPicks((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]))}
-                    onAll=${() => setPicks([])}
                 />
             `}
             <div class="dkscroll">

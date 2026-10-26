@@ -155,11 +155,111 @@ func TestArchiveRowKeepsItsButtonsOffTheText(t *testing.T) {
 		}
 	}
 
-	if want := []string{"all contours", "Acme Labs", "personal"}; !equalStrings(got.PickRows, want) {
+	if want := []string{"Acme Labs", "personal", "design", "ops", "docs", "research", "a contour with a name longer than its button"}; !equalStrings(got.PickRows, want) {
 		t.Errorf("the contour filter of the archive offers %v, expected %v — the panel filters by something other than the map",
 			got.PickRows, want)
 	}
 	if !strings.Contains(got.Picked, "contour=7") {
 		t.Errorf("a contour picked in the archive went out as %q — the filter of the panel changes nothing", got.Picked)
+	}
+}
+
+// The contour buttons keep their columns in both panels, including a short
+// last row. Each button filters by its name and releases that filter again.
+func TestDesktopContoursKeepEvenColumnsAndToggleTheirFilter(t *testing.T) {
+	type layout struct {
+		Display  string    `json:"display"`
+		Wrap     string    `json:"wrap"`
+		Rows     []int     `json:"rows"`
+		Widths   []float64 `json:"widths"`
+		Title    string    `json:"title"`
+		Ellipsis string    `json:"ellipsis"`
+		Clipped  bool      `json:"clipped"`
+	}
+	type selection struct {
+		Picks   []string `json:"picks"`
+		Pressed []string `json:"pressed"`
+		Shown   []string `json:"shown"`
+	}
+	var got struct {
+		PickRows []string               `json:"pickRows"`
+		Seven    map[string]layout      `json:"seven"`
+		Fifteen  map[string]layout      `json:"fifteen"`
+		Toggles  map[string][]selection `json:"toggles"`
+	}
+	runWideFixture(t, "deskpanel.html", &got)
+	if len(got.PickRows) != 7 {
+		t.Fatalf("the contour group drew %v, expected seven buttons", got.PickRows)
+	}
+	for _, side := range []string{"left", "right"} {
+		for _, sample := range []struct {
+			count int
+			rows  []int
+			got   layout
+		}{
+			{7, []int{5, 2}, got.Seven[side]},
+			{15, []int{5, 5, 5}, got.Fifteen[side]},
+		} {
+			l := sample.got
+			if l.Display != "flex" || l.Wrap != "wrap" {
+				t.Errorf("%s with %d contours: display %q, wrap %q, expected wrapping flex", side, sample.count, l.Display, l.Wrap)
+			}
+			if len(l.Rows) != len(sample.rows) {
+				t.Errorf("%s with %d contours: rows %v, expected %v", side, sample.count, l.Rows, sample.rows)
+			} else {
+				for i, count := range sample.rows {
+					if l.Rows[i] != count {
+						t.Errorf("%s with %d contours: row %d has %d buttons, expected %d", side, sample.count, i, l.Rows[i], count)
+					}
+				}
+			}
+			if len(l.Widths) != sample.count {
+				t.Errorf("%s: measured %d buttons, expected %d", side, len(l.Widths), sample.count)
+			} else {
+				for i, width := range l.Widths {
+					if width <= 0 || math.Abs(width-l.Widths[0]) > .1 {
+						t.Errorf("%s with %d contours: button %d is %.2f wide, first is %.2f", side, sample.count, i, width, l.Widths[0])
+					}
+				}
+			}
+			if l.Title != got.PickRows[6] || l.Ellipsis != "ellipsis" || !l.Clipped {
+				t.Errorf("%s with %d contours: the long name has title %q, overflow %q, clipped %v", side, sample.count, l.Title, l.Ellipsis, l.Clipped)
+			}
+		}
+
+		states := got.Toggles[side]
+		wantPicks := [][]string{nil, {got.PickRows[0]}, {got.PickRows[0], got.PickRows[6]}, {got.PickRows[6]}, nil}
+		if len(states) != len(wantPicks) {
+			t.Errorf("%s: read %d toggle states, expected %d", side, len(states), len(wantPicks))
+			continue
+		}
+		for step, picks := range wantPicks {
+			state := states[step]
+			if !equalStrings(state.Picks, picks) {
+				t.Errorf("%s step %d: picked %v, expected %v", side, step, state.Picks, picks)
+			}
+			shown := picks
+			if len(shown) == 0 {
+				shown = got.PickRows
+			}
+			if !equalStrings(state.Shown, shown) {
+				t.Errorf("%s step %d: visible contours %v, expected %v", side, step, state.Shown, shown)
+			}
+			if len(state.Pressed) != len(got.PickRows) {
+				t.Errorf("%s step %d: read %d pressed states for %d buttons", side, step, len(state.Pressed), len(got.PickRows))
+				continue
+			}
+			for i, name := range got.PickRows {
+				want := "false"
+				for _, pick := range picks {
+					if name == pick {
+						want = "true"
+					}
+				}
+				if state.Pressed[i] != want {
+					t.Errorf("%s step %d: %q has aria-pressed %q, expected %q", side, step, name, state.Pressed[i], want)
+				}
+			}
+		}
 	}
 }
