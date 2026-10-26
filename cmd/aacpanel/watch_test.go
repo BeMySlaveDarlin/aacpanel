@@ -18,6 +18,7 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 			{"session": "aacpanel", "sessionId": "4d89ed41", "cwd": "/srv/proj/aacpanel",
 			 "profile": "personal", "status": "waiting", "statusUpdatedAt": 1788813894909,
 			 "waitingFor": "input needed", "transport": "stream",
+			 "turn": {"next": "owner", "what": "Choose a release", "at": 1788813894910},
 			 "ask": {"header": "Method", "text": "What do we bring the stack down with?", "count": 2, "at": "2026-09-08T03:00:00Z"}}
 		],
 		"limits": {"profile": "personal",
@@ -42,6 +43,9 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 	}
 	if s.Status != "waiting" || s.WaitingFor != "input needed" || s.StatusAt != 1788813894909 {
 		t.Errorf("what the session waits for was lost: %+v", s)
+	}
+	if s.Turn == nil || *s.Turn != (notify.Turn{Next: "owner", What: "Choose a release", At: 1788813894910}) {
+		t.Errorf("the turn declaration was lost: %+v", s.Turn)
 	}
 	if s.Transport != "stream" {
 		t.Errorf("how the session is kept was lost — the push of its end would not say its holder died: %q", s.Transport)

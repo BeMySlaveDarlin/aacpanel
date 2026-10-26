@@ -241,6 +241,7 @@ var kitHooks = []kitHook{
 	{Part: "relay", Event: "PreToolUse", Matcher: "AskUserQuestion", Hook: "ask-hook", Script: "agent/ask-hook.py", Timeout: 5, Codex: true},
 	{Part: "copies", Event: "PostToolUse", Matcher: "Artifact", Hook: "artifact-copy", Script: "deploy/claude/artifact-copy.py", Timeout: 10},
 	{Part: "nudge", Event: "Stop", Hook: "checklist-reminder", Script: "deploy/claude/checklist-reminder.py", Timeout: 5},
+	{Part: "nudge", Event: "Stop", Hook: "turn-reminder", Script: "deploy/claude/turn-reminder.py", Timeout: 5},
 	{Part: "stamp", Event: "UserPromptSubmit", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
 	{Part: "background", Event: "Stop", Hook: "background-reminder", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true},
 }
@@ -281,7 +282,7 @@ const StatusNextEnv = "AACP_STATUSLINE_NEXT"
 // started, and its alarms, which run nothing — and the one of the restart,
 // which lets a session restart itself with nobody at the screen.
 var (
-	toolRules = []string{"mcp__aacpanel__checklist", "mcp__aacpanel__role", "mcp__aacpanel__brief_publish", "mcp__aacpanel__brief_delete",
+	toolRules = []string{"mcp__aacpanel__checklist", "mcp__aacpanel__turn_end", "mcp__aacpanel__role", "mcp__aacpanel__brief_publish", "mcp__aacpanel__brief_delete",
 		"mcp__aacpanel__notify", "mcp__aacpanel__secret_ask", "mcp__aacpanel__request", "mcp__aacpanel__session_close", "mcp__aacpanel__session_ready",
 		"mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop", "mcp__aacpanel__observer_tail",
 		"mcp__aacpanel__alarm_set", "mcp__aacpanel__alarm_list", "mcp__aacpanel__alarm_cancel"}

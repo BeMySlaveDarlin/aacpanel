@@ -1,0 +1,238 @@
+{
+  "session": "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d",
+  "place": "/srv/proj/lab",
+  "name": "lab",
+  "claude": {
+    "pid": 4242,
+    "start": "5555"
+  },
+  "shell": {
+    "pid": 4300,
+    "start": "900",
+    "args": [
+      "sh",
+      "-c",
+      "hook"
+    ]
+  },
+  "began": 1790589600,
+  "about": "The turn reminder uses the checklist reminder runner: the same process, session and transcript boundaries, with one hold at most per Stop round.",
+  "args": {
+    "withTool": [
+      "claude",
+      "--allowedTools",
+      "mcp__aacpanel__turn_end,mcp__aacpanel__checklist",
+      "-n",
+      "lab"
+    ],
+    "byHand": [
+      "claude",
+      "-n",
+      "lab"
+    ]
+  },
+  "reason": "Before ending the turn, say whose move it is: call turn_end (mcp__aacpanel__turn_end) — owner with what you need from the person, self if something set will wake you, done if nothing waits. Then end the turn without a word about this.",
+  "transcripts": {
+    "talked": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"earlier\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T09:50:00.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"Bash\", \"input\": {}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T09:50:01.000Z\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"toolu_1\", \"content\": \"ok\"}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"what do you think?\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:40.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"done\"}]}}"
+    ],
+    "worked": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"earlier\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T09:50:00.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"done\"}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"fix the build\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"Bash\", \"input\": {}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:06.000Z\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"toolu_1\", \"content\": \"ok\"}]}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_2\", \"name\": \"Edit\", \"input\": {}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:06.000Z\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"toolu_2\", \"content\": \"ok\"}]}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:40.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"done\"}]}}"
+    ],
+    "called": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"mcp__aacpanel__turn_end\", \"input\": {}}]}}"
+    ],
+    "before": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"mcp__aacpanel__turn_end\", \"input\": {}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}}"
+    ],
+    "meta": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"mcp__aacpanel__turn_end\", \"input\": {}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}, \"isMeta\": true}"
+    ],
+    "summary": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"mcp__aacpanel__turn_end\", \"input\": {}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}, \"isCompactSummary\": true}"
+    ],
+    "sidechain": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"mcp__aacpanel__turn_end\", \"input\": {}}]}, \"isSidechain\": true}"
+    ],
+    "otherTool": [
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"go\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:05.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_1\", \"name\": \"Bash\", \"input\": {}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:06.000Z\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"toolu_1\", \"content\": \"ok\"}]}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:07.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"done\"}]}}"
+    ]
+  },
+  "cases": [
+    {
+      "what": "a plain answer declares whose move follows",
+      "stops": [
+        {
+          "transcript": "talked",
+          "holds": true
+        },
+        {
+          "transcript": "talked",
+          "payload": {
+            "stop_hook_active": true
+          },
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "a turn that worked declares it too",
+      "stops": [
+        {
+          "transcript": "worked",
+          "holds": true
+        }
+      ]
+    },
+    {
+      "what": "the declaration in this turn is enough",
+      "stops": [
+        {
+          "transcript": "called",
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "another tool does not declare it",
+      "stops": [
+        {
+          "transcript": "otherTool",
+          "holds": true
+        }
+      ]
+    },
+    {
+      "what": "a declaration before a new prompt has expired",
+      "stops": [
+        {
+          "transcript": "before",
+          "holds": true
+        }
+      ]
+    },
+    {
+      "what": "meta and compact records do not start a human turn",
+      "stops": [
+        {
+          "transcript": "meta",
+          "holds": false
+        },
+        {
+          "transcript": "summary",
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "a sidechain cannot declare for the conversation",
+      "stops": [
+        {
+          "transcript": "sidechain",
+          "holds": true
+        }
+      ]
+    },
+    {
+      "what": "a session without the tool cannot be asked",
+      "claude": {
+        "args": "byHand"
+      },
+      "stops": [
+        {
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "another conversation is not the parent session",
+      "stops": [
+        {
+          "payload": {
+            "session_id": "another"
+          },
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "a missing session cannot be reminded",
+      "stops": [
+        {
+          "drop": [
+            "session_id"
+          ],
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "only Stop is answered",
+      "stops": [
+        {
+          "payload": {
+            "hook_event_name": "SubagentStop"
+          },
+          "holds": false
+        },
+        {
+          "payload": {
+            "hook_event_name": "PostToolUse"
+          },
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "invalid input stays silent",
+      "stops": [
+        {
+          "input": "{",
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "an unreadable transcript does not prove a call",
+      "stops": [
+        {
+          "transcript": null,
+          "holds": true
+        }
+      ]
+    },
+    {
+      "what": "a dead process is not a session",
+      "claude": {
+        "start": "different"
+      },
+      "stops": [
+        {
+          "holds": false
+        }
+      ]
+    }
+  ]
+}

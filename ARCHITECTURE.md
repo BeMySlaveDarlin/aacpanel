@@ -2143,6 +2143,14 @@ session answers to is refused: two sessions would answer to one name. The
 open conversation follows the session by its conversation to the new name. A
 session in tmux is renamed on its own screen, `/rename` with keys.
 
+**A turn declares whose move follows.** The main conversation calls `turn_end`
+last with `owner`, `self` or `done`; the executor atomically keeps its declaration
+in `turns/`, by Claude session or Codex thread. For Claude, the collector carries
+it until the next human prompt, leaving the session status unchanged: `owner`
+shows “Your move” with what the person must do and pushes once per declaration;
+Codex needs a time for the last turn in its executor state before its declaration
+can reach the row safely.
+
 **A session gets the panel's tools from one MCP server.** Every session the
 launcher starts, in tmux or on the stream, gets the executor as the MCP
 server `aacpanel` (`aacpanel-exec -mcp`), and the tools the server marks

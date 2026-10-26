@@ -13,7 +13,7 @@ import (
 )
 
 func questionSession(row map[string]json.RawMessage) bool {
-	return textField(row, "agent") != schema.AgentCodex && textField(row, "status") != "busy"
+	return len(row["turn"]) == 0 && textField(row, "agent") != schema.AgentCodex && textField(row, "status") != "busy"
 }
 
 func questionVisible(classify bool, verdict string) bool {

@@ -206,11 +206,11 @@ func (s *Survey) mapNow() (mapView, bool) {
 }
 
 // hooks is how many hooks the kit wires into claude: the question relay and
-// every hook part that is checked.
+// every hook of a part that is checked.
 func (s *Survey) hooks() int {
 	n := 1
-	for _, p := range hookParts {
-		if s.Has(p) {
+	for _, h := range kitHooks {
+		if h.Part != "relay" && s.Has(h.Part) {
 			n++
 		}
 	}

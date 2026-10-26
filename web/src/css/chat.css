@@ -35,11 +35,11 @@
     background: var(--ink-faint);
 }
 .talkdot[data-tone="busy"] { background: var(--accent); box-shadow: 0 0 9px var(--accent); }
-.talkdot[data-tone="waiting"] { background: var(--wait); box-shadow: 0 0 9px var(--wait); }
+.talkdot[data-tone="wait"], .talkdot[data-tone="waiting"] { background: var(--wait); box-shadow: 0 0 9px var(--wait); }
 .talkdot[data-tone="bg"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
 .talkdot[data-tone="idle"] { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
 .talkdot[data-tone="off"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
-.talkword[data-tone="waiting"] { color: var(--wait); }
+.talkword[data-tone="wait"], .talkword[data-tone="waiting"] { color: var(--wait); }
 .talkword[data-tone="bg"] { color: var(--accent); }
 
 /* A name too long for its line loses its middle: the head is cut, the tail

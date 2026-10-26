@@ -135,7 +135,11 @@ func writeJSON(t *testing.T, path string, v any) {
 }
 
 func TestTheSharedCasesOfTheChecklistReminder(t *testing.T) {
-	c := readChecklistCases(t)
+	runReminderCases(t, readChecklistCases(t), "checklist-reminder")
+}
+
+func runReminderCases(t *testing.T, c checklistCases, hook string) {
+	t.Helper()
 	for _, cs := range c.Cases {
 		t.Run(cs.What, func(t *testing.T) {
 			dir, proc, config := inPlace(t)
@@ -174,7 +178,7 @@ func TestTheSharedCasesOfTheChecklistReminder(t *testing.T) {
 					input = []byte(*st.Input)
 				}
 				var out, errs bytes.Buffer
-				if code := Run([]string{"checklist-reminder"}, bytes.NewReader(input), &out, &errs); code != 0 || errs.Len() > 0 {
+				if code := Run([]string{hook}, bytes.NewReader(input), &out, &errs); code != 0 || errs.Len() > 0 {
 					t.Fatalf("%s: exit %d, stderr %q", at, code, errs.String())
 				}
 				switch {

@@ -96,11 +96,11 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 	if !ok || !unfinished(list) {
 		return Reply{}
 	}
-	if !pyEqual(list["pid"], json.Number(strconv.Itoa(pid))) && !hasTool(pid) {
+	if !pyEqual(list["pid"], json.Number(strconv.Itoa(pid))) && !hasTool(pid, checklistTool) {
 		return Reply{}
 	}
 	path, _ := p["transcript_path"].(string)
-	began, known, called := turnOf(path)
+	began, known, called := turnOf(path, "")
 	if !called || !known || written >= began {
 		return Reply{}
 	}
@@ -234,13 +234,13 @@ func argsOf(pid int) []string {
 	return strings.Split(string(raw), "\x00")
 }
 
-// hasTool tells whether a claude process was started with the checklist
+// hasTool tells whether a claude process was started with the named
 // tool allowed, as the panel starts every session: a word of its arguments,
 // split at white space, commas and equals signs, is the tool.
-func hasTool(pid int) bool {
+func hasTool(pid int, tool string) bool {
 	for _, arg := range argsOf(pid) {
 		words := strings.FieldsFunc(arg, func(r rune) bool { return strings.ContainsRune(" \t\n\r\f\v,=", r) })
-		if slices.Contains(words, checklistTool) {
+		if slices.Contains(words, tool) {
 			return true
 		}
 	}
@@ -332,13 +332,14 @@ func unfinished(list map[string]any) bool {
 // ---- the turn ----
 
 // turnOf is when the turn whose end the hook answers began, and whether it
-// called tools; the time is not known when no record read names one.
-func turnOf(path string) (began float64, known, called bool) {
+// called the named tool (any tool when empty); the time is not known when
+// no record read names one.
+func turnOf(path, tool string) (began float64, known, called bool) {
 	for record := range newestFirst(path) {
 		if at, ok := stampOf(record); ok {
 			began, known = at, true
 		}
-		if calledTools(record) {
+		if calledTools(record, tool) {
 			called = true
 		}
 		if isPrompt(record) {
@@ -481,14 +482,14 @@ func isPrompt(record map[string]any) bool {
 	return false
 }
 
-func calledTools(record map[string]any) bool {
+func calledTools(record map[string]any, tool string) bool {
 	if record["type"] != "assistant" {
 		return false
 	}
 	blocks, _ := contentOf(record).([]any)
 	return slices.ContainsFunc(blocks, func(b any) bool {
 		block, ok := b.(map[string]any)
-		return ok && block["type"] == "tool_use"
+		return ok && block["type"] == "tool_use" && (tool == "" || block["name"] == tool)
 	})
 }
 

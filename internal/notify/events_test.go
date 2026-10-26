@@ -586,3 +586,56 @@ func TestABriefThatAsksNothingSaysSo(t *testing.T) {
 		t.Errorf("a piece to read promises questions: %q", report.Raise[0].Body)
 	}
 }
+
+// The declaration is one event for as long as it stands. Seeing it again
+// keeps it open without another push; a new declaration has its own key,
+// and a prompt or a different next move clears it without a recovery push.
+func TestYourMoveRaisesOnceAndStaysUntilTheDeclarationEnds(t *testing.T) {
+	empty := snapshotWorld()
+	owner := sess()
+	owner.Turn = &Turn{Next: "owner", What: "Choose the release window", At: ms(when)}
+	current := empty
+	current.Sessions = []Session{owner}
+	journal := newJournal()
+	tracker := started(journal)
+	key := "yours:" + owner.ID + ":" + strconv.FormatInt(owner.Turn.At, 10)
+	fresh := Look(empty, current)
+	if len(fresh.Raise) != 1 || fresh.Raise[0].Key != key || fresh.Raise[0].Body != owner.Turn.What ||
+		fresh.Raise[0].Title != "Your move · aacpanel" || fresh.Raise[0].Severity != TextQuestion(owner, "message").Severity {
+		t.Fatalf("the declaration raised %+v", fresh.Raise)
+	}
+	if news := tracker.Step(t.Context(), fresh); len(news) != 1 || news[0].Kind != KindYours || news[0].Session != owner.Name {
+		t.Fatalf("the declaration pushed %+v", news)
+	}
+	repeated := Look(current, current)
+	if len(repeated.Raise) != 0 || len(repeated.Hold) != 1 || repeated.Hold[0] != key {
+		t.Fatalf("the repeated declaration: %+v", repeated)
+	}
+	if news := tracker.Step(t.Context(), repeated); len(news) != 0 {
+		t.Fatalf("a repeated declaration pushed %+v", news)
+	}
+	if _, held := journal.rows[key]; !held {
+		t.Fatal("the declaration was forgotten while it stood")
+	}
+	next := current
+	owner.Turn = &Turn{Next: "owner", What: "Confirm the operator", At: ms(when) + 1}
+	next.Sessions = []Session{owner}
+	if news := tracker.Step(t.Context(), Look(current, next)); len(news) != 1 || news[0].Body != owner.Turn.What || news[0].Tag == key {
+		t.Fatalf("a new declaration pushed %+v", news)
+	}
+	for _, turn := range []*Turn{nil, {Next: "done", At: ms(when) + 2}, {Next: "self", At: ms(when) + 3}} {
+		cleared := empty
+		owner.Turn = turn
+		cleared.Sessions = []Session{owner}
+		report := Look(next, cleared)
+		if len(report.Raise) != 0 || len(report.Hold) != 0 {
+			t.Fatalf("a finished declaration still stands: %+v", report)
+		}
+		if news := tracker.Step(t.Context(), report); len(news) != 0 {
+			t.Fatalf("a finished declaration pushed %+v", news)
+		}
+		if tracker.Active() != 0 || len(journal.rows) != 1 || journal.rows[bootKey].Key != bootKey {
+			t.Fatalf("a finished declaration remains in the journal: %+v", journal.rows)
+		}
+	}
+}

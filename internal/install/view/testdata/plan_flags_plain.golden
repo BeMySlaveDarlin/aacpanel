@@ -62,7 +62,7 @@
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 16 allow rules · 3 hooks                                                 │
+│   · 17 allow rules · 4 hooks                                                 │
 │   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
 │ Values                                                                       │
 │   host studio (flag) · home session studio (host name)                       │

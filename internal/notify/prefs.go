@@ -13,6 +13,7 @@ const (
 	KindRequest   = "request"
 	KindAsk       = "ask"
 	KindQuestion  = "question"
+	KindYours     = "yours"
 	KindWait      = "wait"
 	KindBrief     = "brief"
 	KindDone      = "done"
@@ -34,6 +35,7 @@ var keyKinds = []struct{ prefix, kind string }{
 	{"request:", KindRequest},
 	{"ask:", KindAsk},
 	{"question:", KindQuestion},
+	{"yours:", KindYours},
 	{"wait:", KindWait},
 	{"brief:", KindBrief},
 	{"done:", KindDone},
@@ -62,7 +64,7 @@ func kindOf(key string) string {
 // kindsOff are the kinds a person may turn off. A call is a session asked to
 // fetch the person and a blind panel is a failure that would pass in silence:
 // neither is on the list, so neither is ever held back.
-var kindsOff = []string{KindQuestion, KindAsk, KindWait, KindBrief, KindDone, KindGone, KindStack, KindContainer,
+var kindsOff = []string{KindQuestion, KindYours, KindAsk, KindWait, KindBrief, KindDone, KindGone, KindStack, KindContainer,
 	KindBack, KindProbe, KindLimit, KindCodex}
 
 // Source is where an event comes from, as far as a push can be quieted by it.

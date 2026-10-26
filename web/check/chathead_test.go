@@ -29,6 +29,11 @@ type chatHeadSeen struct {
 
 type headRenameSeen struct {
 	Rename struct {
+		TurnOwnerHead   bool     `json:"turnOwnerHead"`
+		TurnOwnerRow    bool     `json:"turnOwnerRow"`
+		TurnFullWhat    bool     `json:"turnFullWhat"`
+		TurnDoneHead    bool     `json:"turnDoneHead"`
+		TurnDoneRow     bool     `json:"turnDoneRow"`
 		Value           string   `json:"value"`
 		Selected        bool     `json:"selected"`
 		SameOff         bool     `json:"sameOff"`
@@ -76,6 +81,9 @@ func TestTheConversationHeaderRenamesInPlace(t *testing.T) {
 				runWideFixture(t, "chathead.html", &seen)
 			}
 			got := seen.Rename
+			if !got.TurnOwnerHead || !got.TurnOwnerRow || !got.TurnFullWhat || !got.TurnDoneHead || !got.TurnDoneRow {
+				t.Errorf("turn declaration: owner head %v row %v full what %v; done head %v row %v", got.TurnOwnerHead, got.TurnOwnerRow, got.TurnFullWhat, got.TurnDoneHead, got.TurnDoneRow)
+			}
 			if got.Value != "helios" || !got.Selected || !got.SameOff || got.SameSent != 0 {
 				t.Errorf("the name did not open selected and unchanged: value %q, selected %v, save off %v, sent %d",
 					got.Value, got.Selected, got.SameOff, got.SameSent)

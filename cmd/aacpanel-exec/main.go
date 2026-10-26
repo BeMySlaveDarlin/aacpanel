@@ -30,6 +30,7 @@ import (
 	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
 	"aacpanel/internal/toolset"
+	"aacpanel/internal/turnend"
 )
 
 const defaultDocker = "unix:///var/run/docker.sock"
@@ -266,6 +267,7 @@ func mcpFlags(set *flag.FlagSet) *bool {
 // checklists nobody has touched for a month are swept once at the start.
 func runMCP(in io.Reader, out io.Writer, parent int) int {
 	checklist.Sweep(checklist.Dir(), time.Now())
+	turnend.Sweep(turnend.Dir(), time.Now())
 	srv := toolset.Server(func() (mcp.Binding, error) { return launcher.Where(parent) })
 	if launcher.IsCodex(parent) {
 		srv = toolset.CodexServer(func(meta json.RawMessage) (mcp.Binding, error) {

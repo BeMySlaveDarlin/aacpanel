@@ -24,7 +24,7 @@ func TestTheKindOfAPushIsReadOffItsKey(t *testing.T) {
 		"done:4d89:1": KindDone, "gone:4d89": KindGone, "stack:shop": KindStack, "container:shop-php": KindContainer,
 		"health:shop-php": KindContainer, "alert:152": KindRule, "probe:3": KindProbe,
 		"limit:5h:globex:1790": KindLimit, "codex:personal:0.163.0": KindCodex, "blind:agent": KindBlind,
-		"test": "", "push:1": "",
+		"test": "", "push:1": "", "yours:x:1": KindYours,
 	} {
 		if got := kindOf(key); got != want {
 			t.Errorf("%q is a %q push, want %q", key, got, want)
@@ -240,5 +240,30 @@ func TestTextQuestionsHaveTheirOwnPushChoice(t *testing.T) {
 	off := false
 	if !(Prefs{}).ClassifyQuestions() || (Prefs{CheckQuestions: &off}).Clean().ClassifyQuestions() {
 		t.Fatal("classification default or saved choice was lost")
+	}
+}
+
+func TestYourMoveCanBeQuietedLikeATextQuestion(t *testing.T) {
+	source := Source{Contour: acme, Place: "/srv/proj/lab"}
+	message := msg("yours:x:1", source)
+	if !(Prefs{}).Allows(message) {
+		t.Fatal("the person's move is off by default")
+	}
+	p := Prefs{Off: []string{KindYours}, Sessions: []string{acme}}.Clean()
+	if !reflect.DeepEqual(p.Off, []string{KindYours}) || p.Allows(message) {
+		t.Fatalf("the saved choice did not quiet the person's move: %+v", p)
+	}
+	muted, ok := (Prefs{}).Mute(Quiet{What: "off", Key: KindYours})
+	if !ok || muted.Allows(message) {
+		t.Fatal("the person's move could not be muted")
+	}
+	for _, place := range []string{acme, source.Place} {
+		p := Prefs{Sessions: []string{place}}.Clean()
+		if !p.Allows(message) || p.Allows(message) != p.Allows(msg("question:x:1", source)) {
+			t.Fatalf("a place muted %q treats the person's move differently from a question", place)
+		}
+	}
+	if quietOf(KindYours, source) != nil {
+		t.Fatal("the push offers a place mute even though questions come from every place")
 	}
 }

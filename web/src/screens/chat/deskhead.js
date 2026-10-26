@@ -36,7 +36,7 @@ export function DeskHead({ name, live, archive, pct, spent, move, tools, exec, t
                             <span class="dkheadsep">·</span>
                         `}
                         ${state.word && html`
-                            <span class="dkword" data-tone=${state.tone}>${state.word}</span>
+                            <span class="dkword" data-tone=${state.tone} title=${state.say}>${state.word}</span>
                             <span class="dkheadsep">·</span>
                         `}
                         ${pct != null && html`

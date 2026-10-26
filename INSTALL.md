@@ -237,11 +237,11 @@ plan into `<install>/plan.txt` and quits:
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 15 allow rules · 5 hooks                                                 │
+│   · 17 allow rules · 5 hooks                                                 │
 │   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
 │ In codex settings — ~/.codex/hooks.json, ~/.codex/config.toml                │
 │   · question hook · MCP server                                               │
-│   · 2 hooks, trusted · 13 tools approved                                     │
+│   · 2 hooks, trusted · 14 tools approved                                     │
 │ Values                                                                       │
 │   host lab (hostname) · home session lab (host name)                         │
 │   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │
@@ -779,10 +779,10 @@ A no stops the run with the command that installs it by hand.
 |---|---|---|
 | Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `aacpanel-exec hook ask-hook` |
 | Limits snapshot | always | the status line, `aacpanel-exec statusline`, before yours |
-| Panel tools | always | the MCP server `aacpanel` with thirteen allow rules: the checklist, the role, publishing and deleting a brief, the call to the person, the notepad of secrets, the session's own close, the list, the stop and the log of its observers, and its alarms — a letter, opening a session and starting an observer still ask, and so does the restart without Self-restart; `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the `env` of the settings, so that a session started by hand keeps the server's word whole; in every codex home, the server and the approval of the same tools (S12a); answered briefs of the directory are named at the handshake |
+| Panel tools | always | the MCP server `aacpanel` with allow rules for the checklist, the turn declaration, the role, publishing and deleting a brief, the call to the person, the notepad of secrets, the session's own close, the list, the stop and the log of its observers, and its alarms — a letter, opening a session and starting an observer still ask, and so does the restart without Self-restart; `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the `env` of the settings, so that a session started by hand keeps the server's word whole; in every codex home, the server and the approval of the same tools (S12a); answered briefs of the directory are named at the handshake |
 | Page copies | yes | the `PostToolUse` hook on `Artifact`, `aacpanel-exec hook artifact-copy` |
 | Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
-| Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
+| Checklist nudge | yes | the `Stop` hooks `aacpanel-exec hook checklist-reminder` and `aacpanel-exec hook turn-reminder`: reconcile the checklist and declare whose move follows, in one reminder round |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | yes | the `UserPromptSubmit` hook, `aacpanel-exec hook prompt-stamp`, and the marks of the role it told `<state>/role-*.state`, swept on each prompt once untouched for seven days. After a restart, a resume or a reopen the session's role reaches the model only through the stamp: claude keeps the word of the server a conversation started with |
 | Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
@@ -1408,6 +1408,7 @@ the matcher where there is one. Every hook the kit writes runs
 | Page copies | `PostToolUse` | `Artifact` | `<home>/bin/aacpanel-exec hook artifact-copy` | 10 |
 | Context cap | `Stop` | — | `<home>/bin/aacpanel-exec hook context-guard` | 20 |
 | Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 5 |
+| Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook turn-reminder` | 5 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 

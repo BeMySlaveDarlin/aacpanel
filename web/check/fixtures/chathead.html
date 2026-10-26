@@ -159,6 +159,24 @@ async function renameHeader() {
     out.another = document.querySelector(".headrename-open")?.textContent || "";
     out.sent = sent.map((b) => `${b.kind}:${b.target}:${JSON.stringify(b.params)}`);
 
+    const what = "Choose the release window and confirm who will be available for the rollout.";
+    show({ at: 4, sessions: [{ ...session, turn: { next: "owner", what, at: 1 } }, other] }, { name: "helios", id: "s1" });
+    await until(() => header()?.querySelector('[data-tone="wait"]'));
+    await quiet();
+    out.turnOwnerHead = Boolean(header().querySelector('.talkdot[data-tone="wait"], .dkdot.dkwait'));
+    out.turnFullWhat = Boolean(header().querySelector(`[title="${what}"]`));
+    render(null, root);
+    show({ at: 4, sessions: [{ ...session, turn: { next: "owner", what, at: 1 } }, other] }, null);
+    await until(() => document.querySelector(".pjstate.pj-wait"));
+    out.turnOwnerRow = [...document.querySelectorAll(".pjstate.pj-wait")].some((el) =>
+        el.querySelector(".pjtext")?.textContent === what && Boolean(el.querySelector(".pjdot")));
+    show({ at: 5, sessions: [{ ...session, turn: { next: "done", at: 2 } }, other] }, null);
+    await until(() => !document.querySelector(".pjstate.pj-wait"));
+    out.turnDoneRow = Boolean(document.querySelector(".pjstate.pj-idle"));
+    show({ at: 5, sessions: [{ ...session, turn: { next: "done", at: 2 } }, other] }, { name: "helios", id: "s1" });
+    await until(() => header()?.querySelector('[data-tone="idle"]'));
+    out.turnDoneHead = !header().querySelector('[data-tone="wait"], .dkdot.dkwait');
+
     out.blocked = [];
     for (const [kind, row] of [["tmux", { ...session, transport: "tmux" }],
         ["outside", { ...session, outside: true }], ["codex", { ...session, agent: "codex" }], ["closed", null]]) {
