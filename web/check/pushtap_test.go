@@ -140,6 +140,8 @@ for (const w of worlds) {
     const waits = [];
     const handlers = {};
     let shown = null;
+    const closed = [];
+    let notifications = 0;
     let focused = false;
     let navigated = "";
     let posted = "";
@@ -164,20 +166,29 @@ for (const w of worlds) {
             matchAll: async () => (w.window ? [client] : []),
             openWindow: async (url) => { opened = url; return null; },
         },
-        registration: { showNotification: async (title, options) => { shown = { title, options }; } },
+        registration: {
+            showNotification: async (title, options) => { notifications++; shown = { title, options }; },
+            getNotifications: async ({ tag }) => [{ close: () => closed.push(tag) }, { close: () => closed.push(tag) }],
+        },
         skipWaiting: () => {},
     };
     const caches = { open: async () => ({ match: async () => undefined, put: async () => {}, addAll: async () => {} }), keys: async () => [], delete: async () => true };
     const fetch = async () => new Response("", { status: 404 });
 
     boot(self, caches, fetch);
-    const payload = { title: "Question · warden", body: "Which way?", tag: "ask:u-1:1", severity: "critical" };
+    const close = { close: "question:old" };
+    for (const fn of handlers.push || []) {
+        fn({ data: { json: () => close }, waitUntil: (p) => waits.push(p) });
+    }
+    await Promise.all(waits);
+    if (notifications !== 0 || closed.join() !== "question:old,question:old") throw new Error("a close displayed news or failed to close every matching notification");
+    const payload = { title: "Question · warden", body: "Which way?", tag: "ask:u-1:1", severity: "critical", closes: ["question:older", "question:oldest"] };
     if (w.url) payload.url = w.url;
     for (const fn of handlers.push || []) {
         fn({ data: { json: () => payload, text: () => JSON.stringify(payload) }, waitUntil: (p) => waits.push(p) });
     }
     await Promise.all(waits);
-    if (!shown) throw new Error("the push did not show a notification");
+    if (!shown || notifications !== 1 || closed.join() !== "question:old,question:old,question:older,question:older,question:oldest,question:oldest") throw new Error("ordinary news lost its closures or showed extra notifications");
     for (const fn of handlers.notificationclick || []) {
         fn({ notification: { close() {}, data: shown.options.data }, waitUntil: (p) => waits.push(p) });
     }

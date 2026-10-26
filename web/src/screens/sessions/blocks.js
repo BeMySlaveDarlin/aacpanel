@@ -56,7 +56,8 @@ export function stateOf(row) {
     }
     const work = workOf(s.work);
     if (s.status === "busy") return { tone: "busy", text: "working", since: work, when: "", work };
-    if (waitingOf(s).some((item) => item.kind === "question")) return { tone: "wait", text: "asks in text", since: "", when: "", work: "" };
+    const question = waitingOf(s).find((item) => item.kind === "question");
+    if (question) return { tone: "wait", text: question.title, since: "", when: "", work: "" };
     if (s.noRequests) return { tone: "idle", text: "no replies yet", since: work, when: "", work };
     const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
     const since = [when, work].filter(Boolean).join(" · ");

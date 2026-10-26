@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,15 +23,15 @@ type questionExecutor struct {
 func (q *questionExecutor) Execute(context.Context, action.Request) (string, error) {
 	return "", errors.New("no actions")
 }
-func (q *questionExecutor) Question(_ context.Context, target, conversation, text string) (bool, error) {
+func (q *questionExecutor) Question(_ context.Context, target, conversation, text string) (bool, string, error) {
 	q.calls.Add(1)
 	if target != "sentinel" || conversation != requestConversation || text != "Publish? The checks passed." {
-		return false, errors.New("wrong candidate")
+		return false, "", errors.New("wrong candidate")
 	}
 	if q.failed {
-		return false, errors.New("classifier refused")
+		return false, "", errors.New("classifier refused")
 	}
-	return q.yes, nil
+	return q.yes, "Publish?", nil
 }
 
 func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
@@ -104,8 +105,11 @@ func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
 		}
 		delete(rows[0], "agent")
 		if n == 1 {
+			if got[requestConversation][0].Title != "Publish?" || got[requestConversation][0].Text != card.Text {
+				t.Fatalf("the question lost its summary or full message: %+v", got)
+			}
 			items := waitingFor(nil, "", got[requestConversation], nil, nil, nil)
-			if len(items) != 1 || items[0].Kind != "question" || items[0].Pos == nil || *items[0].Pos != 42 {
+			if len(items) != 1 || items[0].Kind != "question" || items[0].Title != "Publish?" || items[0].Pos == nil || *items[0].Pos != 42 {
 				t.Errorf("the feed anchor was lost: %v", items)
 			}
 		}
@@ -170,11 +174,52 @@ func TestQuestionClaimsSurviveRestartAndExpiredWorkIsVisiblePG(t *testing.T) {
 		t.Fatal(err)
 	}
 	verdicts, err := p.db.QuestionVerdicts(t.Context(), []string{conversation})
-	if err != nil || !questionVisible(true, verdicts[conversation]["message"]) {
+	if err != nil || !questionVisible(true, verdicts[conversation]["message"].Verdict) {
 		t.Fatalf("interrupted classification disappeared: %v %v", verdicts, err)
 	}
 	again, err := p.db.ClaimQuestion(t.Context(), conversation, "message")
 	if err != nil || again {
 		t.Fatalf("expired claim spent another call: %v %v", again, err)
 	}
+	if fresh, err := p.db.PushQuestion(t.Context(), conversation, "message"); err != nil || !fresh {
+		t.Fatalf("push claim: %v %v", fresh, err)
+	}
+	// A failed collector read must not retire the question. A complete empty
+	// snapshot must, including when the whole session has left the host.
+	p.srv.host = hostWith(t, `{"sessions":[{"sessionId":"`+conversation+`","session":"sentinel","status":"idle"}]}`)
+	active := startAgentSeq(t,
+		map[string]any{"ok": true, "waiting": map[string][]chat.Item{conversation: {{Role: "question", BriefID: "message"}}}},
+		map[string]any{"ok": false, "error": "the transcript is unavailable"},
+		map[string]any{"ok": true, "waiting": map[string][]chat.Item{conversation: {}}})
+	p.srv.chat = chat.New(active.path)
+	scan := func() {
+		p.srv.scanTextQuestions(t.Context(), func(string, string, chat.Item) { t.Error("a stored question was classified again") })
+	}
+	for range 2 {
+		scan()
+		tags, err := p.db.ClaimQuestionClosures(t.Context())
+		if err != nil || len(tags) != 0 {
+			t.Fatalf("an active or unreadable question closed: %v %v", tags, err)
+		}
+	}
+	scan()
+	tags, err := p.db.ClaimQuestionClosures(t.Context())
+	if err != nil || !slices.Equal(tags, []string{notify.QuestionTag(conversation, "message")}) {
+		t.Fatalf("closure: %v %v", tags, err)
+	}
+	scan()
+	tags, err = p.db.ClaimQuestionClosures(t.Context())
+	if err != nil || len(tags) != 0 {
+		t.Fatalf("closure sent twice: %v %v", tags, err)
+	}
+	if _, err := p.db.PushQuestion(t.Context(), conversation, "gone"); err != nil {
+		t.Fatal(err)
+	}
+	p.srv.host = hostWith(t, `{"sessions":[]}`)
+	scan()
+	tags, err = p.db.ClaimQuestionClosures(t.Context())
+	if err != nil || !slices.Equal(tags, []string{notify.QuestionTag(conversation, "gone")}) {
+		t.Fatalf("a vanished session kept its push: %v %v", tags, err)
+	}
+
 }

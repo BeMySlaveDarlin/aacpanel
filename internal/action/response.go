@@ -52,7 +52,8 @@ type Response struct {
 
 	Setup *Setup `json:"setup,omitempty"`
 
-	Question *bool `json:"question,omitempty"`
+	Question *bool  `json:"question,omitempty"`
+	What     string `json:"what,omitempty"`
 
 	Side *Side `json:"side,omitempty"`
 

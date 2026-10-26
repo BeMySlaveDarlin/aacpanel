@@ -114,18 +114,28 @@ self.addEventListener("push", (event) => {
         payload = { title: "aacpanel", body: event.data.text() };
     }
 
-    const critical = payload.severity === "critical";
-    const button = quietOf(payload);
-    event.waitUntil(self.registration.showNotification(payload.title || "aacpanel", {
-        body: payload.body || "",
-        tag: payload.tag || "aacpanel",
-        renotify: true,
-        requireInteraction: critical,
-        icon: ICON,
-        badge: ICON,
-        actions: button ? [{ action: "quiet", title: button.label }] : [],
-        data: { severity: payload.severity, ts: payload.ts, url: screenOf(payload), quiet: button },
-    }));
+    event.waitUntil((async () => {
+        const tags = payload.close ? [payload.close] : (payload.closes || []);
+        for (const tag of tags) {
+            const notifications = await self.registration.getNotifications({ tag });
+            for (const notification of notifications) notification.close();
+        }
+        if (payload.close) return;
+        // The server attaches closures to ordinary news so userVisibleOnly
+        // needs no extra notification and no extra wake of the phone.
+        const critical = payload.severity === "critical";
+        const button = quietOf(payload);
+        await self.registration.showNotification(payload.title || "aacpanel", {
+            body: payload.body || "",
+            tag: payload.tag || "aacpanel",
+            renotify: true,
+            requireInteraction: critical,
+            icon: ICON,
+            badge: ICON,
+            actions: button ? [{ action: "quiet", title: button.label }] : [],
+            data: { severity: payload.severity, ts: payload.ts, url: screenOf(payload), quiet: button },
+        });
+    })());
 });
 
 const ICON = "/static/icons/icon-192.png";

@@ -38,7 +38,7 @@ export const FeedWrites = createContext(null);
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, requests, requestError, requestUnavailable, onRequestAnswer }) {
+export function Row({ item, question, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, requests, requestError, requestUnavailable, onRequestAnswer }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -195,6 +195,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
                  onContextMenu=${menu && messageMenu(menu, writes, item, mine ? copied : String(said || ""), again)}>
                 ${copied !== "" && html`<button class="cmdcopy msgcopy" type="button" aria-label="copy the message"
                                         data-md=${copied}>${Icon.copy()}</button>`}
+                ${question && html`<div class="mquestionwhat" title=${question.title}>${question.title}</div>`}
                 ${render(said, { breaks: mine, onRun: writes.onRun })}
                 ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} onSave=${save} />`}
                 ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}

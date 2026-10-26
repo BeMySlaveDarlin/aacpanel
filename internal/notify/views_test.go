@@ -81,6 +81,8 @@ func TestPushSkipsTheDeviceWatchingTheSession(t *testing.T) {
 	s, got := twoDevices(t)
 	views := &memViews{by: map[string][]int64{"aacpanel": {1}}}
 	s.UseViews(views)
+	closures := &memStore{closes: []string{QuestionTag("conversation", "message")}}
+	s.UseQuestionClosures(closures)
 
 	s.deliver(context.Background(), sessionMessage())
 
@@ -97,6 +99,14 @@ func TestPushSkipsTheDeviceWatchingTheSession(t *testing.T) {
 	if views.fresh <= 0 {
 		t.Errorf("the mark has no freshness window (%s): without one it never goes stale", views.fresh)
 	}
+	if len(closures.closes) != 1 {
+		t.Fatal("viewing suppression lost the closure for one device")
+	}
+	s.deliver(context.Background(), testMessage())
+	if len(closures.closes) != 0 {
+		t.Fatal("ordinary news did not take the pending closure")
+	}
+
 }
 
 func TestPushOnlyStaysSilentAboutTheSessionOnScreen(t *testing.T) {

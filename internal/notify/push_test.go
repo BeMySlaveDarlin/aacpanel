@@ -23,6 +23,15 @@ type memStore struct {
 	sent    []int64
 	failed  []string
 	saves   int
+	closes  []string
+}
+
+func (m *memStore) ClaimQuestionClosures(context.Context) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	tags := m.closes
+	m.closes = nil
+	return tags, nil
 }
 
 func (m *memStore) Subscriptions(context.Context) ([]Subscription, error) {
@@ -124,6 +133,8 @@ func TestDeliverSendsReadablePush(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 	})
 
+	store.closes = []string{QuestionTag("conversation", "message")}
+	s.UseQuestionClosures(store)
 	s.deliver(context.Background(), testMessage())
 
 	if gotEncoding != "aes128gcm" {
@@ -148,12 +159,16 @@ func TestDeliverSendsReadablePush(t *testing.T) {
 	}
 	var payload struct {
 		Title, Body, Tag, URL, Severity string
+		Closes                          []string
 	}
 	if err := json.Unmarshal(plain, &payload); err != nil {
 		t.Fatalf("the body is not JSON: %v (%s)", err, plain)
 	}
 	if payload.Title != "shop stopped" || payload.Body != "5 containers affected" {
 		t.Fatalf("the push does not carry the gist: %+v", payload)
+	}
+	if len(payload.Closes) != 1 || payload.Closes[0] != QuestionTag("conversation", "message") {
+		t.Fatalf("the push lost its closures: %+v", payload)
 	}
 	if payload.Severity != "critical" {
 		t.Fatalf("the severity is lost: %+v", payload)
@@ -165,6 +180,22 @@ func TestDeliverSendsReadablePush(t *testing.T) {
 	if _, sent, _ := store.counts(); sent != 1 {
 		t.Fatalf("a successful delivery is not marked: %d", sent)
 	}
+	s.deliver(context.Background(), TextQuestion(Session{ID: "conversation", Name: "project"}, "another", "Publish?"))
+	plain, err = decryptAsDevice(t, gotBody, uaPrivate, store.subs[0].Auth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload.Closes = nil
+	if err := json.Unmarshal(plain, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Closes) != 0 || payload.Body != "Publish?" || payload.Title != "Asks · project" || payload.Tag != QuestionTag("conversation", "another") {
+		t.Fatalf("the next push repeated a closure or lost the question: %+v", payload)
+	}
+	if gotTopic == topicOf(QuestionTag("conversation", "message")) {
+		t.Fatal("the push service collapses different questions")
+	}
+
 }
 
 func TestDeliverDropsDeadSubscription(t *testing.T) {

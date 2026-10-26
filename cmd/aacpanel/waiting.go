@@ -118,7 +118,8 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 			requests[row.Conversation] = append(requests[row.Conversation], row)
 		}
 	}
-	cards := s.questionCards(ctx, rows, s.waitingCards(ctx, ids))
+	waiting, _ := s.waitingCards(ctx, ids)
+	cards := s.questionCards(ctx, rows, waiting)
 	var briefs []chat.BriefCard
 	if s.chat != nil && s.chat.Available() {
 		var err error

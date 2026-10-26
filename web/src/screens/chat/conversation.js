@@ -519,6 +519,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     row=${(item, n) => html`<${Row}
                         key=${`${item.pos}-${n}`}
                         item=${item}
+                        question=${item.role === "ai" && waitingItems.find((q) => q.kind === "question" && q.pos === item.pos && (q.nth || 0) === (item.nth || 0))}
                         session=${name}
                         id=${id}
                         copies=${copies}

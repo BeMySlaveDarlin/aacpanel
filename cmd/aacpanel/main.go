@@ -335,6 +335,7 @@ func run() error {
 		go probes.New(db).Run(ctx)
 		push.UseViews(db.SessionViews())
 		push.UseJournal(db.PushJournal())
+		push.UseQuestionClosures(db)
 		go push.Run(ctx)
 		srv.watch = newWatcher(srv, db.PushJournal())
 		go srv.watch.Run(ctx)

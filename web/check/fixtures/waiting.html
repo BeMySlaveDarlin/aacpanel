@@ -29,7 +29,7 @@ const candidates = [
     { kind: "brief", id: "rotation", title: "Token rotation", at, pos: 11 },
     { kind: "secret", id: "release.env", title: "Release token", at, pos: 12 },
     { kind: "call", title: "CI needs your choice", at, pos: 13 },
-    { kind: "question", id: "message-question", title: "Asks in text", at, pos: 16 },
+    { kind: "question", id: "message-question", title: "Shall I publish?", at, pos: 16 },
     { kind: "asked", title: "A blocking question", at, pos: 14 },
     { kind: "permit", title: "Permission", at, pos: 15 },
 ];
@@ -99,8 +99,8 @@ window.done = (async () => {
     await document.fonts.ready;
     await quiet();
     const out = { wide, countBefore: Number(mark()?.dataset.waitingCount || 0) };
-    out.needsYou = wide ? document.querySelector(".dklive")?.textContent.includes("asks in text")
-        : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && document.querySelector(".pjcard")?.textContent.includes("asks in text"));
+    out.needsYou = wide ? document.querySelector(".dklive")?.textContent.includes("Shall I publish?")
+        : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && document.querySelector(".pjcard")?.textContent.includes("Shall I publish?"));
     out.contourMark = wide ? document.querySelector(".dkwaitn")?.textContent.trim() === "1"
         : document.querySelector('.pftab .waitn')?.getAttribute("aria-label") === "1 waiting for you";
     if (new URLSearchParams(location.search).has("screenshot")) return out;
@@ -117,10 +117,12 @@ window.done = (async () => {
     out.collapsedOnPick = document.querySelector(".waitinghead").getAttribute("aria-expanded") === "false";
     out.commandCopies = Boolean(card?.querySelector(".mdcopy"));
     out.requestVisible = card.getBoundingClientRect().top >= document.querySelector(".chatfeed").getBoundingClientRect().top - 1;
-    for (const [title, kind] of [["Token rotation", "brief"], ["Release token", "secret"], ["Asks in text", "ai"]]) {
+    for (const [title, kind] of [["Token rotation", "brief"], ["Release token", "secret"], ["Shall I publish?", "ai"]]) {
         await pick(title);
         out[kind + "Highlighted"] = Boolean(document.querySelector(`.r-${kind}.waitingtarget`));
     }
+    out.questionSummary = document.querySelector(".mquestionwhat")?.textContent === "Shall I publish?";
+    out.questionFullText = document.querySelector(".mquestionwhat")?.parentElement.textContent.includes("The checks passed.");
     await pick("Restart the router");
     const field = card.querySelector("textarea");
     field.value = "Wi-Fi is back.";
@@ -145,6 +147,7 @@ window.done = (async () => {
     await until(() => sent.at(-1)?.params?.text === "Publish it.");
     await quiet();
     out.countAfterReply = queueCount();
+    out.questionSummaryGone = !document.querySelector(".mquestionwhat");
     out.horizontalOverflow = document.documentElement.scrollWidth > innerWidth;
     back();
     await quiet();

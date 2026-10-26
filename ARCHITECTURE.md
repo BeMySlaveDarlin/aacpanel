@@ -239,12 +239,28 @@ speaks again. Busy sessions and codex threads contribute none. The service
 classifies candidates off the snapshot path, with at most two concurrent
 requests and a deadline. The executor starts a tool-free, non-persistent
 haiku call in the session's contour, carrying only that message on stdin.
-The database claims the message before the call and keeps its verdict: no
-poll or restart spends a second call. An error, including an interrupted
+The classifier returns strict JSON: whether work is blocked on the human and
+what answer, decision or action it needs, in the message's language and at most
+140 characters. Rhetoric, self-answered questions, optional offers, quotations,
+examples and questions to other agents do not qualify. An invalid JSON verdict
+or a positive verdict without its question is an error. The database claims the
+message before the call and keeps its verdict and question: no poll or restart
+spends a second call. An error, including an interrupted
 claim past its deadline, leaves the question visible. A message cut by the
 feed limit stays visible too: its missing tail cannot earn a negative verdict. Waiting items open the
 assistant's feed row and mark its contour; a separate persisted claim sends
-one push per message through the notification choice. Notifications also
+one push per message through the notification choice. The question names the
+waiting item, the session's state and the heading over the full assistant message;
+it is also the body of the “Asks” push. Each push has its own tag derived from
+both conversation and message. A complete scan marks a pushed question closed
+when its card leaves the snapshot; an unreadable collector response cannot
+close it. Closure claims are persisted and sent once, in bounded batches with
+the next ordinary push that reaches every subscribed device. The worker closes
+matching notifications before showing that ordinary news. With no later push,
+the notification stays until the person dismisses it. This avoids waking the
+phone solely to cancel a question: browsers enforce userVisibleOnly and may
+revoke subscriptions for a push that shows no notification. A close-only payload
+is understood by the worker but is never sent by the service. Notifications also
 holds the live switch for haiku, on by default: off shows every candidate
 without classification, including a candidate with a stored negative verdict.
 
