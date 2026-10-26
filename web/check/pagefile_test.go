@@ -1,6 +1,7 @@
 package check
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -24,8 +25,11 @@ type pageShot struct {
 		Asked []int  `json:"asked"`
 	} `json:"over"`
 	Other struct {
-		More  int   `json:"more"`
-		Asked []int `json:"asked"`
+		More    int     `json:"more"`
+		Asked   []int   `json:"asked"`
+		SheetW  float64 `json:"sheetW"`
+		SheetH  float64 `json:"sheetH"`
+		Scrolls bool    `json:"scrolls"`
 	} `json:"other"`
 	Played largeShot `json:"played"`
 	Paper  largeShot `json:"paper"`
@@ -163,6 +167,14 @@ func TestAPageOpensAtADeskInAWideWindow(t *testing.T) {
 	checkPageOverTheCap(t, got)
 	checkOtherFileByDefault(t, got)
 	checkLargeFilesAreShown(t, got, true)
+	other := got.Other
+	if want := math.Min(1100, got.ViewW*0.92); math.Abs(other.SheetW-want) > 1 {
+		t.Errorf("the file window is %.0f wide on a %.0f screen, want %.0f", other.SheetW, got.ViewW, want)
+	}
+	if math.Abs(other.SheetH-got.ViewH*0.9) > 1 || !other.Scrolls {
+		t.Errorf("the long file has a %.0f tall window on a %.0f screen, scrolling: %v — it needs room up to nine tenths of the screen and a scrolling body",
+			other.SheetH, got.ViewH, other.Scrolls)
+	}
 	if got.SheetW < got.ViewW*0.75 || got.FrameH < got.ViewH*0.7 {
 		t.Errorf("on a %.0fx%.0f screen the page stands in a %.0fx%.0f window with a %.0f tall frame — "+
 			"a page needs the width and the height of the screen", got.ViewW, got.ViewH, got.SheetW, got.SheetH, got.FrameH)

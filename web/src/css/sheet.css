@@ -293,6 +293,14 @@
         pointer-events: none;
     }
 
+    /* A file read at a desk takes a wide window: its text, tables and code
+       are what the window is for, and a dialog's width leaves them cramped. */
+    .sheet.win:not(.doc):has(.callbody[data-file]),
+    .shell.no-nav .sheet.win.inner:not(.doc):has(.callbody[data-file]) {
+        width: min(1100px, 92vw);
+        max-height: 90dvh;
+    }
+
     /* A document is not a dialog: it takes the room a page of the panel takes,
        and the space around the text is its own, so the window adds none. */
     .sheet.win.doc,

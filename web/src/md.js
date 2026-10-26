@@ -86,7 +86,7 @@ function autolink(text) {
 const TABLE_SPLIT = /^\|[\s:|-]+\|$/;
 
 function cells(line) {
-    return line.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+    return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
 }
 
 // A cell is a number when, markup aside, it starts with one and holds only
@@ -168,12 +168,19 @@ export function render(text, opts) {
 
     while (i < lines.length) {
         const line = lines[i];
+        const block = line.trimStart();
 
-        if (line.startsWith("```")) {
-            const lang = line.slice(3).trim();
+        if (block.startsWith("```")) {
+            const lang = block.slice(3).trim();
+            const indent = line.length - block.length;
             const body = [];
             i += 1;
-            while (i < lines.length && !lines[i].startsWith("```")) body.push(lines[i++]);
+            while (i < lines.length && !lines[i].trimStart().startsWith("```")) {
+                const row = lines[i++];
+                // The fence's indent belongs to the list; any more is code.
+                const pad = /^[ \t]*/.exec(row)[0].length;
+                body.push(row.slice(Math.min(indent, pad)));
+            }
             i += 1;
             const code = body.join("\n");
             const runnable = opts && opts.onRun && /^(sh|bash|shell|zsh|python|py|python3|)$/i.test(lang);
@@ -189,12 +196,12 @@ export function render(text, opts) {
             continue;
         }
 
-        if (line.startsWith("|") && TABLE_SPLIT.test(lines[i + 1] || "")) {
+        if (block.startsWith("|") && TABLE_SPLIT.test((lines[i + 1] || "").trim())) {
             const head = cells(line);
             const raw = [line, lines[i + 1]];
             i += 2;
             const rows = [];
-            while (i < lines.length && lines[i].startsWith("|")) {
+            while (i < lines.length && lines[i].trimStart().startsWith("|")) {
                 raw.push(lines[i]);
                 rows.push(cells(lines[i++]));
             }
@@ -297,7 +304,8 @@ export function render(text, opts) {
 // starts says whether a line begins a block of its own — a fence, a table, a
 // heading, a quote or a rule — and so ends the words before it.
 function starts(line) {
-    return line.startsWith("```") || line.startsWith("|") || /^(#{1,4})\s/.test(line) || /^\s*>/.test(line)
+    const block = line.trimStart();
+    return block.startsWith("```") || block.startsWith("|") || /^(#{1,4})\s/.test(line) || /^\s*>/.test(line)
         || /^\s*(---|\*\*\*|___)\s*$/.test(line);
 }
 

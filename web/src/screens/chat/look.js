@@ -192,7 +192,7 @@ export function Look({ session, id, look, onBack }) {
             ? html`<${BackHead} onBack=${onBack} label="to the list" tools=${tools}>${who}<//>`
             : html`<div class="sheethead">${who}${tools}</div>`}
 
-        <div class="callbody" onClick=${(event) => copy.fromClick(event, toast)}>
+        <div class="callbody" data-file=${file ? "" : undefined} onClick=${(event) => copy.fromClick(event, toast)}>
             ${state.kind === "loading" && html`<p class="hint">Reading…</p>`}
             ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
             ${state.kind === "ready" && task && html`

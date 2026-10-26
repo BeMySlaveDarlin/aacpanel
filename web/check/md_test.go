@@ -15,6 +15,12 @@ import (
 )
 
 func TestMarkdownListSurvivesBlankLinesBetweenItems(t *testing.T) {
+	table := "  | item | count |\n  |---|---|\n  | alpha | 2 |\n  | beta | 3 |"
+	drawnTable := `<div class="mdtab mdfit"><div class="mdtable"><table><thead><tr><th>item</th><th class="mdnum">count</th></tr></thead>` +
+		`<tbody><tr><td>alpha</td><td class="mdnum">2</td></tr><tr><td>beta</td><td class="mdnum">3</td></tr></tbody></table></div>` +
+		copyBtn(table, "Copy the table") + `</div>`
+	fence := "  ```python\n  if ready:\n    run()\n \n done()\n  ```"
+	drawnCode := `<div class="mdcode"><pre>if ready:` + "\n  run()\n\ndone()" + `</pre>` + copyBtn("", "Copy the code") + `</div>`
 	cases := []struct {
 		name, in, want string
 	}{
@@ -79,6 +85,26 @@ func TestMarkdownListSurvivesBlankLinesBetweenItems(t *testing.T) {
 			"- a\ngoes on\n\nanother paragraph\n- b\n## Next",
 			plainList(`<ul class="mdlist"><li>a goes on</li></ul>`) + `<p>another paragraph</p>` +
 				plainList(`<ul class="mdlist"><li>b</li></ul>`) + `<div class="mdh mdh2">Next</div>`,
+		},
+		{
+			"an indented table after a blank line ends the list without losing the next item",
+			"- Counts\n\n" + table + "\n\n- Next",
+			`<ul class="mdlist"><li>Counts</li></ul>` + drawnTable + `<ul class="mdlist"><li>Next</li></ul>`,
+		},
+		{
+			"an indented table ends the item's words without a blank line",
+			"1. Counts\n" + table + "\n2. Next",
+			`<ol class="mdlist" start="1"><li>Counts</li></ol>` + drawnTable + `<ol class="mdlist" start="2"><li>Next</li></ol>`,
+		},
+		{
+			"an indented fence after a blank line keeps the code's own indent and the next item",
+			"1. Run\n\n" + fence + "\n\n2. Next",
+			`<ol class="mdlist" start="1"><li>Run</li></ol>` + drawnCode + `<ol class="mdlist" start="2"><li>Next</li></ol>`,
+		},
+		{
+			"an indented fence ends the item's words without a blank line",
+			"- Run\n" + fence + "\n- Next",
+			`<ul class="mdlist"><li>Run</li></ul>` + drawnCode + `<ul class="mdlist"><li>Next</li></ul>`,
 		},
 	}
 	texts := make([]string, 0, len(cases))

@@ -133,7 +133,18 @@ window.done = (async () => {
     const other = {
         more: document.querySelectorAll(".sheet.on .filemore").length,
         asked: asked["/srv/lab/notes.log"],
+        sheetW: box(document.querySelector(".sheet.on")).width,
+        sheetH: box(document.querySelector(".sheet.on")).height,
+        scrolls: (() => {
+            const body = document.querySelector(".sheet.on .sheetbody");
+            body.scrollTop = 80;
+            const moved = body.scrollTop > 0;
+            body.scrollTop = 0;
+            return moved;
+        })(),
     };
+
+    if (new URLSearchParams(location.search).has("screenshot")) return { ...page, over, other };
 
     // shown opens a large file and says what its view takes it from: the
     // element, and the address in it.
