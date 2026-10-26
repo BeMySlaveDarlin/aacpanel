@@ -29,12 +29,13 @@ type browser struct {
 	to      io.WriteCloser
 	profile string
 
-	mu      sync.Mutex
-	seq     int
-	waiting map[int]chan cdpMessage
-	pages   map[string]*page
-	dead    error
-	stderr  *tailBuffer
+	mu       sync.Mutex
+	seq      int
+	received int
+	waiting  map[int]chan cdpMessage
+	pages    map[string]*page
+	dead     error
+	stderr   *tailBuffer
 	// disposeWait bounds the dispose of a run's browser context; zero is
 	// disposeBound.
 	disposeWait time.Duration
@@ -271,6 +272,7 @@ func (b *browser) read(from io.ReadCloser) {
 			continue
 		}
 		b.mu.Lock()
+		b.received++
 		switch {
 		case msg.ID != 0:
 			if ch := b.waiting[msg.ID]; ch != nil {
@@ -349,8 +351,16 @@ func (b *browser) call(ctx context.Context, session, method string, params any) 
 	case <-ctx.Done():
 		b.mu.Lock()
 		delete(b.waiting, id)
+		requests, received := b.seq, b.received
 		b.mu.Unlock()
-		return nil, fmt.Errorf("%s: %w", method, ctx.Err())
+		// A timeout can leave the pipe open: keep Chrome's startup errors and
+		// its identity so failures on a shared browser can be traced together.
+		pid := 0
+		if b.cmd != nil && b.cmd.Process != nil {
+			pid = b.cmd.Process.Pid
+		}
+		return nil, fmt.Errorf("%s: %w (Chrome pid=%d, request=%d, requests=%d, received=%d)\n%s",
+			method, ctx.Err(), pid, id, requests, received, b.stderr)
 	}
 }
 
@@ -663,6 +673,7 @@ func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
 	t.Cleanup(func() { _ = to.Close(); _ = fromChrome.Close(); _ = toChrome.Close() })
 	b := &browser{to: to, stderr: &tailBuffer{limit: 1 << 10},
 		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{}, disposeWait: 100 * time.Millisecond}
+	_, _ = b.stderr.Write([]byte("Chrome startup diagnostic"))
 	go b.read(from)
 	go func() {
 		in := bufio.NewReader(toChrome)
@@ -687,7 +698,12 @@ func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
 	select {
 	case err := <-done:
 		if err == nil {
-			t.Error("a Chrome that answered nothing but the context gave a result")
+			t.Fatal("a Chrome that answered nothing but the context gave a result")
+		}
+		for _, detail := range []string{"Target.createTarget", "Chrome pid=0, request=2, requests=2, received=1", "Chrome startup diagnostic"} {
+			if !strings.Contains(err.Error(), detail) {
+				t.Errorf("the stalled command lost %q: %v", detail, err)
+			}
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the run on a Chrome that stopped answering never came back: the dispose waits on it unbounded")
