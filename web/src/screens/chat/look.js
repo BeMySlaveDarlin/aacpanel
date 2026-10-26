@@ -40,6 +40,7 @@ export const LOOK_NAMES = {
     secret: "secret notepad",
     tools: "tools of the session",
     checklist: "checklist",
+    request: "request",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);

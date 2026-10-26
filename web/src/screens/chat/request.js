@@ -8,8 +8,8 @@ import { stampText } from "./labels.js";
 // A turn's dialog owns typed input until it has been answered.
 export const REQUEST_HELD = "Answer the session's question or permission first.";
 
-// RequestCard keeps the answer with its steps in the feed. Opening the
-// conversation does not answer it, and an unavailable state offers no send.
+// RequestCard keeps the answer with its steps in the feed or a sheet.
+// Opening it does not answer it, and an unavailable state offers no send.
 export function RequestCard({ item, record, onAnswer, onRun, error = "", unavailable = "" }) {
     const [note, setNote] = useState("");
     const [busy, setBusy] = useState(false);

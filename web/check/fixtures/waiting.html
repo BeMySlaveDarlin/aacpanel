@@ -35,7 +35,7 @@ const candidates = [
 ];
 const session = { session: "work", sessionId: id, cwd: "/srv/proj", profile: "personal", contour: 1, status: "idle", transport: "stream", called: at, waiting: candidates, model: "claude-opus-4-6", pct: 12 };
 const snapshot = { at: 1, sessions: [session], profileMap: [{ id: 1, profile: "personal", name: "personal", groups: [] }, { id: 2, profile: "work", name: "work", groups: [] }] };
-const exec = { available: true, kinds: ["session.send", "secret.put"] };
+const exec = { available: true, kinds: ["session.send", "session.shell", "secret.put"] };
 const old = [
     { role: "request", id: requestID, title: record.title, steps: record.steps, blocking: true, pos: 10, at },
     { role: "brief", id: "rotation", title: "Token rotation", questions: 6, pos: 11, at },
@@ -47,7 +47,13 @@ const tail = Array.from({ length: 40 }, (_, i) => ({ role: "ai", pos: 1000 + i, 
 const all = [...old, ...tail];
 const sent = [];
 const windows = [];
+let copied = "";
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: async (text) => { copied = text; },
+} });
 let refuse = true;
+let holdRequests = true;
+let releaseRequests;
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (input, options) => {
     const url = new URL(String(input), location.href);
@@ -58,12 +64,19 @@ window.fetch = counted(async (input, options) => {
         if (p.has("after")) { windows.push("after"); items = all.filter(i => i.pos > Number(p.get("after"))).slice(0, Number(p.get("limit"))); }
         return json({ items, first: items[0]?.pos, last: items.at(-1)?.pos, total: items.length, moreBefore: !p.has("before"), state: null });
     }
-    if (url.pathname === "/api/requests") return json({ requests: [record] });
+    if (url.pathname === "/api/requests") {
+        if (holdRequests) {
+            holdRequests = false;
+            await new Promise(resolve => { releaseRequests = resolve; });
+        }
+        return json({ requests: [record] });
+    }
     if (url.pathname === "/api/briefs") return json({ briefs: [{ id: "rotation", sessionId: id, cwd: session.cwd, title: "Token rotation", questions: 6 }] });
     if (url.pathname === "/api/secrets") return json({ secrets: [] });
     if (url.pathname === "/api/actions") {
         const body = JSON.parse(options.body);
         sent.push(body);
+        if (body.kind === "session.shell") return json({ ok: true, detail: "running" });
         if (refuse) return json({ error: "Delivery refused" }, 502);
         record = { ...record, answer: body.params.answer, note: body.params.note, answered: new Date().toISOString() };
         return json({ ok: true, detail: "queued" });
@@ -88,11 +101,13 @@ function App() {
 const mark = () => document.querySelector(".waitingmark");
 const queue = () => document.querySelector(".waitingqueue");
 const queueCount = () => Number(document.querySelector(".waitinghead")?.textContent.match(/·\s*(\d+)/)?.[1] || 0);
-const pick = async (title) => {
+const requestSheet = () => document.querySelector('.sheet.on[aria-label="request"]');
+const depth = () => history.state?.depth || 0;
+const pick = async (title, settle = true) => {
     const head = document.querySelector(".waitinghead");
     if (head.getAttribute("aria-expanded") !== "true") { head.click(); await quiet(); }
     [...document.querySelectorAll(".waitingitem")].find(b => b.textContent.includes(title)).click();
-    await quiet();
+    if (settle) await quiet();
 };
 window.done = (async () => {
     render(html`<${ToastHost}><${GateHost}><${App} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
@@ -106,37 +121,73 @@ window.done = (async () => {
     if (new URLSearchParams(location.search).has("screenshot")) return out;
     mark().click();
     await until(() => queue() && document.querySelector(".feedrow"));
-    await quiet();
+    await until(() => releaseRequests);
     out.opened = Boolean(queue() && document.querySelector(".composer"));
     out.countAfterOpening = queueCount();
     out.callGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes("CI needs"));
+    const baseDepth = depth();
+    await pick("Restart the router", false);
+    await until(() => document.querySelector(".mrequest .requeststate"));
+    out.readingState = requestSheet()?.querySelector(".requeststate")?.textContent === "Reading request state…";
+    releaseRequests();
+    await quiet();
+    out.oneHistoryEntry = depth() === baseDepth + 1;
+    history.back();
+    await until(() => !requestSheet() && depth() === baseDepth);
+    await quiet();
+    out.backCloses = Boolean(document.querySelector(".composer"));
+
+    const feed = document.querySelector(".chatfeed");
+    feed.scrollTop = (feed.scrollHeight - feed.clientHeight) / 2;
+    feed.dispatchEvent(new Event("scroll"));
+    await quiet();
+    const scrollBefore = feed.scrollTop, windowsBefore = windows.length;
     await pick("Restart the router");
-    const card = document.querySelector(".mrequest");
-    out.loadedOlderWindow = windows.includes("before") && windows.includes("after");
-    out.requestHighlighted = Boolean(card?.closest(".waitingtarget"));
+    let card = requestSheet()?.querySelector(".mrequest");
+    out.feedUnmoved = scrollBefore > 0 && feed.scrollTop === scrollBefore;
+    out.noWindowLoad = windows.length === windowsBefore;
+    out.requestVisible = card?.querySelector(".requesttitle")?.textContent === record.title
+        && card?.querySelector(".requeststeps")?.textContent.includes("Wait for Wi-Fi to return.");
+    out.sheetShape = Boolean(requestSheet()?.classList.contains(wide ? "win" : "draggable"));
     out.collapsedOnPick = document.querySelector(".waitinghead").getAttribute("aria-expanded") === "false";
-    out.commandCopies = Boolean(card?.querySelector(".mdcopy"));
-    out.requestVisible = card.getBoundingClientRect().top >= document.querySelector(".chatfeed").getBoundingClientRect().top - 1;
+    card.querySelector(".mdcopy").click();
+    out.commandCopies = copied === "ssh root@192.168.1.1 reboot";
+    card.querySelector(".mdrun").click();
+    await until(() => document.querySelector(".sheet.on .gtpreview"));
+    out.runConfirms = document.querySelector(".sheet.on .gtpreview").textContent === "ssh root@192.168.1.1 reboot" && sent.length === 0;
+    document.querySelector(".sheet.on .gtpreview").closest(".sheet").querySelector(".btn.primary").click();
+    await quiet();
+    out.runSent = sent.at(-1)?.kind === "session.shell" && sent.at(-1)?.target === "work"
+        && sent.at(-1)?.params?.text === "ssh root@192.168.1.1 reboot" && Boolean(requestSheet());
+    requestSheet().querySelector(".sheetclose").click();
+    await quiet();
     for (const [title, kind] of [["Token rotation", "brief"], ["Release token", "secret"], ["Shall I publish?", "ai"]]) {
         await pick(title);
         out[kind + "Highlighted"] = Boolean(document.querySelector(`.r-${kind}.waitingtarget`));
     }
+    out.loadedOlderWindow = windows.includes("before") && windows.includes("after");
     out.questionSummary = document.querySelector(".mquestionwhat")?.textContent === "Shall I publish?";
     out.questionFullText = document.querySelector(".mquestionwhat")?.parentElement.textContent.includes("The checks passed.");
     await pick("Restart the router");
+    card = requestSheet()?.querySelector(".mrequest");
     const field = card.querySelector("textarea");
     field.value = "Wi-Fi is back.";
     field.dispatchEvent(new Event("input", { bubbles: true }));
     await quiet();
     card.querySelector(".requestanswer .primary").click();
     await quiet();
-    out.failureKeepsTask = queueCount() === 4 && Boolean(card.querySelector(".requestanswer")) && field.value === "Wi-Fi is back.";
+    out.failureKeepsTask = queueCount() === 4 && Boolean(requestSheet()?.querySelector(".requestanswer")) && field.value === "Wi-Fi is back.";
     refuse = false;
     card.querySelector(".requestanswer .primary").click();
     await quiet();
     out.sent = sent.at(-1);
     out.countAfterAnswer = queueCount();
-    out.answerVisible = card.querySelector(".requeststate")?.textContent === "Done" && card.querySelector(".requestreply")?.textContent === "Wi-Fi is back.";
+    out.answerCloses = !requestSheet() && depth() === baseDepth;
+    const feedCard = feed.querySelector(".mrequest");
+    out.answerVisible = feedCard?.querySelector(".requeststate")?.textContent === "Done" && feedCard?.querySelector(".requestreply")?.textContent === "Wi-Fi is back.";
+    document.querySelector(".waitinghead").click();
+    await quiet();
+    out.requestGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes(record.title));
     // A reply from the composer answers the question asked in text: its
     // item leaves the queue with the send, not with the next look of the host.
     const reply = document.querySelector(".composer textarea");

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { list as requestList } from "../../data/requests.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
-import { REQUEST_HELD, revealWaiting, WaitingQueue } from "./request.js";
+import { REQUEST_HELD, RequestCard, revealWaiting, WaitingQueue } from "./request.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -138,8 +138,13 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         if (!result.ok) return;
         setRequests((was) => ({ ...was, [request]: { ...was[request], answered: new Date().toISOString(), answer, note } }));
         settleWaiting(live, "request", request);
+        setLook((was) => was && was.kind === "request" && was.id === request ? null : was);
     };
     const pickWaiting = async (item) => {
+        if (item.kind === "request") {
+            setLook({ kind: "request", id: item.id, item });
+            return;
+        }
         try {
             if (!await revealWaiting(item, show, feedRef.current)) toast("The card is not in the transcript yet");
         } catch (err) { toast("Could not open the card", String(err.message || err), true); }
@@ -405,6 +410,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const goesOn = Boolean(ask && ask.async);
     const asksTurn = Boolean(ask && !closed(state.items, ask.toolUseId) && !hidesAsk(answer, ask.toolUseId)
         && !(goesOn && (permits || pending.some((row) => row.asked === ask.toolUseId))));
+    const onRequestAnswer = live && !live.outside && !asksTurn && !permits && knows(exec, "session.send") ? answerRequest : null;
+    const requestUnavailable = asksTurn || permits ? REQUEST_HELD : "This session cannot receive an answer.";
     // An answer to it goes as a message of the person, and stands as one on
     // its way: the card of the round answered (see panelsaid.js).
     const sentAnswer = (use, text) => setLocal((was) => [...was, {
@@ -529,8 +536,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         briefs=${briefs}
                         requests=${requests}
                         requestError=${requestError}
-                        onRequestAnswer=${live && !live.outside && !asksTurn && !permits && knows(exec, "session.send") ? answerRequest : null}
-                        requestUnavailable=${asksTurn || permits ? REQUEST_HELD : "This session cannot receive an answer."}
+                        onRequestAnswer=${onRequestAnswer}
+                        requestUnavailable=${requestUnavailable}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}
                         onCommand=${(row) => setLook({ kind: "command", item: row })}
@@ -652,6 +659,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 ? html`<${ShellSheet} item=${look.item} />`
                 : look.kind === "checklist"
                 ? html`<${ChecklistSheet} checklist=${checklist} />`
+                : look.kind === "request"
+                ? html`<div onClick=${(event) => codecopy.fromClick(event, toast)}>
+                    <${RequestCard} key=${look.id} item=${look.item} record=${requests[look.id]} error=${requestError}
+                                    onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${onRun} />
+                </div>`
                 : look.kind === "secret"
                 ? (live ? html`<${SecretPad} key=${look.item.use || look.item.name} item=${look.item} session=${name}
                                              exec=${exec} shelf=${secrets} onSaved=${() => { loadSecrets(); settleWaiting(live, "secret", look.item.name); }}

@@ -15,7 +15,16 @@ type waitingResult struct {
 	CountAfterOpening   int
 	CallGone            bool
 	LoadedOlderWindow   bool
-	RequestHighlighted  bool
+	ReadingState        bool
+	OneHistoryEntry     bool
+	BackCloses          bool
+	FeedUnmoved         bool
+	NoWindowLoad        bool
+	SheetShape          bool
+	RunConfirms         bool
+	RunSent             bool
+	AnswerCloses        bool
+	RequestGone         bool
 	CollapsedOnPick     bool
 	CommandCopies       bool
 	RequestVisible      bool
@@ -51,7 +60,9 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 				t.Errorf("waiting counts: %+v", got)
 			}
 			for name, ok := range map[string]bool{"needs you": got.NeedsYou, "contour mark": got.ContourMark, "question anchor": got.AiHighlighted, "question summary": got.QuestionSummary, "full question message": got.QuestionFullText, "answered summary leaves": got.QuestionSummaryGone, "opens conversation": got.Opened, "call leaves": got.CallGone, "loads old card": got.LoadedOlderWindow,
-				"request highlighted": got.RequestHighlighted, "tray collapses": got.CollapsedOnPick, "command copies": got.CommandCopies,
+				"reading state": got.ReadingState, "one history entry": got.OneHistoryEntry, "back closes": got.BackCloses,
+				"feed unmoved": got.FeedUnmoved, "no window load": got.NoWindowLoad, "sheet shape": got.SheetShape,
+				"run confirms": got.RunConfirms, "run sent": got.RunSent, "answer closes": got.AnswerCloses, "request leaves": got.RequestGone, "tray collapses": got.CollapsedOnPick, "command copies": got.CommandCopies,
 				"request visible": got.RequestVisible, "brief highlighted": got.BriefHighlighted, "secret highlighted": got.SecretHighlighted,
 				"failed send stays": got.FailureKeepsTask, "answer visible": got.AnswerVisible} {
 				if !ok {
