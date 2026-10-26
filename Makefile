@@ -12,13 +12,18 @@ GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 # The run ends with the wall time of every part, the longest first: what a
 # change adds to the cost of a check is read off the check itself, and the
 # longest part is the length of the whole run.
+#
+# CHECK_JOBS caps how many parts run at once; empty runs them all together. A
+# shared machine sets it, with GOMAXPROCS for the test binaries: each of them
+# otherwise takes every core, whatever -p says about how many run.
 CHECKS = fmt vet shellcheck agent-import test agent-test agent-confined vuln
+CHECK_JOBS ?=
 check:
 	@times=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-checktimes.XXXXXX"); \
 	trap 'rm -rf "$$times"' EXIT; \
 	export CHECK_TIMES="$$times"; \
 	$(MAKE) --no-print-directory timed-front && \
-	$(MAKE) --no-print-directory -j --output-sync=target $(CHECKS:%=timed-%); \
+	$(MAKE) --no-print-directory -j$(CHECK_JOBS) --output-sync=target $(CHECKS:%=timed-%); \
 	rc=$$?; \
 	echo; echo "check: wall time of each part"; \
 	cat "$$times"/* | LC_ALL=C sort -k2,2nr | \
