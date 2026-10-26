@@ -314,3 +314,38 @@ func TestTheAncestorsAreReadUpTheChainOfParents(t *testing.T) {
 		t.Errorf("the ancestors %v", got)
 	}
 }
+
+func TestTheHolderNamesOnlyALiveClaudeOfTheSameConversation(t *testing.T) {
+	c := readChecklistCases(t)
+	_, proc, config := inPlace(t)
+	placeClaude(t, c, proc, config, nil)
+	// A matching ancestor must not rescue an invalid explicitly named pid.
+	parentPID = func() int { return c.Claude.PID }
+	const sibling = 98765
+	fakeProcess(t, proc, sibling, 1, "123", []string{"claude"})
+	path := filepath.Join(config, "sessions", strconv.Itoa(sibling)+".json")
+	for _, cs := range []struct {
+		name, pid, session, start string
+		want                      int
+	}{
+		{"sibling", strconv.Itoa(sibling), c.Session, "123", sibling},
+		{"foreign conversation", strconv.Itoa(sibling), "foreign", "123", 0},
+		{"dead process", "98766", c.Session, "123", 0},
+		{"reused pid", strconv.Itoa(sibling), c.Session, "122", 0},
+		{"invalid pid", "invalid", c.Session, "123", 0},
+		{"negative pid", "-1", c.Session, "123", 0},
+		{"settings ancestor", "", c.Session, "123", c.Claude.PID},
+	} {
+		t.Run(cs.name, func(t *testing.T) {
+			writeJSON(t, path, map[string]any{"pid": sibling, "sessionId": cs.session, "procStart": cs.start, "kind": "interactive"})
+			if cs.pid == "98766" {
+				writeJSON(t, filepath.Join(config, "sessions", cs.pid+".json"), map[string]any{"pid": 98766, "sessionId": c.Session, "procStart": "123"})
+			}
+			t.Setenv(PIDEnv, cs.pid)
+			pid, data := claudeOf(c.Session)
+			if pid != cs.want || (data == nil) != (cs.want == 0) {
+				t.Errorf("claudeOf found pid %d, file %v; want pid %d", pid, data, cs.want)
+			}
+		})
+	}
+}

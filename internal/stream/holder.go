@@ -17,6 +17,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"aacpanel/internal/hook"
 )
 
 const (
@@ -51,13 +53,21 @@ const (
 // and kills every background agent with the turn, with no word of it to the
 // model. The reason an interrupt carries changes nothing of that. It is said
 // once, at the greeting: claude keeps what the first client declared.
-var handshakeFields = map[string]any{"perTaskStopAffordance": true}
+var handshakeFields = map[string]any{
+	"perTaskStopAffordance": true,
+	"hooks": map[string][]hookMatcher{
+		"UserPromptSubmit": {{CallbackIDs: []string{"prompt-stamp"}}},
+		"Stop":             {{CallbackIDs: []string{"checklist-reminder", "background-reminder"}}},
+	},
+}
 
 // Holder keeps one claude session on the stream protocol.
 type Holder struct {
-	spec  Spec
-	cmd   *exec.Cmd
-	stdin io.WriteCloser
+	spec     Spec
+	cmd      *exec.Cmd
+	stdin    io.WriteCloser
+	hookPath string
+	hookCtx  context.Context
 
 	writeMu sync.Mutex
 
@@ -128,6 +138,9 @@ func Run(ctx context.Context, spec Spec) error {
 		},
 	}
 	defer h.cleanup(ln)
+	hookCtx, cancelHooks := context.WithCancel(ctx)
+	defer cancelHooks()
+	h.hookCtx = hookCtx
 
 	if err := h.start(); err != nil {
 		h.logf("claude did not start: %v", err)
@@ -201,8 +214,17 @@ func listen(sessionID string) (net.Listener, error) {
 }
 
 func (h *Holder) start() error {
+	// Keep the installed path before an update replaces our running inode.
+	// Each callback opens that path anew, so hook logic follows the release.
+	var err error
+	h.hookPath, err = hookExecutable()
+	if err != nil {
+		return fmt.Errorf("the executor does not know its installed path: %w", err)
+	}
 	cmd := exec.Command(h.spec.Argv[0], h.spec.Argv[1:]...)
 	cmd.Dir = h.spec.Dir
+	cmd.Env = h.spec.Env
+	cmd.Env = append(cmd.Environ(), hook.HeldEnv+"=1", hook.PIDEnv+"=")
 	cmd.Stderr = h.stderr
 	// Its own process group: a signal meant for the holder is not a signal to
 	// the session, and the session ends by its stdin being closed.
@@ -300,6 +322,7 @@ type event struct {
 
 type toolAsk struct {
 	Subtype     string          `json:"subtype"`
+	CallbackID  string          `json:"callback_id"`
 	ToolName    string          `json:"tool_name"`
 	ToolUseID   string          `json:"tool_use_id"`
 	Input       json.RawMessage `json:"input"`
@@ -391,9 +414,12 @@ func (h *Holder) handle(ev event) {
 func (h *Holder) onRequest(ev event) {
 	var ask toolAsk
 	_ = json.Unmarshal(ev.Request, &ask)
+	if ask.Subtype == "hook_callback" {
+		go h.onHook(ev.RequestID, ask.CallbackID, ask.Input)
+		return
+	}
 	if ask.Subtype != "can_use_tool" {
-		// Nothing else is registered by the panel: no hooks of its own, no
-		// MCP servers inside the session. A request it cannot answer is
+		// No other requests are registered by the panel. One it cannot answer is
 		// refused at once rather than left to hang the turn.
 		h.write(map[string]any{"type": "control_response", "response": map[string]any{
 			"subtype": "error", "request_id": ev.RequestID,

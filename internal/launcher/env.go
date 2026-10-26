@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"aacpanel/internal/hook"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/toolset"
 )
@@ -68,7 +69,7 @@ func childEnv(own []string, params Params, display, lang, configDir string) ([]s
 		if strings.HasPrefix(name, "CLAUDE") && !isRouteVar(name) {
 			continue
 		}
-		if slices.Contains(unitVars, name) || name == ParentEnv {
+		if slices.Contains(unitVars, name) || name == ParentEnv || name == hook.HeldEnv || name == hook.PIDEnv {
 			continue
 		}
 		env[name] = value

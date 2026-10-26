@@ -19,6 +19,9 @@ import (
 // stream protocol and writes every line it received to a file, so a test can
 // see what reached claude and not only what the holder says it sent.
 func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == "hook" {
+		os.Exit(fakeHook())
+	}
 	if os.Getenv("STREAM_FAKE_CLAUDE") == "1" {
 		os.Exit(fakeClaude())
 	}
@@ -130,7 +133,7 @@ func fakeClaude() int {
 			switch req["subtype"] {
 			case "initialize":
 				body = map[string]any{"commands": []any{map[string]any{"name": "context"}},
-					"models": []any{map[string]any{"value": "haiku"}}, "current_permission_mode": "default"}
+					"models": []any{map[string]any{"value": "haiku"}}, "current_permission_mode": "default", "held": os.Getenv("AACP_HOOKS_HELD"), "hook_pid": os.Getenv("AACP_HOOK_PID"), "config": os.Getenv("CLAUDE_CONFIG_DIR")}
 			case "interrupt":
 				body = map[string]any{"still_queued": []any{}}
 			case "set_model":
@@ -266,9 +269,13 @@ func fakeClaude() int {
 					"subtype": "can_use_tool", "tool_name": "Bash", "tool_use_id": "toolu_2",
 					"input": map[string]any{"command": "git push origin main"}}})
 				continue
+			case "held-hook":
+				out(map[string]any{"type": "control_request", "request_id": "held-hook", "request": map[string]any{
+					"subtype": "hook_callback", "callback_id": "prompt-stamp", "input": map[string]any{"hook_event_name": "UserPromptSubmit"}}})
+				continue
 			case "hook":
 				out(map[string]any{"type": "control_request", "request_id": "cc-2", "request": map[string]any{
-					"subtype": "hook_callback", "callback_id": "x"}})
+					"subtype": "unsupported"}})
 			case "foreground":
 				// A command and a subagent the turn waits on, as claude -p
 				// 2.1.283 starts them: the calls, then a task in the
@@ -1238,6 +1245,7 @@ func TestTheFingerprintIsTheCollectors(t *testing.T) {
 func TestSettingsRequestsPassOnlyThePanelsShape(t *testing.T) {
 	r := start(t, nil)
 	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	before := len(r.received())
 	for _, c := range []struct {
 		subtype string
 		fields  map[string]any
@@ -1273,7 +1281,7 @@ func TestSettingsRequestsPassOnlyThePanelsShape(t *testing.T) {
 	}
 	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "effortLevel",
 		"get_settings", "rename_session", "remote_control"} {
-		if strings.Contains(r.received(), word) {
+		if strings.Contains(r.received()[before:], word) {
 			t.Errorf("claude read %s", word)
 		}
 	}

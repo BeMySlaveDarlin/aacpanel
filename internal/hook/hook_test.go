@@ -70,3 +70,41 @@ func TestEveryHookNamesItsEvent(t *testing.T) {
 		}
 	}
 }
+
+// Reading the payload is the dispatcher's first step into a hook. A settings
+// duplicate must not get that far, while callbacks and other hooks still do.
+type countedInput struct {
+	*strings.Reader
+	reads int
+}
+
+func (in *countedInput) Read(p []byte) (int, error) {
+	in.reads++
+	return in.Reader.Read(p)
+}
+
+func TestSettingsCallsLeaveOnlyHeldHooksToTheHolder(t *testing.T) {
+	dir, _, _ := inPlace(t)
+	t.Setenv("AACP_STATE_DIR", dir)
+	for _, held := range []string{"", "1"} {
+		for _, pid := range []string{"", "42"} {
+			for _, name := range Names() {
+				t.Run(name+"/held="+held+"/pid="+pid, func(t *testing.T) {
+					t.Setenv(HeldEnv, held)
+					t.Setenv(PIDEnv, pid)
+					in := &countedInput{Reader: strings.NewReader("{}")}
+					var out, errs bytes.Buffer
+					code := Run([]string{name}, in, &out, &errs)
+					kept := name == "prompt-stamp" || name == "checklist-reminder" || name == "background-reminder"
+					quiet := held == "1" && pid == "" && kept
+					if quiet != (in.reads == 0) || code != 0 || errs.Len() != 0 {
+						t.Errorf("quiet %v, reads %d, exit %d, stderr %q", quiet, in.reads, code, errs.String())
+					}
+					if quiet && out.Len() != 0 {
+						t.Errorf("the settings duplicate answered %q", out.String())
+					}
+				})
+			}
+		}
+	}
+}

@@ -179,6 +179,9 @@ type Spec struct {
 	Dir       string   `json:"dir"`
 	SessionID string   `json:"sessionId"`
 	Argv      []string `json:"argv"`
+	// Env is the launcher's prepared environment, shared by claude and its
+	// hooks. It travels on stdin only and never enters the state file.
+	Env []string `json:"env,omitempty"`
 	// The first message, sent once claude has answered the handshake. A
 	// session in a terminal gets it as an argument; on the stream it is a
 	// message like any other.

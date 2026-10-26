@@ -1308,3 +1308,17 @@ func TestIntentStaysHomeWhenSessionLeavesItsContour(t *testing.T) {
 		t.Errorf("staying silent about the intent looks exactly like the intent being broken: %v", rep.Warnings)
 	}
 }
+
+func TestHookOwnershipIsNotInheritedByANewSession(t *testing.T) {
+	fakeProc(t)
+	env, _ := childEnv([]string{"HOME=/home/u", "AACP_HOOKS_HELD=1", "AACP_HOOK_PID=123"}, Params{}, ":10", "", "")
+	for _, name := range []string{"AACP_HOOKS_HELD", "AACP_HOOK_PID"} {
+		if envValue(env, name) != "" {
+			t.Errorf("a new session inherited %s", name)
+		}
+	}
+	fakeProc(t, fproc{pid: 200, comm: "claude", env: []string{"AACP_HOOKS_HELD=1"}})
+	if got := leaks(200); len(got) != 0 {
+		t.Errorf("the holder's hook flag was counted as a leak: %v", got)
+	}
+}

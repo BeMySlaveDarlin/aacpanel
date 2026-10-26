@@ -40,8 +40,8 @@ import (
 // panel starts every session — which is how a session started again after a
 // restart is asked about the checklist the one before it left.
 //
-// The claude whose turn ends is found up the chain of the hook's parents, by
-// the file it keeps of itself in its config directory, sessions/<pid>.json,
+// The claude whose turn ends is named by its holder or found up the chain of
+// the hook's parents, by the file in its config directory, sessions/<pid>.json,
 // and only while that file is of the live process. The cases live in
 // deploy/claude/testdata/checklist-reminder.json.
 
@@ -208,11 +208,22 @@ func sessionFile(pid int) map[string]any {
 }
 
 // claudeOf is the pid of the claude running the hook and the file it keeps
-// of itself, or nothing. It is the nearest process above the hook with a
-// file, and only when the file names the conversation the hook is for: a
+// of itself, or nothing. The holder names its child explicitly; a settings
+// hook takes the nearest process above it with a file. Either must name the
+// conversation the hook is for: a
 // claude run inside the work of a session has no file of its own, and the
 // session above it is not the one whose turn ends.
 func claudeOf(id any) (int, map[string]any) {
+	if named := os.Getenv(PIDEnv); named != "" {
+		pid, err := strconv.Atoi(named)
+		if err != nil || pid <= 0 {
+			return 0, nil
+		}
+		if data := sessionFile(pid); data != nil && pyEqual(data["sessionId"], id) {
+			return pid, data
+		}
+		return 0, nil
+	}
 	for _, pid := range ancestors() {
 		if data := sessionFile(pid); data != nil {
 			if pyEqual(data["sessionId"], id) {

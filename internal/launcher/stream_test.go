@@ -128,7 +128,7 @@ func playHolder(t *testing.T, proc, specPath string) {
 			}
 			agent := filepath.Join(proc, "300")
 			_ = os.MkdirAll(agent, 0o755)
-			args := append([]string{"claude"}, spec.Argv[5:]...)
+			args := append([]string{"claude"}, spec.Argv[1:]...)
 			_ = os.WriteFile(filepath.Join(agent, "cmdline"), []byte(strings.Join(args, "\x00")+"\x00"), 0o644)
 			_ = os.WriteFile(filepath.Join(agent, "comm"), []byte("claude\n"), 0o644)
 			_ = os.WriteFile(filepath.Join(agent, "stat"), []byte("300 (claude) S 1 0 0 0\n"), 0o644)
@@ -159,11 +159,14 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	argv := strings.Join(spec.Argv, " ")
-	for _, want := range []string{"env -i sh ", wrapper, "--input-format stream-json", "-n demo", "--model haiku",
+	for _, want := range []string{wrapper, "--input-format stream-json", "-n demo", "--model haiku",
 		"--session-id " + spec.SessionID} {
 		if !strings.Contains(argv, want) {
 			t.Errorf("the holder was handed a command without %q: %s", want, argv)
 		}
+	}
+	if envValue(spec.Env, "CLAUDE_CONFIG_DIR") != contour || envValue(spec.Env, ParentEnv) != "aacpanel" {
+		t.Error("the holder lost the session environment")
 	}
 	if spec.Resumed {
 		t.Error("a new conversation was handed to its holder as a resumed one")

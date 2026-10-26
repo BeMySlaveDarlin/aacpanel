@@ -1411,6 +1411,10 @@ the matcher where there is one. Every hook the kit writes runs
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 
+On the stream the holder serves the prompt stamp, checklist nudge and
+background reminder through callbacks; their settings entries stay for tmux
+and sessions started by hand, and are silent while the holder serves them.
+
 The script forms an update recognises run as
 `test -f <clone>/<script> && python3 <clone>/<script>`, with the hook's
 arguments after the path. Python on a missing file exits

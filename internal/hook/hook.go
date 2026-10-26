@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -27,6 +28,25 @@ import (
 // Command is the word of the executor's command line that answers a hook:
 // <home>/bin/aacpanel-exec hook <name>.
 const Command = "hook"
+
+// HeldEnv marks a session whose holder answers its stream hooks. PIDEnv
+// identifies a callback invocation, where claude is a sibling of the hook.
+const (
+	HeldEnv = "AACP_HOOKS_HELD"
+	PIDEnv  = "AACP_HOOK_PID"
+)
+
+// HeldEvent is the event the holder serves for a hook, empty for hooks that
+// still belong to settings. The same list keeps settings calls silent.
+func HeldEvent(name string) string {
+	switch name {
+	case "prompt-stamp":
+		return "UserPromptSubmit"
+	case "checklist-reminder", "background-reminder":
+		return "Stop"
+	}
+	return ""
+}
 
 // Reply is what a hook answers: nothing, the event held with a reason, or
 // words for the model beside the event.
@@ -91,6 +111,9 @@ func Run(args []string, in io.Reader, out, errs io.Writer) int {
 		return 0
 	}
 	name := args[0]
+	if HeldEvent(name) != "" && os.Getenv(HeldEnv) == "1" && os.Getenv(PIDEnv) == "" {
+		return 0
+	}
 	h, ok := handlers[name]
 	if !ok {
 		fmt.Fprintf(errs, "aacpanel-exec hook: no hook %q; the executor serves %s\n", name, strings.Join(Names(), ", "))

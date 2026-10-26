@@ -533,6 +533,25 @@ transcript. It is not a fourth set of rights: it runs as the owner, like the
 tmux server, and like the tmux server it holds the whole conversation in
 passing, because it is claude's parent.
 
+At the handshake the holder registers `prompt-stamp` for `UserPromptSubmit`
+and `checklist-reminder` and `background-reminder` for `Stop`. Each
+`hook_callback` runs `aacpanel-exec hook <name> <event>` at the installed path
+the holder resolved at startup, with the event payload on stdin and the
+session's environment. The path is opened anew for every callback: the holder
+keeps its running program, while a replacement of the executor updates hook
+logic for sessions already open. The hook's JSON becomes the callback reply;
+silence, failure or a timeout becomes an empty object. Callbacks run beside
+the reader, so a hook waiting does not stop the stream.
+
+The holder sets `AACP_HOOKS_HELD=1` for claude and adds `AACP_HOOK_PID` for
+each hook process. That pid lets the hook check the live process and its
+session file even though claude is its sibling. Settings invocations of these
+three hooks stay silent when held; the other hooks still run from settings.
+`SessionStart` stays there because it fires before the handshake can register
+a callback. A holder without callback registration sets no flag, so its
+session keeps using settings hooks. The launcher drops inherited hook flags
+before starting a new session, so a move into tmux restores settings calls.
+
 What it lets out of that is narrow:
 
 - **Its socket** answers the executor with the state of the session and the

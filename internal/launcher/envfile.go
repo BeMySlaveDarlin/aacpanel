@@ -29,6 +29,7 @@ func writeSessionEnv(vars []string) (*sessionEnv, []string, error) {
 	}
 
 	var warns []string
+	var kept []string
 	var b strings.Builder
 	b.WriteString("# aacpanel session environment: read once and removed\n")
 	b.WriteString("rm -f \"$0\" 2>/dev/null\n")
@@ -41,6 +42,7 @@ func writeSessionEnv(vars []string) (*sessionEnv, []string, error) {
 			continue
 		}
 		b.WriteString(shellQuote(kv) + " \\\n")
+		kept = append(kept, kv)
 	}
 	b.WriteString("\"$@\"\n")
 
@@ -49,7 +51,7 @@ func writeSessionEnv(vars []string) (*sessionEnv, []string, error) {
 		_ = os.RemoveAll(dir)
 		return nil, nil, fmt.Errorf("session environment was not written: %w", err)
 	}
-	return &sessionEnv{vars: vars, dir: dir, path: path}, warns, nil
+	return &sessionEnv{vars: kept, dir: dir, path: path}, warns, nil
 }
 
 func (e *sessionEnv) remove() {
