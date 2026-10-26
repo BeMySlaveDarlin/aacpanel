@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:600px} .dkbody{height:600px;width:300px}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody" id="desk"></div></div>
+<script type="module">
+// A session of a narrow column with every mark at once — an alarm, the
+// automatic restart, work waiting for the person — under the session that
+// opened it, where the row is narrower still: its name has to stay readable.
+import { h, render } from "preact";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const now = Date.now();
+const iso = (min) => new Date(now - min * 60e3).toISOString();
+const project = { id: 7, name: "cookie-mint", session: "cookie-mint", path: "/srv/cookie" };
+const profileMap = [{ id: 1, profile: "Personal", name: "Personal", groups: [{ name: "Common", projects: [project] }] }];
+const S = (o) => ({
+    profile: "Personal", contour: 1, transport: "stream", status: "idle", pct: 30, cwd: "/srv/cookie",
+    project: { id: 7, name: "cookie-mint" }, startedAt: iso(90), lastRequestAt: iso(12), sessionId: `id-${o.session}`, ...o,
+});
+const marked = {
+    autoRestart: true, cap: 80,
+    nextAlarm: { id: "a1", name: "check the run", next: now + 3600e3 },
+    waiting: [{ kind: "request", title: "Rotate the token", at: iso(3) }],
+};
+const sessions = [
+    S({ session: "cookie-mint", ...marked }),
+    S({ session: "cookie-mint-harness", parent: { session: "cookie-mint" }, ...marked }),
+];
+
+window.fetch = counted(async () => new Response("", { status: 404 }));
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+const exec = { available: true, kinds: ["session.close", "session.restart"] };
+render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: now / 1000, sessions, profileMap, limits: null }, limits: null, current: "",
+    onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+}))), document.getElementById("desk"));
+
+window.done = (async () => {
+    await quiet();
+    return Array.from(document.querySelectorAll("#desk .dksess.dklive .dkname")).map((el) => ({
+        name: el.textContent.trim(), shown: el.clientWidth, needs: el.scrollWidth,
+        marks: el.parentElement.querySelectorAll(".dkmark, .waitingmark").length,
+    }));
+})();
+</script>

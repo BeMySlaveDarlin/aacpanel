@@ -673,7 +673,10 @@
 
     .dksess.dkghost { cursor: default; }
 
-    .dklive .dksessmain { gap: .35rem; min-width: 0; }
+    /* The marks of a row wrap under its name rather than squeeze it: in a
+       narrow column a row with an alarm, the restart and waiting work would
+       otherwise leave its name a few pixels. */
+    .dklive .dksessmain { flex-wrap: wrap; gap: .2rem .35rem; min-width: 0; }
 
     .dklive .dkname { flex: 0 1 auto; font-weight: 500; }
 
@@ -766,7 +769,8 @@
     /* The actions stand in the top right corner, on the line of the
        name and at the same place on every row, so they read down one
        edge; a long name or its marks give way to it. */
-    .dklive > .dkrowacts { grid-column: 2; grid-row: 1; justify-self: end; margin: 0; }
+    /* The actions keep the line of the name when the marks wrap under it. */
+    .dklive > .dkrowacts { grid-column: 2; grid-row: 1; justify-self: end; align-self: start; margin: 0; }
 
     .dklive > .dkrowacts .dkact { width: 1.7rem; height: 1rem; justify-content: end; }
 
