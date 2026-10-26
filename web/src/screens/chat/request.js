@@ -10,7 +10,7 @@ export const REQUEST_HELD = "Answer the session's question or permission first."
 
 // RequestCard keeps the answer with its steps in the feed. Opening the
 // conversation does not answer it, and an unavailable state offers no send.
-export function RequestCard({ item, record, onAnswer, error = "", unavailable = "" }) {
+export function RequestCard({ item, record, onAnswer, onRun, error = "", unavailable = "" }) {
     const [note, setNote] = useState("");
     const [busy, setBusy] = useState(false);
     const sending = useRef(false);
@@ -28,7 +28,7 @@ export function RequestCard({ item, record, onAnswer, error = "", unavailable = 
             ${open && record.blocking && html`<span class="requestblocking">Blocking</span>`}
             ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}</div>
         <h3 class="requesttitle">${record ? record.title : item.title}</h3>
-        <div class="msg requeststeps">${render(record ? record.steps : item.steps || "")}</div>
+        <div class="msg requeststeps">${render(record ? record.steps : item.steps || "", { onRun })}</div>
         ${open && onAnswer ? html`<label class="requestnote">Note (optional)<textarea rows="2" maxLength="2000"
             value=${note} disabled=${busy} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>
             <div class="btnrow requestanswer"><button class="btn" disabled=${busy} onClick=${() => answer("cant")}>Can't</button>

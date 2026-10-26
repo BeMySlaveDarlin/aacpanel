@@ -53,7 +53,7 @@ func TestCodeBlocksRunThroughTheSessionGateAtADesk(t *testing.T) {
 
 func checkCodeRun(t *testing.T, got codeRunShot) {
 	t.Helper()
-	want := []bool{true, true, true, false, false, true, true, true, true, true, true, false, true}
+	want := []bool{true, true, true, false, false, true, true, true, true, true, true, false, true, true}
 	if !reflect.DeepEqual(got.Buttons, want) {
 		t.Errorf("runnable fences = %v, want %v", got.Buttons, want)
 	}
@@ -73,10 +73,10 @@ func checkCodeRun(t *testing.T, got codeRunShot) {
 	}
 	commands := map[int]string{
 		0: "printf ready", 1: "printf plain", 2: "python3 - <<'PY'\nif True:\n    print('$HOME')\nPY",
-		5: "printf bang", 9: "python3 - <<'PY_2'\nPY\nPY_1\nprint('done')\nPY_2",
+		5: "printf bang", 13: "printf request", 9: "python3 - <<'PY_2'\nPY\nPY_1\nprint('done')\nPY_2",
 	}
-	if len(got.Runs) != 6 {
-		t.Fatalf("ran %d fences, want 6", len(got.Runs))
+	if len(got.Runs) != 7 {
+		t.Fatalf("ran %d fences, want 7", len(got.Runs))
 	}
 	for _, r := range got.Runs {
 		if want, ok := commands[r.Index]; ok && r.Preview != want {

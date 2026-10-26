@@ -30,7 +30,8 @@ const blocks = [
     ["sh", `printf '${"x".repeat(200)}'\n${Array.from({ length: 45 }, (_, i) => `printf 'line ${i}'`).join("\n")}`],
 ];
 const markdown = blocks.map(([lang, code]) => `\`\`\`${lang}\n${code}\n\`\`\``).join("\n\n");
-const base = [{ role: "ai", pos: 1, text: markdown }];
+const base = [{ role: "ai", pos: 1, text: markdown },
+    { role: "request", id: "b".repeat(32), title: "Install the probe", steps: "```sh\nprintf request\n```", pos: 2 }];
 let items = base.slice();
 let feed = null;
 let release = null;
@@ -78,7 +79,7 @@ async function mount(session = live, executor = exec) {
         <${Chat} name="demo" id=${`demo-code-${mountId++}`} live=${session} exec=${executor} onBack=${() => {}} onUsage=${() => {}} />
         <div id="outside" class="msg">${md(markdown)}</div>
     <//><//>`, root);
-    await until(() => all(".chatfeed .mdcode").length === blocks.length);
+    await until(() => all(".chatfeed .mdcode").length === blocks.length + 1);
 }
 const codeBlocks = () => all(".chatfeed .mdcode");
 const cards = () => all(".chatfeed .mshell");
@@ -150,13 +151,13 @@ window.done = (async () => {
         await document.fonts.ready;
         await mount();
         const out = { buttons: codeBlocks().map((b) => Boolean(b.querySelector(".mdrun"))),
-            outside: all("#outside .mdrun").length, geometry: codeBlocks().map(geometry).filter(Boolean) };
+            outside: all("#outside .mdrun").length, geometry: codeBlocks().slice(0, blocks.length).map(geometry).filter(Boolean) };
         await until(() => q(".composer textarea"));
         const area = q(".composer textarea");
         area.value = "keep my draft";
         area.dispatchEvent(new Event("input", { bubbles: true }));
         out.runs = [];
-        for (const index of [0, 1, 2, 5, 9, 12]) out.runs.push(await runBlock(index));
+        for (const index of [0, 1, 2, 5, 9, 12, 13]) out.runs.push(await runBlock(index));
         out.draft = q(".composer textarea").value;
         // A press on the bar takes the feed down to the card it mirrors.
         const feedBox = q(".chatfeed");

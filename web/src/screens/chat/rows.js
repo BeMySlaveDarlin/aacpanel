@@ -90,7 +90,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
 
     if (item.role === "request") {
         return html`<${RequestCard} item=${item} record=${requests && requests[item.id]} error=${requestError}
-                                  onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} />`;
+                                  onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${writes.onRun} />`;
     }
     if (item.role === "brief") {
         const card = (briefs || []).find((c) => c.id === item.id) || null;
