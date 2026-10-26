@@ -16,13 +16,13 @@
 │ In claude settings — ~/.claude/settings.json             │
 │   · question hook · status line before yours · MCP       │
 │     server                                               │
-│   · 17 allow rules · 5 hooks                             │
+│   · 16 allow rules · 4 hooks                             │
 │   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to │
 │     6656                                                 │
 │ In codex settings — ~/.codex/hooks.json,                 │
 │ ~/.codex/config.toml                                     │
 │   · question hook · MCP server                           │
-│   · 2 hooks, trusted · 14 tools approved                 │
+│   · 2 hooks, trusted · 13 tools approved                 │
 │ Values                                                   │
 │   host lab (hostname) · home session lab (host name)     │
 │   state /var/lib/aacpanel (recommended) · projects under │

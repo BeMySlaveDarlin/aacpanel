@@ -117,12 +117,6 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 		name, tone, text string
 		row              map[string]any
 	}{
-		{"the person's move", "wait", "Choose the release window", row("idle", work(), "turn", map[string]any{"next": "owner", "what": "Choose the release window"})},
-		{"the person's move without words", "wait", "your move", row("idle", work(), "turn", map[string]any{"next": "owner"})},
-		{"reported work", "idle", "idle", row("idle", work(), "turn", map[string]any{"next": "done"})},
-		{"a scheduled return", "idle", "idle", row("idle", work(), "turn", map[string]any{"next": "self"})},
-		{"a busy session declaring", "busy", "working", row("busy", work(), "turn", map[string]any{"next": "owner"})},
-		{"a question above a declaration", "wait", "asks you", row("idle", work(), "turn", map[string]any{"next": "owner"}, "ask", map[string]any{})},
 		{"an agent", "bg", "background", row("idle", work("agents", 1))},
 		{"an observer of the panel", "bg", "background", row("idle", work("observers", 1))},
 		{"a workflow", "bg", "background", row("idle", work("workflows", 1))},
@@ -133,10 +127,6 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 		{"a question beside an agent", "wait", "", row("idle", work("agents", 1), "ask", map[string]any{"header": "Screens", "count": 1})},
 		{"a permission beside an agent", "wait", "", row("waiting", work("agents", 1))},
 		{"an answer beside an agent", "busy", "working", row("busy", work("agents", 1))},
-		{"a stalled self turn", "wait", "stalled: nothing will wake it", row("idle", work(), "turn", map[string]any{"next": "self", "stalled": true})},
-		{"owner above a stale stall", "wait", "your move", row("idle", work(), "turn", map[string]any{"next": "owner", "stalled": true})},
-		{"busy above a stale stall", "busy", "working", row("busy", work(), "turn", map[string]any{"next": "self", "stalled": true})},
-		{"a question above a stall", "wait", "asks you", row("idle", work(), "turn", map[string]any{"next": "self", "stalled": true}, "ask", map[string]any{})},
 	}
 	calls := make([][]any, len(cases))
 	for i, c := range cases {
@@ -149,7 +139,7 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 			t.Errorf("%s: the row reads %v %q, expected %s %q", c.name, st["tone"], st["text"], c.tone, c.text)
 		}
 	}
-	if st := got[6].(map[string]any); st["work"] != "1 agent" || !strings.Contains(st["since"].(string), "1 agent") {
+	if st := got[0].(map[string]any); st["work"] != "1 agent" || !strings.Contains(st["since"].(string), "1 agent") {
 		t.Errorf("a row at work in its background lost the line of what runs: work %q, since %q", st["work"], st["since"])
 	}
 
@@ -185,30 +175,7 @@ func TestTheHeadSaysBackgroundWorkAsTheRowDoes(t *testing.T) {
 	got := runModuleJS(t, "src/screens/chat/head.js", "stateOf", [][]any{
 		{map[string]any{"session": "s", "status": "idle", "work": map[string]any{"tasks": 0, "agents": 1}}},
 		{map[string]any{"session": "s", "status": "idle", "work": map[string]any{"tasks": 0, "agents": 0, "alarms": 1}}},
-		{map[string]any{"session": "s", "status": "idle", "turn": map[string]any{"next": "owner", "what": "Choose the release window"}}},
-		{map[string]any{"session": "s", "status": "idle", "turn": map[string]any{"next": "done"}}},
-		{map[string]any{"session": "s", "status": "busy", "turn": map[string]any{"next": "owner"}}},
-		{map[string]any{"session": "s", "status": "waiting", "turn": map[string]any{"next": "owner"}}},
-		{map[string]any{"session": "s", "status": "idle", "turn": map[string]any{"next": "self", "stalled": true}}},
-		{map[string]any{"session": "s", "status": "idle", "turn": map[string]any{"next": "owner", "stalled": true}}},
-		{map[string]any{"session": "s", "status": "busy", "turn": map[string]any{"next": "self", "stalled": true}}},
 	})
-	stalled := got[6].(map[string]any)
-	if stalled["tone"] != "wait" || stalled["word"] != "stalled: nothing will wake it" || stalled["say"] != stalled["word"] {
-		t.Errorf("a stalled turn reads %v", stalled)
-	}
-	if got[7].(map[string]any)["word"] != "your move" || got[8].(map[string]any)["tone"] != "busy" {
-		t.Errorf("a stale stall won over owner or busy: %v", got[7:])
-	}
-	owner := got[2].(map[string]any)
-	if owner["tone"] != "wait" || owner["word"] != "your move" || owner["say"] != "Choose the release window" {
-		t.Errorf("the owner declaration reads %v", owner)
-	}
-	for i, tone := range []string{"idle", "busy", "waiting"} {
-		if got[i+3].(map[string]any)["tone"] != tone {
-			t.Errorf("head case %d reads %v", i, got[i+3])
-		}
-	}
 	bg := got[0].(map[string]any)
 	if bg["tone"] != "bg" || bg["word"] != "background" || !strings.Contains(bg["say"].(string), "1 agent") {
 		t.Errorf("an idle session with an agent at work reads %v %q (%q) in its head, expected bg \"background\" naming the agent",

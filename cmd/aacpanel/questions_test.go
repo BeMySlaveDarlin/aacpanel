@@ -178,16 +178,3 @@ func TestQuestionClaimsSurviveRestartAndExpiredWorkIsVisiblePG(t *testing.T) {
 		t.Fatalf("expired claim spent another call: %v %v", again, err)
 	}
 }
-
-func TestOnlyAnOwnerDeclarationSkipsTextQuestionClassification(t *testing.T) {
-	for _, next := range []string{"owner", "self", "done"} {
-		row := map[string]json.RawMessage{"status": json.RawMessage(`"idle"`), "turn": json.RawMessage(`{"next":"` + next + `","at":1}`)}
-		if got := questionSession(row); got != (next != "owner") {
-			t.Errorf("%s is classified: %v; only owner declares the question explicitly", next, got)
-		}
-		delete(row, "turn")
-		if !questionSession(row) {
-			t.Fatal("a session without a declaration lost text questions")
-		}
-	}
-}

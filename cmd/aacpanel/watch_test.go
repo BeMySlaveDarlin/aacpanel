@@ -18,7 +18,6 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 			{"session": "aacpanel", "sessionId": "4d89ed41", "cwd": "/srv/proj/aacpanel",
 			 "profile": "personal", "status": "waiting", "statusUpdatedAt": 1788813894909,
 			 "waitingFor": "input needed", "transport": "stream",
-			 "turn": {"next": "owner", "what": "Choose a release", "at": 1788813894910},
 			 "ask": {"header": "Method", "text": "What do we bring the stack down with?", "count": 2, "at": "2026-09-08T03:00:00Z"}}
 		],
 		"limits": {"profile": "personal",
@@ -43,9 +42,6 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 	}
 	if s.Status != "waiting" || s.WaitingFor != "input needed" || s.StatusAt != 1788813894909 {
 		t.Errorf("what the session waits for was lost: %+v", s)
-	}
-	if s.Turn == nil || *s.Turn != (notify.Turn{Next: "owner", What: "Choose a release", At: 1788813894910}) {
-		t.Errorf("the turn declaration was lost: %+v", s.Turn)
 	}
 	if s.Transport != "stream" {
 		t.Errorf("how the session is kept was lost — the push of its end would not say its holder died: %q", s.Transport)
@@ -230,15 +226,5 @@ func TestPanelDidForgetsOldDoings(t *testing.T) {
 	}
 	if len(w.did) != 0 {
 		t.Errorf("a stale mark stayed in memory: %v", w.did)
-	}
-}
-
-func TestWatcherCarriesAStalledDeclaration(t *testing.T) {
-	path := snapshotWith(t, `{"sessions":[{"session":"lab","sessionId":"conversation","status":"idle","turn":{"next":"self","at":1,"stalled":true}}]}`)
-	w := newWatcher(&Server{host: host.NewReader(path)}, nil)
-	var cur notify.World
-	w.readSnapshot(t.Context(), &cur)
-	if len(cur.Sessions) != 1 || cur.Sessions[0].Turn == nil || !cur.Sessions[0].Turn.Stalled || cur.Sessions[0].Status != "idle" {
-		t.Fatalf("the declaration reached the watcher as %+v", cur.Sessions)
 	}
 }

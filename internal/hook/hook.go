@@ -62,7 +62,6 @@ var handlers = map[string]handler{
 	"ask-hook":            {Event: "PreToolUse", Wait: relayWait, Answer: relayQuestion},
 	"background-reminder": {Event: "Stop", Answer: remindBackground},
 	"checklist-reminder":  {Event: "Stop", Answer: remindChecklist},
-	"turn-reminder":       {Event: "Stop", Answer: remindTurn},
 	"context-guard":       {Event: "Stop", Answer: guardContext},
 	"prompt-stamp":        {Event: "UserPromptSubmit", Answer: stampPrompt},
 }

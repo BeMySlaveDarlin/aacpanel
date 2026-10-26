@@ -465,7 +465,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         <span class="chatspent">${spent}</span>
                         <span class="sep">·</span>
                     `}
-                    <span class="talkword" data-tone=${stand.tone} title=${stand.say}>${stand.word || (archive ? "peak" : "")}</span>
+                    <span class="talkword" data-tone=${stand.tone}>${stand.word || (archive ? "peak" : "")}</span>
                 </div>
                 ${here && html`
                     <div class="chatwhere">

@@ -172,14 +172,6 @@ window.done = (async () => {
     out.checkOff = (await press(row("Check questions in text with haiku"))).checkQuestions === false;
     out.checkOn = (await press(row("Check questions in text with haiku"))).checkQuestions === true;
     // A kind turned off, then on again.
-    out.stalled = (await press(row("A session stalled"))).off;
-    out.stalledShown = row("A session stalled").getAttribute("aria-checked");
-    out.stalledBack = (await press(row("A session stalled"))).off;
-    out.stalledBackShown = row("A session stalled").getAttribute("aria-checked");
-    out.yours = (await press(row("Your move"))).off;
-    out.yoursShown = row("Your move").getAttribute("aria-checked");
-    out.yoursBack = (await press(row("Your move"))).off;
-    out.yoursBackShown = row("Your move").getAttribute("aria-checked");
     out.question = (await press(row("A question"))).off;
     out.questionShown = row("A question").getAttribute("aria-checked");
     out.questionBack = (await press(row("A question"))).off;

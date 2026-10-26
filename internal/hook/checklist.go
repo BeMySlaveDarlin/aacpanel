@@ -96,11 +96,11 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 	if !ok || !unfinished(list) {
 		return Reply{}
 	}
-	if !pyEqual(list["pid"], json.Number(strconv.Itoa(pid))) && !hasTool(pid, checklistTool) {
+	if !pyEqual(list["pid"], json.Number(strconv.Itoa(pid))) && !hasTool(pid) {
 		return Reply{}
 	}
 	path, _ := p["transcript_path"].(string)
-	began, known, called, _ := turnOf(path, "")
+	began, known, called := turnOf(path)
 	if !called || !known || written >= began {
 		return Reply{}
 	}
@@ -234,13 +234,13 @@ func argsOf(pid int) []string {
 	return strings.Split(string(raw), "\x00")
 }
 
-// hasTool tells whether a claude process was started with the named
+// hasTool tells whether a claude process was started with the checklist
 // tool allowed, as the panel starts every session: a word of its arguments,
 // split at white space, commas and equals signs, is the tool.
-func hasTool(pid int, tool string) bool {
+func hasTool(pid int) bool {
 	for _, arg := range argsOf(pid) {
 		words := strings.FieldsFunc(arg, func(r rune) bool { return strings.ContainsRune(" \t\n\r\f\v,=", r) })
-		if slices.Contains(words, tool) {
+		if slices.Contains(words, checklistTool) {
 			return true
 		}
 	}
@@ -332,22 +332,20 @@ func unfinished(list map[string]any) bool {
 // ---- the turn ----
 
 // turnOf is when the turn whose end the hook answers began, and whether it
-// called the named tool (any tool when empty); the time is not known when
-// no record read names one. input belongs to the last matching call in the
-// turn, including when several calls share an assistant record.
-func turnOf(path, tool string) (began float64, known, called bool, input map[string]any) {
+// called tools; the time is not known when no record read names one.
+func turnOf(path string) (began float64, known, called bool) {
 	for record := range newestFirst(path) {
 		if at, ok := stampOf(record); ok {
 			began, known = at, true
 		}
-		if !called {
-			input, called = callOf(record, tool)
+		if calledTools(record) {
+			called = true
 		}
 		if isPrompt(record) {
 			break
 		}
 	}
-	return began, known, called, input
+	return began, known, called
 }
 
 // newestFirst are the records of the tail of a transcript, newest first,
@@ -483,19 +481,15 @@ func isPrompt(record map[string]any) bool {
 	return false
 }
 
-func callOf(record map[string]any, tool string) (map[string]any, bool) {
+func calledTools(record map[string]any) bool {
 	if record["type"] != "assistant" {
-		return nil, false
+		return false
 	}
 	blocks, _ := contentOf(record).([]any)
-	for _, b := range slices.Backward(blocks) {
+	return slices.ContainsFunc(blocks, func(b any) bool {
 		block, ok := b.(map[string]any)
-		if ok && block["type"] == "tool_use" && (tool == "" || block["name"] == tool) {
-			input, _ := block["input"].(map[string]any)
-			return input, true
-		}
-	}
-	return nil, false
+		return ok && block["type"] == "tool_use"
+	})
 }
 
 func contentOf(record map[string]any) any {

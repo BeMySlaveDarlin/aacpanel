@@ -97,9 +97,7 @@ def _agent_seen(agent):
 
 
 def _is_prompt(record):
-    """Says whether a user record is a human prompt, as the Stop hooks count it."""
-    if record.get("isMeta") or record.get("isCompactSummary"):
-        return False
+    """Says whether a user record is a message rather than a tool's result."""
     content = (record.get("message") or {}).get("content")
     if isinstance(content, str):
         return bool(content.strip())

@@ -276,11 +276,10 @@ type snapshot struct {
 		Profile string `json:"profile"`
 		// ConfigDir is the account's configuration directory: the key a
 		// contour is named by in the person's choice of pushes.
-		ConfigDir string       `json:"configDir"`
-		Status    string       `json:"status"`
-		StatusAt  int64        `json:"statusUpdatedAt"`
-		Waiting   string       `json:"waitingFor"`
-		Turn      *notify.Turn `json:"turn"`
+		ConfigDir string `json:"configDir"`
+		Status    string `json:"status"`
+		StatusAt  int64  `json:"statusUpdatedAt"`
+		Waiting   string `json:"waitingFor"`
 		// Agent is codex for a codex thread, and Title the name the panel
 		// gave the thread while codex calls it by it.
 		Agent string `json:"agent"`
@@ -347,7 +346,7 @@ func (w *watcher) readSnapshot(ctx context.Context, cur *notify.World) {
 	for _, s := range snap.Sessions {
 		item := notify.Session{
 			ID: s.ID, Name: s.Name, Profile: s.Profile, ConfigDir: s.ConfigDir, CWD: s.CWD,
-			Status: s.Status, StatusAt: s.StatusAt, WaitingFor: s.Waiting, Transport: s.Transport, Turn: s.Turn,
+			Status: s.Status, StatusAt: s.StatusAt, WaitingFor: s.Waiting, Transport: s.Transport,
 		}
 		if s.Agent == schema.AgentCodex {
 			item.Shown = s.Title

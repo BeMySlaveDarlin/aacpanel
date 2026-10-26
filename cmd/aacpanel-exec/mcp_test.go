@@ -15,7 +15,6 @@ import (
 
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/mcp"
-	"aacpanel/internal/turnend"
 )
 
 func TestMain(m *testing.M) {
@@ -150,15 +149,6 @@ func TestTheServerKeepsTheChecklistOfItsParentsSession(t *testing.T) {
 	got := checklist.Read(filepath.Join(state, "aacpanel", "checklists"), lab, "lab")
 	if got == nil || got.PID != 4242 || got.SessionID != first || len(got.Items) != 2 || got.Items[1].Status != checklist.Active {
 		t.Fatalf("the checklist on disk is %+v", got)
-	}
-
-	replies = talk(t, 4242, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"turn_end","arguments":{"next":"owner","what":"Choose the release window"}}}`)
-	if res, _ := replies[0]["result"].(map[string]any); res == nil || res["isError"] != nil {
-		t.Fatalf("turn_end answered %v", replies)
-	}
-	turn := readTurn(t, filepath.Join(state, "aacpanel", "turns", turnend.File(lab, "lab")))
-	if turn.SessionID != first || turn.PID != 4242 || turn.ConfigDir != config || turn.Dir != lab.Dir || turn.Name != "lab" || turn.Next != "owner" || turn.What != "Choose the release window" || turn.At <= 0 {
-		t.Fatalf("the parent's declaration is %+v", turn)
 	}
 
 	fakeClaude(t, proc, config, 6262, "8888", beside, "lab-review")
@@ -315,7 +305,7 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	for _, tool := range tools {
 		offered = append(offered, tool.(map[string]any)["name"].(string))
 	}
-	if want := []string{"checklist", "turn_end", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close", "session_open",
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(offered, want) {
 		t.Errorf("codex was offered %v", offered)
@@ -339,25 +329,6 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(kept); len(entries) != 1 {
 		t.Errorf("the calls kept %v", entries)
-	}
-
-	for _, thread := range []string{"", stray, second} {
-		meta := ""
-		if thread != "" {
-			meta = `,"_meta":{"threadId":"` + thread + `"}`
-		}
-		replies := talk(t, 800, `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"turn_end","arguments":{"next":"done"}`+meta+`}}`)
-		res, _ := replies[0]["result"].(map[string]any)
-		if res == nil || (res["isError"] == true) != (thread != second) {
-			t.Fatalf("turn_end for %q: %v", thread, replies)
-		}
-	}
-	turn := readTurn(t, filepath.Join(state, "aacpanel", "turns", turnend.ThreadFile(second)))
-	if turn.SessionID != second || turn.PID != 800 || turn.ConfigDir != home || turn.Dir != dir || turn.Name != "codex-0000bbbb" || turn.Next != "done" {
-		t.Fatalf("the thread's declaration is %+v", turn)
-	}
-	if entries, _ := os.ReadDir(filepath.Join(state, "aacpanel", "turns")); len(entries) != 1 {
-		t.Fatalf("the calls kept %v", entries)
 	}
 	if len(asked) != 1 {
 		t.Fatalf("the panel was asked %v", asked)
@@ -440,17 +411,4 @@ func TestTheServerClosesOnlyTheSessionItServes(t *testing.T) {
 			t.Errorf("the panel was asked %v, meant the close of conversation %s", asked[i], want)
 		}
 	}
-}
-
-func readTurn(t *testing.T, path string) turnend.Turn {
-	t.Helper()
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var turn turnend.Turn
-	if err := json.Unmarshal(raw, &turn); err != nil {
-		t.Fatal(err)
-	}
-	return turn
 }

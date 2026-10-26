@@ -2143,28 +2143,6 @@ session answers to is refused: two sessions would answer to one name. The
 open conversation follows the session by its conversation to the new name. A
 session in tmux is renamed on its own screen, `/rename` with keys.
 
-**A turn declares whose move follows.** The main conversation calls `turn_end`
-last with `owner`, `self` or `done`; the executor atomically keeps its declaration
-in `turns/`, by Claude session or Codex thread. For Claude, the collector carries
-it until the next human prompt, leaving the session status unchanged: `owner`
-shows “Your move” with what the person must do and pushes once per declaration;
-Codex needs a time for the last turn in its executor state before its declaration
-can reach the row safely.
-
-**A self declaration is checked against what can wake it.** After collecting
-the rows, the collector marks an idle `self` turn stalled when it has no
-background tasks, agents, workflows, wakes, panel observers or alarms, and no
-live child still expected to report. The child's own stall is not followed
-recursively. The row and conversation header say “stalled: nothing will wake
-it”, and a switchable push calls the person once per declaration. At Stop,
-Claude's reminder reads the last declaration of the turn, the payload's
-background tasks, the keeper's observer and alarm records, and the snapshot's
-children; it holds a forgotten wake for one round, and passes on an unknown
-source. Missing observer and alarm directories mean nothing was set, since
-they are created on first use. Text-question classification skips `owner`
-alone: a `self` or `done` answer may still ask the person something its
-declaration did not admit.
-
 **A session gets the panel's tools from one MCP server.** Every session the
 launcher starts, in tmux or on the stream, gets the executor as the MCP
 server `aacpanel` (`aacpanel-exec -mcp`), and the tools the server marks

@@ -42,18 +42,10 @@ type prefsShot struct {
 	} `json:"layout"`
 	Overflow bool `json:"overflow"`
 
-	Stalled          []string `json:"stalled"`
-	StalledShown     string   `json:"stalledShown"`
-	StalledBack      []string `json:"stalledBack"`
-	StalledBackShown string   `json:"stalledBackShown"`
-	Yours            []string `json:"yours"`
-	YoursShown       string   `json:"yoursShown"`
-	YoursBack        []string `json:"yoursBack"`
-	YoursBackShown   string   `json:"yoursBackShown"`
-	Question         []string `json:"question"`
-	QuestionShown    string   `json:"questionShown"`
-	QuestionBack     []string `json:"questionBack"`
-	Gone             []string `json:"gone"`
+	Question      []string `json:"question"`
+	QuestionShown string   `json:"questionShown"`
+	QuestionBack  []string `json:"questionBack"`
+	Gone          []string `json:"gone"`
 
 	AcmeOn            []string `json:"acmeOn"`
 	InfraOn           []string `json:"infraOn"`
@@ -170,8 +162,6 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 
 	want := []prefsRow{
 		{Title: "A session calls you", Sub: "it was asked to — always comes", Role: "switch", On: "true", Disabled: true, Lock: "always"},
-		{Title: "Your move", Sub: "the session needs your answer, decision or action", Role: "switch", On: "true"},
-		{Title: "A session stalled", Sub: "it expects a wake, but nothing is set", Role: "switch", On: "true"},
 		{Title: "A question in text", Role: "switch", On: "true"},
 		{Title: "Check questions in text with haiku", Sub: "off shows every candidate", Role: "switch", On: "true"},
 		{Title: "A question", Role: "switch", On: "true"},
@@ -200,7 +190,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		}
 	}
 	if got.LockedPuts != 0 || strings.Join(got.LockedShown, " ") != "true true" {
-		t.Errorf("a locked kind moved when pressed: %d saves, shown %v", got.LockedPuts, got.LockedShown)
+		t.Errorf("a call and a blind panel moved when pressed: %d saves, shown %v", got.LockedPuts, got.LockedShown)
 	}
 
 	chips := map[string]string{
@@ -217,13 +207,6 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		t.Errorf("chips stand quiet %v, then %v — they go quiet only when the kinds they choose for are off", got.Idle, got.IdleAfter)
 	}
 
-	if !sameSet(got.Stalled, []string{"stalled", "back", "gone"}) || got.StalledShown != "false" || !sameSet(got.StalledBack, []string{"back", "gone"}) || got.StalledBackShown != "true" {
-		t.Errorf("stall switch: off %v %q, on %v %q", got.Stalled, got.StalledShown, got.StalledBack, got.StalledBackShown)
-	}
-	if !sameSet(got.Yours, []string{"yours", "back", "gone"}) || got.YoursShown != "false" ||
-		!sameSet(got.YoursBack, []string{"back", "gone"}) || got.YoursBackShown != "true" {
-		t.Errorf("turning Your move off and on sent %v then %v, shown %q then %q", got.Yours, got.YoursBack, got.YoursShown, got.YoursBackShown)
-	}
 	if !sameSet(got.Question, []string{"ask", "back", "gone"}) || got.QuestionShown != "false" {
 		t.Errorf("turning off a question sent off %v and shows %q", got.Question, got.QuestionShown)
 	}

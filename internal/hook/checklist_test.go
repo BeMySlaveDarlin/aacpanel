@@ -18,10 +18,9 @@ import (
 
 // checklistCases holds the fixture of checklist reminders.
 type checklistCases struct {
-	Setup   func(*testing.T, string, checklistStop) `json:"-"`
-	Session string                                  `json:"session"`
-	Place   string                                  `json:"place"`
-	Name    string                                  `json:"name"`
+	Session string `json:"session"`
+	Place   string `json:"place"`
+	Name    string `json:"name"`
 	Claude  struct {
 		PID   int    `json:"pid"`
 		Start string `json:"start"`
@@ -59,9 +58,6 @@ type checklistStop struct {
 	Input      *string         `json:"input"`
 	Tail       int64           `json:"tail"`
 	Holds      bool            `json:"holds"`
-	Reason     string          `json:"reason"`
-	Files      map[string]any  `json:"files"`
-	Missing    []string        `json:"missing"`
 }
 
 func readChecklistCases(t *testing.T) checklistCases {
@@ -139,11 +135,7 @@ func writeJSON(t *testing.T, path string, v any) {
 }
 
 func TestTheSharedCasesOfTheChecklistReminder(t *testing.T) {
-	runReminderCases(t, readChecklistCases(t), "checklist-reminder")
-}
-
-func runReminderCases(t *testing.T, c checklistCases, hook string) {
-	t.Helper()
+	c := readChecklistCases(t)
 	for _, cs := range c.Cases {
 		t.Run(cs.What, func(t *testing.T) {
 			dir, proc, config := inPlace(t)
@@ -154,9 +146,6 @@ func runReminderCases(t *testing.T, c checklistCases, hook string) {
 
 			for i, st := range cs.Stops {
 				at := "stop " + strconv.Itoa(i)
-				if c.Setup != nil {
-					c.Setup(t, dir, st)
-				}
 				for _, cl := range st.Checklists {
 					writeChecklist(t, c, config, cl)
 				}
@@ -185,7 +174,7 @@ func runReminderCases(t *testing.T, c checklistCases, hook string) {
 					input = []byte(*st.Input)
 				}
 				var out, errs bytes.Buffer
-				if code := Run([]string{hook}, bytes.NewReader(input), &out, &errs); code != 0 || errs.Len() > 0 {
+				if code := Run([]string{"checklist-reminder"}, bytes.NewReader(input), &out, &errs); code != 0 || errs.Len() > 0 {
 					t.Fatalf("%s: exit %d, stderr %q", at, code, errs.String())
 				}
 				switch {
@@ -193,12 +182,8 @@ func runReminderCases(t *testing.T, c checklistCases, hook string) {
 					t.Errorf("%s was held: %s", at, out.String())
 				case st.Holds:
 					var reply map[string]string
-					reason := c.Reason
-					if st.Reason != "" {
-						reason = st.Reason
-					}
 					if err := json.Unmarshal(out.Bytes(), &reply); err != nil || !maps.Equal(reply, map[string]string{
-						"decision": "block", "reason": reason}) {
+						"decision": "block", "reason": c.Reason}) {
 						t.Errorf("%s was not held with the reason: %q (%v)", at, out.String(), err)
 					}
 				}

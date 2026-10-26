@@ -19,7 +19,6 @@ import (
 	"aacpanel/internal/request"
 	"aacpanel/internal/role"
 	"aacpanel/internal/session"
-	"aacpanel/internal/turnend"
 )
 
 // lead is the server's first sentence to a session: the tools reach the
@@ -49,7 +48,6 @@ const (
 func tools() []mcp.Tool {
 	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
-		turnend.Tool(turnend.Dir(), time.Now),
 		role.Tool(role.Dir(), time.Now),
 		collector.BriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
@@ -77,7 +75,6 @@ func Server(bind mcp.Bind) *mcp.Server {
 func codexTools() []mcp.Tool {
 	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
-		turnend.Tool(turnend.Dir(), time.Now),
 		collector.CodexBriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),

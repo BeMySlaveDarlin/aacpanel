@@ -102,17 +102,6 @@ type Session struct {
 	// Transport is how the session is kept: "stream" is under a holder.
 	Transport string
 	Ask       *Ask
-	Turn      *Turn
-}
-
-// Turn is the session's declaration of whose move follows its answer. At
-// identifies one declaration, so a repeated snapshot never calls twice.
-type Turn struct {
-	Next string `json:"next"`
-	What string `json:"what"`
-	At   int64  `json:"at"`
-	// Stalled is the collector's finding, not the model's declaration.
-	Stalled bool `json:"stalled,omitempty"`
 }
 
 // Note is a session calling for the person: a word it chose to send itself,
@@ -309,28 +298,6 @@ func sessions(r *Report, prev, cur World) {
 
 	for _, s := range cur.Sessions {
 		before, seen := was[s.key()]
-		if s.Turn != nil && s.Turn.Next == "owner" {
-			key := "yours:" + s.key() + ":" + strconv.FormatInt(s.Turn.At, 10)
-			if !seen || before.Turn == nil || before.Turn.Next != "owner" || before.Turn.At != s.Turn.At {
-				r.raise(Event{Key: key, Domain: DomainSession, Session: s.Name,
-					Title: "Your move · " + s.shown(), Body: s.Turn.What, Severity: Critical, Source: s.source()})
-			} else {
-				r.Hold = append(r.Hold, key)
-			}
-		}
-		if s.Turn != nil && s.Turn.Next == "self" {
-			key := "stalled:" + s.key() + ":" + strconv.FormatInt(s.Turn.At, 10)
-			// Keep the delivery memory until this declaration ends, even if
-			// a wake appears and disappears between looks. One declaration
-			// must not keep calling the person as the work counts catch up.
-			if s.Turn.Stalled && (!seen || before.Turn == nil || !before.Turn.Stalled || before.Turn.At != s.Turn.At) {
-				r.raise(Event{Key: key, Domain: DomainSession, Session: s.Name,
-					Title: "Session stalled · " + s.shown(), Body: "Nothing will wake this session. Open the conversation to decide how to continue.",
-					Severity: Critical, Source: s.source()})
-			} else {
-				r.Hold = append(r.Hold, key)
-			}
-		}
 		switch {
 		case s.Ask != nil:
 			r.raise(asked(s))

@@ -46,7 +46,6 @@ func TestEveryToolHasANameOfItsOwn(t *testing.T) {
 func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 	want := []string{
 		"mcp__aacpanel__checklist",
-		"mcp__aacpanel__turn_end",
 		"mcp__aacpanel__role",
 		"mcp__aacpanel__brief_publish",
 		"mcp__aacpanel__brief_delete",
@@ -72,7 +71,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "turn_end", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close",
+	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
@@ -266,7 +265,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "turn_end", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close", "session_open",
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
@@ -318,7 +317,6 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 		{"send_to_session", `{"to":"lab","text":"done"}`},
 		{"session_close", `{}`},
 		{"session_open", `{"dir":"/srv/proj","agent":"codex"}`},
-		{"turn_end", `{"next":"done"}`},
 	}
 	for _, meta := range []string{"", `{"callId":"call_1"}`, `{"threadId":"019a1f00-0000-7000-8000-00000000ef01"}`} {
 		var lines []string
@@ -341,10 +339,6 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(filepath.Join(state, "aacpanel", "checklists")); len(entries) != 0 {
 		t.Errorf("a call of no thread kept a checklist: %v", entries)
-	}
-
-	if entries, _ := os.ReadDir(filepath.Join(state, "aacpanel", "turns")); len(entries) != 0 {
-		t.Errorf("a call of no thread kept a turn: %v", entries)
 	}
 
 	var lines []string

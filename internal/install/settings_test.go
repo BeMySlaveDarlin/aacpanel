@@ -132,9 +132,6 @@ func TestTheRulesCountedAreTheRulesWritten(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &settings); err != nil {
 			t.Fatal(err)
 		}
-		if !slices.Contains(settings.Permissions.Allow, "mcp__aacpanel__turn_end") {
-			t.Error("turn_end would ask permission at every Stop")
-		}
 		if n := AllowRules(w.has); n != len(settings.Permissions.Allow) || n == 0 {
 			t.Errorf("kit %v: %d allow rules are counted, %d are written: %v", kit, n,
 				len(settings.Permissions.Allow), settings.Permissions.Allow)
@@ -509,7 +506,7 @@ func TestAnEmptyContainerOfThePersonStays(t *testing.T) {
 	if got := keysOf(t, wired); !slices.Equal(got, []string{"hooks", "permissions", "statusLine", "env"}) {
 		t.Errorf("the keys are %q:\n%s", got, wired)
 	}
-	if hooked(t, wired, "Stop", "deploy/claude/context-guard.py") != 0 || groupsOf(t, wired, "Stop") != 2 {
+	if hooked(t, wired, "Stop", "deploy/claude/context-guard.py") != 0 || groupsOf(t, wired, "Stop") != 1 {
 		t.Errorf("the Stop hooks:\n%s", wired)
 	}
 }
@@ -591,20 +588,5 @@ func TestTheLengthOfTheWordIsRaisedInTheEnv(t *testing.T) {
 	bare := Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits"}}
 	if out, _ := wire(t, "{}", bare); wordIs(t, out) != "none" {
 		t.Errorf("a kit without the panel's tools raised the length:\n%s", out)
-	}
-}
-
-func TestTheTurnReminderBelongsToTheClaudeNudge(t *testing.T) {
-	s := &Survey{given: map[string]Given{"kit": {Value: "relay,nudge"}}}
-	if s.hooks() != 3 {
-		t.Fatalf("the plan counts %d hooks for relay and nudge, want 3", s.hooks())
-	}
-	i := slices.IndexFunc(kitHooks, func(h kitHook) bool { return h.Hook == "turn-reminder" })
-	if i < 0 {
-		t.Fatal("the turn reminder is not wired")
-	}
-	h := kitHooks[i]
-	if h.Part != "nudge" || h.Event != "Stop" || h.Timeout != 5 || h.Codex || !h.State {
-		t.Fatalf("the turn reminder is wired as %+v", h)
 	}
 }

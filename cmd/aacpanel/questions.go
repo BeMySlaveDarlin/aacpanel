@@ -13,10 +13,6 @@ import (
 )
 
 func questionSession(row map[string]json.RawMessage) bool {
-	var turn notify.Turn
-	if json.Unmarshal(row["turn"], &turn) == nil && turn.Next == "owner" {
-		return false
-	}
 	return textField(row, "agent") != schema.AgentCodex && textField(row, "status") != "busy"
 }
 

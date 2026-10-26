@@ -14,7 +14,6 @@ import observers
 import projects
 import roles
 import pins
-import turns
 
 import agent
 from sesstate.wake import ALARMS
@@ -370,9 +369,6 @@ def sessions():
             seen_transcripts.add(transcript)
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))
             busy = state.snapshot() if state else None
-            turn = turns.of(*place, sid=sid, prompted=state.prompted) if place and state else None
-            if turn:
-                s["turn"] = turn
             if state and sid:
                 asked.BOOK.answered(sid, set(state.answered), state.ended, state.prompted, state.heard)
             ask = asked.BOOK.of(sid) if sid else None
@@ -416,7 +412,6 @@ def sessions():
         checkout = projects.checkout_of(s.get("cwd") or "")
         if checkout:
             s["checkout"] = checkout
-    turns.reconcile(data["sessions"])
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
     asked.BOOK.sweep(alive)
     notes.BOARD.sweep(alive)

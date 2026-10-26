@@ -1213,7 +1213,7 @@
 
     .dkword { font-size: var(--t-sm); color: var(--ink-faint); }
 
-    .dkword[data-tone="wait"], .dkword[data-tone="waiting"] { color: var(--wait); }
+    .dkword[data-tone="waiting"] { color: var(--wait); }
 
     .dkword[data-tone="bg"] { color: var(--accent); }
 
