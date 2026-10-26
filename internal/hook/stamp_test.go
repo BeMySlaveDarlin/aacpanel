@@ -32,15 +32,14 @@ type stampCases struct {
 }
 
 type stampStep struct {
-	At       int64                      `json:"at"`
-	Event    string                     `json:"event"`
-	State    json.RawMessage            `json:"state"`
-	Set      map[string]json.RawMessage `json:"set"`
-	Raw      *string                    `json:"raw"`
-	Input    *string                    `json:"input"`
-	Payload  json.RawMessage            `json:"payload"`
-	Says     []string                   `json:"says"`
-	Throttle *string                    `json:"throttle"`
+	At      int64                      `json:"at"`
+	Event   string                     `json:"event"`
+	State   json.RawMessage            `json:"state"`
+	Set     map[string]json.RawMessage `json:"set"`
+	Raw     *string                    `json:"raw"`
+	Input   *string                    `json:"input"`
+	Payload json.RawMessage            `json:"payload"`
+	Says    []string                   `json:"says"`
 	// Mark is the mark of the role of the conversation after the step: a
 	// string, or null for no mark; left out, it is not looked at.
 	Mark    json.RawMessage `json:"mark"`
@@ -164,16 +163,6 @@ func TestTheSharedCasesOfTheStamp(t *testing.T) {
 					Session string `json:"session_id"`
 				}
 				_ = json.Unmarshal(st.Payload, &p)
-				if st.Throttle != nil {
-					session := p.Session
-					if session == "" {
-						session = "common"
-					}
-					got, err := os.ReadFile(filepath.Join(state, "stamp-"+session+".state"))
-					if err != nil || string(got) != *st.Throttle {
-						t.Errorf("step %d: the throttle file reads %q (%v), want %q", i, got, err, *st.Throttle)
-					}
-				}
 				if st.Mark != nil {
 					var want *string
 					if err := json.Unmarshal(st.Mark, &want); err != nil {
@@ -220,7 +209,6 @@ func TestTheStampAnswersTheEventItsCommandNames(t *testing.T) {
 	}{
 		{[]string{"prompt-stamp"}, "UserPromptSubmit", ""},
 		{[]string{"prompt-stamp", "UserPromptSubmit"}, "UserPromptSubmit", ""},
-		{[]string{"prompt-stamp", "PostToolBatch"}, "", ""},
 		{[]string{"prompt-stamp", "Stop"}, "", "does not answer Stop"},
 	} {
 		code, out, errs := run(t, c.args, `{"session_id": "s1"}`)
@@ -228,7 +216,6 @@ func TestTheStampAnswersTheEventItsCommandNames(t *testing.T) {
 			t.Errorf("%v: exit %d, stderr %q", c.args, code, errs)
 		}
 		if c.event == "" {
-			// Without a snapshot between prompts there is nothing to say.
 			if out != "" {
 				t.Errorf("%v said %q", c.args, out)
 			}
@@ -244,6 +231,15 @@ func TestTheStampAnswersTheEventItsCommandNames(t *testing.T) {
 			!strings.Contains(reply.Out.Context, "The host snapshot is unavailable") {
 			t.Errorf("%v answered %q (%v)", c.args, out, err)
 		}
+	}
+}
+
+func TestTheStampRejectsToolBatches(t *testing.T) {
+	t.Setenv("AACP_STATE_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	code, out, errs := run(t, []string{"prompt-stamp", "PostToolBatch"}, `{}`)
+	if code != 0 || out != "" || !strings.Contains(errs, "does not answer PostToolBatch") {
+		t.Errorf("a tool batch: exit %d, stdout %q, stderr %q", code, out, errs)
 	}
 }
 

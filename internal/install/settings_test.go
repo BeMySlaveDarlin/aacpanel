@@ -341,11 +341,11 @@ func TestDuplicatesOfThePanelsGo(t *testing.T) {
 func TestTheKitDecidesWhatStays(t *testing.T) {
 	full := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "stamp", "background")}
 	was, _ := wire(t, person, full)
-	if hooked(t, was, "PostToolBatch", "deploy/claude/prompt-stamp.py") != 1 || hooked(t, was, "Stop", "deploy/claude/background-reminder.py") != 1 {
+	if hooked(t, was, "UserPromptSubmit", "deploy/claude/prompt-stamp.py") != 1 || hooked(t, was, "Stop", "deploy/claude/background-reminder.py") != 1 {
 		t.Fatalf("the stamp and the background reminder are not wired:\n%s", was)
 	}
-	if !strings.Contains(was, `"command": "`+executor+` hook prompt-stamp PostToolBatch"`) {
-		t.Errorf("the stamp between tools lacks its argument:\n%s", was)
+	if len(commandsOf(t, was, "PostToolBatch")) != 0 {
+		t.Errorf("a tool batch hook is wired:\n%s", was)
 	}
 	if !strings.Contains(was, `"command": "`+executor+` hook background-reminder"`) {
 		t.Errorf("the background reminder is not the executor's hook:\n%s", was)
@@ -366,6 +366,41 @@ func TestTheKitDecidesWhatStays(t *testing.T) {
 	}
 	if strings.Contains(now, "UserPromptSubmit") || strings.Contains(now, "SubagentStop") {
 		t.Errorf("an event emptied by the kit stays:\n%s", now)
+	}
+}
+
+// Retiring one event of a hook must not take it off another: the stamp at a
+// prompt shares both its executor name and its script with the batch entry.
+func TestWiringRetiresTheBatchStampAndKeepsThePromptStamp(t *testing.T) {
+	w := Wiring{Clone: repo, Exec: executor, Kit: []string{"stamp"}}
+	for name, command := range map[string]string{
+		"executor":            "aacpanel-exec hook prompt-stamp PostToolBatch",
+		"executor with state": "AACP_STATE_DIR=/srv/st /srv/old/bin/aacpanel-exec hook prompt-stamp PostToolBatch",
+		"python":              "python3 /srv/old/deploy/claude/prompt-stamp.py PostToolBatch",
+		"python with state":   "AACP_STATE_DIR=/srv/st python3 /srv/old/deploy/claude/prompt-stamp.py PostToolBatch",
+		"guarded python":      "test -f /srv/old/deploy/claude/prompt-stamp.py && python3 /srv/old/deploy/claude/prompt-stamp.py PostToolBatch",
+		"guarded with state":  "test -f /srv/old/deploy/claude/prompt-stamp.py && AACP_STATE_DIR='/srv/st' python3 /srv/old/deploy/claude/prompt-stamp.py PostToolBatch",
+	} {
+		t.Run(name, func(t *testing.T) {
+			raw := `{"hooks": {
+  "PostToolBatch": [{"matcher": "*", "hooks": [{"type": "command", "command": ` + quoteJSON(command) + `}]}],
+  "UserPromptSubmit": [{"hooks": [
+    {"type": "command", "command": "bash ~/my-prompt.sh"},
+    {"type": "command", "command": "python3 /srv/old/deploy/claude/prompt-stamp.py"}
+  ]}]
+}}`
+			out, changed := wire(t, raw, w)
+			if !changed || groupsOf(t, out, "PostToolBatch") != 0 {
+				t.Errorf("the batch stamp stayed:\n%s", out)
+			}
+			if got := commandsOf(t, out, "UserPromptSubmit"); !slices.Equal(got, []string{"bash ~/my-prompt.sh", executor + " hook prompt-stamp"}) {
+				t.Errorf("the prompt hooks: %q", got)
+			}
+			again, changed := wire(t, out, w)
+			if changed || again != out {
+				t.Errorf("a second wiring changed the file:\n%s", again)
+			}
+		})
 	}
 }
 

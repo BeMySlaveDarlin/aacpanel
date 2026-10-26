@@ -784,7 +784,7 @@ A no stops the run with the command that installs it by hand.
 | Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
 | Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
-| Prompt stamp | yes | the `UserPromptSubmit` and `PostToolBatch` hooks, `aacpanel-exec hook prompt-stamp`, its throttle files `<state>/stamp-*.state` and the marks of the role it told `<state>/role-*.state`. After a restart, a resume or a reopen the session's role reaches the model only through the stamp: claude keeps the word of the server a conversation started with |
+| Prompt stamp | yes | the `UserPromptSubmit` hook, `aacpanel-exec hook prompt-stamp`, and the marks of the role it told `<state>/role-*.state`, swept on each prompt once untouched for seven days. After a restart, a resume or a reopen the session's role reaches the model only through the stamp: claude keeps the word of the server a conversation started with |
 | Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
 | Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
@@ -1409,7 +1409,6 @@ the matcher where there is one. Every hook the kit writes runs
 | Context cap | `Stop` | — | `<home>/bin/aacpanel-exec hook context-guard` | 20 |
 | Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 5 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
-| Prompt stamp | `PostToolBatch` | `*` | `<home>/bin/aacpanel-exec hook prompt-stamp PostToolBatch` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 
 The script forms an update recognises run as

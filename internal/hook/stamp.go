@@ -23,38 +23,30 @@ import (
 // The prompt stamp: before every prompt the model is told the date, the
 // context of its session with where the cap of its project falls, the limits
 // of its account and the load of the machine, from the collector's snapshot.
-// Between prompts, after a batch of tool calls, the same is said without the
-// date, but only when the context crossed a step of batchStep points, an
-// alarm changed, or batchInterval went by: a session wraps up in time, or,
-// where the guard restarts it, does not start what the restart would cut. The
-// stamp of a conversation between prompts keeps what it last said in a file
-// of the state directory, stamp-<conversation>.state, swept when another is
-// written after stampKeep untouched. The role of the session comes last, and
-// only when the conversation was not told it yet; between prompts it passes
-// the throttle (lineRole).
+// The role of the session comes last, only when the conversation needs to be
+// told it (lineRole). Each prompt sweeps the stamp's state files and the role
+// marks after stampKeep untouched, so a closed conversation leaves no files
+// behind indefinitely.
 //
-// The throttle's format stays compatible across updates. The cases in
-// deploy/claude/testdata/prompt-stamp.json hold the text to the byte. The
-// snapshot follows the collector's python JSON conventions: true
+// The cases in deploy/claude/testdata/prompt-stamp.json hold the text to the
+// byte. The snapshot follows the collector's python JSON conventions: true
 // and false count as 1 and 0 where a number is looked for, a number is
 // rounded half to even, and a value said as it is — the limits of an
 // account — is said as python's str says it: 41 as 41, 41.0 as 41.0, null as
 // None. A value of an unexpected type leaves out only the line it is for.
 
 const (
-	batchInterval = 600       // seconds a stamp between prompts keeps quiet with nothing new
-	batchStep     = 10        // points of the window a step of the context
-	stampKeep     = 7 * 86400 // seconds a throttle file stays untouched before it goes
-	staleSec      = 120       // seconds a snapshot is old before the stamp says so
-	diskMin       = 10 << 30  // bytes a disk holds at least to be listed
-	gib           = 1 << 30
+	stampKeep = 7 * 86400 // seconds a stamp state file stays untouched before it goes
+	staleSec  = 120       // seconds a snapshot is old before the stamp says so
+	diskMin   = 10 << 30  // bytes a disk holds at least to be listed
+	gib       = 1 << 30
 )
 
 // stampDate is the date line, as time.strftime("[%a %d.%m.%Y %H:%M %z]")
 // writes it in the C locale.
 const stampDate = "[Mon 02.01.2006 15:04 -0700]"
 
-func stampPrompt(event string, payload []byte, now time.Time) Reply {
+func stampPrompt(_ string, payload []byte, now time.Time) Reply {
 	var p any
 	_ = json.Unmarshal(payload, &p)
 	fields, _ := p.(map[string]any)
@@ -62,27 +54,17 @@ func stampPrompt(event string, payload []byte, now time.Time) Reply {
 	g := capOf(fields)
 	dir := hostcfg.Load().StateDir
 	state := readState(filepath.Join(dir, "state.json"))
-	prompt := event == "UserPromptSubmit"
-	lines := stampLines(state, id, os.Getenv("CLAUDE_CONFIG_DIR"), prompt, g, now)
-	// Claude stamps the tool batches of a subagent too, into the subagent's
-	// conversation, and names the subagent in agent_id: the role is the main
-	// conversation's, and a mark written for a subagent would keep it from the
-	// one it is for.
+	lines := stampLines(state, id, os.Getenv("CLAUDE_CONFIG_DIR"), g, now)
+	// The role belongs to the main conversation. A payload naming a subagent
+	// must not mark it as told: that would keep it from the one it is for.
 	role := ""
 	if agent, _ := fields["agent_id"].(string); agent == "" {
 		role = lineRole(dir, id, sessionOf(state, id))
 	}
-	if !prompt {
-		if !throttle(dir, id, sessionOf(state, id)["pct"], lineAlarms(state, id, g), now) {
-			// The role is no news of the machine the throttle holds back: a
-			// role the conversation was not told goes out alone.
-			return Reply{Context: role}
-		}
-		lines = slices.DeleteFunc(lines, func(l string) bool { return strings.HasPrefix(l, "[") })
-	}
 	if role != "" {
 		lines = append(lines, role)
 	}
+	sweepStamps(dir, float64(now.Unix()-stampKeep))
 	return Reply{Context: strings.Join(lines, "\n")}
 }
 
@@ -92,10 +74,9 @@ func stampPrompt(event string, payload []byte, now time.Time) Reply {
 // or a reconnect does not read it again, so a role set or changed after the
 // start reaches the model only here. What a conversation was last told — a
 // hash of the role and the count of its compactions, from the collector's row
-// — lies in role-<conversation>.state beside the throttle files and goes with
-// their sweep. A role cleared after it was told is said to be gone, once. A
-// conversation the snapshot does not know is told nothing, and nothing is
-// written.
+// — lies in role-<conversation>.state and goes with the stamp's sweep. A role
+// cleared after it was told is said to be gone, once. A conversation the
+// snapshot does not know is told nothing, and nothing is written.
 func lineRole(dir, id string, row map[string]any) string {
 	if id == "" || row == nil {
 		return ""
@@ -178,15 +159,10 @@ func loose(raw json.RawMessage) any {
 }
 
 // stampLines are the lines of the stamp, top to bottom.
-func stampLines(state map[string]any, id, configDir string, withDate bool, g action.Guard, now time.Time) []string {
-	var lines []string
-	if withDate {
-		lines = append(lines, now.Format(stampDate))
-	}
+func stampLines(state map[string]any, id, configDir string, g action.Guard, now time.Time) []string {
+	lines := []string{now.Format(stampDate)}
 	if state == nil {
-		if withDate {
-			lines = append(lines, "The host snapshot is unavailable: the aacpanel collector writes no state")
-		}
+		lines = append(lines, "The host snapshot is unavailable: the aacpanel collector writes no state")
 		return lines
 	}
 	at, _ := number(state["at"])
@@ -197,11 +173,7 @@ func stampLines(state map[string]any, id, configDir string, withDate bool, g act
 			lines = append(lines, line)
 		}
 	}
-	dated := 0
-	if withDate {
-		dated = 1
-	}
-	if age > staleSec && len(lines) > dated {
+	if age > staleSec && len(lines) > 1 {
 		lines = append(lines, "          the snapshot is "+whole(age/60)+" min old — is the collector stopped?")
 	}
 	return lines
@@ -402,43 +374,7 @@ func mount(disk map[string]any) string {
 	return "?"
 }
 
-// throttle tells whether the stamp between prompts speaks: when the context
-// crossed a step, the alarms changed, or batchInterval went by since it last
-// did. A throttle file that cannot be written leaves it speaking every time.
-func throttle(dir, id string, pct any, alarms string, now time.Time) bool {
-	if id == "" {
-		id = "common"
-	}
-	// The conversation is put into the name as claude gives it, the way the
-	// delivery's script joins it: a name with a slash names a directory under
-	// the state that is not there, and nothing is written.
-	path := dir + string(filepath.Separator) + "stamp-" + id + ".state"
-	at := now.Unix()
-	step := -1
-	if f, ok := number(pct); ok && !math.IsInf(f, 0) && !math.IsNaN(f) {
-		step = int(math.Floor(math.Trunc(f) / batchStep))
-	}
-	mark := strconv.Itoa(step) + ":" + alarms
-
-	var lastAt int64
-	lastMark := ""
-	if raw, err := os.ReadFile(path); err == nil {
-		first, rest, _ := strings.Cut(string(raw), "\n")
-		if n, err := strconv.ParseInt(strings.TrimSpace(first), 10, 64); err == nil {
-			lastAt, lastMark = n, rest
-		}
-	}
-	if at-lastAt < batchInterval && mark == lastMark {
-		return false
-	}
-	if os.WriteFile(path+".tmp", []byte(strconv.FormatInt(at, 10)+"\n"+mark), 0o666) == nil {
-		_ = os.Rename(path+".tmp", path)
-	}
-	sweepStamps(dir, float64(at-stampKeep))
-	return true
-}
-
-// sweepStamps takes away the throttle files and the marks of the role written
+// sweepStamps takes away the stamp state files and the marks of the role written
 // before a moment, in seconds. The state directory is shared with the
 // collector: only the stamp's own files go.
 func sweepStamps(dir string, before float64) {

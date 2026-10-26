@@ -242,15 +242,15 @@ var kitHooks = []kitHook{
 	{Part: "copies", Event: "PostToolUse", Matcher: "Artifact", Hook: "artifact-copy", Script: "deploy/claude/artifact-copy.py", Timeout: 10},
 	{Part: "nudge", Event: "Stop", Hook: "checklist-reminder", Script: "deploy/claude/checklist-reminder.py", Timeout: 5},
 	{Part: "stamp", Event: "UserPromptSubmit", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
-	{Part: "stamp", Event: "PostToolBatch", Matcher: "*", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Args: "PostToolBatch", Timeout: 5, State: true},
 	{Part: "background", Event: "Stop", Hook: "background-reminder", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true},
 }
 
-// retiredHooks are the hooks of retired parts. No part of the kit puts them
-// in, and the wiring takes their entries out of every file it wires, whatever
-// the kit: a script taken out of the tree leaves no hook behind that runs
-// nothing.
+// retiredHooks are the hooks the kit must not wire. No part of the kit puts
+// them in, and the wiring takes their entries out of every file it wires,
+// whatever the kit. Each is removed only from its event: the same hook can
+// still serve another event.
 var retiredHooks = []kitHook{
+	{Event: "PostToolBatch", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py"},
 	{Event: "Stop", Hook: "context-guard", Script: "deploy/claude/context-guard.py"},
 	{Event: "SessionStart", Script: "deploy/claude/brief-waiting.py"},
 	{Event: "Stop", Script: "deploy/claude/cost-snapshot.py"},

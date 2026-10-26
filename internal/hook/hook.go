@@ -63,7 +63,7 @@ var handlers = map[string]handler{
 	"background-reminder": {Event: "Stop", Answer: remindBackground},
 	"checklist-reminder":  {Event: "Stop", Answer: remindChecklist},
 	"context-guard":       {Event: "Stop", Answer: guardContext},
-	"prompt-stamp":        {Event: "UserPromptSubmit", Also: []string{"PostToolBatch"}, Answer: stampPrompt},
+	"prompt-stamp":        {Event: "UserPromptSubmit", Answer: stampPrompt},
 }
 
 // Wait is the longest the hook of the name may take to answer.

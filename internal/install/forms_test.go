@@ -113,7 +113,7 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 		"SessionStart":  {atlasContext},
 		"PreToolUse":    {executor + " hook ask-hook"},
 		"PostToolUse":   {executor + " hook artifact-copy"},
-		"PostToolBatch": {state + executor + " hook prompt-stamp PostToolBatch", atlasBudget},
+		"PostToolBatch": {atlasBudget},
 		"Stop": {state + executor + " hook background-reminder",
 			executor + " hook checklist-reminder"},
 	}
