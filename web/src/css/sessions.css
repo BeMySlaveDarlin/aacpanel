@@ -662,10 +662,13 @@ button.pjstub { cursor: pointer; }
    lines at most, who runs it and since when under it on a line of its own,
    and what runs in its background on a third — on a phone the second line
    has no room left for it. A row cut to one line left the state a letter and
-   an ellipsis. */
-.pjstate { display: flex; align-items: flex-start; gap: .45rem; max-width: 100%; font-size: var(--t-sm); font-weight: 600; }
+   an ellipsis. The quiet words after the state wrap to the next line when
+   they do not fit beside it, so they never squeeze the state into pieces of
+   its words. */
+.pjstate { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .1rem .45rem; max-width: 100%; font-size: var(--t-sm); font-weight: 600; }
 .pjstate .pjtext {
     min-width: 0;
+    max-width: calc(100% - .95rem);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;

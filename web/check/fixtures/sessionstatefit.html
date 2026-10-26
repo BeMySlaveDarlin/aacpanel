@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} #phone{width:360px;padding:.6rem 17px}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="phone"></div>
+<script type="module">
+// The line of a session's state on a phone with every quiet word at once —
+// how long it has lived, an alarm, the automatic restart, where it lives:
+// the state keeps its words whole, and what does not fit goes to the next
+// line rather than through the middle of a word.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { LiveLines } from "/src/screens/sessions/blocks.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const now = Date.now();
+const iso = (min) => new Date(now - min * 60e3).toISOString();
+const sessions = [{
+    session: "Admin", sessionId: "id-admin", profile: "Personal", contour: 1, transport: "tmux", status: "busy", pct: 29,
+    cwd: "/home/u", project: { id: 1, name: "Admin" }, startedAt: iso(14 * 60 + 28), lastRequestAt: iso(1),
+    autoRestart: true, cap: 80, nextAlarm: { id: "a1", name: "evening check", next: now + 3 * 3600e3 },
+}, {
+    session: "Long", sessionId: "id-long", profile: "Personal", contour: 1, transport: "stream", status: "waiting",
+    waitingFor: "input needed", ask: { count: 1, header: "Which of the three migration plans goes first, and who reviews the rollback script" },
+    pct: 12, cwd: "/srv/long", project: { id: 2, name: "Long" }, startedAt: iso(30), lastRequestAt: iso(2),
+}];
+
+window.fetch = counted(async () => new Response("", { status: 404 }));
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+const exec = { available: true, kinds: ["session.close", "session.restart"] };
+render(h(ToastHost, null, h(GateHost, null, html`
+    <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} checked=${null} wait=${null}
+                                           onOpen=${() => {}} exec=${exec} /></section>
+`)), document.getElementById("phone"));
+
+// lines counts the lines a text is laid out on, by the boxes of its words.
+const lines = (el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
+};
+
+window.done = (async () => {
+    await quiet();
+    const text = document.querySelector("#phone .pjstate .pjtext");
+    const long = document.querySelectorAll("#phone .pjstate")[1];
+    const top = (el) => el ? el.getBoundingClientRect().top : NaN;
+    return {
+        longText: long ? long.querySelector(".pjtext").textContent.trim() : "",
+        longOff: long ? Math.abs(top(long.querySelector(".pjtext")) - top(long.querySelector(".pjdot"))) : NaN,
+        text: text ? text.textContent.trim() : "",
+        lines: text ? lines(text) : 0,
+        marks: document.querySelectorAll("#phone .pjstate :is(.pjlived, .pjalarm, .pjrestart, .pjtag)").length,
+    };
+})();
+</script>
