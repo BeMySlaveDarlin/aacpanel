@@ -545,7 +545,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			return
 		}
 		req.Target, body.Target, req.Resume, req.Conversation = plan.Name, plan.Name, plan.Resume, plan.Conversation
-		req.Text, req.Clean = plan.Intent, plan.Clean
+		req.Text, req.Clean, req.Agent = plan.Intent, plan.Clean, plan.Agent
 		if plan.Project != nil {
 			req.Project = plan.Project
 			params = map[string]any{"project": plan.ProjectID, "path": plan.Project.Path}
@@ -561,9 +561,12 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				params = map[string]any{}
 			}
 			params["resume"] = plan.Resume
-			if plan.Intent != "" {
-				params["intent"] = plan.Intent
+		}
+		if plan.Intent != "" {
+			if params == nil {
+				params = map[string]any{}
 			}
+			params["intent"] = plan.Intent
 		}
 	}
 
@@ -1158,11 +1161,11 @@ type restartWay struct {
 	ProjectID    int
 	Resume       string
 	Conversation string
-	// Intent is the message the session wrote itself to go on with: the
-	// executor sends it first in the resumed conversation, in place of the
-	// map's message after a restart.
+	// Intent goes first in the resumed Claude conversation or fresh Codex
+	// thread, in place of the map's message after a restart.
 	Intent string
 	Clean  bool
+	Agent  string
 }
 
 // restartPlan finds the session a restart is about and the project it comes
@@ -1173,7 +1176,8 @@ type restartWay struct {
 // one, and the executor restarts it only if it is the host's main session.
 // With resume the new session goes on with the conversation the old one ran,
 // and with the message it wrote itself to go on with where it wrote one; the
-// check of the request refuses that message on a restart that starts anew.
+// check refuses that message on a fresh Claude restart. Codex always starts
+// a fresh thread and can supply its handoff as the first message.
 // The conversation a session names goes to the executor either way, which
 // restarts the session only while it still runs it.
 func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (restartWay, error) {
@@ -1215,7 +1219,10 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 		way.Name = live.Name
 	}
 	if ok && live.Agent == schema.AgentCodex {
-		return restartWay{}, fmt.Errorf("session %s is not restarted: %s", way.Name, action.CodexNotRestarted)
+		if resume {
+			return restartWay{}, fmt.Errorf("a Codex restart starts a fresh thread and takes no resume")
+		}
+		way.Agent = schema.AgentCodex
 	}
 	if resume {
 		if !ok || live.SessionID == "" {
@@ -1230,8 +1237,10 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 	if err != nil || want == nil {
 		return way, err
 	}
-	if err := restartsClaude(found.project.Name, want.Launch); err != nil {
-		return restartWay{}, fmt.Errorf("session %s is not restarted: %w", way.Name, err)
+	if way.Agent != schema.AgentCodex {
+		if err := restartsClaude(found.project.Name, want.Launch); err != nil {
+			return restartWay{}, fmt.Errorf("session %s is not restarted: %w", way.Name, err)
+		}
 	}
 	want.Session, want.Parent = way.Name, live.OpenedBy()
 	launch, err := restartLaunch(want.Launch)

@@ -19,6 +19,8 @@ const (
 	// its project from the map when one holds its directory, the host's main
 	// session as it was otherwise. It starts with an empty context, or goes on
 	// with the conversation it closed when the request names it to resume.
+	// Codex starts a fresh thread in the same place in the tree and closes
+	// the old thread after its turn, once the replacement is ready.
 	SessionRestart Kind = "session.restart"
 	// SessionReady records readiness in the service, never in the executor.
 	SessionReady Kind = "session.ready"

@@ -346,6 +346,9 @@ func (l *Link) start(ctx context.Context, c *conn, id string, m Message) error {
 func (l *Link) drain(ctx context.Context, c *conn, id string) {
 	l.sub.Lock()
 	defer l.sub.Unlock()
+	if l.Closing(id) {
+		return
+	}
 	for {
 		l.mu.Lock()
 		if l.queued(id) == 0 {

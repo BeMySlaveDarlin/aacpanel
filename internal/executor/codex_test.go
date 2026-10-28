@@ -406,7 +406,7 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
 		action.SessionFile: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
 		action.SessionRename: true, action.SessionParent: true, action.SessionDetach: true, action.TaskStop: true, action.AgentStop: true, action.SecretPut: true,
-		action.SessionMcp: true, action.ObserverStop: true, action.AlarmCancel: true, action.SessionPin: true}
+		action.SessionRestart: true, action.SessionMcp: true, action.ObserverStop: true, action.AlarmCancel: true, action.SessionPin: true}
 	for _, k := range action.Kinds {
 		if !sessionTarget(k) || taken[k] {
 			continue

@@ -50,6 +50,7 @@ var presets = map[string]preset{
 type settings struct {
 	known bool
 	preset
+	sandbox   string
 	planKnown bool
 	plan      bool
 }
@@ -100,20 +101,24 @@ var sandboxProfiles = map[string]string{
 // read takes what the daemon said; an answer that says nothing of the
 // approvals leaves the settings unknown.
 func (w settingsWire) read() settings {
-	if len(w.Approval) == 0 || w.Reviewer == "" {
-		return settings{}
+	s := settings{}
+	sandbox := w.Sandbox
+	if sandbox == nil {
+		sandbox = w.SandboxPolicy
 	}
-	s := settings{known: true}
+	if sandbox != nil {
+		s.sandbox = sandbox.Type
+	}
+	if len(w.Approval) == 0 || w.Reviewer == "" {
+		return s
+	}
+	s.known = true
 	if json.Unmarshal(w.Approval, &s.approval) != nil {
 		// A granular policy is an object: whatever it says, it is no mode of
 		// the panel's.
 		s.approval = "granular"
 	}
 	s.reviewer = w.Reviewer
-	sandbox := w.Sandbox
-	if sandbox == nil {
-		sandbox = w.SandboxPolicy
-	}
 	switch {
 	case w.Profile != nil && w.Profile.ID != "":
 		s.profile = w.Profile.ID
@@ -222,6 +227,7 @@ func (l *Link) Configure(ctx context.Context, threadID string, ch Setting) (Appl
 		}
 		if ch.Mode != "" {
 			t.settings.known, t.settings.preset = true, p
+			t.settings.sandbox = ""
 		}
 		if ch.Plan != nil {
 			t.settings.planKnown, t.settings.plan = true, *ch.Plan

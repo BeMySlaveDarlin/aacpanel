@@ -181,7 +181,11 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		}
 		return e.codexClose(ctx, th)
 	case action.SessionRestart:
-		return "", fmt.Errorf("%s is a codex session: %s", th.Name, action.CodexNotRestarted)
+		if req.Conversation != "" && req.Conversation != th.ID {
+			return "", fmt.Errorf("session %s runs thread %s, not %s: a restart replaces only the thread it names",
+				th.Name, th.ID, req.Conversation)
+		}
+		return e.codexRestart(ctx, th, req)
 	}
 	return "", codexRefusal(th.Name)
 }

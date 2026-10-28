@@ -305,7 +305,7 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	for _, tool := range tools {
 		offered = append(offered, tool.(map[string]any)["name"].(string))
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close", "session_open",
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(offered, want) {
 		t.Errorf("codex was offered %v", offered)

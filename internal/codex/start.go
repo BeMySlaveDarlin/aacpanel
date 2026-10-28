@@ -223,6 +223,7 @@ func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 	l.mu.Lock()
 	delete(l.closed, threadID)
 	l.mu.Unlock()
+	_ = os.Remove(l.closingPath(threadID))
 	l.disown(threadID)
 	if err := os.Remove(stream.OpenedPath(threadID)); err != nil && !os.IsNotExist(err) {
 		return "", fmt.Errorf("the thread's opening session was not cleared: %w", err)
@@ -471,6 +472,7 @@ func (l *Link) Close(ctx context.Context, threadID string) (bool, error) {
 	delete(l.boxes, threadID)
 	l.keepOutbox(threadID)
 	l.mu.Unlock()
+	_ = os.Remove(l.closingPath(threadID))
 	return turn != "", nil
 }
 

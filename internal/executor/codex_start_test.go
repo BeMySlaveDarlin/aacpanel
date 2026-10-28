@@ -28,7 +28,7 @@ const panelTools = "/opt/aacpanel/bin/aacpanel-exec"
 // and the letter asking.
 func withTools(config map[string]any) map[string]any {
 	out := map[string]any{"mcp_servers.aacpanel.command": panelTools, "mcp_servers.aacpanel.args": []any{"-mcp"}}
-	for _, tool := range []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close",
+	for _, tool := range []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"} {
 		out["mcp_servers.aacpanel.tools."+tool+".approval_mode"] = "approve"
 	}
@@ -293,9 +293,9 @@ func TestNewOfACodexProjectOfAContourWithoutAHomeIsRefused(t *testing.T) {
 
 // A close interrupts the turn that runs and leaves the thread, and closes by
 // its exact name the tmux session the launcher started codex in on that
-// thread — no other, and not codex typed by hand. A restart is refused with
-// the reason.
-func TestACodexSessionIsClosedAndNotRestarted(t *testing.T) {
+// thread — no other, and not codex typed by hand. A restart from tmux is
+// refused before the new thread starts.
+func TestACodexSessionInTmuxIsClosedAndNotRestarted(t *testing.T) {
 	srv, e, p := onCodexContour(t)
 	_, name, err := open(t, e, p, `{"agent":"codex","intent":"go"}`)
 	if err != nil {
@@ -313,7 +313,7 @@ func TestACodexSessionIsClosedAndNotRestarted(t *testing.T) {
 
 	ctx := context.Background()
 	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionRestart, Target: name}); err == nil ||
-		!strings.Contains(err.Error(), action.CodexNotRestarted) {
+		!strings.Contains(err.Error(), "restart from the Codex terminal") {
 		t.Errorf("a restart of a codex session: %v", err)
 	}
 

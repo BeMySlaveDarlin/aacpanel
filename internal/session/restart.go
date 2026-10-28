@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -9,6 +10,77 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/mcp"
 )
+
+// CodexRestart replaces the proven caller with a fresh thread in the same
+// place in the tree. Its conversation cannot be continued by a restart.
+func CodexRestart(h Host) mcp.Tool {
+	t := Restart(h)
+	t.Description = "Starts a fresh Codex thread in this thread's directory and place in the session tree, " +
+		"with the same parent and report recipient. Save the work and next step on disk first. intent is the " +
+		"first message of the new thread; omitted uses the map's restart message. clean starts without a " +
+		"message. Children move to the new thread. Active agents, background commands and observers hold " +
+		"the restart; anyway ends that work only on the person's word. Codex in tmux must be restarted " +
+		"from its terminal. The old thread closes after this turn, only after the new one starts and accepts " +
+		"its first message. Once accepted, end the turn and do nothing more."
+	t.Instructions = "Use session_restart for an asked-for restart or a fresh context in the same place in the tree; save the handoff first."
+	t.InputSchema = map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"intent": map[string]any{"type": "string", "minLength": 1, "maxLength": action.IntentMax,
+				"description": "The first message of the fresh thread, with the work and next step; omitted uses the map's restart message."},
+			"clean":  map[string]any{"type": "boolean", "description": "Start without a message and wait. Cannot be combined with intent."},
+			"anyway": restartSchema()["properties"].(map[string]any)["anyway"],
+		},
+		"additionalProperties": false,
+	}
+	t.Call = func(ctx context.Context, bind mcp.Bind, raw json.RawMessage) (string, bool) {
+		b, err := bind()
+		if err != nil {
+			return "Nothing was restarted: " + err.Error(), true
+		}
+		if b.SessionID == "" {
+			return "Nothing was restarted: this call proves no Codex thread.", true
+		}
+		var args struct {
+			Intent string `json:"intent"`
+			Clean  bool   `json:"clean"`
+			Anyway bool   `json:"anyway"`
+		}
+		if len(raw) > 0 {
+			read := json.NewDecoder(bytes.NewReader(raw))
+			read.DisallowUnknownFields()
+			if err := read.Decode(&args); err != nil {
+				return "Nothing was restarted: " + err.Error(), true
+			}
+		}
+		if args.Clean && args.Intent != "" {
+			return "Nothing was restarted: a clean restart takes no intent.", true
+		}
+		if args.Intent != "" {
+			if err := action.RestartIntent(args.Intent); err != nil {
+				return "Nothing was restarted: " + err.Error(), true
+			}
+		}
+		if !args.Anyway {
+			if w := h.atWork(b.SessionID, freshWait); w.any() {
+				return waitLine(w, "restart", "restarted"), true
+			}
+		}
+		got, err := h.act(ctx, string(action.SessionRestart), "", map[string]any{
+			"conversation": b.SessionID, "intent": args.Intent, "clean": args.Clean,
+		}, restartWait)
+		switch {
+		case err != nil:
+			return "Nothing was restarted: " + err.Error(), true
+		case !got.Taken:
+			return "The panel did not take the restart: " + got.Said, true
+		case got.Late:
+			return "The panel is restarting this thread. End the turn now and do nothing more; the old thread closes after this turn.", false
+		}
+		return "The panel accepted the restart: " + got.Said + ". End the turn now and do nothing more.", false
+	}
+	return t
+}
 
 // RestartName is the tool's name on the panel's server: the model calls it
 // mcp__aacpanel__session_restart.

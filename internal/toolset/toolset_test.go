@@ -71,7 +71,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close",
+	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
@@ -242,8 +242,7 @@ func toolCall(id int, tool, args, meta string) string {
 
 // A thread of codex is offered the tools a thread has, in the order a claude
 // session is offered them, and the server's word to it names only those:
-// nothing of the restart it does not have, nor of the
-// tools of claude it is pointed to elsewhere — a brief is weighed against a
+// nothing of the tools of claude it is pointed to elsewhere — a brief is weighed against a
 // question in the conversation, and the rules say so before anything else.
 func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -265,7 +264,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_close", "session_open",
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
@@ -278,12 +277,12 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 			t.Errorf("the word does not name %s:\n%s", name, said)
 		}
 	}
-	for _, missing := range []string{"session_restart", "AskUserQuestion", "SendMessage"} {
+	for _, missing := range []string{"AskUserQuestion", "SendMessage"} {
 		if strings.Contains(said, missing) {
 			t.Errorf("the word to codex names %s, which it does not have:\n%s", missing, said)
 		}
 	}
-	for _, missing := range []string{"session_restart", "AskUserQuestion"} {
+	for _, missing := range []string{"AskUserQuestion"} {
 		if strings.Contains(descriptions, missing) {
 			t.Errorf("a tool tells codex of %s:\n%s", missing, descriptions)
 		}

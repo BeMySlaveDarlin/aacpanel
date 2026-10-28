@@ -863,6 +863,39 @@ with network on, or explicit `read-only`; extra absolute writable roots are
 supplied by the caller, not inferred from the host. These choices affect one
 start and leave the map intact.
 
+**`session_restart` replaces a Codex thread in the same place in the session
+tree.** The replacement starts with an empty conversation in the old thread's
+directory, including a worktree, on the same home's daemon and held by the
+panel. Its parent is the old thread's parent, so a top-level thread stays at
+the top. Its opening record keeps the same report recipient, and it goes by
+the name the panel gave the old thread. Live Codex and Claude children move
+under the replacement, and opening records belonging to the old conversation
+pass to the new one. A Claude child is known by the opening record of its
+process or a parent stood later, since the executor's sandbox does not let it
+read the environment the child was given its parent in. A child that cannot
+be moved is named in the action's detail.
+
+The model, effort and sandbox come from the live link where it knows them,
+otherwise from the project's launch on the map. Approvals and workspace
+configuration follow the rules of `session_open`, and the panel's tools are
+installed at the new start. The link does not retain extra writable roots:
+the replacement uses roots supplied with the launch, or the Codex home's
+defaults, and the action reports this limitation. Its first message is the
+restart's `intent`, otherwise the map's `restartIntent`; `clean` suppresses
+both. Without a message it waits. A restart takes no `resume`, and a thread
+running in tmux must be restarted from the Codex terminal.
+
+The old thread stays open until the replacement starts and accepts its first
+message. Failure leaves it and its children alone and releases an incomplete
+replacement. Once the new thread is ready, the old one is marked to close
+after its current turn: the calling model receives the tool's answer and ends
+the turn. The mark survives an executor restart. The poll checks the turn
+itself before unsubscribing, since an idle status can lag behind a turn's
+start, and sends no queued messages into a thread marked to close. The price
+is a new thread ID and lost conversation context; both threads can run until
+the old turn ends, and a turn that never ends holds the close. The old rollout
+remains available through `codex resume`.
+
 The opening record is separate from the visual parent and names the parent's
 conversation as well as its session. Manual grouping grants no reports or
 closing rights, and another conversation under the same name inherits none.
@@ -2415,13 +2448,14 @@ with an environment that names no thread, and names the thread in the `_meta`
 of every call as `threadId`: the server under codex takes the sender from the
 call, and only a thread whose lock the codex that started it holds among its
 open files (`<CODEX_HOME>/thread-writer-locks/<thread>.lock`), which says the
-home too. It offers the tools of a session except restart, each bound to that
+home too. It offers the tools of a session, each bound to that
 thread: the checklist, the brief, the call and the notepad of secrets go under
 the thread as a claude session's go under its conversation, the close closes
 the thread as Close on its screen does — the turn that runs, the one making
 the call, is interrupted and the panel leaves the thread — and a call that
-names no thread the codex holds is refused by every one of them. The restart
-is claude's — the daemon keeps the thread, and the panel refuses it. A new
+names no thread the codex holds is refused by every one of them. A restart
+starts a fresh thread in its place in the tree and closes the old one after
+the calling turn, as "Codex sessions" says. A new
 session asks for confirmation as a Claude session's open does. The server's
 word to codex names only what it has: a blocking choice goes through the client's
 question tool when available, otherwise into the conversation with the turn ending

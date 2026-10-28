@@ -537,17 +537,20 @@ func (r Request) Validate() error {
 		return badRequest("resuming a session without a conversation id")
 	}
 	if r.Agent != "" {
-		if r.Kind != SessionResume {
+		if r.Kind != SessionResume && r.Kind != SessionRestart {
 			return badRequest("action %s names no agent", r.Kind)
 		}
 		if r.Agent != ResumeCodex {
 			return badRequest("a resume goes on with a conversation of claude or a thread of %s, not of %q", ResumeCodex, r.Agent)
 		}
-		if r.Contour == "" || !safeID(r.Contour) {
+		if r.Kind == SessionResume && (r.Contour == "" || !safeID(r.Contour)) {
 			return badRequest("a resume of a codex thread names the contour whose daemon keeps it, not %q", r.Contour)
 		}
-		if r.Project != nil {
+		if r.Kind == SessionResume && r.Project != nil {
 			return badRequest("a resume of a codex thread takes no project: the daemon of its home knows where it ran")
+		}
+		if r.Kind == SessionRestart && r.Resume != "" {
+			return badRequest("a Codex restart starts a fresh thread and takes no resume")
 		}
 	}
 	if r.Resume != "" {
@@ -598,9 +601,9 @@ func (r Request) Validate() error {
 }
 
 // goingOnWith keeps intent on manual restarts tied to a continued conversation.
-// The service's context cycle can instead carry it into a fresh one.
+// The service's context cycle and a Codex restart can carry it into a fresh one.
 func goingOnWith(r Request) error {
-	if r.Resume == "" && !r.AutoRestart {
+	if r.Resume == "" && !r.AutoRestart && r.Agent != ResumeCodex {
 		return badRequest("a message to go on with is for a restart that goes on with the conversation; " +
 			"one that starts anew opens with the map's message after a restart")
 	}

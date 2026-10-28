@@ -69,8 +69,8 @@ func Server(bind mcp.Bind) *mcp.Server {
 
 // codexTools are the tools the panel gives a thread of codex, each bound to
 // the thread the call names: its checklist is kept by the thread, its briefs,
-// calls and secrets go under it. The restart is Claude's: the daemon keeps
-// the thread, with no panel process to restart. Opening a helper is offered
+// calls and secrets go under it. A restart replaces the thread in its place
+// in the tree. Opening a helper is offered
 // with the same confirmation as Claude's open; closing one checks its opener.
 func codexTools() []mcp.Tool {
 	return append([]mcp.Tool{
@@ -80,6 +80,7 @@ func codexTools() []mcp.Tool {
 		collector.Notify(collector.NotifySocket()),
 		collector.SecretAsk(collector.NotifySocket()),
 		request.Tool(session.Here().Panel),
+		session.CodexRestart(session.Here()),
 		session.CodexClose(session.Here()),
 		session.CodexOpen(session.Here()),
 		session.CodexLetter(session.Here()),

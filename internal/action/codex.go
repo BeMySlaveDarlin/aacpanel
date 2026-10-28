@@ -20,12 +20,6 @@ type CodexModel struct {
 	Effort  string   `json:"effort,omitempty"`
 }
 
-// CodexNotRestarted is why a codex session is not restarted: the daemon of
-// its home keeps the thread, and no process of the panel's is there to start
-// again.
-const CodexNotRestarted = "its thread is kept by the codex daemon, and there is nothing to restart — " +
-	"close it and start another with New"
-
 // ResumeCodex is the agent of a resume that goes on with a thread of codex.
 // The panel joins the thread in the daemon of its home and holds it, the way
 // it holds a thread it started: the daemon keeps the thread loaded while a

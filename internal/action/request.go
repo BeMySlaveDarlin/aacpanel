@@ -136,9 +136,9 @@ type Request struct {
 	// a codex thread goes to.
 	Contour string `json:"contour,omitempty"`
 
-	// Agent is whose conversation session.resume goes on: ResumeCodex for a
-	// thread of the codex daemon of Contour, empty for a conversation of
-	// claude.
+	// Agent is whose conversation session.resume goes on or session.restart
+	// replaces: ResumeCodex for a codex thread, empty for claude. A resume
+	// names the daemon's Contour; a restart uses the live thread's home.
 	Agent string `json:"agent,omitempty"`
 }
 

@@ -268,18 +268,17 @@ func TestRestartLaunchWithoutAMessageSaysNothing(t *testing.T) {
 // New of a project whose agent is codex goes to the executor with the
 // project's launch, and its answer names the session the executor brought up:
 // a codex thread is named by its id, which the screen does not know before. A
-// restart is refused before the executor hears of it — of a codex thread,
-// since its daemon keeps it, and of a claude session of the project, since a
-// codex thread does not take the place of a claude conversation. A move
+// restart replaces a Codex thread, but refuses a Claude session of the
+// project: a Codex thread does not take the place of a Claude conversation. A move
 // between tmux and the stream is the claude session's own and goes on.
-func TestACodexProjectStartsCodexAndIsNotRestartedPG(t *testing.T) {
+func TestACodexProjectStartsAndRestartsCodexPG(t *testing.T) {
 	srv, fake, dir := switchServer(t, "stream", "")
 	list, err := srv.db.Profiles(t.Context())
 	if err != nil || len(list) != 1 {
 		t.Fatalf("the map: %v, %v", list, err)
 	}
 	if _, err := srv.db.UpdateProfile(t.Context(), list[0].ID, store.ProfileEdit{LaunchSet: map[string]any{
-		"agent": "codex", "codexModel": "gpt-5.5",
+		"agent": "codex", "codexModel": "gpt-5.5", "restartIntent": "Read the handoff",
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -319,10 +318,35 @@ func TestACodexProjectStartsCodexAndIsNotRestartedPG(t *testing.T) {
 	}
 
 	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"codex-0000abcd","sessionId":`+
-		`"019a1f00-0000-7000-8000-00000000abcd","cwd":"`+dir+`","transport":"stream","agent":"codex"}]}`))
-	w = post(t, srv, `{"kind":"session.restart","target":"codex-0000abcd"}`)
-	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), action.CodexNotRestarted) {
-		t.Errorf("a restart of a codex thread: %d %s", w.Code, w.Body.String())
+		`"019a1f00-0000-7000-8000-00000000abcd","cwd":"`+dir+`","transport":"stream","agent":"codex","parent":{"session":"lead"}}]}`))
+	for _, params := range []string{`{}`, `{"intent":"Finish the tests"}`, `{"clean":true}`} {
+		w = post(t, srv, `{"kind":"session.restart","target":"codex-0000abcd","params":`+params+`}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("a restart of a codex thread: %d %s", w.Code, w.Body.String())
+		}
+		got := <-opened.got
+		if got.Project == nil || got.Project.Path != dir || got.Project.Parent != "lead" ||
+			got.Project.Session != "codex-0000abcd" || got.Agent != action.ResumeCodex || got.Resume != "" {
+			t.Fatalf("the Codex restart lost its project or parent: %+v", got)
+		}
+		var launch map[string]any
+		if err := json.Unmarshal(got.Project.Launch, &launch); err != nil {
+			t.Fatal(err)
+		}
+		want := "Read the handoff"
+		if got.Clean {
+			want = ""
+		}
+		if launch["intent"] != want || (strings.Contains(params, "Finish") && got.Text != "Finish the tests") {
+			t.Fatalf("the restart lost its message: %+v, %s", got, got.Project.Launch)
+		}
+	}
+	w = post(t, srv, `{"kind":"session.restart","target":"codex-0000abcd","params":{"resume":true}}`)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "takes no resume") {
+		t.Errorf("a Codex resume at restart: %d %s", w.Code, w.Body.String())
+	}
+	if _, err := srv.restartPlan(t.Context(), "codex-0000abcd", map[string]any{"resume": true}); err == nil {
+		t.Fatal("the plan accepted a Codex resume")
 	}
 	select {
 	case got := <-opened.got:

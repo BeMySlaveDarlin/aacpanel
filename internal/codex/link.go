@@ -695,6 +695,9 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 		if l.letGo(ctx, c, id, info.Status.Type == "active") {
 			continue
 		}
+		if l.finishClose(ctx, c, id) {
+			continue
+		}
 		if !l.seen(info, asked) {
 			continue
 		}
