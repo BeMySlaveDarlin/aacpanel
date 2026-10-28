@@ -7,8 +7,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,10 +23,12 @@ type hookMatcher struct {
 }
 
 // The hook gets time to return after its own wait, as it does in the kit.
-// Tests shorten the grace and put a stand-in at the installed path.
+// Tests shorten the grace, put a stand-in at the installed path and lay out
+// a process table of their own.
 var (
 	hookGrace      = 5 * time.Second
 	hookExecutable = os.Executable
+	procDir        = "/proc"
 )
 
 // onHook runs beside the reader: claude can ask another callback or report
@@ -51,7 +55,7 @@ func (h *Holder) onHook(requestID, name string, input json.RawMessage) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, h.hookPath, hook.Command, name, event)
 	cmd.Dir = h.spec.Dir
-	cmd.Env = append(h.cmd.Environ(), hook.PIDEnv+"="+strconv.Itoa(h.cmd.Process.Pid))
+	cmd.Env = h.hookEnv()
 	cmd.Stdin = bytes.NewReader(input)
 	cmd.Stderr = io.Discard
 	// A child keeping stdout open must not outlive the deadline of the hook.
@@ -72,4 +76,21 @@ func (h *Holder) onHook(requestID, name string, input json.RawMessage) {
 		return
 	}
 	response = answer
+}
+
+// hookEnv is the environment claude runs with, the one a hook from settings
+// inherits as its child. The wrapper of the contours picks the account by
+// the directory and execs claude with CLAUDE_CONFIG_DIR of its own, so the
+// environment the holder started it with names no account, and a hook given
+// that one reads the limits and the checklist of the first contour. The
+// start environment stands in only when the process cannot be read.
+func (h *Holder) hookEnv() []string {
+	pid := strconv.Itoa(h.cmd.Process.Pid)
+	env := h.cmd.Environ()
+	if raw, err := os.ReadFile(filepath.Join(procDir, pid, "environ")); err == nil {
+		if vars := strings.TrimRight(string(raw), "\x00"); vars != "" {
+			env = strings.Split(vars, "\x00")
+		}
+	}
+	return append(env, hook.PIDEnv+"="+pid)
 }

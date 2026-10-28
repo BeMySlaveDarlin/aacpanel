@@ -86,17 +86,32 @@ func (out hookOutput) Write(p []byte) (int, error) {
 }
 func (out hookOutput) Close() error { return nil }
 
+// hookHolder holds a claude started without an account, as the holder starts
+// it through the wrapper of the contours; the process table shows it running
+// with the account the wrapper chose.
 func hookHolder(t *testing.T, mode string) (*Holder, hookOutput) {
 	t.Helper()
 	out := make(hookOutput, 4)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+	started := []string{
+		"AACP_STATE_DIR=/session/state", "PATH=/session/bin",
+		hook.HeldEnv + "=1", hook.PIDEnv + "=", "FAKE_HOOK_MODE=" + mode,
+	}
+	proc := filepath.Join(t.TempDir(), strconv.Itoa(os.Getpid()))
+	if err := os.MkdirAll(proc, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	running := strings.Join(append(started, "CLAUDE_CONFIG_DIR=/session/contour"), "\x00") + "\x00"
+	if err := os.WriteFile(filepath.Join(proc, "environ"), []byte(running), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	was := procDir
+	procDir = filepath.Dir(proc)
+	t.Cleanup(func() { procDir = was })
 	return &Holder{
 		spec: Spec{Dir: t.TempDir()}, hookCtx: ctx, hookPath: os.Args[0], stdin: out,
-		cmd: &exec.Cmd{Process: &os.Process{Pid: os.Getpid()}, Env: []string{
-			"CLAUDE_CONFIG_DIR=/session/contour", "AACP_STATE_DIR=/session/state", "PATH=/session/bin",
-			hook.HeldEnv + "=1", hook.PIDEnv + "=wrong", "FAKE_HOOK_MODE=" + mode,
-		}},
+		cmd:     &exec.Cmd{Process: &os.Process{Pid: os.Getpid()}, Env: started},
 		waiters: map[string]chan json.RawMessage{},
 	}, out
 }
@@ -152,6 +167,19 @@ func TestHookCallbacksRunWithTheSessionEnvironment(t *testing.T) {
 				t.Errorf("the payload changed: %s", reply["input"])
 			}
 		})
+	}
+}
+
+func TestAHookOfAnUnreadableProcessGetsTheStartEnvironment(t *testing.T) {
+	h, out := hookHolder(t, "")
+	procDir = t.TempDir()
+	h.onHook("unread", "prompt-stamp", json.RawMessage(`{"hook_event_name":"UserPromptSubmit"}`))
+	reply := readHookReply(t, out, "unread")
+	for key, want := range map[string]string{"config": "", "state": "/session/state", "pid": strconv.Itoa(os.Getpid())} {
+		var got string
+		if err := json.Unmarshal(reply[key], &got); err != nil || got != want {
+			t.Errorf("the hook's %s is %q, want %q (%v)", key, got, want, err)
+		}
 	}
 }
 

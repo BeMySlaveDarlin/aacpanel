@@ -537,7 +537,12 @@ At the handshake the holder registers `prompt-stamp` for `UserPromptSubmit`
 and `checklist-reminder` and `background-reminder` for `Stop`. Each
 `hook_callback` runs `aacpanel-exec hook <name> <event>` at the installed path
 the holder resolved at startup, with the event payload on stdin and the
-session's environment. The path is opened anew for every callback: the holder
+environment claude runs with, read from `/proc/<pid>/environ`. The one the
+holder started it with is not enough: the wrapper of the contours picks the
+account by the directory and execs claude with its own `CLAUDE_CONFIG_DIR`,
+and a hook without it reads the limits and the checklist of the first
+contour. The start environment stands in only when the process cannot be
+read. The path is opened anew for every callback: the holder
 keeps its running program, while a replacement of the executor updates hook
 logic for sessions already open. The hook's JSON becomes the callback reply;
 silence, failure or a timeout becomes an empty object. Callbacks run beside
