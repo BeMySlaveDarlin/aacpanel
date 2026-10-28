@@ -654,4 +654,13 @@ func TestNewAnswersWithTheSessionItBroughtUp(t *testing.T) {
 	if err != nil || resp.Session != "" || resp.Detail != "done" {
 		t.Errorf("a resume of claude answered %+v, %v", resp, err)
 	}
+	// A restart of codex names the thread's agent too, and goes the plain
+	// way: as an open it would start a session of the map under the thread's
+	// name.
+	restart := request("req-restart", SessionRestart, "codex-0000abcd")
+	restart.Agent, restart.Project = ResumeCodex, &Project{Path: "/srv/shop", Session: "codex-0000abcd"}
+	resp, err = client.Do(context.Background(), restart)
+	if err != nil || resp.Session != "" || resp.Detail != "done" {
+		t.Errorf("a restart of codex answered %+v, %v", resp, err)
+	}
 }

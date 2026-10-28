@@ -24,6 +24,7 @@ type CodexModel struct {
 // The panel joins the thread in the daemon of its home and holds it, the way
 // it holds a thread it started: the daemon keeps the thread loaded while a
 // client is left, and the thread is a live session of the panel from then on.
+// A restart of a codex thread names the same agent; only a resume is an open.
 const ResumeCodex = "codex"
 
 // CodexModelsAsker is an executor that knows the models codex offers. A

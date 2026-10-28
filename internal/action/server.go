@@ -395,7 +395,7 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 	runCtx, cancel := context.WithTimeout(ctx, Timeout(req.Kind, s.timeout))
 	var detail, session string
 	var err error
-	if opener, ok := s.exec.(Opener); ok && (req.Kind == SessionOpen || req.Agent == ResumeCodex) {
+	if opener, ok := s.exec.(Opener); ok && (req.Kind == SessionOpen || req.Kind == SessionResume && req.Agent == ResumeCodex) {
 		detail, session, err = opener.Open(runCtx, req)
 	} else {
 		detail, err = s.exec.Execute(runCtx, req)
