@@ -204,7 +204,7 @@ class Parent(Procs):
         self.assertEqual(ctx.codex_runs(procs), {})
         rows = ctx.codex_own_rows(procs)
         self.assertEqual(rows, [{
-            "session": f"codex-{RUN[-8:]}", "sessionId": RUN, "cwd": "/srv/lab/task",
+            "session": f"codex-{RUN[-8:]}", "sessionId": RUN, "cwd": "/srv/lab/task", "codexHome": self.home,
             "profile": "work", "agent": "codex", "outside": True, "model": "gpt-6-sol", "effort": "high",
             "startedAt": ctx._iso(BOOT + TICKS / os.sysconf("SC_CLK_TCK")), "status": "busy",
             "tokens": 25840, "limit": 258400, "pct": 10.0, "limitKnown": True,
@@ -220,6 +220,7 @@ class Terminal(Procs):
                      env={"CODEX_HOME": self.home, "CLAUDE_CODE_SESSION_ID": SESSION}, ppid=CLAUDE_PID,
                      files=files)
         rows = ctx.codex_own_rows(ctx.codex_live())
+        self.assertEqual([r.get("codexHome") for r in rows], [self.home])
         self.assertEqual([(r["session"], r["outside"], r["status"], r.get("title")) for r in rows],
                          [(f"codex-{TUI[-8:]}", True, "idle", None)],
                          "a codex in a terminal is a session of its own, whoever it was started under; "

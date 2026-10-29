@@ -34,6 +34,9 @@ const Command = "hook"
 const (
 	HeldEnv = "AACP_HOOKS_HELD"
 	PIDEnv  = "AACP_HOOK_PID"
+	// CodexHomeEnv names the home whose hooks.json installed this command.
+	// A default codex home need not be present in the daemon's environment.
+	CodexHomeEnv = "AACP_HOOK_CODEX_HOME"
 )
 
 // HeldEvent is the event the holder serves for a hook, empty for hooks that

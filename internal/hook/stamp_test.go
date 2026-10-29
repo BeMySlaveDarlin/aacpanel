@@ -186,6 +186,66 @@ func TestTheSharedCasesOfTheStamp(t *testing.T) {
 	}
 }
 
+func TestCodexStampUsesTheThreadsAccount(t *testing.T) {
+	for _, tc := range []struct {
+		name, row, installed, env, turn, want string
+	}{
+		{"thread beats the hook environment", `{"agent":"codex","codexHome":"/home/u/.codex-work"}`, "/home/u/.codex", "/home/u/.codex", "", "Limits:   week 32%"},
+		{"new thread uses the installed home", "", "/home/u/.codex-work", "", "t", "Limits:   week 32%"},
+		{"old hook inherits a custom home", "", "", "/home/u/.codex-work", "t", "Limits:   week 32%"},
+		{"old default hook needs no home variable", "", "", "", "t", "Limits:   week 45%"},
+		{"unknown home borrows no limits", "", "/home/u/.missing", "", "t", ""},
+		{"claude keeps its contour despite inherited codex home", `{"agent":"claude"}`, "", "/home/u/.codex-work", "", "Limits:   5h 12% · week 10%"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := t.TempDir()
+			t.Setenv("AACP_STATE_DIR", state)
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			t.Setenv("HOME", "/home/u")
+			t.Setenv(CodexHomeEnv, tc.installed)
+			t.Setenv("CODEX_HOME", tc.env)
+			t.Setenv("CLAUDE_CONFIG_DIR", "/home/u/.claude-work")
+			rows := []any{}
+			if tc.row != "" {
+				row := decodeKeeping(t, []byte(tc.row)).(map[string]any)
+				row["sessionId"] = "thread"
+				rows = append(rows, row)
+			}
+			limits := decodeKeeping(t, []byte(`{"contours":[
+				{"profile":"personal","fiveHour":{"pct":2},"sevenDay":{"pct":93},"codex":{"codexHome":"/home/u/.codex","windows":[{"pct":45,"windowMins":10080}]}},
+				{"profile":"work","fiveHour":{"pct":12},"sevenDay":{"pct":10},"codex":{"codexHome":"/home/u/.codex-work","windows":[{"pct":32,"windowMins":10080}]}}
+			]}`))
+			now := time.Unix(1700000000, 0)
+			writeJSON(t, filepath.Join(state, "state.json"), map[string]any{"at": now.Unix(), "sessions": rows, "limits": limits})
+			payload, _ := json.Marshal(map[string]any{"session_id": "thread", "turn_id": tc.turn})
+			got := ""
+			for _, line := range strings.Split(stampPrompt("UserPromptSubmit", payload, now).Context, "\n") {
+				if strings.HasPrefix(line, "Limits:") {
+					got = line
+				}
+			}
+			if got != tc.want {
+				t.Fatalf("limits %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCodexStampNamesOnlyKnownWindows(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{`"windows":[{"pct":0,"windowMins":300},{"pct":45,"windowMins":10080}],"ageSec":180`, "Limits:   5h 0% · week 45% (the snapshot is 3 min old)"},
+		{`"windows":[{"pct":14,"windowMins":90},{"pct":2,"windowMins":null}]`, "Limits:   90m 14% · window 2%"},
+		{`"sevenDay":{"pct":45}`, "Limits:   week 45%"},
+		{`"fiveHour":{"pct":8}`, "Limits:   5h 8%"},
+		{`"windows":[],"ageSec":180`, ""},
+	} {
+		state := decodeKeeping(t, []byte(`{"limits":{"ageSec":9999,"codex":{"codexHome":"/home/u/.codex",`+tc.body+`}}}`)).(map[string]any)
+		if got := lineCodexLimits(state, "/home/u/.codex"); got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.body, got, tc.want)
+		}
+	}
+}
+
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

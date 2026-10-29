@@ -935,6 +935,15 @@ stands as a contour of its own name, paired with no account, and so does a home
 named after neither. The host does not read the map, so a contour renamed there
 after the install pairs only by its account's name.
 
+The prompt stamp takes a Codex thread's limits from the contour whose Codex
+home matches the session row, and names only the windows that account reports.
+The installed hook command carries `AACP_HOOK_CODEX_HOME` for a thread not yet
+in the snapshot. Codex Stop reminders read the thread's checklist and the
+current turn's tool calls from its rollout; background reminders track the
+presence of terminals across stops, since the snapshot holds their count,
+not their identities or ages. Both use a blocking reason and leave the
+answering round alone through `stop_hook_active`.
+
 - **Thread summaries are polled.** Every two seconds the executor lists
   the loaded threads and reads each one, and writes a state file per thread in
   the holders' directory: the claude holder's summary plus `agent: "codex"`,

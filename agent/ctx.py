@@ -425,7 +425,7 @@ def codex_row(data, waits=None):
     path = codex.rollout_path(sid, contour)
     row = {
         "session": name, "sessionId": sid, "cwd": data.get("cwd") or "",
-        "profile": contour, "agent": "codex", "transport": "stream",
+        "profile": contour, "agent": "codex", "transport": "stream", "codexHome": data.get("codexHome") or "",
         "model": data.get("model") or "", "effort": data.get("effort") or "",
         "startedAt": data.get("started") or None,
         **_filled(_fill(data, path)),
@@ -1008,7 +1008,7 @@ def codex_own_row(proc):
                                                "effort": "", "busy": False}
     row = {
         "session": f"codex-{thread[-8:]}", "sessionId": thread, "cwd": proc["cwd"],
-        "profile": proc["contour"], "agent": CODEX, "outside": True,
+        "profile": proc["contour"], "agent": CODEX, "outside": True, "codexHome": proc["home"],
         "model": found["model"], "effort": found["effort"], "startedAt": _iso(proc["born"]),
         "status": "busy" if found["busy"] else "idle",
         **_filled(found),

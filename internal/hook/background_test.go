@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -89,6 +90,91 @@ func names(t *testing.T, dir string) []string {
 		out = append(out, e.Name())
 	}
 	return out
+}
+
+func TestCodexBackgroundReminderTracksTerminalsOfOnlyItsThread(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("AACP_STATE_DIR", state)
+	t.Setenv(CodexHomeEnv, "/home/u/.codex")
+	start := time.Unix(1700000000, 0)
+	for _, step := range []struct {
+		at           int64
+		count        int
+		active, want bool
+	}{
+		{0, 2, false, false},
+		{3599, 1, false, false},
+		{3600, 1, false, true},
+		{3601, 1, true, false},
+		{10799, 1, false, false},
+		{10800, 1, false, true},
+		{10801, 0, false, false},
+		{14401, 2, false, false},
+		{18001, 2, false, true},
+	} {
+		now := start.Add(time.Duration(step.at) * time.Second)
+		writeJSON(t, filepath.Join(state, "state.json"), map[string]any{"at": now.Unix(), "sessions": []any{
+			map[string]any{"sessionId": "own", "agent": "codex", "processes": step.count},
+			map[string]any{"sessionId": "other", "agent": "codex", "processes": 4},
+		}})
+		payload, _ := json.Marshal(map[string]any{"hook_event_name": "Stop", "session_id": "own", "turn_id": "turn", "stop_hook_active": step.active})
+		reply := remindBackground("Stop", payload, now)
+		if (reply.Block != "") != step.want || reply.Context != "" {
+			t.Fatalf("at %d: reply %+v, want hold %v", step.at, reply, step.want)
+		}
+		if step.want {
+			if !strings.Contains(reply.Block, "latest host snapshot lists "+strconv.Itoa(step.count)) || strings.Contains(reply.Block, "TaskStop") {
+				t.Fatalf("reminder names the wrong terminals or tool: %s", reply.Block)
+			}
+			var out bytes.Buffer
+			if err := answer(&out, "Stop", reply); err != nil {
+				t.Fatal(err)
+			}
+			var wire map[string]any
+			if err := json.Unmarshal(out.Bytes(), &wire); err != nil || len(wire) != 2 || wire["decision"] != "block" || wire["reason"] != reply.Block {
+				t.Fatalf("not a Codex Stop output: %s (%v)", out.String(), err)
+			}
+		}
+	}
+}
+
+func TestCodexBackgroundReminderNeedsFreshOwnedStateAndWritableMarks(t *testing.T) {
+	for _, tc := range []struct {
+		name, id, agent string
+		age             int64
+		unwritable      bool
+	}{
+		{name: "stale state", id: "own", agent: "codex", age: staleSec + 1},
+		{name: "another thread", id: "other", agent: "codex"},
+		{name: "another agent", id: "own", agent: "claude"},
+		{name: "agents alone", id: "own", agent: "codex"},
+		{name: "marks could not be kept", id: "own", agent: "codex", unwritable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := t.TempDir()
+			t.Setenv("AACP_STATE_DIR", state)
+			t.Setenv(CodexHomeEnv, "/home/u/.codex")
+			now := time.Unix(1700000000, 0)
+			count := 2
+			if tc.name == "agents alone" {
+				count = 0
+			}
+			writeJSON(t, filepath.Join(state, "state.json"), map[string]any{"at": now.Unix() - tc.age, "sessions": []any{
+				map[string]any{"sessionId": tc.id, "agent": tc.agent, "processes": count, "work": map[string]any{"agents": 3}},
+			}})
+			if !saveMarks(filepath.Join(marksDir(), "own.json"), map[string]mark{"terminals": {First: seconds(now) - firstRemind}}, now) {
+				t.Fatal("marks not written")
+			}
+			if tc.unwritable {
+				was := writeMarks
+				t.Cleanup(func() { writeMarks = was })
+				writeMarks = func(string, []byte) error { return errors.New("not writable") }
+			}
+			if reply := remindBackground("Stop", []byte(`{"hook_event_name":"Stop","session_id":"own","turn_id":"turn"}`), now); reply != (Reply{}) {
+				t.Fatalf("unexpected reminder %+v", reply)
+			}
+		})
+	}
 }
 
 func TestTheSharedCasesOfTheBackgroundReminder(t *testing.T) {

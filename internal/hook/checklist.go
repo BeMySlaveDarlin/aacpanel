@@ -84,6 +84,9 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 	if truthy(p["stop_hook_active"]) {
 		return Reply{}
 	}
+	if _, codex := codexHome(nil, p); codex {
+		return remindCodexChecklist(p)
+	}
 	id := p["session_id"]
 	if !truthy(id) {
 		id = ""
@@ -105,6 +108,66 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 		return Reply{}
 	}
 	return Reply{Block: checklistReason}
+}
+
+func remindCodexChecklist(p map[string]any) Reply {
+	id, _ := p["session_id"].(string)
+	file := checklist.ThreadFile(id)
+	if file == "" {
+		return Reply{}
+	}
+	path := filepath.Join(checklist.Dir(), file)
+	info, err := os.Stat(path)
+	if err != nil {
+		return Reply{}
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Reply{}
+	}
+	list, _ := loadNumbers(raw).(map[string]any)
+	if list["sessionId"] != id || !unfinished(list) {
+		return Reply{}
+	}
+	transcript, _ := p["transcript_path"].(string)
+	turn, _ := p["turn_id"].(string)
+	began, known, called := codexTurnOf(transcript, turn)
+	if !known || !called || seconds(info.ModTime()) >= began {
+		return Reply{}
+	}
+	return Reply{Block: checklistReason}
+}
+
+// A rollout's tool calls carry no turn id. Only a matching task_started
+// boundary proves that they belong to the Stop being answered; a truncated
+// tail or another turn is not evidence that this turn worked.
+func codexTurnOf(path, turn string) (began float64, known, called bool) {
+	if turn == "" {
+		return 0, false, false
+	}
+	for record := range newestFirst(path) {
+		p := object(record["payload"])
+		switch record["type"] {
+		case "event_msg":
+			if p["type"] == "task_started" {
+				if p["turn_id"] != turn {
+					return 0, false, false
+				}
+				began, known = stampOf(record)
+				return began, known, called
+			}
+		case "turn_context":
+			if p["turn_id"] != turn {
+				return 0, false, false
+			}
+		case "response_item":
+			switch p["type"] {
+			case "function_call", "custom_tool_call", "local_shell_call", "web_search_call", "image_generation_call":
+				called = true
+			}
+		}
+	}
+	return 0, false, false
 }
 
 // loadNumbers is a JSON text read with its numbers as they are written, nil

@@ -134,6 +134,90 @@ func writeJSON(t *testing.T, path string, v any) {
 	}
 }
 
+func TestCodexChecklistReminderReadsOnlyTheCurrentWorkedTurn(t *testing.T) {
+	const thread = "01a12345-0000-7000-8000-00000000abcd"
+	for _, tc := range []struct {
+		name, tool, status, owner, turn          string
+		updated, active, noStart, older, missing bool
+		tail                                     int64
+		want                                     bool
+	}{
+		{name: "function call", tool: "function_call", want: true},
+		{name: "custom tool call", tool: "custom_tool_call", want: true},
+		{name: "shell call", tool: "local_shell_call", want: true},
+		{name: "web call", tool: "web_search_call", want: true},
+		{name: "image call", tool: "image_generation_call", want: true},
+		{name: "pending step", tool: "function_call", status: checklist.Pending, want: true},
+		{name: "answer only"},
+		{name: "previous turn worked", older: true},
+		{name: "checklist updated", tool: "function_call", updated: true},
+		{name: "finished checklist", tool: "function_call", status: checklist.Done},
+		{name: "dropped checklist", tool: "function_call", status: checklist.Dropped},
+		{name: "answer to the reminder", tool: "function_call", active: true},
+		{name: "another thread", tool: "function_call", owner: "01a12345-0000-7000-8000-000000000002"},
+		{name: "another turn", tool: "function_call", turn: "other"},
+		{name: "unknown beginning", tool: "function_call", noStart: true},
+		{name: "truncated tail", tool: "function_call", tail: 160},
+		{name: "no checklist", tool: "function_call", missing: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir, _, _ := inPlace(t)
+			t.Setenv(CodexHomeEnv, "/home/u/.codex")
+			began := time.Unix(1700000000, 0).UTC()
+			path := filepath.Join(checklist.Dir(), checklist.ThreadFile(thread))
+			owner := tc.owner
+			if owner == "" {
+				owner = thread
+			}
+			status := tc.status
+			if status == "" {
+				status = checklist.Active
+			}
+			if !tc.missing {
+				writeJSON(t, path, map[string]any{"sessionId": owner, "items": []any{map[string]any{"text": "Fix the hook", "status": status}}})
+				written := began.Add(-time.Minute)
+				if tc.updated {
+					written = began.Add(time.Second)
+				}
+				if err := os.Chtimes(path, written, written); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var records []string
+			add := func(kind string, p map[string]any) {
+				raw, _ := json.Marshal(map[string]any{"timestamp": began.Format(time.RFC3339Nano), "type": kind, "payload": p})
+				records = append(records, string(raw))
+			}
+			if tc.older {
+				add("response_item", map[string]any{"type": "function_call", "name": "exec"})
+			}
+			add("turn_context", map[string]any{"turn_id": "turn"})
+			if !tc.noStart {
+				add("event_msg", map[string]any{"type": "task_started", "turn_id": "turn"})
+			}
+			if tc.tool != "" {
+				add("response_item", map[string]any{"type": tc.tool, "name": "exec", "call_id": "call1"})
+			}
+			add("response_item", map[string]any{"type": "message", "role": "assistant"})
+			rollout := filepath.Join(dir, "rollout.jsonl")
+			writeFile(t, rollout, strings.Join(records, "\n")+"\n")
+			if tc.tail > 0 {
+				transcriptTail = tc.tail
+			}
+			turn := tc.turn
+			if turn == "" {
+				turn = "turn"
+			}
+			payload, _ := json.Marshal(map[string]any{"hook_event_name": "Stop", "session_id": thread,
+				"turn_id": turn, "transcript_path": rollout, "stop_hook_active": tc.active})
+			reply := remindChecklist("Stop", payload, began.Add(time.Minute))
+			if (reply.Block != "") != tc.want || reply.Context != "" {
+				t.Fatalf("reply %+v, want hold %v", reply, tc.want)
+			}
+		})
+	}
+}
+
 func TestTheSharedCasesOfTheChecklistReminder(t *testing.T) {
 	c := readChecklistCases(t)
 	for _, cs := range c.Cases {

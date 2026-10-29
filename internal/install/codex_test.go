@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -177,16 +178,17 @@ func TestTheHooksOfCodexAreWiredAndTrusted(t *testing.T) {
 	if got := commandsOf(t, hooks, "PreToolUse"); !slices.Equal(got, []string{executor + " hook ask-hook"}) {
 		t.Errorf("the relay: %q", got)
 	}
-	if got := commandsOf(t, hooks, "UserPromptSubmit"); !slices.Equal(got, []string{executor + " hook prompt-stamp"}) {
+	if got := commandsOf(t, hooks, "UserPromptSubmit"); !slices.Equal(got, []string{"AACP_HOOK_CODEX_HOME=" + codexHome + " " + executor + " hook prompt-stamp"}) {
 		t.Errorf("the stamp: %q", got)
 	}
-	for e, want := range map[string]string{"Stop": "bash /home/u/atlas-scripts/cost-snapshot/cost-snapshot.sh",
-		"SessionStart": "bash /home/u/atlas-scripts/agent-context/session-context.sh codex"} {
-		if got := commandsOf(t, hooks, e); !slices.Equal(got, []string{want}) {
+	for e, want := range map[string][]string{"Stop": {"bash /home/u/atlas-scripts/cost-snapshot/cost-snapshot.sh",
+		"AACP_HOOK_CODEX_HOME=" + codexHome + " " + executor + " hook checklist-reminder"},
+		"SessionStart": {"bash /home/u/atlas-scripts/agent-context/session-context.sh codex"}} {
+		if got := commandsOf(t, hooks, e); !slices.Equal(got, want) {
 			t.Errorf("the machine's %s: %q", e, got)
 		}
 	}
-	for _, place := range []string{"pre_tool_use:0:0", "user_prompt_submit:0:0"} {
+	for _, place := range []string{"pre_tool_use:0:0", "user_prompt_submit:0:0", "stop:1:0"} {
 		if got, want := trustOf(config, place), hashAt(t, hooks, place); got != want {
 			t.Errorf("%s is trusted as %q, codex reads it as %q:\n%s", place, got, want, config)
 		}
@@ -265,6 +267,32 @@ func TestAPartTakenOffTakesItsTrust(t *testing.T) {
 	}
 }
 
+func TestCodexStopRemindersFollowTheKitAndKeepTheirTrust(t *testing.T) {
+	w := Wiring{Clone: repo, Exec: executor, State: "/srv/panel state", Kit: []string{"relay", "nudge", "background"}}
+	hooks, config, _ := wireCodex(t, atlasCodex, atlasConfig, w)
+	want := []string{"bash /home/u/atlas-scripts/cost-snapshot/cost-snapshot.sh",
+		"AACP_HOOK_CODEX_HOME=/home/u/.codex " + executor + " hook checklist-reminder",
+		"AACP_HOOK_CODEX_HOME=/home/u/.codex AACP_STATE_DIR='/srv/panel state' " + executor + " hook background-reminder"}
+	if got := commandsOf(t, hooks, "Stop"); !slices.Equal(got, want) {
+		t.Fatalf("Stop commands %q, want %q", got, want)
+	}
+	for i, name := range []string{"checklist-reminder", "background-reminder"} {
+		place := "stop:" + strconv.Itoa(i+1) + ":0"
+		if trustOf(config, place) != hashAt(t, hooks, place) || timeoutOf(t, hooks, "Stop", want[i+1]) != "5" {
+			t.Fatalf("%s is not trusted with its timeout", name)
+		}
+	}
+	again, againConfig, changed := wireCodex(t, hooks, config, w)
+	if changed || again != hooks || againConfig != config {
+		t.Fatal("a second wiring changed the Stop hooks or their trust")
+	}
+	w.Kit = []string{"relay"}
+	hooks, config, _ = wireCodex(t, hooks, config, w)
+	if got := commandsOf(t, hooks, "Stop"); !slices.Equal(got, want[:1]) || trustOf(config, "stop:1:0") != "" || trustOf(config, "stop:2:0") != "" {
+		t.Fatalf("unchecked reminders or their trust stayed:\n%s\n%s", hooks, config)
+	}
+}
+
 // A home with neither file gets both: the hooks and the trust of each.
 func TestAFreshHomeGetsTheHooksAndTheirTrust(t *testing.T) {
 	w := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "stamp")}
@@ -308,7 +336,7 @@ func TestTheCodexStepWiresEveryHomeAndTheUndoTakesItOut(t *testing.T) {
 	g.write(codexHooksFile(home), atlasCodex, 0o600)
 	config := strings.ReplaceAll(atlasConfig, codexPath, codexHooksFile(home))
 	g.write(codexConfigFile(home), config, 0o600)
-	srv.Hooks(codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, g.in.S.Has("stamp")))
+	srv.Hooks(codexHookListing(home, g.in.execPath(), g.in.state(), "trusted", true, g.in.S.Has("stamp"), 1))
 	step := g.step("codex")
 	if step == nil {
 		t.Fatal("no step for the hooks of codex")
@@ -399,13 +427,19 @@ func TestTheCodexCheckAsksTheDaemonAboutTrust(t *testing.T) {
 	}
 }
 
-func codexHookListing(home, executor, state, trust string, enabled, stamp bool) map[string]any {
+func codexHookListing(home, executor, state, trust string, enabled, stamp bool, stopGroup ...int) map[string]any {
 	path := codexHooksFile(home)
 	hooks := []any{map[string]any{"key": path + ":pre_tool_use:0:0", "handlerType": "command",
 		"command": executor + " hook ask-hook", "enabled": true, "trustStatus": "trusted"}}
+	group := 0
+	if len(stopGroup) > 0 {
+		group = stopGroup[0]
+	}
+	hooks = append(hooks, map[string]any{"key": path + ":stop:" + strconv.Itoa(group) + ":0", "handlerType": "command",
+		"command": "AACP_HOOK_CODEX_HOME=" + shellQuote(home) + " " + executor + " hook checklist-reminder", "enabled": true, "trustStatus": "trusted"})
 	if stamp && trust != "" {
 		hooks = append(hooks, map[string]any{"key": path + ":user_prompt_submit:0:0", "handlerType": "command",
-			"command": "AACP_STATE_DIR=" + shellQuote(state) + " " + executor + " hook prompt-stamp", "enabled": enabled, "trustStatus": trust})
+			"command": "AACP_HOOK_CODEX_HOME=" + shellQuote(home) + " AACP_STATE_DIR=" + shellQuote(state) + " " + executor + " hook prompt-stamp", "enabled": enabled, "trustStatus": trust})
 	}
 	return map[string]any{"cwd": home, "hooks": hooks, "errors": []any{}, "warnings": []string{}}
 }

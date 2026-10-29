@@ -20,6 +20,7 @@ import (
 
 	"aacpanel/internal/codex"
 	"aacpanel/internal/contours"
+	"aacpanel/internal/hook"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/toolset"
 )
@@ -28,8 +29,8 @@ import (
 
 // codex runs hooks of the person's own from hooks.json in its home, in the
 // shape of claude's settings: events, groups with their matchers, entries.
-// The kit puts there the hooks codex runs as well — the question relay and
-// the stamp before a prompt — in the form it writes for claude, and the file
+// The kit puts there the hooks codex runs as well — the question relay,
+// the stamp before a prompt and the Stop reminders — and the file
 // is wired as claude's settings are: an entry of the panel's in a former form
 // is rewritten where it stands, a retired one goes, the person's stay.
 //
@@ -180,7 +181,11 @@ func WireCodex(hooks, config []byte, path string, w Wiring) (hooksOut, configOut
 			switch {
 			case !h.Codex:
 			case w.has(h.Part):
-				changed = ensureHook(o, h, w.command(h)) || changed
+				command := w.command(h)
+				if hook.HeldEvent(h.Hook) != "" {
+					command = hook.CodexHomeEnv + "=" + shellQuote(filepath.Dir(path)) + " " + command
+				}
+				changed = ensureHook(o, h, command) || changed
 			default:
 				changed = dropHook(o, h) || changed
 			}
@@ -981,9 +986,9 @@ func (in *Install) codexWired(home string) bool {
 }
 
 // CheckCodexHooks verifies the installed entries with the daemon's own
-// discovery and trust calculation. The relay is compulsory; the stamp is
-// checked when installed, since its part of the kit is optional. The same
-// check serves the installer and codex-contract, so a changed trust formula
+// discovery and trust calculation. The relay is compulsory; optional hooks
+// are checked when installed. The same check serves the installer and
+// codex-contract, so a changed trust formula
 // cannot pass by agreeing with another copy of the installer's calculation.
 func CheckCodexHooks(ctx context.Context, program, home string, hooks []byte) (string, error) {
 	o, err := parseSettings(hooks)

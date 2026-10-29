@@ -54,7 +54,11 @@ func stampPrompt(_ string, payload []byte, now time.Time) Reply {
 	g := capOf(fields)
 	dir := hostcfg.Load().StateDir
 	state := readState(filepath.Join(dir, "state.json"))
-	lines := stampLines(state, id, os.Getenv("CLAUDE_CONFIG_DIR"), g, now)
+	limits := lineLimits(state, os.Getenv("CLAUDE_CONFIG_DIR"))
+	if home, codex := codexHome(state, fields); codex {
+		limits = lineCodexLimits(state, home)
+	}
+	lines := stampLines(state, id, limits, g, now)
 	// The role belongs to the main conversation. A payload naming a subagent
 	// must not mark it as told: that would keep it from the one it is for.
 	role := ""
@@ -159,7 +163,7 @@ func loose(raw json.RawMessage) any {
 }
 
 // stampLines are the lines of the stamp, top to bottom.
-func stampLines(state map[string]any, id, configDir string, g action.Guard, now time.Time) []string {
+func stampLines(state map[string]any, id, limits string, g action.Guard, now time.Time) []string {
 	lines := []string{now.Format(stampDate)}
 	if state == nil {
 		lines = append(lines, "The host snapshot is unavailable: the aacpanel collector writes no state")
@@ -167,7 +171,7 @@ func stampLines(state map[string]any, id, configDir string, g action.Guard, now 
 	}
 	at, _ := number(state["at"])
 	age := seconds(now) - at
-	for _, line := range []string{lineContext(state, id, g), lineLimits(state, configDir), lineResources(state),
+	for _, line := range []string{lineContext(state, id, g), limits, lineResources(state),
 		lineDisks(state), lineAlarms(state, id, g)} {
 		if line != "" {
 			lines = append(lines, line)
@@ -254,6 +258,81 @@ func lineLimits(state map[string]any, configDir string) string {
 		said += " (the snapshot is " + whole(age/60) + " min old)"
 	}
 	return said
+}
+
+// codexHome first trusts the thread's row, then the installed hook's home.
+// turn_id is a codex extension shared by its prompt and Stop payloads; it
+// also identifies hooks installed before the home was added to their command.
+func codexHome(state, payload map[string]any) (string, bool) {
+	id, _ := payload["session_id"].(string)
+	row := sessionOf(state, id)
+	home, _ := row["codexHome"].(string)
+	installed := os.Getenv(CodexHomeEnv)
+	turn, _ := payload["turn_id"].(string)
+	if row["agent"] != "codex" && installed == "" && turn == "" {
+		return "", false
+	}
+	if home == "" {
+		home = installed
+	}
+	if home == "" {
+		home = os.Getenv("CODEX_HOME")
+	}
+	if home == "" {
+		owner, _ := os.UserHomeDir()
+		home = filepath.Join(owner, ".codex")
+	}
+	return filepath.Clean(home), true
+}
+
+func lineCodexLimits(state map[string]any, home string) string {
+	limits := object(state["limits"])
+	rows := []any{limits}
+	if contours, ok := limits["contours"].([]any); ok && len(contours) > 0 {
+		rows = contours
+	}
+	for _, value := range rows {
+		row := object(object(value)["codex"])
+		got, _ := row["codexHome"].(string)
+		if got == "" || filepath.Clean(got) != home {
+			continue
+		}
+		var parts []string
+		for _, value := range list(row["windows"]) {
+			w := object(value)
+			if w["pct"] == nil {
+				continue
+			}
+			label := "window"
+			if mins, ok := number(w["windowMins"]); ok && mins > 0 {
+				switch {
+				case mins == 7*24*60:
+					label = "week"
+				case math.Mod(mins, 60) == 0:
+					label = whole(mins/60) + "h"
+				default:
+					label = whole(mins) + "m"
+				}
+			}
+			parts = append(parts, label+" "+pyStr(w["pct"])+"%")
+		}
+		if len(parts) == 0 {
+			for _, w := range []struct{ key, label string }{{"fiveHour", "5h"}, {"sevenDay", "week"}} {
+				if pct := object(row[w.key])["pct"]; pct != nil {
+					parts = append(parts, w.label+" "+pyStr(pct)+"%")
+				}
+			}
+		}
+		if len(parts) == 0 {
+			return ""
+		}
+		said := "Limits:   " + strings.Join(parts, " · ")
+		if age, ok := number(row["ageSec"]); ok && age > staleSec {
+			said += " (the snapshot is " + whole(age/60) + " min old)"
+		}
+		return said
+	}
+	return ""
 }
 
 // lineResources is the load of the machine. The temperature stands in

@@ -204,7 +204,7 @@ class Rows(Runtime):
         self.follow()
         self.assertEqual(ctx.codex_sessions(), [{
             "session": "codex-0000abcd", "sessionId": THREAD, "cwd": "/home/u/Projects/demo",
-            "profile": "work", "agent": "codex", "transport": "stream",
+            "profile": "work", "agent": "codex", "transport": "stream", "codexHome": self.home,
             "model": "gpt-6-astra", "effort": "xhigh", "startedAt": "2026-10-09T12:00:00Z",
             "tokens": 42000, "limit": 258400, "pct": 16.3, "limitKnown": True,
             "lastRequestAt": "2026-10-09T12:00:00.000Z", "status": "idle",

@@ -76,7 +76,58 @@ func remindBackground(_ string, payload []byte, now time.Time) Reply {
 	if json.Unmarshal(payload, &p) != nil {
 		return Reply{}
 	}
+	if fields, ok := p.(map[string]any); ok {
+		if _, codex := codexHome(nil, fields); codex {
+			return remindCodexBackground(fields, now)
+		}
+	}
 	return Reply{Context: remind(p, now, marksDir())}
+}
+
+// The collector knows the count of a thread's terminals, not their identities
+// or start times. The mark measures how long terminals have stayed present
+// across observed stops; it makes no claim about any one process's age.
+func remindCodexBackground(p map[string]any, now time.Time) Reply {
+	if p["hook_event_name"] != "Stop" || truthy(p["stop_hook_active"]) {
+		return Reply{}
+	}
+	id, _ := p["session_id"].(string)
+	if id == "" || notSession.MatchString(id) {
+		return Reply{}
+	}
+	state := readState(filepath.Join(hostcfg.Load().StateDir, "state.json"))
+	at, ok := number(state["at"])
+	row := sessionOf(state, id)
+	if !ok || seconds(now)-at > staleSec || row["agent"] != "codex" {
+		return Reply{}
+	}
+	path := filepath.Join(marksDir(), id+".json")
+	count, _ := number(row["processes"])
+	if count <= 0 {
+		_ = os.Remove(path)
+		return Reply{}
+	}
+	stamp := seconds(now)
+	marks := loadMarks(path)
+	m, seen := marks["terminals"]
+	if !seen {
+		m.First = stamp
+	}
+	age := stamp - m.First
+	due := age >= firstRemind && stamp-m.Reminded >= repeatRemind
+	if due {
+		m.Reminded = stamp
+	}
+	if !saveMarks(path, map[string]mark{"terminals": m}, now) || !due {
+		return Reply{}
+	}
+	// Codex's Stop output accepts a block with a reason, but no additional
+	// context. stop_hook_active keeps the answering round from being held.
+	return Reply{Block: fmt.Sprintf("This thread has had background terminals at successive stops for %d min; "+
+		"the latest host snapshot lists %s. Review them with the terminal tools and stop those whose job is done "+
+		"or which are no longer needed. If they are still needed, end the turn without a word about this. "+
+		"This reminder names no individual process and asks at most once in %d hours.",
+		int(math.Floor(age/60)), whole(count), int(repeatRemind/3600))}
 }
 
 // mark is when a task was first seen and last named, in seconds of the Unix
