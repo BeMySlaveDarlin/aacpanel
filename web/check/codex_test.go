@@ -238,7 +238,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 
 	// The session panel: where it lives, its id, the stop of its turn and the
 	// close.
-	if strings.Join(got.Panel, ",") != "With codex,MCP servers,Skills,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
+	if strings.Join(got.Panel, ",") != "With codex,MCP servers,Skills,Role…,Session messages…,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
 		t.Errorf("the session panel of a codex thread lists %v", got.Panel)
 	}
 	if got.PanelStopOff == nil || *got.PanelStopOff || strings.Join(got.StopSent, ",") != name {
@@ -339,7 +339,7 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if strings.Join(got.Attach, ",") != "Camera,Photos,Files" {
 		t.Errorf("the paperclip of a codex thread opens %v, expected where files come from, as claude's does", got.Attach)
 	}
-	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,MCP servers,Skills,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
+	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,MCP servers,Skills,Role…,Session messages…,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
 		t.Errorf("the tools of a codex thread list %v", got.Tools)
 	}
 	if got.Close == nil || got.Close.Off {

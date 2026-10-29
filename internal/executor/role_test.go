@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/codex"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/role"
@@ -100,16 +101,43 @@ func TestARenamedSessionTakesItsRoleAlong(t *testing.T) {
 	}
 }
 
-// A role session_open gives a session of a project whose agent is codex is
-// refused before a thread starts: a role is kept for claude.
-func TestARoleIsNotGivenToANewThreadOfCodex(t *testing.T) {
-	srv, e, p := onCodexContour(t)
-	p.Role = &action.OpenRole{Text: "the db split", Opener: "lead"}
-	if _, _, err := open(t, e, p, `{"agent":"codex"}`); err == nil || !strings.Contains(err.Error(), "role") {
-		t.Errorf("a role went with a thread of codex: %v", err)
+func TestARoleIsGivenToANewThreadOfCodex(t *testing.T) {
+	for _, text := range []string{"the db split", ""} {
+		t.Run(text, func(t *testing.T) {
+			_, e, p := onCodexContour(t)
+			p.Role = &action.OpenRole{Text: text, Opener: "lead"}
+			_, name, err := open(t, e, p, `{"agent":"codex"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			th := e.codex.Find(name)[0]
+			place := mcp.Place{ConfigDir: th.Link.Home(), Dir: p.Path}
+			got := role.Read(role.Dir(), place, name)
+			if text == "" {
+				if got != nil {
+					t.Fatalf("an empty role was kept: %+v", got)
+				}
+			} else if got == nil || got.Role != text || got.By != role.ByOpener("lead") {
+				t.Fatalf("the role given by the opener is %+v", got)
+			}
+		})
 	}
-	if n := len(srv.Calls("thread/start")); n != 0 {
-		t.Errorf("a refused New started %d threads", n)
+}
+
+func TestTheRoleOfACodexThreadUsesItsHomeDirectoryAndName(t *testing.T) {
+	srv, e := onCodex(t, nil)
+	place := mcp.Place{ConfigDir: srv.Home, Dir: "/srv/proj"}
+	for _, text := range []string{" the db split ", ""} {
+		if _, err := e.Execute(t.Context(), roleReq(codexName, text)); err != nil {
+			t.Fatal(err)
+		}
+		got := role.Read(role.Dir(), place, codexName)
+		if text == "" && got != nil || text != "" && (got == nil || got.Role != strings.TrimSpace(text) || got.By != role.ByPerson) {
+			t.Fatalf("the thread's role is %+v", got)
+		}
+	}
+	if role.Read(role.Dir(), place, codex.SessionName(streamSID)) != nil || len(srv.Calls("turn/start")) != 0 {
+		t.Fatal("setting the role wrote to another name or sent it as a message")
 	}
 }
 

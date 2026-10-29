@@ -22,8 +22,10 @@ import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
 import { LOOK_NAMES } from "./look.js";
 import { AgentsChip, HeldChip } from "./work.js";
 import { McpSheet } from "./mcp.js";
+import { RoleSheet, roleWhy } from "./role.js";
+import { IntentSheet, intentWhy } from "./intent.js";
 import { SetupSheet } from "./setup.js";
-import { codexResumeOf, copyResume, DetachLine, IdLine, ParentLine, PlaceLine, ToolRow } from "./sessiontools.js";
+import { codexResumeOf, copyResume, DetachLine, IdLine, ParentLine, PlaceLine, ROLE_NONE, ToolRow } from "./sessiontools.js";
 import { outsideNote } from "../sessions/kin.js";
 import { useTermAvailable } from "./term.js";
 
@@ -44,6 +46,8 @@ const PLACE = {
 // MCP servers, skills and background processes.
 const OWN_LOOKS = {
     mcp: LOOK_NAMES.mcp,
+    role: LOOK_NAMES.role,
+    intent: LOOK_NAMES.intent,
     skills: "skills",
     processes: "background processes",
 };
@@ -77,9 +81,13 @@ export function CodexChat(props) {
         strip: ({ wide }) => html`<${CodexStrip} wide=${wide} exec=${exec} live=${live} pct=${pct} now=${pick.now}
                                                   open=${open} onOpen=${setOpen} onCompact=${compact}
                                                   catalog=${catalog} set=${pick.set} cwd=${cwd} />`,
-        look: (look) => {
+        look: (look, { setLook }) => {
             if (!OWN_LOOKS[look.kind]) return null;
-            const node = look.kind === "mcp"
+            const node = look.kind === "role"
+                ? html`<${RoleSheet} name=${name} live=${live} exec=${exec} onDone=${() => setLook(null)} />`
+                : look.kind === "intent"
+                ? html`<${IntentSheet} name=${name} exec=${exec} onDone=${() => setLook(null)} />`
+                : look.kind === "mcp"
                 ? html`<${McpSheet} name=${name} exec=${exec} />`
                 : look.kind === "skills"
                 ? html`<${SetupSheet} name=${name} part="skills"
@@ -155,6 +163,10 @@ export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
         <section class="toolsec">
             <div class="cmdsechead"><span>Session</span></div>
             <ul class="mcplist toollist">
+                <${ToolRow} icon=${Icon.badge} label="Role…" note=${live.role || ROLE_NONE} clamp off=${roleWhy(exec)}
+                            onPress=${() => { onDone(); onLook("role"); }} />
+                <${ToolRow} icon=${Icon.pencil} label="Session messages…" note="the first message and the message after a restart"
+                            off=${intentWhy(exec)} onPress=${() => { onDone(); onLook("intent"); }} />
                 <${IdLine} id=${live.sessionId || ""} />
                 ${resumeLine}
                 <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />

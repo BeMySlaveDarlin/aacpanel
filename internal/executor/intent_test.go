@@ -8,6 +8,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/mcp"
 	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/stream"
 )
@@ -144,5 +145,34 @@ func TestOpeningAndResumingSelectTheFirstMessage(t *testing.T) {
 		if spec.IntentKey != "intent" {
 			t.Errorf("%s selected %q", kind, spec.IntentKey)
 		}
+	}
+}
+
+func TestCodexSessionMessagesUseTheThreadsPlace(t *testing.T) {
+	srv, e := onCodex(t, nil)
+	place := mcp.Place{ConfigDir: srv.Home, Dir: "/srv/proj"}
+	r := req(action.SessionIntent, codexName)
+	r.Intents = sessionintent.Values{sessionintent.First: "Read the queue", sessionintent.Restart: "Continue the split"}
+	if _, err := e.Execute(t.Context(), r); err != nil {
+		t.Fatal(err)
+	}
+	values, err := sessionintent.Read(sessionintent.Dir(), place, codexName)
+	if err != nil || values[sessionintent.First] != "Read the queue" || values[sessionintent.Restart] != "Continue the split" {
+		t.Fatalf("the saved messages: %v, %v", values, err)
+	}
+	got, err := e.Intents(t.Context(), codexName)
+	if err != nil || got[sessionintent.Restart] != values[sessionintent.Restart] {
+		t.Fatalf("the sheet reads %v, %v", got, err)
+	}
+	r.Intents = sessionintent.Values{sessionintent.Restart: ""}
+	if _, err := e.Execute(t.Context(), r); err != nil {
+		t.Fatal(err)
+	}
+	got, err = e.Intents(t.Context(), codexName)
+	if err != nil || got[sessionintent.First] != "Read the queue" || got[sessionintent.Restart] != "" {
+		t.Fatalf("clearing one message lost the other: %v, %v", got, err)
+	}
+	if len(srv.Calls("turn/start")) != 0 {
+		t.Fatal("saving messages sent them into the conversation")
 	}
 }

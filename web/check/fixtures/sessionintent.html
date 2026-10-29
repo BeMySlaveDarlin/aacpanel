@@ -11,6 +11,7 @@ import { SessionColumn } from "/src/desktop/sessions.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { whyNot } from "/src/exec.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const wide = innerWidth > 1000;
@@ -42,12 +43,12 @@ window.EventSource = class { constructor() { this.readyState = 1; } addEventList
 const live = { session: "shop", sessionId: "s1", cwd: "/srv/shop", contour: 4, transport: "stream", status: "idle", pct: 20 };
 const exec = { available: true, kinds: ["session.intent", "session.role", "session.rename", "session.restart", "session.close", "session.send", "session.switch"] };
 const snapshot = { at: 1, sessions: [live], profileMap: [{ id: 4, profile: "Work", name: "Work", groups: [] }] };
-const component = wide
+const component = () => wide
     ? h("div", { class: "deskshell" }, h("div", { class: "dkbody" }, h(SessionColumn, {
         snapshot, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec,
     })))
     : h(Chat, { name: live.session, id: live.sessionId, live, exec, snapshot, onBack() {}, onUsage() {} });
-render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component))), document.getElementById("app"));
+render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component()))), document.getElementById("app"));
 const text = (el) => el?.textContent.replace(/\s+/g, " ").trim() || "";
 const until = async (condition, label) => {
     const end = performance.now() + 4000;
@@ -57,7 +58,7 @@ const until = async (condition, label) => {
 const sheet = () => document.querySelector(".sheet.on .intentsheet");
 const field = (key) => sheet().querySelector(`#session-${key}`);
 const save = () => sheet().querySelector(".btn.primary");
-const open = async () => {
+const open = async (label = "Session messages…") => {
     await quiet();
     if (wide) {
         document.querySelector(".dksess.dklive").dispatchEvent(new MouseEvent("contextmenu", {
@@ -67,9 +68,9 @@ const open = async () => {
         document.querySelector(".pmore").click();
     }
     const selector = wide ? ".ctxmenu .pkname" : ".sheet.on .toollabel";
-    await until(() => [...document.querySelectorAll(selector)].some((el) => text(el) === "Session messages…"), "the message menu");
+    await until(() => [...document.querySelectorAll(selector)].some((el) => text(el) === label), "the message menu");
     const labels = [...document.querySelectorAll(selector)].map(text);
-    [...document.querySelectorAll(selector)].find((el) => text(el) === "Session messages…").closest("button").click();
+    [...document.querySelectorAll(selector)].find((el) => text(el) === label).closest("button").click();
     await until(() => sheet() && (sheet().querySelector("textarea") || sheet().querySelector(".stpwarn")), "the messages sheet");
     return labels;
 };
@@ -108,6 +109,54 @@ window.done = (async () => {
     out.errorOff = save().disabled;
     out.sent = sent.map((a) => `${a.kind}:${a.target}:${JSON.stringify(a.params)}`);
     out.confirmation = Boolean(document.querySelector(".confirm"));
+    render(null, document.getElementById("app"));
+    live.agent = "codex";
+    live.session = "codex-0000abcd";
+    live.sessionId = "019a1f00-0000-7000-8000-00000000abcd";
+    live.role = "the db split";
+    reject = false;
+    const firstCall = sent.length;
+    render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component()))), document.getElementById("app"));
+    out.codex = { labels: await open() };
+    await type("restartIntent", "After the split");
+    save().click();
+    await until(() => sent.length === firstCall + 1 && !sheet(), "the thread's message saved");
+    // Opening the role uses the same entry point, but its sheet has no intent fields.
+    const roleOpen = async () => {
+        await quiet();
+        if (wide) document.querySelector(".dksess.dklive").dispatchEvent(new MouseEvent("contextmenu", {
+            bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
+        }));
+        else document.querySelector(".pmore").click();
+        const selector = wide ? ".ctxmenu .pkname" : ".sheet.on .toollabel";
+        await until(() => [...document.querySelectorAll(selector)].some((el) => text(el) === "Role…"), "the role entry");
+        [...document.querySelectorAll(selector)].find((el) => text(el) === "Role…").closest("button").click();
+        await until(() => document.querySelector('.sheet.on textarea[aria-label="the role of the session"]'), "the role sheet");
+    };
+    await roleOpen();
+    const roleField = document.querySelector('.sheet.on textarea[aria-label="the role of the session"]');
+    out.codex.role = roleField.value;
+    roleField.value = "the schema review";
+    roleField.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+    document.querySelector(".sheet.on .btn.primary").click();
+    await until(() => sent.length === firstCall + 2, "the thread's role saved");
+    out.codex.sent = sent.slice(firstCall).map((a) => `${a.kind}:${a.target}:${JSON.stringify(a.params)}`);
+    render(null, document.getElementById("app"));
+    exec.kinds = exec.kinds.filter((kind) => !["session.role", "session.intent"].includes(kind));
+    render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component()))), document.getElementById("app"));
+    await quiet();
+    if (wide) document.querySelector(".dksess.dklive").dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
+    }));
+    else document.querySelector(".pmore").click();
+    const selector = wide ? ".ctxmenu .pkname" : ".sheet.on .toollabel";
+    await until(() => [...document.querySelectorAll(selector)].some((el) => text(el) === "Role…"), "the unavailable entries");
+    out.codex.unavailable = [["Role…", "session.role"], ["Session messages…", "session.intent"]].every(([label, kind]) => {
+        const button = [...document.querySelectorAll(selector)].find((el) => text(el) === label)?.closest("button");
+        const reason = wide ? button?.dataset.tip : text(button?.querySelector(".why"));
+        return button && (wide ? button.getAttribute("aria-disabled") === "true" : button.disabled) && reason === whyNot(exec, kind);
+    });
     return out;
 })();
 </script>

@@ -28,16 +28,12 @@ const helperCycle = " Open with agent codex, then send the task with send_to_ses
 	"as a letter after every turn, including failure or interruption. Reply by letter to continue with the same " +
 	"agent; session_close with its name closes it."
 
-// OpenDescription is the tool's own word to the model; a thread of codex
-// reads it without the role.
-const (
-	OpenDescription      = openDescription + openRole + helperCycle
-	codexOpenDescription = openDescription + helperCycle
-)
+// OpenDescription is the tool's own word to the model.
+const OpenDescription = openDescription + openRole + helperCycle
 
 // openRole says what the role of the session opened is: its word about which
 // work of the repository is its, told to it before its first word.
-const openRole = " role, at most 500 characters, is told to the Claude session as its role in its project."
+const openRole = " role, at most 500 characters, is told to the session as its role in its project."
 
 const openDescription = "Opens only on the person's request: another session spends its account's limits. " +
 	"Give absolute dir in a mapped project or its worktree; outside the map it is not opened. Optional name " +
@@ -71,25 +67,20 @@ func Open(h Host) mcp.Tool {
 		InputSchema:  openSchema(),
 		Instructions: OpenInstructions,
 		Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
-			return open(ctx, h, bind, args, true)
+			return open(ctx, h, bind, args)
 		},
 	}
 }
 
 // A Codex server is shared by a daemon: a call without a proven thread may
-// not open a helper on behalf of an unknown conversation. A thread of codex
-// gives no role: the role is a claude session's word about the one it opens.
+// not open a helper on behalf of an unknown conversation.
 func CodexOpen(h Host) mcp.Tool {
 	t := Open(h)
-	t.Description = codexOpenDescription
-	schema := openSchema()
-	delete(schema["properties"].(map[string]any), "role")
-	t.InputSchema = schema
 	t.Call = func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 		if _, err := bind(); err != nil {
 			return "Nothing was opened: " + err.Error(), true
 		}
-		return open(ctx, h, bind, args, false)
+		return open(ctx, h, bind, args)
 	}
 	return t
 }
@@ -110,7 +101,7 @@ func openSchema() map[string]any {
 			"resume": map[string]any{"type": "string",
 				"description": "The id of a closed Claude conversation to go on with instead of a new one. No agent or Codex options with it."},
 			"role": map[string]any{"type": "string", "maxLength": role.MaxText,
-				"description": "The role of the new Claude session in its project: which work of the repository is its. " +
+				"description": "The role of the new session in its project: which work of the repository is its. " +
 					"Left out, a session keeps the role its name has; empty, it clears it."},
 			"agent": map[string]any{"type": "string", "enum": []string{schema.AgentClaude, schema.AgentCodex},
 				"description": "The agent to start: claude or codex. Left out, the project's agent from the map. codex starts only where the project's account has a codex home on this machine."},
@@ -124,9 +115,8 @@ func openSchema() map[string]any {
 	}
 }
 
-// open asks the panel to open or resume a session; roles says the caller may
-// give the session a role, which only a claude session does.
-func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage, roles bool) (string, bool) {
+// open asks the panel to open or resume a session.
+func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
 		Dir    string  `json:"dir"`
 		Name   string  `json:"name"`
@@ -147,12 +137,7 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage, roles
 	}
 	if args.Role != nil {
 		text, err := role.Clean(*args.Role)
-		switch {
-		case !roles:
-			return "Nothing was opened: a role is given by a Claude session, not by a thread of codex.", true
-		case args.Agent == schema.AgentCodex:
-			return "Nothing was opened: a role is kept for a Claude session, and agent codex starts codex.", true
-		case err != nil:
+		if err != nil {
 			return "Nothing was opened: " + err.Error() + ".", true
 		}
 		args.Role = &text

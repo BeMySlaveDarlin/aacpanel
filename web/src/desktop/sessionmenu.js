@@ -120,6 +120,14 @@ function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting }) {
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
         [detachItem(s, exec, run), parentItem(s, snapshot, exec, sheet), pinItem(s, snapshot, exec, run, wait)],
+        [
+            html`<${MenuItem} key="role" label="Role…" off=${roleWhy(exec)}
+                onPick=${() => sheet(LOOK_NAMES.role, (close) => html`
+                    <${RoleSheet} name=${s.session} live=${s} exec=${exec} onDone=${close} />`)} />`,
+            html`<${MenuItem} key="intent" label="Session messages…" off=${intentWhy(exec)}
+                onPick=${() => sheet(LOOK_NAMES.intent, (close) => html`
+                    <${IntentSheet} name=${s.session} exec=${exec} onDone=${close} />`)} />`,
+        ],
         copies(s, toast, snapshot),
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}

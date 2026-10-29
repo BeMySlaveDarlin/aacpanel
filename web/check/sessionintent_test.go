@@ -49,3 +49,37 @@ func TestSessionMessageSheetOnPhoneAndDesktop(t *testing.T) {
 		})
 	}
 }
+
+func TestCodexRoleAndMessageSheetsOnPhoneAndDesktop(t *testing.T) {
+	for _, wide := range []bool{false, true} {
+		name := "phone"
+		if wide {
+			name = "desktop"
+		}
+		t.Run(name, func(t *testing.T) {
+			var got struct {
+				Codex struct {
+					Labels, Sent []string
+					Role         string
+					Unavailable  bool
+				}
+			}
+			if wide {
+				runWideFixture(t, "sessionintent.html", &got)
+			} else {
+				runFixture(t, "sessionintent.html", &got)
+			}
+			at := slices.Index(got.Codex.Labels, "Session messages…")
+			if at < 1 || got.Codex.Labels[at-1] != "Role…" {
+				t.Fatalf("the thread's identity entries: %v", got.Codex.Labels)
+			}
+			want := []string{
+				`session.intent:codex-0000abcd:{"restartIntent":"After the split"}`,
+				`session.role:codex-0000abcd:{"role":"the schema review"}`,
+			}
+			if got.Codex.Role != "the db split" || !got.Codex.Unavailable || !slices.Equal(got.Codex.Sent, want) {
+				t.Fatalf("the thread's sheets: %+v", got.Codex)
+			}
+		})
+	}
+}

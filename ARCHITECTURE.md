@@ -875,6 +875,15 @@ with network on, or explicit `read-only`; extra absolute writable roots are
 supplied by the caller, not inferred from the host. These choices affect one
 start and leave the map intact.
 
+**Roles and session messages use the Codex home's directory, the thread's
+repository and its panel session name.** `session.role` and the thread-bound
+`role` tool keep the same role that `session_open(role=…)` gives a new thread;
+the collector carries it to the prompt stamp, which tells the main conversation
+once and again after a change or compaction. `session.intent` keeps the first
+message and the message after a restart in the same place as Claude's overrides.
+A restart changes the panel name to the new thread ID's tail, so the role and
+both messages move from the old name to the replacement's name.
+
 **`session_restart` replaces a Codex thread in the same place in the session
 tree.** The replacement starts with an empty conversation in the old thread's
 directory, including a worktree, on the same home's daemon and held by the
@@ -893,9 +902,10 @@ configuration follow the rules of `session_open`, and the panel's tools are
 installed at the new start. The link does not retain extra writable roots:
 the replacement uses roots supplied with the launch, or the Codex home's
 defaults, and the action reports this limitation. Its first message is the
-restart's `intent`, otherwise the map's `restartIntent`; `clean` suppresses
-both. Without a message it waits. A restart takes no `resume`, and a thread
-running in tmux must be restarted from the Codex terminal.
+restart's `intent`, otherwise the saved session message after a restart, then
+the map's `restartIntent`; `clean` suppresses them all. Without a message it
+waits. A restart takes no `resume`, and a thread running in tmux must be
+restarted from the Codex terminal.
 
 The old thread stays open until the replacement starts and accepts its first
 message. Failure leaves it and its children alone and releases an incomplete

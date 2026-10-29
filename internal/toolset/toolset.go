@@ -75,6 +75,7 @@ func Server(bind mcp.Bind) *mcp.Server {
 func codexTools() []mcp.Tool {
 	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
+		role.Tool(role.Dir(), time.Now),
 		collector.CodexBriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),

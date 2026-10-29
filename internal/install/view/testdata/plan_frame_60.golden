@@ -22,7 +22,7 @@
 │ In codex settings — ~/.codex/hooks.json,                 │
 │ ~/.codex/config.toml                                     │
 │   · question hook · MCP server                           │
-│   · 3 hooks, trusted · 14 tools approved                 │
+│   · 3 hooks, trusted · 15 tools approved                 │
 │ Values                                                   │
 │   host lab (hostname) · home session lab (host name)     │
 │   state /var/lib/aacpanel (recommended) · projects under │

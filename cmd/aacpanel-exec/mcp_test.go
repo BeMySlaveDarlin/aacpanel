@@ -254,8 +254,8 @@ func fakeCodex(t *testing.T, proc, home string, pid int, threads ...string) {
 
 // The server under codex serves one codex thread a call: the one the call
 // names in its _meta, held by the codex that started the server. It offers the
-// tools of a thread — the restart and the new session are not among them — a
-// letter goes from that thread, with the home of its codex and the directory
+// tools of a thread; a letter goes from that thread, with its Codex home and
+// the directory
 // codex started the server in, and a checklist is kept as the thread's; a
 // call that names no thread, or one the codex does not hold, sends nothing and
 // keeps nothing.
@@ -305,7 +305,7 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	for _, tool := range tools {
 		offered = append(offered, tool.(map[string]any)["name"].(string))
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(offered, want) {
 		t.Errorf("codex was offered %v", offered)

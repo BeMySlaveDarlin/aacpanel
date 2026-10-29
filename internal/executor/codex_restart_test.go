@@ -3,11 +3,18 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/mcp"
+	"aacpanel/internal/role"
+	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/stream"
 )
 
@@ -224,5 +231,109 @@ func TestACodexRestartFallsBackToTheMapForUnknownSettings(t *testing.T) {
 	if got["cwd"] != "/srv/proj" || got["model"] != "gpt-test" || got["sandbox"] != "read-only" ||
 		got["approvalPolicy"] != "untrusted" || config["model_reasoning_effort"] != "high" {
 		t.Fatalf("unknown settings did not fall back to the map: %v", got)
+	}
+}
+
+func TestACodexRestartMovesItsRoleAndMessagesAndSelectsTheFirstWords(t *testing.T) {
+	for _, tc := range []struct {
+		name, text, saved, want string
+		clean                   bool
+	}{
+		{"saved before map", "", "Read the saved handoff", "Read the saved handoff", false},
+		{"caller before saved", "The next step", "Read the saved handoff", "The next step", false},
+		{"map without override", "", "", "Read the map handoff", false},
+		{"clean", "The next step", "Read the saved handoff", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, e, p := onCodexContour(t)
+			newTmuxStub(t, nil, "")
+			_, name, err := open(t, e, p, `{"agent":"codex"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := e.codex.Find(name)[0]
+			place := mcp.Place{ConfigDir: old.Link.Home(), Dir: p.Path}
+			if _, err := role.Keep(role.Dir(), place, name, "the db split", role.ByOpener("lead"), time.Now()); err != nil {
+				t.Fatal(err)
+			}
+			values := sessionintent.Values{sessionintent.First: "Read the queue", sessionintent.Restart: tc.saved}
+			if err := sessionintent.Keep(sessionintent.Dir(), place, name, values); err != nil {
+				t.Fatal(err)
+			}
+			// Neither the map's directory nor its Claude home is the thread's key.
+			p.Path, p.ConfigDir = t.TempDir(), "/another/claude/home"
+			p.Launch = json.RawMessage(`{"agent":"codex","intent":"Read the map handoff"}`)
+			if _, err := e.Execute(t.Context(), action.Request{Kind: action.SessionRestart, Target: name, Project: p, Text: tc.text, Clean: tc.clean}); err != nil {
+				t.Fatal(err)
+			}
+			starts := srv.Calls("thread/start")
+			if len(starts) != 2 {
+				t.Fatalf("restart started %d threads", len(starts))
+			}
+			// The fake daemon numbers new threads in start order.
+			newName := "codex-beef0002"
+			got := role.Read(role.Dir(), place, newName)
+			if got == nil || got.Role != "the db split" || got.By != role.ByOpener("lead") || role.Read(role.Dir(), place, name) != nil {
+				t.Fatalf("the role did not move from %s to %s: %+v", name, newName, got)
+			}
+			moved, err := sessionintent.Read(sessionintent.Dir(), place, newName)
+			if err != nil || moved[sessionintent.First] != values[sessionintent.First] || moved[sessionintent.Restart] != tc.saved {
+				t.Fatalf("the messages did not move: %v, %v", moved, err)
+			}
+			left, err := sessionintent.Read(sessionintent.Dir(), place, name)
+			if err != nil || len(left) != 0 {
+				t.Fatalf("the old name kept messages: %v, %v", left, err)
+			}
+			turns := srv.Calls("turn/start")
+			if tc.want == "" {
+				if len(turns) != 0 {
+					t.Fatalf("a clean restart sent a message: %s", turns)
+				}
+			} else if len(turns) != 1 || !strings.Contains(string(turns[0]), tc.want) {
+				t.Fatalf("the restart did not send %q: %s", tc.want, turns)
+			}
+		})
+	}
+}
+
+func TestACodexRestartReadsSavedMessagesOnlyWhenTheyChooseItsFirstWords(t *testing.T) {
+	for _, tc := range []struct {
+		text  string
+		clean bool
+	}{{"The next step", false}, {"", true}, {"", false}} {
+		t.Run(fmt.Sprintf("text=%s/clean=%v", tc.text, tc.clean), func(t *testing.T) {
+			srv, e, p := onCodexContour(t)
+			newTmuxStub(t, nil, "")
+			_, name, err := open(t, e, p, `{"agent":"codex"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			th := e.codex.Find(name)[0]
+			place := mcp.Place{ConfigDir: th.Link.Home(), Dir: p.Path}
+			if err := sessionintent.Keep(sessionintent.Dir(), place, name, sessionintent.Values{sessionintent.Restart: "saved"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(sessionintent.Dir(), role.File(place, name)), []byte("{"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			detail, err := e.Execute(t.Context(), action.Request{Kind: action.SessionRestart, Target: name, Project: p, Text: tc.text, Clean: tc.clean})
+			if tc.text == "" && !tc.clean {
+				if err == nil || len(srv.Calls("thread/start")) != 1 {
+					t.Fatalf("unreadable messages silently changed the restart: %s, %v", detail, err)
+				}
+				return
+			}
+			if err != nil || !strings.Contains(detail, "messages stayed under the old name") {
+				t.Fatalf("an unused override blocked the restart or its failed move was hidden: %s, %v", detail, err)
+			}
+			turns := srv.Calls("turn/start")
+			if tc.clean {
+				if len(turns) != 0 {
+					t.Fatalf("a clean restart sent %s", turns)
+				}
+			} else if len(turns) != 1 || !strings.Contains(string(turns[0]), tc.text) {
+				t.Fatalf("the caller's text was lost: %s", turns)
+			}
+		})
 	}
 }

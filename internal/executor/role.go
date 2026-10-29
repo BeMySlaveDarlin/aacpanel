@@ -22,14 +22,18 @@ func (e *Executor) sessionRole(target, text string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	kept, err := role.Keep(role.Dir(), placeOf(s), s.Name, text, role.ByPerson, time.Now())
+	return keepRole(placeOf(s), s.Name, text)
+}
+
+func keepRole(place mcp.Place, name, text string) (string, error) {
+	kept, err := role.Keep(role.Dir(), place, name, text, role.ByPerson, time.Now())
 	if err != nil {
-		return "", fmt.Errorf("the role of session %s was not kept: %w", s.Name, err)
+		return "", fmt.Errorf("the role of session %s was not kept: %w", name, err)
 	}
 	if kept == nil {
-		return fmt.Sprintf("session %s has no role now", s.Name), nil
+		return fmt.Sprintf("session %s has no role now", name), nil
 	}
-	return fmt.Sprintf("session %s has its role; it is told it with its next prompt", s.Name), nil
+	return fmt.Sprintf("session %s has its role; it is told it with its next prompt", name), nil
 }
 
 // placeOf is where a live session works, as the panel's server places it.

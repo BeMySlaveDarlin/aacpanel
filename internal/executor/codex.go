@@ -125,6 +125,10 @@ func (e *Executor) notCodex(target string) error {
 	return nil
 }
 
+func codexPlace(th codex.Thread) mcp.Place {
+	return mcp.Place{ConfigDir: th.Link.Home(), Dir: th.Link.Directory(th.ID)}
+}
+
 func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.Request) (string, error) {
 	switch req.Kind {
 	case action.SessionSend:
@@ -159,7 +163,11 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 	case action.SessionParent:
 		return codexParent(th, req.Parent)
 	case action.SessionPin:
-		return keepPin(mcp.Place{ConfigDir: th.Link.Home(), Dir: th.Link.Directory(th.ID)}, th.Name, *req.Pin)
+		return keepPin(codexPlace(th), th.Name, *req.Pin)
+	case action.SessionRole:
+		return keepRole(codexPlace(th), th.Name, *req.Role)
+	case action.SessionIntent:
+		return keepIntent(codexPlace(th), th.Name, req.Intents)
 	case action.SessionDetach:
 		return codexDetach(th)
 	case action.TaskStop:

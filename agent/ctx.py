@@ -13,6 +13,7 @@ import codex_archive
 import contours
 import held
 import pins
+import roles
 from chat import codex
 from sesstate import ordered_agents
 from sesstate.background import ACTIVE
@@ -466,6 +467,9 @@ def codex_row(data, waits=None):
     config_dir = _account(contour)
     if config_dir:
         row["configDir"] = config_dir
+    role = roles.of(data.get("codexHome"), row["cwd"], name)
+    if role:
+        row["role"] = role
     pinned = pins.of(data.get("codexHome"), row["cwd"], name)
     if pinned:
         row["pinnedAt"] = pinned

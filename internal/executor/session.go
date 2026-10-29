@@ -69,9 +69,6 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 	}
 
 	if c, warns := launcher.ParseCodex(p.Launch); c.Agent == schema.AgentCodex {
-		if p.Role != nil {
-			return "", "", fmt.Errorf("a role is kept for a session of claude, and %s starts codex", p.Name)
-		}
 		return e.codexOpen(ctx, p, c, warns)
 	}
 	if p.Codex != nil {

@@ -326,3 +326,41 @@ func TestNumbersAreSaidAsPythonSaysThem(t *testing.T) {
 		}
 	}
 }
+
+func TestCodexRoleStampFindsTheThreadAndKeepsItsToldMark(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("AACP_STATE_DIR", state)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	const id = "019a1f00-0000-7000-8000-00000000abcd"
+	row := map[string]any{"agent": "codex", "sessionId": id, "codexHome": "/srv/codex", "role": "the db split"}
+	now := time.Unix(1700000000, 0)
+	for _, tc := range []struct {
+		text, agent, want string
+		compacts          int
+		mark              bool
+	}{
+		{"the db split", "worker", "", 0, false},
+		{"the db split", "", "Role:     the db split", 0, true},
+		{"the db split", "", "", 0, true},
+		{"the db split", "", "Role:     the db split", 1, true},
+		{"the schema review", "", "Role:     the schema review", 1, true},
+		{"", "", "Role:     none now: the role this session was told is cleared", 1, false},
+	} {
+		row["role"], row["compacts"] = tc.text, tc.compacts
+		writeJSON(t, filepath.Join(state, "state.json"), map[string]any{"at": now.Unix(), "sessions": []any{row}})
+		payload, _ := json.Marshal(map[string]any{"session_id": id, "turn_id": "turn", "agent_id": tc.agent})
+		got := ""
+		for _, line := range strings.Split(stampPrompt("UserPromptSubmit", payload, now).Context, "\n") {
+			if strings.HasPrefix(line, "Role:") {
+				got = line
+			}
+		}
+		if got != tc.want {
+			t.Fatalf("role %q at compaction %d: %q, want %q", tc.text, tc.compacts, got, tc.want)
+		}
+		_, err := os.Stat(filepath.Join(state, "role-"+id+".state"))
+		if (err == nil) != tc.mark {
+			t.Fatalf("the thread's told mark: %v, want present %v", err, tc.mark)
+		}
+	}
+}

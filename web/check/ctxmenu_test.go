@@ -330,8 +330,8 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
 		"ext":          "Open · | · Copy the session ID · Copy the resume command",
-		"codex":        "Open · | · ~Stand under… · ~Pin the group · | · Copy the thread ID · Copy the resume command · | · Stop the turn · Restart the session · Close the session",
-		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · Copy the thread ID · Copy the resume command · | · Restart the session · Close the session",
+		"codex":        "Open · | · ~Stand under… · ~Pin the group · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · Stop the turn · Restart the session · Close the session",
+		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · Restart the session · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID · Copy the resume command",

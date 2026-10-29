@@ -7,6 +7,8 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/role"
+	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/stream"
 	"aacpanel/internal/toolset"
 )
@@ -65,6 +67,12 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	begin.Message = c.Intent
 	if req.Text != "" {
 		begin.Message = req.Text
+	} else if !req.Clean {
+		values, err := sessionintent.Read(sessionintent.Dir(), codexPlace(th), th.Name)
+		if err != nil {
+			return "", fmt.Errorf("the messages of session %s were not read: %w", th.Name, err)
+		}
+		begin.Message = values.Pick(sessionintent.Restart, c.Intent)
 	}
 	if req.Clean {
 		begin.Message = ""
@@ -92,6 +100,12 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 		return "", fmt.Errorf("session %s stays open: its replacement did not start: %w", th.Name, err)
 	}
 	name := codex.SessionName(id)
+	if err := role.Move(role.Dir(), codexPlace(th), th.Name, name); err != nil {
+		warns = append(warns, "the role stayed under the old name: "+err.Error())
+	}
+	if err := sessionintent.Move(sessionintent.Dir(), codexPlace(th), th.Name, name); err != nil {
+		warns = append(warns, "the messages stayed under the old name: "+err.Error())
+	}
 	for _, child := range e.codex.Children(th.Name) {
 		if err := child.Link.SetParent(child.ID, name); err != nil {
 			warns = append(warns, fmt.Sprintf("child %s stays under %s: %v", child.Name, th.Name, err))

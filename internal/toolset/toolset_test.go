@@ -71,7 +71,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close",
+	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
@@ -264,7 +264,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
@@ -489,5 +489,43 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	t.Logf("server word: %d UTF-16 units", len(utf16.Encode([]rune(said))))
 	if n := len(utf16.Encode([]rune(said))); n > WordMax {
 		t.Errorf("the server's word is %d units, claude keeps %d:\n%s", n, WordMax, said)
+	}
+}
+
+func TestTheCodexRoleToolKeepsOnlyTheCallingThreadsRole(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	b, err := codexCaller(json.RawMessage(`{"threadId":"` + codexThread + `"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := role.Keep(role.Dir(), b.Place, "another-thread", "reviews the split", role.ByPerson, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	replies := exchange(t, CodexServer(codexCaller),
+		toolCall(1, "role", `{"role":"the db split"}`, `{"threadId":"`+codexThread+`"}`),
+		toolCall(2, "role", `{}`, `{"threadId":"`+codexThread+`"}`),
+		toolCall(3, "role", `{"role":"wrong thread"}`, `{"threadId":"unknown"}`),
+		toolCall(4, "role", `{"role":"missing thread"}`, ""),
+	)
+	for _, id := range []float64{1, 2} {
+		res, _ := replies[id]["result"].(map[string]any)
+		if res == nil || res["isError"] != nil {
+			t.Fatalf("the thread's role call answered %v", replies[id])
+		}
+	}
+	read, _ := json.Marshal(replies[2])
+	if !strings.Contains(string(read), "the db split") {
+		t.Fatalf("the tool did not read its role: %s", read)
+	}
+	for _, id := range []float64{3, 4} {
+		res, _ := replies[id]["result"].(map[string]any)
+		if res == nil || res["isError"] != true {
+			t.Fatalf("an unproven thread set a role: %v", replies[id])
+		}
+	}
+	got := role.Read(role.Dir(), b.Place, b.Name)
+	other := role.Read(role.Dir(), b.Place, "another-thread")
+	if got == nil || got.Role != "the db split" || got.By != role.BySession || other == nil || other.Role != "reviews the split" {
+		t.Fatalf("the tool confused roles: mine %+v, other %+v", got, other)
 	}
 }

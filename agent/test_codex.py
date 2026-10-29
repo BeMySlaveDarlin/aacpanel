@@ -131,6 +131,29 @@ CHECKLIST = {"items": [{"text": "read the router", "status": "done", "since": "2
              "at": "2026-10-09T12:05:00Z"}
 
 
+class Role(Runtime):
+    def test_the_role_of_a_thread_is_read_under_its_codex_home_and_name(self):
+        import roles
+        self.follow(cwd=self.root)
+        name = f"codex-{THREAD[-8:]}"
+        path = os.path.join(roles.roles_dir(), roles.file_name(self.home, self.root, name))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        for home, directory, session in ((self.home, self.root, name),
+                                         ("/another/codex/home", self.root, name),
+                                         (self.home, self.root, "another-thread"),
+                                         (self.home, self.root + "/elsewhere", name)):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"configDir": home, "repo": roles.repo(directory), "name": session,
+                           "role": "the db split"}, f)
+            row = live.sessions()["sessions"][0]
+            if (home, directory, session) == (self.home, self.root, name):
+                self.assertEqual(row.get("role"), "the db split")
+            else:
+                self.assertNotIn("role", row)
+        os.remove(path)
+        self.assertNotIn("role", ctx.codex_sessions()[0])
+
+
 class Pin(Runtime):
     def test_the_pin_of_a_thread_is_read_under_its_codex_home(self):
         import roles

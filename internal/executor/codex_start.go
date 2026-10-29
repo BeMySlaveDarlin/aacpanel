@@ -13,6 +13,8 @@ import (
 	"aacpanel/internal/codex"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/mcp"
+	"aacpanel/internal/role"
 	"aacpanel/internal/toolset"
 )
 
@@ -112,6 +114,13 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 	name := codex.SessionName(id)
 	if err != nil {
 		return "", name, fmt.Errorf("session %s started in %s, and %w", name, p.Path, err)
+	}
+
+	if p.Role != nil {
+		if _, err := role.Keep(role.Dir(), mcp.Place{ConfigDir: home.Dir, Dir: link.Directory(id)}, name,
+			p.Role.Text, role.ByOpener(p.Role.Opener), time.Now()); err != nil {
+			return "", name, fmt.Errorf("session %s started, but its role was not kept: %w", name, err)
+		}
 	}
 
 	detail := fmt.Sprintf("session %s started in the codex daemon of contour %s", name, home.Contour)
