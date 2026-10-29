@@ -2258,6 +2258,8 @@
     .dkact.off:hover { color: var(--ink-faint); }
 
     .dkact[aria-pressed="true"], .dkact[aria-pressed="true"]:hover { color: var(--accent); }
+    /* A colour alone is lost on a glyph this small: a pinned group's tack is filled. */
+    .dkact[aria-pressed="true"] svg { fill: currentColor; }
     .dkact[aria-busy="true"] { opacity: .45; }
 
 .deskshell .dkscroll,

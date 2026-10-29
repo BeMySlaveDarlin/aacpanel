@@ -118,6 +118,7 @@ export async function sessionPins(phoneOnly = false) {
             markDim: mark && Number(getComputedStyle(mark).opacity) < 1,
             markOpacity: Number(getComputedStyle(mark).opacity),
             markColor: getComputedStyle(mark).color,
+            markFill: getComputedStyle(mark.querySelector("svg")).fill,
             accentColor,
         };
     };

@@ -15,6 +15,7 @@ func TestDesktopPinsShowTheirState(t *testing.T) {
 		MarkOn, MarkPending    bool
 		MarkOpacity            float64
 		MarkColor, AccentColor string
+		MarkFill               string
 	}
 	var got struct {
 		Pins struct {
@@ -26,10 +27,17 @@ func TestDesktopPinsShowTheirState(t *testing.T) {
 		if !state.MarkOn || state.MarkColor == "" || state.MarkColor != state.AccentColor {
 			t.Errorf("%s has %+v: the pressed desktop pin must use the accent", name, state)
 		}
+		// The colour is lost on a glyph this small: the pinned tack is filled.
+		if state.MarkFill != state.AccentColor {
+			t.Errorf("%s has %+v: the pressed desktop pin must be filled", name, state)
+		}
 	}
 	for name, state := range map[string]look{"unpinning": got.Pins.UnpinLook, "unpinned": got.Pins.UnpinnedLook} {
 		if state.MarkOn || state.MarkColor == "" || state.MarkColor == state.AccentColor {
 			t.Errorf("%s has %+v: an unpressed desktop pin must keep the quiet ink", name, state)
+		}
+		if state.MarkFill != "none" {
+			t.Errorf("%s has %+v: an unpressed desktop pin must stay an outline", name, state)
 		}
 	}
 	if !got.Pins.PinLook.MarkPending || got.Pins.PinLook.MarkOpacity != .45 ||
