@@ -2257,6 +2257,9 @@
     .feedjump:hover { color: var(--ink); background: var(--glass-2); }
     .dkact.off:hover { color: var(--ink-faint); }
 
+    .dkact[aria-pressed="true"], .dkact[aria-pressed="true"]:hover { color: var(--accent); }
+    .dkact[aria-busy="true"] { opacity: .45; }
+
 .deskshell .dkscroll,
     .deskshell .dktable,
     .deskshell .dkmbody,
@@ -2756,8 +2759,6 @@
     .dkcol .pzbar { margin-left: 0; margin-right: 0; }
     .pzanchor { position: relative; }
     .pzanchor .dkpop { left: 0; right: auto; width: min(26rem, 100%); }
-    .dkrowacts .dkact[aria-pressed="true"] { color: var(--accent); }
-    .dkrowacts .dkact[aria-busy="true"] { opacity: .45; }
     .dkprojpause { display: grid; place-items: center; margin-left: auto; width: 1.4rem; height: 1.3rem; padding: 0; border: 0; background: none; color: var(--ink-faint); cursor: pointer; }
     .dkprojpause svg { width: var(--i-sm); height: var(--i-sm); }
     .dkprojpause[aria-disabled="true"] { opacity: .45; cursor: default; }

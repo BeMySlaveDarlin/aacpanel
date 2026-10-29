@@ -5,6 +5,7 @@ import time
 import chat
 import held
 import models
+import seen
 
 import agent
 
@@ -12,9 +13,11 @@ from .live import sessions
 from .probes import port_probes
 
 
-def sessions_worker(shared, lock):
+def sessions_worker(shared, lock, publish):
     """Collects sessions in a thread of its own."""
     while True:
+        # Clear before reading so a wake during the pass requests another one.
+        seen.SESSIONS_WAKE.clear()
         try:
             chat.observe_names()
         except Exception as e:  # noqa: BLE001
@@ -31,7 +34,8 @@ def sessions_worker(shared, lock):
             shared["at"] = started
             shared["sessions"] = data.get("sessions", [])
             shared["notes"] = data.get("notes", [])
-        time.sleep(agent.SESSIONS_EVERY)
+        publish.set()
+        seen.SESSIONS_WAKE.wait(agent.SESSIONS_EVERY)
 
 
 def probe_worker(shared, lock):

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"aacpanel/internal/action"
 )
 
 const (
@@ -29,7 +31,8 @@ const (
 )
 
 type seenReq struct {
-	Session string `json:"session"`
+	Session string `json:"session,omitempty"`
+	Wake    string `json:"wake,omitempty"`
 	Pos     *int64 `json:"pos,omitempty"`
 	Mark    string `json:"mark,omitempty"`
 	Ask     string `json:"ask,omitempty"`
@@ -75,6 +78,17 @@ func seenSocket() string {
 		dir = seenDirDefault
 	}
 	return filepath.Join(dir, seenSocketName)
+}
+
+// WakeSessions asks for a fresh snapshot after an action the screen waits for.
+// The result of the action must not wait for the collector to be available.
+func WakeSessions(kind action.Kind) {
+	switch kind {
+	case action.SessionPin, action.SessionClose, action.SessionKill, action.SessionRestart,
+		action.SessionSwitch, action.SessionOpen, action.SessionResume:
+		socket := seenSocket()
+		go func() { _, _ = askSeen(socket, seenReq{Wake: "sessions"}) }()
+	}
 }
 
 func (w *transcriptTail) watching() bool {

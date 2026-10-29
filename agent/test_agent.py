@@ -7,6 +7,7 @@ import time
 import threading
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -15,6 +16,7 @@ import agent  # noqa: E402
 import asked  # noqa: E402
 import ctx  # noqa: E402
 import paths  # noqa: E402
+import seen  # noqa: E402
 import sesstate  # noqa: E402
 from collect import workers  # noqa: E402
 
@@ -36,16 +38,66 @@ class SnapshotTime(unittest.TestCase):
 
         for name, value in {
             "chat": SimpleNamespace(observe_names=lambda: None),
-            "time": SimpleNamespace(time=lambda: now[0], sleep=stop),
+            "time": SimpleNamespace(time=lambda: now[0]),
+            "seen": SimpleNamespace(SESSIONS_WAKE=SimpleNamespace(clear=lambda: None, wait=stop)),
             "sessions": sessions,
         }.items():
             self.addCleanup(setattr, workers, name, getattr(workers, name))
             setattr(workers, name, value)
         with self.assertRaises(StopIteration):
-            workers.sessions_worker(shared, threading.Lock())
+            workers.sessions_worker(shared, threading.Lock(), threading.Event())
         self.assertEqual(shared["at"], 100,
                          "an idle read before readiness looks newer than readiness")
         self.assertEqual(shared["sessions"], [{"status": "idle"}])
+
+
+class SessionWake(unittest.TestCase):
+    def setUp(self):
+        self.wake = threading.Event()
+        self.patch = patch.object(seen, "SESSIONS_WAKE", self.wake)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+
+    def test_a_wake_between_passes_skips_the_sessions_timeout(self):
+        self.run_passes(during=False)
+
+    def test_a_wake_during_a_pass_is_kept_for_the_next_pass(self):
+        self.run_passes(during=True)
+
+    def run_passes(self, during):
+        shared = {}
+        publish = threading.Event()
+        calls = []
+        waits = []
+        now = [100]
+        wait = self.wake.wait
+
+        def sessions():
+            calls.append(now[0])
+            if during and len(calls) == 1:
+                seen.answer({"wake": "sessions"})
+            return {"sessions": [{"pass": len(calls)}]}
+
+        def pause(timeout):
+            waits.append(timeout)
+            self.assertTrue(publish.is_set(), "the snapshot loop was not woken after collecting")
+            self.assertEqual(shared["sessions"], [{"pass": len(calls)}])
+            if len(calls) == 2:
+                raise StopIteration
+            publish.clear()
+            if not during:
+                seen.answer({"wake": "sessions"})
+            self.assertTrue(wait(0), "the worker lost the wake before waiting")
+            return True
+
+        with patch.object(workers, "sessions", sessions), \
+                patch.object(workers.chat, "observe_names", lambda: None), \
+                patch.object(workers, "time", SimpleNamespace(time=lambda: now[0])), \
+                patch.object(self.wake, "wait", pause):
+            with self.assertRaises(StopIteration):
+                workers.sessions_worker(shared, threading.Lock(), publish)
+        self.assertEqual(calls, [100, 100], "the worker slept instead of collecting at once")
+        self.assertEqual(waits, [agent.SESSIONS_EVERY] * 2)
 
 
 class NetLink(unittest.TestCase):

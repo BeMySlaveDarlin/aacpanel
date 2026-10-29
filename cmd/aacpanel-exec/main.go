@@ -636,6 +636,7 @@ func (a audited) audit(req action.Request, run func() (string, string, error)) (
 	}
 	log.Printf("audit phase=done action=%s target=%s device=%q request=%s result=ok duration_ms=%d detail=%q",
 		req.Kind, req.Target, req.Device, req.ID, took, detail)
+	executor.WakeSessions(req.Kind)
 	return detail, session, nil
 }
 

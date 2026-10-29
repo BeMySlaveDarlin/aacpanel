@@ -507,8 +507,9 @@ process.stdout.write(answer);
 		t.Fatal("the gate reported the console coming up but no wait started: the screen shows " +
 			"no row, and the press stays unanswered until the next snapshot")
 	}
-	if got.Seen != 1000 {
-		t.Errorf("the wait remembered snapshot mark %d, while the snapshot was taken at 1000", got.Seen)
+	// The mark is in milliseconds: a snapshot without atMs is read from its second.
+	if got.Seen != 1000*1000 {
+		t.Errorf("the wait remembered snapshot mark %d, while the snapshot was taken at 1000 s", got.Seen)
 	}
 	if strings.Join(got.Before, ",") != "aacpanel,home" {
 		t.Errorf("the wait remembered the list %v, while the snapshot held aacpanel and home", got.Before)

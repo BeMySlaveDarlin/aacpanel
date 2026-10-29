@@ -2,7 +2,9 @@ import json
 import os
 import socket
 import sys
+import threading
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -11,6 +13,24 @@ import chat  # noqa: E402
 import seen  # noqa: E402
 
 TALK = "6b0a0f2c-3d1e-4a5b-8c7d-9e0f1a2b3c4d"
+
+
+class Wake(unittest.TestCase):
+    def test_the_sessions_wake_sets_the_event_without_a_conversation(self):
+        wake = threading.Event()
+        with patch.object(seen, "SESSIONS_WAKE", wake):
+            self.assertEqual(seen.answer({"wake": "sessions"}), {"ok": True})
+        self.assertTrue(wake.is_set())
+
+    def test_a_malformed_wake_is_refused_without_waking(self):
+        wake = threading.Event()
+        with patch.object(seen, "SESSIONS_WAKE", wake):
+            for request in ({"wake": None}, {"wake": True}, {"wake": []},
+                            {"wake": {"sessions": True}}, {"wake": "metrics"},
+                            {"wake": "sessions", "session": TALK}):
+                with self.subTest(request=request):
+                    self.assertFalse(seen.answer(request)["ok"])
+                    self.assertFalse(wake.is_set())
 
 
 def user_line(text):

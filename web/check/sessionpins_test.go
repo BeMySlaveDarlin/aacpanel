@@ -10,6 +10,36 @@ type pinLists struct {
 	Phone, Desk, Keys, Ordered []string
 }
 
+func TestDesktopPinsShowTheirState(t *testing.T) {
+	type look struct {
+		MarkOn, MarkPending    bool
+		MarkOpacity            float64
+		MarkColor, AccentColor string
+	}
+	var got struct {
+		Pins struct {
+			PinLook, ConfirmedLook, UnpinLook, UnpinnedLook look
+		}
+	}
+	runWideFixture(t, "sessiongroups.html", &got)
+	for name, state := range map[string]look{"pinning": got.Pins.PinLook, "pinned": got.Pins.ConfirmedLook} {
+		if !state.MarkOn || state.MarkColor == "" || state.MarkColor != state.AccentColor {
+			t.Errorf("%s has %+v: the pressed desktop pin must use the accent", name, state)
+		}
+	}
+	for name, state := range map[string]look{"unpinning": got.Pins.UnpinLook, "unpinned": got.Pins.UnpinnedLook} {
+		if state.MarkOn || state.MarkColor == "" || state.MarkColor == state.AccentColor {
+			t.Errorf("%s has %+v: an unpressed desktop pin must keep the quiet ink", name, state)
+		}
+	}
+	if !got.Pins.PinLook.MarkPending || got.Pins.PinLook.MarkOpacity != .45 ||
+		!got.Pins.UnpinLook.MarkPending || got.Pins.UnpinLook.MarkOpacity != .45 ||
+		got.Pins.ConfirmedLook.MarkPending || got.Pins.ConfirmedLook.MarkOpacity != 1 ||
+		got.Pins.UnpinnedLook.MarkPending || got.Pins.UnpinnedLook.MarkOpacity != 1 {
+		t.Errorf("the desktop pin does not distinguish waiting from its confirmed state: %+v", got.Pins)
+	}
+}
+
 func TestPhoneSectionsKeepPinsAndMapOrder(t *testing.T) {
 	type section struct {
 		Title string

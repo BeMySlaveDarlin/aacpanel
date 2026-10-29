@@ -203,6 +203,7 @@ func (openingExec) Open(context.Context, action.Request) (string, string, error)
 // The wrapper passes on the name of the session New brought up: the screen
 // opens the session by it.
 func TestAuditedPassesOnTheSessionNewBroughtUp(t *testing.T) {
+	t.Setenv("AACP_SEEN_DIR", t.TempDir())
 	detail, session, err := audited{next: openingExec{}}.Open(t.Context(), action.Request{Kind: action.SessionOpen})
 	if err != nil || detail != "started" || session != "codex-0000beef" {
 		t.Errorf("New through the wrapper answered %q %q %v", detail, session, err)

@@ -1,7 +1,7 @@
 // Waiting for an action to show up in the host snapshot.
 import { useEffect, useRef, useState } from "preact/hooks";
 
-export const CATCH_UP_MS = 2000;
+export const CATCH_UP_MS = 750;
 
 export const CATCH_UP_LIMIT = 60000;
 
@@ -93,7 +93,9 @@ export function useCatchUp(snapshot, refresh) {
     const [waits, setWaits] = useState({});
     const [ticks, tick] = useState(0);
     const alive = (snapshot && snapshot.sessions) || [];
-    const at = (snapshot && snapshot.at) || 0;
+    // A snapshot the executor woke the collector for comes within the second
+    // of the one before it: the milliseconds tell them apart.
+    const at = (snapshot && (snapshot.atMs || (snapshot.at || 0) * 1000)) || 0;
 
     const latest = useRef(null);
     latest.current = { alive, at, refresh };

@@ -273,6 +273,11 @@ and gets back a fact — found, seen, queued, ended, a mode — never a line of 
 conversation. The reader of the conversation answers yes or no; the one that
 types does not read.
 
+After a successful pin, close, kill, restart, switch, open or resume, the executor
+also sends `{"wake":"sessions"}` on that socket without waiting for the answer.
+The session reader wakes, keeps a wake received during its pass for the next one,
+and wakes the snapshot loop once its read is ready to publish.
+
 The starting position is taken before typing. If that lookup fails, only the
 screen can confirm the send: taking a position after typing would skip the
 reply, and reading from the start could count an older one. Once a position is

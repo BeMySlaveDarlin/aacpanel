@@ -84,7 +84,9 @@ export async function sessionPins(phoneOnly = false) {
         <//><//><//>`;
     }
     const paint = async () => {
-        snapshot = { at: (snapshot ? snapshot.at : 0) + 1, sessions, profileMap };
+        // Every snapshot comes within one second, as woken ones do: only the
+        // milliseconds tell a later one from the one at the press.
+        snapshot = { at: 1, atMs: (snapshot ? snapshot.atMs : 1000) + 1, sessions, profileMap };
         render(html`<${Lists} snapshot=${snapshot} />`, mount);
         await quiet();
     };
@@ -100,6 +102,11 @@ export async function sessionPins(phoneOnly = false) {
     const look = (name) => {
         const button = phoneButton(name);
         const mark = deskRow(name).querySelector(".dkact[aria-pressed]");
+        const accent = document.createElement("span");
+        accent.style.color = "var(--accent)";
+        mark.append(accent);
+        const accentColor = getComputedStyle(accent).color;
+        accent.remove();
         return {
             pressed: button.getAttribute("aria-pressed") === "true",
             pending: button.getAttribute("aria-busy") === "true",
@@ -109,6 +116,9 @@ export async function sessionPins(phoneOnly = false) {
             markOn: mark && mark.getAttribute("aria-pressed") === "true",
             markPending: mark && mark.getAttribute("aria-busy") === "true",
             markDim: mark && Number(getComputedStyle(mark).opacity) < 1,
+            markOpacity: Number(getComputedStyle(mark).opacity),
+            markColor: getComputedStyle(mark).color,
+            accentColor,
         };
     };
     const phonePin = async (name) => {

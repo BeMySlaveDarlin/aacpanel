@@ -30,6 +30,8 @@ CHIPS = ("[Image#", "[Pastedtext#")
 _paths = {}
 _paths_lock = threading.Lock()
 
+SESSIONS_WAKE = threading.Event()
+
 
 def squeeze(text):
     """Returns the string without any whitespace."""
@@ -206,6 +208,12 @@ def locate(session):
 
 def answer(request):
     """Returns the reply to one request: the fact and nothing but the fact."""
+    if "wake" in request:
+        if request != {"wake": "sessions"}:
+            return {"ok": False, "error": "the wake request must name only sessions"}
+        SESSIONS_WAKE.set()
+        return {"ok": True}
+
     session = request.get("session")
     if not isinstance(session, str) or not session:
         return {"ok": False, "error": "the conversation is not named"}

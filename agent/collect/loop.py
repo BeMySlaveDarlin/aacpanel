@@ -47,7 +47,8 @@ def main():
 
     sess = {"at": 0, "sessions": [], "notes": []}
     sess_lock = threading.Lock()
-    threading.Thread(target=sessions_worker, args=(sess, sess_lock), daemon=True).start()
+    publish = threading.Event()
+    threading.Thread(target=sessions_worker, args=(sess, sess_lock, publish), daemon=True).start()
 
     probes = {"at": 0, "items": []}
     probes_lock = threading.Lock()
@@ -74,7 +75,8 @@ def main():
     threading.Thread(target=usage_link.worker, daemon=True).start()
 
     while True:
-        time.sleep(agent.INTERVAL)
+        publish.wait(agent.INTERVAL)
+        publish.clear()
         now = time.monotonic()
         elapsed = max(now - prev_at, 0.001)
 
@@ -112,8 +114,12 @@ def main():
             sess_snapshot = dict(sess)
 
         load1, load5, load15 = read("/proc/loadavg").split()[:3]
+        stamp = time.time()
         state = {
-            "at": int(time.time()),
+            "at": int(stamp),
+            # A snapshot woken by an action comes within the second of the
+            # one before it: the screen tells them apart by the milliseconds.
+            "atMs": int(stamp * 1000),
             "host": {
                 "cpuPct": cpu_pct,
                 "cpus": os.cpu_count() or 1,
