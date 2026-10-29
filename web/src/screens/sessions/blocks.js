@@ -17,7 +17,7 @@ import { checklistShort } from "../chat/checklist.js";
 import { sessionsOf } from "./of.js";
 import { kinLabel, kinOf, layoutOf, openedLabel, placeOf } from "./kin.js";
 import { useFolds } from "./folds.js";
-import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../../agent.js";
+import { CODEX_CLOSE, CODEX_RESTART, agentKey, agentName, codexRestartWhy, codexResume, isCodex, shownName, spoke } from "../../agent.js";
 import { modelTitle, runningOf, stopsOf, workOf } from "../chat/head.js";
 import { listen, shown } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
@@ -383,7 +383,7 @@ function KinFold({ kids, line }) {
 // the only session of its project included, and Restart and Close at the
 // right edge. The name yields to the buttons; where the session lives follows
 // Remote Control on the state's line. The home session is never closed,
-// codex refuses a restart, and a session outside the panel is only read.
+// a codex in tmux restarts from its terminal, and a session outside the panel is only read.
 // How full the session is stands level with the last line on the left, so
 // the lines under the name give up to the right no more than that figure. A
 // session another opened stands a step in under it, on the line of the branch
@@ -397,11 +397,12 @@ export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = 
     const restarting = wait ? wait.of("restart", session.session) : null;
     const busy = closing || restarting || session.restarting;
     const codex = isCodex(session);
-    const canRestart = knows(exec, "session.restart");
+    const restartWhy = (codex ? codexRestartWhy(session) : "") || whyNot(exec, "session.restart");
+    const canRestart = knows(exec, "session.restart") && !restartWhy;
     const canClose = knows(exec, "session.close");
     const lost = stopsOf(session);
     const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
-    const restartNote = ends("a new session with an empty context; this one stays in the archive");
+    const restartNote = codex ? CODEX_RESTART : ends("a new session with an empty context; this one stays in the archive");
     const closeNote = codex ? CODEX_CLOSE : ends("the conversation stays in the archive");
     const place = placeOf(session);
     const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, daemon: Icon.plug }[place];
@@ -421,12 +422,10 @@ export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = 
                                 aria-busy=${pin.pending ? "true" : undefined}
                                 title=${pin.why || whyNot(exec, "session.pin") || pin.tip}
                                 onClick=${() => run("session.pin", pin.root.session, { on: !pin.on })}>${Icon.thumbtack()}</button>
-                        ${!codex && html`
-                            <button class="pjact" type="button" disabled=${!canRestart || Boolean(busy)}
-                                    aria-label=${`restart session ${session.session}`}
-                                    title=${busy ? "the session is already closing or restarting" : canRestart ? restartNote : whyNot(exec, "session.restart")}
-                                    onClick=${() => run("session.restart", session.session, {})}>${Icon.refresh()}</button>
-                        `}
+                        <button class="pjact" type="button" disabled=${!canRestart || Boolean(busy)}
+                                aria-label=${`restart session ${session.session}`}
+                                title=${busy ? "the session is already closing or restarting" : restartWhy || restartNote}
+                                onClick=${() => run("session.restart", session.session, {})}>${Icon.refresh()}</button>
                         ${!session.home && html`
                             <button class="pjact" type="button" disabled=${!canClose || Boolean(busy)}
                                     aria-label=${`close session ${session.session}`}

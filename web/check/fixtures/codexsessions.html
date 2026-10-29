@@ -19,9 +19,13 @@
 // in codex's words with no kill under it. The screen never asks the host about
 // what it does not offer.
 import { h, render } from "preact";
+import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
+import { MenuHost } from "/src/desktop/menu.js";
 import { LiveLines } from "/src/screens/sessions/blocks.js";
+import { CodexSections } from "/src/screens/chat/codex.js";
+import { useCatchUp } from "/src/catchup.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
@@ -38,6 +42,10 @@ const items = [
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const asked = [];
 const sent = [];
+const copied = [];
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: async (text) => { copied.push(text); },
+} });
 window.fetch = async (url, init) => {
     const u = String(url);
     asked.push(u.split("?")[0]);
@@ -72,6 +80,8 @@ const exec = { available: true, kinds: ["session.close", "session.restart", "ses
     "session.shell", "session.file", "session.rename", "session.remote", "session.unqueue", "session.background",
     "term.start"] };
 const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }];
+const snapshot = { sessions, profileMap: [{ ...profileMap[0], codexHome: "/home/u/.codex-profiles/acme" }],
+    host: { home: "/home/u" } };
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     snapshot: { at: 1, sessions, profileMap, limits: null }, limits: null,
     current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
@@ -81,7 +91,7 @@ render(h(ToastHost, null, h(GateHost, null, html`
                                            onOpen=${() => {}} exec=${exec} /></section>
 `)), document.getElementById("phone"));
 render(h(ToastHost, null, h(GateHost, null, h(Chat, {
-    name: codex.session, id: codex.sessionId, live: working, exec, snapshot: { sessions }, onBack() {}, onUsage() {},
+    name: codex.session, id: codex.sessionId, live: working, exec, snapshot, onBack() {}, onUsage() {},
     onTerm() {},
 }))), document.getElementById("chat"));
 
@@ -112,11 +122,12 @@ const closeSheet = async (root) => {
         effect: text(gate().querySelector(".warnline")),
         ok: text(gate().querySelector(".btnrow .btn:last-child")),
         harsher: names(gate(), "button.item"),
+        choices: names(gate(), '[role="radio"]'),
     };
     const before = sent.length;
     gate().querySelector(".btnrow .btn:last-child").click();
     await until(() => sent.length > before);
-    sheet.sent = sent.slice(before).map((s) => ({ kind: s.kind, target: s.target }));
+    sheet.sent = sent.slice(before).map((s) => ({ kind: s.kind, target: s.target, params: s.params }));
     return sheet;
 };
 
@@ -126,6 +137,22 @@ const type = (area, words) => {
     area.value = words;
     area.dispatchEvent(new Event("input", { bubbles: true }));
 };
+
+// The real catch-up hook follows both lists while snapshots replace a thread.
+let lifecycle = null;
+function Lifecycle({ initial, executor = exec }) {
+    const [snapshot, update] = useState(initial);
+    const wait = useCatchUp(snapshot, () => {});
+    lifecycle = { update, wait };
+    return html`
+        <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}}
+                          picks=${[]} setPicks=${() => {}} onNames=${() => {}} onOrder=${() => {}}
+                          exec=${executor} wait=${wait} />
+        <section class="pjblock"><${LiveLines} list=${snapshot.sessions} wait=${wait} exec=${executor} onOpen=${() => {}} /></section>
+        <div class="probe-tools"><${CodexSections} name=${snapshot.sessions[0].session} live=${snapshot.sessions[0]}
+            snapshot=${snapshot} exec=${executor} onDone=${() => {}} onLook=${() => {}} /></div>
+    `;
+}
 
 window.done = (async () => {
     await document.fonts.ready;
@@ -259,6 +286,97 @@ window.done = (async () => {
         phoneClose.click();
         out.phoneCloseSheet = await closeSheet(phone);
     }
+
+    out.restarts = {};
+    for (const [where, root, button] of [
+        ["desktop row", desk, deskRow.querySelector('[aria-label^="restart session"]')],
+        ["phone row", phone, phoneRow.querySelector('[aria-label^="restart session"]')],
+    ]) {
+        if (button) {
+            button.click();
+            out.restarts[where] = await closeSheet(root);
+        }
+    }
+    chat.querySelector(".dkplace").click();
+    await until(() => document.querySelector(".dkpanel .toollabel"));
+    const tools = () => Array.from(document.querySelectorAll(".dkpanel .toolrow"));
+    tools().find((b) => text(b.querySelector(".toollabel")) === "Copy the resume command")?.click();
+    await until(() => copied.length > 0);
+    out.resumeCopied = copied.slice();
+    const restart = tools().find((b) => text(b.querySelector(".toollabel")) === "Restart the session");
+    if (restart) {
+        restart.click();
+        out.restarts["desktop tools"] = await closeSheet(chat);
+    }
+
+    const probe = document.createElement("div");
+    probe.className = "deskshell";
+    document.body.append(probe);
+    const original = { ...codex, parent: { session: "shop" } };
+    const initial = { atMs: 1000, sessions: [original, sessions[0]], profileMap };
+    const mount = (live, executor = exec) => {
+        render(null, probe);
+        render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, h(Lifecycle, {
+            initial: { ...initial, sessions: [live, sessions[0]] }, executor,
+        })))), probe);
+    };
+    mount(original);
+    const phoneRestart = () => probe.querySelector(`.pjact[aria-label="restart session ${original.session}"]`);
+    await until(phoneRestart);
+    phoneRestart().click();
+    out.restarts["waiting row"] = await closeSheet(probe);
+    await until(() => lifecycle.wait.of("restart", original.session));
+    const pending = () => Boolean(lifecycle.wait.of("restart", original.session));
+    out.waiting = { started: pending(), busy: Boolean(probe.querySelector(".pjbusy")),
+        beforeOrder: names(probe, ".pjrow .pjsess") };
+    const replacement = { ...original, session: "codex-77777777", sessionId: "new-thread" };
+    const draw = async (atMs, list) => {
+        lifecycle.update({ ...initial, atMs, sessions: list });
+        await sleep(60);
+        return pending();
+    };
+    out.waiting.oldStillHere = await draw(2000, [original, replacement, sessions[0]]);
+    out.waiting.goneAlone = await draw(3000, [sessions[0]]);
+    out.waiting.wrongParent = await draw(4000, [{ ...replacement, parent: { session: "elsewhere" } }, sessions[0]]);
+    out.waiting.wrongDirectory = await draw(5000, [{ ...replacement, cwd: "/srv/elsewhere" }, sessions[0]]);
+    out.waiting.wrongContour = await draw(6000, [{ ...replacement, profile: "Other", contour: 9 }, sessions[0]]);
+    out.waiting.finished = !await draw(7000, [replacement, sessions[0]]);
+    out.waiting.busyAfter = Boolean(probe.querySelector(".pjbusy"));
+    out.waiting.afterOrder = names(probe, ".pjrow .pjsess");
+
+    out.unavailable = [];
+    for (const [why, live, executor] of [
+        ["tmux", { ...original, transport: "tmux" }, exec],
+        ["outside", { ...original, outside: true }, exec],
+        ["unknown", original, { available: true, kinds: ["session.close"] }],
+    ]) {
+        mount(live, executor);
+        await until(() => probe.querySelector(".probe-tools .toollabel"));
+        const deskAct = probe.querySelector(`.dkact[aria-label="restart session ${live.session}"]`);
+        const phoneAct = probe.querySelector(`.pjact[aria-label="restart session ${live.session}"]`);
+        const toolAct = Array.from(probe.querySelectorAll(".probe-tools .toolrow"))
+            .find((b) => text(b.querySelector(".toollabel")) === "Restart the session");
+        const before = sent.length;
+        deskAct?.click();
+        phoneAct?.click();
+        toolAct?.click();
+        rowOf(probe, live.session)?.dispatchEvent(new MouseEvent("contextmenu", {
+            bubbles: true, cancelable: true, button: 2, clientX: 20, clientY: 20,
+        }));
+        await until(() => probe.querySelector(".ctxmenu"));
+        const menuAct = Array.from(probe.querySelectorAll('.ctxmenu [role="menuitem"]'))
+            .find((b) => text(b.querySelector(".pkname")) === "Restart the session");
+        menuAct?.click();
+        await sleep(30);
+        out.unavailable.push({ why,
+            desk: deskAct ? { off: deskAct.getAttribute("aria-disabled") === "true", note: deskAct.dataset.tip } : null,
+            phone: phoneAct ? { off: phoneAct.disabled, note: phoneAct.title } : null,
+            tool: toolAct ? { off: toolAct.disabled, note: text(toolAct.querySelector(".toolnote")) } : null,
+            menu: menuAct ? { off: menuAct.getAttribute("aria-disabled") === "true", note: menuAct.dataset.tip } : null,
+            sent: sent.length - before, gate: Boolean(probe.querySelector('.sheet.on[aria-label="action confirmation"]')),
+        });
+    }
+    render(null, probe);
 
     out.asked = [...new Set(asked)].sort();
     return out;

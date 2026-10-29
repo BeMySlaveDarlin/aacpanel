@@ -44,7 +44,7 @@ const now = Date.now();
 const iso = (min) => new Date(now - min * 60e3).toISOString();
 const P = (id, name, path) => ({ id, name, session: name, path });
 const projects = { 11: P(11, "aacpanel", "/srv/aacpanel"), 13: P(13, "blog", "/srv/blog"), 14: P(14, "helios", "/home/u") };
-const profileMap = [{ id: 3, profile: "personal", name: "personal", groups: [
+const profileMap = [{ id: 3, profile: "personal", name: "personal", codexHome: "/srv/codex-archive", groups: [
     { name: "Side", projects: [projects[11], projects[13]] },
     { name: "Host", projects: [projects[14]] },
 ] }];
@@ -59,12 +59,12 @@ const sessions = [
     S({ session: "scratch", project: null, transport: "tmux", status: "idle" }),
     S({ session: "ext", project: null, outside: true, status: "idle" }),
     S({ session: "codex-1", project: { ...projects[13], group: "Side" }, agent: "codex", title: "cx-thread", status: "busy",
-        sessionId: "th-cx" }),
+        sessionId: "th-cx", codexHome: "/home/u/.codex-profiles/work" }),
     // Two sessions aacpanel had the panel open, a claude and a thread of
     // codex: only a session standing under another is taken from under it.
     S({ session: "review", project: { ...projects[11], group: "Side" }, parent: { session: "aacpanel" }, status: "idle" }),
     S({ session: "codex-2", project: { ...projects[11], group: "Side" }, agent: "codex", title: "cx-review", status: "idle",
-        sessionId: "th-cx2", parent: { session: "aacpanel" } }),
+        sessionId: "th-cx2", codexHome: "/home/u/.codex", parent: { session: "aacpanel" } }),
 ];
 const closed = (o) => ({ model: "claude-opus-5-5", pctMax: 30, startedAt: iso(o.min + 60), lastAt: iso(o.min), messages: 4,
     profile: "personal", prompts: ["the archive pages of the blog, newest first"], ...o });
@@ -158,7 +158,7 @@ function Shell() {
                     <${ContainersCenter} tree=${tree} stack="shop" current=${null} onPick=${() => {}} exec=${exec}
                         onDone=${() => {}} onLogs=${(c) => logs.push(c.name)} />
                     <aside class="dkright">
-                        <${Archive} profiles=${null} names=${[]} picks=${[]} setPicks=${() => {}}
+                        <${Archive} profiles=${null} names=${[]} picks=${[]} setPicks=${() => {}} snapshot=${snapshot}
                             onOpen=${(t) => picked.push(`archive:${t.name}`)} exec=${exec} />
                     </aside>
                 </div>
@@ -507,6 +507,21 @@ window.done = (async () => {
     itemOf("Copy the resume command").click();
     await until(() => copied.length > 1);
     out.copied = copied.slice();
+    out.codexCopied = [];
+    for (const name of ["cx-thread", "cx-review"]) {
+        const before = copied.length;
+        await openOn(rowOf(name));
+        itemOf("Copy the resume command")?.click();
+        await until(() => copied.length > before);
+        out.codexCopied.push(...copied.slice(before));
+    }
+    const beforeArchiveCopy = copied.length;
+    await openOn(archRows[1]);
+    itemOf("Copy the resume command")?.click();
+    await until(() => copied.length > beforeArchiveCopy);
+    out.codexCopied.push(...copied.slice(beforeArchiveCopy));
+    await openOn(rowOf("cx-thread"));
+    out.codexRestart = await press("Restart the session");
     await openOn(aac);
     itemOf("Rename…").click();
     await until(() => document.querySelector(".sheet.on .rnname"));

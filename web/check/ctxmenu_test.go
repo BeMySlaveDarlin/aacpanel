@@ -125,8 +125,10 @@ type ctxMenu struct {
 		ID    string `json:"id"`
 		Place string `json:"place"`
 	} `json:"terminal"`
-	Copied []string `json:"copied"`
-	Rename struct {
+	Copied       []string `json:"copied"`
+	CodexCopied  []string `json:"codexCopied"`
+	CodexRestart *ctxSent `json:"codexRestart"`
+	Rename       struct {
 		Value    string `json:"value"`
 		Menu     bool   `json:"menu"`
 		FocusRow bool   `json:"focusRow"`
@@ -310,6 +312,14 @@ func TestTheKeyboardMenuStandsUnderTheRow(t *testing.T) {
 // and stopped, a stack. A dimmed item is marked ~.
 func TestEveryObjectHasItsMenu(t *testing.T) {
 	got := ctxMenuPage(t)
+	if got.CodexRestart == nil || got.CodexRestart.Kind != "session.restart" || got.CodexRestart.Target != "codex-1" || len(got.CodexRestart.Params) != 0 {
+		t.Errorf("the codex menu restarted with %+v, expected the thread's name and no Claude restart mode", got.CodexRestart)
+	}
+	wantCopies := []string{"cd /srv/blog && CODEX_HOME=/home/u/.codex-profiles/work codex resume th-cx",
+		"cd /srv/aacpanel && codex resume th-cx2", "cd /srv/blog && CODEX_HOME=/srv/codex-archive codex resume c-cx"}
+	if !reflect.DeepEqual(got.CodexCopied, wantCopies) {
+		t.Errorf("the codex menus copied %q, expected %q", got.CodexCopied, wantCopies)
+	}
 	want := map[string]string{
 		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
@@ -320,11 +330,11 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
 		"ext":          "Open · | · Copy the session ID · Copy the resume command",
-		"codex":        "Open · | · ~Stand under… · ~Pin the group · | · Copy the thread ID · | · Stop the turn · Close the session",
-		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · Copy the thread ID · | · Close the session",
+		"codex":        "Open · | · ~Stand under… · ~Pin the group · | · Copy the thread ID · Copy the resume command · | · Stop the turn · Restart the session · Close the session",
+		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · Copy the thread ID · Copy the resume command · | · Restart the session · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
-		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID",
+		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID · Copy the resume command",
 		"project":      "~Pause… · New session · Terminal of the project · | · Settings of the project",
 		"projectHome":  "~Pause… · Terminal of the project · | · Settings of the project",
 		"running":      "~Restart · Stop · | · Logs · Copy the name",

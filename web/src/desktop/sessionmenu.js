@@ -11,8 +11,8 @@ import { useAction } from "../actions/gate.js";
 import { hostLabel } from "../actions/registry.js";
 import { useToast } from "../ui/toasts.js";
 import { MenuItem, MenuList, useMenuSheet } from "../ui/menu.js";
-import { CODEX_CLOSE, isCodex, noTurn, shownName } from "../agent.js";
-import { copyId, copyResume, DETACH, detach, detachWhy, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
+import { CODEX_CLOSE, CODEX_RESTART, codexRestartWhy, isCodex, noTurn, shownName } from "../agent.js";
+import { codexResumeOf, copyId, copyResume, DETACH, detach, detachWhy, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
 import { LOOK_NAMES } from "../screens/chat/look.js";
 import { RenameSheet, takenNames } from "../screens/chat/rename.js";
 import { RoleSheet, roleWhy } from "../screens/chat/role.js";
@@ -58,10 +58,12 @@ export function SessionMenu(props) {
     return html`<${ClaudeMenu} ...${props} />`;
 }
 
-// copies are the two ways to find a session again: its id, and for a
-// conversation of claude the command that resumes it in a terminal.
-function copies(id, cwd, codex, toast) {
-    const resumeLine = codex ? "" : resumeOf(id, cwd);
+// copies are the two ways to find a session again: its id and the command
+// that resumes it in a terminal of its agent.
+function copies(row, toast, snapshot) {
+    const id = row.sessionId;
+    const codex = isCodex(row);
+    const resumeLine = codex ? codexResumeOf(row, snapshot) : resumeOf(id, row.cwd);
     return [
         id && html`<${MenuItem} key="id" label=${codex ? "Copy the thread ID" : "Copy the session ID"}
                                 onPick=${() => copyId(id, toast)} />`,
@@ -92,11 +94,11 @@ function pinItem(s, snapshot, exec, run, wait) {
                             onPick=${() => run("session.pin", pin.root.session, { on: !pin.on })} />`;
 }
 
-function OutsideMenu({ s, onOpen }) {
+function OutsideMenu({ s, onOpen, snapshot }) {
     const toast = useToast();
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
-        copies(s.sessionId, s.cwd, isCodex(s), toast),
+        copies(s, toast, snapshot),
     ]} />`;
 }
 
@@ -109,19 +111,21 @@ function endsOf(exec, closing, restarting) {
     };
 }
 
-function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing }) {
+function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting }) {
     const run = useAction();
     const sheet = useMenuSheet();
     const toast = useToast();
-    const { closeWhy } = endsOf(exec, closing, "");
+    const { closeWhy, restartWhy } = endsOf(exec, closing, restarting);
     const stopWhy = noTurn(s) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     return html`<${MenuList} groups=${[
         [html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`],
         [detachItem(s, exec, run), parentItem(s, snapshot, exec, sheet), pinItem(s, snapshot, exec, run, wait)],
-        copies(s.sessionId, s.cwd, true, toast),
+        copies(s, toast, snapshot),
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}
                                                      onPick=${() => run("session.stop", s.session, {})} />`,
+            html`<${MenuItem} key="restart" label="Restart the session" off=${codexRestartWhy(s) || restartWhy} tip=${CODEX_RESTART}
+                              onPick=${() => run("session.restart", s.session, {})} />`,
             html`<${MenuItem} key="close" label="Close the session" off=${closeWhy} tip=${CODEX_CLOSE}
                               onPick=${() => run("session.close", s.session, {})} />`,
         ],
@@ -183,7 +187,7 @@ function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarti
             parentItem(s, snapshot, exec, sheet),
             pinItem(s, snapshot, exec, run, wait),
         ],
-        copies(s.sessionId, s.cwd, false, toast),
+        copies(s, toast, snapshot),
         [
             html`<${MenuItem} key="restart" label="Restart the session" note=${stops} off=${restartWhy}
                               onPick=${() => run("session.restart", s.session, {})} />`,
@@ -196,8 +200,8 @@ function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarti
 // ClosedMenu is the menu of a closed conversation, on the shelf or in the
 // archive: opened as its row opens (onOpen), resumed as Resume resumes it, a
 // new session started where the archive starts one, and the ways to find it
-// again — a thread of codex has no command of claude's to resume it by.
-export function ClosedMenu({ row, exec, onOpen }) {
+// again, through the command of the conversation's own agent.
+export function ClosedMenu({ row, exec, onOpen, snapshot }) {
     const run = useAction();
     const toast = useToast();
     return html`<${MenuList} groups=${[
@@ -209,7 +213,7 @@ export function ClosedMenu({ row, exec, onOpen }) {
                 <${MenuItem} key="new" label="New session in the project" off=${whyNot(exec, "session.open")}
                              onPick=${() => startIn(run, row, exec)} />`,
         ],
-        copies(row.sessionId, row.cwd, isCodex(row), toast),
+        copies(row, toast, snapshot),
     ]} />`;
 }
 

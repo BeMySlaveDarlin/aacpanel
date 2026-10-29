@@ -1,5 +1,7 @@
 // Waiting for an action to show up in the host snapshot.
 import { useEffect, useRef, useState } from "preact/hooks";
+import { isCodex } from "./agent.js";
+import { openedBy } from "./screens/sessions/kin.js";
 
 export const CATCH_UP_MS = 750;
 
@@ -64,7 +66,7 @@ function waitKey(kind, target) {
 }
 
 // identity tells one run of a session from the next one under the same name:
-// a restarted session keeps its name, and only the conversation behind it
+// a restarted claude session keeps its name, and only the conversation behind it
 // changes; a switched one keeps its conversation too, and only where it lives
 // changes.
 function identity(s) {
@@ -76,11 +78,21 @@ function expired(task, now) {
     return !task.flying && now - task.answered > CATCH_UP_LIMIT;
 }
 
-export function settled(task, names, at = 0, ids = {}, pins = {}) {
+export function settled(task, names, at = 0, ids = {}, pins = {}, sessions = []) {
     if (at && task.seen && at <= task.seen) return false;
     if (task.kind === "close") return !names.includes(task.target);
     if (task.kind === "pin") {
         return !names.includes(task.target) || Boolean(pins[task.target]) === Boolean(task.params.on);
+    }
+    // Codex gives the replacement a new name. A disappearance alone could be
+    // a close; wait for a new thread in the same place in the same contour.
+    if (task.kind === "restart" && task.replacing) {
+        const old = task.replacing;
+        return !names.includes(task.target) && sessions.some((s) => isCodex(s) && !s.outside
+            && !task.before.includes(s.session) && (!task.named || s.session === task.named)
+            && s.cwd === old.cwd && s.codexHome === old.codexHome
+            && s.transport === old.transport
+            && s.contour === old.contour && s.profile === old.profile && openedBy(s) === openedBy(old));
     }
     if (task.kind === "restart" || task.kind === "switch") {
         return names.includes(task.target) && ids[task.target] !== task.was;
@@ -103,6 +115,7 @@ export function useCatchUp(snapshot, refresh) {
     useEffect(() => {
         const start = (kind, target, params) => {
             const now = latest.current;
+            const live = now.alive.find((s) => s.session === target);
             setWaits((prev) => ({
                 ...prev,
                 [waitKey(kind, target)]: {
@@ -113,7 +126,8 @@ export function useCatchUp(snapshot, refresh) {
                     flying: true,
                     seen: now.at,
                     before: now.alive.map((s) => s.session),
-                    was: identity(now.alive.find((s) => s.session === target)),
+                    was: identity(live),
+                    replacing: kind === "restart" && isCodex(live) ? live : null,
                 },
             }));
             if (now.refresh) now.refresh();
@@ -155,7 +169,7 @@ export function useCatchUp(snapshot, refresh) {
             const next = {};
             let changed = false;
             for (const [key, task] of Object.entries(prev)) {
-                if (settled(task, names, at, ids, pins) || expired(task, Date.now())) {
+                if (settled(task, names, at, ids, pins, alive) || expired(task, Date.now())) {
                     changed = true;
                     continue;
                 }

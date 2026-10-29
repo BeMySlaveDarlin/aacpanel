@@ -6,7 +6,7 @@ import { Journal } from "./panels/journal.js";
 import { Logs } from "./panels/logs.js";
 import { Procs } from "./panels/procs.js";
 
-export function RightPanel({ tab, title, profiles, names, archPicks, setArchPicks, container, exec, onOpen, onClose }) {
+export function RightPanel({ tab, title, profiles, names, archPicks, setArchPicks, container, exec, onOpen, onClose, snapshot }) {
     return html`
         <aside class="dkright">
             <div class="dkpanelhead">
@@ -20,6 +20,7 @@ export function RightPanel({ tab, title, profiles, names, archPicks, setArchPick
                 setPicks=${setArchPicks}
                 onOpen=${onOpen}
                 exec=${exec}
+                snapshot=${snapshot}
             />`}
             ${tab === "journal" && html`<${Journal} />`}
             ${tab === "logs" && html`<${Logs} container=${container} />`}

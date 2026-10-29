@@ -28,7 +28,7 @@ import { contourOfLive } from "../screens/sessions/map.js";
 import { kinOf, kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
 import { comparePins, pinAt, pinOf } from "../screens/sessions/pin.js";
 import { useFolds } from "../screens/sessions/folds.js";
-import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex, shownName, spoke } from "../agent.js";
+import { CODEX_CLOSE, CODEX_NOTE, CODEX_RESTART, agentKey, agentName, codexRestartWhy, isCodex, shownName, spoke } from "../agent.js";
 import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
@@ -184,7 +184,8 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     const known = knows(exec, "session.close");
     const can = known && !busy;
     const restartKnown = knows(exec, "session.restart");
-    const canRestart = restartKnown && !busy;
+    const codexWhy = isCodex(s) ? codexRestartWhy(s) : "";
+    const canRestart = restartKnown && !codexWhy && !busy;
     const state = stateOf(s);
     const tone = busy ? "off" : state.tone;
     const said = closing ? "closing" : restarting ? "restarting" : state.text;
@@ -195,7 +196,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     // a codex thread says what a close does to it instead.
     const lost = stopsOf(s);
     const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
-    const restartNote = ends("a new session with an empty context; this one stays in the archive");
+    const restartNote = isCodex(s) ? CODEX_RESTART : ends("a new session with an empty context; this one stays in the archive");
     const closeTip = isCodex(s) ? CODEX_CLOSE : ends("the conversation stays in the archive");
     const full = s.pct || 0;
     const open = () => onPick({ name: s.session, id: s.sessionId });
@@ -252,14 +253,14 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
                         }}
                     ><${Icon.thumbtack} /></i>
                 `}
-                ${!isCodex(s) && !s.outside && html`
+                ${!s.outside && html`
                     <i
                         class=${`dkact danger${canRestart ? "" : " off"}`}
                         aria-label=${`restart session ${s.session}`}
                         aria-disabled=${!canRestart ? "true" : undefined}
                         data-tip=${busy
                             ? "the session is already closing or restarting"
-                            : restartKnown ? restartNote : whyNot(exec, "session.restart")}
+                            : codexWhy || (restartKnown ? restartNote : whyNot(exec, "session.restart"))}
                         data-tipside="left"
                         onClick=${async () => {
                             if (!canRestart) return;
@@ -629,7 +630,7 @@ export function shelfOf(rows, max = SHELF) {
 // Resume; what it was about gives way, the time and Resume stay. A thread of
 // codex keeps no words in the archive, and says who ran it on which model. A
 // right click opens its menu.
-function ClosedLine({ row, contour, project, on, onPick, exec }) {
+function ClosedLine({ row, contour, project, on, onPick, exec, snapshot }) {
     const run = useAction();
     const menu = useMenu();
     const codex = isCodex(row);
@@ -640,7 +641,7 @@ function ClosedLine({ row, contour, project, on, onPick, exec }) {
         <div class=${`dkclosed${on ? " on" : ""}`} role="button" tabindex="0"
              onClick=${open}
              onKeyDown=${(e) => { if (e.key === "Enter") open(); }}
-             onContextMenu=${menu && menu(ClosedMenu, { row, exec, onOpen: open }, `conversation ${row.name}`)}>
+             onContextMenu=${menu && menu(ClosedMenu, { row, exec, onOpen: open, snapshot }, `conversation ${row.name}`)}>
             <span class="dkcltop">
                 <span class="dkclname">${row.name}</span>
                 ${contour && html`<span class="dkclcontour">${contour}</span>`}
@@ -669,7 +670,7 @@ function ClosedLine({ row, contour, project, on, onPick, exec }) {
 
 // Shelf is the closed conversations of the contours shown, newest first, under
 // a heading of its own below all of them; the archive panel holds the rest.
-function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec }) {
+function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec, snapshot }) {
     if (past.kind === "loading") return null;
     const rows = past.kind === "ready" ? shelfOf((past.archive && past.archive.rows) || []) : [];
     if (past.kind === "ready" && rows.length === 0) return null;
@@ -685,7 +686,7 @@ function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec })
             ${rows.map((row) => html`
                 <${ClosedLine} key=${row.sessionId || row.name} row=${row} contour=${labelOf(row)}
                                project=${projectOf(row)} on=${Boolean(currentId) && currentId === row.sessionId}
-                               onPick=${onPick} exec=${exec} />
+                               onPick=${onPick} exec=${exec} snapshot=${snapshot} />
             `)}
         </section>
     `;
@@ -821,7 +822,7 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
                 ${sections.length === 0 && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}
                 ${sections.length > 0 && html`
                     <${Shelf} past=${past} labelOf=${labelOf} projectOf=${projectOf}
-                              currentId=${currentId} onPick=${onPick} onArchive=${onArchive} exec=${exec} />
+                              currentId=${currentId} onPick=${onPick} onArchive=${onArchive} exec=${exec} snapshot=${snapshot} />
                 `}
             </div>
         </aside>

@@ -33,9 +33,9 @@ const (
 // panel offers it exactly what the host does for codex: words and files into
 // its turn, named in the queue of a busy thread so they can be taken back, how
 // it thinks and what it may do, a stop of the turn, the answer to what it
-// asks, and a close. Everything claude's — its pickers, the commands, the
-// shell, the terminal, the move, the window, Remote Control, the name, the
-// restart — is not there, and the screen does not ask the host about any of it. The close says what it
+// asks, a restart and a close. Everything claude's — its pickers, the commands, the
+// shell, the terminal, the move, the window, Remote Control — is not there,
+// and the screen does not ask the host about any of it. The close says what it
 // does to codex wherever it is offered: the desktop row, the phone's card and
 // the session panel, and the sheet of the gate behind each of them, which has
 // no kill under it — the host does not kill codex.
@@ -140,10 +140,11 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked, pinnable, restartable and closable",
 			got.ClaudeMarks, got.ClaudeActs)
 	}
-	if len(got.DeskActs) != 2 || got.DeskActs[0].Label != "pin session group "+name || got.DeskActs[1].Label != "close session "+name {
-		t.Errorf("the desktop row of the codex thread offers %+v, expected pin and close: a codex thread is not restarted", got.DeskActs)
+	if len(got.DeskActs) != 3 || got.DeskActs[0].Label != "pin session group "+name ||
+		got.DeskActs[1].Label != "restart session "+name || got.DeskActs[2].Label != "close session "+name {
+		t.Errorf("the desktop row of the codex thread offers %+v, expected pin, restart and close", got.DeskActs)
 	} else {
-		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[1].Tip)
+		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[2].Tip)
 	}
 	if !strings.Contains(got.DeskSay, "waiting") {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)
@@ -176,12 +177,12 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the header of the conversation carries the marks %v beside the name", got.HeadMarks)
 	}
 
-	// A codex card closes the thread; restarting it is refused by the host.
-	if len(got.PhoneActions) != 2 || got.PhoneActions[0].Label != "pin session group codex-5afc361b" || !got.PhoneActions[0].Off ||
-		got.PhoneActions[1].Text != "" || got.PhoneActions[1].Label != "close session codex-5afc361b" || got.PhoneActions[1].Off {
-		t.Errorf("the phone's card offers %+v, expected a pin unknown to this host and Close", got.PhoneActions)
+	if len(got.PhoneActions) != 3 || got.PhoneActions[0].Label != "pin session group codex-5afc361b" || !got.PhoneActions[0].Off ||
+		got.PhoneActions[1].Label != "restart session "+name || got.PhoneActions[1].Off ||
+		got.PhoneActions[2].Text != "" || got.PhoneActions[2].Label != "close session codex-5afc361b" || got.PhoneActions[2].Off {
+		t.Errorf("the phone's card offers %+v, expected a pin unknown to this host, Restart and Close", got.PhoneActions)
 	} else {
-		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[1].Note)
+		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[2].Note)
 	}
 
 	// The conversation: the feed and its files, no terminal, no move.
@@ -237,7 +238,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 
 	// The session panel: where it lives, its id, the stop of its turn and the
 	// close.
-	if strings.Join(got.Panel, ",") != "With codex,MCP servers,Skills,Copy the session ID,Stand under…,Stop the turn,Close the session" {
+	if strings.Join(got.Panel, ",") != "With codex,MCP servers,Skills,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
 		t.Errorf("the session panel of a codex thread lists %v", got.Panel)
 	}
 	if got.PanelStopOff == nil || *got.PanelStopOff || strings.Join(got.StopSent, ",") != name {
@@ -295,8 +296,10 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 			Note string `json:"note"`
 			Off  bool   `json:"off"`
 		} `json:"close"`
-		CloseSheet *gateSheet `json:"closeSheet"`
-		Permit     struct {
+		CloseSheet   *gateSheet `json:"closeSheet"`
+		RestartSheet *gateSheet `json:"restartSheet"`
+		ResumeCopied []string   `json:"resumeCopied"`
+		Permit       struct {
 			Tool    string `json:"tool"`
 			Action  string `json:"action"`
 			Options []struct {
@@ -336,7 +339,7 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if strings.Join(got.Attach, ",") != "Camera,Photos,Files" {
 		t.Errorf("the paperclip of a codex thread opens %v, expected where files come from, as claude's does", got.Attach)
 	}
-	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,MCP servers,Skills,Copy the session ID,Stand under…,Stop the turn,Close the session" {
+	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,MCP servers,Skills,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
 		t.Errorf("the tools of a codex thread list %v", got.Tools)
 	}
 	if got.Close == nil || got.Close.Off {
@@ -345,6 +348,10 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 		saysCodexClose(t, "the close in the tools on a phone", got.Close.Note)
 	}
 	checkCodexCloseSheet(t, "the tools on a phone", "codex-5afc361b", got.CloseSheet)
+	checkCodexRestartSheet(t, "the tools on a phone", "codex-5afc361b", got.RestartSheet)
+	if strings.Join(got.ResumeCopied, ",") != "cd /srv/shop && codex resume 0199c3a2-7f10-7b2e-9c41-6e1d5afc361b" {
+		t.Errorf("the tools on a phone copied %q", got.ResumeCopied)
+	}
 	if got.StopOff == nil || !*got.StopOff || got.StopWhy != "codex is not running a turn" {
 		t.Errorf("the stop of an idle thread is off %v and says %q", got.StopOff, got.StopWhy)
 	}
@@ -393,9 +400,11 @@ type gateSheet struct {
 	Effect  string   `json:"effect"`
 	OK      string   `json:"ok"`
 	Harsher []string `json:"harsher"`
+	Choices []string `json:"choices"`
 	Sent    []struct {
-		Kind   string `json:"kind"`
-		Target string `json:"target"`
+		Kind   string         `json:"kind"`
+		Target string         `json:"target"`
+		Params map[string]any `json:"params"`
 	} `json:"sent"`
 }
 
@@ -440,5 +449,116 @@ func checkCodexCloseSheet(t *testing.T, where, name string, sheet *gateSheet) {
 	}
 	if len(sheet.Sent) != 1 || sheet.Sent[0].Kind != "session.close" || sheet.Sent[0].Target != name {
 		t.Errorf("the close in %s sent %+v, expected session.close of %s", where, sheet.Sent, name)
+	}
+}
+
+func checkCodexRestartSheet(t *testing.T, where, name string, sheet *gateSheet) {
+	t.Helper()
+	if sheet == nil || sheet.Trouble != "" {
+		t.Errorf("the restart in %s put up no sheet: %+v", where, sheet)
+		return
+	}
+	for _, want := range []string{"fresh thread", "same directory", "same parent", "empty context", "closes after its turn", "map's restart message"} {
+		if !strings.Contains(sheet.Effect, want) {
+			t.Errorf("the restart in %s says %q: missing %q", where, sheet.Effect, want)
+		}
+	}
+	if sheet.OK != "Restart" || len(sheet.Choices) != 0 || len(sheet.Harsher) != 0 {
+		t.Errorf("the restart in %s offers %+v, expected one Restart and no Claude restart modes", where, sheet)
+	}
+	if len(sheet.Sent) != 1 || sheet.Sent[0].Kind != "session.restart" || sheet.Sent[0].Target != name || len(sheet.Sent[0].Params) != 0 {
+		t.Errorf("the restart in %s sent %+v, expected session.restart by the thread's name", where, sheet.Sent)
+	}
+}
+
+func TestCodexRestartWaitsForItsReplacementAndExplainsUnavailableActions(t *testing.T) {
+	type button struct {
+		Off  bool
+		Note string
+	}
+	var got struct {
+		Restarts     map[string]*gateSheet
+		ResumeCopied []string
+		Waiting      struct {
+			Started, Busy, OldStillHere, GoneAlone, WrongParent, WrongDirectory, WrongContour, Finished, BusyAfter bool
+			BeforeOrder, AfterOrder                                                                                []string
+		}
+		Unavailable []struct {
+			Why                     string
+			Desk, Phone, Tool, Menu *button
+			Sent                    int
+			Gate                    bool
+		}
+	}
+	runWideFixture(t, "codexsessions.html", &got)
+	for _, where := range []string{"desktop row", "phone row", "desktop tools", "waiting row"} {
+		checkCodexRestartSheet(t, where, "codex-5afc361b", got.Restarts[where])
+	}
+	if strings.Join(got.ResumeCopied, ",") != "cd /srv/shop && CODEX_HOME=/home/u/.codex-profiles/acme codex resume 0199c3a2-7f10-7b2e-9c41-6e1d5afc361b" {
+		t.Errorf("the desktop tools copied %q, expected the contour's Codex home from the map", got.ResumeCopied)
+	}
+	w := got.Waiting
+	if !w.Started || !w.Busy || !w.OldStillHere || !w.GoneAlone || !w.WrongParent || !w.WrongDirectory || !w.WrongContour || !w.Finished || w.BusyAfter {
+		t.Errorf("the restart did not wait for a new thread in the old thread's place: %+v", w)
+	}
+	if strings.Join(w.BeforeOrder, ",") != "shop,codex-5afc361b" || strings.Join(w.AfterOrder, ",") != "shop,codex-77777777" {
+		t.Errorf("the phone tree moved from %v to %v, expected the replacement under shop", w.BeforeOrder, w.AfterOrder)
+	}
+	if len(got.Unavailable) != 3 {
+		t.Fatalf("expected outside, tmux and unknown restart checks, got %+v", got.Unavailable)
+	}
+	for _, unavailable := range got.Unavailable {
+		if unavailable.Sent != 0 || unavailable.Gate {
+			t.Errorf("the %s restart sent an action or opened the gate: %+v", unavailable.Why, unavailable)
+		}
+		for where, act := range map[string]*button{"desktop": unavailable.Desk, "phone": unavailable.Phone, "tools": unavailable.Tool, "menu": unavailable.Menu} {
+			if unavailable.Why == "outside" {
+				if act != nil {
+					t.Errorf("%s offers to restart an outside thread: %+v", where, act)
+				}
+				continue
+			}
+			want := "the host does not know"
+			if unavailable.Why == "tmux" {
+				want = "Codex terminal"
+			}
+			if act == nil || !act.Off || !strings.Contains(act.Note, want) {
+				t.Errorf("the %s restart in %s is unexplained or available: %+v", unavailable.Why, where, act)
+			}
+		}
+	}
+}
+
+func TestCodexResumeCommandUsesTheThreadsDirectoryAndHome(t *testing.T) {
+	cases := []struct {
+		name     string
+		row      map[string]any
+		snapshot map[string]any
+		want     string
+	}{
+		{"no id", map[string]any{"cwd": "/srv/shop"}, nil, ""},
+		{"no directory", map[string]any{"sessionId": "thread"}, nil, "codex resume thread"},
+		{"personal home", map[string]any{"sessionId": "thread", "cwd": "/srv/shop", "codexHome": "/home/u/.codex"},
+			map[string]any{"host": map[string]string{"home": "/home/u"}}, "cd /srv/shop && codex resume thread"},
+		{"explicit home without host facts", map[string]any{"sessionId": "thread", "codexHome": "/srv/work/.codex"}, nil,
+			"CODEX_HOME=/srv/work/.codex codex resume thread"},
+		{"home from contour", map[string]any{"sessionId": "thread", "profile": "work"},
+			map[string]any{"profileMap": []any{map[string]string{"profile": "other", "codexHome": "/wrong"},
+				map[string]string{"profile": "work", "codexHome": "/srv/codex-work"}}},
+			"CODEX_HOME=/srv/codex-work codex resume thread"},
+		{"quoted paths", map[string]any{"sessionId": "thread", "cwd": "/srv/owner's project", "codexHome": "/srv/codex $(false)"}, nil,
+			`cd '/srv/owner'\''s project' && CODEX_HOME='/srv/codex $(false)' codex resume thread`},
+		{"tilde home", map[string]any{"sessionId": "thread", "codexHome": "~/.codex-profiles/work"}, nil,
+			`CODEX_HOME="$HOME"/.codex-profiles/work codex resume thread`},
+	}
+	calls := make([][]any, 0, len(cases))
+	for _, c := range cases {
+		calls = append(calls, []any{c.row, c.snapshot})
+	}
+	got := runModuleJS(t, "src/screens/chat/sessiontools.js", "codexResumeOf", calls)
+	for i, c := range cases {
+		if got[i] != c.want {
+			t.Errorf("%s: got %q, expected %q", c.name, got[i], c.want)
+		}
 	}
 }

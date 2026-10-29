@@ -41,6 +41,10 @@ const permission = {
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
+const copied = [];
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: async (text) => { copied.push(text); },
+} });
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
@@ -56,11 +60,11 @@ window.EventSource = class { constructor() { this.readyState = 1; } addEventList
 
 const exec = { available: true, kinds: ["session.send", "session.stop", "session.escape", "session.permit",
     "session.set", "session.command", "session.shell", "session.file", "session.rename", "session.switch",
-    "session.close", "window.open", "session.remote"] };
+    "session.close", "session.restart", "window.open", "session.remote"] };
 const thread = {
     session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", profile: "acme", agent: "codex",
     transport: "stream", status: "idle", model: "gpt-6-astra", effort: "xhigh", tokens: 41000, limit: 272000, pct: 15,
-    cwd: "/srv/shop",
+    cwd: "/srv/shop", codexHome: "/home/u/.codex",
 };
 // The registry learns the live sessions from every answer of the host, as the
 // application hands them over.
@@ -68,7 +72,7 @@ setLiveSessions([thread]);
 const root = document.getElementById("root");
 const page = (live) => h(ToastHost, null, h(GateHost, null,
     html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${live} exec=${exec}
-                  onBack=${() => {}} onUsage=${() => {}} />`));
+                  snapshot=${{ host: { home: "/home/u" } }} onBack=${() => {}} onUsage=${() => {}} />`));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (ok) => {
@@ -129,6 +133,28 @@ window.done = (async () => {
                 .map((s) => ({ kind: s.kind, target: s.target }));
         } else {
             out.closeSheet = { trouble: "no sheet came up" };
+        }
+    }
+
+    root.querySelector(".phead .pmore").click();
+    await until(() => document.querySelector(".tools .toollabel"));
+    const rows = Array.from(document.querySelectorAll(".tools .toolrow"));
+    rows.find((b) => text(b.querySelector(".toollabel")) === "Copy the resume command")?.click();
+    await until(() => copied.length > 0);
+    out.resumeCopied = copied.slice();
+    const restart = rows.find((b) => text(b.querySelector(".toollabel")) === "Restart the session");
+    if (restart) {
+        restart.click();
+        const gate = () => root.querySelector('.sheet.on[aria-label="action confirmation"]');
+        if (await until(() => gate() && gate().querySelector(".btnrow"))) {
+            out.restartSheet = {
+                effect: text(gate().querySelector(".warnline")),
+                ok: text(gate().querySelector(".btnrow .btn:last-child")),
+                choices: names(gate(), '[role="radio"]'),
+            };
+            gate().querySelector(".btnrow .btn:last-child").click();
+            await until(() => sent.some((s) => s.kind === "session.restart"));
+            out.restartSheet.sent = sent.filter((s) => s.kind === "session.restart");
         }
     }
 

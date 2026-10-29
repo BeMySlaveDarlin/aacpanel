@@ -2,8 +2,8 @@
 // stands on the same lists and its conversation is read the same way, but
 // the panel offers it what codex takes — words and files into its turn, how
 // it thinks and what it may do, the stop of its turn, the answer to what it
-// asks to be allowed and its close — and nothing else: every other tool of a
-// session is claude's, and the host refuses it for codex.
+// asks to be allowed, its restart and its close — and nothing else: every
+// other tool of a session is claude's, and the host refuses it for codex.
 
 // CODEX_NOTE says what the panel does to a codex thread, for its mark and
 // for the line that says where it lives.
@@ -15,6 +15,14 @@ export const CODEX_NOTE = "a codex thread: the panel writes to it, sets how it t
 // the daemon's, and only the panel's hold on it goes.
 export const CODEX_CLOSE = "the turn at work breaks off and the panel lets the thread go: the daemon unloads it "
     + "once no client is left, codex resume brings it back, and codex in tmux closes with its tmux session";
+
+export const CODEX_RESTART = "a fresh thread in the same directory and under the same parent, with an empty context; "
+    + "this thread closes after its turn. The first message comes from the map's restart message";
+
+export function codexRestartWhy(s) {
+    if (s.outside) return "the panel did not start this thread and cannot restart it";
+    return s.transport !== "stream" ? "restart from the Codex terminal: this thread runs in tmux" : "";
+}
 
 // isCodex reports whether a live session is a codex thread.
 export function isCodex(s) {

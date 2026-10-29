@@ -95,8 +95,8 @@ type codexOutsideShot struct {
 
 // A codex running on its own is only read: its card opens the conversation
 // and offers no actions, a busy one included, and the tools of
-// its conversation are where it lives and its id. A thread of a daemon keeps
-// its stop and its close.
+// its conversation are where it lives, its id and its resume command. A
+// thread of a daemon keeps its stop, its restart and its close.
 func TestACodexOfItsOwnIsOnlyRead(t *testing.T) {
 	var got codexOutsideShot
 	runFixture(t, "codexoutside.html", &got)
@@ -107,7 +107,7 @@ func TestACodexOfItsOwnIsOnlyRead(t *testing.T) {
 	if got.Actions != 0 || !got.Opens {
 		t.Errorf("the outside card has %d actions and opens %v", got.Actions, got.Opens)
 	}
-	if strings.Join(got.OwnTools, " | ") != "Outside the panel | Copy the session ID" ||
+	if strings.Join(got.OwnTools, " | ") != "Outside the panel | Copy the session ID | Copy the resume command" ||
 		!strings.Contains(got.OwnNote, "cannot write to it") {
 		t.Errorf("the tools of a codex of its own are %v, %q", got.OwnTools, got.OwnNote)
 	}

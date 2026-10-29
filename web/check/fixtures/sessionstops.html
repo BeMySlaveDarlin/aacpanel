@@ -7,7 +7,7 @@
 <div class="page" id="phone"></div>
 <script type="module">
 // The phone's cards expose only the actions the host can take: the home
-// session never closes, codex never restarts and outside sessions are only
+// session never closes, a daemon thread restarts and outside sessions are only
 // read. Every press still belongs to the gate, with its own confirmation.
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";

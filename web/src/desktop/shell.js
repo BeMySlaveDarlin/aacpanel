@@ -448,6 +448,7 @@ export function DesktopShell({
                     ${center()}
                     ${panel && !wide && html`
                         <${RightPanel}
+                            snapshot=${snapshot}
                             tab=${panel}
                             title=${panelTitle}
                             profiles=${profiles}

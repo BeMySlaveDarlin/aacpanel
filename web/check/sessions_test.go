@@ -100,7 +100,7 @@ func TestDesktopSessionActionsFollowThePhone(t *testing.T) {
 	runFixture(t, "sessionstops.html", &got)
 	for name, want := range map[string]string{
 		"helios": "pin,restart", "lab": "pin,restart,close", "quiet": "pin,restart,close",
-		"codex-5afc361b": "pin,close", "outside": "",
+		"codex-5afc361b": "pin,restart,close", "outside": "",
 	} {
 		var actions []string
 		for _, b := range got.DesktopActions[name] {

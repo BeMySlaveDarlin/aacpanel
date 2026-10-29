@@ -276,6 +276,26 @@ export function resumeOf(id, cwd) {
     return id ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
 }
 
+// The browser cannot infer the host's home from a path ending in .codex.
+// Keep an explicit home unless the snapshot identifies it as the default.
+export function codexResumeOf(row, snapshot) {
+    if (!row.sessionId) return "";
+    const contour = snapshot?.profileMap?.find((c) => (row.contour != null && c.id === row.contour)
+        || (row.profile && c.profile === row.profile));
+    const home = row.codexHome || contour?.codexHome || "";
+    const personal = snapshot?.host?.home ? `${snapshot.host.home}/.codex` : "~/.codex";
+    const env = home && home !== personal && home !== "~/.codex" ? `CODEX_HOME=${shellPath(home)} ` : "";
+    return `${row.cwd ? `cd ${shellPath(row.cwd)} && ` : ""}${env}codex resume ${shellWord(row.sessionId)}`;
+}
+
+function shellPath(path) {
+    return path.startsWith("~/") ? `"$HOME"/${shellWord(path.slice(2))}` : shellWord(path);
+}
+
+function shellWord(word) {
+    return /^[a-zA-Z0-9_./:@%+=,-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`;
+}
+
 // copyResume copies that command.
 export function copyResume(command, toast) {
     return copyText(command, toast, "Copied", "the resume command");

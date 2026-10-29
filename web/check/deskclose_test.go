@@ -36,8 +36,6 @@ func TestDesktopHidesCloseForTheHomeSession(t *testing.T) {
 // the home row offers no close.
 func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 	files := srcFiles(t)
-	claudeOnly := regexp.MustCompile(`!isCodex\(s\)\s*&&`)
-
 	const desk = "src/desktop/sessions.js"
 	src := stripComments(files[desk])
 	if src == "" {
@@ -45,11 +43,12 @@ func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 	}
 	row := funcBody(t, src, "function SessionLine(")
 	acts := jsUntil(t, desk, row, `<span class="dkrowacts"`, "</span>")
-	gate := claudeOnly.FindStringIndex(acts)
-	if gate == nil {
-		t.Fatalf("%s: the row actions slot has no block for Claude sessions — there is nothing to restart it with", desk)
+	restart := strings.Index(acts, "restart session")
+	if restart < 0 {
+		t.Fatalf("%s: the row actions slot has no restart", desk)
 	}
-	home := acts[gate[0] : strings.Index(acts[gate[0]:], "</i>")+gate[0]]
+	start := strings.LastIndex(acts[:restart], "<i")
+	home := acts[start : strings.Index(acts[restart:], "</i>")+restart]
 	for _, want := range []string{`"session.restart"`, "Icon.refresh"} {
 		if !strings.Contains(home, want) {
 			t.Errorf("%s: the home row's block has no %s", desk, want)

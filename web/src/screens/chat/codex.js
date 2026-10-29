@@ -4,8 +4,8 @@
 // question aside. The panel writes to it — words and files, into the turn
 // that runs as claude takes a message written during a turn, and the answer
 // to a question it asked — sets how it thinks and what it may do from the
-// band under the field, stops its turn, answers what it asks and closes it;
-// the agents the thread started are listed as claude's are, each opening its
+// band under the field, stops its turn, answers what it asks, restarts and
+// closes it; the agents the thread started are listed as claude's are, each opening its
 // own thread.
 
 import { useState } from "preact/hooks";
@@ -14,7 +14,8 @@ import { html } from "../../html.js";
 import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
-import { CODEX_CLOSE, CODEX_NOTE, noTurn } from "../../agent.js";
+import { useToast } from "../../ui/toasts.js";
+import { CODEX_CLOSE, CODEX_NOTE, CODEX_RESTART, codexRestartWhy, noTurn } from "../../agent.js";
 import { Conversation } from "./conversation.js";
 import { CodexSheets, CodexStrip, useCatalog, useCodexPick } from "./codexpick.js";
 import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
@@ -22,7 +23,7 @@ import { LOOK_NAMES } from "./look.js";
 import { AgentsChip, HeldChip } from "./work.js";
 import { McpSheet } from "./mcp.js";
 import { SetupSheet } from "./setup.js";
-import { DetachLine, IdLine, ParentLine, PlaceLine, ToolRow } from "./sessiontools.js";
+import { codexResumeOf, copyResume, DetachLine, IdLine, ParentLine, PlaceLine, ToolRow } from "./sessiontools.js";
 import { outsideNote } from "../sessions/kin.js";
 import { useTermAvailable } from "./term.js";
 
@@ -112,11 +113,15 @@ function CodexWork({ work, processes, onOpen }) {
 
 // CodexSections are the tools of a thread: where it lives, what it has, its
 // id, the session it stands under while it stands under one, the stop of its
-// turn and its close — no move, no window and no bridge.
+// turn, its restart and its close — no move, no window and no bridge.
 // Its name is changed from the thread, behind the band. A codex running on
-// its own has where it lives and its id alone: the panel asks it nothing.
+// its own has where it lives and how to resume it: the panel asks it nothing.
 export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
     const run = useAction();
+    const toast = useToast();
+    const resume = codexResumeOf(live, snapshot);
+    const resumeLine = resume && html`<${ToolRow} icon=${Icon.copy} label="Copy the resume command" note=${resume}
+                                              onPress=${() => copyResume(resume, toast)} />`;
     if (live.outside) {
         return html`
             <section class="toolsec">
@@ -125,12 +130,14 @@ export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
             </section>
             <section class="toolsec">
                 <div class="cmdsechead"><span>Session</span></div>
-                <ul class="mcplist toollist"><${IdLine} id=${live.sessionId || ""} /></ul>
+                <ul class="mcplist toollist"><${IdLine} id=${live.sessionId || ""} />${resumeLine}</ul>
             </section>
         `;
     }
     const stopWhy = noTurn(live) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     const closeWhy = knows(exec, "session.close") ? "" : whyNot(exec, "session.close");
+    const restartWhy = codexRestartWhy(live) || (live.restarting ? "The session is already restarting" : "")
+        || (knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart"));
     return html`
         <section class="toolsec">
             <div class="cmdsechead"><span>Where it lives</span></div>
@@ -149,6 +156,7 @@ export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
             <div class="cmdsechead"><span>Session</span></div>
             <ul class="mcplist toollist">
                 <${IdLine} id=${live.sessionId || ""} />
+                ${resumeLine}
                 <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
                 <${ParentLine} live=${live} exec=${exec} snapshot=${snapshot} onDone=${onDone} onLook=${onLook} />
             </ul>
@@ -158,6 +166,8 @@ export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
                 <${ToolRow} icon=${Icon.stopsquare} stop label="Stop the turn" off=${stopWhy}
                             note="codex breaks off the turn it is running; the thread stays"
                             onPress=${() => { onDone(); run("session.stop", name, {}); }} />
+                <${ToolRow} icon=${Icon.refresh} stop label="Restart the session" off=${restartWhy} note=${CODEX_RESTART}
+                            onPress=${() => { onDone(); run("session.restart", name, {}); }} />
                 <${ToolRow} icon=${Icon.stop} stop label="Close the session" off=${closeWhy} note=${CODEX_CLOSE}
                             onPress=${() => { onDone(); run("session.close", name, {}); }} />
             </ul>

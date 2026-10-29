@@ -45,7 +45,7 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 
 	want := map[string]string{
 		"helios": "pin,restart", "lab": "pin,restart,close", "quiet": "pin,restart,close",
-		"codex-5afc361b": "pin,close", "outside": "",
+		"codex-5afc361b": "pin,restart,close", "outside": "",
 	}
 	if len(got.MobileActions) != len(want) {
 		t.Fatalf("the list has %d cards, expected %d", len(got.MobileActions), len(want))

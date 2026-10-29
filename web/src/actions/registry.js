@@ -1,6 +1,6 @@
 // Registry of state-changing actions: what to tell the person before it happens.
 
-import { isCodex } from "../agent.js";
+import { CODEX_RESTART, isCodex } from "../agent.js";
 import { stopsOf } from "../screens/chat/head.js";
 import { openedBy } from "../screens/sessions/kin.js";
 
@@ -69,6 +69,7 @@ function agentChoice(target, params) {
 }
 
 function restartChoice(target) {
+    if (codexTarget(target)) return null;
     const live = liveSessions.find((s) => s.session === target);
     const lost = stopsOf(live);
     const stops = lost ? ` Stops ${lost}.` : "";
@@ -440,7 +441,8 @@ export const ACTIONS = {
         watch: "restart",
         choice: restartChoice,
         title: (target) => `Restart ${target}?`,
-        effect: "Choose what happens to the conversation and its work before restarting.",
+        effect: (params, target) => (codexTarget(target) ? CODEX_RESTART
+            : "Choose what happens to the conversation and its work before restarting."),
         done: (target) => `Session ${target} is restarting`,
         ok: "Restart",
         danger: true,

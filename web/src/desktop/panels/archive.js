@@ -38,13 +38,13 @@ function contourQuery(name, profiles) {
 // context in the archive: it says the tokens it spent, and the word of its
 // agent before its model. A right click opens the menu a closed conversation
 // has on the shelf.
-function Row({ r, exec, onOpen, run }) {
+function Row({ r, exec, onOpen, run, snapshot }) {
     const menu = useMenu();
     const codex = isCodex(r);
     const open = () => onOpen({ name: r.name, id: r.sessionId, archived: true, row: r });
     return html`
         <div class="dkarch" onClick=${open}
-             onContextMenu=${menu && menu(ClosedMenu, { row: r, exec, onOpen: open }, `conversation ${r.name}`)}>
+             onContextMenu=${menu && menu(ClosedMenu, { row: r, exec, onOpen: open, snapshot }, `conversation ${r.name}`)}>
             <span class="dkarchtop">
                 <span class="dkname" title=${r.cwd}>${r.name}</span>
                 <span class="dknum">${codex ? tokens(r.tokensUsed) : pct(r.pctMax)}</span>
@@ -84,7 +84,7 @@ function Row({ r, exec, onOpen, run }) {
 // pages and a quieter one starts somewhere on page four — asked for together,
 // the quiet contours are simply not on the screen. Asked apart, every contour
 // shows its own latest conversations whatever the neighbours have been doing.
-function Contour({ name, profiles, per, exec, onOpen, run }) {
+function Contour({ name, profiles, per, exec, onOpen, run, snapshot }) {
     const [page, setPage] = useState(0);
     const query = contourQuery(name, profiles);
     useEffect(() => setPage(0), [query, per]);
@@ -103,7 +103,7 @@ function Contour({ name, profiles, per, exec, onOpen, run }) {
             </div>
             ${error && html`<p class="dkempty">the archive is unavailable: ${error}</p>`}
             ${!error && data && rows.length === 0 && html`<p class="dkempty">there are no conversations</p>`}
-            ${rows.map((r) => html`<${Row} key=${r.sessionId} r=${r} exec=${exec} onOpen=${onOpen} run=${run} />`)}
+            ${rows.map((r) => html`<${Row} key=${r.sessionId} r=${r} exec=${exec} onOpen=${onOpen} run=${run} snapshot=${snapshot} />`)}
             ${total > per && html`
                 <div class="dkpager">
                     <button
@@ -129,7 +129,7 @@ function Contour({ name, profiles, per, exec, onOpen, run }) {
 }
 
 // Archive lists the conversations of the shown contours, every contour apart.
-export function Archive({ profiles, names, picks, setPicks, onOpen, exec }) {
+export function Archive({ profiles, names, picks, setPicks, onOpen, exec, snapshot }) {
     const run = useAction();
     const known = names || [];
     const shown = picks.length ? known.filter((n) => picks.includes(n)) : known;
@@ -154,10 +154,11 @@ export function Archive({ profiles, names, picks, setPicks, onOpen, exec }) {
                         exec=${exec}
                         onOpen=${onOpen}
                         run=${run}
+                        snapshot=${snapshot}
                     />
                 `)}
                 ${shown.length === 0 && html`
-                    <${Contour} name="" profiles=${profiles} per=${PER_ALONE} exec=${exec} onOpen=${onOpen} run=${run} />
+                    <${Contour} name="" profiles=${profiles} per=${PER_ALONE} exec=${exec} onOpen=${onOpen} run=${run} snapshot=${snapshot} />
                 `}
             </div>
         </div>
