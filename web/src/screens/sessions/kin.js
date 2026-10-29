@@ -12,10 +12,12 @@ import { isCodex } from "../../agent.js";
 
 // placeOf names where a live session lives, for its mark. A codex thread
 // lives on the app-server daemon of its codex home, not on the panel's
-// stream, whatever its transport says, or on its own, out of the panel's
-// reach; who runs it is said by the line of its model.
+// stream, or on its own, out of the panel's reach; one with codex open on it
+// in tmux is marked tmux, since that terminal is where the person goes on
+// with it and where it is restarted. Who runs it is said by the line of its
+// model.
 export function placeOf(s) {
-    if (isCodex(s)) return s.outside ? "outside" : "daemon";
+    if (isCodex(s)) return s.outside ? "outside" : s.transport === "tmux" ? "tmux" : "daemon";
     if (s.transport === "stream") return "stream";
     if (s.outside) return "outside";
     return "tmux";

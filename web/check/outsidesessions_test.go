@@ -45,6 +45,37 @@ process.stdout.write(JSON.stringify(rows.map((s) => [placeOf(s), outsideNote(s)]
 	}
 }
 
+// A codex thread is marked where the person reaches it: on its daemon, in the
+// tmux where codex is open on it, or outside the panel.
+func TestACodexThreadIsMarkedWhereItsTerminalIs(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not found: the mark is made by the engine, not read out of the source")
+	}
+	kin := bundleFront(t, filepath.Join(webDir, "src", "screens", "sessions", "kin.js"))
+	script := `
+import { placeOf } from ` + jsString("file://"+kin) + `;
+const rows = [
+    { agent: "codex", transport: "stream" },
+    { agent: "codex", transport: "tmux" },
+    { agent: "codex", transport: "tmux", outside: true },
+    { transport: "tmux" },
+];
+process.stdout.write(JSON.stringify(rows.map(placeOf)));
+`
+	out, err := exec.Command(node, "--input-type=module", "-e", script).Output()
+	if err != nil {
+		t.Fatalf("node: %v", err)
+	}
+	var got []string
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatalf("the marks came back as %s (%v)", out, err)
+	}
+	if want := []string{"daemon", "tmux", "outside", "tmux"}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("the marks are %v, want %v: a codex thread open in tmux is restarted and gone on with there", got, want)
+	}
+}
+
 // A claude the panel did not start is shown for what it is. The runs a session
 // started inside its work stand under it: on the phone in a fold that says one
 // of them waits for the person, in the desktop column with the waiting one
