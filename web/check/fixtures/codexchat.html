@@ -85,7 +85,9 @@ window.done = (async () => {
     const out = {};
     const head = root.querySelector(".chathead");
     out.headExtra = Array.from(head.querySelector("h2").children)
-        .filter((el) => !el.matches(".talkdot, .midname")).map((el) => el.className || el.tagName);
+        .filter((el) => !el.matches(".talkdot, .midname")
+            && !(el.matches(".headrename") && el.querySelector(".midname") && el.children.length === 1))
+        .map((el) => el.className || el.tagName);
     const sub = head.querySelector(".chatsub");
     const word = sub.firstElementChild;
     out.agent = word && word.classList.contains("agentword")

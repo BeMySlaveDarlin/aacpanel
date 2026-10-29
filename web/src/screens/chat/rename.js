@@ -28,15 +28,18 @@ export function takenNames(snapshot) {
     return ((snapshot && snapshot.sessions) || []).map((s) => s.session);
 }
 
-export function useRename({ name, exec, taken, onDone }) {
+// useRename renames the session called name. current is what the field
+// starts from and check what it is held to: the session's name by default,
+// a codex thread's title with its own check.
+export function useRename({ name, current = name, check, exec, taken, onDone }) {
     const run = useAction();
-    const [value, setValue] = useState(name);
+    const [value, setValue] = useState(current);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const can = knows(exec, "session.rename");
     const next = value.trim();
-    const trouble = nameTrouble(value, name, (taken || []).filter((n) => n !== name));
-    const ready = can && !busy && !trouble && next !== name;
+    const trouble = check ? check(value) : nameTrouble(value, name, (taken || []).filter((n) => n !== name));
+    const ready = can && !busy && !trouble && next !== current;
 
     const save = async () => {
         if (!ready) return;

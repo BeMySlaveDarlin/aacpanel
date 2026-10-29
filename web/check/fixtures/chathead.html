@@ -161,7 +161,7 @@ async function renameHeader() {
 
     out.blocked = [];
     for (const [kind, row] of [["tmux", { ...session, transport: "tmux" }],
-        ["outside", { ...session, outside: true }], ["codex", { ...session, agent: "codex" }], ["closed", null]]) {
+        ["outside", { ...session, outside: true }], ["closed", null]]) {
         render(null, root);
         render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${row}
             exec=${exec} snapshot=${snapshot} onBack=${() => {}} onUsage=${() => {}} />`)), root);
@@ -173,6 +173,28 @@ async function renameHeader() {
         out.blocked.push({ kind, text: !field() && !header().querySelector(".headrename-open"),
             cursor: getComputedStyle(name).cursor });
     }
+
+    // A codex thread edits its title in place: any line of text, sent to
+    // the session by its address, which stays as it is.
+    render(null, root);
+    const thread = { ...session, agent: "codex", title: "cve fix" };
+    render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${thread}
+        exec=${exec} snapshot=${{ at: 4, sessions: [thread, other] }} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    await until(() => document.querySelector(".headrename-open"));
+    await quiet();
+    await open();
+    const sentBefore = sent.length;
+    out.codex = { value: field().value };
+    await typeInto(field(), "shop");
+    out.codex.takenOff = save().disabled;
+    await typeInto(field(), "CVE fix, round two");
+    out.codex.spacedOff = save().disabled;
+    key(field(), "Enter");
+    await until(() => sent.length === sentBefore + 1);
+    answer(json({ ok: true, logged: true }));
+    await until(() => !field());
+    out.codex.saved = document.querySelector(".headrename-open").textContent;
+    out.codex.sent = sent.slice(sentBefore).map((b) => `${b.kind}:${b.target}:${JSON.stringify(b.params)}`);
     return out;
 }
 

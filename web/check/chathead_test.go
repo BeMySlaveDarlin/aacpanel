@@ -63,6 +63,13 @@ type headRenameSeen struct {
 			Text   bool   `json:"text"`
 			Cursor string `json:"cursor"`
 		} `json:"blocked"`
+		Codex struct {
+			Value     string   `json:"value"`
+			TakenOff  bool     `json:"takenOff"`
+			SpacedOff bool     `json:"spacedOff"`
+			Saved     string   `json:"saved"`
+			Sent      []string `json:"sent"`
+		} `json:"codex"`
 	} `json:"rename"`
 }
 
@@ -110,13 +117,21 @@ func TestTheConversationHeaderRenamesInPlace(t *testing.T) {
 			if got.Another != "shop" {
 				t.Errorf("the header kept the renamed session's name for another session: %q", got.Another)
 			}
-			if len(got.Blocked) != 4 {
+			if len(got.Blocked) != 3 {
 				t.Fatalf("only %d kinds of read-only names were checked", len(got.Blocked))
 			}
 			for _, blocked := range got.Blocked {
 				if !blocked.Text || blocked.Cursor == "pointer" {
 					t.Errorf("%s name offers renaming: plain text %v, cursor %q", blocked.Kind, blocked.Text, blocked.Cursor)
 				}
+			}
+			// A codex thread's title is any line: a name another session
+			// answers to and spaces do not hold it, and the session keeps its address.
+			c := got.Codex
+			wantCodex := `session.rename:helios:{"name":"CVE fix, round two"}`
+			if c.Value != "cve fix" || c.TakenOff || c.SpacedOff || c.Saved != "CVE fix, round two" ||
+				strings.Join(c.Sent, "|") != wantCodex {
+				t.Errorf("the codex title was not renamed in place: %+v", c)
 			}
 		})
 	}
