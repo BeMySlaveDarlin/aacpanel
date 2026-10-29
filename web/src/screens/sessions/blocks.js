@@ -15,6 +15,7 @@ import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { checklistShort } from "../chat/checklist.js";
 import { sessionsOf } from "./of.js";
+import { limitState } from "../../contour.js";
 import { kinLabel, kinOf, layoutOf, openedLabel, placeOf } from "./kin.js";
 import { useFolds } from "./folds.js";
 import { CODEX_CLOSE, CODEX_RESTART, agentKey, agentName, codexRestartWhy, codexResume, isCodex, shownName, spoke } from "../../agent.js";
@@ -44,9 +45,11 @@ const ABOUT_MIN = 12;
 // background — for a row that gives each a line of its own. A question or a
 // permission answered from this page no longer has the session waiting,
 // whatever the snapshot has not caught up with yet (see shown in answered.js).
-export function stateOf(row) {
+export function stateOf(row, limits = null) {
     const s = shown(row);
     if (s.restarting) return { tone: "busy", text: "restarting", since: "", when: "", work: "" };
+    const limit = limitState(s, limits);
+    if (limit) return { ...limit, since: "", when: "", work: "" };
     if (s.ask) {
         const more = s.ask.count > 1 ? `${s.ask.count} ${plural(s.ask.count, "question", "questions")}` : "";
         return { tone: "wait", text: `asks you${s.ask.header ? ` · ${s.ask.header}` : ""}`, since: more, when: more, work: "" };
@@ -190,7 +193,7 @@ export function liveBlocksOf({ profile, sessions = [], opening = [], wait = null
 // a live session shows none of its past: the way into the project is the live
 // session, and a closed conversation beside it reads as that session.
 // Projects with nothing live come last and at most QUIET_MAX of them.
-export function blocksOf({ profile, sessions = [], recent = [], opening = [], wait = null }) {
+export function blocksOf({ profile, sessions = [], recent = [], opening = [], wait = null, limits = null }) {
     const projects = projectsIn(profile);
     // The snapshot follows context fill; names keep rows within a project
     // and outside the map from moving whenever their work changes.
@@ -225,7 +228,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [], wa
     }
 
     for (const block of out.values()) {
-        const tones = block.live.map((s) => stateOf(s).tone);
+        const tones = block.live.map((s) => stateOf(s, limits).tone);
         block.rank = tones.includes("wait") ? RANK.wait
             : tones.includes("busy") || tones.includes("bg") || block.ghosts.length > 0 ? RANK.busy
                 : RANK.quiet;
@@ -238,7 +241,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [], wa
 
 // ProjectBlock is one project: its name, a new session in it, and its live
 // sessions or, with none, its last conversation.
-export function ProjectBlock({ block, profile, exec, wait, notes, live, past, onOpen, onProject }) {
+export function ProjectBlock({ block, profile, exec, wait, notes, live, past, onOpen, onProject, limits }) {
     const run = useAction();
     const project = block.project;
     const canNew = project && !block.home;
@@ -261,7 +264,7 @@ export function ProjectBlock({ block, profile, exec, wait, notes, live, past, on
                     </button>
                 `}
             </div>
-            <${LiveLines} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
+            <${LiveLines} limits=${limits} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
                           onOpen=${onOpen} exec=${exec} />
             ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
             ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
@@ -278,20 +281,20 @@ export function ProjectBlock({ block, profile, exec, wait, notes, live, past, on
 // live session the screen knows of, and past the closed conversations it has
 // read: they tell a parent alive elsewhere from one that closed, and when
 // it closed.
-export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen }) {
+export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits }) {
     const [folded, fold] = useFolds();
     const line = (s, kid = false, branch = "", from = "") => html`
         <${LiveLine} key=${s.session} session=${s} kid=${kid} branch=${branch} from=${from}
-                     pin=${pinOf(s, live || list, wait)}
+                     limits=${limits} pin=${pinOf(s, live || list, wait)}
                      notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} exec=${exec} />
     `;
     const row = (e) => {
         switch (e.kind) {
         case "fold":
-            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
+            return html`<${OpenedFold} limits=${limits} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
                                       onToggle=${() => fold(e.parent.session)} />`;
         case "runs":
-            return html`<${KinFold} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
+            return html`<${KinFold} limits=${limits} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
         case "stub":
             return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(past, e.parent)}
                                       onOpen=${onOpen} />`;
@@ -309,8 +312,8 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
 
 // waitsOf says who under a fold waits for the person: by name where one does,
 // by count where several do.
-export function waitsOf(kids) {
-    const waiting = kids.filter((s) => stateOf(s).tone === "wait");
+export function waitsOf(kids, limits = null) {
+    const waiting = kids.filter((s) => stateOf(s, limits).tone === "wait");
     if (waiting.length === 0) return "";
     if (waiting.length > 1) return `${waiting.length} wait for you`;
     return `${shownName(waiting[0])} ${shown(waiting[0]).ask ? "asks you" : "waits"}`;
@@ -326,14 +329,14 @@ export function closedRow(past, name) {
 // who in their subtree waits for the person — in the colour of waiting, so
 // a closed fold does not hide a question. Its count and dots name only the
 // children standing directly under it.
-function OpenedFold({ kids, hidden, open, onToggle }) {
-    const waits = waitsOf(hidden);
+function OpenedFold({ kids, hidden, open, onToggle, limits }) {
+    const waits = waitsOf(hidden, limits);
     return html`
         <button class="pjrow pjfold" type="button" aria-expanded=${open ? "true" : "false"}
                 onClick=${onToggle}>
             <span class=${`pjkinchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
             <span class="pjfoldtext">${openedLabel(kids.length)}</span>
-            ${!open && html`<span class="pjfolddots">${kids.map((s) => html`<i key=${s.session} data-tone=${stateOf(s).tone}></i>`)}</span>`}
+            ${!open && html`<span class="pjfolddots">${kids.map((s) => html`<i key=${s.session} data-tone=${stateOf(s, limits).tone}></i>`)}</span>`}
             ${waits && html`<span class="pjfoldwaits">· ${waits}</span>`}
         </button>
     `;
@@ -359,9 +362,9 @@ function ParentStub({ parent, row, onOpen }) {
     `;
 }
 
-function KinFold({ kids, line }) {
+function KinFold({ kids, line, limits }) {
     const [open, setOpen] = useState(false);
-    const waiting = kids.filter((s) => stateOf(s).tone === "wait").length;
+    const waiting = kids.filter((s) => stateOf(s, limits).tone === "wait").length;
     return html`
         <button class="pjkin" type="button" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>
             <span class=${`pjkinchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
@@ -389,9 +392,9 @@ function KinFold({ kids, line }) {
 // session another opened stands a step in under it, on the line of the branch
 // (branch "mid" or "last"); one whose parent stands elsewhere says which
 // session opened it (from).
-export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = false, branch = "", from = "", notes, exec, onOpen }) {
+export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = false, branch = "", from = "", notes, exec, onOpen, limits }) {
     const run = useAction();
-    const state = stateOf(session);
+    const state = stateOf(session, limits);
     const steps = checklistShort(session.checklist);
     const closing = wait ? wait.of("close", session.session) : null;
     const restarting = wait ? wait.of("restart", session.session) : null;

@@ -144,3 +144,10 @@ export function span(sec) {
     const hours = Math.round(sec / 3600);
     return `${hours} ${plural(hours, "hour", "hours")}`;
 }
+
+export function alarmTime(at, date = false) {
+    const value = new Date(at);
+    if (!Number.isFinite(value.getTime())) return "";
+    const time = value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    return date ? `${time}, ${value.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : time;
+}

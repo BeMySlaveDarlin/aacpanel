@@ -118,6 +118,38 @@ class Cache(Transcript):
         self.assertIsNone(sesstate.Cache().of(os.path.join(self.dir.name, "missing.jsonl")))
 
 
+class LimitHit(Transcript):
+    def error(self, text="You've hit your session limit", **fields):
+        return line({"type": "assistant", "timestamp": "2026-08-25T10:00:00Z",
+                     "isApiErrorMessage": True, "error": "rate_limit", "apiError": "usage_limit_reached",
+                     "message": {"content": [{"type": "text", "text": text}]}, **fields})
+
+    def test_the_last_assistant_limit_error_carries_its_time_and_window(self):
+        for text, window in [("You've hit your session limit", "5h"),
+                             ("You've hit your weekly limit", "7d"),
+                             ("Usage limit reached", "")]:
+            with self.subTest(window=window):
+                got = self.state(self.error(text), notification("toolu_1"),
+                                 line({"type": "user", "message": {"content": "go on"}}))
+                self.assertEqual(got.get("limitHit"), {"at": "2026-08-25T10:00:00Z", "window": window})
+
+    def test_a_later_assistant_reply_clears_the_limit_on_the_incremental_read(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(self.error())
+        cache = sesstate.Cache()
+        self.assertIn("limitHit", cache.of(path))
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line({"type": "assistant", "message": {"content": [{"type": "text", "text": "Back to work."}]}}))
+        self.assertNotIn("limitHit", cache.of(path))
+
+    def test_other_api_errors_and_ordinary_prose_are_not_limits(self):
+        for fields in [{"error": "server_error", "apiError": "internal_server_error"},
+                       {"isApiErrorMessage": False}]:
+            with self.subTest(fields=fields):
+                self.assertNotIn("limitHit", self.state(self.error(**fields)))
+
+
 if __name__ == "__main__":
     unittest.main()
 

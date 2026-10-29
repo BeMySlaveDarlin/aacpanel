@@ -233,6 +233,13 @@ means paused: delivery alone cannot prove the model set it. Work and questions
 still take precedence. The pause instruction carries its time and UTC offset
 as envelope metadata, so the feed's pause card does not parse prose.
 
+A Claude row carries `limitHit` with the timestamp and the window (`5h`, `7d`,
+or unknown) while its last assistant record is a usage-limit error. The
+collector reads it through the existing incremental session state; prompts
+and background notifications leave it in place, and the next assistant reply
+replaces it. The screen uses that session's contour limits for the reset time
+and marks a conversation still stopped after the reset as waiting for a person.
+
 **Questions left in prose are waiting work.** The collector finds a question
 mark outside code and URLs in the last assistant message, until the person
 speaks again. Busy sessions and codex threads contribute none. The service

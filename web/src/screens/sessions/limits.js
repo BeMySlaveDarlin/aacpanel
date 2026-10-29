@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { share } from "../../format.js";
 import { pageNames, pickedPage } from "./pages.js";
+import { contourOf } from "../../contour.js";
 
 const LIMITS_STALE_SEC = 900;
 
@@ -42,17 +43,7 @@ function resetText(resetsAt) {
     return left ? `resets in ${left}` : "resets any moment";
 }
 
-// contourOf returns the limits snapshot of this contour, or null if there is none.
-export function contourOf(limits, profile, contour) {
-    if (!limits) return null;
-    const known = limits.contours && limits.contours.length ? limits.contours : [limits];
-    if (!profile || (known.length === 1 && !known[0].profile)) return known[0];
-    if (contour) {
-        const own = known.find((c) => c.contour === contour);
-        if (own) return own;
-    }
-    return known.find((c) => c.profile === profile) || null;
-}
+export { contourOf };
 
 // openLimits returns the limits of the contour the sessions page stands on,
 // the two windows as bare shares with the tone of the five hours, or null when

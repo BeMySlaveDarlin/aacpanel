@@ -221,7 +221,7 @@ function tags(ctx, W, H, items, taken, discs, leader, u, sides, settle) {
 }
 
 function toneOf(n, pal) {
-    return n.tone === "wait" ? pal.wait : n.tone === "busy" ? pal.busy : pal.ink;
+    return n.tone === "wait" ? pal.wait : n.tone === "limit" ? pal.limit : n.tone === "busy" ? pal.busy : pal.ink;
 }
 
 // A planet is drawn from a picture made once and kept: its surface from its
@@ -765,7 +765,7 @@ function markOf(s, R) {
 // linesOf is what the frame says beside a node: its label, and under it what
 // the session asks the person while it waits.
 function linesOf(n, pal, type) {
-    const colour = n.tone === "wait" ? pal.wait : n.tone === "busy" ? pal.busy : rgba(pal.ink, 0.62);
+    const colour = n.tone === "wait" ? pal.wait : n.tone === "limit" ? pal.limit : n.tone === "busy" ? pal.busy : rgba(pal.ink, 0.62);
     const lines = [{ t: n.label, f: type.tag, c: colour }];
     if (n.tone === "wait") lines.push({ t: n.note, f: type.tag, c: rgba(pal.wait, 0.9) });
     return lines;

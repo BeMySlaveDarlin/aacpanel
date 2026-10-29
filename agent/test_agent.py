@@ -265,6 +265,22 @@ class Sessions(unittest.TestCase):
         agent.sessions()
         self.assertEqual(seen, [path])
 
+    def test_a_limit_hit_reaches_the_session_row_until_the_next_reply(self):
+        path = os.path.join(self.root, "talk.jsonl")
+        self.addCleanup(setattr, agent, "SESSION_STATE", agent.SESSION_STATE)
+        agent.SESSION_STATE = sesstate.Cache()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "assistant", "timestamp": "2026-08-25T10:00:00Z",
+                                "isApiErrorMessage": True, "error": "rate_limit",
+                                "apiError": "usage_limit_reached", "message": {"content": []}}) + "\n")
+        self.rows({"session": "aacpanel", "sessionId": UUID_A, "transcript": path, "status": "idle"})
+        self.assertEqual(agent.sessions()["sessions"][0].get("limitHit"),
+                         {"at": "2026-08-25T10:00:00Z", "window": ""})
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "assistant", "message": {"content": []}}) + "\n")
+        self.rows({"session": "aacpanel", "sessionId": UUID_A, "transcript": path, "status": "idle"})
+        self.assertNotIn("limitHit", agent.sessions()["sessions"][0])
+
     def test_a_question_the_turn_outlived_leaves_the_row(self):
         # The hook reported a call the conversation never made: the row must not
         # go on saying the session waits for an answer after its turn is over.

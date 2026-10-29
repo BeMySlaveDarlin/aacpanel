@@ -8,6 +8,7 @@ import { html } from "../../html.js";
 import { plural } from "../../format.js";
 import { waitText } from "../../ui/waits.js";
 import { alarmTime } from "../sessions/alarms.js";
+import { limitState } from "../../contour.js";
 import { shown } from "./answered.js";
 
 // Marquee renders a heading that does not fit as a running line.
@@ -73,7 +74,7 @@ export function shortPath(cwd) {
 // if it were now, it is dated. A question or a permission answered from this
 // page no longer has the session waiting, whatever the snapshot has not caught
 // up with yet (see shown in answered.js).
-export function stateOf(row, still = null, move = null) {
+export function stateOf(row, still = null, move = null, limits = null) {
     // A session on its way to tmux or the stream is gone from the snapshot for
     // a while, and that is the move, not the end of it.
     if (move) {
@@ -87,6 +88,8 @@ export function stateOf(row, still = null, move = null) {
             ? { tone: "off", say: `no fresh data since ${still} — the session may stand otherwise now`, word: `as of ${still}` }
             : { tone: "off", say: "no fresh data — the session may stand otherwise now", word: "not live" };
     }
+    const limit = limitState(live, limits);
+    if (limit) return { tone: limit.tone === "wait" ? "waiting" : limit.tone, say: limit.text, word: limit.text };
     // A question codex asked without waiting leaves it at work: the head says
     // it asks and goes on, rather than that it waits.
     if (live.ask && live.ask.async && live.status === "busy") {

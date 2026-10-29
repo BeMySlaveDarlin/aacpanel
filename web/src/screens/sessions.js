@@ -116,6 +116,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     if (project) {
         return html`<${Project}
             project=${project}
+            limits=${limits}
             sessions=${sessionsNow}
             notes=${splitNotes((snapshot && snapshot.sessionNotes) || [], sessionsNow).own}
             exec=${exec}
@@ -152,7 +153,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     const byPage = pagesOf(profiles, sessions, names);
     const ghosts = ghostsOf(profiles, wait.opening());
     const live = new Map([...byPage].map(([name, own]) => [name, own.length]));
-    const waits = new Map([...byPage].map(([name, own]) => [name, own.filter((s) => stateOf(s).tone === "wait").length]));
+    const waits = new Map([...byPage].map(([name, own]) => [name, own.filter((s) => stateOf(s, limits).tone === "wait").length]));
 
     return html`
         <${Stale} ageSec=${ageSec} />
@@ -243,7 +244,7 @@ function useKeptScroll(name) {
 
 function Page({ name, profile, limits, stale, sessions, everyone, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
     const keep = useKeptScroll(name);
-    const blocks = blocksOf({ profile, sessions, recent, opening, wait });
+    const blocks = blocksOf({ profile, sessions, recent, opening, wait, limits });
     const toProject = (project, group) => onProject({ ...project, profile: name, contour: profile ? profile.id : 0, group });
     return html`
         <${ProfileLimits} limits=${limits} profile=${name} contour=${profile ? profile.id : 0} stale=${stale} />
@@ -257,7 +258,7 @@ function Page({ name, profile, limits, stale, sessions, everyone, opening, recen
                         ${section.title}${section.count && html`<span class="pjcount">${list.length}</span>`}
                     </div>
                     ${list.map((block) => html`
-                        <${ProjectBlock} key=${block.key} block=${block} profile=${profile} exec=${exec} wait=${wait} notes=${notes}
+                        <${ProjectBlock} limits=${limits} key=${block.key} block=${block} profile=${profile} exec=${exec} wait=${wait} notes=${notes}
                                          live=${everyone} past=${recent}
                                          onOpen=${onChat} onProject=${toProject} />
                     `)}

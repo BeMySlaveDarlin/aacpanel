@@ -145,7 +145,7 @@ export function graphOf(snapshot, before = null) {
         const here = new Set(list.map((s) => s.session));
         for (const s of list) {
             const parent = s.parent && here.has(s.parent.session) ? s.parent.session : null;
-            const tone = stateOf(s).tone;
+            const tone = stateOf(s, snapshot && snapshot.limits).tone;
             facts.set(s.session, { parent, idle: idleOf(s, now), pull: tone === "wait" ? 2 : tone === "busy" ? 1 : 0 });
         }
         const { rootOf } = kinOf(list);
@@ -178,7 +178,7 @@ export function graphOf(snapshot, before = null) {
     };
     const byName = new Map(sessions.map((s) => [s.session, s]));
     const nodes = sessions.filter((s) => laid.nodes.get(s.session).w).map((s) => {
-        const state = stateOf(s);
+        const state = stateOf(s, snapshot && snapshot.limits);
         const p = laid.nodes.get(s.session);
         return {
             s,
@@ -301,6 +301,7 @@ function paletteOf(el) {
     return {
         ink: v("--ink", "#eef1ff"),
         wait: v("--wait", "#e3c97a"),
+        limit: v("--warn", "#e3c97a"),
         busy: v("--accent", "#63a8ff"),
         cap: v("--ctx-4", "#b98cff"),
         hues: HUES.map((name, i) => v(name, HUE_FALLBACK[i])),
@@ -499,7 +500,7 @@ export function Orbits({ snapshot, exec, wait, theme, onSession, onTerm }) {
     // does in its row, before the next snapshot says so.
     useAnswers();
     const menu = useMenu();
-    const tones = ((snapshot && snapshot.sessions) || []).map((s) => stateOf(s).tone).join();
+    const tones = ((snapshot && snapshot.sessions) || []).map((s) => stateOf(s, snapshot && snapshot.limits).tone).join();
     const orbitsBefore = useRef(null);
     const graph = useMemo(() => {
         const next = graphOf(snapshot, orbitsBefore.current);

@@ -17,8 +17,8 @@ import { outsideNote } from "../sessions/kin.js";
 // DeskHead renders the conversation header on the wide screen; the tools come
 // ready from the conversation. A thread of codex in the archive says what it
 // spent (spent) where a conversation says how full its context grew (pct).
-export function DeskHead({ name, live, archive, pct, spent, move, tools, exec, taken }) {
-    const state = stateOf(live, useAsOf(), move);
+export function DeskHead({ name, live, archive, pct, spent, move, tools, exec, taken, limits }) {
+    const state = stateOf(live, useAsOf(), move, limits);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
         <div class="dkhead">

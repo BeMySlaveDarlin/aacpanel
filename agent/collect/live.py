@@ -369,6 +369,8 @@ def sessions():
             seen_transcripts.add(transcript)
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))
             busy = state.snapshot() if state else None
+            if busy and busy.get("limitHit"):
+                s["limitHit"] = busy["limitHit"]
             if state and sid:
                 asked.BOOK.answered(sid, set(state.answered), state.ended, state.prompted, state.heard)
             ask = asked.BOOK.of(sid) if sid else None

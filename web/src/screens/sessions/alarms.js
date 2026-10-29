@@ -1,13 +1,9 @@
 // Alarm times come from the host; a pause exists only once its alarm does.
 import { html } from "../../html.js";
+import { alarmTime } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 
-export function alarmTime(at, date = false) {
-    const value = new Date(at);
-    if (!Number.isFinite(value.getTime())) return "";
-    const time = value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-    return date ? `${time}, ${value.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : time;
-}
+export { alarmTime };
 
 export function SessionAlarms({ session, paused, desktop = false }) {
     const pause = session.pauseAlarm;

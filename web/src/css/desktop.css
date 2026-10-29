@@ -444,6 +444,7 @@
     .dkfolddots i[data-tone="bg"] { background: transparent; opacity: 1; box-shadow: inset 0 0 0 1.5px var(--accent); }
 
     .dkfolddots i[data-tone="wait"] { background: var(--wait); opacity: 1; box-shadow: 0 0 8px var(--wait); }
+    .dkfolddots i[data-tone="limit"] { background: var(--warn); opacity: 1; }
 
     .dksess.dklive.dkbranch {
         padding-left: 1.45rem;
@@ -683,6 +684,7 @@
     .dksay .spin { flex: none; width: .7rem; height: .7rem; }
 
     .dklive[data-tone="wait"] .dksay { font-weight: 600; color: var(--wait); }
+    .dklive[data-tone="limit"] .dksay { font-weight: 600; color: var(--warn); }
 
     .dklive[data-tone="wait"] .dksay .dkdot { background: var(--wait); box-shadow: 0 0 9px var(--wait); }
 
@@ -1006,6 +1008,7 @@
     .dkdot.dkbg { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
 
     .dkdot.dkwaiting { background: var(--warn); box-shadow: 0 0 .35rem var(--warn); }
+    .dkdot.dklimit { background: var(--warn); box-shadow: 0 0 .35rem var(--warn); }
 
     .dkdot.dkidle, .dkdot.dkok { background: var(--ok); }
 
@@ -1214,6 +1217,7 @@
     .dkword { font-size: var(--t-sm); color: var(--ink-faint); }
 
     .dkword[data-tone="waiting"] { color: var(--wait); }
+    .dkword[data-tone="limit"] { color: var(--warn); }
 
     .dkword[data-tone="bg"] { color: var(--accent); }
 

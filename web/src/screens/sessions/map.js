@@ -192,7 +192,7 @@ function openLabel(more, stream) {
 // How many conversations of the project a press shows more of.
 const PROJECT_PAGE = 10;
 
-export function Project({ project, sessions, notes, exec, wait, onBack, onChat }) {
+export function Project({ project, sessions, notes, exec, wait, onBack, onChat, limits }) {
     useBackClose(true, onBack);
     const [settings, setSettings] = useState(false);
     const [shown, setShown] = useState(PROJECT_PAGE);
@@ -232,7 +232,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
 
         <section class="pjblock">
             <div class="pjhead"><span class="pjname">live</span><span class="pjgroup">${own.length || ""}</span></div>
-            <${LiveLines} list=${own} live=${sessions} notes=${notes} wait=${wait} onOpen=${onChat}
+            <${LiveLines} limits=${limits} list=${own} live=${sessions} notes=${notes} wait=${wait} onOpen=${onChat}
                           exec=${exec} />
             ${opening && html`<${GhostLine} task=${opening} />`}
             ${own.length === 0 && !opening && html`<p class="pjempty">There are no sessions of this project right now.</p>`}

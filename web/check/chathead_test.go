@@ -7,6 +7,62 @@ import (
 	"testing"
 )
 
+func TestLimitStoppedSessionsShowTheirResetAndWaitAfterIt(t *testing.T) {
+	for _, screen := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+	}{{"phone", runFixture}, {"desk", runWideFixture}} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got struct {
+				Limits struct {
+					Seen  []struct{ Name, Expected, Phone, PhoneTone, PhoneColour, Desk, DeskTone, DeskDot, DeskColour, Head, HeadTone, HeadColour, Orbit, Warning string }
+					Folds []struct {
+						Reset                                                 bool
+						First, FirstShown, Phone, Desk, PhoneWaits, DeskWaits string
+						Rank                                                  int
+					}
+				}
+			}
+			screen.run(t, "chathead.html", &got)
+			if len(got.Limits.Seen) != 10 || len(got.Limits.Folds) != 2 {
+				t.Fatalf("limit states were not exercised: %+v", got.Limits)
+			}
+			for _, state := range got.Limits.Seen {
+				tone, headTone := "limit", "limit"
+				if state.Expected == "stopped by the limit" {
+					tone, headTone = "wait", "waiting"
+				}
+				if state.Name == "unmarked" {
+					tone, headTone = "idle", "idle"
+				}
+				if state.Phone != state.Expected || state.Desk != state.Expected || state.Head != state.Expected || state.Orbit != state.Expected {
+					t.Errorf("%s: inconsistent status words: %+v", state.Name, state)
+				}
+				if !strings.Contains(state.PhoneTone, "pj-"+tone) || state.DeskTone != tone || state.HeadTone != headTone ||
+					!strings.Contains(state.DeskDot, "dk"+headTone) {
+					t.Errorf("%s: inconsistent status tones: %+v", state.Name, state)
+				}
+				if tone == "limit" && (state.PhoneColour != state.Warning || state.HeadColour != state.Warning ||
+					(screen.name == "desk" && state.DeskColour != state.Warning)) {
+					t.Errorf("%s: the limit is not painted as a warning: %+v", state.Name, state)
+				}
+			}
+			for _, fold := range got.Limits.Folds {
+				tone, first, rank := "limit", "quiet", 2
+				if fold.Reset {
+					tone, first, rank = "wait", "limited", 0
+				}
+				if fold.Phone != tone || fold.Desk != tone || fold.First != first || fold.FirstShown != first || fold.Rank != rank {
+					t.Errorf("a folded limit stopped session lost its state or priority: %+v", fold)
+				}
+				if fold.Reset && (!strings.Contains(fold.PhoneWaits, "child waits") || !strings.Contains(fold.DeskWaits, "child waits")) {
+					t.Errorf("the reset session is hidden without a waiting mark: %+v", fold)
+				}
+			}
+		})
+	}
+}
+
 type chatHeadSeen struct {
 	Deck            bool    `json:"deck"`
 	HeadUse         bool    `json:"headUse"`

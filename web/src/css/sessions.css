@@ -584,6 +584,7 @@ span.pjname { cursor: default; }
 .pjfolddots i[data-tone="busy"] { background: var(--accent); opacity: 1; }
 .pjfolddots i[data-tone="bg"] { background: transparent; opacity: 1; box-shadow: inset 0 0 0 1.5px var(--accent); }
 .pjfolddots i[data-tone="wait"] { background: var(--wait); opacity: 1; box-shadow: 0 0 8px var(--wait); }
+.pjfolddots i[data-tone="limit"] { background: var(--warn); opacity: 1; }
 .pjrow.pjcard.pjbranch { padding-left: 1.85rem; }
 .pjrow.pjbranch > .ctxbar.edge { left: 1.12rem; }
 .pjrow.pjbranch::before {
@@ -714,6 +715,7 @@ button.pjstub { cursor: pointer; }
 .pjsince, .pjwork { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
 .pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.57em - .25rem); border-radius: 50%; background: currentColor; }
 .pj-wait { color: var(--wait); }
+.pj-limit { color: var(--warn); }
 .pj-wait .pjdot { box-shadow: 0 0 10px currentColor; }
 .pj-busy { color: var(--accent); }
 /* Background work: in the accent of work, a step lighter than an answer, and

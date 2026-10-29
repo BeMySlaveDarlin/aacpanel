@@ -51,7 +51,7 @@ const SHELF = 6;
 const SHELF_ASK = 30;
 
 // The dot of a row by the tone of its state.
-const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", paused: "dkpaused", off: "dkoff" };
+const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", paused: "dkpaused", limit: "dklimit", off: "dkoff" };
 
 // ContourPick chooses which contours the column shows.
 export function ContourPick({ names, picks, onToggle }) {
@@ -186,7 +186,7 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
     const restartKnown = knows(exec, "session.restart");
     const codexWhy = isCodex(s) ? codexRestartWhy(s) : "";
     const canRestart = restartKnown && !codexWhy && !busy;
-    const state = stateOf(s);
+    const state = stateOf(s, snapshot && snapshot.limits);
     const tone = busy ? "off" : state.tone;
     const said = closing ? "closing" : restarting ? "restarting" : state.text;
     const since = closing || restarting ? `${held(closing || restarting)} s` : state.since;
@@ -304,14 +304,14 @@ function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, 
 // does: how many direct children and the dots of their states while closed,
 // with who waits anywhere in their subtree. The arrow keys pass the sessions
 // of a closed fold by: they go down the rows the column shows.
-function OpenedFold({ kids, hidden, open, onToggle }) {
-    const waits = waitsOf(hidden);
+function OpenedFold({ kids, hidden, open, onToggle, limits }) {
+    const waits = waitsOf(hidden, limits);
     return html`
         <button class="dkkin dkfold" type="button" aria-expanded=${open ? "true" : "false"}
                 onClick=${onToggle}>
             <span class=${`dkkinchev${open ? " open" : ""}`}><${Icon.chevron} /></span>
             <span class="dkfoldtext">${openedLabel(kids.length)}</span>
-            ${!open && html`<span class="dkfolddots">${kids.map((s) => html`<i key=${s.session} data-tone=${stateOf(s).tone}></i>`)}</span>`}
+            ${!open && html`<span class="dkfolddots">${kids.map((s) => html`<i key=${s.session} data-tone=${stateOf(s, limits).tone}></i>`)}</span>`}
             ${waits && html`<span class="dkfoldwaits">· ${waits}</span>`}
         </button>
     `;
@@ -335,10 +335,10 @@ function ParentStub({ parent, row, onPick }) {
 // KinFold holds the runs a session started inside its work under it. A run
 // that waits for the person stands outside the fold, where it is seen; the
 // fold keeps the rest.
-function KinFold({ kids, line }) {
+function KinFold({ kids, line, limits }) {
     const [open, setOpen] = useState(false);
-    const waiting = kids.filter((s) => stateOf(s).tone === "wait");
-    const rest = kids.filter((s) => stateOf(s).tone !== "wait");
+    const waiting = kids.filter((s) => stateOf(s, limits).tone === "wait");
+    const rest = kids.filter((s) => stateOf(s, limits).tone !== "wait");
     return html`
         ${waiting.map((s) => line(s, true))}
         ${rest.length > 0 && html`
@@ -550,7 +550,7 @@ function ProjectHead({ block, entry, snapshot, exec, onTerm, onSettings }) {
 // them out, with the rows of each. Descendants share the third level once
 // they reach it; the parent's branch carries past them to its next sister.
 function ContourSection({ name, entry, list, blocks, archive, onFold, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
-    const waits = list.filter((s) => stateOf(s).tone === "wait").length;
+    const waits = list.filter((s) => stateOf(s, snapshot && snapshot.limits).tone === "wait").length;
     const line = (s, kid = false, branch = "", from = "") => html`<${SessionLine}
         key=${s.session}
         s=${s}
@@ -568,10 +568,10 @@ function ContourSection({ name, entry, list, blocks, archive, onFold, limits, ma
     const row = (e) => {
         switch (e.kind) {
         case "fold":
-            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
+            return html`<${OpenedFold} limits=${snapshot && snapshot.limits} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
                                       onToggle=${() => onFold(e.parent.session)} />`;
         case "runs":
-            return html`<${KinFold} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
+            return html`<${KinFold} limits=${snapshot && snapshot.limits} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
         case "stub":
             return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(archive, e.parent)}
                                       onPick=${onPick} />`;

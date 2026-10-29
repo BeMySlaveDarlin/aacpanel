@@ -425,7 +425,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const pastCodex = !live && isCodex(archive);
     const pct = live ? live.pct : (archive && !pastCodex ? archive.pctMax : null);
     const spent = pastCodex ? (spoke(archive) ? `${tokens(archive.tokensUsed)} tokens` : "") : null;
-    const stand = stateOf(live, still, move);
+    const stand = stateOf(live, still, move, snapshot && snapshot.limits);
     const openRepo = here ? () => setRepo(true) : null;
     const tools = {
         name, live, archive, pct, spent, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
@@ -447,7 +447,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
 
     return html`
         ${wide
-            ? html`<${DeskHead} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} spent=${spent}
+            ? html`<${DeskHead} limits=${snapshot && snapshot.limits} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} spent=${spent}
                                 move=${move} tools=${deskTools} exec=${exec} taken=${takenNames(snapshot)} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"

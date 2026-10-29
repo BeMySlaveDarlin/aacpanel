@@ -2,6 +2,7 @@
 
 import collections
 import os
+import re
 
 from .artifacts import (ARTIFACT_URL_RE, DOC_TOOLS, SENT_TOOL, _artifact, _document,
                         _sent, result_text)
@@ -34,6 +35,7 @@ class State:
         # When the person last sent a prompt: a question asked before it is
         # not waiting either — a real one holds the turn until it is answered.
         self.prompted = ""
+        self.limit_hit = None
         self.flows = {}
         self.flow_ids = {}
         self.arts = {}
@@ -68,6 +70,7 @@ class State:
             "artifacts": [dict(a, title=a.get("title") or a["file"]) for a in arts[:MAX_ITEMS]],
             "docs": [d for d in docs[:MAX_ITEMS] if os.path.isfile(d["path"])],
             "sent": [s for s in sent[:MAX_ITEMS] if os.path.isfile(s["path"])],
+            **({"limitHit": dict(self.limit_hit)} if self.limit_hit else {}),
         }
 
 
@@ -107,8 +110,24 @@ def _is_prompt(record):
     return "text" in kinds and "tool_result" not in kinds
 
 
+def _limit_hit(record):
+    if not record.get("isApiErrorMessage") or not (
+            record.get("error") == "rate_limit" or record.get("apiError") == "usage_limit_reached"):
+        return None
+    content = (record.get("message") or {}).get("content") or []
+    text = " ".join(b.get("text") or "" for b in content
+                    if isinstance(b, dict) and b.get("type") == "text").lower()
+    window = "7d" if re.search(r"\b(weekly|week|7[- ]day)\b", text) else (
+        "5h" if re.search(r"\b(session limit|5[- ]hour|five[- ]hour)\b", text) else "")
+    return {"at": record.get("timestamp") or "", "window": window}
+
+
 def _feed_record(state, record, raw):
     kind = record.get("type")
+    # User prompts and background notifications can follow a failed answer
+    # without lifting the limit; only the next assistant record replaces it.
+    if kind == "assistant" and not record.get("isSidechain"):
+        state.limit_hit = _limit_hit(record)
 
     if not state.cwd:
         cwd = record.get("cwd")
