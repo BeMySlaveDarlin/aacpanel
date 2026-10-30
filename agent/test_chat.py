@@ -2806,6 +2806,36 @@ class ProjectFile(unittest.TestCase):
     def test_a_relative_path_without_the_directory_opens_nothing(self):
         self.assertIsNone(chat.read_file("web/app.css", ""))
 
+    def test_a_file_named_without_its_directory_is_found_below_the_conversation(self):
+        deep = os.path.join(self.cwd, ".claude", "output", "notes")
+        os.makedirs(deep)
+        with open(os.path.join(deep, "12-alisa.md"), "w", encoding="utf-8") as f:
+            f.write("# Alisa\n")
+        for path in ("12-alisa.md", "notes/12-alisa.md"):
+            got = chat.read_file(path, self.cwd)
+            self.assertIsNotNone(got, path)
+            self.assertEqual(got["text"], "# Alisa\n", path)
+        self.assertEqual(chat.read_raw("12-alisa.md", self.cwd)["name"], "12-alisa.md")
+        self.assertIsNone(chat.read_file("output/12-alisa.md", self.cwd),
+                          "a tail of the path that is not there matched a file anyway")
+
+    def test_of_files_under_one_name_the_freshest_opens(self):
+        for where, text, at in (("old", "stale", 1000), ("new", "fresh", 2000)):
+            os.makedirs(os.path.join(self.cwd, where))
+            name = os.path.join(self.cwd, where, "notes.md")
+            with open(name, "w", encoding="utf-8") as f:
+                f.write(text)
+            os.utime(name, (at, at))
+        self.assertEqual(chat.read_file("notes.md", self.cwd)["text"], "fresh")
+
+    def test_the_search_stays_below_the_conversation(self):
+        self.assertIsNone(chat.read_file("../missing/away.txt", self.cwd))
+        os.makedirs(os.path.join(self.cwd, "node_modules", "pkg"))
+        with open(os.path.join(self.cwd, "node_modules", "pkg", "only.md"), "w",
+                  encoding="utf-8") as f:
+            f.write("installed")
+        self.assertIsNone(chat.read_file("only.md", self.cwd))
+
     def test_a_binary_file_is_named_binary(self):
         with open(os.path.join(self.cwd, "bin.dat"), "wb") as f:
             f.write(b"\x00\x01\x02")

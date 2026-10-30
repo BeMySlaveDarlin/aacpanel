@@ -255,6 +255,61 @@ def disk_files(paths, cwd):
 
 MAX_RAW = 1024 * 1024
 
+# FIND_SKIP are the directories the search for a file named without its
+# directory does not go into: history and installed code, never what a
+# session talks about.
+FIND_SKIP = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".cache"})
+
+# FIND_BUDGET caps the entries the search looks at. A project is a few
+# thousand of them; a session in the home directory runs over half a million,
+# six seconds of walk for every range of a download.
+FIND_BUDGET = 50000
+
+
+def located(path_in_repo, cwd):
+    """Returns the real path of a file the reader opens, or None.
+
+    A session names a file it has just written by its name alone, and the file
+    lies directories down from where the conversation runs: a relative path
+    that is not there is looked for below it.
+    """
+    real = sesstate.opens(path_in_repo, cwd)
+    if not real or os.path.exists(real):
+        return real
+    raw = os.path.expanduser(str(path_in_repo).strip())
+    if os.path.isabs(raw):
+        return real
+    return find_below(raw, cwd) or real
+
+
+def find_below(name, cwd):
+    """Returns the freshest file below the directory whose path ends with the name, or None.
+
+    Of several files under one name the session most likely speaks of the
+    one it changed last. A path that climbs out of the directory is not
+    looked for, and a secret is never found.
+    """
+    tail = os.path.normpath(name)
+    if tail == ".." or tail.startswith(".." + os.sep) or not cwd:
+        return None
+    base = os.path.basename(tail)
+    best, best_at, seen = None, -1.0, 0
+    for root, dirs, files in os.walk(cwd):
+        dirs[:] = [d for d in dirs if d not in FIND_SKIP]
+        seen += len(dirs) + len(files)
+        full = os.path.join(root, base)
+        if base in files and full.endswith(os.sep + tail):
+            real = sesstate.opens(full, cwd)
+            try:
+                st = os.stat(real) if real else None
+            except OSError:
+                st = None
+            if st and stat.S_ISREG(st.st_mode) and st.st_mtime > best_at:
+                best, best_at = real, st.st_mtime
+        if seen > FIND_BUDGET:
+            break
+    return best
+
 
 def read_raw(path_in_repo, cwd, offset=0, limit=MAX_RAW):
     """Returns a range of bytes of a project file, or None when it cannot be read.
@@ -264,7 +319,7 @@ def read_raw(path_in_repo, cwd, offset=0, limit=MAX_RAW):
     there the whole point is the bytes as they lie on disk. The cap is on one
     range, not on the file: the caller walks it by the offsets it gets back.
     """
-    real = sesstate.opens(path_in_repo, cwd)
+    real = located(path_in_repo, cwd)
     if not real:
         return None
     try:
@@ -320,7 +375,7 @@ def read_file(path_in_repo, cwd, offset=0, limit=MAX_FILE):
     A chunk of text is MAX_FILE long unless the reader asks for more, and
     never longer than MAX_WINDOW.
     """
-    real = sesstate.opens(path_in_repo, cwd)
+    real = located(path_in_repo, cwd)
     if not real:
         return None
     try:
