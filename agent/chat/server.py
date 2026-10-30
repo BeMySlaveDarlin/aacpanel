@@ -19,7 +19,7 @@ import reviews
 import sesstate
 
 from .codex import is_rollout
-from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
+from .disk import MAX_FILE, MAX_RAW, mentioned, read_file, read_raw, task_output
 from .locate import subagent_path, transcript_contour, transcript_cwd, transcript_path
 from .mail import agent_mail
 from .repo import answer as repo_answer
@@ -413,14 +413,23 @@ def live_place(session):
 def read_in_place(reader, want, path, **window):
     """Reads a file asked for from the feed of a transcript.
 
-    A relative path is taken from the directory of the conversation. A file
-    the panel sent is named by its full path in the directory the executor
-    keeps such files in, and is named back by the name it went under.
+    A relative path is taken from the directory of the conversation, and one
+    that is not there is looked for where the conversation itself has been.
+    A file the panel sent is named by its full path in the directory the
+    executor keeps such files in, and is named back by the name it went under.
     """
     home = uploads_home(want)
-    found = reader(want, home or transcript_cwd(path), **window)
-    if found and home:
-        found["name"] = sent_as(found["name"])
+    if home:
+        found = reader(want, home, **window)
+        if found:
+            found["name"] = sent_as(found["name"])
+        return found
+    cwd = transcript_cwd(path)
+    found = reader(want, cwd, **window)
+    if found is None:
+        elsewhere = mentioned(path, want)
+        if elsewhere:
+            found = reader(elsewhere, cwd, **window)
     return found
 
 

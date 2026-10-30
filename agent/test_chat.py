@@ -3067,6 +3067,61 @@ class RawOverTheSocket(unittest.TestCase):
         self.assertFalse(rest["cut"])
         self.assertNotIn("next", rest)
 
+    def said(self, *calls):
+        transcript = os.path.join(chat.PROJECTS_DIR, "-srv-proj-x", f"{UUID}.jsonl")
+        with open(transcript, "a", encoding="utf-8") as f:
+            for name, args in calls:
+                f.write(line({"type": "assistant", "cwd": self.cwd, "message": {"content": [
+                    {"type": "tool_use", "id": "toolu_1", "name": name, "input": args}]}}))
+
+    def away(self, where, name, text):
+        os.makedirs(os.path.join(self.root, where), exist_ok=True)
+        path = os.path.join(self.root, where, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return path
+
+    def test_a_file_named_after_a_command_went_to_it_opens_outside_the_project(self):
+        self.away("state/review", "12-alisa.md", "# Alisa\n")
+        self.said(("Bash", {"command": f"cd {self.root}/state/review && sed -n '9,22p' 12-alisa.md"}))
+        reply = chat.answer({"session": UUID, "file": "12-alisa.md"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual(reply["text"], "# Alisa\n")
+        self.assertTrue(chat.answer({"session": UUID, "raw": "12-alisa.md"})["ok"])
+
+    def test_a_file_a_call_named_by_its_whole_path_opens_by_its_name(self):
+        path = self.away("scratch", "plan.md", "the plan\n")
+        kept = self.away("kept", "old.md", "another file\n")
+        self.said(("Write", {"file_path": path, "content": "the plan\n"}),
+                  ("Bash", {"command": f"cp {path} {kept}"}))
+        reply = chat.answer({"session": UUID, "file": "plan.md"})
+        self.assertEqual(reply.get("text"), "the plan\n", reply.get("error"))
+
+    def test_of_two_places_the_one_reached_last_opens(self):
+        first = self.away("one", "notes.md", "first\n")
+        last = self.away("two", "notes.md", "last\n")
+        self.said(("Read", {"file_path": first}), ("Read", {"file_path": last}))
+        self.assertEqual(chat.answer({"session": UUID, "file": "notes.md"}).get("text"), "last\n")
+
+    def test_the_project_goes_before_the_places_of_the_conversation(self):
+        elsewhere = self.away("other", "note.txt", "from elsewhere\n")
+        self.said(("Read", {"file_path": elsewhere}))
+        self.assertEqual(chat.answer({"session": UUID, "file": "note.txt"}).get("text"), "plain words\n")
+
+    def test_a_secret_the_conversation_reached_does_not_open_by_its_name(self):
+        from test_codex import put_env
+        put_env(self, "XDG_STATE_HOME", os.path.join(self.root, "xdg"))
+        secret = self.away("xdg/aacpanel/secrets", "token.txt", "s3cret\n")
+        self.said(("Read", {"file_path": secret}))
+        reply = chat.answer({"session": UUID, "file": "token.txt"})
+        self.assertFalse(reply["ok"])
+        self.assertNotIn("s3cret", json.dumps(reply))
+
+        plain = self.away("plain", "token.txt", "a note on tokens\n")
+        self.said(("Read", {"file_path": plain}), ("Read", {"file_path": secret}))
+        self.assertEqual(chat.answer({"session": UUID, "file": "token.txt"}).get("text"),
+                         "a note on tokens\n", "a secret reached last hid the file reached before it")
+
 
 class RawRange(unittest.TestCase):
     def setUp(self):

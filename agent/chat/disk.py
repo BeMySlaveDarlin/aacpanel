@@ -289,8 +289,8 @@ def find_below(name, cwd):
     one it changed last. A path that climbs out of the directory is not
     looked for, and a secret is never found.
     """
-    tail = os.path.normpath(name)
-    if tail == ".." or tail.startswith(".." + os.sep) or not cwd:
+    tail = _tail(name)
+    if not tail or not cwd:
         return None
     base = os.path.basename(tail)
     best, best_at, seen = None, -1.0, 0
@@ -309,6 +309,50 @@ def find_below(name, cwd):
         if seen > FIND_BUDGET:
             break
     return best
+
+
+# MENTION_PATH is an absolute path as a transcript holds it, in a call or in
+# a command; MENTION_CD is the directory a command went to before it named a
+# file by its name alone.
+MENTION_PATH = re.compile(r"~?/[^\s\"'`\\|;&<>(),:]+")
+MENTION_CD = re.compile(r"\bcd\s+(~?/[^\s\"'`\\|;&<>(),:]+)")
+
+
+def mentioned(transcript, name):
+    """Returns the file the conversation last reached under the name, or None.
+
+    A file outside the directory of the conversation is named by its name
+    alone once the session has been at it: by a call with the whole path, or
+    by a command that went to its directory first.
+    """
+    tail = _tail(name)
+    if not tail:
+        return None
+    needle = tail.encode("utf-8")
+    places = []
+    try:
+        with open(transcript, "rb") as f:
+            for raw in f:
+                if needle not in raw:
+                    continue
+                line = raw.decode("utf-8", "replace")
+                places += [p for p in MENTION_PATH.findall(line) if p.endswith("/" + tail)]
+                places += [os.path.join(d, tail) for d in MENTION_CD.findall(line)]
+    except OSError:
+        return None
+    for place in reversed(places):
+        real = sesstate.opens(place, None)
+        if real and os.path.isfile(real):
+            return real
+    return None
+
+
+def _tail(name):
+    """Returns the name as the end of a path to match others by, None for one that climbs."""
+    tail = os.path.normpath(str(name or "").strip())
+    if tail in (".", "..") or tail.startswith(".." + os.sep) or os.path.isabs(tail):
+        return None
+    return tail
 
 
 def read_raw(path_in_repo, cwd, offset=0, limit=MAX_RAW):
