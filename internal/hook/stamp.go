@@ -248,12 +248,11 @@ func lineLimits(state map[string]any, configDir string) string {
 	if row == nil {
 		row, _ = rows[0].(map[string]any)
 	}
-	five := object(row["fiveHour"])["pct"]
-	week := object(row["sevenDay"])["pct"]
-	if five == nil && week == nil {
+	parts := claudeWindows(row)
+	if len(parts) == 0 {
 		return ""
 	}
-	said := "Limits:   5h " + pyStr(five) + "% · week " + pyStr(week) + "%"
+	said := "Limits:   " + strings.Join(parts, " · ")
 	if age, ok := number(row["ageSec"]); ok && age > staleSec {
 		said += " (the snapshot is " + whole(age/60) + " min old)"
 	}
@@ -283,6 +282,18 @@ func codexHome(state, payload map[string]any) (string, bool) {
 		home = filepath.Join(owner, ".codex")
 	}
 	return filepath.Clean(home), true
+}
+
+// claudeWindows names the windows of claude's limits a row tells; an account
+// with no five-hour window open is told the week alone.
+func claudeWindows(row map[string]any) []string {
+	var parts []string
+	for _, w := range []struct{ key, label string }{{"fiveHour", "5h"}, {"sevenDay", "week"}} {
+		if pct := object(row[w.key])["pct"]; pct != nil {
+			parts = append(parts, w.label+" "+pyStr(pct)+"%")
+		}
+	}
+	return parts
 }
 
 func lineCodexLimits(state map[string]any, home string) string {
@@ -317,11 +328,7 @@ func lineCodexLimits(state map[string]any, home string) string {
 			parts = append(parts, label+" "+pyStr(w["pct"])+"%")
 		}
 		if len(parts) == 0 {
-			for _, w := range []struct{ key, label string }{{"fiveHour", "5h"}, {"sevenDay", "week"}} {
-				if pct := object(row[w.key])["pct"]; pct != nil {
-					parts = append(parts, w.label+" "+pyStr(pct)+"%")
-				}
-			}
+			parts = claudeWindows(row)
 		}
 		if len(parts) == 0 {
 			return ""

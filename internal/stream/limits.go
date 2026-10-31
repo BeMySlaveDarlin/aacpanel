@@ -37,6 +37,8 @@ type limitWindow struct {
 	ResetsAt    *int64   `json:"resetsAt"`
 }
 
+func (w *limitWindow) told() bool { return w != nil && w.Utilization != nil }
+
 // ProbeLimits starts a probe in dir with bin and returns the snapshot of the
 // contour's limits in the form the status line writes.
 func ProbeLimits(ctx context.Context, bin, dir string, now time.Time) ([]byte, error) {
@@ -99,11 +101,12 @@ func ProbeLimits(ctx context.Context, bin, dir string, now time.Time) ([]byte, e
 				}
 			}
 		case "rate_limit_event":
-			if ev.Info.Windows.Five != nil {
-				five, seven = ev.Info.Windows.Five, ev.Info.Windows.Seven
+			// An account with no five-hour window open is told the week alone.
+			if w := ev.Info.Windows; w.Five != nil || w.Seven != nil {
+				five, seven = w.Five, w.Seven
 			}
 		case "result":
-			if five == nil || five.Utilization == nil {
+			if !five.told() && !seven.told() {
 				return nil, errors.New("claude answered and said nothing of the limits")
 			}
 			return snapshotOf(five, seven, now), nil
@@ -138,22 +141,21 @@ func probeEnv(env []string) []string {
 }
 
 // snapshotOf writes the windows as the status line does: the share spent in
-// percent and when the window resets, in seconds.
+// percent and when the window resets, in seconds. A window claude did not
+// tell is left out rather than written as nothing spent.
 func snapshotOf(five, seven *limitWindow, now time.Time) []byte {
-	part := func(w *limitWindow) map[string]any {
-		out := map[string]any{"pct": nil, "resetsAt": nil}
-		if w == nil {
-			return out
+	out := map[string]any{"at": now.Unix()}
+	for key, w := range map[string]*limitWindow{"fiveHour": five, "sevenDay": seven} {
+		if !w.told() {
+			continue
 		}
-		if w.Utilization != nil {
-			out["pct"] = math.Round(*w.Utilization*1000) / 10
-		}
+		part := map[string]any{"pct": math.Round(*w.Utilization*1000) / 10, "resetsAt": nil}
 		if w.ResetsAt != nil {
-			out["resetsAt"] = *w.ResetsAt
+			part["resetsAt"] = *w.ResetsAt
 		}
-		return out
+		out[key] = part
 	}
-	snap, _ := json.Marshal(map[string]any{"at": now.Unix(), "fiveHour": part(five), "sevenDay": part(seven)})
+	snap, _ := json.Marshal(out)
 	return append(snap, '\n')
 }
 

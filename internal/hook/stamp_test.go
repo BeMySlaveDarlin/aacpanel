@@ -231,6 +231,19 @@ func TestCodexStampUsesTheThreadsAccount(t *testing.T) {
 	}
 }
 
+func TestClaudeStampNamesOnlyKnownWindows(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{`"fiveHour":{"pct":12},"sevenDay":{"pct":10}`, "Limits:   5h 12% · week 10%"},
+		{`"sevenDay":{"pct":10},"ageSec":1200`, "Limits:   week 10% (the snapshot is 20 min old)"},
+		{`"ageSec":180`, ""},
+	} {
+		state := decodeKeeping(t, []byte(`{"limits":{"contours":[{"profile":"personal",`+tc.body+`}]}}`)).(map[string]any)
+		if got := lineLimits(state, "/home/u/.claude"); got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.body, got, tc.want)
+		}
+	}
+}
+
 func TestCodexStampNamesOnlyKnownWindows(t *testing.T) {
 	for _, tc := range []struct{ body, want string }{
 		{`"windows":[{"pct":0,"windowMins":300},{"pct":45,"windowMins":10080}],"ageSec":180`, "Limits:   5h 0% · week 45% (the snapshot is 3 min old)"},

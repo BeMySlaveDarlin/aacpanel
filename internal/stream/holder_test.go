@@ -342,12 +342,18 @@ func fakeClaude() int {
 				out(map[string]any{"type": "user", "uuid": h["uuid"], "message": h["message"]})
 			}
 			held = nil
-			if os.Getenv("FAKE_LIMITS") == "1" {
+			switch os.Getenv("FAKE_LIMITS") {
+			case "1":
 				// As claude -p 2.1.283 tells the limits with an answer.
 				out(map[string]any{"type": "rate_limit_event", "rate_limit_info": map[string]any{
 					"status": "allowed", "rateLimitType": "seven_day", "unifiedWindows": map[string]any{
 						"five_hour": map[string]any{"utilization": 0.14, "resetsAt": 1790527800},
 						"seven_day": map[string]any{"utilization": 0.265, "resetsAt": 1790874000}}}})
+			case "week":
+				// As an account with no five-hour window open is told them.
+				out(map[string]any{"type": "rate_limit_event", "rate_limit_info": map[string]any{
+					"status": "allowed", "rateLimitType": "seven_day", "unifiedWindows": map[string]any{
+						"seven_day": map[string]any{"utilization": 0.1, "resetsAt": 1790874000}}}})
 			}
 			out(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
 				map[string]any{"type": "text", "text": "ok"}}}})
@@ -1483,6 +1489,21 @@ func TestAProbeTellsTheLimitsOfTheAccount(t *testing.T) {
 		if !strings.Contains(strings.Join(ProbeArgs, " "), flag) {
 			t.Errorf("the probe is started without %s", flag)
 		}
+	}
+}
+
+// An account with no five-hour window open is told the week alone; the probe
+// writes the week and leaves the five hours out, rather than failing on them.
+func TestAProbeTellsTheWeekWithoutFiveHours(t *testing.T) {
+	t.Setenv("STREAM_FAKE_CLAUDE", "1")
+	t.Setenv("FAKE_LOG", filepath.Join(t.TempDir(), "claude.log"))
+	t.Setenv("FAKE_LIMITS", "week")
+	snap, err := ProbeLimits(context.Background(), os.Args[0], t.TempDir(), time.Unix(1790000000, 0))
+	if err != nil {
+		t.Fatalf("the probe failed: %v", err)
+	}
+	if string(snap) != `{"at":1790000000,"sevenDay":{"pct":10,"resetsAt":1790874000}}`+"\n" {
+		t.Errorf("the snapshot reads %s", snap)
 	}
 }
 
