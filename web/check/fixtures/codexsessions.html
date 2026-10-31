@@ -32,6 +32,13 @@ import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
+// The screen keeps clocks of its own — the seconds a restart has waited, the
+// length of the turn — and redraws them on intervals: on a loaded machine,
+// where a frame takes a fifth of a second, the document never stands still
+// for the two frames quiet waits for. What this fixture reads moves with the
+// snapshots it draws, so the clocks stand still.
+window.setInterval = () => 0;
+
 const at = new Date(Date.now() - 60000).toISOString();
 const items = [
     { role: "me", pos: 1, at, text: "Touch late.txt and say what you did." },

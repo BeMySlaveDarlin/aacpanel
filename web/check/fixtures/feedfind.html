@@ -309,7 +309,7 @@ window.done = (async () => {
             press(field(), "Escape");
         }
         await until(() => !bar());
-        await sleep(60);
+        await quiet();
         out.firstClose = { bar: Boolean(bar()), marks: marked(), away: Boolean(away()), chat: closed.length };
 
         // The way back to the end, where there is one: a feed that never left
@@ -345,7 +345,7 @@ window.done = (async () => {
             await gesture();
         }
         await until(() => !bar());
-        await sleep(60);
+        await quiet();
         out.secondClose = { bar: Boolean(bar()), marks: marked(), chat: closed.length };
 
         // The conversation itself is still a layer the gesture closes.
