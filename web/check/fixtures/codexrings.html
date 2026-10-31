@@ -8,7 +8,8 @@
 <script type="module">
 // The column of sessions at a desk: in each contour's heading claude's two
 // rings and, beside them, codex's week in codex's hue, opening to the details
-// of every window; a contour codex alone spent in has that ring alone. A
+// of every window; a contour codex alone spent in has that ring alone, and an
+// account claude tells no five-hour window has its week alone. A
 // codex thread with a title of its own is listed by it, on the desk and on the
 // phone and in its sheet, and the panel still finds it by its address.
 import { h, render } from "preact";
@@ -25,8 +26,10 @@ const limits = { contours: [
     { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(7, 3.4), sevenDay: part(41, 98),
       codex: { ageSec: 30, windows: [], sevenDay: part(63, 52) } },
     { profile: "Lab", contour: 5, codex: { ageSec: 30, windows: [], sevenDay: part(18, 130) } },
+    { profile: "Home", contour: 6, ageSec: 30, sevenDay: part(9, 120) },
 ] };
-const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }, { id: 5, profile: "Lab", name: "Lab", groups: [] }];
+const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }, { id: 5, profile: "Lab", name: "Lab", groups: [] },
+    { id: 6, profile: "Home", name: "Home", groups: [] }];
 const codex = { session: "codex-5afc361b", sessionId: "0199c3a2", contour: 4, profile: "Acme", agent: "codex",
     transport: "stream", status: "idle", model: "gpt-6-astra", effort: "high", pct: 15, cwd: "/srv/shop", title: "Cart flakes" };
 const sessions = [codex];
@@ -54,7 +57,7 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 window.done = (async () => {
     await document.fonts.ready;
     const desk = document.getElementById("desk");
-    if (!await until(() => desk.querySelectorAll(".dklimhead").length === 2)) throw new Error("the contours did not show");
+    if (!await until(() => desk.querySelectorAll(".dklimhead").length === 3)) throw new Error("the contours did not show");
     const out = {};
     out.heads = Array.from(desk.querySelectorAll(".dklimhead")).map((head) => ({
         name: text(head.querySelector(".dkcontourname")),

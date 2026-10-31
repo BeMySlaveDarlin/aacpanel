@@ -426,8 +426,9 @@ function Window({ title, part }) {
     `;
 }
 
-// ContourLimits is the subscription limit of a contour in its heading: two
-// rings, and the details of both windows under them on a press. Numbers the
+// ContourLimits is the subscription limit of a contour in its heading: a ring
+// a window claude tells, and their details under them on a press; an account
+// with no five-hour window has the week alone. Numbers the
 // snapshot has not renewed for a while are dimmed and say how old they are.
 export function ContourLimits({ limits, name, profiles }) {
     const [open, setOpen] = useState(false);
@@ -435,9 +436,8 @@ export function ContourLimits({ limits, name, profiles }) {
     const id = ((profiles || []).find((p) => p.profile === name) || {}).id || 0;
     const c = contourOf(limits, name, id);
     if (!c) return html`<span class="dkrings dknone">no numbers yet</span>`;
-    // Codex's week stands beside claude's two windows, a ring of its own in
+    // Codex's week stands beside claude's windows, a ring of its own in
     // codex's hue; a contour codex alone has spent in has that ring alone.
-    const claude = Boolean(c.fiveHour || c.sevenDay);
     const week = (c.codex && c.codex.sevenDay) || null;
     const old = staleLimits(c)
         ? `The numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers`
@@ -447,19 +447,15 @@ export function ContourLimits({ limits, name, profiles }) {
             <button class=${`dkrings${old ? " dkold" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
                     aria-label=${`the limits of contour ${name}`} onClick=${() => setOpen(!open)}>
                 ${old && html`<span class="dkringsage">${agoText(c.ageSec)}</span>`}
-                ${claude && html`
-                    <${Ring} label="5h" title="Five hours" part=${c.fiveHour} />
-                    <${Ring} label="7d" title="Seven days" part=${c.sevenDay} />
-                `}
+                ${c.fiveHour && html`<${Ring} label="5h" title="Five hours" part=${c.fiveHour} />`}
+                ${c.sevenDay && html`<${Ring} label="7d" title="Seven days" part=${c.sevenDay} />`}
                 ${week && html`<${Ring} label="7d" title="Codex, seven days" part=${week} agent="codex" />`}
             </button>
             <${Popover} open=${open} onClose=${close} label=${`the limits of contour ${name}`}>
                 <div class="dklimpop">
                     <div class="dklimpophead">${name}</div>
-                    ${claude && html`
-                        <${Window} title="Five hours" part=${c.fiveHour} />
-                        <${Window} title="Seven days" part=${c.sevenDay} />
-                    `}
+                    ${c.fiveHour && html`<${Window} title="Five hours" part=${c.fiveHour} />`}
+                    ${c.sevenDay && html`<${Window} title="Seven days" part=${c.sevenDay} />`}
                     ${week && html`<${Window} title="Codex · seven days" part=${week} />`}
                     ${old && html`<p class="dklimpopnote">${old}</p>`}
                 </div>

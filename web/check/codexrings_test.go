@@ -8,7 +8,8 @@ import (
 
 // At a desk each contour's heading carries claude's two rings and, beside
 // them, codex's week in codex's own hue, and the details under them name every
-// window; a contour codex alone spent in has codex's ring alone. A codex
+// window; a contour codex alone spent in has codex's ring alone, and an
+// account claude tells no five-hour window has its week alone. A codex
 // thread with a title is listed by it on the desk and on the phone, while a
 // press still opens it by its address.
 func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
@@ -36,10 +37,10 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	}
 	runWideFixture(t, "codexrings.html", &got)
 
-	if len(got.Heads) != 2 {
+	if len(got.Heads) != 3 {
 		t.Fatalf("the column has %d contour headings: %+v", len(got.Heads), got.Heads)
 	}
-	acme, lab := got.Heads[0], got.Heads[1]
+	acme, lab, home := got.Heads[0], got.Heads[1], got.Heads[2]
 	if len(acme.Rings) != 3 || acme.Rings[0].Value != "7" || acme.Rings[1].Value != "41" ||
 		acme.Rings[2].Value != "63" || acme.Rings[2].Agent != "codex" || !strings.HasPrefix(acme.Rings[2].Tip, "Codex, seven days") {
 		t.Errorf("the heading of Acme carries %+v, expected claude's two rings and codex's week last", acme.Rings)
@@ -49,6 +50,9 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	}
 	if len(lab.Rings) != 1 || lab.Rings[0].Value != "18" || lab.Rings[0].Agent != "codex" {
 		t.Errorf("a contour codex alone spent in carries %+v, expected codex's week alone", lab.Rings)
+	}
+	if len(home.Rings) != 1 || home.Rings[0].Value != "9" || !strings.HasPrefix(home.Rings[0].Tip, "Seven days") {
+		t.Errorf("an account with no five-hour window carries %+v, expected claude's week alone", home.Rings)
 	}
 	if strings.Join(got.Pop, "|") != "Five hours|Seven days|Codex · seven days" {
 		t.Errorf("the details of Acme's limits name %v", got.Pop)
