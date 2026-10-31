@@ -67,7 +67,7 @@ func TestThePhoneContourPageShowsCodexsWeekBesideClaudesLimits(t *testing.T) {
 		}
 		runFixtureOn(t, "codexplates.html", screen.metrics, phonePointer, &got)
 		at := screen.name
-		if len(got.Pages) != 5 {
+		if len(got.Pages) != 6 {
 			t.Fatalf("%s: the fixture measured %d contour pages: %+v", at, len(got.Pages), got.Pages)
 		}
 		for _, p := range got.Pages {
@@ -219,6 +219,18 @@ func TestThePhoneContourPageShowsCodexsWeekBesideClaudesLimits(t *testing.T) {
 		}
 		if initech.Dim != "1" || len(initech.Notes) != 0 {
 			t.Errorf("%s: fresh numbers of initech are dimmed (%s) or noted %v", at, initech.Dim, initech.Notes)
+		}
+
+		hooli := got.Pages[5]
+		if hooli.Name != "hooli" || len(hooli.Plates) != 2 {
+			t.Fatalf("%s: an account with no five-hour window reads %+v, expected claude's week and codex's", at, hooli)
+		}
+		if !oneRow(hooli) {
+			t.Errorf("%s: hooli's windows stand %s, expected claude's week and codex's half the row each", at, rowOf(hooli))
+		}
+		if l, r := hooli.Plates[0], hooli.Plates[1]; l.Word != "Claude" || l.Span != "7d" || l.Value != "10%" ||
+			r.Word != "Codex" || r.Span != "7d" || r.Value != "72%" {
+			t.Errorf("%s: hooli's windows read %+v and %+v, expected claude's week, then codex's", at, l, r)
 		}
 	}
 }

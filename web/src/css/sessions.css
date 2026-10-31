@@ -207,14 +207,16 @@
    its title. Codex's window alone is as wide as one of claude's, and the
    line of an account that told no week, with no bar to compare, takes the
    row, where it reads in one piece; beside claude's it is short and stands
-   where their last lines do. */
+   where their last lines do. An account with no five-hour window has its
+   week beside codex's, two equal columns. */
 .pflimits .pfcodex > .limit { flex: 0 1 calc(50% - .25rem); }
 .pflimits .pfcodex > .limit.lempty { flex: 1; }
-.pflimits.pfthree { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .5rem; }
+.pflimits.pfthree, .pflimits.pftwo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .5rem; }
+.pflimits.pftwo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pflimits.pfthree > .pfclaude { grid-column: span 2; }
-.pflimits.pfthree > .limits-note { grid-column: 1 / -1; }
-.pflimits.pfthree .limit { flex: 1; min-width: 0; }
-.pflimits.pfthree .limit.lempty { justify-content: space-between; }
+:is(.pflimits.pfthree, .pflimits.pftwo) > .limits-note { grid-column: 1 / -1; }
+:is(.pflimits.pfthree, .pflimits.pftwo) .limit { flex: 1; min-width: 0; }
+:is(.pflimits.pfthree, .pflimits.pftwo) .limit.lempty { justify-content: space-between; }
 .pflimits .pfold { opacity: .45; }
 
 /* Scrolled past, the limits fold and stay over the list on a band of their

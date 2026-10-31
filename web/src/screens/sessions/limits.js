@@ -68,7 +68,8 @@ export function openLimits(snapshot) {
 
 // ProfileLimits renders the subscription bars of this contour and their age:
 // claude's two windows, and beside them, a third in the row, codex's week
-// where codex has spent in the contour. A contour codex alone has spent in
+// where codex has spent in the contour; an account with no five-hour window
+// has its week and codex's two to the row. A contour codex alone has spent in
 // has codex's window alone. Every window is a plate of one shape, whose it
 // is over its bar and which window it is under it, so a window reads alike
 // in a row of two and in a row of three. Each agent renews its own numbers,
@@ -94,6 +95,9 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
     const claudeOld = claude && staleLimits(c);
     const codexOld = Boolean(codex) && staleLimits(codex);
     const three = claude && Boolean(codex);
+    // An account with no five-hour window has its week alone beside codex's:
+    // a row of two.
+    const row = !three ? "" : c.fiveHour && c.sevenDay ? " pfthree" : " pftwo";
     const allOld = stale || ((!claude || claudeOld) && (!codex || codexOld));
     const ages = stale ? [] : [
         claudeOld && (codex
@@ -105,7 +109,7 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
     const codexWord = html`<span class="agentword" data-agent="codex">Codex</span>`;
 
     return html`
-        <div class=${`pflimits${three ? " pfthree" : ""}${allOld ? " stale" : ""}${tucked ? " tucked" : ""}`} ref=${box}>
+        <div class=${`pflimits${row}${allOld ? " stale" : ""}${tucked ? " tucked" : ""}`} ref=${box}>
             ${claude && html`
                 <div class=${`limits pfclaude${claudeOld && !allOld ? " pfold" : ""}`}>
                     <${Limit} name=${claudeWord} span="5h" full="Claude · 5 hours" data=${c.fiveHour} />

@@ -11,7 +11,8 @@
 // and an account that told no week, ran into its limit or has not renewed its
 // numbers for a while says so. The last contour has the widest words a window
 // carries three to a row: a share with a tenth, a reset that has come and one
-// in minutes, and no week. Every page is measured for words cut off or
+// in minutes, and no week. An account with no five-hour window has its week
+// beside codex's, two to the row. Every page is measured for words cut off or
 // windows run into one another, at whatever width the screen of the run is,
 // and the words of the agents are read again on the sky.
 import { h, render } from "preact";
@@ -44,6 +45,7 @@ const profileMap = [
     { id: 5, profile: "lab", name: "lab", groups: [] },
     { id: 6, profile: "globex", name: "globex", groups: [] },
     { id: 7, profile: "initech", name: "initech", groups: [] },
+    { id: 8, profile: "hooli", name: "hooli", groups: [] },
 ];
 const limits = { contours: [
     { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(7, 3), sevenDay: part(41, 98),
@@ -54,6 +56,7 @@ const limits = { contours: [
       codex: codex(4000, { sevenDay: part(92, 102), reached: "rate_limit" }) },
     { profile: "initech", contour: 7, ageSec: 30, fiveHour: { pct: 99.5, resetsAt: now - 60 }, sevenDay: part(64, 0),
       codex: codex(30, { plan: "plus" }) },
+    { profile: "hooli", contour: 8, ageSec: 30, sevenDay: part(10, 118), codex: codex(30, { sevenDay: part(72, 85) }) },
 ] };
 const run = (session, contour) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream",
     pct: 12, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
