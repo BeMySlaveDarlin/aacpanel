@@ -143,6 +143,7 @@ globalThis.IntersectionObserver = class { observe() {} disconnect() {} };
 function box(height) {
     let top = 0;
     return {
+        children: [],
         scrollHeight: height,
         clientHeight: 400,
         get scrollTop() { return top; },

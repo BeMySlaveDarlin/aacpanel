@@ -123,6 +123,25 @@ func TestFeedEndHasALineOfSlack(t *testing.T) {
 	}
 }
 
+func TestFeedFollowsContentGrowthOnlyAtItsEnd(t *testing.T) {
+	type growth struct {
+		Row, Stack            struct{ Gap, Grew float64 }
+		Left, Stayed, AwayGap float64
+	}
+	var got struct{ Grown, SubGrown growth }
+	runFixture(t, "feed.html", &got)
+	for name, g := range map[string]growth{"conversation": got.Grown, "subagent": got.SubGrown} {
+		for kind, shot := range map[string]struct{ Gap, Grew float64 }{"row": g.Row, "rail": g.Stack} {
+			if shot.Grew < 49 || shot.Gap > 1 {
+				t.Errorf("%s %s grew %.1fpx and left %.1fpx below the feed — content growth must follow the end", name, kind, shot.Grew, shot.Gap)
+			}
+		}
+		if g.Left != 200 || g.Stayed != g.Left || g.AwayGap <= 120 {
+			t.Errorf("%s scrolled-up feed moved from %.1f to %.1f, gap %.1f — growth must leave the reader above the end", name, g.Left, g.Stayed, g.AwayGap)
+		}
+	}
+}
+
 func atEnd(near bool) string {
 	if near {
 		return "at its end"

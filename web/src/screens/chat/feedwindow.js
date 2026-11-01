@@ -98,6 +98,7 @@ export function useFeedWindow({ name, id, live }) {
     const seenRef = useRef(null);
     const putRef = useRef(null);
     const watchRef = useRef(null);
+    const contentsRef = useRef(new Set());
     const [atEnd, setAtEnd] = useState(true);
     // The window away from the end, or null while the tail is on screen. The
     // ref is what callbacks made in an earlier render read; trip tells one
@@ -271,6 +272,7 @@ export function useFeedWindow({ name, id, live }) {
         const box = feedRef.current;
         if (box !== seenRef.current) {
             seenRef.current = box;
+            contentsRef.current.clear();
             if (watchRef.current) {
                 watchRef.current.disconnect();
                 watchRef.current = null;
@@ -286,6 +288,19 @@ export function useFeedWindow({ name, id, live }) {
                 ro.observe(box);
                 watchRef.current = ro;
             }
+        }
+        // Rows and the timeline grow after the items are drawn, without resizing
+        // the scroll box. Observe its contents too, but only subscribe new nodes:
+        // observing the same node again would schedule another resize callback.
+        if (box && watchRef.current) {
+            const children = new Set(box.children);
+            for (const child of contentsRef.current) {
+                if (!children.has(child)) watchRef.current.unobserve(child);
+            }
+            for (const child of children) {
+                if (!contentsRef.current.has(child)) watchRef.current.observe(child);
+            }
+            contentsRef.current = children;
         }
         if (box && putRef.current !== box) put(box);
     });

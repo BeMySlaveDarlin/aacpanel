@@ -11,6 +11,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
+import { SubChat } from "/src/screens/chat/subchat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -148,6 +149,43 @@ window.done = (async () => {
     quote.feedTop = round(document.querySelector(".chatfeed").getBoundingClientRect().top);
     quote.feedTopBefore = settled.feedTop === undefined ? null : settled.feedTop;
 
-    return { before, queued, frames, settled, debug, quote, copy };
+    // The transcript stays unchanged while a row or the timeline grows on
+    // its own. Following the end must include both, and leave a reader above it.
+    const growth = async () => {
+        const box = document.querySelector(".chatfeed");
+        const gap = () => box.scrollHeight - box.scrollTop - box.clientHeight;
+        box.scrollTop = box.scrollHeight;
+        box.dispatchEvent(new Event("scroll"));
+        await quiet();
+        const height = box.scrollHeight;
+        const pad = document.createElement("div");
+        pad.style.height = "50px";
+        box.querySelector(".feedrow:last-child").append(pad);
+        await until(() => gap() <= 1);
+        await quiet();
+        const row = { gap: gap(), grew: box.scrollHeight - height };
+
+        const rail = box.querySelector(".rail");
+        const railHeight = box.scrollHeight;
+        rail.style.minHeight = `${box.querySelector(".feedgrid").clientHeight + 50}px`;
+        await until(() => gap() <= 1);
+        await quiet();
+        const stack = { gap: gap(), grew: box.scrollHeight - railHeight };
+
+        box.scrollTop = 200;
+        box.dispatchEvent(new Event("scroll"));
+        await quiet();
+        const left = box.scrollTop;
+        rail.style.minHeight = `${rail.clientHeight + 50}px`;
+        await quiet();
+        return { row, stack, left, stayed: box.scrollTop, awayGap: gap() };
+    };
+    const grown = await growth();
+    render(h(ToastHost, null, h(SubChat, { session: "acme", id: "s1:agent-1",
+        agent: { name: "Worker", kind: "subagent" }, live, onBack: () => {} })), document.getElementById("root"));
+    await until(() => document.querySelectorAll(".feedrow").length === items.length);
+    await quiet();
+    const subGrown = await growth();
+    return { before, queued, frames, settled, debug, quote, copy, grown, subGrown };
 })();
 </script>
