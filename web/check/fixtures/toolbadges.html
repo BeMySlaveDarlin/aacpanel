@@ -2,7 +2,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <div class="shell"><div class="body" id="root"></div></div>
-<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <script type="module">
 // A run of every kind of call, a run that only thought and the end of a turn,
 // each after a reply of its own: every badge on the timeline is drawn the same
@@ -13,6 +13,10 @@ import { Row } from "/src/screens/chat/rows.js";
 import { rows, weld } from "/src/screens/chat/feed.js";
 import { FeedGrid } from "/src/screens/chat/timeline.js";
 import { KIND_NAMES } from "/src/screens/chat/labels.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const at = "2026-09-26T10:00:00Z";
 const kinds = Object.keys(KIND_NAMES).concat(["hook"]);
@@ -47,7 +51,7 @@ const aligned = () => {
     return marks.length > 0 && marks.every((m, i) => rows[i]
         && Math.abs(m.getBoundingClientRect().top - rows[i].getBoundingClientRect().top) <= 1);
 };
-(async () => {
+window.done = (async () => {
     await document.fonts.ready;
     const end = performance.now() + 3000;
     while (!aligned() && performance.now() < end) await frame();
@@ -62,6 +66,53 @@ const aligned = () => {
     // The row each mark led to: the reply after its run.
     const rowsTop = Array.from(col.children).filter((r) => !r.classList.contains("r-me") || true)
         .map((r) => r.getBoundingClientRect().top);
-    window.done = { badges: marks, rows: rowsTop, inColumn: col.querySelectorAll(".mtools, .railbadge").length };
+    const out = { badges: marks, rows: rowsTop, inColumn: col.querySelectorAll(".mtools, .railbadge").length };
+
+    const runningItems = [
+        { role: "me", text: "Run the checks.", pos: 1, at },
+        { role: "tools", kind: "bash", run: 2, pos: 2, at, calls: [{ name: "Bash", arg: "make check", pos: 2, index: 0 }] },
+        { role: "ai", text: long, pos: 3, at },
+        { role: "tools", kind: "files", run: 4, pos: 4, at, calls: [{ name: "Read", arg: "web/src/app.js", pos: 4, index: 0 }] },
+    ];
+    const work = { agents: [{ id: "worker", name: "Worker", status: "active", kind: "background", startedAt: at }] };
+    const json = (body) => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+    window.fetch = counted(async (url) => String(url).startsWith("/api/chat?")
+        ? json({ items: runningItems, first: 1, last: 4, total: 4, moreBefore: false, state: work }) : json({}));
+    let stream;
+    window.EventSource = class {
+        constructor() { this.readyState = 1; this.listeners = {}; stream = this; }
+        addEventListener(type, fn) { this.listeners[type] = fn; }
+        close() { this.readyState = 2; }
+    };
+    const live = { session: "lab", sessionId: "rail", status: "busy", transport: "stream", cwd: "/srv/proj" };
+    const show = (session) => render(html`<${ToastHost}><${GateHost}><${Chat} name="lab" id="rail" live=${session}
+        exec=${{ available: true, kinds: [] }} onBack=${() => {}} onUsage=${() => {}} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
+    const read = () => ({
+        tail: Boolean(document.querySelector(".railbadge.k-files")),
+        anchored: Boolean(document.querySelector(".railbadge.k-bash")),
+        now: Boolean(document.querySelector(".nowchips .k-files")),
+        agents: Boolean(document.querySelector(".nowwait")),
+        floor: parseFloat(document.querySelector(".rail").style.minHeight),
+        column: document.querySelector(".feedcol").clientHeight,
+    });
+    const until = async (ready) => {
+        const end = performance.now() + 3000;
+        while (!ready() && performance.now() < end) await frame();
+    };
+    show(live);
+    await until(() => document.querySelector(".nowchips .k-files") && document.querySelector(".railbadge.k-bash"));
+    await quiet();
+    out.running = read();
+    show({ ...live, status: "idle" });
+    await quiet();
+    out.ended = read();
+    show({ ...live, turnOver: true });
+    await quiet();
+    out.waitingAgents = read();
+    show(live);
+    stream.listeners.chat({ data: JSON.stringify({ items: [{ role: "ai", text: "The file checks out.", pos: 5, at }], total: 5 }) });
+    await quiet();
+    out.replied = read();
+    return out;
 })();
 </script>

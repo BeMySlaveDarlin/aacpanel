@@ -51,3 +51,24 @@ func TestEveryBadgeOfTheTimelineIsTheSameSize(t *testing.T) {
 		}
 	}
 }
+
+func TestThePhoneRailWaitsForTheCurrentRun(t *testing.T) {
+	type run struct {
+		Tail, Anchored, Now, Agents bool
+		Floor, Column               float64
+	}
+	var got struct{ Running, Ended, WaitingAgents, Replied run }
+	runFixture(t, "toolbadges.html", &got)
+	if g := got.Running; g.Tail || !g.Anchored || !g.Now || g.Floor > g.Column {
+		t.Errorf("running turn: %+v — its tail belongs to the now bar without reserving rail space, and anchored work stays", g)
+	}
+	if g := got.Ended; !g.Tail || g.Now || g.Floor <= g.Column {
+		t.Errorf("ended turn: %+v — its tail belongs on the rail with room for the stack", g)
+	}
+	if g := got.WaitingAgents; !g.Tail || !g.Agents || g.Now {
+		t.Errorf("turn waiting on agents: %+v — the run is over and the bar counts the agents", g)
+	}
+	if g := got.Replied; !g.Tail || !g.Anchored || !g.Now {
+		t.Errorf("running turn after its reply: %+v — work anchored to a reply stays on the rail", g)
+	}
+}

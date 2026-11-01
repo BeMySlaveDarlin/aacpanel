@@ -522,6 +522,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 <${FeedGrid}
                     rows=${rows(drawn, pending, goesOn && asksTurn && Boolean(live) && !live.outside)}
                     wide=${wide}
+                    busy=${Boolean(live && live.status === "busy" && !live.turnOver
+                        && !(live.transport === "stream" && live.compacting))}
                     checklist=${checklist}
                     onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
                     row=${(item, n) => html`<${Row}

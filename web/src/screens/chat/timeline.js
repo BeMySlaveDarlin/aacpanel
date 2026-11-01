@@ -446,12 +446,16 @@ function DeskColumn({ groups, checklist, onOpen }) {
 // column. A row carries the position of its item and its number among the
 // rows of one role its record gave: the search names a match by them, and
 // finds its row on screen by them.
-export function FeedGrid({ rows, wide, row, tail, checklist, onOpen }) {
+export function FeedGrid({ rows, wide, busy, row, tail, checklist, onOpen }) {
     const { prose, marks } = useMemo(() => book(rows), [rows]);
     const col = useRef(null);
     const geo = useGeometry(col, prose.length);
-    const groups = useMemo(() => (geo ? (wide ? deskGroups(marks, geo, prose) : railStacks(marks, geo)) : []),
-        [marks, geo, wide, prose]);
+    // The bar above the composer carries the unfinished run until it has a
+    // reply or its turn ends. Filter before merging stacks so its badges and
+    // its height cannot leak into a neighbouring stack on the phone's rail.
+    const groups = useMemo(() => (geo ? (wide ? deskGroups(marks, geo, prose)
+        : railStacks(busy ? marks.filter((m) => !m.end) : marks, geo)) : []),
+        [marks, geo, wide, prose, busy]);
     // A stack can reach past the last row: the strip is as tall as its
     // lowest stack, so the feed scrolls to it.
     const last = !wide && groups[groups.length - 1];
