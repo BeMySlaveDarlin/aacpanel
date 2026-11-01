@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,15 +24,15 @@ type questionExecutor struct {
 func (q *questionExecutor) Execute(context.Context, action.Request) (string, error) {
 	return "", errors.New("no actions")
 }
-func (q *questionExecutor) Question(_ context.Context, target, conversation, text string) (bool, string, error) {
+func (q *questionExecutor) Question(_ context.Context, target, conversation, text string) (bool, string, []string, error) {
 	q.calls.Add(1)
 	if target != "sentinel" || conversation != requestConversation || text != "Publish? The checks passed." {
-		return false, "", errors.New("wrong candidate")
+		return false, "", []string{}, errors.New("wrong candidate")
 	}
 	if q.failed {
-		return false, "", errors.New("classifier refused")
+		return false, "", []string{}, errors.New("classifier refused")
 	}
-	return q.yes, "Publish?", nil
+	return q.yes, "Publish?", []string{"Publish", "Wait"}, nil
 }
 
 func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
@@ -109,9 +110,21 @@ func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
 				t.Fatalf("the question lost its summary or full message: %+v", got)
 			}
 			items := waitingFor(nil, "", got[requestConversation], nil, nil, nil)
-			if len(items) != 1 || items[0].Kind != "question" || items[0].Title != "Publish?" || items[0].Pos == nil || *items[0].Pos != 42 {
+			if len(items) != 1 || items[0].Kind != "question" || items[0].Title != "Publish?" || !slices.Equal(items[0].Answers, []string{"Publish", "Wait"}) || items[0].Pos == nil || *items[0].Pos != 42 {
 				t.Errorf("the feed anchor was lost: %v", items)
 			}
+			wire, err := json.Marshal(items)
+			if err != nil || !strings.Contains(string(wire), `"answers":["Publish","Wait"]`) {
+				t.Fatalf("waiting replies did not travel: %s, %v", wire, err)
+			}
+		}
+		verdicts, err := p.db.QuestionVerdicts(t.Context(), []string{requestConversation})
+		wantAnswers := []string{}
+		if tc.yes {
+			wantAnswers = []string{"Publish", "Wait"}
+		}
+		if err != nil || !slices.Equal(verdicts[requestConversation][tc.name].Answers, wantAnswers) {
+			t.Fatalf("%s lost stored replies: %+v, %v", tc.name, verdicts, err)
 		}
 		first, err := p.db.PushQuestion(t.Context(), requestConversation, card.BriefID)
 		if err != nil || !first {
@@ -174,6 +187,9 @@ func TestQuestionClaimsSurviveRestartAndExpiredWorkIsVisiblePG(t *testing.T) {
 		t.Fatal(err)
 	}
 	verdicts, err := p.db.QuestionVerdicts(t.Context(), []string{conversation})
+	if err != nil || verdicts[conversation]["message"].Answers == nil || len(verdicts[conversation]["message"].Answers) != 0 {
+		t.Fatalf("an unclassified message has no empty replies: %+v, %v", verdicts, err)
+	}
 	if err != nil || !questionVisible(true, verdicts[conversation]["message"].Verdict) {
 		t.Fatalf("interrupted classification disappeared: %v %v", verdicts, err)
 	}
@@ -222,4 +238,14 @@ func TestQuestionClaimsSurviveRestartAndExpiredWorkIsVisiblePG(t *testing.T) {
 		t.Fatalf("a vanished session kept its push: %v %v", tags, err)
 	}
 
+}
+
+func TestWaitingQuestionWithoutRepliesSendsAnEmptyList(t *testing.T) {
+	for _, answers := range [][]string{nil, {}} {
+		items := waitingFor(nil, "", []chat.Item{{Role: "question", BriefID: "message", Title: "Name?", Answers: answers}}, nil, nil, nil)
+		wire, err := json.Marshal(items)
+		if err != nil || !strings.Contains(string(wire), `"answers":[]`) {
+			t.Fatalf("empty replies disappeared: %s, %v", wire, err)
+		}
+	}
 }

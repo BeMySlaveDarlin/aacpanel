@@ -72,6 +72,7 @@ func (s *Server) questionCards(ctx context.Context, rows []map[string]json.RawMe
 			}
 			if card.Role == "question" && verdicts[id][card.BriefID].What != "" {
 				card.Title = verdicts[id][card.BriefID].What
+				card.Answers = verdicts[id][card.BriefID].Answers
 			}
 			out[id] = append(out[id], card)
 		}
@@ -207,14 +208,15 @@ func (s *Server) classifyTextQuestion(ctx context.Context, conversation, session
 		return
 	}
 	verdict, what := "error", ""
+	answers := []string{}
 	// A shortened message may have lost the very question we found. It
 	// cannot earn a negative verdict from the classifier.
 	if s.exec != nil && !card.Cut {
-		yes, asked, err := s.exec.Question(ctx, session, conversation, card.Text)
+		yes, asked, choices, err := s.exec.Question(ctx, session, conversation, card.Text)
 		if err == nil {
 			verdict = "no"
 			if yes {
-				verdict, what = "yes", asked
+				verdict, what, answers = "yes", asked, choices
 			}
 		}
 	}
@@ -222,7 +224,7 @@ func (s *Server) classifyTextQuestion(ctx context.Context, conversation, session
 	// cancellation cannot leave an uncertain question hidden until recovery.
 	save, stop := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer stop()
-	if err := s.db.SetQuestionVerdict(save, conversation, card.BriefID, verdict, what); err != nil {
+	if err := s.db.SetQuestionVerdict(save, conversation, card.BriefID, verdict, what, answers); err != nil {
 		log.Printf("the question verdict was not kept: %v", err)
 	}
 }

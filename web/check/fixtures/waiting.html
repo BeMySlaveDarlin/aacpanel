@@ -29,7 +29,7 @@ const candidates = [
     { kind: "brief", id: "rotation", title: "Token rotation", at, pos: 11 },
     { kind: "secret", id: "release.env", title: "Release token", at, pos: 12 },
     { kind: "call", title: "CI needs your choice", at, pos: 13 },
-    { kind: "question", id: "message-question", title: "Shall I publish?", at, pos: 16 },
+    { kind: "question", id: "message-question", title: "Shall I publish?", answers: ["Publish", "Wait"], at, pos: 16 },
     { kind: "asked", title: "A blocking question", at, pos: 14 },
     { kind: "permit", title: "Permission", at, pos: 15 },
 ];
@@ -54,6 +54,8 @@ Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
 let refuse = true;
 let holdRequests = true;
 let releaseRequests;
+let holdQuestion = false;
+let releaseQuestion;
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (input, options) => {
     const url = new URL(String(input), location.href);
@@ -77,6 +79,10 @@ window.fetch = counted(async (input, options) => {
         const body = JSON.parse(options.body);
         sent.push(body);
         if (body.kind === "session.shell") return json({ ok: true, detail: "running" });
+        if (holdQuestion && body.params.text) {
+            holdQuestion = false;
+            await new Promise(resolve => { releaseQuestion = resolve; });
+        }
         if (refuse) return json({ error: "Delivery refused" }, 502);
         record = { ...record, answer: body.params.answer, note: body.params.note, answered: new Date().toISOString() };
         return json({ ok: true, detail: "queued" });
@@ -89,12 +95,12 @@ window.fetch = counted(async (input, options) => {
 });
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() { this.readyState = 2; } };
 
-let back;
-let refresh;
+let back, redraw, refresh;
 function App() {
     const [opened, setOpened] = useState(false);
-    const [, redraw] = useState(0);
-    refresh = () => redraw((n) => n + 1);
+    const [, setRevision] = useState(0);
+    redraw = () => setRevision(n => n + 1);
+    refresh = redraw;
     back = () => setOpened(false);
     const chat = opened && html`<${Chat} name="work" id=${id} live=${session} snapshot=${snapshot} exec=${exec} onBack=${back} onUsage=${() => {}} />`;
     return wide ? html`<div class="deskshell"><div class="dkbody"><${SessionColumn} snapshot=${snapshot} exec=${exec} limits=${{}} picks=${[]} setPicks=${() => {}}
@@ -171,6 +177,42 @@ window.done = (async () => {
     out.loadedOlderWindow = windows.includes("before") && windows.includes("after");
     out.questionSummary = document.querySelector(".mquestionwhat")?.textContent === "Shall I publish?";
     out.questionFullText = document.querySelector(".mquestionwhat")?.parentElement.textContent.includes("The checks passed.");
+    const quick = () => document.querySelector(".mquestionanswers");
+    const choices = candidates.find(item => item.kind === "question");
+    const offered = choices.answers;
+    out.quickButtons = [...quick().querySelectorAll("button")].map(b => b.textContent).join("|") === "Publish|Wait";
+    delete choices.answers;
+    redraw(); await quiet();
+    out.quickMissing = !quick();
+    choices.answers = [];
+    redraw(); await quiet();
+    out.quickEmpty = !quick();
+    choices.answers = offered;
+    const kinds = exec.kinds;
+    exec.kinds = [];
+    redraw(); await quiet();
+    out.quickUnavailable = !quick();
+    exec.kinds = kinds;
+    session.outside = true;
+    redraw(); await quiet();
+    out.quickOutside = !quick();
+    session.outside = false;
+    redraw(); await quiet();
+    const beforeQuick = sent.length;
+    holdQuestion = true;
+    const firstReply = quick().querySelector("button");
+    firstReply.click(); firstReply.click();
+    await until(() => releaseQuestion && [...quick().querySelectorAll("button, textarea")].every(b => b.disabled));
+    out.quickBusy = sent.length === beforeQuick + 1 && queueCount() === 4;
+    out.quickPlain = sent.at(-1)?.kind === "session.send" && sent.at(-1)?.target === "work" && sent.at(-1)?.params?.text === "Publish";
+    document.querySelector(".feedjump").click();
+    await until(() => [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Publish")));
+    out.quickLocalSending = document.querySelector(".chatfeed").textContent.includes("going out");
+    releaseQuestion(); releaseQuestion = null;
+    await quiet();
+    out.quickFailedRow = [...document.querySelectorAll(".msg.me.failed")].some(row => row.textContent.includes("Publish") && row.textContent.includes("Delivery refused"));
+    await pick("Shall I publish?");
+    out.quickFailureKeeps = Boolean(quick()) && queueCount() === 4;
     await pick("Restart the router");
     card = requestSheet()?.querySelector(".mrequest");
     const field = card.querySelector("textarea");
@@ -192,8 +234,28 @@ window.done = (async () => {
     await quiet();
     out.requestGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes(record.title));
     out.questionHighlightKept = Boolean(feed.querySelector(".r-ai.waitingtarget"));
-    // A reply from the composer answers the question asked in text: its
-    // item leaves the queue with the send, not with the next look of the host.
+    await pick("Shall I publish?");
+    const note = quick().querySelector("textarea");
+    note.value = "  Hold for CI.\nKeep logs.  ";
+    note.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+    holdQuestion = true;
+    quick().querySelectorAll("button")[1].click();
+    await until(() => releaseQuestion);
+    const quickSent = sent.at(-1);
+    out.quickNote = quickSent?.params?.text === "Wait\n\nHold for CI.\nKeep logs.";
+    out.quickMessageId = /^[0-9a-f-]{36}$/.test(quickSent?.params?.messageId || "");
+    releaseQuestion(); releaseQuestion = null;
+    await quiet();
+    out.quickGone = Boolean(document.querySelector('.feedrow[data-pos="16"]')) && !quick() && queueCount() === 2;
+    document.querySelector(".feedjump").click();
+    await quiet();
+    out.quickLocalQueued = [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Wait"))
+        && document.querySelector(".chatfeed").textContent.includes("queued");
+    // A composer reply settles a fresh question through the same send gate.
+    choices.id = "composer-question";
+    redraw(); await quiet();
+    await pick("Shall I publish?");
     const reply = document.querySelector(".composer textarea");
     reply.value = "Publish it.";
     reply.dispatchEvent(new Event("input", { bubbles: true }));
@@ -220,6 +282,12 @@ window.done = (async () => {
     back();
     await quiet();
     out.countBackInList = Number(mark()?.dataset.waitingCount || 0);
+    session.agent = "codex";
+    choices.id = "codex-question";
+    mark().click();
+    await until(() => queue() && document.querySelector(".feedrow"));
+    await pick("Shall I publish?");
+    out.quickCodex = Boolean(document.querySelector(".mquestionwhat")) && !quick();
     return out;
 })();
 </script>

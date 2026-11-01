@@ -20,7 +20,7 @@ import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { alarmTime } from "../sessions/alarms.js";
-import { RequestCard } from "./request.js";
+import { QuickAnswers, RequestCard } from "./request.js";
 import { savedAfter } from "../../data/secrets.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
@@ -38,7 +38,7 @@ export const FeedWrites = createContext(null);
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, question, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, requests, requestError, requestUnavailable, onRequestAnswer }) {
+export function Row({ item, question, onQuestionAnswer, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, requests, requestError, requestUnavailable, onRequestAnswer }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -203,6 +203,8 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
                 ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} exec=${writes.exec} />`}
             </div>
         `}
+        ${question && onQuestionAnswer && Array.isArray(question.answers) && question.answers.length > 0
+            && html`<${QuickAnswers} key=${question.id} answers=${question.answers} onAnswer=${onQuestionAnswer} />`}
         ${handed.length > 0 && html`<${HandedFiles} files=${handed} onOpen=${onFile} onSave=${save} />`}
         ${mine && (wait || item.at) && html`<div class="mstamp">${wait || stampText(item.at)}</div>`}
     `;

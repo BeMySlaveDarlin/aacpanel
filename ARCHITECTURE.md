@@ -254,7 +254,12 @@ or a positive verdict without its question is an error. The database claims the
 message before the call and keeps its verdict and question: no poll or restart
 spends a second call. An error, including an interrupted
 claim past its deadline, leaves the question visible. A message cut by the
-feed limit stays visible too: its missing tail cannot earn a negative verdict. Waiting items open the
+feed limit stays visible too: its missing tail cannot earn a negative verdict.
+The same call offers up to four short replies from the choices the message
+names, yes and no to a proposal among them; a free-form question offers none.
+The replies are kept with the verdict and stand under the waiting message as
+buttons beside an optional note; a reply goes out as the person's message by
+the composer's path. Waiting items open the
 assistant's feed row and mark its contour; a separate persisted claim sends
 one push per message through the notification choice. The question names the
 waiting item, the session's state and the heading over the full assistant message;

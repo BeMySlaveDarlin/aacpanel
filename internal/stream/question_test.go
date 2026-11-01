@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -47,19 +48,44 @@ print(json.dumps({"result": os.environ["QUESTION_VERDICT"], "is_error": os.envir
 		{`{"asks":false} trailing`, "", false, true},
 	} {
 		t.Setenv("QUESTION_VERDICT", tc.verdict)
-		yes, what, err := ClassifyQuestion(t.Context(), bin, dir, "Shall I publish? The checks passed.")
+		yes, what, _, err := ClassifyQuestion(t.Context(), bin, dir, "Shall I publish? The checks passed.")
 		if yes != tc.yes || what != tc.what || (err != nil) != tc.failed {
 			t.Fatalf("%s: %v, %v", tc.verdict, yes, err)
 		}
 	}
+	for _, tc := range []struct {
+		name, verdict string
+		answers       []string
+	}{
+		{"choices", `{"asks":true,"what":"Which?","answers":["Publish","Wait"]}`, []string{"Publish", "Wait"}},
+		{"whitespace and duplicates", `{"asks":true,"what":"Which?","answers":["  Publish\n now  ","", " ","Publish now","Wait"]}`, []string{"Publish now", "Wait"}},
+		{"four replies", `{"asks":true,"what":"Which?","answers":["A","A","B","C","D","E","F"]}`, []string{"A", "B", "C", "D"}},
+		{"rune limit", `{"asks":true,"what":"Which?","answers":["` + strings.Repeat("é", 41) + `","` + strings.Repeat("é", 40) + `","Wait"]}`, []string{strings.Repeat("é", 40), "Wait"}},
+		{"no question", `{"asks":false,"what":"","answers":["Publish","Wait"]}`, []string{}},
+		{"no choices", `{"asks":true,"what":"Name?","answers":[]}`, []string{}},
+		{"missing", `{"asks":true,"what":"Name?"}`, []string{}},
+		{"null", `{"asks":true,"what":"Name?","answers":null}`, []string{}},
+		{"string", `{"asks":true,"what":"Name?","answers":"yes"}`, []string{}},
+		{"object", `{"asks":true,"what":"Name?","answers":{}}`, []string{}},
+		{"boolean", `{"asks":true,"what":"Name?","answers":true}`, []string{}},
+		{"mixed array", `{"asks":true,"what":"Name?","answers":["Publish",7]}`, []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("QUESTION_VERDICT", tc.verdict)
+			yes, what, answers, err := ClassifyQuestion(t.Context(), bin, dir, "Which option?")
+			if err != nil || yes != (tc.name != "no question") || (yes && what == "") || answers == nil || !slices.Equal(answers, tc.answers) {
+				t.Fatalf("verdict: %v %q, replies: %q, want %q, error: %v", yes, what, answers, tc.answers, err)
+			}
+		})
+	}
 	t.Setenv("QUESTION_VERDICT", `{"asks":true,"what":"Publish?"}`)
 	t.Setenv("QUESTION_ERROR", "1")
-	if _, _, err := ClassifyQuestion(t.Context(), bin, dir, "Publish?"); err == nil {
+	if _, _, _, err := ClassifyQuestion(t.Context(), bin, dir, "Publish?"); err == nil {
 		t.Fatal("a failed result became a verdict")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, _, err := ClassifyQuestion(ctx, bin, dir, "Publish?"); err == nil {
+	if _, _, _, err := ClassifyQuestion(ctx, bin, dir, "Publish?"); err == nil {
 		t.Fatal("cancellation did not stop the classifier")
 	}
 	args, err := os.ReadFile(filepath.Join(dir, "args.json"))

@@ -38,6 +38,25 @@ export function RequestCard({ item, record, onAnswer, onRun, error = "", unavail
     </article>`;
 }
 
+// QuickAnswers keeps a note beside the offered replies until one goes out.
+export function QuickAnswers({ answers, onAnswer }) {
+    const [note, setNote] = useState("");
+    const [busy, setBusy] = useState(false);
+    const sending = useRef(false);
+    const answer = async (value) => {
+        if (sending.current) return;
+        sending.current = true;
+        setBusy(true);
+        try { await onAnswer(value, note); } finally { sending.current = false; setBusy(false); }
+    };
+    return html`<div class="mquestionanswers">
+        <label class="requestnote">Note (optional)<textarea rows="2" maxLength="2000"
+            value=${note} disabled=${busy} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>
+        <div class="btnrow requestanswer">${answers.map((value) => html`
+            <button class="btn" type="button" key=${value} disabled=${busy} onClick=${() => answer(value)}>${value}</button>`)}</div>
+    </div>`;
+}
+
 const icons = { question: Icon.envelope, request: Icon.list, call: Icon.alerts, brief: Icon.plan, secret: Icon.key };
 
 // WaitingQueue is a set of places in this conversation, not another reply form.

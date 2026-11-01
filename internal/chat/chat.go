@@ -55,10 +55,11 @@ type Item struct {
 	// A background task done: its id, by which its output or its agent opens.
 	Task string `json:"task,omitempty"`
 	// A brief card: which document it is and how much of it asks something.
-	BriefID   string  `json:"id,omitempty"`
-	Eyebrow   string  `json:"eyebrow,omitempty"`
-	Questions int     `json:"questions,omitempty"`
-	Asked     []Asked `json:"asked,omitempty"`
+	BriefID   string   `json:"id,omitempty"`
+	Eyebrow   string   `json:"eyebrow,omitempty"`
+	Questions int      `json:"questions,omitempty"`
+	Asked     []Asked  `json:"asked,omitempty"`
+	Answers   []string `json:"answers,omitempty"`
 	// A card of a secret asked for: the notepad the person starts from. The
 	// secret is named in Name and said in Title.
 	Template string `json:"template,omitempty"`

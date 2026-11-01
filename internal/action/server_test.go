@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -662,5 +663,41 @@ func TestNewAnswersWithTheSessionItBroughtUp(t *testing.T) {
 	resp, err = client.Do(context.Background(), restart)
 	if err != nil || resp.Session != "" || resp.Detail != "done" {
 		t.Errorf("a restart of codex answered %+v, %v", resp, err)
+	}
+}
+
+type questionExec struct{ answers []string }
+
+func (questionExec) Execute(context.Context, Request) (string, error) { return "", nil }
+func (e questionExec) Question(_ context.Context, target, conversation, text string) (bool, string, []string, error) {
+	if target != "work" || conversation != "01234567-1234-4321-aaaa-123456789012" || text != "Publish or wait?" {
+		return false, "", nil, errors.New("wrong question")
+	}
+	return true, "Publish or wait?", e.answers, nil
+}
+
+func TestTextQuestionRepliesSocket(t *testing.T) {
+	for _, answers := range [][]string{nil, {}, {"Publish", "Wait"}} {
+		client := serve(t, questionExec{answers: answers})
+		yes, what, got, err := client.Question(t.Context(), "work", "01234567-1234-4321-aaaa-123456789012", "Publish or wait?")
+		if err != nil || !yes || what != "Publish or wait?" || got == nil || !slices.Equal(got, answers) {
+			t.Fatalf("question replies: %v %q %q, error: %v", yes, what, got, err)
+		}
+		reply := rawRequest(t, client.path, `{"id":"legacy","ask":"question","target":"work","conversation":"01234567-1234-4321-aaaa-123456789012","text":"Publish or wait?"}`)
+		wire, err := json.Marshal(reply)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var older struct {
+			OK       bool
+			Question *bool
+			What     string
+		}
+		if err := json.Unmarshal(wire, &older); err != nil || !older.OK || older.Question == nil || !*older.Question || older.What != what {
+			t.Fatalf("an older reader lost the verdict: %s, %v", wire, err)
+		}
+		if len(answers) == 0 && strings.Contains(string(wire), `"answers"`) {
+			t.Fatalf("the missing-field case did not use an older reply: %s", wire)
+		}
 	}
 }

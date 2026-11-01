@@ -13,6 +13,21 @@ type waitingResult struct {
 	QuestionHighlightGone bool
 	HostHighlightBefore   bool
 	HostHighlightGone     bool
+	QuickButtons          bool
+	QuickMissing          bool
+	QuickEmpty            bool
+	QuickUnavailable      bool
+	QuickOutside          bool
+	QuickCodex            bool
+	QuickBusy             bool
+	QuickPlain            bool
+	QuickFailureKeeps     bool
+	QuickFailedRow        bool
+	QuickNote             bool
+	QuickMessageId        bool
+	QuickLocalSending     bool
+	QuickLocalQueued      bool
+	QuickGone             bool
 	Wide                  bool
 	CountBefore           int
 	Opened                bool
@@ -68,6 +83,11 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 				"feed unmoved": got.FeedUnmoved, "no window load": got.NoWindowLoad, "sheet shape": got.SheetShape,
 				"run confirms": got.RunConfirms, "run sent": got.RunSent, "answer closes": got.AnswerCloses, "request leaves": got.RequestGone, "tray collapses": got.CollapsedOnPick, "command copies": got.CommandCopies,
 				"request visible": got.RequestVisible, "brief highlighted": got.BriefHighlighted, "secret highlighted": got.SecretHighlighted,
+				"quick reply buttons": got.QuickButtons, "missing replies": got.QuickMissing, "empty replies": got.QuickEmpty,
+				"unavailable send": got.QuickUnavailable, "outside session": got.QuickOutside, "codex session": got.QuickCodex,
+				"quick reply busy": got.QuickBusy, "plain reply": got.QuickPlain, "failed reply keeps question": got.QuickFailureKeeps,
+				"failed reply row": got.QuickFailedRow, "reply with note": got.QuickNote, "named quick reply": got.QuickMessageId,
+				"local reply sending": got.QuickLocalSending, "local reply queued": got.QuickLocalQueued, "answered quick reply leaves": got.QuickGone,
 				"failed send stays": got.FailureKeepsTask, "answer visible": got.AnswerVisible} {
 				if !ok {
 					t.Errorf("%s: %+v", name, got)

@@ -28,3 +28,7 @@
 .feedrow.waitingtarget { outline: 1px solid var(--wait); outline-offset: 3px; border-radius: var(--r-card); }
 
 .mquestionwhat { margin-bottom: .65rem; color: var(--ink); font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+
+.mquestionanswers { display: grid; gap: .4rem; margin-top: .6rem; }
+.mquestionanswers .requestanswer { flex-wrap: wrap; }
+.mquestionanswers .btn { white-space: normal; overflow-wrap: anywhere; }

@@ -11,6 +11,7 @@ import (
 type QuestionVerdict struct {
 	Verdict string
 	What    string
+	Answers []string
 }
 
 // QuestionVerdicts includes an interrupted classifier as an error after its
@@ -21,7 +22,7 @@ func (s *Store) QuestionVerdicts(ctx context.Context, conversations []string) (m
 		return nil, err
 	}
 	rows, err := pool.Query(ctx, `SELECT conversation, message,
- CASE WHEN verdict='pending' AND started_at < now()-interval '90 seconds' THEN 'error' ELSE verdict END, what
+ CASE WHEN verdict='pending' AND started_at < now()-interval '90 seconds' THEN 'error' ELSE verdict END, what, answers
  FROM text_questions WHERE conversation=ANY($1)`, conversations)
 	if err != nil {
 		return nil, err
@@ -31,7 +32,7 @@ func (s *Store) QuestionVerdicts(ctx context.Context, conversations []string) (m
 	for rows.Next() {
 		var conversation, message string
 		var verdict QuestionVerdict
-		if err := rows.Scan(&conversation, &message, &verdict.Verdict, &verdict.What); err != nil {
+		if err := rows.Scan(&conversation, &message, &verdict.Verdict, &verdict.What, &verdict.Answers); err != nil {
 			return nil, err
 		}
 		if out[conversation] == nil {
@@ -55,12 +56,15 @@ func (s *Store) ClaimQuestion(ctx context.Context, conversation, message string)
 	return tag.RowsAffected() > 0, err
 }
 
-func (s *Store) SetQuestionVerdict(ctx context.Context, conversation, message, verdict, what string) error {
+func (s *Store) SetQuestionVerdict(ctx context.Context, conversation, message, verdict, what string, answers []string) error {
 	pool, err := s.Pool()
 	if err != nil {
 		return err
 	}
-	_, err = pool.Exec(ctx, `UPDATE text_questions SET verdict=$3, what=$4 WHERE conversation=$1 AND message=$2`, conversation, message, verdict, what)
+	if answers == nil {
+		answers = []string{}
+	}
+	_, err = pool.Exec(ctx, `UPDATE text_questions SET verdict=$3, what=$4, answers=$5 WHERE conversation=$1 AND message=$2`, conversation, message, verdict, what, answers)
 	return err
 }
 

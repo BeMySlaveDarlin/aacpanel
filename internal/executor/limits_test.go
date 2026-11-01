@@ -103,21 +103,21 @@ func TestQuestionClassifierRunsInTheSessionsContour(t *testing.T) {
 	bin := filepath.Join(root, "claude")
 	if err := os.WriteFile(bin, []byte(`#!/bin/sh
 cat > candidate.json
-printf '%s' '{"result":"{\"asks\":true,\"what\":\"Publish?\"}"}'
+printf '%s' '{"result":"{\"asks\":true,\"what\":\"Publish?\",\"answers\":[\"Publish\",\"Wait\"]}"}'
 `), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(probeClaudeEnv, bin)
 	e, _ := newTest(t, "")
-	yes, what, err := e.Question(t.Context(), "demo", senderSID, "Publish?")
-	if err != nil || !yes || what != "Publish?" {
+	yes, what, answers, err := e.Question(t.Context(), "demo", senderSID, "Publish?")
+	if err != nil || !yes || what != "Publish?" || len(answers) != 2 || answers[0] != "Publish" || answers[1] != "Wait" {
 		t.Fatalf("classification: %v %v", yes, err)
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "candidate.json"))
 	if err != nil || !strings.Contains(string(raw), "Publish?") {
 		t.Fatalf("wrong contour: %s %v", raw, err)
 	}
-	if _, _, err := e.Question(t.Context(), "demo", streamSID, "Publish?"); err == nil {
+	if _, _, _, err := e.Question(t.Context(), "demo", streamSID, "Publish?"); err == nil {
 		t.Fatal("a replacement conversation spent a call")
 	}
 }

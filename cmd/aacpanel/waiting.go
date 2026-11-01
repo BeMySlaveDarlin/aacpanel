@@ -16,13 +16,14 @@ import (
 // A task can reach the service before its tool result reaches the transcript;
 // until then it still counts, but has no position to promise a jump to.
 type waitingItem struct {
-	Kind     string `json:"kind"`
-	ID       string `json:"id,omitempty"`
-	Title    string `json:"title"`
-	At       string `json:"at,omitempty"`
-	Blocking bool   `json:"blocking,omitempty"`
-	Pos      *int64 `json:"pos,omitempty"`
-	Nth      int    `json:"nth,omitempty"`
+	Kind     string   `json:"kind"`
+	ID       string   `json:"id,omitempty"`
+	Title    string   `json:"title"`
+	At       string   `json:"at,omitempty"`
+	Blocking bool     `json:"blocking,omitempty"`
+	Pos      *int64   `json:"pos,omitempty"`
+	Nth      int      `json:"nth,omitempty"`
+	Answers  []string `json:"answers"`
 }
 
 func waitingFor(requests []personrequest.Record, called string, cards []chat.Item, briefs []chat.BriefCard, sent map[string]bool, secrets []action.SecretFile) []waitingItem {
@@ -37,6 +38,9 @@ func waitingFor(requests []personrequest.Record, called string, cards []chat.Ite
 		return nil
 	}
 	add := func(item waitingItem, card *chat.Item) {
+		if item.Answers == nil {
+			item.Answers = []string{}
+		}
 		if card != nil {
 			pos := card.Pos
 			item.Pos, item.Nth = &pos, card.Nth
@@ -64,7 +68,7 @@ func waitingFor(requests []personrequest.Record, called string, cards []chat.Ite
 	}
 	for _, card := range cards {
 		if card.Role == "question" && card.BriefID != "" {
-			add(waitingItem{Kind: "question", ID: card.BriefID, Title: card.Title, At: card.At}, &card)
+			add(waitingItem{Kind: "question", ID: card.BriefID, Title: card.Title, At: card.At, Answers: card.Answers}, &card)
 			continue
 		}
 		// Tool questions and permissions have their own visible turn stops.
