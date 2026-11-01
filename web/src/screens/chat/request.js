@@ -56,13 +56,23 @@ export function WaitingQueue({ items, onPick }) {
     </section>`;
 }
 
+const waitingRow = (item, node) => Number(node.dataset.pos) === item.pos
+    && node.classList.contains(`r-${item.kind === "question" ? "ai" : item.kind}`)
+    && Number(node.dataset.nth || 0) === (item.nth || 0);
+
+// A revealed card keeps its contour only while its item is outstanding.
+export function clearWaitingTargets(items, box) {
+    if (!box) return;
+    for (const row of box.querySelectorAll(".waitingtarget")) {
+        if (!items.some((item) => waitingRow(item, row))) row.classList.remove("waitingtarget");
+    }
+}
+
 // revealWaiting reads an older window when necessary, then scrolls this feed
 // only: scrollIntoView would move the page and its composer along with it.
 export async function revealWaiting(item, show, box) {
     if (item.pos == null || !await show(item.pos)) return false;
-    const row = [...box.querySelectorAll(".feedrow[data-pos]")].find((node) =>
-        Number(node.dataset.pos) === item.pos && node.classList.contains(`r-${item.kind === "question" ? "ai" : item.kind}`)
-        && Number(node.dataset.nth || 0) === (item.nth || 0));
+    const row = [...box.querySelectorAll(".feedrow[data-pos]")].find((node) => waitingRow(item, node));
     if (!row) return false;
     for (const was of box.querySelectorAll(".waitingtarget")) was.classList.remove("waitingtarget");
     row.classList.add("waitingtarget");

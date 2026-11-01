@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { list as requestList } from "../../data/requests.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
-import { REQUEST_HELD, RequestCard, revealWaiting, WaitingQueue } from "./request.js";
+import { clearWaitingTargets, REQUEST_HELD, RequestCard, revealWaiting, WaitingQueue } from "./request.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -112,6 +112,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const [requests, setRequests] = useState({});
     const [requestError, setRequestError] = useState("");
     const waitingItems = useWaiting(live, true);
+    useEffect(() => clearWaitingTargets(waitingItems, feedRef.current), [waitingItems]);
     const requestCards = [...state.items, ...(away ? shown : [])].filter((item) => item.role === "request").map((item) => item.id).join("|");
     useEffect(() => {
         if (!id || (!requestCards && !(live && live.waiting || []).some((item) => item.kind === "request"))) return;

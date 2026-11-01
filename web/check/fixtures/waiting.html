@@ -33,7 +33,7 @@ const candidates = [
     { kind: "asked", title: "A blocking question", at, pos: 14 },
     { kind: "permit", title: "Permission", at, pos: 15 },
 ];
-const session = { session: "work", sessionId: id, cwd: "/srv/proj", profile: "personal", contour: 1, status: "idle", transport: "stream", called: at, waiting: candidates, model: "claude-opus-4-6", pct: 12 };
+let session = { session: "work", sessionId: id, cwd: "/srv/proj", profile: "personal", contour: 1, status: "idle", transport: "stream", called: at, waiting: candidates, model: "claude-opus-4-6", pct: 12 };
 const snapshot = { at: 1, sessions: [session], profileMap: [{ id: 1, profile: "personal", name: "personal", groups: [] }, { id: 2, profile: "work", name: "work", groups: [] }] };
 const exec = { available: true, kinds: ["session.send", "session.shell", "secret.put"] };
 const old = [
@@ -90,8 +90,11 @@ window.fetch = counted(async (input, options) => {
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() { this.readyState = 2; } };
 
 let back;
+let refresh;
 function App() {
     const [opened, setOpened] = useState(false);
+    const [, redraw] = useState(0);
+    refresh = () => redraw((n) => n + 1);
     back = () => setOpened(false);
     const chat = opened && html`<${Chat} name="work" id=${id} live=${session} snapshot=${snapshot} exec=${exec} onBack=${back} onUsage=${() => {}} />`;
     return wide ? html`<div class="deskshell"><div class="dkbody"><${SessionColumn} snapshot=${snapshot} exec=${exec} limits=${{}} picks=${[]} setPicks=${() => {}}
@@ -188,6 +191,7 @@ window.done = (async () => {
     document.querySelector(".waitinghead").click();
     await quiet();
     out.requestGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes(record.title));
+    out.questionHighlightKept = Boolean(feed.querySelector(".r-ai.waitingtarget"));
     // A reply from the composer answers the question asked in text: its
     // item leaves the queue with the send, not with the next look of the host.
     const reply = document.querySelector(".composer textarea");
@@ -199,6 +203,19 @@ window.done = (async () => {
     await quiet();
     out.countAfterReply = queueCount();
     out.questionSummaryGone = !document.querySelector(".mquestionwhat");
+    out.questionHighlightGone = !feed.querySelector(".waitingtarget");
+    await pick("Release token");
+    out.hostHighlightBefore = Boolean(feed.querySelector(".r-secret.waitingtarget"));
+    const waitingSession = session;
+    session = { ...session, waiting: session.waiting.filter((item) => item.kind !== "secret") };
+    snapshot.sessions = [session];
+    refresh();
+    await quiet();
+    out.hostHighlightGone = !feed.querySelector(".waitingtarget");
+    session = waitingSession;
+    snapshot.sessions = [session];
+    refresh();
+    await quiet();
     out.horizontalOverflow = document.documentElement.scrollWidth > innerWidth;
     back();
     await quiet();

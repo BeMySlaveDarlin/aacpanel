@@ -3,40 +3,44 @@ package check
 import "testing"
 
 type waitingResult struct {
-	NeedsYou            bool
-	ContourMark         bool
-	AiHighlighted       bool
-	QuestionSummary     bool
-	QuestionFullText    bool
-	QuestionSummaryGone bool
-	Wide                bool
-	CountBefore         int
-	Opened              bool
-	CountAfterOpening   int
-	CallGone            bool
-	LoadedOlderWindow   bool
-	ReadingState        bool
-	OneHistoryEntry     bool
-	BackCloses          bool
-	FeedUnmoved         bool
-	NoWindowLoad        bool
-	SheetShape          bool
-	RunConfirms         bool
-	RunSent             bool
-	AnswerCloses        bool
-	RequestGone         bool
-	CollapsedOnPick     bool
-	CommandCopies       bool
-	RequestVisible      bool
-	BriefHighlighted    bool
-	SecretHighlighted   bool
-	FailureKeepsTask    bool
-	CountAfterAnswer    int
-	CountAfterReply     int
-	CountBackInList     int
-	AnswerVisible       bool
-	HorizontalOverflow  bool
-	Sent                struct {
+	NeedsYou              bool
+	ContourMark           bool
+	AiHighlighted         bool
+	QuestionSummary       bool
+	QuestionFullText      bool
+	QuestionSummaryGone   bool
+	QuestionHighlightKept bool
+	QuestionHighlightGone bool
+	HostHighlightBefore   bool
+	HostHighlightGone     bool
+	Wide                  bool
+	CountBefore           int
+	Opened                bool
+	CountAfterOpening     int
+	CallGone              bool
+	LoadedOlderWindow     bool
+	ReadingState          bool
+	OneHistoryEntry       bool
+	BackCloses            bool
+	FeedUnmoved           bool
+	NoWindowLoad          bool
+	SheetShape            bool
+	RunConfirms           bool
+	RunSent               bool
+	AnswerCloses          bool
+	RequestGone           bool
+	CollapsedOnPick       bool
+	CommandCopies         bool
+	RequestVisible        bool
+	BriefHighlighted      bool
+	SecretHighlighted     bool
+	FailureKeepsTask      bool
+	CountAfterAnswer      int
+	CountAfterReply       int
+	CountBackInList       int
+	AnswerVisible         bool
+	HorizontalOverflow    bool
+	Sent                  struct {
 		Kind   string
 		Target string
 		Params struct{ Request, Answer, Note string }
@@ -68,6 +72,12 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 				if !ok {
 					t.Errorf("%s: %+v", name, got)
 				}
+			}
+			if !got.QuestionHighlightKept || !got.QuestionHighlightGone {
+				t.Errorf("question highlight before reply: %v, gone after reply: %v — it follows its own waiting item", got.QuestionHighlightKept, got.QuestionHighlightGone)
+			}
+			if !got.HostHighlightBefore || !got.HostHighlightGone {
+				t.Errorf("host highlight before update: %v, gone after update: %v — a card dropped by the host leaves no contour", got.HostHighlightBefore, got.HostHighlightGone)
 			}
 			if got.HorizontalOverflow {
 				t.Error("waiting UI scrolls horizontally")
