@@ -234,6 +234,13 @@ window.done = (async () => {
     await quiet();
     out.requestGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes(record.title));
     out.questionHighlightKept = Boolean(feed.querySelector(".r-ai.waitingtarget"));
+    // The contour is drawn whole: its left edge stays inside the feed's box.
+    const marked = feed.querySelector(".waitingtarget");
+    if (marked) {
+        const look = getComputedStyle(marked);
+        const edge = marked.getBoundingClientRect().left - parseFloat(look.outlineOffset) - parseFloat(look.outlineWidth);
+        out.contourInside = edge >= feed.getBoundingClientRect().left - 0.5;
+    }
     await pick("Shall I publish?");
     const note = quick().querySelector("textarea");
     note.value = "  Hold for CI.\nKeep logs.  ";

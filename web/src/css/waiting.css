@@ -25,7 +25,16 @@
 .waitingitem b { display: block; overflow-wrap: anywhere; font-weight: 500; font-size: var(--t-sm); }
 .waitingitem small { display: block; color: var(--ink-faint); font-size: var(--t-xs); }
 .waitingitem > svg { color: var(--ink-faint); }
-.feedrow.waitingtarget { outline: 1px solid var(--wait); outline-offset: 3px; border-radius: var(--r-card); }
+/* The contour stands outside the row, and the feed's box clips whatever
+   reaches past its left edge, where the prose starts: the row gives up as much
+   room on its left as the contour takes, and the contour stays whole. */
+.feedrow.waitingtarget {
+    --contour-gap: 3px;
+    outline: 1px solid var(--wait);
+    outline-offset: var(--contour-gap);
+    border-radius: var(--r-card);
+    margin-left: calc(var(--contour-gap) + 1px);
+}
 
 .mquestionwhat { margin-bottom: .65rem; color: var(--ink); font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 

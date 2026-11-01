@@ -10,6 +10,7 @@ type waitingResult struct {
 	QuestionFullText      bool
 	QuestionSummaryGone   bool
 	QuestionHighlightKept bool
+	ContourInside         bool
 	QuestionHighlightGone bool
 	HostHighlightBefore   bool
 	HostHighlightGone     bool
@@ -92,6 +93,9 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 				if !ok {
 					t.Errorf("%s: %+v", name, got)
 				}
+			}
+			if !got.ContourInside {
+				t.Error("the contour of a revealed card reaches past the feed's left edge and is clipped there")
 			}
 			if !got.QuestionHighlightKept || !got.QuestionHighlightGone {
 				t.Errorf("question highlight before reply: %v, gone after reply: %v — it follows its own waiting item", got.QuestionHighlightKept, got.QuestionHighlightGone)
