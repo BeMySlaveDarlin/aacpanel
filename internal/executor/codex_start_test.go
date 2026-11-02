@@ -29,7 +29,7 @@ const panelTools = "/opt/aacpanel/bin/aacpanel-exec"
 func withTools(config map[string]any) map[string]any {
 	out := map[string]any{"mcp_servers.aacpanel.command": panelTools, "mcp_servers.aacpanel.args": []any{"-mcp"}}
 	for _, tool := range []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close",
-		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"} {
+		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel", "crew_status"} {
 		out["mcp_servers.aacpanel.tools."+tool+".approval_mode"] = "approve"
 	}
 	for k, v := range config {
