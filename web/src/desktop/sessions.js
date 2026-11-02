@@ -29,7 +29,7 @@ import { kinOf, kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/
 import { comparePins, pinAt, pinOf } from "../screens/sessions/pin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { CODEX_CLOSE, CODEX_NOTE, CODEX_RESTART, agentKey, agentName, codexRestartWhy, isCodex, shownName, spoke } from "../agent.js";
-import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
+import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, waitsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
 import { checklistShort } from "../screens/chat/checklist.js";
@@ -38,6 +38,7 @@ import { homeProject, homeSession } from "../ui/home.js";
 import { useSessionsArchive } from "../history.js";
 import { Popover } from "../ui/popover.js";
 import { useMenu } from "../ui/menu.js";
+import { Inbox, useInbox } from "../screens/sessions/inbox.js";
 import { WaitingMark } from "../waiting.js";
 import { resume } from "../screens/sessions/actions.js";
 import { ago as age } from "./panels/util.js";
@@ -54,12 +55,14 @@ const SHELF_ASK = 30;
 const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", paused: "dkpaused", limit: "dklimit", off: "dkoff" };
 
 // ContourPick chooses which contours the column shows.
-export function ContourPick({ names, picks, onToggle }) {
+export function ContourPick({ names, picks, onToggle, inbox }) {
     return html`
         <div class="dkpick" role="group" aria-label="contours">
+            ${inbox && inbox.count > 0 && html`<button class="dkpickbtn dkinboxpick" type="button"
+                aria-pressed=${inbox.on ? "true" : "false"} onClick=${inbox.open}>Inbox ${inbox.count}</button>`}
             ${names.map((name) => html`
                 <button class="dkpickbtn" key=${name} type="button" title=${name}
-                        aria-pressed=${picks.includes(name) ? "true" : "false"}
+                        aria-pressed=${!(inbox && inbox.on) && picks.includes(name) ? "true" : "false"}
                         onClick=${() => onToggle(name)}>${name}</button>
             `)}
         </div>
@@ -705,15 +708,17 @@ function sectionOfTask(task, map, sections) {
 
 export function SessionColumn({ snapshot, limits, current, currentId, onPick, onTerm, onSettings, picks, setPicks, onNames, onOrder, onArchive, exec, wait }) {
     const all = (snapshot && snapshot.sessions) || [];
-    // A row stops waiting with the head of its conversation, not at the next
-    // snapshot.
-    useAnswers();
-
     const map = (snapshot && snapshot.profileMap) || [];
     const names = useMemo(() => {
         const known = pageNames(map, limits);
         return known.length ? known : [...new Set(all.map((s) => contourName(s.profile)))];
     }, [map, limits, all]);
+
+    const [inbox, setInbox] = useState(false);
+    const groups = useInbox(map, all, names, limits);
+    const inboxCount = groups.reduce((n, group) => n + group.items.length, 0);
+    const inboxOpen = inbox && inboxCount > 0;
+    useEffect(() => { if (!inboxCount) setInbox(false); }, [inboxCount]);
 
     // A session that names no contour and that no contour of the map claims
     // stands in the personal contour of the map, as on the phone; with no map
@@ -804,9 +809,11 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
             <${ContourPick}
                 names=${names}
                 picks=${picks}
-                onToggle=${(name) => setPicks((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]))}
+                inbox=${{ count: inboxCount, on: inboxOpen, open: () => setInbox(true) }}
+                onToggle=${(name) => { setInbox(false); setPicks((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name])); }}
             />
             <div class="dkscroll">
+                ${inboxOpen ? html`<${Inbox} groups=${groups} sessions=${all} exec=${exec} onChat=${onPick} />` : html`
                 ${sections.map((name) => html`
                     <${ContourSection} key=${name} name=${name} entry=${entryOf(name)}
                                        list=${byProfile.get(name) || []} blocks=${blocksIn.get(name) || []}
@@ -819,6 +826,7 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
                 ${sections.length > 0 && html`
                     <${Shelf} past=${past} labelOf=${labelOf} projectOf=${projectOf}
                               currentId=${currentId} onPick=${onPick} onArchive=${onArchive} exec=${exec} snapshot=${snapshot} />
+                `}
                 `}
             </div>
         </aside>

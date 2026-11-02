@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { list as requestList } from "../../data/requests.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
-import { clearWaitingTargets, REQUEST_HELD, RequestCard, revealWaiting, WaitingQueue } from "./request.js";
+import { clearWaitingTargets, REQUEST_HELD, RequestCard, revealWaiting, replyToQuestion, WaitingQueue } from "./request.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -84,7 +84,7 @@ import { agentKey, agentName, isCodex, shownName, spoke } from "../../agent.js";
 // ctx is what the parts may reach of the screen: whether it is wide, the view,
 // whether the feed shows and its box, the work of the turn, and the setters of
 // the sheet over the run and of what goes into the composer.
-export function Conversation({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat, onTerm, parts }) {
+export function Conversation({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat, onTerm, parts, waiting: waitingTarget, onWaitingOpened }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
     // where it was. Sending the reader to a page of their own instead costs
@@ -150,6 +150,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             if (!await revealWaiting(item, show, feedRef.current)) toast("The card is not in the transcript yet");
         } catch (err) { toast("Could not open the card", String(err.message || err), true); }
     };
+    useEffect(() => {
+        if (!waitingTarget || state.kind !== "ready") return;
+        pickWaiting(waitingTarget);
+        if (onWaitingOpened) onWaitingOpened();
+    }, [waitingTarget, state.kind, onWaitingOpened]);
     const [files, setFiles] = useState([]);
     const [asking, setAsking] = useState(false);
 
@@ -393,15 +398,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         if (patch.state !== "queued") return;
         for (const item of waitingItems) if (item.kind === "question") settleWaiting(live, "question", item.id);
     };
-    const answerQuestion = async (value, note) => {
-        const text = note.trim() ? `${value}\n\n${note.trim()}` : value;
-        const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const messageId = messageID(composer.ids, []);
-        onLocal({ role: "me", key, at: new Date().toISOString(), text, sent: text, state: "sending", messageId,
-            from: { name, text, files: 0 }, done: (patch) => onSent(key, patch) });
-        const result = await deliver(run, name, { text, messageId });
-        onSent(key, outcome(result));
-    };
+    const answerQuestion = (value, note) => replyToQuestion(run, live, value, note, { onLocal, onDone: onSent });
     const onRun = live && !live.outside && canRunShell(exec, live.transport === "stream", composer.shell)
         ? (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
                                                onLocal, onLocalDone, confirm: true }) : null;

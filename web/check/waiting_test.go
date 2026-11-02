@@ -3,6 +3,21 @@ package check
 import "testing"
 
 type waitingResult struct {
+	InboxPermission       bool
+	InboxPermissionOpens  bool
+	InboxWithoutMap       bool
+	InboxCountVisible     bool
+	InboxFirst            bool
+	InboxGroups           bool
+	InboxKinds            bool
+	InboxPath             bool
+	InboxAges             bool
+	InboxNoOverflow       bool
+	InboxRequestOpens     bool
+	InboxSameQuick        bool
+	InboxSameStructured   bool
+	InboxEmptyGone        bool
+	InboxFallback         bool
 	NeedsYou              bool
 	ContourMark           bool
 	AiHighlighted         bool
@@ -79,7 +94,13 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 			if got.CountBefore != 5 || got.CountAfterOpening != 4 || got.CountAfterAnswer != 3 || got.CountAfterReply != 2 || got.CountBackInList != 2 {
 				t.Errorf("waiting counts: %+v", got)
 			}
-			for name, ok := range map[string]bool{"needs you": got.NeedsYou, "contour mark": got.ContourMark, "question anchor": got.AiHighlighted, "question summary": got.QuestionSummary, "full question message": got.QuestionFullText, "answered summary leaves": got.QuestionSummaryGone, "opens conversation": got.Opened, "call leaves": got.CallGone, "loads old card": got.LoadedOlderWindow,
+			for name, ok := range map[string]bool{"Inbox permission summary": got.InboxPermission, "Inbox opens permission": got.InboxPermissionOpens,
+				"Inbox without map": got.InboxWithoutMap, "Inbox count visible": got.InboxCountVisible, "Inbox first with count": got.InboxFirst, "Inbox contour groups": got.InboxGroups,
+				"Inbox item kinds and age order": got.InboxKinds, "Inbox child path": got.InboxPath,
+				"Inbox waiting ages": got.InboxAges, "Inbox fits": got.InboxNoOverflow,
+				"Inbox opens request": got.InboxRequestOpens, "Inbox composer delivery": got.InboxSameQuick,
+				"Inbox question card delivery": got.InboxSameStructured, "empty Inbox leaves": got.InboxEmptyGone,
+				"empty Inbox restores contour": got.InboxFallback, "needs you": got.NeedsYou, "contour mark": got.ContourMark, "question anchor": got.AiHighlighted, "question summary": got.QuestionSummary, "full question message": got.QuestionFullText, "answered summary leaves": got.QuestionSummaryGone, "opens conversation": got.Opened, "call leaves": got.CallGone, "loads old card": got.LoadedOlderWindow,
 				"reading state": got.ReadingState, "one history entry": got.OneHistoryEntry, "back closes": got.BackCloses,
 				"feed unmoved": got.FeedUnmoved, "no window load": got.NoWindowLoad, "sheet shape": got.SheetShape,
 				"run confirms": got.RunConfirms, "run sent": got.RunSent, "answer closes": got.AnswerCloses, "request leaves": got.RequestGone, "tray collapses": got.CollapsedOnPick, "command copies": got.CommandCopies,

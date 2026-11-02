@@ -353,6 +353,8 @@ export function DesktopShell({
                 exec=${exec}
                 wait=${wait}
                 archive=${chat.archived ? chat.row : null}
+                waiting=${chat.waiting}
+                onWaitingOpened=${() => setChat((was) => ({ ...was, waiting: null }))}
                 onBack=${() => setChat(null)}
                 onUsage=${() => { setChat(null); goSection("home"); }}
                 onTerm=${term.route ? openTerm : null}

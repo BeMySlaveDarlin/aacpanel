@@ -25,6 +25,12 @@ export function Ask(props) {
         : html`<${Round} ...${props} />`;
 }
 
+// QuestionBox keeps the same round in a conversation sheet or an Inbox row.
+function QuestionBox({ inline, open, onClose, children, label = "session question" }) {
+    if (inline) return open ? html`<div class="inboxask">${children}</div>` : null;
+    return html`<${Sheet} open=${open} onClose=${onClose} label=${label} inner>${children}<//>`;
+}
+
 // askLabel names who asks over a question: its header for claude, and for
 // codex the header beside the word that the question is codex's — a question
 // of codex that holds its turn comes from plan mode, and one it asked without
@@ -103,7 +109,7 @@ function blankAnswer(questions) {
 // question does not go at the tap of an option even alone: the words go into
 // codex's work, and the note beside a pick is as much of the answer as the
 // pick.
-function Round({ ask, name, exec, stream, codex, onAnswered }) {
+function Round({ ask, name, exec, stream, codex, onAnswered, inline = false }) {
     const run = useAction();
     const [step, setStep] = useState(0);
     const [review, setReview] = useState(false);
@@ -268,11 +274,18 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const nothing = !questions.some((_, n) => answered(n));
     const shown = stepped && !review ? [step] : questions.map((_, n) => n);
 
+    if (inline && instant) return html`<div class="inboxchoices">
+        ${questions[0].options.map((opt, k) => html`<button class="btn" type="button" key=${k}
+            disabled=${!ready || sending} onClick=${() => pick(0, k)}>${opt.label}</button>`)}
+        ${!ready && html`<p class="askwhy">${why}</p>`}
+        ${fail && html`<p class="askfail">${fail}</p>`}
+    </div>`;
+
     return html`
         ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)}
                                     waits=${goesOn ? "codex asked a question and works on" : undefined} />`}
 
-        <${Sheet} open=${open} onClose=${() => setOpen(false)} label="session question" inner>
+        <${QuestionBox} inline=${inline} open=${open} onClose=${() => setOpen(false)}>
             <div class="askhead">
                 <span class="asklabel">
                     ${review ? "almost done" : askLabel(questions[shown[0]], name, codex, goesOn)}
@@ -574,7 +587,7 @@ function startPicks(fields) {
 // conversation, so there is no note beside a field and no "discuss": the form
 // is sent or declined. A field the server requires holds the form back until
 // it is given.
-function Form({ ask, name, exec, onAnswered }) {
+function Form({ ask, name, exec, onAnswered, inline = false }) {
     const run = useAction();
     const id = ask.toolUseId;
     const fields = ask.questions || [];
@@ -645,7 +658,7 @@ function Form({ ask, name, exec, onAnswered }) {
     return html`
         ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)} />`}
 
-        <${Sheet} open=${open} onClose=${() => setOpen(false)} label="a form from an MCP server" inner>
+        <${QuestionBox} inline=${inline} open=${open} onClose=${() => setOpen(false)} label="a form from an MCP server">
             <div class="askhead">
                 <span class="asklabel">${ask.server ? `${ask.server} · MCP server asks` : "An MCP server asks"}</span>
                 ${!ready && html`<span class="askwhy">${why}</span>`}

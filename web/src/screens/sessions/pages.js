@@ -240,13 +240,19 @@ function shift(box, kid) {
 function Deck({ names, at, onPick, page }) {
     const box = useRef(null);
     const mine = useRef(null);
+    const order = useRef("");
+    const toward = useRef(null);
 
     useLayoutEffect(() => {
         const el = box.current;
         const kid = el && el.children[at];
-        if (!kid || mine.current === names[at]) return;
-        el.scrollTo({ left: el.scrollLeft + shift(el, kid), behavior: mine.current === null ? "auto" : "smooth" });
+        const changed = order.current !== names.join("\n");
+        if (!kid || (!changed && mine.current === names[at])) return;
+        const distance = shift(el, kid);
+        toward.current = Math.abs(distance) > 1 ? names[at] : null;
+        el.scrollTo({ left: el.scrollLeft + distance, behavior: changed || mine.current === null ? "auto" : "smooth" });
         mine.current = names[at];
+        order.current = names.join("\n");
     }, [at, names]);
 
     // A scroll reaches the pager with the next frame, so a pager that scrolled
@@ -265,6 +271,12 @@ function Deck({ names, at, onPick, page }) {
                 best = i;
             }
         }
+        // Crossing a page during a tab's scroll does not choose that page.
+        // In particular, entering Inbox must keep the contour to return to.
+        if (toward.current) {
+            if (names[best] === toward.current) toward.current = null;
+            return;
+        }
         if (names[best] && names[best] !== names[at]) {
             mine.current = names[best];
             onPick(names[best]);
@@ -272,7 +284,9 @@ function Deck({ names, at, onPick, page }) {
     };
 
     return html`
-        <div class="pfpages" ref=${box} onScroll=${onScroll}>
+        <div class="pfpages" ref=${box} onScroll=${onScroll}
+            onPointerDown=${() => { toward.current = null; }} onTouchStart=${() => { toward.current = null; }}
+            onWheel=${() => { toward.current = null; }} onKeyDown=${() => { toward.current = null; }}>
             ${names.map((name) => html`
                 <div class="pfpage" key=${name}>
                     <div class="pfcol">${page(name)}</div>
