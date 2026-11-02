@@ -1630,6 +1630,10 @@ func TestSessionResume(t *testing.T) {
 		if got := stream.OwnerOf(key); got.Name != "lead" || got.Conversation != opener {
 			t.Errorf("the resumed session is owned by %+v: its opener could not close it", got)
 		}
+		records, err := stream.OpenedSessions()
+		if err != nil || len(records) != 1 || records[0].Session != ok.Session || records[0].Agent != "claude" {
+			t.Fatalf("the opening record lost its child: %+v, %v", records, err)
+		}
 	})
 
 	t.Run("an ordinary open goes without the flag", func(t *testing.T) {

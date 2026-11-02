@@ -274,6 +274,8 @@ def sessions():
     remotes = live_session_remote()
     versions = live_session_version()
     places = live_session_places()
+    opened_keys = {s["sessionId"]: f"process-{s['pid']}-{ctx.proc_start(s['pid'])}"
+                   for s in live_session_files() if s.get("sessionId")}
     held_by = observers.held_by_conversation()
     seen_transcripts = set()
     for s in data.get("sessions", []):
@@ -283,6 +285,8 @@ def sessions():
         transcript = s.get("transcript") or ""
         s["home"] = f"/projects/{home_slug}/" in transcript
         sid = s.get("sessionId") or ""
+        if sid in opened_keys:
+            s["openedKey"] = opened_keys[sid]
         if sid:
             found = profiles.get(sid)
             if found:

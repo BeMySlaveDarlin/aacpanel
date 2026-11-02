@@ -2462,6 +2462,10 @@ manual grouping is not ownership. The request also names the caller as its
 conversation until the executor checks ownership and substitutes the child's:
 an executor that does not know child closes refuses the mismatch. Claude
 children are recorded by process and start time, Codex children by thread.
+`crew_status` reads this conversation's `session_open` descendants from their
+opening records and the panel's enriched snapshot, including its classified
+text questions and requests; it names closed children from the opening record
+and grants no ownership through screen grouping.
 `send_to_session` lists the live sessions of
 every account from the snapshot, and sends a letter as `session.letter` with
 the sender's conversation: the executor finds the sender and the recipient

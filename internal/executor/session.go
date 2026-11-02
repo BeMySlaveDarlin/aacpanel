@@ -132,7 +132,15 @@ func keepOwner(rep launcher.Report, owner stream.SessionOwner) error {
 	}
 	key, err := processOwnerKey(rep.Agent)
 	if err == nil {
-		err = stream.KeepOwner(key, owner)
+		conversation, profile := rep.Conversation, ""
+		if bound, found := launcher.Where(rep.Agent); found == nil {
+			profile = registry.ContourOf(bound.Place.ConfigDir)
+			if conversation == "" {
+				conversation = bound.SessionID
+			}
+		}
+		err = stream.KeepOpened(key, stream.OpenedSession{SessionOwner: owner,
+			Session: rep.Session, SessionID: conversation, Agent: "claude", Profile: profile})
 	}
 	if err != nil {
 		return fmt.Errorf("session %s started, but its opening session was not recorded: %w", rep.Session, err)

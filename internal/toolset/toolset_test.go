@@ -19,6 +19,7 @@ import (
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/role"
+	"aacpanel/internal/stream"
 )
 
 func TestMain(m *testing.M) {
@@ -55,6 +56,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__session_restart",
 		"mcp__aacpanel__session_ready",
 		"mcp__aacpanel__session_close",
+		"mcp__aacpanel__crew_status",
 		"mcp__aacpanel__observer_list",
 		"mcp__aacpanel__observer_stop",
 		"mcp__aacpanel__observer_tail",
@@ -71,10 +73,44 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close",
+	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
+	}
+}
+
+func TestCrewStatusUsesTheBoundClaudeConversationAndCodexThread(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	const conversation = "567f4d24-cd5f-48fa-bdc1-04c89d203494"
+	for child, owner := range map[string]string{"claude-child": conversation, "codex-child": codexThread} {
+		if err := stream.KeepOpened(child, stream.OpenedSession{
+			SessionOwner: stream.SessionOwner{Name: "lead", Conversation: owner}, Session: child, SessionID: child,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/host" || r.Method != http.MethodGet {
+			t.Errorf("unexpected crew request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"sessions":[]}`))
+	}))
+	t.Cleanup(panel.Close)
+	t.Setenv("AACP_PANEL_URL", panel.URL)
+	for _, test := range []struct {
+		server             *mcp.Server
+		meta, want, hidden string
+	}{
+		{Server(func() (mcp.Binding, error) { return mcp.Binding{SessionID: conversation}, nil }), "", "claude-child", "codex-child"},
+		{CodexServer(codexCaller), `{"threadId":"` + codexThread + `"}`, "codex-child", "claude-child"},
+	} {
+		replies := exchange(t, test.server, toolCall(1, "crew_status", `{}`, test.meta))
+		result, _ := replies[1]["result"].(map[string]any)
+		body, _ := json.Marshal(result)
+		if result == nil || result["isError"] == true || !strings.Contains(string(body), test.want) || strings.Contains(string(body), test.hidden) {
+			t.Fatalf("crew_status used another conversation: %s", body)
+		}
 	}
 }
 
@@ -264,7 +300,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
@@ -315,6 +351,7 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 		{"secret_ask", `{"name":"github-token","title":"GitHub token"}`},
 		{"send_to_session", `{"to":"lab","text":"done"}`},
 		{"session_close", `{}`},
+		{"crew_status", `{}`},
 		{"session_open", `{"dir":"/srv/proj","agent":"codex"}`},
 	}
 	for _, meta := range []string{"", `{"callId":"call_1"}`, `{"threadId":"019a1f00-0000-7000-8000-00000000ef01"}`} {

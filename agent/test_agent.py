@@ -228,6 +228,15 @@ class Sessions(unittest.TestCase):
         self.rows({"session": "aacpanel", "sessionId": UUID_A, "pct": 12.0})
         self.assertEqual(agent.sessions()["sessions"][0]["pct"], 12.0)
 
+    def test_the_opening_key_names_the_exact_live_process(self):
+        from collect import live
+
+        self.rows({"session": "worker", "sessionId": UUID_A})
+        with patch.object(live, "live_session_files", return_value=[{"sessionId": UUID_A, "pid": 4321}]), \
+                patch.object(ctx, "proc_start", return_value="12345"):
+            row = agent.sessions()["sessions"][0]
+        self.assertEqual(row["openedKey"], "process-4321-12345")
+
     def test_the_sweep_of_the_questions_does_not_touch_the_store_of_the_machine(self):
         self.assertNotEqual(asked.BOOK.path, paths.state("asked.json"),
                             "the run writes to the question store of the machine")

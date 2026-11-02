@@ -215,4 +215,9 @@ func TestACodexHelperCanStartReadOnlyAndRefusesUnknownLaunchValues(t *testing.T)
 	if len(entries) != 1 || stream.OwnerOf("019a2000-0000-7000-8000-0000beef0001").Conversation != streamSID {
 		t.Fatalf("the helper has no persistent opening record: %v", entries)
 	}
+	records, err := stream.OpenedSessions()
+	if err != nil || len(records) != 1 || records[0].Session != "codex-beef0001" ||
+		records[0].SessionID != "019a2000-0000-7000-8000-0000beef0001" || records[0].Agent != "codex" {
+		t.Fatalf("the opening record lost its child: %+v, %v", records, err)
+	}
 }

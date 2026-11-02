@@ -153,7 +153,8 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 		return "", fmt.Errorf("the codex daemon of %s started a thread and did not name it", l.home)
 	}
 	if b.Owner.Conversation != "" {
-		if err := stream.KeepOwner(id, b.Owner); err != nil {
+		if err := stream.KeepOpened(id, stream.OpenedSession{SessionOwner: b.Owner,
+			Session: SessionName(id), SessionID: id, Agent: "codex", Profile: l.contour}); err != nil {
 			return id, fmt.Errorf("the thread started, but its opening session was not recorded: %w", err)
 		}
 	}
