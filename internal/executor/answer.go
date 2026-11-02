@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -135,15 +136,17 @@ func askingSession(target, askID string) (liveSession, storedAsk, error) {
 	}
 	s := found[0]
 
-	ask, err := askOf(s.SessionID)
+	asks, err := asksOf(s.SessionID)
 	if err != nil {
 		return liveSession{}, storedAsk{}, askMiss(s, err)
 	}
-	if ask.ToolUseID != askID {
-		return liveSession{}, storedAsk{}, fmt.Errorf(
-			"session %s is asking something else now: the previous question was answered outside the panel", target)
+	for _, ask := range asks {
+		if ask.ToolUseID == askID {
+			return s, ask, nil
+		}
 	}
-	return s, ask, nil
+	return liveSession{}, storedAsk{}, fmt.Errorf(
+		"session %s is asking something else now: the previous question was answered outside the panel", target)
 }
 
 func playDialog(ctx context.Context, s liveSession, target string, first storedQuestion, steps []dialogStep) error {
@@ -262,23 +265,36 @@ func askMiss(s liveSession, err error) error {
 		"(%w) — answer it at the machine: the panel does not press keys blind", s.Name, err)
 }
 
-func askOf(sessionID string) (storedAsk, error) {
+// asksOf returns the questions a conversation has standing, in the order
+// they came: one answer of the model can ask more than once. The store keeps
+// them as a line; a store the collector wrote before it kept a line holds a
+// single question, and it is read as a line of one until the collector
+// writes it again.
+func asksOf(sessionID string) ([]storedAsk, error) {
 	if sessionID == "" {
-		return storedAsk{}, fmt.Errorf("the session has no conversation yet, and therefore no question")
+		return nil, fmt.Errorf("the session has no conversation yet, and therefore no question")
 	}
 	raw, err := os.ReadFile(askStorePath())
 	if err != nil {
-		return storedAsk{}, fmt.Errorf("the question store was not read: %w", err)
+		return nil, fmt.Errorf("the question store was not read: %w", err)
 	}
-	var book map[string]storedAsk
+	var book map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &book); err != nil {
-		return storedAsk{}, fmt.Errorf("the question store was not parsed: %w", err)
+		return nil, fmt.Errorf("the question store was not parsed: %w", err)
 	}
-	ask, ok := book[sessionID]
-	if !ok || len(ask.Questions) == 0 {
-		return storedAsk{}, fmt.Errorf("the session is not asking anything right now")
+	var asks []storedAsk
+	if stored, ok := book[sessionID]; ok && json.Unmarshal(stored, &asks) != nil {
+		var one storedAsk
+		if err := json.Unmarshal(stored, &one); err != nil {
+			return nil, fmt.Errorf("the question store was not parsed: %w", err)
+		}
+		asks = []storedAsk{one}
 	}
-	return ask, nil
+	asks = slices.DeleteFunc(asks, func(a storedAsk) bool { return len(a.Questions) == 0 })
+	if len(asks) == 0 {
+		return nil, fmt.Errorf("the session is not asking anything right now")
+	}
+	return asks, nil
 }
 
 func answerKeys(ask storedAsk, picks [][]int, texts []string) ([]dialogStep, error) {

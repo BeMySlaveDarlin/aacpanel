@@ -91,7 +91,12 @@ def clean(payload):
 
 
 class Book:
-    """Pending questions, one per conversation, keyed by its identifier."""
+    """Pending questions of the conversations, keyed by the conversation.
+
+    One answer of the model can call AskUserQuestion more than once, and every
+    call holds the turn until it is answered: a conversation keeps its
+    questions in the order they came, and the panel is offered the first one
+    still standing. The next comes up when the transcript answers it."""
 
     def __init__(self, path=STORE):
         self.path = path
@@ -107,7 +112,7 @@ class Book:
             return
         if isinstance(data, dict):
             with self._lock:
-                self._asks = {k: v for k, v in data.items() if isinstance(v, dict)}
+                self._asks = {k: q for k, q in ((k, _queue(v)) for k, v in data.items()) if q}
 
     def _write(self):
         tmp = self.path + ".tmp"
@@ -132,18 +137,21 @@ class Book:
             return self._write()
 
     def put(self, ask):
-        """Remembers a question and reports whether it reached the file."""
+        """Remembers a question behind the ones still standing and reports
+        whether it reached the file."""
         with self._lock:
             before = dict(self._asks)
-            self._asks[ask["sessionId"]] = ask
+            self._asks[ask["sessionId"]] = self._asks.get(ask["sessionId"], []) + [ask]
             return self._commit(before)
 
     def of(self, session):
-        """Returns the question of this conversation, or None."""
+        """Returns the first question of this conversation still standing, or None."""
         with self._lock:
-            return self._asks.get(session)
+            waiting = self._asks.get(session)
+            return waiting[0] if waiting else None
 
     def drop(self, session):
+        """Forgets every question of this conversation and returns them."""
         with self._lock:
             if session not in self._asks:
                 return None
@@ -154,7 +162,7 @@ class Book:
         return gone
 
     def answered(self, session, tool_ids, ended="", prompted="", heard="", now=None):
-        """Drops the question that has been answered or that the turn outlived.
+        """Drops the questions that have been answered or that the turn outlived.
 
         A turn does not end while its question waits: the answer comes back to
         the call first, and the call id is in tool_ids. A turn that ended after
@@ -171,47 +179,81 @@ class Book:
         anything. heard is the last time the conversation or one of its
         agents wrote; IDLE_GRACE gives a slow write of the transcript time
         to land before an idle conversation is taken for one."""
+        now = time.time() if now is None else now
         with self._lock:
-            ask = self._asks.get(session)
-            if not ask:
+            waiting = self._asks.get(session)
+            if not waiting:
                 return False
-            done = bool(ask.get("toolUseId")) and ask["toolUseId"] in tool_ids
-            idle = _asked_idle(ask.get("at"), ended, heard, time.time() if now is None else now)
-            if not (done or idle or _outlived(ask.get("at"), ended) or _outlived(ask.get("at"), prompted)):
+            left = [a for a in waiting if not _settled(a, tool_ids, ended, prompted, heard, now)]
+            if len(left) == len(waiting):
                 return False
             before = dict(self._asks)
-            self._asks.pop(session, None)
+            if left:
+                self._asks[session] = left
+            else:
+                self._asks.pop(session, None)
             return self._commit(before)
 
     def sweep(self, alive):
         """Forgets the questions of dead sessions and the very old ones."""
         now = time.time()
-        stale, why = [], {}
+        stale, why = {}, {}
         with self._lock:
-            for session, ask in self._asks.items():
+            for session, waiting in self._asks.items():
                 if session not in alive:
-                    stale.append(session)
+                    stale[session] = []
                     why[session] = f"the session is not among the live ones ({len(alive)} of them)"
                     continue
-                try:
-                    born = calendar.timegm(time.strptime(ask.get("at", ""), "%Y-%m-%dT%H:%M:%SZ"))
-                except ValueError:
-                    stale.append(session)
-                    why[session] = f"the time of the question was not parsed: {ask.get('at')!r}"
-                    continue
-                if now - born > MAX_AGE:
-                    stale.append(session)
-                    why[session] = f"the question is older than a day ({int(now - born)} s)"
+                kept, reason = _fresh(waiting, now)
+                if reason:
+                    stale[session] = kept
+                    why[session] = reason
             if not stale:
-                return stale
+                return []
             before = dict(self._asks)
-            for session in stale:
-                self._asks.pop(session, None)
+            for session, kept in stale.items():
+                if kept:
+                    self._asks[session] = kept
+                else:
+                    self._asks.pop(session, None)
             if not self._commit(before):
                 return []
         for session in stale:
             print(f"aacpanel-agent: the question of {session} is forgotten — {why[session]}", flush=True)
-        return stale
+        return list(stale)
+
+
+def _queue(stored):
+    """Returns the questions of a conversation as the store holds them: a line
+    of them, or the single question a store written before the line held."""
+    if isinstance(stored, dict):
+        return [stored]
+    if isinstance(stored, list):
+        return [a for a in stored if isinstance(a, dict)]
+    return []
+
+
+def _settled(ask, tool_ids, ended, prompted, heard, now):
+    """Says whether a question was answered or outlived; see Book.answered."""
+    done = bool(ask.get("toolUseId")) and ask["toolUseId"] in tool_ids
+    return (done or _asked_idle(ask.get("at"), ended, heard, now)
+            or _outlived(ask.get("at"), ended) or _outlived(ask.get("at"), prompted))
+
+
+def _fresh(waiting, now):
+    """Returns the questions younger than MAX_AGE and why the rest went, if any did."""
+    kept, why = [], ""
+    for ask in waiting:
+        try:
+            born = calendar.timegm(time.strptime(ask.get("at", ""), "%Y-%m-%dT%H:%M:%SZ"))
+        except ValueError:
+            why = f"the time of the question was not parsed: {ask.get('at')!r}"
+            continue
+        if now - born > MAX_AGE:
+            why = f"the question is older than a day ({int(now - born)} s)"
+            continue
+        kept.append(ask)
+    return kept, why
 
 
 def _moment(stamp):

@@ -108,12 +108,37 @@ class Store(unittest.TestCase):
         again = asked.Book(self.book.path)
         self.assertIsNotNone(again.of(PROBE["session_id"]))
 
-    def test_a_second_question_displaces_the_first(self):
+    def test_a_second_question_waits_behind_the_first(self):
+        # One answer of the model calls AskUserQuestion twice: both calls hold
+        # the turn, and answering the second leaves the first to answer.
+        first = asked.clean(PROBE)
+        self.book.put(first)
+        second = asked.clean(PROBE)
+        second["toolUseId"] = "toolu_second"
+        self.book.put(second)
+        self.assertEqual(self.book.of(PROBE["session_id"])["toolUseId"], first["toolUseId"])
+        self.assertTrue(self.book.answered(PROBE["session_id"], {"toolu_second"}))
+        self.assertEqual(self.book.of(PROBE["session_id"])["toolUseId"], first["toolUseId"],
+                         "the answer to the second question took the first one away")
+        self.assertTrue(self.book.answered(PROBE["session_id"], {first["toolUseId"]}))
+        self.assertIsNone(self.book.of(PROBE["session_id"]))
+
+    def test_the_line_survives_a_restart_of_the_agent(self):
         self.book.put(asked.clean(PROBE))
         second = asked.clean(PROBE)
         second["toolUseId"] = "toolu_second"
         self.book.put(second)
-        self.assertEqual(self.book.of(PROBE["session_id"])["toolUseId"], "toolu_second")
+        again = asked.Book(self.book.path)
+        self.assertTrue(again.answered(PROBE["session_id"], {PROBE["tool_use_id"]}))
+        self.assertEqual(again.of(PROBE["session_id"])["toolUseId"], "toolu_second")
+
+    def test_a_store_of_one_question_per_conversation_is_read(self):
+        # The store as the agent kept it before it kept a line.
+        ask = asked.clean(PROBE)
+        with open(self.book.path, "w", encoding="utf-8") as f:
+            json.dump({ask["sessionId"]: ask}, f)
+        again = asked.Book(self.book.path)
+        self.assertEqual(again.of(ask["sessionId"])["toolUseId"], ask["toolUseId"])
 
     def test_an_answer_clears_the_question(self):
         ask = asked.clean(PROBE)
@@ -196,6 +221,17 @@ class Store(unittest.TestCase):
         self.book.put(asked.clean(PROBE))
         self.assertEqual(self.book.sweep(alive={PROBE["session_id"]}), [])
         self.assertIsNotNone(self.book.of(PROBE["session_id"]))
+
+    def test_a_stale_question_goes_and_a_fresh_one_stays(self):
+        old = asked.clean(PROBE)
+        old["at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - asked.MAX_AGE - 3600))
+        self.book.put(old)
+        fresh = asked.clean(PROBE)
+        fresh["toolUseId"] = "toolu_fresh"
+        self.book.put(fresh)
+        with muted():
+            self.assertEqual(self.book.sweep(alive={PROBE["session_id"]}), [PROBE["session_id"]])
+        self.assertEqual(self.book.of(PROBE["session_id"])["toolUseId"], "toolu_fresh")
 
     def test_a_stale_question_is_forgotten(self):
         ask = asked.clean(PROBE)
@@ -288,7 +324,7 @@ class Together(unittest.TestCase):
                 return dict.get(self, key, default)
 
         first = self.ask("toolu_first")
-        self.book._asks = Slow({first["sessionId"]: first})
+        self.book._asks = Slow({first["sessionId"]: [first]})
 
         def asking():
             ready.wait(1)
@@ -323,8 +359,8 @@ class Together(unittest.TestCase):
                 return walk()
 
         self.book._asks = Wedged({
-            "s1": self.ask("toolu_1", session="s1"),
-            "s2": self.ask("toolu_2", session="s2"),
+            "s1": [self.ask("toolu_1", session="s1")],
+            "s2": [self.ask("toolu_2", session="s2")],
         })
         return opened
 

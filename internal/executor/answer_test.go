@@ -12,44 +12,15 @@ import (
 	"aacpanel/internal/hostcfg"
 )
 
+// askFile puts one question of a conversation in the store, as the collector
+// keeps it: in the line of the questions the conversation has standing.
 func askFile(t *testing.T, sessionID, toolUseID string, questions ...askQ) {
 	t.Helper()
-	type option struct {
-		Label string `json:"label"`
-	}
-	type question struct {
-		Text    string   `json:"text"`
-		Multi   bool     `json:"multi"`
-		Options []option `json:"options"`
-	}
-	var qs []question
-	for _, q := range questions {
-		var opts []option
-		for _, label := range q.options {
-			opts = append(opts, option{Label: label})
-		}
-		qs = append(qs, question{Text: q.text, Multi: q.multi, Options: opts})
-	}
-	body, err := json.Marshal(map[string]any{
-		sessionID: map[string]any{
-			"sessionId": sessionID,
-			"toolUseId": toolUseID,
-			"questions": qs,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(t.TempDir(), "asked.json")
-	if err := os.WriteFile(path, body, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(askStoreEnv, path)
+	askBook(t, map[string]any{sessionID: []any{storedAskJSON(sessionID, toolUseID, questions)}})
 }
 
-func askFileWithPreview(t *testing.T, sessionID, toolUseID string, questions ...askQ) {
+func askBook(t *testing.T, book map[string]any) {
 	t.Helper()
-	book := map[string]any{sessionID: storedAskJSON(sessionID, toolUseID, questions)}
 	body, err := json.Marshal(book)
 	if err != nil {
 		t.Fatal(err)
@@ -344,6 +315,56 @@ func TestSessionAnswerPressesKeys(t *testing.T) {
 	}
 }
 
+// One answer of the model can ask twice, and the store keeps both questions
+// in line: the answer goes to the question it names, not to the first one.
+func TestSessionAnswerFindsItsQuestionInTheLine(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 900, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 901, comm: "claude", args: []string{"claude"}, ppid: 900, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 901, name: "aacpanel", start: "77", status: "waiting"})
+	first := askQ{text: "Which letter goes first?", options: []string{"Alpha", "Beta"}}
+	second := askQ{text: "Which digit goes last?", options: []string{"One", "Two", "Three"}}
+	askBook(t, map[string]any{"s-901": []any{
+		storedAskJSON("s-901", "toolu_first", []askQ{first}),
+		storedAskJSON("s-901", "toolu_second", []askQ{second}),
+	}})
+	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 901}, dialog: drawn(second)})
+
+	e := &Executor{}
+	detail, err := e.sessionAnswer(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_second", Picks: [][]int{{3}}})
+	if err != nil {
+		t.Fatalf("the answer to the second question of the line did not go out: %v", err)
+	}
+	if raw, _ := os.ReadFile(log); string(raw) != "3" {
+		t.Errorf("%q went into the dialog, while the digit of the third option was needed", raw)
+	}
+	if !strings.Contains(detail, "Three") {
+		t.Errorf("the reply does not name the option of the second question: %q", detail)
+	}
+}
+
+// A store the collector wrote before it kept a line holds one question per
+// conversation; it is still answered until the collector writes it again.
+func TestSessionAnswerReadsAStoreOfOneQuestion(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 910, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 911, comm: "claude", args: []string{"claude"}, ppid: 910, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 911, name: "aacpanel", start: "77", status: "waiting"})
+	q := askQ{text: "Which letter goes first?", options: []string{"Alpha", "Beta"}}
+	askBook(t, map[string]any{"s-911": storedAskJSON("s-911", "toolu_42", []askQ{q})})
+	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 911}, dialog: drawn(q)})
+
+	e := &Executor{}
+	if _, err := e.sessionAnswer(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42", Picks: [][]int{{1}}}); err != nil {
+		t.Fatalf("the question of a store of one question was not answered: %v", err)
+	}
+	if raw, _ := os.ReadFile(log); string(raw) != "1" {
+		t.Errorf("%q went into the dialog, while a single digit of choice was needed", raw)
+	}
+}
+
 // A terminal dialog has no field for a note: the answer is refused whole
 // rather than sent with the note lost on the way.
 func TestSessionAnswerWithANoteIsRefusedInATerminal(t *testing.T) {
@@ -480,7 +501,7 @@ func TestSessionDismissRefusesQuestionWithPreview(t *testing.T) {
 		fakeProc{pid: 861, comm: "claude", args: []string{"claude"}, ppid: 860, start: "77"},
 	)
 	sessionFiles(t, fakeSession{pid: 861, name: "aacpanel", start: "77", status: "waiting"})
-	askFileWithPreview(t, "s-861", "toolu_42",
+	askFile(t, "s-861", "toolu_42",
 		askQ{options: []string{"Side menu", "Top bar"}, preview: "+---+"})
 	log := fakeBusctl(t, map[string]int{"/Sessions/1": 861})
 
