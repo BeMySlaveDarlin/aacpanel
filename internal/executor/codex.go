@@ -151,6 +151,15 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 	case action.SessionPermit:
 		return codexPermit(ctx, th, req.Permit)
 	case action.SessionAnswer:
+		if req.Caller != "" {
+			pending, err := pendingAsk(th, req.Answer.AskID)
+			if err != nil {
+				return "", err
+			}
+			if pending.Elicits() {
+				return "", fmt.Errorf("a parent answers only a child's question, not an MCP form or permission")
+			}
+		}
 		return codexAnswer(ctx, th, req.Answer)
 	case action.SessionDismiss:
 		return codexDismiss(ctx, th, req.Answer)

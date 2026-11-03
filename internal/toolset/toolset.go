@@ -58,6 +58,7 @@ func tools() []mcp.Tool {
 		session.Ready(session.Here()),
 		session.Close(session.Here()),
 		session.Crew(session.Here()),
+		session.Answer(session.Here()),
 		session.Letter(session.Here()),
 		session.Open(session.Here()),
 	}, observer.Tools(observer.SocketPath())...)
@@ -85,6 +86,7 @@ func codexTools() []mcp.Tool {
 		session.CodexRestart(session.Here()),
 		session.CodexClose(session.Here()),
 		session.Crew(session.Here()),
+		session.CodexAnswer(session.Here()),
 		session.CodexOpen(session.Here()),
 		session.CodexLetter(session.Here()),
 	}, observer.CodexTools(observer.SocketPath())...)

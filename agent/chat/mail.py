@@ -38,7 +38,7 @@ HANDBACK_AT = "The report follows:"
 # What the panel signs a letter of an alarm or an observer of the session
 # with. The executor sends it in the envelope of a letter between sessions,
 # but with no address to answer, which a letter of a session always carries.
-PANEL_SENDERS = ("alarm", "observer")
+PANEL_SENDERS = ("alarm", "observer", "panel")
 
 
 def mails(text):
@@ -86,9 +86,9 @@ def mails(text):
 
 
 def panel_sender(tag, fields):
-    """Returns (kind, name) of a letter the panel wrote for an alarm or an observer, or None.
+    """Returns (kind, name) of a letter the panel wrote, or None.
 
-    The panel signs it "alarm <name>" or "observer <name>" and gives it no
+    The panel signs it "alarm <name>", "observer <name>" or "panel question" and gives it no
     address: a session next door signed so would still carry the address of
     its socket.
     """

@@ -38,7 +38,7 @@ type Request struct {
 	Clean  bool `json:"clean,omitempty"`
 	Anyway bool `json:"anyway,omitempty"`
 
-	// Caller closes a child by the conversation that opened it. It is checked
+	// Caller acts on a child by the conversation that opened it. It is checked
 	// on the host against the opening record, never against visual grouping.
 	Caller string `json:"caller,omitempty"`
 
@@ -81,6 +81,10 @@ type Request struct {
 	// FromCodex says a session.letter comes from the codex thread From names,
 	// and where that thread runs.
 	FromCodex *CodexSender `json:"fromCodex,omitempty"`
+
+	// ParentQuestion sends a panel letter to the opener of this child
+	// conversation; Conversation binds the recipient found before the send.
+	ParentQuestion string `json:"parentQuestion,omitempty"`
 
 	// Setting is what session.set changes.
 	Setting *Setting `json:"setting,omitempty"`

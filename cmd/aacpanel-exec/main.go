@@ -696,3 +696,11 @@ func (a audited) Question(ctx context.Context, target, conversation, text string
 	}
 	return asker.Question(ctx, target, conversation, text)
 }
+
+func (a audited) Opening(ctx context.Context, target, conversation string) (*action.Opening, error) {
+	asker, ok := a.next.(action.OpeningAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not read session openings")
+	}
+	return asker.Opening(ctx, target, conversation)
+}

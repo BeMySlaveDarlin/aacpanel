@@ -9,9 +9,10 @@ import (
 )
 
 type QuestionVerdict struct {
-	Verdict string
-	What    string
-	Answers []string
+	Verdict  string
+	What     string
+	Answers  []string
+	Answered bool
 }
 
 // QuestionVerdicts includes an interrupted classifier as an error after its
@@ -22,7 +23,7 @@ func (s *Store) QuestionVerdicts(ctx context.Context, conversations []string) (m
 		return nil, err
 	}
 	rows, err := pool.Query(ctx, `SELECT conversation, message,
- CASE WHEN verdict='pending' AND started_at < now()-interval '90 seconds' THEN 'error' ELSE verdict END, what, answers
+ CASE WHEN verdict='pending' AND started_at < now()-interval '90 seconds' THEN 'error' ELSE verdict END, what, answers, answered
  FROM text_questions WHERE conversation=ANY($1)`, conversations)
 	if err != nil {
 		return nil, err
@@ -32,7 +33,7 @@ func (s *Store) QuestionVerdicts(ctx context.Context, conversations []string) (m
 	for rows.Next() {
 		var conversation, message string
 		var verdict QuestionVerdict
-		if err := rows.Scan(&conversation, &message, &verdict.Verdict, &verdict.What, &verdict.Answers); err != nil {
+		if err := rows.Scan(&conversation, &message, &verdict.Verdict, &verdict.What, &verdict.Answers, &verdict.Answered); err != nil {
 			return nil, err
 		}
 		if out[conversation] == nil {
@@ -77,7 +78,7 @@ func (s *Store) PushQuestion(ctx context.Context, conversation, message string) 
 	}
 	var pushed bool
 	err = pool.QueryRow(ctx, `INSERT INTO text_questions (conversation,message,pushed) VALUES ($1,$2,true)
- ON CONFLICT (conversation,message) DO UPDATE SET pushed=true WHERE NOT text_questions.pushed
+ ON CONFLICT (conversation,message) DO UPDATE SET pushed=true WHERE NOT text_questions.pushed AND NOT text_questions.answered
  RETURNING pushed`, conversation, message).Scan(&pushed)
 	if err == pgx.ErrNoRows {
 		return false, nil

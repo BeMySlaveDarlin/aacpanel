@@ -10,7 +10,7 @@ import { Sheet } from "../../ui/sheet.js";
 import { useWide } from "../../ui/wide.js";
 import { body, consequences, count, emptyDraft, exit, label, outcome, own, revert, sourceOf, touched, valueOf } from "./draft.js";
 import {
-    ArgTokens, CapChips, EnvRows, Meaning, ModelRow, Options, Row, TextRow, optionsOf, struck,
+    ArgTokens, CapChips, EnvRows, Meaning, ModelRow, NumberRow, Options, Row, TextRow, optionsOf, struck,
 } from "./controls.js";
 import { paramOf } from "./schema.js";
 
@@ -227,7 +227,8 @@ export function LaunchRow({ p, mine, catalog, rows, offer, trait, model, strike,
             ${strike && html`<span class="pzhelp warn">${strike}</span>`}
         `;
     } else if (param.kind === "int") {
-        control = html`<${CapChips} param=${param} eff=${eff} mine=${mine} onSet=${onSet} />`;
+        const Input = param.key === "contextCap" ? CapChips : NumberRow;
+        control = html`<${Input} param=${param} eff=${eff} mine=${mine} onSet=${onSet} />`;
         foot = mine === null ? html`<span class="pzhelp pzfrom">${outcome(param, eff)}</span>` : null;
     } else if (param.kind === "text") {
         control = html`<${TextRow} param=${param} eff=${eff} mine=${mine} onSet=${onSet} />`;

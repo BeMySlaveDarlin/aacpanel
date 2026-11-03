@@ -18,7 +18,7 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 			{"session": "aacpanel", "sessionId": "4d89ed41", "cwd": "/srv/proj/aacpanel",
 			 "profile": "personal", "status": "waiting", "statusUpdatedAt": 1788813894909,
 			 "waitingFor": "input needed", "transport": "stream",
-			 "ask": {"header": "Method", "text": "What do we bring the stack down with?", "count": 2, "at": "2026-09-08T03:00:00Z"}}
+			 "ask": {"toolUseId":"toolu_q", "header": "Method", "text": "What do we bring the stack down with?", "count": 2, "at": "2026-09-08T03:00:00Z"}}
 		],
 		"limits": {"profile": "personal",
 			"fiveHour": {"pct": 82, "resetsAt": 1788815400},
@@ -46,7 +46,7 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 	if s.Transport != "stream" {
 		t.Errorf("how the session is kept was lost — the push of its end would not say its holder died: %q", s.Transport)
 	}
-	if s.Ask == nil || s.Ask.Header != "Method" || s.Ask.Text != "What do we bring the stack down with?" ||
+	if s.Ask == nil || s.Ask.ID != "toolu_q" || s.Ask.Header != "Method" || s.Ask.Text != "What do we bring the stack down with?" ||
 		s.Ask.Count != 2 || s.Ask.At != "2026-09-08T03:00:00Z" {
 		t.Errorf("the question of the session was lost: %+v", s.Ask)
 	}

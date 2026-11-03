@@ -213,6 +213,20 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
 	{
+		Key: "parentQuestions", Label: "Questions to parent", Kind: KindBool,
+		Levels: []Level{LevelContour, LevelProject}, Default: true, Host: true,
+		Help:  "a child's questions go to the conversation that opened it before the phone is called; permissions and requests go straight to the person",
+		Unset: "On for children opened through session_open", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
+	},
+	{
+		Key: "parentQuestionWait", Label: "Wait for parent", Kind: KindInt, Unit: "min", Min: 1, Max: 60,
+		Levels: []Level{LevelContour, LevelProject}, Default: 5, Host: true,
+		Help:  "how long the parent has to answer before an outstanding question is pushed to the person",
+		Unset: "5 minutes", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
+	},
+	{
 		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject}, Default: CapDefault, Host: true,
 		Help: "the share of the model's window a session works up to: the prompt stamp names it, and past it " +

@@ -49,6 +49,8 @@ func TestEffectiveNamesTheLayerOfEveryValue(t *testing.T) {
 		{"autoRestart", false, LayerPanel},
 		{"restartIntent", nil, LayerClaude},
 		{"panelTools", true, LayerPanel},
+		{"parentQuestions", true, LayerPanel},
+		{"parentQuestionWait", 5, LayerPanel},
 		{"agent", nil, LayerClaude},
 		{"codexModel", "gpt-5.5", LayerProject},
 		{"codexApproval", nil, LayerClaude},

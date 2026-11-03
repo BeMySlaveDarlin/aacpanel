@@ -2466,6 +2466,21 @@ children are recorded by process and start time, Codex children by thread.
 opening records and the panel's enriched snapshot, including its classified
 text questions and requests; it names closed children from the opening record
 and grants no ownership through screen grouping.
+`session_answer` answers only an AskUserQuestion of a child that conversation
+opened, through `session.answer` and the same opening check on the host. It
+accepts option labels or free text, and cannot answer a permission or MCP form.
+The panel first mails a child's AskUserQuestion or haiku-confirmed prose
+question to its live opener, signed as panel mail. The map's `parentQuestions`
+switch controls this at contour and project level; `parentQuestionWait` gives
+the parent's time in minutes, five by default. A durable claim permits one
+letter per question across service restarts. Only the push waits: the lists
+and Inbox show the question immediately, while permissions and requests go
+straight to the person. A missing parent or one without a mail input leaves
+the push immediate. A parent's ordinary letter settles the child's current
+prose questions in the verdict store after successful delivery, with ownership
+checked again on the host; other letters do not settle them. Successful answers
+also fence off stale push scans, so a collector snapshot that lags behind the
+answer cannot call the person for that answered question.
 `send_to_session` lists the live sessions of
 every account from the snapshot, and sends a letter as `session.letter` with
 the sender's conversation: the executor finds the sender and the recipient

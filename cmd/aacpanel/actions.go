@@ -103,15 +103,18 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		http.Error(w, "the terminals are not served on this listener", http.StatusNotFound)
 		return
 	}
-	if req.Kind == action.SessionClose {
+	if req.Kind == action.SessionClose || req.Kind == action.SessionAnswer {
 		if caller, present := body.Params["caller"]; present {
 			var ok bool
 			req.Caller, ok = caller.(string)
 			if !ok || req.Caller == "" || body.Target == "" {
-				http.Error(w, "a child close needs a caller conversation and a target name", http.StatusBadRequest)
+				http.Error(w, "a child action needs a caller conversation and a target name", http.StatusBadRequest)
 				return
 			}
+			req.Conversation = req.Caller
 		}
+	}
+	if req.Kind == action.SessionClose {
 		name, conversation, err := s.closeTarget(body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -593,6 +596,13 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 
+	parentQuestions := s.parentReplyQuestions(r.Context(), &req)
+	answeredConversation := ""
+	if req.Kind == action.SessionAnswer && s.host != nil {
+		if child, ok := s.host.LiveSession(req.Target); ok {
+			answeredConversation = child.SessionID
+		}
+	}
 	form := req
 	form.ID = "form"
 	if err := form.Validate(); err != nil {
@@ -632,6 +642,18 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		outcome.Result, outcome.Error = store.ActionFailed, err.Error()
 	case !resp.OK:
 		outcome.Result, outcome.Error = store.ActionFailed, resp.Error
+	}
+	if outcome.Result == store.ActionOK && len(parentQuestions) > 0 {
+		if err := s.db.AnswerTextQuestions(ctx, req.Conversation, parentQuestions); err != nil {
+			log.Printf("the parent's letter was delivered but its question mark was not saved: %v", err)
+			resp.Detail += "; the letter was delivered but the question mark was not saved; do not resend the letter blindly"
+			outcome.Detail = resp.Detail
+		}
+	}
+	if outcome.Result == store.ActionOK && answeredConversation != "" && s.db != nil {
+		if err := s.db.AnswerParentQuestion(ctx, answeredConversation, "ask:"+req.Answer.AskID, req.Caller); err != nil {
+			log.Printf("the answered child question was not marked for pushes: %v", err)
+		}
 	}
 
 	if outcome.Result == store.ActionOK && s.watch != nil {

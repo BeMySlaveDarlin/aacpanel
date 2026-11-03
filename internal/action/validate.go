@@ -72,8 +72,14 @@ func (r Request) Validate() error {
 	if r.Move != nil && r.Kind != ProjectMove {
 		return badRequest("only a project move carries a move specification")
 	}
-	if r.Caller != "" && (r.Kind != SessionClose || !safeUUID(r.Caller)) {
-		return badRequest("only a child close takes a caller conversation, which must be a uuid")
+	if r.Caller != "" && ((r.Kind != SessionClose && r.Kind != SessionAnswer && r.Kind != SessionLetter) || !safeUUID(r.Caller)) {
+		return badRequest("only a child close, answer or letter takes a caller conversation, which must be a uuid")
+	}
+	if r.Caller != "" && r.Kind == SessionLetter && r.From != r.Caller {
+		return badRequest("a parent reply must come from its caller conversation")
+	}
+	if r.ParentQuestion != "" && (r.Kind != SessionLetter || !safeUUID(r.ParentQuestion) || !safeUUID(r.Conversation) || r.Caller != "" || r.From != "" || r.FromCodex != nil) {
+		return badRequest("a parent question needs its child and recipient conversations and has no agent sender")
 	}
 	if r.Contour != "" && r.Ask != AskCodexModels && r.Agent != ResumeCodex {
 		return badRequest("only the question of the codex models and a resume of codex name a contour")
@@ -95,7 +101,7 @@ func (r Request) Validate() error {
 			}
 		case AskGuards:
 			return validateGuards(r)
-		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses, AskIntent, AskQuestion:
+		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses, AskIntent, AskQuestion, AskOpening:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -107,6 +113,9 @@ func (r Request) Validate() error {
 			}
 			if r.Ask == AskQuestion {
 				return validateQuestion(r)
+			}
+			if r.Ask == AskOpening && !safeUUID(r.Conversation) {
+				return badRequest("an opening lookup needs its child's conversation")
 			}
 			if r.Ask == AskSide {
 				return validateSide(r)
@@ -496,10 +505,10 @@ func (r Request) Validate() error {
 		}
 	}
 	if r.Kind == SessionLetter {
-		if r.From == "" {
+		if r.From == "" && r.ParentQuestion == "" {
 			return badRequest("a letter without the conversation it comes from: it would have no sender")
 		}
-		if !safeUUID(r.From) {
+		if r.From != "" && !safeUUID(r.From) {
 			return badRequest("the conversation a letter comes from does not look like a uuid")
 		}
 	} else if r.From != "" {

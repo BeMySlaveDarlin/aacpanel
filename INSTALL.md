@@ -1386,7 +1386,7 @@ first in the chain and passes the payload on to the command that was there:
     "mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop",
     "mcp__aacpanel__observer_tail", "mcp__aacpanel__alarm_set",
     "mcp__aacpanel__alarm_list", "mcp__aacpanel__alarm_cancel",
-    "mcp__aacpanel__crew_status", "mcp__aacpanel__session_restart"]}
+    "mcp__aacpanel__crew_status", "mcp__aacpanel__session_answer", "mcp__aacpanel__session_restart"]}
 }
 ```
 
@@ -1576,7 +1576,7 @@ approval_mode = "approve"
 
 — and a table of the same form for `brief_publish`, `brief_delete`, `notify`,
 `secret_ask`, `session_close`, `observer_list`, `observer_stop`,
-`observer_tail`, `alarm_set`, `alarm_list`, `alarm_cancel` and `crew_status` — the very list
+`observer_tail`, `alarm_set`, `alarm_list`, `alarm_cancel`, `crew_status` and `session_answer` — the very list
 a thread the panel starts is given. A server of the name already
 in the file is the panel's, as in a claude account: its `command`, `args` and
 `env` are put in place where they stand, its other keys and the tables of other

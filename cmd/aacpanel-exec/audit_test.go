@@ -224,6 +224,7 @@ func TestTheWrapperPassesOnEveryQuestionOfTheExecutor(t *testing.T) {
 		"SetupAsker":       reflect.TypeFor[action.SetupAsker](),
 		"SideAsker":        reflect.TypeFor[action.SideAsker](),
 		"QuestionAsker":    reflect.TypeFor[action.QuestionAsker](),
+		"OpeningAsker":     reflect.TypeFor[action.OpeningAsker](),
 		"CommandsAsker":    reflect.TypeFor[action.CommandsAsker](),
 		"TermsAsker":       reflect.TypeFor[action.TermsAsker](),
 		"SecretsAsker":     reflect.TypeFor[action.SecretsAsker](),

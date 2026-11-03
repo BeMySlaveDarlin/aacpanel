@@ -137,3 +137,10 @@ class PanelMessages(unittest.TestCase):
                 items = chat.parse(record, 10, chat.Pending())
                 self.assertEqual([(i["role"], i["source"], i["from"], i["text"]) for i in items],
                                  [("mail", "alarm", "ci", "Check CI.")])
+
+    def test_a_child_question_letter_is_panel_mail_on_every_input_path(self):
+        text = '<cross-session-message from-name="panel question">Child asks which path to take.</cross-session-message>'
+        for record in (prompt(text), queued(text), attachment(text), prompt(pasted(text))):
+            with self.subTest(record=record):
+                self.assert_panel(chat.parse(record, 10, chat.Pending()),
+                                  body="Child asks which path to take.", sender="question")

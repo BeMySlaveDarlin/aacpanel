@@ -349,6 +349,17 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Commands: commands}
 	}
 
+	if req.Ask == AskOpening {
+		asker, ok := s.exec.(OpeningAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not read session openings"), 0)
+		}
+		opening, err := asker.Opening(ctx, req.Target, req.Conversation)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Opening: opening}
+	}
 	if req.Ask == AskQuestion {
 		asker, ok := s.exec.(QuestionAsker)
 		if !ok {

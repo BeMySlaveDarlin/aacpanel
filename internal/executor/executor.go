@@ -125,14 +125,17 @@ func (e *Executor) Kinds() []action.Kind {
 // Execute runs one action request and reports what happened.
 func (e *Executor) Execute(ctx context.Context, req action.Request) (string, error) {
 	if req.Caller != "" {
-		if req.Kind != action.SessionClose {
-			return "", fmt.Errorf("only a child close takes a caller")
+		if req.Kind != action.SessionClose && req.Kind != action.SessionAnswer && req.Kind != action.SessionLetter {
+			return "", fmt.Errorf("only a child close, answer or letter takes a caller")
 		}
 		conversation, err := e.checkChild(req.Target, req.Caller)
 		if err != nil {
 			return "", err
 		}
 		req.Conversation = conversation
+	}
+	if req.ParentQuestion != "" {
+		return e.parentQuestionLetter(ctx, req)
 	}
 	// A resume of codex names a thread by its id, and the session it brings
 	// up is not there yet to be found by the target.

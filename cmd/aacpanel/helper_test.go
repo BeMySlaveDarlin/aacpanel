@@ -52,4 +52,11 @@ func TestTheHelperChannelCrossesThePanelWithoutLosingItsCallerPG(t *testing.T) {
 	if got.Caller != closeThread || got.Target != "codex-beef0001" || got.Conversation != closeThread {
 		t.Fatalf("the child close lost its scope: %+v", got)
 	}
+	if w := post(t, srv, `{"kind":"session.answer","target":"codex-beef0001","params":{"caller":"`+closeThread+`","ask":"toolu_q","picks":[[1]]}}`); w.Code != http.StatusOK {
+		t.Fatalf("child answer: %d %s", w.Code, w.Body.String())
+	}
+	got = <-fake.got
+	if got.Kind != action.SessionAnswer || got.Caller != closeThread || got.Conversation != closeThread || got.Answer == nil || got.Answer.AskID != "toolu_q" {
+		t.Fatalf("the child answer lost its ownership gate: %+v", got)
+	}
 }

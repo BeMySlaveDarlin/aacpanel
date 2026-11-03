@@ -57,6 +57,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__session_ready",
 		"mcp__aacpanel__session_close",
 		"mcp__aacpanel__crew_status",
+		"mcp__aacpanel__session_answer",
 		"mcp__aacpanel__observer_list",
 		"mcp__aacpanel__observer_stop",
 		"mcp__aacpanel__observer_tail",
@@ -73,7 +74,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status",
+	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status", "session_answer",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
@@ -300,7 +301,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status", "session_answer", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
@@ -352,6 +353,7 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 		{"send_to_session", `{"to":"lab","text":"done"}`},
 		{"session_close", `{}`},
 		{"crew_status", `{}`},
+		{"session_answer", `{"name":"child","ask":"q","answers":[{"text":"go"}]}`},
 		{"session_open", `{"dir":"/srv/proj","agent":"codex"}`},
 	}
 	for _, meta := range []string{"", `{"callId":"call_1"}`, `{"threadId":"019a1f00-0000-7000-8000-00000000ef01"}`} {

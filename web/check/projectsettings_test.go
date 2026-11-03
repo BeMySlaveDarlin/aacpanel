@@ -63,6 +63,9 @@ func TestTheProjectSettingsPageStrikesWhatTheModelDoesNotTake(t *testing.T) {
 // names both; leaving a draft asks.
 func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	var got struct {
+		ParentQuestionsOn      string         `json:"parentQuestionsOn"`
+		ParentWaitDefault      string         `json:"parentWaitDefault"`
+		ParentWaitDraft        int            `json:"parentWaitDraft"`
 		Rows                   []string       `json:"rows"`
 		ConsoleInherited       string         `json:"consoleInherited"`
 		Account                []string       `json:"account"`
@@ -111,10 +114,13 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	want := []string{"Agent", "First message", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
+	want := []string{"Agent", "First message", "Questions to parent", "Wait for parent", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
 		"Context cap", "Auto restart", "Message after a restart", "Environment", "Extra arguments"}
 	if strings.Join(got.Rows, "|") != strings.Join(want, "|") {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)
+	}
+	if got.ParentQuestionsOn != "true" || got.ParentWaitDefault != "5" || got.ParentWaitDraft != 8 {
+		t.Errorf("parent routing defaults or the minute field were lost: %q %q %d", got.ParentQuestionsOn, got.ParentWaitDefault, got.ParentWaitDraft)
 	}
 	if got.ConsoleInherited != "1" || got.RcOwn != "0" || got.EffortInherited != "1" {
 		t.Errorf("own and inherited are not told apart: tmux %q, RC %q, effort %q", got.ConsoleInherited, got.RcOwn, got.EffortInherited)
@@ -245,7 +251,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenAtStart != "Codex" {
 		t.Errorf("the tabs are %v with %q open, meant Codex open — the agent the contour starts", got.Tabs, got.OpenAtStart)
 	}
-	if want := "Agent|First message|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
+	if want := "Agent|First message|Questions to parent|Wait for parent|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
 		t.Errorf("the rows are %v, meant %s", got.Rows, want)
 	}
 	if got.Soon != "New starts a thread in the codex daemon of the contour, with what is chosen below; "+
@@ -273,7 +279,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if got.ApprovalAfter != "what config.toml of the contour's codex home says" {
 		t.Errorf("with the stored never removed the approvals read %q", got.ApprovalAfter)
 	}
-	if len(got.ClaudeRows) != 12 || got.ClaudeRows[2] != "Model" || got.ClaudeRows[11] != "Extra arguments" {
+	if len(got.ClaudeRows) != 14 || got.ClaudeRows[4] != "Model" || got.ClaudeRows[13] != "Extra arguments" {
 		t.Errorf("the Claude tab's rows are %v", got.ClaudeRows)
 	}
 	if len(got.ClaudeDrafted) != 0 {

@@ -67,6 +67,9 @@ func (s *Server) questionCards(ctx context.Context, rows []map[string]json.RawMe
 	for _, row := range rows {
 		id := textField(row, "sessionId")
 		for _, card := range cards[id] {
+			if card.Role == "question" && verdicts[id][card.BriefID].Answered {
+				continue
+			}
 			if card.Role == "question" && (!questionSession(row) || !questionVisible(classify, verdicts[id][card.BriefID].Verdict)) {
 				continue
 			}
@@ -165,12 +168,25 @@ func (s *Server) scanTextQuestions(ctx context.Context, schedule func(string, st
 				continue
 			}
 			verdict := verdicts[id][card.BriefID]
+			if verdict.Answered {
+				continue
+			}
 			if prefs.ClassifyQuestions() && verdict.Verdict == "" {
 				schedule(id, name, card)
 				continue
 			}
 			if !questionVisible(prefs.ClassifyQuestions(), verdict.Verdict) || s.push == nil {
 				continue
+			}
+			if verdict.Verdict == "yes" {
+				question := verdict.What
+				if question == "" {
+					question = card.Text
+				}
+				if s.deferParentQuestion(ctx, textQuestionSession(row),
+					parentQuestion{Key: "text:" + card.BriefID, Text: question, Answers: verdict.Answers}, time.Now()) {
+					continue
+				}
 			}
 			what := verdict.What
 			if what == "" {

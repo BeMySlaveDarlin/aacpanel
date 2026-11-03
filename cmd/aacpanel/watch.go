@@ -80,7 +80,9 @@ func (w *watcher) once(ctx context.Context) {
 	defer cancel()
 
 	cur := w.look(ctx)
-	w.say(ctx, notify.Look(w.prev, cur))
+	report := notify.Look(w.prev, cur)
+	w.srv.deferAskQuestions(ctx, cur, &report)
+	w.say(ctx, report)
 	w.prev = cur
 
 	stacks := make([]string, 0, len(cur.Stacks))
@@ -287,6 +289,7 @@ type snapshot struct {
 		// How the session is kept: in tmux, or on the stream under a holder.
 		Transport string `json:"transport"`
 		Ask       *struct {
+			ID     string `json:"toolUseId"`
 			Header string `json:"header"`
 			Text   string `json:"text"`
 			Count  int    `json:"count"`
@@ -358,7 +361,7 @@ func (w *watcher) readSnapshot(ctx context.Context, cur *notify.World) {
 			}
 		}
 		if s.Ask != nil {
-			item.Ask = &notify.Ask{Header: s.Ask.Header, Text: s.Ask.Text, Count: s.Ask.Count, At: s.Ask.At}
+			item.Ask = &notify.Ask{ID: s.Ask.ID, Header: s.Ask.Header, Text: s.Ask.Text, Count: s.Ask.Count, At: s.Ask.At}
 		}
 		cur.Sessions = append(cur.Sessions, item)
 	}

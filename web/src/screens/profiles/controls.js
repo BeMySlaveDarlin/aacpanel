@@ -349,6 +349,21 @@ export function ArgTokens({ eff, mine, layer, onSet }) {
 
 const CAPS = [70, 80, 90];
 
+export function NumberRow({ param, eff, mine, onSet }) {
+    const value = mine !== null ? mine : eff.value;
+    return html`<div class="pzopts">
+        <input class="search pzpct" type="number" inputmode="numeric" min=${param.min} max=${param.max} step="1"
+            aria-label=${param.label} value=${value == null ? "" : String(value)}
+            onInput=${(e) => {
+                const raw = e.target.value.trim();
+                const n = Number(raw);
+                onSet(raw === "" ? null : Number.isInteger(n) ? n : raw);
+            }} />
+        <span>${param.unit || ""}</span>
+        <span class="pzhelp">${param.help}</span>
+    </div>`;
+}
+
 // CapChips offers the usual caps and a field for another.
 export function CapChips({ param, eff, mine, onSet }) {
     const value = mine !== null ? mine : eff.value;

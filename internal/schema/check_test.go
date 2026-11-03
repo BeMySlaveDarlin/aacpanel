@@ -31,6 +31,7 @@ func TestCheckPassesWhatTheMapHolds(t *testing.T) {
 		`{"permissionMode": "bypassPermissions"}`,
 		`{"model": "opus[1m]", "contextCap": 80, "autoRestart": true, "restartIntent": "Continue"}`,
 		`{"autoRestart": false, "restartIntent": ""}`,
+		`{"parentQuestions": false, "parentQuestionWait": 3}`,
 		`{"panelTools": false}`,
 		`{"model": "claude-opus-5-5"}`,
 		`{"env": {"FOO": "bar"}, "args": ["--verbose", "--add-dir=/opt/x"]}`,
@@ -61,6 +62,9 @@ func TestCheckNamesWhatTheLaunchWouldNotTake(t *testing.T) {
 		"cap a fraction":         {`{"contextCap": 80.5}`, "contextCap", "whole number"},
 		"restart as a word":      {`{"autoRestart": "on"}`, "autoRestart", "on or off"},
 		"tools as a word":        {`{"panelTools": "off"}`, "panelTools", "on or off"},
+		"parent routing as text": {`{"parentQuestions": "on"}`, "parentQuestions", "on or off"},
+		"parent wait too short":  {`{"parentQuestionWait": 0}`, "parentQuestionWait", "outside 1–60"},
+		"parent wait too long":   {`{"parentQuestionWait": 61}`, "parentQuestionWait", "outside 1–60"},
 		"message too long":       {`{"intent": "` + strings.Repeat("é", 501) + `"}`, "intent", "longer than 500"},
 		"message with a bell":    {`{"intent": "go\u0007"}`, "intent", "forbidden character"},
 		"env as a list":          {`{"env": ["FOO=bar"]}`, "env", "an object"},
@@ -129,7 +133,7 @@ func TestSchemaIsWellFormed(t *testing.T) {
 // screen lays them out under the tab of their agent, and the claude launcher
 // reads only the common ones and its own.
 func TestEveryParameterNamesItsAgent(t *testing.T) {
-	common := map[string]bool{"agent": true, "intent": true}
+	common := map[string]bool{"agent": true, "intent": true, "parentQuestions": true, "parentQuestionWait": true}
 	for _, p := range Params() {
 		want := AgentClaude
 		switch {

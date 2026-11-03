@@ -1,0 +1,217 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
+	"aacpanel/internal/action"
+	"aacpanel/internal/chat"
+	"aacpanel/internal/notify"
+	"aacpanel/internal/schema"
+	"aacpanel/internal/store"
+)
+
+type parentQuestion struct {
+	Key     string
+	Text    string
+	Answers []string
+	Ask     *chat.Ask
+}
+
+func (s *Server) parentQuestionPolicy(ctx context.Context, child notify.Session) (bool, time.Duration) {
+	on, wait := true, 5*time.Minute
+	list, err := s.db.Profiles(ctx)
+	if err != nil {
+		return false, wait
+	}
+	var contour, project map[string]any
+	if found, ok := projectAt(list, child.CWD, s.worktrees(), s.db.ProjectRoots()); ok {
+		contour, _ = launchOf(found.profile.Launch)
+		project, _ = launchOf(found.project.Launch)
+	} else {
+		for _, profile := range list {
+			if profile.ConfigDir == child.ConfigDir {
+				contour, _ = launchOf(profile.Launch)
+				break
+			}
+		}
+	}
+	for _, value := range schema.Effective(nil, contour, project) {
+		switch value.Key {
+		case "parentQuestions":
+			on, _ = value.Value.(bool)
+		case "parentQuestionWait":
+			switch n := value.Value.(type) {
+			case int:
+				wait = time.Duration(n) * time.Minute
+			case float64:
+				wait = time.Duration(n) * time.Minute
+			}
+		}
+	}
+	return on, wait
+}
+
+// Only the push waits. The question stays in the collector and the verdict
+// store, so both session lists and Inbox continue to show it immediately.
+func (s *Server) deferParentQuestion(ctx context.Context, child notify.Session, question parentQuestion, now time.Time) bool {
+	if s.db == nil || s.exec == nil {
+		return false
+	}
+	on, wait := s.parentQuestionPolicy(ctx, child)
+	if !on {
+		return false
+	}
+	opening, err := s.exec.Opening(ctx, child.Name, child.ID)
+	if err != nil || opening == nil || !opening.Letters {
+		return false
+	}
+	state, fresh, err := s.db.ClaimParentQuestion(ctx, child.ID, question.Key, opening.Conversation, now.Add(wait))
+	if err != nil {
+		log.Printf("the parent question claim: %v", err)
+		return false
+	}
+	if fresh {
+		body := parentQuestionLetter(child, question, wait)
+		if err := s.sendParentQuestion(ctx, child, opening, body); err != nil {
+			log.Printf("the question of %s did not reach its parent: %v", child.Name, err)
+			return false
+		}
+		if err := s.db.ParentQuestionDelivered(ctx, child.ID, question.Key); err != nil {
+			log.Printf("the parent question delivery was not kept: %v", err)
+			return false
+		}
+		state.Delivered = true
+	}
+	return state.Delivered && now.Before(state.Due)
+}
+
+func parentQuestionLetter(child notify.Session, question parentQuestion, wait time.Duration) string {
+	var body strings.Builder
+	fmt.Fprintf(&body, "Child %s (%s) asks a question.\n", child.Name, child.Profile)
+	if question.Ask != nil {
+		fmt.Fprintf(&body, "Ask id: %s\n", question.Ask.ToolUseID)
+		for i, q := range question.Ask.Questions {
+			fmt.Fprintf(&body, "\n%d. %s: %s\n", i+1, q.Header, q.Text)
+			for _, option := range q.Options {
+				fmt.Fprintf(&body, "- %q: %s\n", option.Label, option.Description)
+			}
+		}
+		fmt.Fprintf(&body, "\nUse session_answer with name %q, this ask id, and one answer per question: "+
+			"picks are exact option labels, or text for words of your own. A letter cannot release AskUserQuestion.\n", child.Name)
+	} else {
+		body.WriteString(question.Text)
+		for _, option := range question.Answers {
+			fmt.Fprintf(&body, "\n- %s", option)
+		}
+		fmt.Fprintf(&body, "\n\nReply to %q with send_to_session; your letter settles this prose question.\n", child.Name)
+	}
+	fmt.Fprintf(&body, "If the question remains unanswered, the panel pushes it to the person after %g minutes. "+
+		"Permissions and requests for the person's hands still go straight to them.", wait.Minutes())
+	return body.String()
+}
+
+func (s *Server) sendParentQuestion(ctx context.Context, child notify.Session, opening *action.Opening, body string) error {
+	id, err := s.db.LogAttempt(ctx, store.Action{Kind: string(action.SessionLetter), Target: opening.Name,
+		DeviceName: "panel questions", Params: map[string]any{"child": child.ID, "conversation": opening.Conversation}})
+	if err != nil {
+		return err
+	}
+	req := action.Request{ID: requestID(id), Kind: action.SessionLetter, Target: opening.Name,
+		Conversation: opening.Conversation, ParentQuestion: child.ID, Text: body, Device: "panel questions"}
+	resp, err := s.exec.Do(ctx, req)
+	if err == nil && !resp.OK {
+		err = errors.New(resp.Error)
+	}
+	outcome := store.ActionOutcome{Result: store.ActionOK, Detail: resp.Detail, Duration: time.Duration(resp.DurationMs) * time.Millisecond}
+	if err != nil {
+		outcome.Result, outcome.Error = store.ActionFailed, err.Error()
+	}
+	if saved := s.db.LogResult(ctx, id, outcome); saved != nil {
+		log.Printf("the parent question journal result: %v", saved)
+	}
+	return err
+}
+
+func (s *Server) deferAskQuestions(ctx context.Context, cur notify.World, report *notify.Report) {
+	if s.chat == nil || !s.chat.Available() {
+		return
+	}
+	raised := report.Raise[:0]
+	for _, event := range report.Raise {
+		deferred := false
+		if strings.HasPrefix(event.Key, "ask:") {
+			for _, child := range cur.Sessions {
+				if child.Ask == nil || !strings.HasPrefix(event.Key, "ask:"+child.ID+":") {
+					continue
+				}
+				feed, err := s.chat.Feed(ctx, chat.Req{Session: child.ID, State: true, Limit: 1})
+				questionID := child.Ask.ID
+				standing := err != nil || feed.State == nil || feed.State.Ask != nil
+				if err == nil && feed.State != nil && feed.State.Ask != nil &&
+					feed.State.Ask.Server == "" && !feed.State.Ask.Async {
+					ask := feed.State.Ask
+					if questionID == "" || questionID == ask.ToolUseID {
+						questionID = ask.ToolUseID
+						deferred = s.deferParentQuestion(ctx, child, parentQuestion{Key: "ask:" + ask.ToolUseID, Ask: ask}, cur.Now)
+					} else {
+						standing = false
+					}
+				}
+				if !deferred && questionID != "" && s.db != nil {
+					allowed, err := s.db.ParentQuestionMayPush(ctx, child.ID, "ask:"+questionID, standing)
+					if err == nil && !allowed {
+						deferred = true
+					}
+				}
+				break
+			}
+		}
+		if !deferred {
+			raised = append(raised, event)
+		} else {
+			report.Hold = append(report.Hold, event.Key)
+		}
+	}
+	report.Raise = raised
+}
+
+// Capture the candidate ids before delivery: a later question from the same
+// child must not disappear because an earlier letter finished sending late.
+func (s *Server) parentReplyQuestions(ctx context.Context, req *action.Request) []string {
+	if s.db == nil || s.exec == nil || req.Kind != action.SessionLetter || req.From == "" {
+		return nil
+	}
+	child, ok := s.host.LiveSession(req.Target)
+	if !ok || child.SessionID == "" {
+		return nil
+	}
+	opening, err := s.exec.Opening(ctx, req.Target, child.SessionID)
+	if err != nil || opening == nil || opening.Conversation != req.From {
+		return nil
+	}
+	cards, err := s.waitingCards(ctx, []string{child.SessionID})
+	if err != nil {
+		return nil
+	}
+	var ids []string
+	for _, card := range cards[child.SessionID] {
+		if card.Role == "question" && card.BriefID != "" {
+			ids = append(ids, card.BriefID)
+		}
+	}
+	if len(ids) > 0 {
+		req.Caller, req.Conversation = req.From, child.SessionID
+	}
+	return ids
+}
+
+func textQuestionSession(row map[string]json.RawMessage) notify.Session {
+	return notify.Session{ID: textField(row, "sessionId"), Name: textField(row, "session"),
+		CWD: textField(row, "cwd"), Profile: textField(row, "profile"), ConfigDir: textField(row, "configDir")}
+}

@@ -28,6 +28,8 @@ const codexMode = mode === "codex";
 
 const account = { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" };
 const contourEff = [
+    { key: "parentQuestions", value: true, layer: "panel" },
+    { key: "parentQuestionWait", value: 5, layer: "panel" },
     codexMode ? { key: "agent", value: "codex", layer: "contour" } : { key: "agent", value: null, layer: "claude" },
     { key: "transport", value: null, layer: "claude" },
     { key: "model", value: "opus[1m]", layer: "account" },
@@ -259,6 +261,13 @@ window.done = codexMode ? (async () => {
     const out = {};
     await until(() => all(".pzrow").length > 0);
     out.rows = all(".pzrow").map((r) => text(r.querySelector(".pzname")));
+    out.parentQuestionsOn = chip("Questions to parent", "On").getAttribute("aria-pressed");
+    out.parentWaitDefault = row("Wait for parent").querySelector("input").value;
+    await typeInto(row("Wait for parent").querySelector("input"), "8");
+    await until(() => previews.some((p) => p.launchSet && p.launchSet.parentQuestionWait === 8));
+    out.parentWaitDraft = previews.find((p) => p.launchSet && p.launchSet.parentQuestionWait === 8).launchSet.parentQuestionWait;
+    row("Wait for parent").querySelector(".pzback").click();
+    await until(() => !bar());
     out.consoleInherited = card("tmux") && card("tmux").dataset.inherited;
     out.account = all(".pzacct span").map(text);
     out.hints = all(".pzhint span").map(text);

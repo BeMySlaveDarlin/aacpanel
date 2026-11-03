@@ -126,6 +126,7 @@ type Brief struct {
 
 // Ask is a question asked by a session.
 type Ask struct {
+	ID     string
 	Header string
 	Text   string
 	Count  int

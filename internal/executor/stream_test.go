@@ -14,7 +14,7 @@ import (
 // as the live holder of claude at pid.
 func holdStream(t *testing.T, sessionID string, pid int) {
 	t.Helper()
-	run, err := os.MkdirTemp("/tmp", "rt")
+	run, err := os.MkdirTemp("", "rt")
 	if err != nil {
 		t.Fatal(err)
 	}
