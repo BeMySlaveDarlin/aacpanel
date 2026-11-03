@@ -41,18 +41,26 @@ type browser struct {
 	disposeWait time.Duration
 }
 
-// page is what the browser tells of one tab besides the answers to its
-// commands: what its page threw, and what took the page away from under a
-// fixture — the tab closing, the main frame going to another document.
+// page keeps a tab's failures and last observed state, and what took its
+// document away from the fixture: closing the tab or navigating elsewhere.
 type page struct {
-	thrown []string
-	closed bool
+	thrown                    []string
+	closed                    bool
+	readyState, doneType, url string
+	diagnostics               tailBuffer
+	requests                  map[string]string
+	requestIDs                []string
 	// urls are the documents the main frame committed, in order.
 	urls []string
 	// news is closed, and replaced, whenever the page closes or navigates:
 	// everyone waiting on the page hears it.
 	news chan struct{}
 }
+
+const (
+	pageDiagnosticLimit = 8 << 10
+	pageRequestLimit    = 1024
+)
 
 // end says what took the page away from url, or nil while it stands.
 func (p *page) end(url string) error {
@@ -98,8 +106,80 @@ func (p *page) note(msg cdpMessage) {
 		_ = json.Unmarshal(msg.Params, &ev)
 		if ev.Frame.ParentID == "" {
 			p.urls = append(p.urls, ev.Frame.URL)
+			p.readyState, p.doneType = "loading", "unknown"
+			p.url = ev.Frame.URL
 			p.tell()
 		}
+	case "Page.domContentEventFired":
+		p.readyState = "interactive"
+	case "Page.loadEventFired":
+		p.readyState = "complete"
+	case "Log.entryAdded":
+		var ev struct {
+			Entry struct{ Level, Text, URL string } `json:"entry"`
+		}
+		_ = json.Unmarshal(msg.Params, &ev)
+		if ev.Entry.Level == "error" || ev.Entry.Level == "warning" {
+			fmt.Fprintf(&p.diagnostics, "[Log %s] %s: %s\n", ev.Entry.Level, ev.Entry.URL, ev.Entry.Text)
+		}
+	case "Runtime.consoleAPICalled":
+		var ev struct {
+			Type string `json:"type"`
+			Args []struct {
+				Value                                  json.RawMessage `json:"value"`
+				Description, UnserializableValue, Type string
+			} `json:"args"`
+		}
+		_ = json.Unmarshal(msg.Params, &ev)
+		if ev.Type != "error" && ev.Type != "warning" {
+			return
+		}
+		parts := make([]string, 0, len(ev.Args))
+		for _, arg := range ev.Args {
+			value := arg.Description
+			if len(arg.Value) > 0 {
+				if json.Unmarshal(arg.Value, &value) != nil {
+					value = string(arg.Value)
+				}
+			} else if value == "" {
+				value = arg.UnserializableValue
+				if value == "" {
+					value = arg.Type
+				}
+			}
+			parts = append(parts, value)
+		}
+		fmt.Fprintf(&p.diagnostics, "[console %s] %s\n", ev.Type, strings.Join(parts, " "))
+	case "Network.requestWillBeSent":
+		var ev struct {
+			RequestID string               `json:"requestId"`
+			Request   struct{ URL string } `json:"request"`
+		}
+		_ = json.Unmarshal(msg.Params, &ev)
+		if p.requests == nil {
+			p.requests = map[string]string{}
+		}
+		if _, seen := p.requests[ev.RequestID]; !seen {
+			p.requestIDs = append(p.requestIDs, ev.RequestID)
+			// A page can leave requests pending forever; their URL lookup is
+			// bounded along with the diagnostics it serves.
+			if len(p.requestIDs) > pageRequestLimit {
+				delete(p.requests, p.requestIDs[0])
+				p.requestIDs = p.requestIDs[1:]
+			}
+		}
+		p.requests[ev.RequestID] = ev.Request.URL
+	case "Network.loadingFailed", "Network.loadingFinished":
+		var ev struct{ RequestID, ErrorText, BlockedReason string }
+		_ = json.Unmarshal(msg.Params, &ev)
+		if msg.Method == "Network.loadingFailed" {
+			url := p.requests[ev.RequestID]
+			if url == "" {
+				url = "request " + ev.RequestID
+			}
+			fmt.Fprintf(&p.diagnostics, "[Network] %s: %s %s\n", url, ev.ErrorText, ev.BlockedReason)
+		}
+		delete(p.requests, ev.RequestID)
 	}
 }
 
@@ -368,7 +448,21 @@ func (b *browser) call(ctx context.Context, session, method string, params any) 
 func (b *browser) track(session string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.pages[session] = &page{news: make(chan struct{})}
+	b.pages[session] = &page{news: make(chan struct{}),
+		readyState: "unknown", doneType: "unknown", url: "unknown", diagnostics: tailBuffer{limit: pageDiagnosticLimit}}
+}
+
+// A timed-out context cannot ask the renderer for more evidence without
+// extending the fixture's deadline, so the report reads only saved state.
+func (b *browser) pageTimeout(session string, err error) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	p := b.pages[session]
+	if p == nil {
+		return err
+	}
+	return fmt.Errorf("%w\nlast page state: readyState=%s, window.done=%s, url=%s\npage diagnostics (tail):\n%s",
+		err, p.readyState, p.doneType, p.url, p.diagnostics.String())
 }
 
 // thrownIn returns what the page of a session threw so far.
@@ -507,7 +601,37 @@ func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage,
 		return nil, err
 	}
 	defer close()
+	return b.wait(ctx, session, url)
+}
+
+func (b *browser) wait(ctx context.Context, session, url string) (out json.RawMessage, err error) {
+	defer func() {
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = b.pageTimeout(session, err)
+		}
+	}()
 	for {
+		// A pending promise can hold the next evaluate until the deadline.
+		// Observe the page first, while the same context still has time.
+		state, err := b.pageCall(ctx, session, url, "Runtime.evaluate", map[string]any{
+			"expression": "({ readyState: document.readyState, doneType: typeof window.done, url: location.href })", "returnByValue": true})
+		if err != nil {
+			return nil, err
+		}
+		var observed struct {
+			Result struct {
+				Value struct{ ReadyState, DoneType, URL string }
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(state, &observed); err != nil {
+			return nil, err
+		}
+		b.mu.Lock()
+		if p := b.pages[session]; p != nil && observed.Result.Value.ReadyState != "" {
+			p.readyState, p.doneType = observed.Result.Value.ReadyState, observed.Result.Value.DoneType
+			p.url = observed.Result.Value.URL
+		}
+		b.mu.Unlock()
 		raw, err := b.pageCall(ctx, session, url, "Runtime.evaluate", map[string]any{
 			"expression": "window.done", "awaitPromise": true, "returnByValue": true})
 		if err != nil {
@@ -599,6 +723,8 @@ func (b *browser) open(ctx context.Context, url, screen string) (session string,
 		params any
 	}{
 		{"Runtime.enable", map[string]any{}},
+		{"Log.enable", map[string]any{}},
+		{"Network.enable", map[string]any{}},
 		// What the main frame commits: a page that navigates before it answers
 		// says where it went.
 		{"Page.enable", map[string]any{}},
@@ -653,6 +779,102 @@ setTimeout(() => { throw new Error("the card lost its rows"); }, 150);`,
 			_, err = b.run(ctx, server.URL, phoneScreen)
 			if err == nil || !strings.Contains(err.Error(), "the card lost its rows") {
 				t.Fatalf("a page that threw passed as a fixture: %v", err)
+			}
+		})
+	}
+}
+
+// A failed module never assigns the fixture's answer and need not throw a
+// JavaScript exception. Its timeout keeps the browser's explanation, as does
+// a timeout already waiting on a promise that never settles.
+func TestATimedOutPageKeepsItsDiagnostics(t *testing.T) {
+	chrome := chromeBinary()
+	if chrome == "" {
+		t.Skip("no Chrome on this machine")
+	}
+	for _, c := range []struct{ name, answer, doneType string }{
+		{"missing answer", "", "undefined"},
+		{"pending answer", "window.done = new Promise(() => {});", "object"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			parallel(t)
+			ready := make(chan struct{})
+			mux := http.NewServeMux()
+			mux.HandleFunc("/page", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				fmt.Fprintf(w, `<script>
+%s
+console.error("discarded page error");
+console.warn("x".repeat(%d));
+console.error("fixture console error", 17, new Error("fixture console detail"));
+console.warn("fixture console warning");
+console.info("discarded console noise");
+const failed = fetch("/failed-load").catch(() => {});
+addEventListener("load", async () => {
+    await failed;
+    history.replaceState(null, "", "/waiting");
+    fetch("/ready");
+}, { once: true });
+</script><script type="module">import "/missing-module.js"; window.done = { ok: true };</script>`, c.answer, pageDiagnosticLimit)
+			})
+			mux.HandleFunc("/missing-module.js", http.NotFound)
+			mux.HandleFunc("/failed-load", func(w http.ResponseWriter, r *http.Request) {
+				conn, _, err := w.(http.Hijacker).Hijack()
+				if err != nil {
+					t.Errorf("hijack the failing load: %v", err)
+					return
+				}
+				_ = conn.Close()
+			})
+			mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+				close(ready)
+			})
+			server := httptest.NewServer(mux)
+			defer server.Close()
+			b, err := sharedBrowser(chrome, phonePointer)
+			if err != nil {
+				t.Fatalf("Chrome did not start: %v", err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			url := server.URL + "/page"
+			session, close, err := b.open(ctx, url, phoneScreen)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer close()
+			select {
+			case <-ready:
+			case <-ctx.Done():
+				t.Fatal("the page did not finish its loads")
+			}
+			within, stop := context.WithTimeout(ctx, 250*time.Millisecond)
+			defer stop()
+			_, err = b.wait(within, session, url)
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("a page without an answer returned %v", err)
+			}
+			said := err.Error()
+			for _, detail := range []string{
+				"readyState=complete", "window.done=" + c.doneType, "url=" + server.URL + "/waiting",
+				"[Log error] " + server.URL + "/missing-module.js", "404",
+				"[Network] " + server.URL + "/failed-load: net::ERR_EMPTY_RESPONSE",
+				"[console error] fixture console error 17 Error: fixture console detail",
+				"[console warning] fixture console warning",
+			} {
+				if !strings.Contains(said, detail) {
+					t.Errorf("the timeout lost %q: %s", detail, said)
+				}
+			}
+			for _, discarded := range []string{"discarded page error", "discarded console noise"} {
+				if strings.Contains(said, discarded) {
+					t.Errorf("the timeout kept %q", discarded)
+				}
+			}
+			tail := strings.SplitN(said, "page diagnostics (tail):\n", 2)
+			if len(tail) != 2 || len(tail[1]) > pageDiagnosticLimit {
+				t.Errorf("the page diagnostics have no bounded tail: %s", said)
 			}
 		})
 	}
