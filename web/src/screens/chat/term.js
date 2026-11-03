@@ -261,6 +261,7 @@ export function Term({ name, term: tab }) {
         let alive = true;
         let close = null;
         let term = null;
+        let opening = Promise.resolve();
         let unfit = null;
         let uncap = null;
         let themeWatch = null;
@@ -294,6 +295,10 @@ export function Term({ name, term: tab }) {
             const fit = new mod.FitAddon();
             term.loadAddon(fit);
             term.open(screen);
+            // xterm queues a viewport startup task that dispose does not cancel.
+            // Keep its renderer alive through that task even if this tab leaves
+            // before the browser reaches it. Both tasks share the timer queue.
+            opening = new Promise((resolve) => setTimeout(resolve));
             hostCopies(term, toast);
             fit.fit();
             termRef.current = term;
@@ -387,7 +392,7 @@ export function Term({ name, term: tab }) {
             if (themeWatch) themeWatch.disconnect();
             if (swipe) swipe();
             if (unfocus) unfocus();
-            if (term) term.dispose();
+            if (term) opening.then(() => term.dispose());
             termRef.current = null;
             sendRef.current = null;
         };

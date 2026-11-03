@@ -103,6 +103,7 @@ window.fetch = counted(async (url, init) => {
 });
 
 const streams = [];
+let onStream = null;
 window.EventSource = class {
     static CONNECTING = 0;
     static OPEN = 1;
@@ -112,6 +113,7 @@ window.EventSource = class {
         this.readyState = 1;
         this.on = {};
         streams.push(this);
+        if (onStream && this.url.startsWith("/api/term/stream")) onStream(this);
     }
     addEventListener(name, fn) { this.on[name] = fn; }
     close() { this.readyState = 2; }
@@ -362,6 +364,40 @@ window.done = (async () => {
         ]);
         await until(() => document.querySelector(".termkeys"));
         out.keys = all(".termkeys .termkey").map(text);
+
+        // An attach is announced before xterm's startup task can run. Keep
+        // this turn busy, then change tabs before yielding to that task: the
+        // emulator's renderer must survive until its startup has finished.
+        const nextStream = () => new Promise((resolve) => {
+            onStream = (stream) => { onStream = null; resolve(stream); };
+        });
+        const { Terminal } = await import("/dist/term.js");
+        const dispose = Terminal.prototype.dispose;
+        const disposed = new Set();
+        Terminal.prototype.dispose = function () {
+            disposed.add(this.element);
+            dispose.call(this);
+        };
+        const firstAttached = nextStream();
+        all(".ttabs .ttab").find((b) => text(b) === "make check").click();
+        const first = await firstAttached;
+        const firstElement = document.querySelector(".xterm");
+        first.on.ready({ data: JSON.stringify({ id: "rapid-in" }) });
+        // A live refit records the viewport size before startup reads it.
+        await Promise.resolve();
+        await document.fonts.load(`13px ${getComputedStyle(firstElement).fontFamily}`);
+        await Promise.resolve();
+        const end = performance.now() + 80;
+        while (performance.now() < end) {}
+        const secondAttached = nextStream();
+        all(".ttabs .ttab").find((b) => text(b) === "zsh").click();
+        const second = await secondAttached;
+        await quiet();
+        Terminal.prototype.dispose = dispose;
+        out.lifecycle = {
+            retired: first.readyState === 2, current: second.readyState === 1,
+            disposed: disposed.has(firstElement),
+        };
 
         // Another tab of the place attaches the terminal to it.
         all(".ttabs .ttab").find((b) => text(b) === "make check").click();

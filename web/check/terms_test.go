@@ -271,6 +271,11 @@ type termsPhoneShot struct {
 		Stream string   `json:"stream"`
 		Nav    bool     `json:"nav"`
 	} `json:"opened"`
+	Lifecycle struct {
+		Retired  bool `json:"retired"`
+		Current  bool `json:"current"`
+		Disposed bool `json:"disposed"`
+	} `json:"lifecycle"`
 	Keys     []string `json:"keys"`
 	Switched struct {
 		On     string `json:"on"`
@@ -462,6 +467,13 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		}
 		if want := []string{"Esc", "Ctrl", "Tab", "←", "↑", "↓", "→", "Enter"}; !equalStrings(got.Keys, want) {
 			t.Errorf("the keys over the keyboard read %v, expected the row of the session terminal %v", got.Keys, want)
+		}
+	})
+
+	t.Run("a tab can leave before its emulator startup task", func(t *testing.T) {
+		l := got.Lifecycle
+		if !l.Retired || !l.Current || !l.Disposed {
+			t.Errorf("the rapid switch left %+v, expected the old stream closed and emulator disposed, the new stream open", l)
 		}
 	})
 
