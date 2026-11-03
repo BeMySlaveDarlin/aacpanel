@@ -194,13 +194,13 @@ type cdpMessage struct {
 	} `json:"error,omitempty"`
 }
 
-// browsers are started on first use, a few for each kind of pointer: what the
-// page is told about its pointer is a flag of the process, not of a tab, and
-// one process serving every tab of a parallel run is where the tabs queue.
-// Two kinds of pointer with two each make four Chromes a run, which is all a
-// shared machine gives a run of tests: each Chrome spreads its renderers over
-// cores of its own.
-const browsersPerPointer = 2
+// browsers are started on first use, one for each kind of pointer: what the
+// page is told about its pointer is a flag of the process, not of a tab. Two
+// kinds of pointer make two Chromes a run: each Chrome spreads its renderers
+// over cores of its own, and a shared machine gives a run of tests no more
+// than that beside the tests themselves; the tabs of a parallel run queue in
+// them instead.
+const browsersPerPointer = 1
 
 var (
 	browsersMu sync.Mutex
