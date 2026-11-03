@@ -743,6 +743,9 @@ func (b *browser) open(ctx context.Context, url, screen string) (session string,
 }
 
 func TestMain(m *testing.M) {
+	if code, reran := runInNetworkNamespace(); reran {
+		os.Exit(code)
+	}
 	sweepProfiles(profileRoot())
 	code := m.Run()
 	closeBrowsers()

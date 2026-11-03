@@ -2653,6 +2653,15 @@ about a session opens that session.
 an ordinary Go library. A `package.json` appearing is a mistake. The built
 bundle goes into the binary through `embed`.
 
+**Frontend checks share a network of their own.** The test binary restarts in
+a user and network namespace with its uid and gid mapped to themselves and
+raises loopback before starting any fixture servers or Chrome. Host link
+changes otherwise reach Chrome through netlink and can cancel a module load.
+The servers use loopback and the devtools protocol uses pipes, so the checks
+need no route to the host network. A machine that forbids the namespace runs
+the checks on the host network and prints the reason; failed tests are never
+retried there.
+
 **There are two shells, the screens are shared.** The phone has its own
 navigation, the wide screen has its own; the screens are the same ones. There is
 no full copy of the front end and there will not be: the screens are more than
