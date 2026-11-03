@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -68,7 +69,7 @@ func TestCrewStatusListsOnlyTheCallingConversationsDescendants(t *testing.T) {
 	lines := strings.Split(said, "\n")
 	if len(lines) != 3 || !strings.HasPrefix(lines[0], "child | claude | work | working | since 1970-01-01T00:16:40Z") ||
 		!strings.HasPrefix(lines[1], "  grandchild | codex | personal | idle | last 2026-01-01T00:00:00Z") ||
-		!strings.HasPrefix(lines[2], "finished | codex | personal | closed") {
+		lines[2] != "1 closed child not shown." || strings.Contains(said, "finished |") {
 		t.Fatalf("unexpected subtree:\n%s", said)
 	}
 	for _, hidden := range []string{"peer |", "stranger |", "foreign-child |", "parent |", "grouped-only |", "lead |"} {
@@ -162,12 +163,53 @@ func TestCrewStatusHandlesNoChildrenAndRefusesAnUnknownCaller(t *testing.T) {
 }
 
 func TestCrewStatusKeepsDescendantsOfAClosedChildAndStopsCycles(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	keepCrew(t, "closed", "closed-parent", "closed", mine, "codex")
-	keepCrew(t, "living", "living-child", "living", "closed", "codex")
-	keepCrew(t, "cycle", "cycle", mine, "living", "codex")
-	said, failed := call(t, Crew(crewPanel(t, `[{"session":"living-child","sessionId":"living","agent":"codex","status":"busy"}]`)), bound(mine), map[string]any{})
-	if failed || len(strings.Split(said, "\n")) != 2 || !strings.Contains(said, "\n  living-child | codex") {
-		t.Fatalf("the closed branch or a cycle lost its boundary: %s", said)
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			name := "closed-parent"
+			if legacy {
+				if err := stream.KeepOwner("closed", stream.SessionOwner{Name: "lead", Conversation: mine}); err != nil {
+					t.Fatal(err)
+				}
+				name = "closed"
+			} else {
+				keepCrew(t, "closed", name, "closed", mine, "codex")
+			}
+			keepCrew(t, "living", "living-child", "living", "closed", "codex")
+			keepCrew(t, "cycle", "cycle", mine, "living", "codex")
+			keepCrew(t, "empty", "empty-branch", "empty", mine, "codex")
+			keepCrew(t, "empty-child", "empty-child", "empty-child", "empty", "codex")
+			keepCrew(t, "finished", "finished", "finished", "living", "codex")
+			keepCrew(t, "foreign", "foreign", "foreign", other, "codex")
+			said, failed := call(t, Crew(crewPanel(t, `[{"session":"living-child","sessionId":"living","agent":"codex","status":"busy"}]`)), bound(mine), map[string]any{})
+			lines := strings.Split(said, "\n")
+			if failed || len(lines) != 3 || !strings.HasPrefix(lines[0], name+" | codex | ") ||
+				!strings.HasSuffix(lines[0], " | closed | time unknown") ||
+				!strings.HasPrefix(lines[1], "  living-child | codex | not known | working") || lines[2] != "3 closed children not shown." {
+				t.Fatalf("the closed branch or a cycle lost its boundary: %s", said)
+			}
+		})
+	}
+}
+
+func TestCrewStatusSummarizesAClosedTreeWithoutListingItsHistory(t *testing.T) {
+	for _, nested := range []bool{false, true} {
+		t.Run(fmt.Sprintf("nested=%t", nested), func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			parent := mine
+			for i := 0; i < 100; i++ {
+				id := fmt.Sprintf("closed-%03d", i)
+				if err := stream.KeepOwner(id, stream.SessionOwner{Name: "lead", Conversation: parent}); err != nil {
+					t.Fatal(err)
+				}
+				if nested {
+					parent = id
+				}
+			}
+			said, failed := call(t, Crew(crewPanel(t, `[]`)), bound(mine), map[string]any{})
+			if failed || said != "This conversation has no live children; 100 closed children not shown." {
+				t.Fatalf("a closed tree flooded the crew status: %s", said)
+			}
+		})
 	}
 }

@@ -94,7 +94,7 @@ func TestCrewStatusUsesTheBoundClaudeConversationAndCodexThread(t *testing.T) {
 		if r.URL.Path != "/api/host" || r.Method != http.MethodGet {
 			t.Errorf("unexpected crew request: %s %s", r.Method, r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`{"sessions":[]}`))
+		_, _ = w.Write([]byte(`{"sessions":[{"session":"claude-child","sessionId":"claude-child","status":"idle"},{"session":"codex-child","sessionId":"codex-child","agent":"codex","status":"idle"}]}`))
 	}))
 	t.Cleanup(panel.Close)
 	t.Setenv("AACP_PANEL_URL", panel.URL)

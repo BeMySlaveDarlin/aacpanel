@@ -26,6 +26,7 @@ const CrewInstructions = "Use crew_status before writing to children and before 
 const CrewDescription = "Call without arguments for this conversation's session_open descendants, indented by depth: " +
 	"name, agent, contour, working, human wait and its question, permission or request, own background wait, idle or closed; " +
 	"state time or last activity, checklist progress and context fill. Reads the panel's snapshot and opening records. " +
+	"Closed branches without live descendants are counted at the end instead of listed. " +
 	"Shows no parent, peers, other sessions' children or agents inside this session; screen grouping grants no ownership. " +
 	"This is a snapshot, not a wait: continue work or end the turn for reports, without polling."
 
@@ -62,19 +63,36 @@ func Crew(h Host) mcp.Tool {
 			if err := h.crewRead(ctx, "/api/host", &snapshot); err != nil {
 				return "The crew is not listed: " + err.Error(), true
 			}
-			lines := []string{}
+			hidden := 0
 			slices.SortStableFunc(records, func(a, b stream.OpenedSession) int {
 				return strings.Compare(a.Session, b.Session)
 			})
 			seen := map[string]bool{}
-			var descend func(string, int)
-			descend = func(parent string, depth int) {
+			var descend func(string, int) []string
+			descend = func(parent string, depth int) []string {
+				var lines []string
 				for _, record := range records {
 					if record.Conversation != parent || seen[record.Key] || record.SessionID == b.SessionID {
 						continue
 					}
 					seen[record.Key] = true
 					row, live := crewLive(record, snapshot.Sessions)
+					child := record.SessionID
+					if live {
+						child = row.SessionID
+					} else if child == "" && !strings.HasPrefix(record.Key, "process-") {
+						// A legacy Codex opening is keyed by its thread, even
+						// when the record keeps no identity of the child yet.
+						child = record.Key
+					}
+					var children []string
+					if child != "" && child != b.SessionID {
+						children = descend(child, depth+1)
+					}
+					if !live && len(children) == 0 {
+						hidden++
+						continue
+					}
 					name, agent, profile := record.Session, record.Agent, record.Profile
 					state, at := "closed", ""
 					if live {
@@ -103,18 +121,19 @@ func Crew(h Host) mcp.Tool {
 						line += crewProgress(row)
 					}
 					lines = append(lines, line)
-					child := record.SessionID
-					if live {
-						child = row.SessionID
-					}
-					if child != "" && child != b.SessionID {
-						descend(child, depth+1)
-					}
+					lines = append(lines, children...)
 				}
+				return lines
 			}
-			descend(b.SessionID, 0)
+			lines := descend(b.SessionID, 0)
 			if len(lines) == 0 {
+				if hidden > 0 {
+					return "This conversation has no live children; " + plural(hidden, "closed child", "closed children") + " not shown.", false
+				}
 				return "This conversation has no children opened through session_open.", false
+			}
+			if hidden > 0 {
+				lines = append(lines, plural(hidden, "closed child", "closed children")+" not shown.")
 			}
 			return strings.Join(lines, "\n"), false
 		},
