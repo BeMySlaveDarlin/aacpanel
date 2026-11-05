@@ -33,11 +33,17 @@ import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 // The screen keeps clocks of its own — the seconds a restart has waited, the
-// length of the turn — and redraws them on intervals: on a loaded machine,
-// where a frame takes a fifth of a second, the document never stands still
-// for the two frames quiet waits for. What this fixture reads moves with the
-// snapshots it draws, so the clocks stand still.
+// length of the turn, the life of a toast — and moves on them: it redraws the
+// clocks on intervals and takes a toast down seconds after it came. On a
+// loaded machine, where a frame takes a fifth of a second or more, the
+// document never stands still for the two frames quiet waits for: the toasts
+// of the presses on the three screens above go one after another while a
+// snapshot of the probe below settles. What this fixture reads moves with the
+// snapshots it draws and the presses it makes, so the clocks stand still: no
+// interval runs, and no timer longer than quiet waits for rings.
 window.setInterval = () => 0;
+const timer = window.setTimeout;
+window.setTimeout = (fn, ms, ...args) => (Number(ms) > 1000 ? 0 : timer(fn, ms, ...args));
 
 const at = new Date(Date.now() - 60000).toISOString();
 const items = [
