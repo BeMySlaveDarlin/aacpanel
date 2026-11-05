@@ -73,7 +73,8 @@ func TestHostIdentityLivesInDescriptionOnly(t *testing.T) {
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if name == ".git" || name == "node_modules" || name == "__pycache__" || name == "dist" ||
+			// .claude holds the agents' own files and scratch, never part of the panel.
+			if name == ".git" || name == ".claude" || name == "node_modules" || name == "__pycache__" || name == "dist" ||
 				name == "vendor" {
 				return filepath.SkipDir
 			}
