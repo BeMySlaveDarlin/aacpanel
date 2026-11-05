@@ -657,7 +657,9 @@ span.pjname { cursor: default; }
 .scb { display: inline-flex; align-items: center; gap: .15em; color: var(--ink-faint); white-space: nowrap; }
 .scb svg { width: 1em; height: 1em; }
 .scb.scon { color: var(--ink-dim); }
-.scb.scoff { opacity: .35; }
+/* A setting a session does not have is not shown, its place kept so the
+   others stay in theirs. */
+.scb.scoff { visibility: hidden; }
 .scctx { justify-self: end; font-size: var(--t-md); font-weight: 600; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* The context bar along the bottom edge: of the whole window, the cap a tick
