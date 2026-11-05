@@ -326,8 +326,6 @@
         white-space: nowrap;
     }
 
-    .dkpickbtn.dkinboxpick { flex: 0 0 auto; max-width: none; }
-
     /* The heading of a group in a column: a name in the ink, a count in the
        faint ink, on the ground of the page so the rows scroll under it. */
     .dkcontour {

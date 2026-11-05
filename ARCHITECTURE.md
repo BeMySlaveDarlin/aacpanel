@@ -2473,8 +2473,8 @@ The panel first mails a child's AskUserQuestion or haiku-confirmed prose
 question to its live opener, signed as panel mail. The map's `parentQuestions`
 switch controls this at contour and project level; `parentQuestionWait` gives
 the parent's time in minutes, five by default. A durable claim permits one
-letter per question across service restarts. Only the push waits: the lists
-and Inbox show the question immediately, while permissions and requests go
+letter per question across service restarts. Only the push waits: the
+session lists show the question immediately, while permissions and requests go
 straight to the person. A missing parent or one without a mail input leaves
 the push immediate. A parent's ordinary letter settles the child's current
 prose questions in the verdict store after successful delivery, with ownership

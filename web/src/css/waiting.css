@@ -41,17 +41,3 @@
 .mquestionanswers { display: grid; gap: .4rem; margin-top: .6rem; }
 .mquestionanswers .requestanswer { flex-wrap: wrap; }
 .mquestionanswers .btn { white-space: normal; overflow-wrap: anywhere; }
-
-/* Inbox rows share the queue's answers and the session list's contour headings. */
-.sessioninbox { display: grid; gap: 1rem; padding: .65rem; }
-.inboxgroup { min-width: 0; }
-.inboxgroup .pjsection { margin-bottom: .45rem; }
-.inboxgroup .pjsection span { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-.inboxrow { min-width: 0; padding: .5rem .6rem; border-bottom: var(--hair) solid var(--line); }
-.inboxopen { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3rem .6rem; width: 100%; min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
-.inboxname { grid-column: 1 / -1; font-size: var(--t-sm); font-weight: 600; overflow-wrap: anywhere; }
-.inboxwhat { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--t-sm); }
-.inboxsince { color: var(--ink-faint); font-size: var(--t-xs); white-space: nowrap; }
-.inboxchoices { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }
-.inboxchoices .btn { min-height: 44px; }
-.inboxask { margin-top: .6rem; }

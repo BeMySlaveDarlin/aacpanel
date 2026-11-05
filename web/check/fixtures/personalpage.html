@@ -97,12 +97,12 @@ const bare = (tab) => {
 const phoneOf = (box) => {
     const tabs = Array.from(box.querySelectorAll(".pftab"));
     const pages = Array.from(box.querySelectorAll(".pfpages > .pfpage"));
-    return tabs.flatMap((tab, i) => pages[i]?.querySelector(".sessioninbox") ? [] : [{
+    return tabs.map((tab, i) => ({
         name: text(bare(tab)),
         count: Number(text(tab.querySelector(".n")) || 0),
         waiting: Boolean(tab.querySelector(".waitn")),
         sessions: Array.from((pages[i] || tab).querySelectorAll(".pjblock .pjname")).map(text),
-    }]);
+    }));
 };
 // deskOf reads the column: each section by its name, whether its heading
 // marks a wait and its live sessions.

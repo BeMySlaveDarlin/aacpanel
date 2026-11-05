@@ -12,7 +12,6 @@ import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
-import { remember } from "/src/screens/chat/answered.js";
 import { quiet, counted } from "/check/fixtures/quiet.js";
 
 const until = async (ready) => {
@@ -48,10 +47,6 @@ const tail = Array.from({ length: 40 }, (_, i) => ({ role: "ai", pos: 1000 + i, 
 const all = [...old, ...tail];
 const sent = [];
 const windows = [];
-let inboxPhase = false;
-const inboxAsk = { toolUseId: "toolu-inbox", at, questions: [{ header: "Release", text: "Ship the release?", multi: false,
-    options: [{ label: "Ship", description: "Publish the checked release" }, { label: "Wait", description: "Keep it staged" }] }] };
-
 let copied = "";
 Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
     writeText: async (text) => { copied = text; },
@@ -66,8 +61,6 @@ window.fetch = counted(async (input, options) => {
     const url = new URL(String(input), location.href);
     if (url.pathname === "/api/chat") {
         const p = url.searchParams;
-        if (inboxPhase) return json({ items: [{ role: "ai", text: "Ready for a decision.", pos: 16, at }],
-            state: p.get("session") === "parent" ? { ask: inboxAsk } : null, moreBefore: false });
         let items = tail;
         if (p.has("before")) { windows.push("before"); items = all.filter(i => i.pos < Number(p.get("before"))).slice(-Number(p.get("limit"))); }
         if (p.has("after")) { windows.push("after"); items = all.filter(i => i.pos > Number(p.get("after"))).slice(0, Number(p.get("limit"))); }
@@ -85,7 +78,6 @@ window.fetch = counted(async (input, options) => {
     if (url.pathname === "/api/actions") {
         const body = JSON.parse(options.body);
         sent.push(body);
-        if (inboxPhase) return json({ ok: true, detail: "queued" });
         if (body.kind === "session.shell") return json({ ok: true, detail: "running" });
         if (holdQuestion && body.params.text) {
             holdQuestion = false;
@@ -126,115 +118,11 @@ const pick = async (title, settle = true) => {
     [...document.querySelectorAll(".waitingitem")].find(b => b.textContent.includes(title)).click();
     if (settle) await quiet();
 };
-let inboxRefresh, inboxBack;
-const older = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
-const inboxParent = { session: "parent", sessionId: "inbox-parent", transport: "stream", profile: "personal", contour: 1,
-    status: "waiting", waitingFor: "question", ask: { toolUseId: inboxAsk.toolUseId, text: "Ship the release?", at: older(5), count: 1 } };
-const inboxChild = { session: "child", sessionId: "inbox-child", transport: "stream", profile: "personal", contour: 1,
-    status: "idle", parent: { session: "parent" }, waiting: [{ kind: "question", id: "inbox-prose", title: "Shall I publish?", answers: ["Publish", "Wait"], at: older(10), pos: 16 }] };
-const inboxRequest = { session: "router", sessionId: "inbox-router", transport: "stream", profile: "work", contour: 2,
-    status: "idle", waiting: [{ kind: "request", id: requestID, title: record.title, at: older(15), pos: 10 }] };
-const inboxSnapshot = { at: 1, profileMap: snapshot.profileMap, sessions: [inboxParent, inboxChild, inboxRequest] };
-const inboxExec = { available: true, kinds: [...exec.kinds, "session.answer", "session.dismiss"] };
-function InboxScene() {
-    const [, revision] = useState(0);
-    const [talk, setTalk] = useState(null);
-    const [picks, setPicks] = useState(["work"]);
-    inboxRefresh = () => revision(n => n + 1);
-    inboxBack = () => setTalk(null);
-    const chat = talk && html`<${Chat} name=${talk.name} id=${talk.id} waiting=${talk.waiting}
-        onWaitingOpened=${() => setTalk(was => ({ ...was, waiting: null }))}
-        live=${inboxSnapshot.sessions.find(s => s.session === talk.name)} snapshot=${inboxSnapshot} exec=${inboxExec} onBack=${inboxBack} />`;
-    return wide ? html`<div class="deskshell"><div class="dkbody"><${SessionColumn} snapshot=${inboxSnapshot} exec=${inboxExec}
-        limits=${{}} picks=${picks} setPicks=${setPicks} onPick=${setTalk} /><section class="dkcenter dkchat">${chat}</section></div></div>`
-        : html`<div class="shell no-nav"><main class="body">${talk ? chat : html`<${Sessions} snapshot=${inboxSnapshot} ageSec=${0}
-            exec=${inboxExec} wait=${{ opening: () => [], of: () => null }} pick=${setTalk} />`}</main></div>`;
-}
-const inboxTab = () => [...document.querySelectorAll(wide ? ".dkpickbtn" : ".pftab")].find(b => b.textContent.trim().startsWith("Inbox"));
-async function checkInbox() {
-    inboxPhase = true;
-    holdRequests = false;
-    localStorage.setItem("aacpanel.sessions.profile", "work");
-    const mount = () => render(html`<${ToastHost}><${GateHost}><${InboxScene} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
-    mount();
-    await until(() => inboxTab());
-    const out = {};
-    const tabs = [...document.querySelectorAll(wide ? ".dkpickbtn" : ".pftab")];
-    out.inboxFirst = tabs[0] === inboxTab() && inboxTab().textContent.replace(/\s/g, "") === "Inbox3";
-    inboxTab().click();
-    await until(() => document.querySelector(".sessioninbox .askpick, .sessioninbox .inboxchoices button"));
-    await until(() => wide || Math.abs(document.querySelector(".sessioninbox").closest(".pfpage").getBoundingClientRect().left
-        - document.querySelector(".pfpages").getBoundingClientRect().left) < 1);
-    await quiet();
-    out.inboxGroups = [...document.querySelectorAll(".inboxgroup")].map(g => g.getAttribute("aria-label")).join("|") === "personal|work";
-    out.inboxKinds = [...document.querySelectorAll(".inboxrow")].map(r => r.dataset.kind).join("|") === "question|asked|request";
-    out.inboxPath = document.querySelector(".inboxname")?.textContent === "parent → child";
-    out.inboxAges = [...document.querySelectorAll(".inboxsince")].map(n => n.textContent).join("|") === "10 min ago|5 min ago|15 min ago";
-    out.inboxNoOverflow = document.documentElement.scrollWidth <= innerWidth;
-    out.inboxCountVisible = inboxTab().scrollWidth <= inboxTab().clientWidth;
-    if (!out.inboxFirst || !out.inboxGroups || !out.inboxKinds) throw new Error("Inbox must include every contour's waiting items in its count and groups");
-    if (new URLSearchParams(location.search).has("inboxshot")) return { ...out, screenshot: true };
-    document.querySelector('[data-session="router"] .inboxopen').click();
-    await until(() => requestSheet()?.querySelector(".requestanswer"));
-    out.inboxRequestOpens = requestSheet().querySelector(".requesttitle")?.textContent === record.title;
-    requestSheet().querySelector(".sheetclose").click();
-    inboxBack(); await quiet();
-    if (!wide) { inboxTab().click(); await quiet(); }
-    const reply = document.querySelector('[data-session="child"] .requestanswer button');
-    reply.click(); reply.click();
-    await until(() => !document.querySelector('[data-session="child"].inboxrow'));
-    out.inboxQuick = sent.filter(a => a.target === "child");
-    document.querySelector('[data-session="parent"] .inboxchoices button').click();
-    await until(() => !document.querySelector('[data-session="parent"].inboxrow'));
-    out.inboxStructured = sent.at(-1);
-    // The conversation's card must send the identical structured answer.
-    remember("parent", null);
-    render(null, document.getElementById("root"));
-    mount(); await until(() => inboxTab());
-    inboxTab().click(); await until(() => document.querySelector('[data-session="parent"] .inboxopen'));
-    document.querySelector('[data-session="parent"] .inboxopen').click();
-    await until(() => document.querySelector('.sheet.on[aria-label="session question"] .askpick'));
-    document.querySelector('.sheet.on[aria-label="session question"] .askpick').click();
-    await until(() => sent.filter(a => a.kind === "session.answer").length === 2);
-    out.inboxSameStructured = JSON.stringify(out.inboxStructured) === JSON.stringify(sent.at(-1));
-    inboxBack(); await quiet();
-    if (!wide) { inboxTab().click(); await quiet(); }
-    inboxSnapshot.sessions = [{ ...inboxRequest, session: "permit", sessionId: "inbox-permit", status: "waiting",
-        waitingFor: "sandbox request", waiting: [], statusUpdatedAt: Date.now() - 120000 }];
-    inboxRefresh();
-    await until(() => document.querySelector('[data-session="permit"] .inboxwhat'));
-    out.inboxPermission = document.querySelector('[data-session="permit"] .inboxwhat').textContent === "waiting: the sandbox is asking for access";
-    document.querySelector('[data-session="permit"] .inboxopen').click();
-    await until(() => document.querySelector(".permit"));
-    out.inboxPermissionOpens = Boolean(document.querySelector(".permit"));
-    inboxBack(); await quiet();
-    if (!wide) { inboxTab().click(); await quiet(); }
-    inboxSnapshot.profileMap = [];
-    inboxRefresh();
-    await until(() => document.querySelector(".inboxgroup")?.getAttribute("aria-label") === "work");
-    out.inboxWithoutMap = inboxTab()?.textContent.replace(/\s/g, "") === "Inbox1";
-    inboxSnapshot.profileMap = snapshot.profileMap;
-    inboxSnapshot.sessions = [];
-    inboxRefresh();
-    await until(() => !inboxTab());
-    out.inboxEmptyGone = !document.querySelector(".sessioninbox");
-    out.inboxFallback = wide ? document.querySelector('.dkpickbtn[aria-pressed="true"]')?.textContent === "work"
-        : document.querySelector(".pftab.on")?.textContent.trim() === "work";
-    render(null, document.getElementById("root"));
-    localStorage.removeItem("aacpanel.sessions.profile");
-    localStorage.removeItem("aacpanel.sessions.inbox");
-    inboxPhase = false;
-    sent.length = 0;
-    holdRequests = true;
-    return out;
-}
 window.done = (async () => {
-    const inboxOut = await checkInbox();
-    if (inboxOut.screenshot) return inboxOut;
     render(html`<${ToastHost}><${GateHost}><${App} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
     await document.fonts.ready;
     await quiet();
-    const out = { ...inboxOut, wide, countBefore: Number(mark()?.dataset.waitingCount || 0) };
+    const out = { wide, countBefore: Number(mark()?.dataset.waitingCount || 0) };
     out.needsYou = wide ? document.querySelector(".dklive")?.textContent.includes("Shall I publish?")
         : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && document.querySelector(".pjcard")?.textContent.includes("Shall I publish?"));
     out.contourMark = wide ? document.querySelector(".dkwaitn")?.textContent.trim() === "1"
@@ -317,11 +205,6 @@ window.done = (async () => {
     await until(() => releaseQuestion && [...quick().querySelectorAll("button, textarea")].every(b => b.disabled));
     out.quickBusy = sent.length === beforeQuick + 1 && queueCount() === 4;
     out.quickPlain = sent.at(-1)?.kind === "session.send" && sent.at(-1)?.target === "work" && sent.at(-1)?.params?.text === "Publish";
-    const inboxReply = out.inboxQuick[0];
-    out.inboxSameQuick = out.inboxQuick.length === 1 && inboxReply.kind === sent.at(-1).kind
-        && inboxReply.target === "child" && inboxReply.params.text === sent.at(-1).params.text
-        && /^[0-9a-f-]{36}$/.test(inboxReply.params.messageId || "")
-        && Object.keys(inboxReply.params).sort().join("|") === Object.keys(sent.at(-1).params).sort().join("|");
     document.querySelector(".feedjump").click();
     await until(() => [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Publish")));
     out.quickLocalSending = document.querySelector(".chatfeed").textContent.includes("going out");

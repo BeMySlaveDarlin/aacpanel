@@ -278,7 +278,7 @@ export async function sessionPins(phoneOnly = false) {
             row(alpha, "outside-z", { project: null, cwd: "/srv/outside-z" }),
             row(alpha, "outside-a", { project: null, cwd: "/srv/outside-a" }),
         ];
-        const sections = () => [...mount.querySelectorAll(".phone .pjsection:not(.sessioninbox .pjsection)")].map((head) => {
+        const sections = () => [...mount.querySelectorAll(".phone .pjsection")].map((head) => {
             const rows = [];
             for (let block = head.nextElementSibling; block && block.classList.contains("pjblock"); block = block.nextElementSibling) {
                 rows.push(...[...block.querySelectorAll(".pjsess")].map(text));

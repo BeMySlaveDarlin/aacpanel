@@ -58,7 +58,7 @@ func (s *Server) parentQuestionPolicy(ctx context.Context, child notify.Session)
 }
 
 // Only the push waits. The question stays in the collector and the verdict
-// store, so both session lists and Inbox continue to show it immediately.
+// store, so the session lists continue to show it immediately.
 func (s *Server) deferParentQuestion(ctx context.Context, child notify.Session, question parentQuestion, now time.Time) bool {
 	if s.db == nil || s.exec == nil {
 		return false

@@ -4,8 +4,6 @@ import { html } from "../../html.js";
 import { render } from "../../md.js";
 import { Icon } from "../../ui/icons.js";
 import { stampText } from "./labels.js";
-import { deliver, messageID, outcome } from "./composer.js";
-import { settleWaiting, waitingOf } from "../../waiting.js";
 
 // A turn's dialog owns typed input until it has been answered.
 export const REQUEST_HELD = "Answer the session's question or permission first.";
@@ -40,23 +38,8 @@ export function RequestCard({ item, record, onAnswer, onRun, error = "", unavail
     </article>`;
 }
 
-// replyToQuestion uses the composer's delivery and queue identity in every view.
-export async function replyToQuestion(run, session, value, note, { onLocal, onDone } = {}) {
-    const text = note.trim() ? `${value}\n\n${note.trim()}` : value;
-    const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const messageId = messageID(session.transport === "stream", []);
-    if (onLocal) onLocal({ role: "me", key, at: new Date().toISOString(), text, sent: text, state: "sending", messageId,
-        from: { name: session.session, text, files: 0 }, done: (patch) => onDone(key, patch) });
-    const result = await deliver(run, session.session, { text, messageId });
-    if (onDone) onDone(key, outcome(result));
-    if (result.ok) for (const item of waitingOf(session)) {
-        if (item.kind === "question") settleWaiting(session, "question", item.id);
-    }
-    return result;
-}
-
 // QuickAnswers keeps a note beside the offered replies until one goes out.
-export function QuickAnswers({ answers, onAnswer, compact = false }) {
+export function QuickAnswers({ answers, onAnswer }) {
     const [note, setNote] = useState("");
     const [busy, setBusy] = useState(false);
     const sending = useRef(false);
@@ -67,8 +50,8 @@ export function QuickAnswers({ answers, onAnswer, compact = false }) {
         try { await onAnswer(value, note); } finally { sending.current = false; setBusy(false); }
     };
     return html`<div class="mquestionanswers">
-        ${!compact && html`<label class="requestnote">Note (optional)<textarea rows="2" maxLength="2000"
-            value=${note} disabled=${busy} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>`}
+        <label class="requestnote">Note (optional)<textarea rows="2" maxLength="2000"
+            value=${note} disabled=${busy} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>
         <div class="btnrow requestanswer">${answers.map((value) => html`
             <button class="btn" type="button" key=${value} disabled=${busy} onClick=${() => answer(value)}>${value}</button>`)}</div>
     </div>`;

@@ -11,12 +11,11 @@ import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
 import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
-import { blocksOf, ProjectBlock, RANK, stateOf } from "./sessions/blocks.js";
+import { blocksOf, ProjectBlock, RANK, stateOf, useAnswers } from "./sessions/blocks.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
-import { Inbox, INBOX, useInbox } from "./sessions/inbox.js";
-import { contourOfLive, pagesOf, Project } from "./sessions/map.js";
+import { pagesOf, Project } from "./sessions/map.js";
 
 // splitNotes sorts the collector notes by whom they are addressed to.
 export function splitNotes(notes, sessions) {
@@ -50,20 +49,12 @@ const RECENT_ASK = 20;
 // Sessions renders the sessions tab.
 export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage, onTerm }) {
     const [project, setProject] = useState(null);
+    useAnswers();
 
     const profiles = (snapshot && snapshot.profileMap) || [];
     const limits = (snapshot && snapshot.limits) || null;
-    const everyone = (snapshot && snapshot.sessions) || [];
-    const mapped = pageNames(profiles, limits);
-    const names = mapped.length ? mapped : [...new Set(everyone.map(contourOfLive(profiles, everyone)))];
+    const names = pageNames(profiles, limits);
     const [profile, pickProfile] = useProfilePage(names);
-    const [inboxPage, pickInboxPage] = useProfilePage(["contours", INBOX], "aacpanel.sessions.inbox");
-    const setInbox = (on) => pickInboxPage(on ? INBOX : "contours");
-    const groups = useInbox(profiles, everyone, names, limits);
-    const inboxCount = groups.reduce((n, group) => n + group.items.length, 0);
-    const inboxOpen = inboxPage === INBOX && inboxCount > 0;
-    useEffect(() => { if (!inboxCount && inboxPage === INBOX) pickInboxPage("contours"); }, [inboxCount, inboxPage, pickInboxPage]);
-
     const contour = (profiles.find((p) => p.profile === profile) || {}).id || 0;
     const stale = ageSec === null || ageSec === undefined;
 
@@ -113,8 +104,6 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             onBack=${() => setChat(null)}
             onUsage=${onUsage}
             onTerm=${onTerm}
-            waiting=${chat.waiting}
-            onWaitingOpened=${() => setChat((was) => ({ ...was, waiting: null }))}
             onOpenChat=${(talk) => setChat({ name: talk.name, id: talk.live ? null : talk.id })}
         />`;
     }
@@ -179,15 +168,13 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
         `}
 
         <${Pages}
-            names=${inboxCount ? [INBOX, ...names] : names}
-            label=${(name) => name === INBOX ? "Inbox" : name}
-            current=${inboxOpen ? INBOX : profile}
-            onPick=${(name) => { setInbox(name === INBOX); if (name !== INBOX) pickProfile(name); }}
+            names=${names}
+            current=${profile}
+            onPick=${pickProfile}
             onShown=${setShown}
-            live=${new Map([...live, [INBOX, inboxCount]])}
+            live=${live}
             waits=${waits}
-            page=${(name) => name === INBOX ? html`<${Inbox} groups=${groups} sessions=${sessions} exec=${exec}
-                active=${inboxOpen} onChat=${(talk) => pick ? pick(talk) : setChat(talk)} />` : html`
+            page=${(name) => html`
                 <${Page}
                     key=${name}
                     name=${name}

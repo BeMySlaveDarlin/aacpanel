@@ -272,7 +272,6 @@ function Deck({ names, at, onPick, page }) {
             }
         }
         // Crossing a page during a tab's scroll does not choose that page.
-        // In particular, entering Inbox must keep the contour to return to.
         if (toward.current) {
             if (names[best] === toward.current) toward.current = null;
             return;
