@@ -60,6 +60,14 @@ func (s *Server) noteViewing(r *http.Request) {
 	if err := s.db.SessionCalls().Seen(ctx, name, conversation); err != nil {
 		log.Printf("the calls of %s are not marked seen: %v", name, err)
 	}
+	// Every poll with the conversation on screen moves the mark on, so a
+	// turn that ends while the person looks is seen by the next poll.
+	if conversation == "" {
+		return
+	}
+	if err := s.db.SessionSeen().Mark(ctx, conversation); err != nil {
+		log.Printf("%s is not marked seen: %v", name, err)
+	}
 }
 
 const viewingTimeout = 3 * time.Second

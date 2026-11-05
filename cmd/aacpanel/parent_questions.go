@@ -218,3 +218,97 @@ func textQuestionSession(row map[string]json.RawMessage) notify.Session {
 	return notify.Session{ID: textField(row, "sessionId"), Name: textField(row, "session"),
 		CWD: textField(row, "cwd"), Profile: textField(row, "profile"), ConfigDir: textField(row, "configDir")}
 }
+
+// heldAtParent is the mark of a child whose question waits at its parent:
+// the parent's name and when the question goes to the person.
+type heldAtParent struct {
+	Parent string `json:"parent"`
+	Due    string `json:"due"`
+}
+
+// sessionsAtParent marks the rows whose standing question is held at their
+// parent. A held question the row no longer asks marks nothing: it was
+// answered or withdrawn, whatever the claim says. It runs after the waiting
+// list is put on the rows, since the questions in prose are named there.
+func (s *Server) sessionsAtParent(ctx context.Context, payload []byte, now time.Time) []byte {
+	if s.db == nil {
+		return payload
+	}
+	var snapshot map[string]json.RawMessage
+	var rows []map[string]json.RawMessage
+	if json.Unmarshal(payload, &snapshot) != nil || json.Unmarshal(snapshot["sessions"], &rows) != nil {
+		return payload
+	}
+	ids := []string{}
+	for _, row := range rows {
+		if id := textField(row, "sessionId"); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return payload
+	}
+	held, err := s.db.HeldParentQuestions(ctx, ids, now)
+	if err != nil {
+		log.Printf("the questions held at parents: %v", err)
+		return payload
+	}
+	if len(held) == 0 {
+		return payload
+	}
+	for _, row := range rows {
+		id := textField(row, "sessionId")
+		asked := standingQuestions(row)
+		for _, q := range held[id] {
+			if !asked[q.Question] {
+				continue
+			}
+			row["parentQuestion"], _ = json.Marshal(heldAtParent{Parent: s.parentName(row, q.Parent), Due: q.Due.UTC().Format(time.RFC3339)})
+			break
+		}
+	}
+	snapshot["sessions"], _ = json.Marshal(rows)
+	out, err := json.Marshal(snapshot)
+	if err != nil {
+		return payload
+	}
+	return out
+}
+
+// standingQuestions are the keys a parent question is claimed under for what
+// the row asks now: its tool question and its questions in prose.
+func standingQuestions(row map[string]json.RawMessage) map[string]bool {
+	out := map[string]bool{}
+	var ask struct {
+		ID string `json:"toolUseId"`
+	}
+	if json.Unmarshal(row["ask"], &ask) == nil && ask.ID != "" {
+		out["ask:"+ask.ID] = true
+	}
+	var waiting []waitingItem
+	if json.Unmarshal(row["waiting"], &waiting) == nil {
+		for _, item := range waiting {
+			if item.Kind == "question" && item.ID != "" {
+				out["text:"+item.ID] = true
+			}
+		}
+	}
+	return out
+}
+
+// parentName is the name the person knows the parent by: the live session of
+// the conversation the question was mailed to, or the parent the row names.
+func (s *Server) parentName(row map[string]json.RawMessage, conversation string) string {
+	if s.host != nil {
+		if live, ok := s.host.LiveSessionOf(conversation); ok && live.Name != "" {
+			return live.Name
+		}
+	}
+	var parent struct {
+		Session string `json:"session"`
+	}
+	if json.Unmarshal(row["parent"], &parent) == nil {
+		return parent.Session
+	}
+	return ""
+}

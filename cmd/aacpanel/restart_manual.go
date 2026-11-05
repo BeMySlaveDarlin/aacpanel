@@ -62,12 +62,16 @@ func (s *Server) sessionsRestarting(ctx context.Context, payload []byte) []byte 
 		return payload
 	}
 	pending := map[string]bool{}
+	phases := map[string]*restartPhase{}
 	for _, c := range cycles {
 		if c.Manual && !c.Done {
 			pending[c.Conversation] = true
 		}
+		if phase := restartPhaseOf(c); phase != nil {
+			phases[c.Conversation] = phase
+		}
 	}
-	if len(pending) == 0 {
+	if len(pending) == 0 && len(phases) == 0 {
 		return payload
 	}
 	var snapshot struct {
@@ -77,8 +81,12 @@ func (s *Server) sessionsRestarting(ctx context.Context, payload []byte) []byte 
 		return payload
 	}
 	for _, row := range snapshot.Sessions {
-		if pending[textField(row, "sessionId")] {
+		id := textField(row, "sessionId")
+		if pending[id] {
 			row["restarting"] = json.RawMessage("true")
+		}
+		if phase := phases[id]; phase != nil {
+			row["restartPhase"], _ = json.Marshal(phase)
 		}
 	}
 	out, err := spliceField(payload, "sessions", snapshot.Sessions)

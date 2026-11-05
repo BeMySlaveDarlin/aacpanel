@@ -398,3 +398,69 @@ func TestManualRestartWaitsForReadinessWithoutTheCapPG(t *testing.T) {
 		t.Fatal("codex entered a preparation cycle")
 	}
 }
+
+// The card says where the cycle stands: saving from the command on, forcing
+// from the reminder on with the moment of the forced restart, and nothing
+// before the command or after the restart.
+func TestRestartPhaseReachesTheRowPG(t *testing.T) {
+	srv, _, dir := restartServer(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	row := restartSession{LiveSession: host.LiveSession{Name: "aacpanel-2", SessionID: switchSID, CWD: dir, Transport: "stream"}, Status: "idle"}
+	restartSnapshot(t, srv, row, now)
+	phase := func() string {
+		t.Helper()
+		raw, err := srv.hostSnapshot(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var snap struct {
+			Sessions []struct {
+				Phase json.RawMessage `json:"restartPhase"`
+			} `json:"sessions"`
+		}
+		if err := json.Unmarshal(raw, &snap); err != nil || len(snap.Sessions) != 1 {
+			t.Fatalf("snapshot: %s %v", raw, err)
+		}
+		return string(snap.Sessions[0].Phase)
+	}
+	cycle := store.RestartCycle{Conversation: switchSID, Session: "aacpanel-2", CommandAt: now}
+	if err := srv.db.KeepRestartCycle(t.Context(), cycle); err != nil {
+		t.Fatal(err)
+	}
+	if got := phase(); got != "" {
+		t.Fatalf("a cycle before its command has the phase %s", got)
+	}
+	cycle.Commanded = true
+	if err := srv.db.KeepRestartCycle(t.Context(), cycle); err != nil {
+		t.Fatal(err)
+	}
+	if got := phase(); got != `{"phase":"saving"}` {
+		t.Fatalf("a commanded cycle: %s", got)
+	}
+	reminded := now.Add(time.Minute)
+	cycle.RemindedAt = &reminded
+	if err := srv.db.KeepRestartCycle(t.Context(), cycle); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"phase":"forcing","forceAt":"` + reminded.Add(restartGrace).Format(time.RFC3339) + `"}`
+	if got := phase(); got != want {
+		t.Fatalf("a reminded cycle: %s, want %s", got, want)
+	}
+	attempted := reminded.Add(restartGrace + time.Second)
+	cycle.AttemptedAt = &attempted
+	if err := srv.db.KeepRestartCycle(t.Context(), cycle); err != nil {
+		t.Fatal(err)
+	}
+	want = `{"phase":"forcing","forceAt":"` + attempted.Add(restartGrace).Format(time.RFC3339) + `"}`
+	if got := phase(); got != want {
+		t.Fatalf("a cycle whose forced restart failed: %s, want %s", got, want)
+	}
+	cycle.AttemptedAt = nil
+	cycle.Done = true
+	if err := srv.db.KeepRestartCycle(t.Context(), cycle); err != nil {
+		t.Fatal(err)
+	}
+	if got := phase(); got != "" {
+		t.Fatalf("a finished cycle has the phase %s", got)
+	}
+}

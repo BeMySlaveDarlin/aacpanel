@@ -89,7 +89,9 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 	payload = sessionsGuarded(payload, list)
 	payload = s.sessionsRestarting(ctx, payload)
 	payload = s.sessionsCalled(ctx, payload)
+	payload = s.sessionsSeen(ctx, payload)
 	payload = s.sessionsWaiting(ctx, payload)
+	payload = s.sessionsAtParent(ctx, payload, time.Now())
 	if len(list) == 0 {
 		return payload, nil
 	}
@@ -153,6 +155,49 @@ func (s *Server) sessionsCalled(ctx context.Context, payload []byte) []byte {
 		return payload
 	}
 	snapshot["sessions"] = raw
+	out, err := json.Marshal(snapshot)
+	if err != nil {
+		return payload
+	}
+	return out
+}
+
+// sessionsSeen puts on every session when the person last had its
+// conversation on screen, on any device: a turn that ended after it is not
+// seen yet. A conversation never on screen says so with an empty mark; the
+// mark is left off only when the store cannot say, so a screen tells "never
+// seen" from "not known".
+func (s *Server) sessionsSeen(ctx context.Context, payload []byte) []byte {
+	if s.db == nil {
+		return payload
+	}
+	var snapshot map[string]json.RawMessage
+	var rows []map[string]json.RawMessage
+	if json.Unmarshal(payload, &snapshot) != nil || json.Unmarshal(snapshot["sessions"], &rows) != nil {
+		return payload
+	}
+	ids := []string{}
+	for _, row := range rows {
+		if id := textField(row, "sessionId"); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return payload
+	}
+	seen, err := s.db.SessionSeen().Of(ctx, ids)
+	if err != nil {
+		log.Printf("the conversations seen: %v", err)
+		return payload
+	}
+	for _, row := range rows {
+		mark := ""
+		if at, ok := seen[textField(row, "sessionId")]; ok {
+			mark = at.UTC().Format(time.RFC3339Nano)
+		}
+		row["seenAt"], _ = json.Marshal(mark)
+	}
+	snapshot["sessions"], _ = json.Marshal(rows)
 	out, err := json.Marshal(snapshot)
 	if err != nil {
 		return payload

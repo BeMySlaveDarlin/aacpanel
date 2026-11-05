@@ -21,6 +21,9 @@ func TestPauseScopeAndTimeStayInTheService(t *testing.T) {
 		{Pause{Project: 1, Until: now.Format(time.RFC3339)}, false},
 		{Pause{Project: 1, Until: now.Add(8 * 24 * time.Hour).Format(time.RFC3339)}, false},
 		{Pause{Project: 1, Resume: true, Until: now.Add(time.Hour).Format(time.RFC3339)}, false},
+		{Pause{Project: 1, Session: "lead", Until: now.Add(time.Hour).Format(time.RFC3339)}, true},
+		{Pause{Project: 1, Session: "lead", Resume: true}, true},
+		{Pause{Project: 1, Session: "lead", Group: true, Resume: true}, false},
 	} {
 		_, err := c.pause.Validate(now)
 		if (err == nil) != c.ok {

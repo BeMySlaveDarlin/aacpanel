@@ -342,6 +342,7 @@ func run() error {
 		srv.guards = make(chan struct{}, 1)
 		go srv.runGuards(ctx)
 		go srv.runRestarts(ctx)
+		go srv.runSessionLast(ctx)
 		go srv.runTextQuestions(ctx)
 	}
 

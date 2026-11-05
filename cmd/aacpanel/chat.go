@@ -627,6 +627,7 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.placeArchive(r.Context(), page.Rows)
+	s.lastOfArchive(r.Context(), page.Rows)
 	writeJSON(w, page)
 }
 

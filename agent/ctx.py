@@ -478,6 +478,11 @@ def codex_row(data, waits=None):
     if wait:
         row["status"] = "waiting"
         row["waitingFor"] = wait
+        # The executor names the tool and keeps what the call runs to itself:
+        # the rollout of codex is not read for it.
+        asked = held.permission_of(data)
+        if asked:
+            row["permission"] = {"tool": asked[0], "head": ""}
     else:
         row["status"] = "busy" if data.get("busy") is True else "idle"
     row = _with_crew(row, path)

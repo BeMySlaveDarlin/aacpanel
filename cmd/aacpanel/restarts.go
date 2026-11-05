@@ -116,6 +116,30 @@ func nextRestart(c store.RestartCycle, s restartSession, snapshotAt, now time.Ti
 	return restartStep{}
 }
 
+// restartPhase is where a cycle stands for the cards: saving while the
+// session has the command and the panel waits for it to get ready, forcing
+// once it was reminded, with the moment the panel restarts it whatever it is
+// doing — a restart that failed is tried again a grace after the attempt. A
+// cycle before its command or after its restart has no phase.
+type restartPhase struct {
+	Phase   string `json:"phase"`
+	ForceAt string `json:"forceAt,omitempty"`
+}
+
+func restartPhaseOf(c store.RestartCycle) *restartPhase {
+	if c.Done || !c.Commanded {
+		return nil
+	}
+	if c.RemindedAt == nil {
+		return &restartPhase{Phase: "saving"}
+	}
+	at := c.RemindedAt.Add(restartGrace)
+	if c.AttemptedAt != nil && c.AttemptedAt.Add(restartGrace).After(at) {
+		at = c.AttemptedAt.Add(restartGrace)
+	}
+	return &restartPhase{Phase: "forcing", ForceAt: at.UTC().Format(time.RFC3339)}
+}
+
 func (s *Server) runRestarts(ctx context.Context) {
 	tick := time.NewTicker(restartEvery)
 	defer tick.Stop()

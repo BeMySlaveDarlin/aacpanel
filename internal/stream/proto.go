@@ -335,20 +335,24 @@ type State struct {
 
 // Summary is the state file: what the collector reads to place the session on
 // the map. No text of the conversation is in it — the names of the tools that
-// wait and the counts, nothing a person wrote or claude answered.
+// wait, the ids of their calls and the counts, nothing a person wrote or
+// claude answered. WaitingUses stands beside Waiting, a call each, empty
+// where claude named none: the collector finds what a call runs in the
+// transcript by its id.
 type Summary struct {
-	Protocol  int       `json:"protocol"`
-	Name      string    `json:"name"`
-	SessionID string    `json:"sessionId"`
-	PID       int       `json:"pid"`
-	Holder    int       `json:"holder"`
-	Started   time.Time `json:"started"`
-	Busy      bool      `json:"busy"`
-	Model     string    `json:"model,omitempty"`
-	Mode      string    `json:"mode,omitempty"`
-	Effort    string    `json:"effort,omitempty"`
-	Waiting   []string  `json:"waiting"`
-	Queue     int       `json:"queue"`
+	Protocol    int       `json:"protocol"`
+	Name        string    `json:"name"`
+	SessionID   string    `json:"sessionId"`
+	PID         int       `json:"pid"`
+	Holder      int       `json:"holder"`
+	Started     time.Time `json:"started"`
+	Busy        bool      `json:"busy"`
+	Model       string    `json:"model,omitempty"`
+	Mode        string    `json:"mode,omitempty"`
+	Effort      string    `json:"effort,omitempty"`
+	Waiting     []string  `json:"waiting"`
+	WaitingUses []string  `json:"waitingUses"`
+	Queue       int       `json:"queue"`
 	// Queued names the messages still cancellable without putting their words
 	// in the state file. The transcript does not retain their input UUIDs.
 	Queued []QueueRef `json:"queued"`

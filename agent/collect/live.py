@@ -16,6 +16,8 @@ import roles
 import pins
 
 import agent
+from chat.tools import tool_label
+from sesstate import calls
 from sesstate.wake import ALARMS
 
 
@@ -259,6 +261,30 @@ def work_of(busy, held=None):
     return work
 
 
+def permission_of(s, hold, state):
+    """Returns the tool a waiting session asks a permission for and what the call runs, or None.
+
+    On the stream the holder names the call; in the console claude says only
+    that a dialog is open, and the call is the session's newest one still
+    without a result. The call is found in the transcript, so a session with
+    none read yet names the tool alone.
+    """
+    if hold:
+        asked = held.permission_of(hold)
+        if not asked:
+            return None
+        tool, use = asked
+        call = calls.asking(state, tool, use) if state else None
+    elif s.get("waitingFor") == "dialog open" and state:
+        call = calls.dialog(state)
+        if not call:
+            return None
+        tool = call["tool"]
+    else:
+        return None
+    return {"tool": tool_label(tool), "head": call["head"] if call else ""}
+
+
 def sessions():
     """Returns the live sessions for the snapshot."""
     try:
@@ -369,6 +395,7 @@ def sessions():
             queued = hold.get("queue")
             if isinstance(queued, int) and not isinstance(queued, bool) and queued > 0:
                 s["queued"] = queued
+        state = None
         if transcript:
             seen_transcripts.add(transcript)
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))
@@ -394,6 +421,9 @@ def sessions():
                 work = work_of(ctx.with_codex_runs(busy, runs), held_by.get(sid))
                 if any(work.get(k) for k in ("tasks", "agents", "workflows", *HELD)):
                     s["work"] = work
+        permission = permission_of(s, hold, state)
+        if permission:
+            s["permission"] = permission
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
     main_of_home(data.get("sessions", []), home_session_name())

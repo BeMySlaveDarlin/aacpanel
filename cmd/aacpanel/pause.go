@@ -26,7 +26,10 @@ type pauseSession struct {
 }
 
 // The map owns scope: the phone picks a project and whether to include its
-// group; worktrees belong to the same project as on the sessions screen.
+// group, or one session of the project by its name; worktrees belong to the
+// same project as on the sessions screen. A session named that runs in
+// another project is refused rather than paused: the screen it was pressed on
+// put it in the wrong place.
 func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSession, string, error) {
 	list, err := s.db.Profiles(ctx)
 	if err != nil {
@@ -39,6 +42,9 @@ func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSessi
 	label := anchor.project.Name
 	if p.Group {
 		label = anchor.group
+	}
+	if p.Session != "" {
+		label = p.Session
 	}
 	raw, err := s.host.JSON()
 	if err != nil {
@@ -53,14 +59,18 @@ func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSessi
 	trees := s.worktrees()
 	targets := make([]pauseSession, 0)
 	for _, row := range snapshot.Sessions {
-		if row.Outside || row.Name == "" || row.SessionID == "" || (p.Resume && row.Pause == nil) {
+		if row.Outside || row.Name == "" || row.SessionID == "" || (p.Session != "" && row.Name != p.Session) {
 			continue
 		}
 		found, ok := projectAt(list, row.CWD, trees, s.db.ProjectRoots())
-		if !ok {
+		inProject := ok && found.project.ID == p.Project
+		if p.Session != "" && !inProject {
+			return nil, "", fmt.Errorf("session %s does not run in project %s", p.Session, anchor.project.Name)
+		}
+		if !ok || (p.Resume && row.Pause == nil) {
 			continue
 		}
-		if found.project.ID == p.Project || (p.Group && found.project.GroupID == anchor.project.GroupID) {
+		if inProject || (p.Group && found.project.GroupID == anchor.project.GroupID) {
 			targets = append(targets, row)
 		}
 	}

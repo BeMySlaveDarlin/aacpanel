@@ -199,6 +199,9 @@ type ArchiveRow struct {
 	// Prompts are the person's last messages, oldest first: the screen names
 	// the conversation by the last one that says something.
 	Prompts []string `json:"prompts,omitempty"`
+	// Last is what the card of the conversation last showed while it was
+	// live, as the service kept it; the collector does not know it.
+	Last json.RawMessage `json:"last,omitempty"`
 }
 
 // ArchiveProject is the map project the conversation ran in. Session is the

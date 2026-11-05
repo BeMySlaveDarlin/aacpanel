@@ -35,6 +35,44 @@ func (s *Store) ClaimParentQuestion(ctx context.Context, conversation, question,
 	return state, false, err
 }
 
+// HeldQuestion is a question of a child held at its parent: mailed to it,
+// not answered, and not pushed to the person until Due.
+type HeldQuestion struct {
+	Question string
+	Parent   string
+	Due      time.Time
+}
+
+// HeldParentQuestions returns the questions of the conversations that are held
+// at their parents at now, by conversation, the soonest due first.
+func (s *Store) HeldParentQuestions(ctx context.Context, conversations []string, now time.Time) (map[string][]HeldQuestion, error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := pool.Query(ctx, `SELECT conversation,question,parent,due FROM parent_questions
+ WHERE conversation = ANY($1) AND delivered AND NOT answered AND due > $2 ORDER BY due`, conversations, now)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		conversation string
+		held         HeldQuestion
+	}
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (row, error) {
+		var got row
+		return got, r.Scan(&got.conversation, &got.held.Question, &got.held.Parent, &got.held.Due)
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]HeldQuestion{}
+	for _, got := range list {
+		out[got.conversation] = append(out[got.conversation], got.held)
+	}
+	return out, nil
+}
+
 func (s *Store) ParentQuestionDelivered(ctx context.Context, conversation, question string) error {
 	pool, err := s.Pool()
 	if err != nil {

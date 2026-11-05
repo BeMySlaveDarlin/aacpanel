@@ -138,6 +138,27 @@ def waiting_for(data):
     return "input needed" if "AskUserQuestion" in tools else "dialog open"
 
 
+def permission_of(data):
+    """Returns the tool a held session asks a permission for and the id of its call, or None.
+
+    The first request that is not a question: a question is input, and the
+    rest wait one at a time. The id is empty when the holder named none —
+    a holder older than the ids, or claude giving none. A codex thread's
+    executor writes the flags of the thread when it holds no request, and a
+    flag is no tool.
+    """
+    tools = data.get("waiting") if isinstance(data, dict) else None
+    if not isinstance(tools, list):
+        return None
+    uses = data.get("waitingUses")
+    uses = uses if isinstance(uses, list) and len(uses) == len(tools) else [""] * len(tools)
+    for tool, use in zip(tools, uses):
+        if not isinstance(tool, str) or not tool or tool == "AskUserQuestion" or tool.startswith("waitingOn"):
+            continue
+        return tool, use if isinstance(use, str) else ""
+    return None
+
+
 def kept_dir():
     """Returns where the holders keep what outlives them: what the transcript does not say."""
     base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")

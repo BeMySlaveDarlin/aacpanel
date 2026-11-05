@@ -164,6 +164,10 @@ class OnTheCard(Runtime):
             setattr(owner, name, value)
 
     def card(self):
+        # The snapshot takes the transcript off the row it builds: each look
+        # is given it again, as the sessions are read anew for each.
+        if getattr(self, "talk", None):
+            self.rows["sessions"][0]["transcript"] = self.talk
         return live.sessions()["sessions"][0]
 
     def test_a_permission_waiting_with_the_holder_is_a_dialog_on_the_card(self):
@@ -258,6 +262,59 @@ class OnTheCard(Runtime):
 
     def test_a_session_in_a_terminal_is_not_marked(self):
         self.assertNotIn("transport", self.card())
+
+    def transcript(self, *calls):
+        """The transcript of the session, with calls of claude that have no result yet."""
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            for use, tool, data in calls:
+                f.write(json.dumps({"type": "assistant", "timestamp": "2026-08-25T10:00:00Z", "message": {
+                    "content": [{"type": "tool_use", "id": use, "name": tool, "input": data}]}}) + "\n")
+        self.talk = path
+
+    def test_a_permission_on_the_stream_names_the_tool_and_what_its_call_runs(self):
+        self.transcript(("toolu_1", "Bash", {"command": "sleep 1000"}), ("toolu_2", "Bash", {"command": "tar -xf a.tgz -C /srv"}))
+        self.hold(SID, 1, waiting=["Bash"], waitingUses=["toolu_2"])
+        self.assertEqual(self.card()["permission"], {"tool": "Bash", "head": "tar -xf a.tgz"})
+        self.hold(SID, 1, waiting=["Bash"], waitingUses=["toolu_1"])
+        self.assertEqual(self.card()["permission"], {"tool": "Bash", "head": "sleep 1000"},
+                         "the holder names the call; the newest of the tool is not always it")
+
+    def test_a_holder_without_the_ids_names_the_newest_call_of_the_tool(self):
+        self.transcript(("toolu_1", "Edit", {"file_path": "/srv/ui.js"}), ("toolu_2", "Bash", {"command": "ls"}))
+        self.hold(SID, 1, waiting=["Edit"])
+        self.assertEqual(self.card()["permission"], {"tool": "Edit", "head": "ui.js"})
+
+    def test_a_permission_whose_call_is_not_read_names_the_tool_alone(self):
+        self.hold(SID, 1, waiting=["mcp__claude-in-chrome__navigate"], waitingUses=["toolu_9"])
+        self.assertEqual(self.card()["permission"], {"tool": "claude-in-chrome: navigate", "head": ""},
+                         "a session with no transcript read yet, or a call of its agent, still says the tool")
+
+    def test_a_question_is_no_permission(self):
+        self.transcript(("toolu_1", "AskUserQuestion", {"questions": []}))
+        self.hold(SID, 1, waiting=["AskUserQuestion"], waitingUses=["toolu_1"])
+        self.assertNotIn("permission", self.card())
+
+    def test_a_dialog_in_the_console_names_the_newest_call(self):
+        self.claude_waits()
+        live.live_session_waits = lambda: {"held": "dialog open"}
+        self.transcript(("toolu_1", "Read", {"file_path": "/srv/a.py"}), ("toolu_2", "Write", {"file_path": "/srv/b.py"}))
+        self.assertEqual(self.card()["permission"], {"tool": "Write", "head": "b.py"})
+
+    def test_a_dialog_in_the_console_while_an_agent_works_names_nothing(self):
+        self.claude_waits()
+        live.live_session_waits = lambda: {"held": "dialog open"}
+        self.transcript(("toolu_1", "Agent", {"description": "Audit", "prompt": "go"}))
+        self.assertNotIn("permission", self.card(), "the dialog is about the agent's call, which is not in this transcript")
+
+    def test_input_needed_in_the_console_is_no_permission(self):
+        self.claude_waits()
+        self.transcript(("toolu_1", "Bash", {"command": "ls"}))
+        self.assertNotIn("permission", self.card())
+
+    def test_a_session_not_waiting_has_no_permission(self):
+        self.transcript(("toolu_1", "Bash", {"command": "ls"}))
+        self.assertNotIn("permission", self.card())
 
     def test_busy_past_the_end_of_its_turn_is_marked(self):
         self.hold(SID, 1, busy=False)

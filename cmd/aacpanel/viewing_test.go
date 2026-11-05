@@ -176,3 +176,99 @@ func TestACallMarksItsSessionUntilTheSessionIsOpenedPG(t *testing.T) {
 		t.Fatalf("a call made with the session on screen marks it, at %s", got)
 	}
 }
+
+// seenOf reads when the poll says the person last had the conversation of
+// the snapshot on screen, empty when never; a poll that says nothing of it
+// fails the test.
+func seenOf(t *testing.T, body []byte) string {
+	t.Helper()
+	at, ok := seenMark(t, body)
+	if !ok {
+		t.Fatalf("the poll does not say whether the conversation was seen: %s", body)
+	}
+	return at
+}
+
+// seenMark reads the seen mark of the conversation of the snapshot and
+// whether the poll put one on it at all.
+func seenMark(t *testing.T, body []byte) (string, bool) {
+	t.Helper()
+	var snap struct {
+		Sessions []struct {
+			SessionID string  `json:"sessionId"`
+			SeenAt    *string `json:"seenAt"`
+		} `json:"sessions"`
+	}
+	if err := json.Unmarshal(body, &snap); err != nil {
+		t.Fatalf("the poll answered %s: %v", body, err)
+	}
+	for _, s := range snap.Sessions {
+		if s.SessionID == sentinelID {
+			if s.SeenAt == nil {
+				return "", false
+			}
+			return *s.SeenAt, true
+		}
+	}
+	t.Fatalf("the poll lost the session: %s", body)
+	return "", false
+}
+
+// A poll with the conversation on screen marks it seen for every device, and
+// each such poll moves the mark on; a poll of something else leaves it.
+func TestHostPollMarksTheConversationSeenPG(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	phone := newPollProbe(t, ctx, "probe seen phone")
+	desk := newPollProbe(t, ctx, "probe seen desk")
+	desk.srv = phone.srv
+	pool, err := phone.db.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	forget := func() {
+		pool.Exec(context.Background(), `DELETE FROM session_seen WHERE conversation = $1`, sentinelID)
+	}
+	forget()
+	t.Cleanup(forget)
+
+	if got := seenOf(t, phone.poll(t, "/api/host")); got != "" {
+		t.Fatalf("a conversation nobody opened is seen at %s", got)
+	}
+	// With other conversations seen, one never opened still says so.
+	if _, err := pool.Exec(ctx, `INSERT INTO session_seen (conversation, seen_at) VALUES ('other-conversation', now())
+		ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM session_seen WHERE conversation = 'other-conversation'`)
+	})
+	if got := seenOf(t, phone.poll(t, "/api/host")); got != "" {
+		t.Fatalf("a conversation nobody opened, beside one seen, is seen at %s", got)
+	}
+	before := time.Now()
+	phone.poll(t, "/api/host?viewing=sentinel")
+	first, err := time.Parse(time.RFC3339Nano, seenOf(t, desk.poll(t, "/api/host")))
+	if err != nil || first.Before(before.Add(-time.Second)) {
+		t.Fatalf("the conversation opened on the phone is not seen on the desk: %v %v", first, err)
+	}
+	if got := seenOf(t, desk.poll(t, "/api/host?viewing=other")); got != first.Format(time.RFC3339Nano) {
+		t.Fatalf("a poll of another session moved the mark to %s", got)
+	}
+	desk.poll(t, "/api/host?viewing=sentinel")
+	next, err := time.Parse(time.RFC3339Nano, seenOf(t, phone.poll(t, "/api/host")))
+	if err != nil || !next.After(first) {
+		t.Fatalf("the next look did not move the mark on: %v after %v (%v)", next, first, err)
+	}
+
+	// A store that cannot say leaves the mark off: not known is not never.
+	down, err := store.New(testdb.DSN(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(down.Close)
+	srv := &Server{db: down}
+	if _, ok := seenMark(t, srv.sessionsSeen(ctx, []byte(liveSnapshot))); ok {
+		t.Fatal("the poll says the conversation was never seen while the store is unavailable")
+	}
+}

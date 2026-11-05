@@ -10,7 +10,7 @@ from .limits import MAX_ITEMS, _short
 from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
 from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, _notify_tasks, _task,
                     finish, left_behind)
-from . import background, runs
+from . import background, calls, runs
 from .wake import WAKE_ID, _wake, cancelled, fired, is_wakeup, scheduled
 from . import workflows
 
@@ -41,6 +41,9 @@ class State:
         self.arts = {}
         self.docs = {}
         self.sent = {}
+        # The calls whose result has not come, by the id of the call, the
+        # oldest first: what a permission dialog is about.
+        self.open_calls = {}
         # The calls that may have started a run of codex exec, by the id of
         # the call, the oldest first.
         self.codex = {}
@@ -140,6 +143,7 @@ def _feed_record(state, record, raw):
 
     if kind == "system" and record.get("subtype") in TURN_ENDS and at > state.ended:
         state.ended = at
+        calls.turn_over(state)
 
     if kind == "user" and not record.get("isSidechain") and at > state.prompted and _is_prompt(record):
         state.prompted = at
@@ -166,6 +170,7 @@ def _feed_record(state, record, raw):
             continue
 
         if block.get("type") == "tool_use":
+            calls.opened(state, block, at, bool(record.get("isSidechain")))
             name = block.get("name") or ""
             data = block.get("input") or {}
             if not isinstance(data, dict):
@@ -225,6 +230,7 @@ def _feed_record(state, record, raw):
         if block.get("type") != "tool_result":
             continue
 
+        calls.closed(state, block.get("tool_use_id"))
         if block.get("tool_use_id") and block["tool_use_id"] not in state.answered:
             state.answered.append(block["tool_use_id"])
         runs.answered(state, block.get("tool_use_id"), at, record.get("toolUseResult"), block)
@@ -343,6 +349,7 @@ def _sub_record(state, record, raw, agent):
             continue
 
         if block.get("type") == "tool_use":
+            calls.opened(state, block, at, True)
             name = block.get("name") or ""
             data = block.get("input") or {}
             if not isinstance(data, dict):
@@ -356,6 +363,7 @@ def _sub_record(state, record, raw, agent):
 
         if block.get("type") != "tool_result":
             continue
+        calls.closed(state, block.get("tool_use_id"))
         runs.answered(state, block.get("tool_use_id"), at, record.get("toolUseResult"), block)
         started = state.pending.pop(block.get("tool_use_id"), None)
         if started is None or started.get("kind") != "task":

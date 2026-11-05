@@ -271,6 +271,13 @@ class Rows(Runtime):
         self.follow(busy=True, waiting=["Bash"])
         row = ctx.codex_sessions()[0]
         self.assertEqual((row["status"], row["waitingFor"]), ("waiting", "dialog open"))
+        self.assertEqual(row["permission"], {"tool": "Bash", "head": ""},
+                         "the executor names the tool and keeps the command to itself")
+
+    def test_a_flag_of_the_thread_is_no_permission(self):
+        for flags in (["waitingOnApproval"], ["AskUserQuestion"]):
+            self.follow(busy=True, waiting=flags)
+            self.assertNotIn("permission", ctx.codex_sessions()[0], flags)
 
     def test_the_rollout_is_found_by_the_id_when_the_file_names_none(self):
         self.follow(transcript="")

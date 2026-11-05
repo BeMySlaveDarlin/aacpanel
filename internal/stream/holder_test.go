@@ -652,7 +652,7 @@ func TestAQuestionWaitsForAPersonAndTheAnswerReachesClaude(t *testing.T) {
 	// The file follows the socket by a write: a collector reads it every few
 	// seconds, and what matters is that it gets there.
 	sum := r.summary(func(s Summary) bool { return len(s.Waiting) == 1 })
-	if sum.Waiting[0] != "AskUserQuestion" {
+	if sum.Waiting[0] != "AskUserQuestion" || len(sum.WaitingUses) != 1 || sum.WaitingUses[0] != "toolu_1" {
 		t.Fatalf("the state file does not say what the session waits on: %+v", sum)
 	}
 	answer := json.RawMessage(`{"behavior":"allow","updatedInput":{"answers":{"Q":"Blue"}}}`)

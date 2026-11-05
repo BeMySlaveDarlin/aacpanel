@@ -387,3 +387,94 @@ func TestTheWatcherPushesOnlyAnAskStillStandingAfterTheParentDeadlinePG(t *testi
 	w.once(t.Context())
 	assertRaised("overdue-ask", true)
 }
+
+// parentQuestionOf reads the mark of a question held at the parent off the
+// row of a conversation, empty when it has none.
+func parentQuestionOf(t *testing.T, body []byte, conversation string) string {
+	t.Helper()
+	var snap struct {
+		Sessions []struct {
+			SessionID string          `json:"sessionId"`
+			Held      json.RawMessage `json:"parentQuestion"`
+		} `json:"sessions"`
+	}
+	if err := json.Unmarshal(body, &snap); err != nil {
+		t.Fatalf("the snapshot %s: %v", body, err)
+	}
+	for _, s := range snap.Sessions {
+		if s.SessionID == conversation {
+			return string(s.Held)
+		}
+	}
+	t.Fatalf("the snapshot lost %s: %s", conversation, body)
+	return ""
+}
+
+// A child whose question waits at its parent says so on its row, with the
+// parent's name as it lives now and the moment the question goes to the
+// person; a question
+// not mailed yet, answered, due already or no longer asked marks nothing.
+func TestAQuestionHeldAtTheParentMarksTheChildPG(t *testing.T) {
+	const child, other = "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"
+	p := newPollProbe(t, t.Context(), "parent-question-row")
+	pool, _ := p.db.Pool()
+	forget := func() {
+		pool.Exec(context.Background(), "DELETE FROM parent_questions WHERE conversation = ANY($1)", []string{child, other})
+	}
+	forget()
+	t.Cleanup(forget)
+	p.srv.host = hostWith(t, `{"at":1,"sessions":[`+
+		`{"session":"lead","sessionId":"`+questionParentID+`","cwd":"/srv/lead"},`+
+		`{"session":"worker","sessionId":"`+child+`","cwd":"/srv/lead/w","parent":{"session":"lead-before-rename"},"ask":{"toolUseId":"toolu_held","text":"Ship?"}},`+
+		`{"session":"helper","sessionId":"`+other+`","cwd":"/srv/lead/h","parent":{"session":"lead"},"ask":{"toolUseId":"toolu_other","text":"Ship?"}}]}`)
+	due := time.Now().Add(3 * time.Minute).UTC().Truncate(time.Second)
+	claim := func(conversation, question string, due time.Time, delivered, answered bool) {
+		t.Helper()
+		forget()
+		if _, err := pool.Exec(t.Context(), `INSERT INTO parent_questions (conversation,question,parent,due,delivered,answered)
+ VALUES ($1,$2,$3,$4,$5,$6)`, conversation, question, questionParentID, due, delivered, answered); err != nil {
+			t.Fatal(err)
+		}
+	}
+	held := func() (string, string) {
+		t.Helper()
+		raw, err := p.srv.hostSnapshot(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return parentQuestionOf(t, raw, child), parentQuestionOf(t, raw, other)
+	}
+
+	claim(child, "ask:toolu_held", due, true, false)
+	want := `{"parent":"lead","due":"` + due.Format(time.RFC3339) + `"}`
+	if mark, rest := held(); mark != want || rest != "" {
+		t.Fatalf("the held question marks %q and its neighbour %q, want %s", mark, rest, want)
+	}
+	for _, c := range []struct {
+		why                 string
+		question            string
+		due                 time.Time
+		delivered, answered bool
+	}{
+		{"not mailed", "ask:toolu_held", due, false, false},
+		{"answered", "ask:toolu_held", due, true, true},
+		{"due already", "ask:toolu_held", time.Now().Add(-time.Second), true, false},
+		{"no longer asked", "ask:toolu_gone", due, true, false},
+	} {
+		claim(child, c.question, c.due, c.delivered, c.answered)
+		if mark, _ := held(); mark != "" {
+			t.Errorf("a question %s marks the child: %s", c.why, mark)
+		}
+	}
+
+	// A question in prose is named by the waiting list; a parent that is not
+	// live is named as the row names it.
+	claim(child, "text:brief-1", due, true, false)
+	payload := []byte(`{"sessions":[{"sessionId":"` + child + `","parent":{"session":"gone-lead"},` +
+		`"waiting":[{"kind":"question","id":"brief-1","title":"Ship?","answers":[]}]}]}`)
+	p.srv.host = hostWith(t, `{"at":1,"sessions":[]}`)
+	got := parentQuestionOf(t, p.srv.sessionsAtParent(t.Context(), payload, time.Now()), child)
+	if want := `{"parent":"gone-lead","due":"` + due.Format(time.RFC3339) + `"}`; got != want {
+		t.Fatalf("the question in prose marks %q, want %s", got, want)
+	}
+}

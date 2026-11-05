@@ -1082,7 +1082,7 @@ func (h *Holder) saveSummary() {
 	s := h.snapshot()
 	sum := Summary{
 		Protocol: s.Protocol, Name: s.Name, SessionID: s.SessionID, PID: s.PID, Holder: s.Holder,
-		Started: s.Started, Busy: s.Busy, Model: s.Model, Mode: s.Mode, Effort: s.Effort, Waiting: []string{},
+		Started: s.Started, Busy: s.Busy, Model: s.Model, Mode: s.Mode, Effort: s.Effort, Waiting: []string{}, WaitingUses: []string{},
 		Queue: len(s.Queue), Tasks: len(s.Tasks), Compacting: s.Compacting, Updated: time.Now(),
 		Queued: []QueueRef{},
 	}
@@ -1091,6 +1091,7 @@ func (h *Holder) saveSummary() {
 	}
 	for _, p := range s.Pending {
 		sum.Waiting = append(sum.Waiting, p.Tool)
+		sum.WaitingUses = append(sum.WaitingUses, p.ToolUseID)
 	}
 	body, err := json.Marshal(sum)
 	if err != nil {

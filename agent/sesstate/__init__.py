@@ -20,7 +20,7 @@ from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, MONITOR_OVER_RE,  # noqa: F
                     TASK_BASH, TASK_ID_KEYS, TASK_KIND_BY_KEY, TASK_MONITOR,
                     _finish_older_than)
 from .wake import ALARMS, TASK_CRON, TASK_WAKE, WAKE_ID, is_wakeup  # noqa: F401
-from . import background, runs, workflows  # noqa: F401
+from . import background, calls, runs, workflows  # noqa: F401
 
 TEAMS_DIR = os.environ.get("AACP_CLAUDE_TEAMS")
 
@@ -76,6 +76,7 @@ def _let_go_before_birth(state):
     _finish_older_than(state, state.born)
     background.older_than(state, _stamp(state.born) if state.born else "")
     workflows.finish_older_than(state, _stamp(state.born) if state.born else "")
+    calls.older_than(state, _stamp(state.born) if state.born else "")
 
 
 def read(path, state=None, size=None, born=None):

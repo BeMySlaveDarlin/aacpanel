@@ -6,9 +6,12 @@ import (
 )
 
 // Pause names a place on the map, never a client-supplied list of sessions.
+// Session narrows the project to one of its live sessions, by name; the
+// service checks that the session runs in that project.
 type Pause struct {
 	Project int    `json:"project"`
 	Group   bool   `json:"group"`
+	Session string `json:"session,omitempty"`
 	Until   string `json:"until"`
 	Resume  bool   `json:"resume"`
 }
@@ -16,6 +19,9 @@ type Pause struct {
 func (p Pause) Validate(now time.Time) (time.Time, error) {
 	if p.Project <= 0 {
 		return time.Time{}, badRequest("a pause needs a project of the map")
+	}
+	if p.Session != "" && p.Group {
+		return time.Time{}, badRequest("a pause of one session cannot take in its group")
 	}
 	if p.Resume {
 		if p.Until != "" {
