@@ -172,7 +172,7 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	if c := got.Six["unseen"]; c != nil && !strings.HasPrefix(c.Line2, "done · not seen") {
 		t.Errorf("a session whose last turn ended after the person looked says %q, want done · not seen", c.Line2)
 	}
-	if c := got.Six["paused"]; c != nil && (c.Line2 != "paused" || !strings.Contains(c.Line4, "→")) {
+	if c := got.Six["paused"]; c != nil && (!strings.HasPrefix(c.Line2, "paused until ") || strings.Contains(c.Line4, "→")) {
 		t.Errorf("the paused card says %q / %q, want paused and when the pause ends", c.Line2, c.Line4)
 	}
 	if c := got.Six["quiet"]; c != nil && (!strings.HasPrefix(c.Line3, "no checklist") || !strings.Contains(c.Line5, "no cap")) {

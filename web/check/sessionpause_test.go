@@ -29,9 +29,9 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			}
 			screen.run(t, screen.file, &got)
 			p := got.Pause
-			// The card says paused and, in its corner, when the pause ends;
-			// the head of the conversation has no corner and says both.
-			if p.State != "paused" || !strings.HasPrefix(p.Ends, "→") || !strings.Contains(p.Header, "paused · until") {
+			// The card says paused and when the pause ends beside it; the head
+			// of the conversation says both too.
+			if !strings.HasPrefix(p.State, "paused until ") || strings.HasPrefix(p.Ends, "→") || !strings.Contains(p.Header, "paused until ") {
 				t.Errorf("pause state or its end absent: %+v", p)
 			}
 			if len(p.Feed) != 3 || !strings.HasPrefix(p.Feed[0], "Pause until") || p.Feed[1] != "Pause lifted" || p.Feed[2] != "Pause over" || p.Letters != 0 {

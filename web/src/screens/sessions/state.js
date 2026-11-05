@@ -175,7 +175,8 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     if (runs.watchers > 0) return make("bg", "inside", "watching");
     if (s.noRequests) return make("idle", "fresh", "no replies yet");
     if (s.pauseAlarm) {
-        return make("paused", "paused", "paused", { until: Date.parse(s.pauseAlarm.next || "") || 0, clock: true });
+        const until = Date.parse(s.pauseAlarm.next || "") || 0;
+        return make("paused", "paused", "paused", { subject: until ? `until ${pauseAt(until)}` : "" });
     }
     const list = checklistOf(s.checklist);
     const unseen = unseenOf(s, viewed);
@@ -213,6 +214,15 @@ function leftText(ms) {
 
 // clockText names a moment by the time of day while it is within the day
 // ahead, and by its weekday past that.
+// pauseAt is when a pause ends, beside its word: the time of day, with the
+// date when it is not today.
+function pauseAt(ms) {
+    const at = new Date(ms);
+    if (at.toDateString() === new Date().toDateString()) return alarmTime(ms);
+    const day = `${String(at.getDate()).padStart(2, "0")}.${String(at.getMonth() + 1).padStart(2, "0")}`;
+    return `${day} ${alarmTime(ms)}`;
+}
+
 function clockText(ms) {
     if (ms - Date.now() > 20 * 3600e3) return new Date(ms).toLocaleDateString("en-GB", { weekday: "short" });
     return alarmTime(ms);

@@ -511,6 +511,9 @@ span.pjname { cursor: default; }
    over the card, and the controls stand above it. */
 .scopen { position: absolute; inset: 0; z-index: 0; padding: 0; border: 0; background: none; cursor: pointer; }
 .sc > :not(.scopen, .scedge) { position: relative; z-index: 1; pointer-events: none; }
+/* A sheet opened from a card stands above the lines, cards and blocks after it:
+   each line of a card is a layer of its own. */
+.pjblock:has(.sheet), .sc:has(.sheet), .sc > :has(.sheet) { position: relative; z-index: 30; }
 .sc .scacts, .sc .scact, .sc .scresume { pointer-events: auto; }
 .sc.scwait { background: linear-gradient(100deg, color-mix(in srgb, var(--wait) 17%, transparent), color-mix(in srgb, var(--wait) 7%, transparent) 70%); }
 .sc.sccur { background: var(--accent-bg); }

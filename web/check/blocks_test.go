@@ -230,7 +230,7 @@ func TestEveryWaitMakesTheCardWait(t *testing.T) {
 			"checklist", map[string]any{"items": []any{map[string]any{"text": "a", "status": "done"}}})},
 		{"seen since", "idle", "idle", "idle", row("statusUpdatedAt", seen, "seenAt", ended)},
 		{"no seen mark", "idle", "idle", "idle", row("statusUpdatedAt", ended)},
-		{"paused", "paused", "paused", "paused", row("pauseAlarm", map[string]any{"id": "p", "next": soon})},
+		{"paused", "paused", "paused", "paused until ", row("pauseAlarm", map[string]any{"id": "p", "next": soon})},
 	}
 	calls := make([][]any, len(cases))
 	for i, c := range cases {
@@ -239,7 +239,10 @@ func TestEveryWaitMakesTheCardWait(t *testing.T) {
 	got := runModuleJS(t, "src/screens/sessions/blocks.js", "stateOf", calls)
 	for i, c := range cases {
 		st := got[i].(map[string]any)
-		if st["tone"] != c.tone || st["kind"] != c.kind || st["text"] != c.text {
+		// A pause says when it ends beside its word, at the local time of day.
+		text, _ := st["text"].(string)
+		said := text == c.text || (c.kind == "paused" && strings.HasPrefix(text, c.text))
+		if st["tone"] != c.tone || st["kind"] != c.kind || !said {
 			t.Errorf("%s: the card reads %v %v %q, expected %s %s %q", c.name, st["tone"], st["kind"], st["text"], c.tone, c.kind, c.text)
 		}
 	}
