@@ -314,6 +314,7 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 		StateLines int    `json:"stateLines"`
 		Step       string `json:"step"`
 		StepCut    bool   `json:"stepCut"`
+		StepTip    string `json:"stepTip"`
 		N          string `json:"n"`
 		Below      bool   `json:"below"`
 		Segs       string `json:"segs"`
@@ -333,14 +334,16 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 	for name, c := range map[string]struct {
 		card
 		step, n, segs, state string
-		over                 bool
+		over, cut            bool
 	}{
-		"busy":  {got.Busy, "the watcher waits for the background and checks a fresh snapshot again", "4/7", "ddda---", "working", false},
-		"done":  {got.Done, "step 6", "7/7", "ddddddd", "done", true},
-		"asks":  {got.Asks, "later 1", "2/3", "d--", "asks Which way", false},
-		"codex": {got.Codex, "fix the test of the router", "2/3", "da-", "working", false},
+		"busy":  {got.Busy, "the watcher waits for the background and checks a fresh snapshot again", "4/7", "ddda---", "working", false, true},
+		"done":  {got.Done, "step 6", "7/7", "ddddddd", "done", true, false},
+		"asks":  {got.Asks, "later 1", "2/3", "d--", "asks Which way", false, false},
+		"codex": {got.Codex, "fix the test of the router", "2/3", "da-", "working", false, false},
 	} {
-		if c.Step != c.step || c.StepCut || c.N != c.n || !c.Below || c.Segs != c.segs || c.Over != c.over || c.StepWidth < 200 {
+		// The step keeps to its one line: the long one is cut there and whole
+		// in its tip, a short one stands whole.
+		if c.Step != c.step || c.StepCut != c.cut || (c.cut && c.StepTip != c.step) || c.N != c.n || !c.Below || c.Segs != c.segs || c.Over != c.over || c.StepWidth < 200 {
 			t.Errorf("%s: the card says %q %q (cut %v, under the state %v) over %q (whole %v, %dpx), expected %q %q over %q",
 				name, c.Step, c.N, c.StepCut, c.Below, c.Segs, c.Over, c.StepWidth, c.step, c.n, c.segs)
 		}

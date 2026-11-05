@@ -409,8 +409,8 @@
         --step: .72rem;
         grid-template-columns: .89rem minmax(0, 1fr);
         column-gap: .39rem;
-        row-gap: .17rem;
-        padding: .44rem .22rem .61rem calc(.56rem + var(--depth) * var(--step));
+        row-gap: .14rem;
+        padding: .35rem .22rem .49rem calc(.56rem + var(--depth) * var(--step));
     }
 
     .dkleft .sc.sckid::before, .dkleft .sc.sckid > .scedge { left: calc(.56rem + (var(--depth) - 1) * var(--step) + .3rem); }
@@ -419,7 +419,7 @@
 
     .dkleft .scglyph svg { width: .83em; height: .83em; }
 
-    .dkleft .scl1 { min-height: 1rem; }
+    .dkleft .scl1 { min-height: .96rem; }
 
     .dkleft .scname { font-size: var(--t-sm); line-height: 1.2; }
 
@@ -429,19 +429,19 @@
 
     .dkleft .scresume { min-height: 1.33rem; padding: 0 .3rem; font-size: var(--t-xs); }
 
-    .dkleft .scl2 { min-height: 1rem; column-gap: .5rem; font-size: var(--t-xs); }
+    .dkleft .scl2 { min-height: .96rem; column-gap: .5rem; font-size: var(--t-xs); }
 
-    .dkleft .scl3 { min-height: .94rem; gap: .5rem; font-size: var(--t-xs); }
+    .dkleft .scl3 { min-height: .9rem; gap: .5rem; font-size: var(--t-xs); }
 
     .dkleft .scsegs { height: .28rem; gap: 1.5px; }
 
-    .dkleft .scl4 { min-height: 1rem; gap: .6rem; font-size: var(--t-xs); }
+    .dkleft .scl4 { min-height: .96rem; gap: .6rem; font-size: var(--t-xs); }
 
     .dkleft .sctime { font-size: var(--t-xs); }
 
     /* The settings read a step smaller than the lines over them, so their
        places and the share of the context fit the column side by side. */
-    .dkleft .scl5 { grid-template-columns: 3.2em 3.7em 4.4em 1.6em 4.2em minmax(0, 1fr); column-gap: .2em; min-height: .89rem; font-size: var(--t-xs); }
+    .dkleft .scl5 { grid-template-columns: 3.2em 3.7em 4.4em 1.6em 4.2em minmax(0, 1fr); column-gap: .2em; min-height: .85rem; font-size: var(--t-xs); }
 
     .dkleft .scl5 > .scb { font-size: .92em; }
 

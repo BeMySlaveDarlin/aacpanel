@@ -10,6 +10,7 @@ type roleLine struct {
 	Name      string  `json:"name"`
 	Role      *string `json:"role"`
 	Cut       bool    `json:"cut"`
+	Tip       string  `json:"tip"`
 	OneLine   bool    `json:"oneLine"`
 	Placed    bool    `json:"placed"`
 }
@@ -57,9 +58,10 @@ func TestTheChecklistTakesTheRowAndTheRoleStaysInTheTools(t *testing.T) {
 		if r.Checklist != want {
 			t.Errorf("desktop: %s shows checklist %q, want %q", r.Name, r.Checklist, want)
 		}
-		if !r.Placed || r.Cut || r.OneLine == (r.Name == "shop") {
-			t.Errorf("desktop: the checklist of %s stands under the state %v, cut %v, on one line %v — the long one wraps whole",
-				r.Name, r.Placed, r.Cut, r.OneLine)
+		long := r.Name == "shop"
+		if !r.Placed || !r.OneLine || r.Cut != long || (long && (r.Tip == "" || !strings.HasSuffix(want, r.Tip))) {
+			t.Errorf("desktop: the checklist of %s stands under the state %v, cut %v, on one line %v, tip %q — the step keeps to its line, the long one cut there and whole in its tip",
+				r.Name, r.Placed, r.Cut, r.OneLine, r.Tip)
 		}
 	}
 	for _, r := range got.Phone {

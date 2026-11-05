@@ -100,7 +100,8 @@ function measure() {
             pct: text(ctx),
             pctRight: round(inner.right - ctxBox.right),
             step: text(step),
-            stepCut: cut(step) || getComputedStyle(step).textOverflow === "ellipsis",
+            stepCut: cut(step),
+            stepTip: step.getAttribute("title") || "",
             stepClear: !n || !meets(step.getBoundingClientRect(), n.getBoundingClientRect()),
             agentLines: lines(agent),
         };

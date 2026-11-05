@@ -134,7 +134,7 @@ function Steps({ step = "", n, total, segs, over }) {
         `;
     }
     return html`
-        <div class="scl3"><span class="scstep">${step}</span><span class=${`scn${over ? " scover" : ""}`}><b>${n}</b>/${total}</span></div>
+        <div class="scl3"><span class="scstep" title=${step}>${step}</span><span class=${`scn${over ? " scover" : ""}`}><b>${n}</b>/${total}</span></div>
         <div class=${`scsegs${over ? " scover" : ""}`} aria-hidden="true">${segs.map((cls, i) => html`<i key=${i} class=${cls}></i>`)}</div>
     `;
 }
@@ -190,8 +190,8 @@ function modelOf(id) {
 // Badges are the settings of a session in fixed places, an off one dimmed in
 // its place: the mode, where it lives, its cap of the context and whether it
 // restarts at it, Remote Control and a worktree; at the right how full the
-// context is.
-function Badges({ mode, place, cap, auto, remote, worktree, ctx }) {
+// context is. A card that kept no settings says nothing of its cap.
+function Badges({ mode, place, cap, auto, remote, worktree, ctx, known = true }) {
     const capped = cap != null && cap > 0 && cap <= 100;
     return html`
         <div class="scl5">
@@ -199,7 +199,8 @@ function Badges({ mode, place, cap, auto, remote, worktree, ctx }) {
             <span class=${`scb${place ? "" : " scoff"}`}>${place || "—"}</span>
             ${capped && auto
                 ? html`<span class="scb scon" title=${`At ${cap}% of the context it saves its work and restarts`}>${Icon.refresh()}at ${cap}%</span>`
-                : html`<span class="scb">${capped ? `cap ${cap}%` : "no cap"}</span>`}
+                : known ? html`<span class="scb">${capped ? `cap ${cap}%` : "no cap"}</span>`
+                : html`<span class="scb scoff">—</span>`}
             <span class=${`scb${remote ? " scon" : " scoff"}`} title=${remote ? "Remote Control is on: the session is open on claude.ai too" : undefined}>RC</span>
             <span class=${`scb${worktree ? " scon" : " scoff"}`} title=${worktree ? `A worktree of ${worktree}` : undefined}>worktree</span>
             <span class="scctx">${ctx}</span>
@@ -209,11 +210,13 @@ function Badges({ mode, place, cap, auto, remote, worktree, ctx }) {
 
 // Edge is the context bar along the bottom of the card, of the whole window,
 // with the cap marked on it: in the accent where the session restarts there.
+// What lies past the cap is the share the session never reaches, set apart.
 function Edge({ pct, cap, auto, past = false }) {
     const capped = !past && cap != null && cap > 0 && cap < 100;
     return html`
         <span class=${`scedge ${past ? "scpeak" : fill(pct || 0)}`} aria-hidden="true">
             ${pct != null && html`<i style=${`width:${Math.max(0, Math.min(100, pct))}%`}></i>`}
+            ${capped && html`<s class="scblock" style=${`left:${cap}%`}></s>`}
             ${capped && html`<b class=${`sccap${auto ? " scauto" : ""}`} style=${`left:${cap}%`}></b>`}
         </span>
     `;
@@ -381,7 +384,7 @@ export function PastCard({ row, about = "", exec, solo = null, known = "", conto
             <${Agent} who=${who} model=${modelOf(last.model || row.model)} effort=${last.effort || row.effort ? effortName(last.effort || row.effort) : ""}
                       spent=${codex && row.tokensUsed ? `${tokens(row.tokensUsed)} tokens` : ""}
                       time=${{ until: false, text: lastAt ? shortText(Date.now() / 1000 - lastAt) : "" }} tone="quiet" />
-            <${Badges} mode=${last.mode || row.mode || ""} place=${place} cap=${last.cap} auto=${false} remote=${Boolean(last.remote)}
+            <${Badges} mode=${last.mode || row.mode || ""} place=${place} cap=${last.cap} auto=${false} remote=${Boolean(last.remote)} known=${Boolean(row.last)}
                        worktree=${last.checkout || ""} ctx=${codex ? "—" : `peak ${Math.round(row.pctMax || 0)}%`} />
             <${Edge} pct=${row.pctMax || 0} past />
         </div>

@@ -26,6 +26,7 @@ func TestThePhoneCardKeepsItsActionsAboveItsPlace(t *testing.T) {
 		PctRight      float64 `json:"pctRight"`
 		Step          string  `json:"step"`
 		StepCut       bool    `json:"stepCut"`
+		StepTip       string  `json:"stepTip"`
 		StepClear     bool    `json:"stepClear"`
 		AgentLines    int     `json:"agentLines"`
 	}
@@ -79,8 +80,11 @@ func TestThePhoneCardKeepsItsActionsAboveItsPlace(t *testing.T) {
 					t.Errorf("%s: it lives %q and is %q full, %.1fpx short of the edge — expected %q and %q at the edge",
 						name, c.Mark, c.Pct, c.PctRight, w.mark, w.pct)
 				}
-				if c.Step != w.step || c.StepCut || !c.StepClear {
-					t.Errorf("%s: the step reads %q (cut %v, clear of n/N %v), expected %q whole", name, c.Step, c.StepCut, c.StepClear, w.step)
+				// The step keeps to its one line; one too long is cut there and
+				// whole in its tip.
+				if c.Step != w.step || !c.StepClear || (c.StepCut && c.StepTip != w.step) {
+					t.Errorf("%s: the step reads %q (cut %v, tip %q, clear of n/N %v), expected %q, whole in its tip when cut",
+						name, c.Step, c.StepCut, c.StepTip, c.StepClear, w.step)
 				}
 				if c.AgentLines != 1 {
 					t.Errorf("%s: who runs the session wraps to %d lines", name, c.AgentLines)

@@ -26,12 +26,17 @@ type sessionCardSeen struct {
 	AlarmIcon bool     `json:"alarmIcon"`
 	RunsGap   *int     `json:"runsGap"`
 	Overflow  int      `json:"overflow"`
+	Block     *struct {
+		From int `json:"from"`
+		To   int `json:"to"`
+	} `json:"block"`
 }
 
 type sessionCardsRun struct {
 	Desk        bool                        `json:"desk"`
 	Six         map[string]*sessionCardSeen `json:"six"`
 	CutAnywhere []string                    `json:"cutAnywhere"`
+	BareArchive string                      `json:"bareArchive"`
 	Heads       []struct {
 		Name string   `json:"name"`
 		Acts []string `json:"acts"`
@@ -164,6 +169,18 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	}
 	if c := got.Six["quiet"]; c != nil && (!strings.HasPrefix(c.Line3, "no checklist") || !strings.Contains(c.Line5, "no cap")) {
 		t.Errorf("the quiet card reads %q / %q, want no checklist and no cap said", c.Line3, c.Line5)
+	}
+	// The share of the window past the cap is set apart up to its end; a
+	// session with no cap has no such share.
+	if c := got.Six["working"]; c != nil && (c.Block == nil || c.Block.From < 78 || c.Block.From > 82 || c.Block.To < 99) {
+		t.Errorf("the working card at cap 80%% sets apart %+v of its context bar, want 80..100", c.Block)
+	}
+	if c := got.Six["quiet"]; c != nil && c.Block != nil {
+		t.Errorf("a session with no cap sets apart %+v of its context bar", c.Block)
+	}
+	// A conversation that ended before the panel kept its settings knows no cap.
+	if !strings.Contains(got.BareArchive, "—") || strings.Contains(got.BareArchive, "no cap") {
+		t.Errorf("an archived card that kept no settings reads %q, want its cap unknown, not no cap", got.BareArchive)
 	}
 	if c := got.Six["archived"]; c != nil && (c.Line2 != "closed" || !strings.HasPrefix(c.Line3, "Write the README") ||
 		!strings.Contains(c.Line5, "peak 41%")) {

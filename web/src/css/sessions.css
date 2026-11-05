@@ -497,10 +497,10 @@ span.pjname { cursor: default; }
     display: grid;
     grid-template-columns: 1.33rem minmax(0, 1fr);
     column-gap: .67rem;
-    row-gap: .2rem;
+    row-gap: .16rem;
     align-items: center;
-    padding: .73rem .27rem .93rem calc(.93rem + var(--depth) * var(--step));
-    line-height: 1.33;
+    padding: .58rem .27rem .74rem calc(.93rem + var(--depth) * var(--step));
+    line-height: 1.27;
 }
 /* A hairline parts the cards of a block, and a fold from the cards. */
 .pjblock > :not(:first-child), .pjtree > * + * { border-top: var(--hair) solid var(--line); }
@@ -543,7 +543,7 @@ span.pjname { cursor: default; }
    the project a lone card stands for as a quiet prefix; the controls at the
    right, always there. The name wraps rather than gives up its tail: the
    tail is what tells two sessions apart. */
-.scl1 { display: flex; align-items: center; gap: .5rem; min-height: 1.33rem; }
+.scl1 { display: flex; align-items: center; gap: .5rem; min-height: 1.27rem; }
 .scname { flex: 0 1 auto; min-width: 0; font-size: var(--t-base); font-weight: 600; line-height: 1.33; color: var(--ink); overflow-wrap: anywhere; }
 .scpre { font-weight: 500; color: var(--ink-faint); }
 .sctag { margin-left: .4rem; font-size: var(--t-xs); font-weight: 500; color: var(--ink-faint); }
@@ -581,7 +581,7 @@ span.pjname { cursor: default; }
    ink, a command in mono, each wrapped rather than cut. Right after the word,
    what runs now: the subagents, the commands, the observers — only what
    runs. The note of the collector closes the line. */
-.scl2 { display: flex; flex-wrap: wrap; align-items: center; column-gap: .67rem; min-height: 1.33rem; font-size: var(--t-md); }
+.scl2 { display: flex; flex-wrap: wrap; align-items: center; column-gap: .67rem; min-height: 1.27rem; font-size: var(--t-md); }
 .scsay { min-width: 0; color: var(--ink-faint); overflow-wrap: anywhere; }
 .sc[data-tone="busy"] .scword, .sc[data-tone="bg"] .scword { color: var(--accent); }
 .sc[data-tone="wait"] .scword { color: color-mix(in srgb, var(--wait) 80%, var(--ink-faint)); }
@@ -604,8 +604,8 @@ span.pjname { cursor: default; }
 /* Line three: the step in hand, wrapped rather than cut, and n/N; under it a
    segment a step over the whole width — done in grey, the step at work in
    the colour of the state, those ahead dark. */
-.scl3 { display: flex; align-items: baseline; gap: .67rem; min-height: 1.27rem; font-size: var(--t-md); }
-.scstep { flex: 1 1 auto; min-width: 0; color: var(--ink-dim); overflow-wrap: anywhere; }
+.scl3 { display: flex; align-items: baseline; gap: .67rem; min-height: 1.21rem; font-size: var(--t-md); }
+.scstep { flex: 1 1 auto; min-width: 0; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scstep.scnone { color: var(--ink-faint); opacity: .7; }
 .scn { flex: none; margin-left: auto; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .scn b { font-weight: 600; color: var(--ink-dim); }
@@ -624,7 +624,7 @@ span.pjname { cursor: default; }
 /* Line four: who runs it, on which model at which effort; what queued and
    compacted, in words; how long the state has lasted, or an arrow and when
    it ends. */
-.scl4 { display: flex; align-items: baseline; gap: .8rem; min-height: 1.33rem; font-size: var(--t-sm); color: var(--ink-dim); }
+.scl4 { display: flex; align-items: baseline; gap: .8rem; min-height: 1.27rem; font-size: var(--t-sm); color: var(--ink-dim); }
 .scagent { flex: 0 1 auto; min-width: 0; margin-right: auto; overflow-wrap: anywhere; }
 .sceffort { color: var(--ink-faint); }
 .scmore { flex: none; color: var(--ink-dim); white-space: nowrap; }
@@ -660,6 +660,8 @@ span.pjname { cursor: default; }
 .scedge.s3 i { background: var(--ctx-3); }
 .scedge.s4 i { background: var(--ctx-4); }
 .scedge.scpeak i { background: var(--ink-faint); opacity: .5; }
+.scblock { position: absolute; top: 0; bottom: 0; right: 0; text-decoration: none;
+    background: repeating-linear-gradient(90deg, rgba(var(--tint), .3) 0 3px, transparent 3px 6px); }
 .sccap { position: absolute; top: -2px; bottom: 0; width: 1.5px; background: rgba(var(--tint), .35); }
 .sccap.scauto { background: var(--accent); }
 
