@@ -37,7 +37,11 @@ type sessionCardsRun struct {
 	Six         map[string]*sessionCardSeen `json:"six"`
 	CutAnywhere []string                    `json:"cutAnywhere"`
 	BareArchive string                      `json:"bareArchive"`
-	Heads       []struct {
+	BadgeDrift  []struct {
+		Name  string  `json:"name"`
+		Drift float64 `json:"drift"`
+	} `json:"badgeDrift"`
+	Heads []struct {
 		Name string   `json:"name"`
 		Acts []string `json:"acts"`
 	} `json:"heads"`
@@ -161,6 +165,10 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 			t.Errorf("%s (%s) says a wake %q with none ahead", state, c.Name, c.Alarm)
 		}
 	}
+	// The status time comes as milliseconds of the epoch, as the collector gives it.
+	if c := got.Six["working"]; c != nil && !strings.Contains(c.Line4, "34m") {
+		t.Errorf("the working card reads %q on its agent line, want how long it has worked, 34m", c.Line4)
+	}
 	if c := got.Six["unseen"]; c != nil && !strings.HasPrefix(c.Line2, "done · not seen") {
 		t.Errorf("a session whose last turn ended after the person looked says %q, want done · not seen", c.Line2)
 	}
@@ -177,6 +185,9 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	}
 	if c := got.Six["quiet"]; c != nil && c.Block != nil {
 		t.Errorf("a session with no cap sets apart %+v of its context bar", c.Block)
+	}
+	for _, c := range got.BadgeDrift {
+		t.Errorf("the badges of %s stand %.1fpx apart in height, want them on one line", c.Name, c.Drift)
 	}
 	// A conversation that ended before the panel kept its settings knows no cap.
 	if !strings.Contains(got.BareArchive, "—") || strings.Contains(got.BareArchive, "no cap") {

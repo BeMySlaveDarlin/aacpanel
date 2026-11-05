@@ -31,6 +31,8 @@ document.getElementById(desk ? "phone" : "desk").remove();
 const now = Date.now();
 const iso = (min) => new Date(now - min * 60e3).toISOString();
 const ahead = (min) => new Date(now + min * 60e3).toISOString();
+// The collector gives a session's status time as milliseconds of the epoch.
+const ms = (min) => now - min * 60e3;
 const P = (id, name, path = `/srv/${name}`) => ({ id, name, session: name, path });
 const pj = {
     aacpanel: P(1, "aacpanel"), person: P(2, "person"), tg: P(3, "tg-ai-shadow"), kkam: P(4, "kkam-smart-home", "/srv/kkam"),
@@ -45,7 +47,7 @@ const steps = (texts, done, active = true) => ({ at: iso(30), items: texts.map((
 const seven = ["Read meters", "Map fields", "Wire meters into the card and the head of the conversation, then check both", "Draw bars", "Test bars", "Shoot", "Ship"];
 const S = (project, o) => ({
     transport: "stream", agent: "claude", model: "claude-opus-5-5", effort: "high", mode: "auto", cap: 80, limit: 1000000, limitKnown: true,
-    startedAt: iso(185), lastRequestAt: iso(5), statusUpdatedAt: iso(34), sessionId: `id-${o.session}`, profile: "personal", contour: 1,
+    startedAt: iso(185), lastRequestAt: iso(5), statusUpdatedAt: ms(34), sessionId: `id-${o.session}`, profile: "personal", contour: 1,
     cwd: project.path, project: { id: project.id, name: project.name, session: project.session }, status: "idle", tokens: 100000, ...o,
 });
 const sessions = [
@@ -54,20 +56,20 @@ const sessions = [
         checklist: steps(["Read", "Sketch", "Mock", "Re-layout cards", "Test", "Shoot", "Ship", "Tell", "Close"], 3),
         work: { agents: 2, tasks: 1 }, queued: 2, pct: 66, remote: "https://claude.ai/code/session_x", checkout: "/srv/aacpanel" }),
     S(pj.person, { session: "person-ingest", status: "waiting", waitingFor: "dialog open", permission: { tool: "Bash", head: "tar -xf" },
-        statusUpdatedAt: iso(3), checklist: steps(["Fetch", "Unpack", "Scan", "Import archive", "Index", "Check", "Tag", "Done"], 3), cap: 50, pct: 27 }),
-    S(pj.tg, { session: "tg-ai-shadow", statusUpdatedAt: iso(18), seenAt: iso(40),
+        statusUpdatedAt: ms(3), checklist: steps(["Fetch", "Unpack", "Scan", "Import archive", "Index", "Check", "Tag", "Done"], 3), cap: 50, pct: 27 }),
+    S(pj.tg, { session: "tg-ai-shadow", statusUpdatedAt: ms(18), seenAt: iso(40),
         checklist: steps(["Read", "Plan", "Build", "Test", "Fix", "Docs", "Ship reply bot"], 7, false), pct: 35 }),
-    S(pj.kkam, { session: "kkam-cameras", status: "busy", statusUpdatedAt: iso(12), mode: "default",
+    S(pj.kkam, { session: "kkam-cameras", status: "busy", statusUpdatedAt: ms(12), mode: "default",
         checklist: steps(["Probe", "List", "Read", "Pick", "Merge drivers", "Test", "Ship", "Docs", "Tell"], 4), pct: 31 }),
     S(pj.kkam, { session: "kkam-cameras-onvif", status: "waiting", parent: { session: "kkam-cameras" }, startedAt: iso(60),
         ask: { header: "Library", count: 1, at: iso(5), toolUseId: "t2" }, checklist: steps(["Read", "Pick library", "Wire", "Test"], 1), pct: 16 }),
-    S(pj.kkam, { session: "kkam-cameras-rtsp", status: "busy", parent: { session: "kkam-cameras" }, startedAt: iso(50), statusUpdatedAt: iso(8),
+    S(pj.kkam, { session: "kkam-cameras-rtsp", status: "busy", parent: { session: "kkam-cameras" }, startedAt: iso(50), statusUpdatedAt: ms(8),
         mode: "bypassPermissions", autoRestart: true,
         work: { agents: 0, tasks: 1 }, checklist: steps(["Read", "Probe RTSP", "Wire", "Test", "Ship"], 1), pct: 24 }),
     // A wake ahead: said on the state's line, with what runs, though it runs
     // nothing.
     S(pj.watchdog, { session: "watchdog-review", agent: "codex", model: "gpt-6.1-sol", effort: "medium", cap: null,
-        statusUpdatedAt: iso(6), seenAt: iso(1), pct: 21, nextAlarm: { id: "w1", name: "check the run", next: ahead(90) } }),
+        statusUpdatedAt: ms(6), seenAt: iso(1), pct: 21, nextAlarm: { id: "w1", name: "check the run", next: ahead(90) } }),
     S(pj.llm, { session: "llm-ops-nightly", pauseAlarm: { id: "p1", next: ahead(300) },
         checklist: steps(["Pull", "Rotate eval set", "Run", "Report"], 1, false), pct: 9 }),
     // A project whose every session is paused: its heading continues them all.
@@ -231,6 +233,18 @@ window.done = (async () => {
         six,
         cutAnywhere,
         bareArchive: text(card("old-shelf") && card("old-shelf").querySelector(".scl5")),
+        // The words of the badges of every card, by how far their tops stand
+        // apart: a badge led by a glyph must not rise above its neighbours.
+        badgeDrift: [...document.querySelectorAll(".sc")].map((el) => {
+            const tops = [...el.querySelectorAll(".scl5 > .scb")].map((b) => {
+                const words = [...b.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+                if (!words) return null;
+                const r = document.createRange();
+                r.selectNodeContents(words);
+                return r.getBoundingClientRect().top;
+            }).filter((t) => t != null);
+            return { name: el.dataset.name, drift: tops.length ? Math.round((Math.max(...tops) - Math.min(...tops)) * 10) / 10 : 0 };
+        }).filter((c) => c.drift > 1),
         heads,
         solo: solo && {
             pre: text(solo.querySelector(".scpre")), own: text(solo.querySelector(".scown")),

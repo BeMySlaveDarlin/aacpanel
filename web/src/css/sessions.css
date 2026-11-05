@@ -640,7 +640,9 @@ span.pjname { cursor: default; }
     display: grid;
     grid-template-columns: 3.5em 4em 4.3em 1.6em 4.3em minmax(0, 1fr);
     column-gap: .25em;
-    align-items: baseline;
+    /* Centred, not on the baseline: a badge led by its glyph has no text
+       baseline of its own and would rise above its neighbours. */
+    align-items: center;
     min-height: 1.2rem;
     font-size: var(--t-sm);
 }

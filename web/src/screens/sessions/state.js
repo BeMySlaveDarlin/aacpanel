@@ -61,9 +61,16 @@ export function workOf(work) {
     ].filter(Boolean).join(" · ");
 }
 
+// msOf reads a time of the snapshot in milliseconds: the collector gives the
+// status time as milliseconds of the epoch, the service its times as ISO.
+function msOf(at) {
+    if (typeof at === "number") return Number.isFinite(at) ? at : 0;
+    return Date.parse(at || "") || 0;
+}
+
 // endedAt is when the last turn of a quiet session ended, in milliseconds.
 function endedAt(s) {
-    return Date.parse(s.statusUpdatedAt || s.lastRequestAt || "") || 0;
+    return msOf(s.statusUpdatedAt) || msOf(s.lastRequestAt);
 }
 
 // unseenOf says whether the last turn of a quiet session ended after the
@@ -216,7 +223,7 @@ function clockText(ms) {
 // day a pause or a limit ends at, how soon a restart is forced.
 export function timeOf(state) {
     if (state.until) return { until: true, text: state.clock ? clockText(state.until) : leftText(state.until) };
-    const at = Date.parse(state.since || "");
+    const at = msOf(state.since);
     if (!at) return { until: false, text: "" };
     return { until: false, text: shortText((Date.now() - at) / 1000) };
 }
