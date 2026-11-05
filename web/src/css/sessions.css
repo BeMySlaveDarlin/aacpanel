@@ -504,7 +504,10 @@ span.pjname { cursor: default; }
 }
 /* A hairline parts the cards of a block, and a fold from the cards. */
 .pjblock > :not(:first-child), .pjtree > * + * { border-top: var(--hair) solid var(--line); }
-.sc > :not(.scglyph, .scopen, .scedge) { grid-column: 2; min-width: 0; }
+/* The glyph opens the first line only: the lines under it start at the
+   card's edge rather than keeping a column of their own for one icon. */
+.sc > :not(.scglyph, .scopen, .scedge) { grid-column: 1 / -1; min-width: 0; }
+.sc > .scl1 { grid-column: 2; }
 /* The whole card opens the conversation: a button under the lines reaches
    over the card, and the controls stand above it. */
 .scopen { position: absolute; inset: 0; z-index: 0; padding: 0; border: 0; background: none; cursor: pointer; }
@@ -535,8 +538,8 @@ span.pjname { cursor: default; }
 .scglyph[data-kind="work"] .scshape { background: currentColor; }
 .scglyph[data-kind="inside"] .scshape { box-shadow: inset 0 0 0 1.5px currentColor; }
 .scglyph[data-kind="closed"] .scshape { width: .8rem; height: .8rem; box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
-.scglyph[data-kind="done"]:has(.scnew) { color: var(--ok); }
-.scglyph .scnew { position: absolute; top: -.13rem; right: -.2rem; width: .53rem; height: .53rem; border-radius: 50%; background: var(--ok); }
+/* Not seen is said in words beside the state; the glyph only takes its colour. */
+.scglyph[data-unseen] { color: var(--ok); }
 .scglyph .spin { width: var(--i-sm); height: var(--i-sm); }
 
 /* Line one: the name, the part a heading over it says already dropped and
@@ -587,7 +590,7 @@ span.pjname { cursor: default; }
 .sc[data-tone="wait"] .scword { color: color-mix(in srgb, var(--wait) 80%, var(--ink-faint)); }
 .sc[data-tone="held"] .scword { color: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); }
 .sc[data-tone="limit"] .scword { color: var(--warn); }
-.sc[data-kind="done"] .scword, .sc[data-tone="idle"]:has(.scnew) .scsay { color: var(--ok); }
+.sc[data-kind="done"] .scword, .sc[data-tone="idle"]:has(.scglyph[data-unseen]) .scsay { color: var(--ok); }
 .scsubj { font-weight: 600; color: var(--ink); }
 .scmono { padding: .07rem .33rem; border-radius: var(--r-small); background: var(--code-bg); font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-dim); }
 .scaside { color: inherit; }

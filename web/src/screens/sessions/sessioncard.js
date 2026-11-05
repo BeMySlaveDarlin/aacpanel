@@ -50,9 +50,8 @@ const MODES = {
 export function Glyph({ state }) {
     const icon = GLYPHS[state.kind];
     return html`
-        <span class="scglyph" data-tone=${state.tone} data-kind=${state.kind} aria-hidden="true">
+        <span class="scglyph" data-tone=${state.tone} data-kind=${state.kind} data-unseen=${state.unseen ? "" : undefined} aria-hidden="true">
             ${icon ? icon() : html`<i class="scshape"></i>`}
-            ${state.unseen && html`<i class="scnew"></i>`}
         </span>
     `;
 }
