@@ -15,6 +15,9 @@ SOCKET_NAME = "ask.sock"
 STORE = os.environ.get("AACP_ASK_STORE", paths.state("asked.json"))
 
 MAX_TEXT = 400
+# A question is read whole on the sheet: agents write a report and then ask,
+# and the end of a long one is where the choice is.
+MAX_QUESTION = 2000
 MAX_OPTIONS = 12
 MAX_PREVIEW = 4000
 MAX_PREVIEW_LINES = 40
@@ -31,7 +34,11 @@ IDLE_GRACE = 5
 
 
 def _short(text, limit=MAX_TEXT):
-    return " ".join(str(text or "").split())[:limit]
+    """A cut text ends with an ellipsis, so the sheet never passes it off as whole."""
+    text = " ".join(str(text or "").split())
+    if len(text) <= limit:
+        return text
+    return text[:limit - 1].rstrip() + "…"
 
 
 def _block(text, limit=MAX_PREVIEW):
@@ -66,7 +73,7 @@ def clean(payload):
             if preview:
                 option["preview"] = preview
             options.append(option)
-        text = _short(item.get("question"))
+        text = _short(item.get("question"), MAX_QUESTION)
         if not text:
             continue
         questions.append({

@@ -586,3 +586,26 @@ func TestABriefThatAsksNothingSaysSo(t *testing.T) {
 		t.Errorf("a piece to read promises questions: %q", report.Raise[0].Body)
 	}
 }
+
+// A question read whole on the sheet is only named in its push: a long one in
+// a two-byte script would otherwise outgrow the record and never reach the phone.
+func TestALongQuestionStillFitsItsPush(t *testing.T) {
+	s := sess()
+	// The collector's ceiling for a question, every rune two bytes long.
+	s.Ask = &Ask{Header: "Round", Text: "review " + strings.Repeat("é", 1993), Count: 1, At: "2026-11-05T12:58:00Z"}
+	e := asked(s)
+	payload, err := payloadOf(e.raised())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload) > maxPayload {
+		t.Fatalf("the push of a long question is %d bytes, only %d fit", len(payload), maxPayload)
+	}
+	if !strings.HasPrefix(e.Body, "Round: review é") || !strings.Contains(e.Body, "…") {
+		t.Errorf("the push of a long question is not named by its start, cut: %.60q", e.Body)
+	}
+	s.Ask.Text = "Fix it now or after the rollout?"
+	if e := asked(s); !strings.HasPrefix(e.Body, "Round: Fix it now or after the rollout?") || strings.Contains(e.Body, "…") {
+		t.Errorf("the push of a short question reads %q", e.Body)
+	}
+}

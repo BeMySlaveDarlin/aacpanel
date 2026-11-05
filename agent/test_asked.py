@@ -60,6 +60,20 @@ class Clean(unittest.TestCase):
         self.assertEqual(q["options"][0]["description"], "The rollout will wait")
         self.assertFalse(q["multi"])
 
+    def test_a_long_question_reaches_the_sheet_whole(self):
+        probe = json.loads(json.dumps(PROBE))
+        text = "The second round of the review was turned down. " * 10 + "What now?"
+        probe["tool_input"]["questions"][0]["question"] = text
+        self.assertGreater(len(text), 400)
+        self.assertEqual(asked.clean(probe)["questions"][0]["text"], text)
+
+    def test_a_question_past_its_ceiling_says_it_was_cut(self):
+        probe = json.loads(json.dumps(PROBE))
+        probe["tool_input"]["questions"][0]["question"] = "word " * asked.MAX_QUESTION
+        got = asked.clean(probe)["questions"][0]["text"]
+        self.assertEqual(len(got), asked.MAX_QUESTION)
+        self.assertTrue(got.endswith("word…"))
+
     def test_a_multi_select_survives_the_parse(self):
         probe = json.loads(json.dumps(PROBE))
         probe["tool_input"]["questions"][0]["multiSelect"] = True

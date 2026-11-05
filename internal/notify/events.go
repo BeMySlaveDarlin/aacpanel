@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -398,10 +399,14 @@ func (c *Calls) Fresh(now time.Time, board []Note, sessions []Session) (news []E
 	return news, waiting
 }
 
+// askPushRunes keeps the question in a push well inside its 4 KB record: the
+// sheet carries the whole text, a notification only names it.
+const askPushRunes = 300
+
 func asked(s Session) Event {
-	body := s.Ask.Text
+	body := clipRunes(s.Ask.Text, askPushRunes)
 	if s.Ask.Header != "" {
-		body = s.Ask.Header + ": " + s.Ask.Text
+		body = s.Ask.Header + ": " + body
 	}
 	if s.Ask.Count > 1 {
 		body += fmt.Sprintf(" · and %d more in this round", s.Ask.Count-1)
@@ -947,6 +952,14 @@ func upperFirst(s string) string {
 		return strings.ToUpper(string(r)) + s[i+len(string(r)):]
 	}
 	return s
+}
+
+func clipRunes(text string, limit int) string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return strings.TrimRightFunc(string(runes[:limit-1]), unicode.IsSpace) + "…"
 }
 
 func shortID(id string) string {
