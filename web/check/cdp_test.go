@@ -43,6 +43,9 @@ type browser struct {
 
 // page keeps a tab's failures and last observed state, and what took its
 // document away from the fixture: closing the tab or navigating elsewhere.
+// The state is what the browser told as it happened, not what the page
+// answers when asked: a page starved of its main thread answers nothing
+// before the deadline, and the timeout would have nothing to say about it.
 type page struct {
 	thrown                    []string
 	closed                    bool
@@ -50,6 +53,8 @@ type page struct {
 	diagnostics               tailBuffer
 	requests                  map[string]string
 	requestIDs                []string
+	// frame is the main frame: a move of its history is a move of the page.
+	frame string
 	// urls are the documents the main frame committed, in order.
 	urls []string
 	// news is closed, and replaced, whenever the page closes or navigates:
@@ -60,6 +65,24 @@ type page struct {
 const (
 	pageDiagnosticLimit = 8 << 10
 	pageRequestLimit    = 1024
+)
+
+// doneWatch runs in the main frame of every document before the page's own
+// scripts and tells the harness, through the binding doneBinding, "undefined"
+// at once and then the type of every value the page puts into window.done.
+const (
+	doneBinding = "aacpFixtureDone"
+	doneWatch   = `(() => {
+    if (window !== window.top) return;
+    const tell = window.` + doneBinding + `;
+    let done;
+    Object.defineProperty(window, "done", {
+        configurable: true, enumerable: true,
+        get: () => done,
+        set: (value) => { done = value; tell(typeof value); },
+    });
+    tell("undefined");
+})();`
 )
 
 // end says what took the page away from url, or nil while it stands.
@@ -99,16 +122,30 @@ func (p *page) note(msg cdpMessage) {
 	case "Page.frameNavigated":
 		var ev struct {
 			Frame struct {
+				ID       string `json:"id"`
 				ParentID string `json:"parentId"`
 				URL      string `json:"url"`
 			} `json:"frame"`
 		}
 		_ = json.Unmarshal(msg.Params, &ev)
 		if ev.Frame.ParentID == "" {
+			p.frame = ev.Frame.ID
 			p.urls = append(p.urls, ev.Frame.URL)
 			p.readyState, p.doneType = "loading", "unknown"
 			p.url = ev.Frame.URL
 			p.tell()
+		}
+	case "Page.navigatedWithinDocument":
+		var ev struct{ FrameID, URL string }
+		_ = json.Unmarshal(msg.Params, &ev)
+		if ev.FrameID == p.frame {
+			p.url = ev.URL
+		}
+	case "Runtime.bindingCalled":
+		var ev struct{ Name, Payload string }
+		_ = json.Unmarshal(msg.Params, &ev)
+		if ev.Name == doneBinding {
+			p.doneType = ev.Payload
 		}
 	case "Page.domContentEventFired":
 		p.readyState = "interactive"
@@ -611,27 +648,6 @@ func (b *browser) wait(ctx context.Context, session, url string) (out json.RawMe
 		}
 	}()
 	for {
-		// A pending promise can hold the next evaluate until the deadline.
-		// Observe the page first, while the same context still has time.
-		state, err := b.pageCall(ctx, session, url, "Runtime.evaluate", map[string]any{
-			"expression": "({ readyState: document.readyState, doneType: typeof window.done, url: location.href })", "returnByValue": true})
-		if err != nil {
-			return nil, err
-		}
-		var observed struct {
-			Result struct {
-				Value struct{ ReadyState, DoneType, URL string }
-			} `json:"result"`
-		}
-		if err := json.Unmarshal(state, &observed); err != nil {
-			return nil, err
-		}
-		b.mu.Lock()
-		if p := b.pages[session]; p != nil && observed.Result.Value.ReadyState != "" {
-			p.readyState, p.doneType = observed.Result.Value.ReadyState, observed.Result.Value.DoneType
-			p.url = observed.Result.Value.URL
-		}
-		b.mu.Unlock()
 		raw, err := b.pageCall(ctx, session, url, "Runtime.evaluate", map[string]any{
 			"expression": "window.done", "awaitPromise": true, "returnByValue": true})
 		if err != nil {
@@ -728,6 +744,9 @@ func (b *browser) open(ctx context.Context, url, screen string) (session string,
 		// What the main frame commits: a page that navigates before it answers
 		// says where it went.
 		{"Page.enable", map[string]any{}},
+		// What the page puts into window.done, told as it happens.
+		{"Runtime.addBinding", map[string]any{"name": doneBinding}},
+		{"Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": doneWatch}},
 		// Every tab of the browser is in front: a page in the background has
 		// its timers slowed and its animation frames stopped.
 		{"Emulation.setFocusEmulationEnabled", map[string]any{"enabled": true}},
