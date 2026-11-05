@@ -95,8 +95,8 @@ function Name({ full, part, tag = "", address = full }) {
 function Line({ state, runs, alarm = null, notes, busy }) {
     return html`
         <div class="scl2">
-            <${Glyph} state=${state} />
             <span class="scsay">
+                <${Glyph} state=${state} />
                 ${busy ? html`<span class="scbusy" role="status"><span class="spin"></span>${busy}</span>` : html`
                     <span class="scword">${state.word}</span>
                     ${state.subject && html` <b class="scsubj">${state.subject}</b>`}
@@ -377,7 +377,7 @@ export function PastCard({ row, about = "", exec, solo = null, known = "", conto
                     </span>
                 `}
             </div>
-            <div class="scl2"><span class="scglyph" data-tone="closed" data-kind="closed" aria-hidden="true"><i class="scshape"></i></span><span class="scsay"><span class="scword">closed</span></span></div>
+            <div class="scl2"><span class="scsay"><span class="scglyph" data-tone="closed" data-kind="closed" aria-hidden="true"><i class="scshape"></i></span><span class="scword">closed</span></span></div>
             <${Steps} ...${steps} />
             <${Agent} who=${who} model=${modelOf(last.model || row.model)} effort=${last.effort || row.effort ? effortName(last.effort || row.effort) : ""}
                       spent=${codex && row.tokensUsed ? `${tokens(row.tokensUsed)} tokens` : ""}

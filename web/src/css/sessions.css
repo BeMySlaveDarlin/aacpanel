@@ -591,8 +591,9 @@ span.pjname { cursor: default; }
    what runs now: the subagents, the commands, the observers — only what
    runs. The note of the collector closes the line. */
 .scl2 { display: flex; flex-wrap: wrap; align-items: center; column-gap: .67rem; min-height: 1.27rem; font-size: var(--t-md); }
-/* The glyph keeps closer to its word than the counters do. */
-.scl2 > .scglyph { margin-inline-end: -.3rem; }
+/* The glyph leads the words of the state and wraps with them, never left
+   alone on a line of its own. */
+.scsay > .scglyph { margin-inline-end: .37rem; vertical-align: -.2em; }
 .scsay { min-width: 0; color: var(--ink-faint); overflow-wrap: anywhere; }
 .sc[data-tone="busy"] .scword, .sc[data-tone="bg"] .scword { color: var(--accent); }
 .sc[data-tone="wait"] .scword { color: color-mix(in srgb, var(--wait) 80%, var(--ink-faint)); }
