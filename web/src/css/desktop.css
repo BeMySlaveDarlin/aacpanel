@@ -407,7 +407,7 @@
 
     .dkleft .sc {
         --step: .72rem;
-        grid-template-columns: .89rem minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
         column-gap: .39rem;
         row-gap: .14rem;
         padding: .35rem .22rem .49rem calc(.56rem + var(--depth) * var(--step));

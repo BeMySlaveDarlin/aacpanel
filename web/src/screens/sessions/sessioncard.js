@@ -89,12 +89,13 @@ function Name({ full, part, tag = "", address = full }) {
     `;
 }
 
-// Line is the state's line: the word in the colour of the state, the subject
+// Line is the state's line: its glyph, the word in the colour of the state, the subject
 // of a wait in the ink, a command in mono; then what runs now, only what
 // runs, the wake the session has ahead, and the note of the collector.
 function Line({ state, runs, alarm = null, notes, busy }) {
     return html`
         <div class="scl2">
+            <${Glyph} state=${state} />
             <span class="scsay">
                 ${busy ? html`<span class="scbusy" role="status"><span class="spin"></span>${busy}</span>` : html`
                     <span class="scword">${state.word}</span>
@@ -328,7 +329,6 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
              onContextMenu=${menuOn(onMenu)}>
             <button class="scopen" type="button" aria-label=${`open conversation ${s.session}`}
                     onClick=${() => onOpen && onOpen(s)}></button>
-            <${Glyph} state=${state} />
             <div class="scl1">
                 <${Name} full=${name} address=${s.session} part=${part} tag=${from ? `opened by ${from}` : ""} />
                 <${Controls} s=${s} solo=${Boolean(solo)} project=${project} profile=${profile} sessions=${sessions}
@@ -366,7 +366,6 @@ export function PastCard({ row, about = "", exec, solo = null, known = "", conto
              onContextMenu=${menuOn(onMenu)}>
             <button class="scopen" type="button" aria-label=${`open conversation ${row.name}`}
                     onClick=${() => onOpen && onOpen(row)}></button>
-            <span class="scglyph" data-tone="closed" data-kind="closed" aria-hidden="true"><i class="scshape"></i></span>
             <div class="scl1">
                 <${Name} full=${row.name} part=${part} tag=${contour} />
                 ${row.sessionId && html`
@@ -378,7 +377,7 @@ export function PastCard({ row, about = "", exec, solo = null, known = "", conto
                     </span>
                 `}
             </div>
-            <div class="scl2"><span class="scsay"><span class="scword">closed</span></span></div>
+            <div class="scl2"><span class="scglyph" data-tone="closed" data-kind="closed" aria-hidden="true"><i class="scshape"></i></span><span class="scsay"><span class="scword">closed</span></span></div>
             <${Steps} ...${steps} />
             <${Agent} who=${who} model=${modelOf(last.model || row.model)} effort=${last.effort || row.effort ? effortName(last.effort || row.effort) : ""}
                       spent=${codex && row.tokensUsed ? `${tokens(row.tokensUsed)} tokens` : ""}
@@ -397,8 +396,8 @@ export function GhostCard({ task, solo = null, known = "" }) {
     const part = nameOf(task.target, solo ? { project: solo } : { known });
     return html`
         <div class="sc scghost" data-name=${task.target} role="status">
-            <span class="scglyph" data-tone="busy" data-kind="ghost" aria-hidden="true"><span class="spin"></span></span>
             <div class="scl1">
+                <span class="scglyph" data-tone="busy" data-kind="ghost" aria-hidden="true"><span class="spin"></span></span>
                 <${Name} full=${task.target} part=${part} />
                 <span class="scword">starting</span>
                 <span class="sctime">${sec}s</span>
