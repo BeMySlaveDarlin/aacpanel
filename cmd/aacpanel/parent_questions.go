@@ -111,8 +111,11 @@ func parentQuestionLetter(child notify.Session, question parentQuestion, wait ti
 		}
 		fmt.Fprintf(&body, "\n\nReply to %q with send_to_session; your letter settles this prose question.\n", child.Name)
 	}
-	fmt.Fprintf(&body, "If the question remains unanswered, the panel pushes it to the person after %g minutes. "+
-		"Permissions and requests for the person's hands still go straight to them.", wait.Minutes())
+	// A parent that relays the question makes the person answer it twice:
+	// the child's own question already stands in the panel.
+	fmt.Fprintf(&body, "Answer only what your own work already settles. If it needs the person's decision, leave it to them: "+
+		"do not ask them yourself, retell the question or report it. They already see the child's question in the panel, "+
+		"and it is pushed to them after %g minutes. Permissions and requests for the person's hands still go straight to them.", wait.Minutes())
 	return body.String()
 }
 

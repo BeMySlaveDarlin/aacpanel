@@ -89,7 +89,7 @@ func TestParentQuestionsAreMailedOnceAndWaitAcrossServiceRestartsPG(t *testing.T
 		sent[0].Conversation != questionParentID || sent[0].From != "" {
 		t.Fatalf("the repeated question was mailed more than once or as an agent: %+v", sent)
 	}
-	for _, text := range []string{"sentinel", "Publish the change?", "Publish", "send_to_session", "5 minutes"} {
+	for _, text := range []string{"sentinel", "Publish the change?", "Publish", "send_to_session", "5 minutes", "do not ask them yourself"} {
 		if !strings.Contains(sent[0].Text, text) {
 			t.Errorf("the parent's letter lacks %q: %s", text, sent[0].Text)
 		}
