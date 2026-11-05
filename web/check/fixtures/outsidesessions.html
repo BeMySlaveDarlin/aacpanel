@@ -56,6 +56,7 @@ render(h(ToastHost, null, h(GateHost, null, h(Chat, {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const cards = (root, sel) => Array.from(root.querySelectorAll(sel)).map((c) => c.dataset.name);
 const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
 
 window.done = (async () => {
@@ -65,27 +66,27 @@ window.done = (async () => {
     const phone = document.getElementById("phone");
     const chat = document.getElementById("chat");
     const out = {};
-    out.deskRows = names(desk, ".dksess .dkname");
-    out.deskRemote = Array.from(desk.querySelectorAll(".dksess"))
-        .filter((r) => r.querySelector(".dksessmain .dkrc"))
-        .map((r) => `${text(r.querySelector(".dkname"))}:${text(r.querySelector(".dkrc"))}`);
-    out.deskFold = text(desk.querySelector(".dkkin"));
-    out.deskTyped = text(Array.from(desk.querySelectorAll(".dksess")).find((r) => text(r.querySelector(".dkname")) === "typed"));
-    out.deskTypedActs = (Array.from(desk.querySelectorAll(".dksess")).find((r) => text(r.querySelector(".dkname")) === "typed") || document.body)
-        .querySelectorAll(".dkrowacts .dkact").length;
-    desk.querySelector(".dkkin").click();
+    out.deskRows = cards(desk, ".sc");
+    out.deskRemote = Array.from(desk.querySelectorAll(".sc"))
+        .filter((r) => r.querySelector(".scl5 .scb:nth-child(4).scon"))
+        .map((r) => `${r.dataset.name}:${text(r.querySelector(".scl5 .scb:nth-child(4)"))}`);
+    out.deskFold = text(desk.querySelector(".scfold"));
+    out.deskTyped = text(desk.querySelector('.sc[data-name="typed"]'));
+    out.deskTypedActs = (desk.querySelector('.sc[data-name="typed"]') || document.body).querySelectorAll(".scact").length;
+    desk.querySelector(".scfold").click();
     await quiet();
-    out.deskOpen = names(desk, ".dksess .dkname");
-    out.deskKids = names(desk, ".dksess.dkkid .dkname");
+    out.deskOpen = cards(desk, ".sc");
+    out.deskKids = cards(desk, ".sc.sckid");
 
-    out.phoneRows = names(phone, ".pjblock .pjrow .pjsess");
-    out.phoneFold = text(phone.querySelector(".pjkin"));
-    out.phoneTags = names(phone, ".pjblock .pjrow .pjtag");
-    phone.querySelector(".pjkin").click();
+    out.phoneRows = cards(phone, ".pjblock .sc");
+    out.phoneFold = text(phone.querySelector(".scfold"));
+    out.phoneTags = Array.from(phone.querySelectorAll(".pjblock .sc")).filter((r) => !r.classList.contains("sckid"))
+        .map((r) => text(r.querySelector(".scl5 .scb:nth-child(2)")));
+    phone.querySelector(".scfold").click();
     await quiet();
-    out.phoneOpen = names(phone, ".pjblock .pjrow .pjsess");
-    out.outsideActs = [...phone.querySelectorAll(".pjcard")].filter((r) => text(r.querySelector(".pjtag")) === "outside")
-        .reduce((n, r) => n + r.querySelectorAll(".pjact, .pjmore").length, 0);
+    out.phoneOpen = cards(phone, ".pjblock .sc");
+    out.outsideActs = [...phone.querySelectorAll(".sc")].filter((r) => text(r.querySelector(".scl5 .scb:nth-child(2)")) === "outside")
+        .reduce((n, r) => n + r.querySelectorAll(".scact").length, 0);
 
     for (let i = 0; i < 40 && !chat.querySelector(".outsidenote"); i++) await sleep(50);
     out.tabs = names(chat, ".dktabs .dktab");

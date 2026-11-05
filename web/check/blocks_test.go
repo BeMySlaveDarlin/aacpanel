@@ -3,6 +3,7 @@ package check
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // The sessions of a contour are laid out by project, and the list is read in
@@ -93,8 +94,8 @@ func TestAConversationIsNamedByTheLastWordsThatSaySomething(t *testing.T) {
 
 // An idle session with something of its own still running — an agent, a
 // background command, a workflow, an observer of the panel — is at work in
-// its background, not quiet; a timer runs nothing, and a session with only a
-// wake of its own or an alarm of the panel ahead is idle. A question and a
+// its background, not quiet, and says what runs; a timer runs nothing, and a
+// session with only a wake of its own or an alarm of the panel ahead is idle. A question and a
 // permission still come first, and an answer at work stays busy. The project
 // of a session at work in its background keeps its place in the map beside
 // a quiet one that asked later.
@@ -117,10 +118,10 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 		name, tone, text string
 		row              map[string]any
 	}{
-		{"an agent", "bg", "background", row("idle", work("agents", 1))},
-		{"an observer of the panel", "bg", "background", row("idle", work("observers", 1))},
-		{"a workflow", "bg", "background", row("idle", work("workflows", 1))},
-		{"a background command beside a wake", "bg", "background", row("idle", work("tasks", 2, "wakes", 1))},
+		{"an agent", "bg", "agents running", row("idle", work("agents", 1))},
+		{"an observer of the panel", "bg", "watching", row("idle", work("observers", 1))},
+		{"a workflow", "bg", "agents running", row("idle", work("workflows", 1))},
+		{"a background command beside a wake", "bg", "commands running", row("idle", work("tasks", 2, "wakes", 1))},
 		{"only a wake of its own", "idle", "idle", row("idle", work("tasks", 1, "wakes", 1))},
 		{"only an alarm of the panel", "idle", "idle", row("idle", work("alarms", 1))},
 		{"no model reply", "idle", "no replies yet", row("idle", work(), "noRequests", true)},
@@ -139,8 +140,8 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 			t.Errorf("%s: the row reads %v %q, expected %s %q", c.name, st["tone"], st["text"], c.tone, c.text)
 		}
 	}
-	if st := got[0].(map[string]any); st["work"] != "1 agent" || !strings.Contains(st["since"].(string), "1 agent") {
-		t.Errorf("a row at work in its background lost the line of what runs: work %q, since %q", st["work"], st["since"])
+	if st := got[0].(map[string]any); st["work"] != "1 agent" {
+		t.Errorf("a row at work in its background lost what runs: work %q", st["work"])
 	}
 
 	profile := map[string]any{"groups": []any{
@@ -177,11 +178,91 @@ func TestTheHeadSaysBackgroundWorkAsTheRowDoes(t *testing.T) {
 		{map[string]any{"session": "s", "status": "idle", "work": map[string]any{"tasks": 0, "agents": 0, "alarms": 1}}},
 	})
 	bg := got[0].(map[string]any)
-	if bg["tone"] != "bg" || bg["word"] != "background" || !strings.Contains(bg["say"].(string), "1 agent") {
-		t.Errorf("an idle session with an agent at work reads %v %q (%q) in its head, expected bg \"background\" naming the agent",
+	if bg["tone"] != "bg" || bg["word"] != "agents running" || !strings.Contains(bg["say"].(string), "1 agent") {
+		t.Errorf("an idle session with an agent at work reads %v %q (%q) in its head, expected bg \"agents running\" naming the agent",
 			bg["tone"], bg["word"], bg["say"])
 	}
 	if idle := got[1].(map[string]any); idle["tone"] != "idle" || idle["word"] != "idle" {
 		t.Errorf("a session with only an alarm ahead reads %v %q in its head, expected idle", idle["tone"], idle["word"])
+	}
+}
+
+// Every kind of wait makes a card wait and lifts its block into what needs
+// the person — a question, a permission, a question asked in the conversation,
+// a request, a brief, a secret, a call — each said by its word and its
+// subject. A child whose question is held at its parent says so and does not
+// lift; a restart says where its cycle stands; a quiet session whose last turn
+// ended after the person looked says it was not seen, and one with no seen
+// mark at all says nothing either way.
+func TestEveryWaitMakesTheCardWait(t *testing.T) {
+	soon := time.Now().Add(3 * time.Minute).UTC().Format(time.RFC3339)
+	ended := time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339)
+	seen := time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339)
+	row := func(kv ...any) map[string]any {
+		out := map[string]any{"session": "s", "sessionId": "id-s", "status": "idle"}
+		for i := 0; i+1 < len(kv); i += 2 {
+			out[kv[i].(string)] = kv[i+1]
+		}
+		return out
+	}
+	item := func(kind, title string) []any {
+		return []any{map[string]any{"kind": kind, "title": title, "at": ended}}
+	}
+	cases := []struct {
+		name, tone, kind, text string
+		row                    map[string]any
+	}{
+		{"a question", "wait", "ask", "asks Layout", row("ask", map[string]any{"header": "Layout", "count": 1})},
+		{"a permission", "wait", "permission", "allow Bash tar -xf",
+			row("status", "waiting", "waitingFor", "dialog open", "permission", map[string]any{"tool": "Bash", "head": "tar -xf"})},
+		{"a permission the row does not detail", "wait", "permission", "allow a tool", row("status", "waiting", "waitingFor", "dialog open")},
+		{"a question in the conversation", "wait", "question", "asks Shall I publish?", row("waiting", item("question", "Shall I publish?"))},
+		{"a request", "wait", "request", "request Rotate the token", row("status", "busy", "waiting", item("request", "Rotate the token"))},
+		{"a brief", "wait", "brief", "brief Token rotation", row("waiting", item("brief", "Token rotation"))},
+		{"a secret", "wait", "secret", "secret Release token", row("waiting", item("secret", "Release token"))},
+		{"a call", "wait", "call", "called you", row("waiting", item("call", "Called you"))},
+		{"a question held at the parent", "held", "held", "asked lead · to you in 3m",
+			row("status", "waiting", "ask", map[string]any{"header": "Drop?", "count": 1}, "parentQuestion", map[string]any{"parent": "lead", "due": soon})},
+		{"saving for a restart", "busy", "saving", "saving for restart", row("restartPhase", map[string]any{"phase": "saving", "forceAt": soon})},
+		{"a forced restart", "busy", "restarting", "restarting", row("restartPhase", map[string]any{"phase": "forcing", "forceAt": soon})},
+		{"compacting", "busy", "compact", "compacting", row("status", "busy", "compacting", ended)},
+		{"done and not seen", "idle", "done", "done · not seen", row("statusUpdatedAt", ended, "seenAt", seen,
+			"checklist", map[string]any{"items": []any{map[string]any{"text": "a", "status": "done"}}})},
+		{"seen since", "idle", "idle", "idle", row("statusUpdatedAt", seen, "seenAt", ended)},
+		{"no seen mark", "idle", "idle", "idle", row("statusUpdatedAt", ended)},
+		{"paused", "paused", "paused", "paused", row("pauseAlarm", map[string]any{"id": "p", "next": soon})},
+	}
+	calls := make([][]any, len(cases))
+	for i, c := range cases {
+		calls[i] = []any{c.row}
+	}
+	got := runModuleJS(t, "src/screens/sessions/blocks.js", "stateOf", calls)
+	for i, c := range cases {
+		st := got[i].(map[string]any)
+		if st["tone"] != c.tone || st["kind"] != c.kind || st["text"] != c.text {
+			t.Errorf("%s: the card reads %v %v %q, expected %s %s %q", c.name, st["tone"], st["kind"], st["text"], c.tone, c.kind, c.text)
+		}
+	}
+
+	profile := map[string]any{"groups": []any{map[string]any{"name": "Infra", "projects": []any{
+		map[string]any{"id": 1, "name": "quiet", "session": "quiet", "path": "/p/quiet"},
+		map[string]any{"id": 2, "name": "asks", "session": "asks", "path": "/p/asks"},
+		map[string]any{"id": 3, "name": "held", "session": "held", "path": "/p/held"},
+	}}}}
+	sessions := []any{
+		row("session", "quiet", "sessionId", "q", "project", map[string]any{"id": 1}),
+		row("session", "asks", "sessionId", "a", "project", map[string]any{"id": 2}, "waiting", item("request", "Rotate")),
+		row("session", "held", "sessionId", "h", "project", map[string]any{"id": 3}, "status", "waiting",
+			"ask", map[string]any{"header": "Drop?", "count": 1}, "parentQuestion", map[string]any{"parent": "lead", "due": soon}),
+	}
+	blocks := runModuleJS(t, "src/screens/sessions/blocks.js", "blocksOf", [][]any{
+		{map[string]any{"profile": profile, "sessions": sessions}},
+	})[0].([]any)
+	var order []string
+	for _, raw := range blocks {
+		order = append(order, raw.(map[string]any)["name"].(string))
+	}
+	if strings.Join(order, ",") != "asks,quiet,held" {
+		t.Errorf("the list reads %v — a request lifts its block, a question held at the parent does not", order)
 	}
 }

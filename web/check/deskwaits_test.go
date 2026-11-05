@@ -94,15 +94,17 @@ func TestColumnDrawsWhatItIsWaitingFor(t *testing.T) {
 		t.Error("the column does not ask which sessions are coming up: pressing open leaves " +
 			"no trace until the next snapshot")
 	}
-	if !strings.Contains(src, "<${GhostLine}") {
+	if !strings.Contains(src, "<${GhostCard}") {
 		t.Error("a session coming up has nothing to stand on in the column — the ghost is counted and not drawn")
 	}
-	if !strings.Contains(src, `wait.of("close", s.session)`) {
-		t.Error("the row does not ask whether it is being closed: the close stays unanswered until " +
+	// The column draws its sessions with the card of the phone.
+	card := stripComments(srcFiles(t)[cardFile])
+	if !strings.Contains(card, `wait.of("close", s.session)`) {
+		t.Error("the card does not ask whether it is being closed: the close stays unanswered until " +
 			"the next snapshot, and the person presses close a second time")
 	}
-	if !strings.Contains(src, "closing ?") {
-		t.Error("the close wait changes nothing in the row — it is counted and not shown")
+	if !strings.Contains(card, "closing ?") {
+		t.Error("the close wait changes nothing on the card — it is counted and not shown")
 	}
 	if !strings.Contains(src, "sections.length === 0 && ghosts.length === 0") {
 		t.Error("the column says \"there are no live sessions\" over the console row it shows " +

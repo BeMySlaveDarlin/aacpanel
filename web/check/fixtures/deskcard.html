@@ -21,19 +21,19 @@ html,body{margin:0}
 <script type="module">
 // The card of a session in the desktop column, with the right panel open:
 // live and closed apart. The live sessions of a contour stand in blocks of
-// their projects, each under a heading with a way to a new session in it, and
-// keep their places whatever they do; the state is said in the words of the phone, with a
-// quiet line of what the session runs on under it, the share of its context
-// among it; the one action of a row stands on every row in its corner; the heading
-// counts who waits and opens a new session; the closed conversations stand on
-// a shelf below with their time and Resume. Then the header of the
+// their projects, a project of one session said by its card, and keep their
+// places whatever they do; a card says the state in the words of the phone,
+// who runs it on what, its settings and the share of its context; its
+// controls stand on every card in its corner; the heading counts who waits
+// and opens a new session; the closed conversations stand on a shelf below
+// as dimmed cards with their time and Resume. Then the header of the
 // conversation in two lines, with the right panel open and without, and the
 // time of a closed conversation on the phone. A session that called the
-// person rings on its row until its conversation has been on screen.
+// person says so on its card until its conversation has been on screen.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
-import { PastLine } from "/src/screens/sessions/blocks.js";
+import { PastCard } from "/src/screens/sessions/sessioncard.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -150,83 +150,74 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 // words reads a line made of several pieces the way it reads on the screen.
 const words = (el) => (el ? Array.from(el.children).map(text).filter(Boolean).join(" ") : "");
 const root = () => document.getElementById("root");
-const rowOf = (name) => Array.from(root().querySelectorAll(".dklive")).find((r) => text(r.querySelector(".dkname")) === name);
+const live = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf) .sc:not(.scghost)"));
+const rowOf = (name) => live().find((r) => r.dataset.name === name);
 // lay reads every contour of the column: its name, how many wait, and its
-// rows in order — the heading of a project as "# name · group", with "+"
-// where it opens a new session, and a session by its name.
+// cards in order — the heading of a project of two cards or more as
+// "# name · group", and a card by the name of its session.
 const lay = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => ({
     name: text(sec.querySelector(".dkcontourname")),
     waits: text(sec.querySelector(".dkwaitn")),
-    rows: Array.from(sec.querySelectorAll(".dkproj, .dklive")).map((r) => (r.classList.contains("dkproj")
-        ? `# ${text(r.querySelector(".dkprojname"))} · ${text(r.querySelector(".dkprojgroup"))}${r.querySelector(".dkprojnew") ? " +" : ""}`
-        : text(r.querySelector(".dkname")))),
+    rows: Array.from(sec.querySelectorAll(".dkproj, .sc:not(.scghost)")).map((r) => (r.classList.contains("dkproj")
+        ? `# ${text(r.querySelector(".dkprojname"))} · ${text(r.querySelector(".dkprojgroup"))}`
+        : r.dataset.name)),
 }));
-const say = (name) => words(rowOf(name) && rowOf(name).querySelector(".dksay"));
+const say = (name) => text(rowOf(name) && rowOf(name).querySelector(".scsay"));
+const runs = (name) => (rowOf(name) ? Array.from(rowOf(name).querySelectorAll(".scrun")).map((r) => r.title) : []);
+// facts reads the two quiet lines of a card: who runs it on what, and its
+// settings in their places with the share of its context.
 const facts = (name) => {
-    const d = rowOf(name) && rowOf(name).querySelector(".dkdetail");
-    if (!d) return { all: [], shown: [], lines: 0 };
-    const spans = Array.from(d.children);
-    const top = spans.length ? spans[0].offsetTop : 0;
+    const row = rowOf(name);
+    if (!row) return { line4: "", badges: [], ctx: "" };
+    const word = row.querySelector(".scl4 .agentword");
     return {
-        all: spans.map(text),
-        // Whose word opens the line: the agent it is painted as.
-        agent: spans.length && spans[0].classList.contains("agentword") ? spans[0].dataset.agent || "" : "",
-        levels: spans.map((sp) => sp.dataset.level || ""),
-        shown: spans.filter((s) => s.offsetTop === top).map(text),
-        lines: Math.round(d.getBoundingClientRect().height / parseFloat(getComputedStyle(d).lineHeight)),
-        row: Math.round(rowOf(name).getBoundingClientRect().height),
-        // A fact on the line stands whole inside it: what does not fit is
-        // not cut, it is gone.
-        cut: spans.filter((sp) => sp.offsetTop === top && sp !== spans[0]
-            && sp.getBoundingClientRect().right > d.getBoundingClientRect().right + 0.5).map(text),
+        agent: word ? word.dataset.agent || "" : "",
+        line4: text(row.querySelector(".scagent")),
+        more: Array.from(row.querySelectorAll(".scmore")).map(text),
+        badges: Array.from(row.querySelectorAll(".scl5 .scb")).map((b) => `${text(b)}${b.classList.contains("scoff") ? " off" : ""}`),
+        ctx: text(row.querySelector(".scctx")),
+        row: Math.round(row.getBoundingClientRect().height),
     };
 };
 const box = (el) => (el ? el.getBoundingClientRect() : null);
 const hit = (a, b) => Boolean(a && b && a.width > 0 && b.width > 0
     && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5);
 const clipped = (el) => Boolean(el) && el.scrollWidth > el.clientWidth + 1;
-// rows says of every live row whether its action stands, whether it stands in
-// the top right corner — on the line of the name, at the right edge — and
-// whether the pieces of the row stand clear of each other and inside it.
-const rows = () => Array.from(root().querySelectorAll(".dklive:not(.dkghost)")).map((row) => {
+// rows says of every live card whether its controls stand, whether they
+// stand in the top right corner — on the line of the name, at the right
+// edge — and whether the pieces of the card stand clear of them and inside it.
+const rows = () => live().map((row) => {
     const r = box(row);
-    const left = Array.from(row.querySelectorAll(".dksessmain > *")).map((el) => [el.className || "name", box(el)]);
-    const icon = row.querySelector(".dkrowacts .dkact");
-    const act = box(row.querySelector(".dkrowacts"));
-    const name = box(row.querySelector(".dkname"));
-    const detail = box(row.querySelector(".dkdetail"));
-    const say = box(row.querySelector(".dksay"));
+    const acts = row.querySelector(".scacts");
+    const act = box(acts);
+    const name = box(row.querySelector(".scname"));
     const bad = [];
-    for (const [part, b] of left) {
-        if (hit(b, act)) bad.push(`${part}/action`);
+    for (const [part, el] of [["name", ".scname"], ["state", ".scl2"], ["steps", ".scl3"], ["agent", ".scl4"], ["badges", ".scl5"]]) {
+        if (part !== "name" && hit(box(row.querySelector(el)), act)) bad.push(`${part}/controls`);
     }
-    if (hit(say, act)) bad.push("state/action");
-    if (hit(detail, act)) bad.push("detail/action");
-    for (const [part, b] of [["action", act], ["detail", detail]]) {
-        if (b && (b.right > r.right + 0.5 || b.bottom > r.bottom + 0.5)) bad.push(`${part} out of the row`);
-    }
+    if (hit(name, act)) bad.push("name/controls");
+    if (act && (act.right > r.right + 0.5 || act.bottom > r.bottom + 0.5)) bad.push("controls out of the card");
     if (act && name) {
         const middle = (b) => (b.top + b.bottom) / 2;
-        if (Math.abs(middle(act) - middle(name)) > 4) bad.push("action off the line of the name");
-        if (r.right - act.right > 12) bad.push("action short of the right edge");
+        if (Math.abs(middle(act) - middle(name)) > 4) bad.push("controls off the line of the name");
+        if (r.right - act.right > 12) bad.push("controls short of the right edge");
     }
-    if (row.querySelector(":scope > .dknum")) bad.push("a share in the corner");
-    const style = icon ? getComputedStyle(icon) : null;
-    const shown = icon && getComputedStyle(row.querySelector(".dkrowacts")).visibility === "visible"
-        && style.visibility === "visible" && style.display !== "none" && Number(style.opacity) === 1 && act.width > 0;
-    return { name: text(row.querySelector(".dkname")), icons: row.querySelectorAll(".dkrowacts .dkact").length,
-        shown: Boolean(shown), bad };
+    const icons = acts ? Array.from(acts.querySelectorAll(".scact")) : [];
+    const shown = icons.length > 0 && icons.every((icon) => {
+        const style = getComputedStyle(icon);
+        return style.visibility === "visible" && style.display !== "none" && Number(style.opacity) >= .3 && box(icon).width > 0;
+    }) && getComputedStyle(acts).visibility === "visible";
+    return { name: row.dataset.name, icons: icons.length, shown, bad };
 });
 
-// bells reads the rows that ring for a call, by name, with what the bell says.
-const bells = () => Object.fromEntries(Array.from(root().querySelectorAll(".dklive")).flatMap((row) => {
-    const bell = row.querySelector(".dksessmain .dkcalled");
-    return bell && bell.querySelector("svg") ? [[text(row.querySelector(".dkname")), bell.dataset.tip || ""]] : [];
-}));
+// calls reads the cards that say their session called the person, by name,
+// with what they say and how long ago.
+const calls = () => Object.fromEntries(live().filter((row) => row.dataset.kind === "call")
+    .map((row) => [row.dataset.name, `${text(row.querySelector(".scsay"))} · ${text(row.querySelector(".sctime"))}`]));
 
-// hiding lists the rules of the stylesheet that take the action of a row, the
-// plus of a heading, Resume or the time of a closed conversation off the
-// screen: none of them waits for the pointer.
+// hiding lists the rules of the stylesheet that take the controls of a card,
+// the plus of a heading or Resume off the screen: none of them waits for the
+// pointer.
 function hiding() {
     const out = [];
     const walk = (list) => {
@@ -236,7 +227,7 @@ function hiding() {
                 continue;
             }
             const sel = rule.selectorText || "";
-            if (!/\.dkrowacts|\.dknew\b|\.dkprojnew|\.dkresume|\.dkclwhen/.test(sel)) continue;
+            if (!/\.scacts|\.scact\b|\.scheadacts|\.dknew\b|\.scresume|\.sctime/.test(sel)) continue;
             const st = rule.style;
             if (st.visibility === "hidden" || st.display === "none" || st.opacity === "0") out.push(sel);
         }
@@ -250,66 +241,47 @@ window.done = (async () => {
     const out = { pointer: matchMedia("(hover: hover) and (pointer: fine)").matches };
 
     column(first, "aacpanel");
-    for (let i = 0; i < 60 && !root().querySelector(".dkshelf .dkclosed"); i++) await sleep(50);
+    for (let i = 0; i < 60 && !root().querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);
     await quiet();
     out.before = lay();
     out.orderBefore = orders[orders.length - 1];
     out.ghost = (() => {
-        const g = root().querySelector(".dkghost");
+        const g = root().querySelector(".sc.scghost");
         if (!g) return null;
-        let head = g.previousElementSibling;
-        while (head && !head.classList.contains("dkproj")) head = head.previousElementSibling;
         return { section: text(g.closest("section").querySelector(".dkcontourname")),
-                 head: text(head && head.querySelector(".dkprojname")), say: words(g.querySelector(".dksay")) };
+                 head: g.dataset.name, say: text(g.querySelector(".scl1 .scword")) };
     })();
     out.says = Object.fromEntries(["person", "aacpanel", "api", "shop", "helios"].map((n) => [n, say(n)]));
-    out.tones = Object.fromEntries(["person", "aacpanel", "helios"].map((n) => [n, rowOf(n).dataset.tone]));
-    out.edge = getComputedStyle(rowOf("person")).boxShadow;
-    out.noEdge = getComputedStyle(rowOf("helios")).boxShadow;
-    // The ground of a live row fills as far as its context, faintly, in the
-    // colour of its bar — the open row too; a console being raised has none.
-    // Its box is read from the resolved offsets of the layer, measured
-    // against the bar: the track, and how far the bar's own fill reaches.
-    const ground = (row) => {
-        const st = getComputedStyle(row, "::before");
-        const track = row.querySelector(".dksessbar");
-        const bar = track && track.querySelector("i");
-        return { width: parseFloat(st.width) || 0, span: parseFloat(st.left) + parseFloat(st.width) + parseFloat(st.right),
-                 track: track ? track.getBoundingClientRect().width : 0, reach: bar ? bar.getBoundingClientRect().width : 0,
-                 ground: st.backgroundColor, bar: bar ? getComputedStyle(bar).backgroundColor : "",
-                 under: st.zIndex, own: getComputedStyle(row).isolation };
-    };
-    out.grounds = Object.fromEntries(["aacpanel", "person", "helios", "acme-fingerprint-rotation-review"].map((n) => [n, ground(rowOf(n))]));
-    out.ghostGround = ground(root().querySelector(".dkghost"));
+    out.runs = Object.fromEntries(["aacpanel", "shop", "helios"].map((n) => [n, runs(n)]));
+    out.tones = Object.fromEntries(["person", "aacpanel", "helios", "shop"].map((n) => [n, rowOf(n).dataset.tone]));
+    out.edge = getComputedStyle(rowOf("person")).backgroundImage;
+    out.noEdge = getComputedStyle(rowOf("helios")).backgroundImage;
     out.facts = Object.fromEntries(["aacpanel", "api", "shop", "helios", "scratch", "acme-fingerprint-rotation-review"]
         .map((n) => [n, facts(n)]));
-    out.marks = Object.fromEntries(["aacpanel", "helios", "scratch", "shop"].map((n) => [n,
-        Array.from(rowOf(n).querySelectorAll(".dkmark, .dkrc, .dkhome")).map(text)]));
-    out.bells = bells();
+    out.bells = calls();
     out.columnText = text(root().querySelector(".dkscroll"));
     out.rows = rows();
-    out.homeAct = [...rowOf("helios").querySelectorAll(".dkrowacts .dkact")].map((b) => b.getAttribute("aria-label")).join(",");
+    out.homeAct = [...rowOf("helios").querySelectorAll(".scacts .scact")].map((b) => b.getAttribute("aria-label")).join(",");
     out.hiding = hiding();
 
     // The shelf.
     out.asked = [...asked];
-    out.shelf = Array.from(root().querySelectorAll(".dkshelf .dkclosed")).map((r) => ({
-        name: text(r.querySelector(".dkclname")), contour: text(r.querySelector(".dkclcontour")),
-        when: text(r.querySelector(".dkclwhen")), about: text(r.querySelector(".dkabout")),
-        dot: Boolean(r.querySelector(".dkdot, .dksessbar")),
-        resume: getComputedStyle(r.querySelector(".dkresume")).display,
+    out.shelf = Array.from(root().querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({
+        name: r.dataset.name, contour: text(r.querySelector(".sctag")),
+        when: text(r.querySelector(".sctime")), about: text(r.querySelector(".scstep")),
+        dot: Boolean(r.querySelector(".scedge:not(.scpeak)")),
+        resume: getComputedStyle(r.querySelector(".scresume")).display,
         bad: [
-            hit(box(r.querySelector(".dkresume")), box(r.querySelector(".dkabout"))) && "Resume/about",
-            hit(box(r.querySelector(".dkresume")), box(r.querySelector(".dkclwhen"))) && "Resume/time",
-            hit(box(r.querySelector(".dkclwhen")), box(r.querySelector(".dkclcontour"))) && "time/contour",
-            clipped(r.querySelector(".dkclwhen")) && "time cut",
-            clipped(r.querySelector(".dkresume")) && "Resume cut",
-            box(r.querySelector(".dkresume")).right > box(r).right + 0.5 && "Resume out of the row",
+            hit(box(r.querySelector(".scresume")), box(r.querySelector(".scname"))) && "Resume/name",
+            hit(box(r.querySelector(".sctime")), box(r.querySelector(".scagent"))) && "time/agent",
+            clipped(r.querySelector(".sctime")) && "time cut",
+            clipped(r.querySelector(".scresume")) && "Resume cut",
+            box(r.querySelector(".scresume")).right > box(r).right + 0.5 && "Resume out of the card",
         ].filter(Boolean),
     }));
     root().querySelector(".dkshelfall").click();
     out.archiveOpened = archiveOpened;
-    Array.from(root().querySelectorAll(".dkclosed")).pop().click();
+    Array.from(root().querySelectorAll(".dkshelf .sc.scpast .scopen")).pop().click();
     out.pickedClosed = picked[picked.length - 1];
 
     // The new session of a contour.
@@ -326,12 +298,12 @@ window.done = (async () => {
     await quiet();
     out.opened = sent.slice();
 
-    // The plus of a project heading starts a session in that project. The
-    // gate asks first, as it does for the plus of the contour: what is read is
-    // what went to the host once the person said yes.
+    // The plus of a project's card — the project of one session has no
+    // heading, its card stands for it — starts a session in that project.
+    // The gate asks first, as it does for the plus of the contour: what is
+    // read is what went to the host once the person said yes.
     sent.length = 0;
-    const ownHead = Array.from(root().querySelectorAll(".dkproj")).find((el) => text(el.querySelector(".dkprojname")) === "person");
-    const own = ownHead && ownHead.querySelector(".dkprojnew");
+    const own = rowOf("person") && rowOf("person").querySelector('.scact[aria-label="new session in project person"]');
     out.projectPlus = own ? getComputedStyle(own).visibility : "";
     if (own) {
         own.click();
@@ -349,16 +321,16 @@ window.done = (async () => {
     out.orderAfter = orders[orders.length - 1];
     out.saysAfter = { aacpanel: say("aacpanel"), person: say("person") };
 
-    // A closed conversation open: its row carries its time and Resume both.
+    // A closed conversation open: its card carries its time and Resume both.
     sent.length = 0;
     column(first, "shop-admin", "c-shop-admin");
     await quiet();
-    const open = root().querySelector(".dkclosed.on");
-    out.openClosed = open ? { name: text(open.querySelector(".dkclname")),
-        resume: getComputedStyle(open.querySelector(".dkresume")).display,
-        when: getComputedStyle(open.querySelector(".dkclwhen")).display } : null;
+    const open = root().querySelector(".dkshelf .sc.scpast.sccur");
+    out.openClosed = open ? { name: open.dataset.name,
+        resume: getComputedStyle(open.querySelector(".scresume")).display,
+        when: getComputedStyle(open.querySelector(".sctime")).display } : null;
     if (open) {
-        open.querySelector(".dkresume").click();
+        open.querySelector(".scresume").click();
         await quiet();
         const yes = document.querySelector(".btnrow .btn.primary");
         if (yes) yes.click();
@@ -403,17 +375,18 @@ window.done = (async () => {
     out.withoutPanel = head();
 
     // The conversation of the session that called was on screen: back on the
-    // column, its row rings no more, though the host has not said so yet.
+    // column, its card says the call no more, though the host has not said so
+    // yet.
     render(null, chat);
     column(first, "aacpanel");
     await quiet();
-    out.bellsVisited = bells();
+    out.bellsVisited = calls();
 
     // The time of a closed conversation on the phone.
-    render(h(ToastHost, null, h(GateHost, null, html`<${PastLine} row=${archive[1]} project=${null} exec=${exec} onOpen=${() => {}} />`)),
+    render(h(ToastHost, null, h(GateHost, null, html`<${PastCard} row=${archive[1]} exec=${exec} onOpen=${() => {}} />`)),
         document.getElementById("phone"));
     await sleep(50);
-    out.phoneWhen = text(document.querySelector("#phone .pjwhen"));
+    out.phoneWhen = text(document.querySelector("#phone .sctime"));
     return out;
 })();
 </script>

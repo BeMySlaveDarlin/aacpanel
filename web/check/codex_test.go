@@ -123,8 +123,8 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if !strings.Contains(got.DeskAgent.Tip, "codex thread") {
 		t.Errorf("the word Codex on the desktop row has the tip %q, expected what the panel does to a codex thread", got.DeskAgent.Tip)
 	}
-	if len(got.DeskFacts) < 2 || got.DeskFacts[1] != "gpt-6-astra · Extra" {
-		t.Errorf("the desktop row of the codex thread runs on %v, expected Codex and then its model", got.DeskFacts)
+	if len(got.DeskFacts) != 1 || got.DeskFacts[0] != "Codex gpt-6-astra Extra" {
+		t.Errorf("the desktop card of the codex thread runs on %v, expected Codex and then its model and effort", got.DeskFacts)
 	}
 	if len(got.DeskMarks) != 0 {
 		t.Errorf("the desktop row of the codex thread is marked %v beside the name: who runs it opens the line of its model", got.DeskMarks)
@@ -136,26 +136,26 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("Codex is painted %q and Claude %q on the desktop rows, expected %s and %s, the colours of their marks",
 			got.DeskAgent.Colour, got.ClaudeAgent.Colour, codexWordHue, claudeWordHue)
 	}
-	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 3 {
+	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 4 {
 		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked, pinnable, restartable and closable",
 			got.ClaudeMarks, got.ClaudeActs)
 	}
-	if len(got.DeskActs) != 3 || got.DeskActs[0].Label != "pin session group "+name ||
-		got.DeskActs[1].Label != "restart session "+name || got.DeskActs[2].Label != "close session "+name {
-		t.Errorf("the desktop row of the codex thread offers %+v, expected pin, restart and close", got.DeskActs)
+	if len(got.DeskActs) != 4 || got.DeskActs[0].Label != "pause session "+name || got.DeskActs[1].Label != "restart session "+name ||
+		got.DeskActs[2].Label != "pin session group "+name || got.DeskActs[3].Label != "close session "+name {
+		t.Errorf("the desktop card of the codex thread offers %+v, expected pause, restart, pin and close", got.DeskActs)
 	} else {
-		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[2].Tip)
+		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[3].Tip)
 	}
-	if !strings.Contains(got.DeskSay, "waiting") {
+	if got.DeskSay != "allow a tool" {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)
 	}
 	if strings.Join(got.PhoneTags, ",") != "stream,daemon" {
 		t.Errorf("the phone marks the rows %v, expected the claude session on the stream and the codex thread on the daemon", got.PhoneTags)
 	}
-	if !strings.Contains(got.PhoneState, "waiting") {
+	if got.PhoneState != "allow a tool" {
 		t.Errorf("the phone row of a waiting codex thread says %q", got.PhoneState)
 	}
-	if got.PhoneSince != "Codex · gpt-6-astra" {
+	if got.PhoneSince != "Codex gpt-6-astra Extra" {
 		t.Errorf("under the state of the codex thread on the phone stands %q, expected who runs it and on which model", got.PhoneSince)
 	}
 	if len(got.PhoneAgents) != 2 {
@@ -170,19 +170,20 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 			got.PhoneAgents[1].Colour, got.PhoneAgents[0].Colour, codexWordHue, claudeWordHue)
 	}
 	codexWord("the line under the name in the header", got.HeadAgent)
-	if !strings.HasPrefix(got.HeadSub, "Codex · gpt-6-astra · answering") {
+	if !strings.HasPrefix(got.HeadSub, "Codex · gpt-6-astra · working") {
 		t.Errorf("the line under the name in the header reads %q, expected who runs it, its model and how it stands", got.HeadSub)
 	}
 	if len(got.HeadMarks) != 0 {
 		t.Errorf("the header of the conversation carries the marks %v beside the name", got.HeadMarks)
 	}
 
-	if len(got.PhoneActions) != 3 || got.PhoneActions[0].Label != "pin session group codex-5afc361b" || !got.PhoneActions[0].Off ||
+	if len(got.PhoneActions) != 4 || got.PhoneActions[0].Label != "pause session "+name || !got.PhoneActions[0].Off ||
 		got.PhoneActions[1].Label != "restart session "+name || got.PhoneActions[1].Off ||
-		got.PhoneActions[2].Text != "" || got.PhoneActions[2].Label != "close session codex-5afc361b" || got.PhoneActions[2].Off {
-		t.Errorf("the phone's card offers %+v, expected a pin unknown to this host, Restart and Close", got.PhoneActions)
+		got.PhoneActions[2].Label != "pin session group "+name || !got.PhoneActions[2].Off ||
+		got.PhoneActions[3].Text != "" || got.PhoneActions[3].Label != "close session "+name || got.PhoneActions[3].Off {
+		t.Errorf("the phone's card offers %+v, expected a pause and a pin unknown to this host, Restart and Close", got.PhoneActions)
 	} else {
-		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[2].Note)
+		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[3].Note)
 	}
 
 	// The conversation: the feed and its files, no terminal, no move.

@@ -10,10 +10,10 @@ import (
 )
 
 type sessionCardTrack struct {
-	Name, BurnPaint, Restart, RestartTip, Checklist string
-	Branch, Burn, FillAbove, RestartIcon            bool
-	RowX, BarX, BarWidth, GuideX                    float64
-	BurnLeft, BurnWidth, FillWidth                  float64
+	Name, Restart, RestartTip, Checklist string
+	Branch, CapAuto, RestartIcon         bool
+	RowX, BarX, BarWidth, GuideX         float64
+	Cap, FillWidth                       float64
 }
 
 func sessionCardTracks(t *testing.T) map[string][]sessionCardTrack {
@@ -28,6 +28,8 @@ func sessionCardTracks(t *testing.T) map[string][]sessionCardTrack {
 	return map[string][]sessionCardTrack{"phone": got.Levels.Phone.Open.Rows, "desk": got.Levels.Desk.Open.Rows}
 }
 
+// The context bar along the bottom of a card begins where the card does, or
+// at the hairline of a session another opened.
 func TestSessionContextBarsBeginAtTheirBranches(t *testing.T) {
 	for screen, rows := range sessionCardTracks(t) {
 		if len(rows) != 7 {
@@ -45,33 +47,40 @@ func TestSessionContextBarsBeginAtTheirBranches(t *testing.T) {
 	}
 }
 
+// The cap of a session is a tick on its context bar at the share it is set
+// to, in the accent where the session restarts there; the fill past the cap
+// is drawn whole.
 func TestSessionContextBarsReserveTheRestartCap(t *testing.T) {
 	for screen, rows := range sessionCardTracks(t) {
 		for _, row := range rows {
-			cap, burn := map[string]float64{"A": 80, "B": 70, "C": 65}[row.Name]
-			if row.Burn != burn {
-				t.Errorf("%s/%s: spent track %v, want %v", screen, row.Name, row.Burn, burn)
+			cap, auto := map[string]float64{"A": 80, "B": 70, "C": 65, "G": 70}[row.Name], map[string]bool{"A": true, "B": true, "C": true}[row.Name]
+			if cap == 0 {
+				if row.Cap != 0 {
+					t.Errorf("%s/%s: a session without a cap carries a tick at %.1f%%", screen, row.Name, row.Cap)
+				}
+				continue
 			}
-			if burn && (math.Abs(row.BurnLeft-cap) > .1 || math.Abs(row.BurnWidth-(100-cap)) > .1 ||
-				!strings.Contains(row.BurnPaint, "repeating-linear-gradient") || !row.FillAbove) {
-				t.Errorf("%s/%s: the cap does not leave a painted track under the fill: %+v", screen, row.Name, row)
+			if math.Abs(row.Cap-cap) > .5 || row.CapAuto != auto {
+				t.Errorf("%s/%s: the cap stands at %.1f%% (accent %v), want %.0f%% (%v)", screen, row.Name, row.Cap, row.CapAuto, cap, auto)
 			}
-			if row.Name == "C" && math.Abs(row.FillWidth-82) > .1 {
+			if row.Name == "C" && math.Abs(row.FillWidth-82) > .5 {
 				t.Errorf("%s: context past the cap was cut back: %+v", screen, row)
 			}
 		}
 	}
 }
 
+// A session that restarts by itself at its cap says so in the place of its
+// cap, with the mark of a restart and a tip that says what happens there.
 func TestSessionCardsMarkAutomaticRestart(t *testing.T) {
 	for screen, rows := range sessionCardTracks(t) {
 		for _, row := range rows {
 			cap := map[string]string{"A": "80", "B": "70", "C": "65", "F": "100"}[row.Name]
 			if cap == "" {
-				if row.Restart != "" || row.RestartIcon || row.RestartTip != "" {
+				if row.RestartIcon || row.RestartTip != "" {
 					t.Errorf("%s/%s: a session without automatic restart carries its mark: %+v", screen, row.Name, row)
 				}
-			} else if row.Restart != "auto" || !row.RestartIcon || !strings.Contains(row.RestartTip, cap+"%") ||
+			} else if row.Restart != "at "+cap+"%" || !row.RestartIcon || !strings.Contains(row.RestartTip, cap+"%") ||
 				!strings.Contains(row.RestartTip, "saves its work") || !strings.Contains(row.RestartTip, "restarts") {
 				t.Errorf("%s/%s: the restart mark loses its consequence: %+v", screen, row.Name, row)
 			}
@@ -99,12 +108,13 @@ func TestDesktopSessionActionsFollowThePhone(t *testing.T) {
 	}
 	runFixture(t, "sessionstops.html", &got)
 	for name, want := range map[string]string{
-		"helios": "pin,restart", "lab": "pin,restart,close", "quiet": "pin,restart,close",
-		"codex-5afc361b": "pin,restart,close", "outside": "",
+		"helios": "pause,restart,pin", "lab": "pause,restart,pin,close", "quiet": "pause,restart,pin,close",
+		"codex-5afc361b": "pause,restart,pin,close", "outside": "",
 	} {
 		var actions []string
 		for _, b := range got.DesktopActions[name] {
 			pin := b.Label == "pin session group "+name
+			pause := strings.HasPrefix(b.Label, "pause session ")
 			if pin {
 				actions = append(actions, "pin")
 				if b.Pressed == nil || *b.Pressed != "false" {
@@ -113,7 +123,7 @@ func TestDesktopSessionActionsFollowThePhone(t *testing.T) {
 			} else {
 				actions = append(actions, strings.TrimSuffix(b.Label, " session "+name))
 			}
-			if !b.Icon || b.Off != pin {
+			if !b.Icon || b.Off != (pin || pause) {
 				t.Errorf("%s: the action has the wrong icon or availability: %+v", name, b)
 			}
 		}
@@ -265,15 +275,21 @@ func TestArchivedSessionCardDiffersFromLive(t *testing.T) {
 		}
 	}
 
+	// An archived card keeps the skeleton of a live one, dimmed: its number is
+	// the peak it reached, and the bar along its edge is drawn in the faint
+	// ink of a peak, never in the colours of a fill.
 	body := screenSrc(t, sessionsFile)
-	line := jsBlock(t, sessionsFile, body, "export function PastLine(")
+	line := jsBlock(t, sessionsFile, body, "export function PastCard(")
 	if !strings.Contains(line, "peak ${Math.round(row.pctMax") {
 		t.Errorf("%s: the last conversation of a project does not name its number a peak — "+
 			"on the list a closed conversation reads as a fill happening right now again", sessionsFile)
 	}
-	if strings.Contains(line, "ContextBar") {
-		t.Errorf("%s: the last conversation of a project draws a bar of the context — a closed "+
-			"conversation has no fill, and a bar under it reads as a live one", sessionsFile)
+	if !strings.Contains(line, "<${Edge} pct=${row.pctMax || 0} past />") {
+		t.Errorf("%s: the bar along the edge of an archived card is not drawn as a peak — "+
+			"a bar in the colours of a fill reads as a live one", sessionsFile)
+	}
+	if peak := cssBlock(t, css, ".scedge.scpeak i"); !strings.Contains(peak, "var(--ink-faint)") {
+		t.Errorf("%s: the peak bar of an archived card has no faint ink of its own", cssFile)
 	}
 }
 

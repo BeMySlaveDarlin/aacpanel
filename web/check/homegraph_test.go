@@ -382,7 +382,7 @@ func TestAPlanetStandsOnTheOrbitOfItsProject(t *testing.T) {
 	if got.OrbitOf["codex-1"] != "blog" || got.OrbitOf["deep"] != "blog" {
 		t.Errorf("the moons tell of the orbits %q and %q: a moon belongs where its planet does", got.OrbitOf["codex-1"], got.OrbitOf["deep"])
 	}
-	if got.Notes != "waiting for an answer, 1 h" {
+	if got.Notes != "waits for an answer, 1 h" {
 		t.Errorf("the waiting session says %q beside its mark: the words of its row and how long it has waited", got.Notes)
 	}
 }
@@ -832,7 +832,7 @@ func TestTheHomeHasNoTileOfTheSessions(t *testing.T) {
 func TestTheGraphOpensASessionAsItsRowDoes(t *testing.T) {
 	got := runHomeGraph(t)
 
-	tip := []string{"blog", "client · blog · context 52% · last reply 1 h ago", "waiting for an answer",
+	tip := []string{"blog", "client · blog · context 52% · last reply 1 h ago", "waits for an answer",
 		"click — open the session · right-click — its menu"}
 	if !reflect.DeepEqual(got.Tip, tip) {
 		t.Errorf("the tip over blog reads %q", got.Tip)

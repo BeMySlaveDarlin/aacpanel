@@ -64,19 +64,23 @@ const until = async (ok, what, ms = 4000) => {
 };
 // rows reads the checklist between the state and the facts, and checks
 // the whole card for the role, even if it moved to another element.
-const rows = (root, row, name, checklist, state, after) => [...root.querySelectorAll(row)].map((r) => {
-    const line = r.querySelector(checklist);
-    const role = sessions.find((s) => s.session === text(r.querySelector(name)))?.role;
-    const box = line && line.getBoundingClientRect();
-    const said = r.querySelector(state).getBoundingClientRect();
-    const next = r.querySelector(after);
+// rows reads the cards of a list: the step of the checklist in hand and n/N,
+// whether the step is cut, and whether its line stands under the state and
+// over the bar of the steps.
+const rows = (root) => [...root.querySelectorAll(".sc")].map((r) => {
+    const line = r.querySelector(".scl3");
+    const step = r.querySelector(".scstep");
+    const role = sessions.find((s) => s.session === r.dataset.name)?.role;
+    const box = line.getBoundingClientRect();
+    const said = r.querySelector(".scsay").getBoundingClientRect();
+    const next = r.querySelector(".scsegs");
     return {
-        name: text(r.querySelector(name)),
+        name: r.dataset.name,
         role: role && text(r).includes(role) ? role : null,
-        checklist: text(line),
-        cut: Boolean(line) && line.scrollWidth > line.clientWidth + 1,
-        oneLine: !line || box.height < 2 * parseFloat(getComputedStyle(line).fontSize),
-        placed: !line || (box.top >= said.bottom - 1 && (!next || box.bottom <= next.getBoundingClientRect().top + 1)),
+        checklist: [text(r.querySelector(".scn")), text(step)].filter(Boolean).join(" · "),
+        cut: step.scrollWidth > step.clientWidth + 1 || getComputedStyle(step).textOverflow === "ellipsis",
+        oneLine: box.height < 2 * parseFloat(getComputedStyle(line).fontSize),
+        placed: box.top >= said.bottom - 1 && box.bottom <= next.getBoundingClientRect().top + 1,
     };
 });
 const sheet = () => document.querySelector(".sheet.on .rolefield")?.closest(".cmdsheet");
@@ -108,10 +112,10 @@ window.done = (async () => {
     await document.fonts.ready;
     await quiet();
     const out = {};
-    out.desk = rows(document.getElementById("desk"), ".dksess.dklive", ".dkname", ".dkchecklist", ".dksay", ".dkdetail");
+    out.desk = rows(document.getElementById("desk"));
     // A phone's card is read whole for the words of its role.
-    out.phone = [...document.getElementById("phone").querySelectorAll(".pjcard")].map((card) => {
-        const name = text(card.querySelector(".pjsess"));
+    out.phone = [...document.getElementById("phone").querySelectorAll(".sc")].map((card) => {
+        const name = card.dataset.name;
         const role = (sessions.find((s) => s.session === name) || {}).role;
         return { name, role: role && text(card).includes(role.replace(/\s+/g, " ").trim()) ? role : null };
     });

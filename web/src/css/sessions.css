@@ -432,10 +432,9 @@
 
 }
 
-/* The sessions of a contour as blocks of their projects: the name of the
-   project heads a block, its live sessions are rows under it, and its last
-   conversation closes it. The sections read who waits for the person, who
-   works, who is quiet. */
+/* The sessions of a contour as blocks of their projects. A project of two
+   cards or more stands under a heading of its name, its group and its
+   controls; a project of one card is said by the card. */
 .grouphead.pjsection { display: flex; align-items: center; gap: .5rem; margin: .4rem 0 0; }
 .grouphead.pjwaits { color: var(--wait); }
 .pjcount { color: var(--ink-dim); letter-spacing: 0; }
@@ -448,25 +447,20 @@
     box-shadow: var(--gloss), var(--hairline);
     overflow: hidden;
 }
-/* A block with nothing alive in it — only its last conversation — is drawn
-   flat, on a dashed edge; a block with a live session keeps its glass however
-   idle the session is. */
 .pjblock.pjquiet { background: none; box-shadow: none; border-style: dashed; }
 
-.pjhead { display: flex; align-items: center; gap: .45rem; min-height: 2.15rem; padding: .1rem .4rem .1rem .75rem; }
+.pjhead { display: flex; align-items: center; gap: .5rem; min-height: 2.65rem; padding: 0 .27rem 0 .93rem; }
 .pjname {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     padding: 0;
     border: 0;
     background: none;
     font: inherit;
     font-size: var(--t-base);
     font-weight: 600;
-    color: var(--ink);
+    color: var(--ink-dim);
     text-align: left;
+    overflow-wrap: anywhere;
     cursor: pointer;
 }
 span.pjname { cursor: default; }
@@ -491,329 +485,260 @@ span.pjname { cursor: default; }
 .pjnew svg { width: var(--i-sm); height: var(--i-sm); }
 .pjnew:disabled { opacity: .45; cursor: default; }
 
-.pjrow {
+/* The card of a session, five lines in two columns: the glyph of the state
+   beside the first line, the lines in the second. Every state keeps every
+   line, so a card does not change its height when the session moves from
+   working to waiting; the lines stand close, and the leading alone keeps
+   them apart. The context bar runs along the bottom edge. */
+.sc {
+    --depth: 0;
+    --step: 1.2rem;
     position: relative;
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    min-height: 2.6rem;
-    padding: .15rem .35rem .15rem .75rem;
-    border-top: var(--hair) solid var(--line);
-}
-.pjrow > .ctxbar.edge { top: auto; bottom: 0; }
-/* The name and its actions take the whole first line. Under them the state
-   includes where the session lives; the figure keeps the bottom right corner
-   beside the last words, leaving the checklist as much width as it can. The
-   lines of a card stand close, with no gap between them: a list of sessions
-   is read down a screen, and the leading alone keeps them apart. */
-.pjrow.pjcard {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 0 .5rem;
-    padding: .3rem .75rem;
-    line-height: 1.25;
-}
-.pjtop { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; }
-/* The buttons keep their touch targets when a name is long: only the name
-   gives up width, and its full value stays in the conversation's label. */
-.pjtop > .pjsess { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pjcard > .pjopen { padding: 0; gap: 0; }
-.pjcard > .pjpct { align-self: end; }
-/* The whole row opens the conversation, not only its words: the open button
-   reaches over the row, and the buttons in the row stand above it. */
-.pjopen::after { content: ""; position: absolute; inset: 0; }
-.pjact, .pjresume { position: relative; z-index: 1; }
-/* The runs a session started inside its work: a fold under it, and the runs
-   themselves a step in when it is open. */
-.pjrow.pjkid { padding-left: 1.85rem; }
-.pjkin {
-    display: flex;
+    grid-template-columns: 1.33rem minmax(0, 1fr);
+    column-gap: .67rem;
+    row-gap: .2rem;
     align-items: center;
-    gap: .3rem;
-    width: 100%;
-    min-height: 2.2rem;
-    padding: 0 .75rem 0 1.6rem;
+    padding: .73rem .27rem .93rem calc(.93rem + var(--depth) * var(--step));
+    line-height: 1.33;
+}
+/* A hairline parts the cards of a block, and a fold from the cards. */
+.pjblock > :not(:first-child), .pjtree > * + * { border-top: var(--hair) solid var(--line); }
+.sc > :not(.scglyph, .scopen, .scedge) { grid-column: 2; min-width: 0; }
+/* The whole card opens the conversation: a button under the lines reaches
+   over the card, and the controls stand above it. */
+.scopen { position: absolute; inset: 0; z-index: 0; padding: 0; border: 0; background: none; cursor: pointer; }
+.sc > :not(.scopen, .scedge) { position: relative; z-index: 1; pointer-events: none; }
+.sc .scacts, .sc .scact, .sc .scresume { pointer-events: auto; }
+.sc.scwait { background: linear-gradient(100deg, color-mix(in srgb, var(--wait) 17%, transparent), color-mix(in srgb, var(--wait) 7%, transparent) 70%); }
+.sc.sccur { background: var(--accent-bg); }
+/* A session another opened stands a step in, on a hairline down from it. */
+.sc.sckid::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(.93rem + (var(--depth) - 1) * var(--step) + .4rem);
+    border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 45%, transparent);
+}
+
+/* The glyph of the state, in its colour; a word goes with it on the line
+   beside, so a glyph is never alone with a meaning to guess. */
+.scglyph { grid-column: 1; grid-row: 1; position: relative; display: grid; place-items: center; width: 1.33rem; height: 1.33rem; color: var(--ink-faint); }
+.scglyph svg { width: var(--i-md); height: var(--i-md); stroke-width: 2; }
+.scglyph .scshape { width: .5rem; height: .5rem; border-radius: 50%; }
+.scglyph[data-tone="busy"], .scglyph[data-tone="bg"] { color: var(--accent); }
+.scglyph[data-tone="wait"] { color: var(--wait); }
+.scglyph[data-tone="wait"] svg { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--wait) 60%, transparent)); }
+.scglyph[data-tone="held"] { color: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); }
+.scglyph[data-tone="limit"] { color: var(--warn); }
+.scglyph[data-kind="work"] .scshape { background: currentColor; }
+.scglyph[data-kind="inside"] .scshape { box-shadow: inset 0 0 0 1.5px currentColor; }
+.scglyph[data-kind="closed"] .scshape { width: .8rem; height: .8rem; box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+.scglyph[data-kind="done"]:has(.scnew) { color: var(--ok); }
+.scglyph .scnew { position: absolute; top: -.13rem; right: -.2rem; width: .53rem; height: .53rem; border-radius: 50%; background: var(--ok); }
+.scglyph .spin { width: var(--i-sm); height: var(--i-sm); }
+
+/* Line one: the name, the part a heading over it says already dropped and
+   the project a lone card stands for as a quiet prefix; the controls at the
+   right, always there. The name wraps rather than gives up its tail: the
+   tail is what tells two sessions apart. */
+.scl1 { display: flex; align-items: center; gap: .5rem; min-height: 1.33rem; }
+.scname { flex: 0 1 auto; min-width: 0; font-size: var(--t-base); font-weight: 600; line-height: 1.33; color: var(--ink); overflow-wrap: anywhere; }
+.scpre { font-weight: 500; color: var(--ink-faint); }
+.sctag { margin-left: .4rem; font-size: var(--t-xs); font-weight: 500; color: var(--ink-faint); }
+.scacts { flex: none; margin-left: auto; display: inline-flex; align-items: center; margin-block: -.4rem; }
+.scact {
+    display: inline-grid;
+    place-items: center;
+    width: 2.13rem;
+    height: 2.13rem;
+    padding: 0;
     border: 0;
-    border-top: var(--hair) solid var(--line);
+    background: none;
+    color: color-mix(in srgb, var(--ink-faint) 75%, transparent);
+    cursor: pointer;
+}
+.scact svg { width: 1.13em; height: 1.13em; stroke-width: 1.6; }
+.scact.scon { color: var(--accent); }
+.scact[aria-pressed="true"] svg { fill: currentColor; }
+.scact[aria-disabled="true"] { opacity: .45; cursor: default; }
+.scresume {
+    min-height: 2.13rem;
+    padding: 0 .67rem;
+    border: 0;
     background: none;
     font: inherit;
-    font-size: var(--t-xs);
+    font-size: var(--t-sm);
+    font-weight: 600;
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.scresume[aria-disabled="true"] { opacity: .45; cursor: default; }
+.scheadacts { flex: none; margin-left: auto; display: inline-flex; align-items: center; }
+
+/* Line two: the state in a word, in its colour; the subject of a wait in the
+   ink, a command in mono, each wrapped rather than cut. Right after the word,
+   what runs now: the subagents, the commands, the observers — only what
+   runs. The note of the collector closes the line. */
+.scl2 { display: flex; flex-wrap: wrap; align-items: center; column-gap: .67rem; min-height: 1.33rem; font-size: var(--t-md); }
+.scsay { min-width: 0; color: var(--ink-faint); overflow-wrap: anywhere; }
+.sc[data-tone="busy"] .scword, .sc[data-tone="bg"] .scword { color: var(--accent); }
+.sc[data-tone="wait"] .scword { color: color-mix(in srgb, var(--wait) 80%, var(--ink-faint)); }
+.sc[data-tone="held"] .scword { color: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); }
+.sc[data-tone="limit"] .scword { color: var(--warn); }
+.sc[data-kind="done"] .scword, .sc[data-tone="idle"]:has(.scnew) .scsay { color: var(--ok); }
+.scsubj { font-weight: 600; color: var(--ink); }
+.scmono { padding: .07rem .33rem; border-radius: var(--r-small); background: var(--code-bg); font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-dim); }
+.scaside { color: inherit; }
+.scrun { flex: none; display: inline-flex; align-items: center; gap: .27rem; font-weight: 600; color: var(--accent); }
+.scrun svg { width: 1.07em; height: 1.07em; color: var(--ink-faint); }
+/* The wake the session has ahead stands with what runs, quieter: it runs
+   nothing until it comes. */
+.scalarm { flex: none; display: inline-flex; align-items: center; gap: .27rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.scalarm svg { width: 1.07em; height: 1.07em; }
+.sccollector { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .92em; color: var(--warn); }
+.scbusy { display: inline-flex; align-items: center; gap: .4rem; color: var(--ink-dim); }
+.scbusy .spin { width: var(--i-sm); height: var(--i-sm); }
+
+/* Line three: the step in hand, wrapped rather than cut, and n/N; under it a
+   segment a step over the whole width — done in grey, the step at work in
+   the colour of the state, those ahead dark. */
+.scl3 { display: flex; align-items: baseline; gap: .67rem; min-height: 1.27rem; font-size: var(--t-md); }
+.scstep { flex: 1 1 auto; min-width: 0; color: var(--ink-dim); overflow-wrap: anywhere; }
+.scstep.scnone { color: var(--ink-faint); opacity: .7; }
+.scn { flex: none; margin-left: auto; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.scn b { font-weight: 600; color: var(--ink-dim); }
+.scn.scover b { color: var(--ok); }
+.scsegs { display: flex; gap: 2px; height: .4rem; }
+.scsegs i { flex: 1; min-width: 0; border-radius: 1.5px; background: rgba(var(--tint), .11); }
+.scsegs i.scd { background: color-mix(in srgb, var(--ink-dim) 55%, transparent); }
+.scsegs i.sca { background: var(--accent); }
+.sc[data-tone="wait"] .scsegs i.sca { background: var(--wait); }
+.sc[data-tone="held"] .scsegs i.sca { background: color-mix(in srgb, var(--wait) 60%, transparent); }
+.sc[data-tone="limit"] .scsegs i.sca { background: var(--warn); }
+.sc[data-tone="idle"] .scsegs i.sca, .sc[data-tone="paused"] .scsegs i.sca { background: var(--ink-faint); }
+.scsegs.scover i { background: color-mix(in srgb, var(--ok) 70%, transparent); }
+.scsegs.scempty i { background: rgba(var(--tint), .06); }
+
+/* Line four: who runs it, on which model at which effort; what queued and
+   compacted, in words; how long the state has lasted, or an arrow and when
+   it ends. */
+.scl4 { display: flex; align-items: baseline; gap: .8rem; min-height: 1.33rem; font-size: var(--t-sm); color: var(--ink-dim); }
+.scagent { flex: 0 1 auto; min-width: 0; margin-right: auto; overflow-wrap: anywhere; }
+.sceffort { color: var(--ink-faint); }
+.scmore { flex: none; color: var(--ink-dim); white-space: nowrap; }
+.sctime { flex: none; min-width: 2.6em; text-align: right; font-size: var(--t-md); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-dim); white-space: nowrap; }
+.sctime[data-tone="wait"] { color: var(--wait); }
+.sctime[data-tone="unseen"] { color: var(--ok); }
+.sctime[data-tone="quiet"] { font-weight: 500; color: var(--ink-faint); }
+.scarrow { margin-right: .13rem; font-style: normal; font-weight: 400; color: var(--ink-faint); }
+
+/* Line five: the settings, each in a place of its own on every card, an off
+   one dimmed in its place; how full the context is at the right. */
+.scl5 {
+    display: grid;
+    grid-template-columns: 3.5em 4em 4.3em 1.6em 4.3em minmax(0, 1fr);
+    column-gap: .25em;
+    align-items: baseline;
+    min-height: 1.2rem;
+    font-size: var(--t-sm);
+}
+.scb { display: inline-flex; align-items: center; gap: .15em; color: var(--ink-faint); white-space: nowrap; }
+.scb svg { width: 1em; height: 1em; }
+.scb.scon { color: var(--ink-dim); }
+.scb.scoff { opacity: .35; }
+.scctx { justify-self: end; font-size: var(--t-md); font-weight: 600; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The context bar along the bottom edge: of the whole window, the cap a tick
+   on it — in the accent where the session restarts at it. */
+.scedge { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(var(--tint), .07); pointer-events: none; }
+/* The bar of a session another opened begins at the hairline it stands on. */
+.sc.sckid > .scedge { left: calc(.93rem + (var(--depth) - 1) * var(--step) + .4rem); }
+.scedge i { display: block; height: 100%; background: var(--ctx-1); }
+.scedge.s2 i { background: var(--ctx-2); }
+.scedge.s3 i { background: var(--ctx-3); }
+.scedge.s4 i { background: var(--ctx-4); }
+.scedge.scpeak i { background: var(--ink-faint); opacity: .5; }
+.sccap { position: absolute; top: -2px; bottom: 0; width: 1.5px; background: rgba(var(--tint), .35); }
+.sccap.scauto { background: var(--accent); }
+
+/* An archived conversation: the same lines, dimmer, Resume in the ink. */
+.sc.scpast > :not(.scopen, .scl1) { opacity: .58; }
+.sc.scpast .scname { opacity: .58; }
+
+/* A session being raised has none of its lines yet: one line. */
+.sc.scghost .scl1 .scword { font-size: var(--t-md); color: var(--ink-faint); }
+.sc.scghost .sctime { margin-left: auto; }
+
+/* The folds under a card: the sessions it opened, the runs it started. */
+.scfold {
+    --depth: 1;
+    --step: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    width: 100%;
+    min-height: 2rem;
+    padding: 0 .93rem 0 calc(.93rem + var(--depth) * var(--step) + .2rem);
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--t-sm);
     color: var(--ink-faint);
     text-align: left;
-}
-.pjkinchev { display: flex; width: .85rem; height: .85rem; }
-.pjkinchev svg { width: 100%; height: 100%; }
-.pjkinchev.open { transform: rotate(90deg); }
-.pjkinwait { color: var(--warn); }
-/* The sessions a session had the panel open: a fold under it that says how
-   many and who of them waits, and the sessions themselves a step in, on the
-   line of a branch that comes down from the fold — straight past a session
-   with another below it, turning in at the last. The line is a hairline of
-   the faint ink, so it reads as a guide and not as a border. The third level
-   takes the same step; the parent's line carries past its subtree only when
-   a sister follows. */
-.pjtree { position: relative; }
-.pjtree.pjnested { padding-left: 1.1rem; }
-.pjtree.pjtrail::before {
-    content: "";
-    position: absolute;
-    left: 1.12rem;
-    top: 0;
-    bottom: 0;
-    border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
-    pointer-events: none;
-}
-.pjrow.pjfold {
-    width: 100%;
-    min-height: 1.8rem;
-    gap: .45rem;
-    padding: 0 .75rem;
-    border: 0;
-    border-top: var(--hair) solid var(--line);
-    background: none;
-    font: inherit;
-    font-size: var(--t-xs);
-    color: var(--ink-dim);
-    text-align: left;
     cursor: pointer;
 }
-.pjfold .pjkinchev { color: var(--ink-faint); }
-.pjfoldtext { flex: none; font-weight: 600; }
-.pjfoldwaits { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--wait); }
-.pjfolddots { display: inline-flex; gap: .25rem; align-items: center; }
-.pjfolddots i { width: .45rem; height: .45rem; border-radius: 50%; background: var(--ok); opacity: .8; }
-.pjfolddots i[data-tone="busy"] { background: var(--accent); opacity: 1; }
-.pjfolddots i[data-tone="bg"] { background: transparent; opacity: 1; box-shadow: inset 0 0 0 1.5px var(--accent); }
-.pjfolddots i[data-tone="wait"] { background: var(--wait); opacity: 1; box-shadow: 0 0 8px var(--wait); }
-.pjfolddots i[data-tone="limit"] { background: var(--warn); opacity: 1; }
-.pjrow.pjcard.pjbranch { padding-left: 1.85rem; }
-.pjrow.pjbranch > .ctxbar.edge { left: 1.12rem; }
-.pjrow.pjbranch::before {
-    content: "";
-    position: absolute;
-    left: 1.12rem;
-    top: 0;
-    bottom: 0;
-    border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
-}
-.pjrow.pjbranchend::before { bottom: auto; height: .93rem; }
-.pjrow.pjbranch .pjtop::before {
-    content: "";
-    position: absolute;
-    left: 1.12rem;
-    top: .93rem;
-    width: .5rem;
-    border-top: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
-}
+.scfoldchev { display: flex; width: .87rem; height: .87rem; transform: rotate(90deg); }
+.scfoldchev svg { width: 100%; height: 100%; }
+.scfoldchev:not(.open) { transform: none; }
+.scfoldwaits { display: inline-flex; align-items: center; gap: .27rem; min-width: 0; font-weight: 600; color: var(--wait); overflow-wrap: anywhere; }
+.scfoldwaits .scglyph { width: auto; height: auto; }
+.scfoldwaits .scglyph svg { width: var(--i-sm); height: var(--i-sm); }
 /* A parent that closed holds its place over the sessions it opened: its name
    struck through on a hatched ground, and when it closed. */
-.pjrow.pjstub {
+.scstub {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
     width: 100%;
     min-height: 2.3rem;
-    gap: .5rem;
-    padding: .2rem .75rem;
+    padding: .2rem .93rem;
     border: 0;
-    border-top: var(--hair) solid var(--line);
-    background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255, 255, 255, .025) 6px 12px);
+    background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(var(--tint), .025) 6px 12px);
     font: inherit;
     color: inherit;
     text-align: left;
 }
-button.pjstub { cursor: pointer; }
-.pjstub::before {
-    content: "";
-    flex: none;
-    width: .5rem;
-    height: .5rem;
-    border-radius: 50%;
-    border: 1.5px dashed var(--ink-faint);
-}
-.pjstubname {
-    flex: none;
-    font-family: var(--mono);
-    font-size: var(--t-sm);
-    color: var(--ink-dim);
-    text-decoration: line-through;
-    text-decoration-color: var(--ink-faint);
-}
-.pjstubnote { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--ink-faint); }
-.pjstub .chev { margin-left: auto; }
-/* A session whose parent stands elsewhere — another contour, another page —
-   says which session opened it, on a quiet line of its own. */
-.pjfrom { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
-.pjfrom b { font-family: var(--mono); font-weight: 500; color: var(--ink-dim); }
-.pjopen {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: .12rem;
-    padding: .3rem 0;
+button.scstub { cursor: pointer; }
+.scstubname { flex: none; font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-dim); text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+.scstubnote { min-width: 0; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
+.scstub .chev { margin-left: auto; }
+
+/* The two ways on at the end of a contour: quiet text, not two more cards. */
+.scfoot { display: flex; flex-wrap: wrap; gap: .27rem 1.47rem; padding: .93rem .27rem .27rem; }
+.scfootlink {
+    display: inline-flex;
+    align-items: center;
+    gap: .13rem;
+    min-height: 2.67rem;
+    padding: 0;
     border: 0;
     background: none;
     font: inherit;
-    color: inherit;
-    text-align: left;
+    font-size: var(--t-md);
+    color: var(--ink-faint);
     cursor: pointer;
 }
-/* The name of a session is what tells apart two sessions of one project, so
-   it reads first and in full ink rather than as a caption. */
-.pjsess { font-size: var(--t-sm); font-weight: 600; color: var(--ink); font-family: var(--mono); overflow-wrap: anywhere; }
-/* The row of a session is as tall as what it says: the state whole, on two
-   lines at most, who runs it and since when under it on a line of its own,
-   and what runs in its background on a third — on a phone the second line
-   has no room left for it. A row cut to one line left the state a letter and
-   an ellipsis. The quiet words after the state wrap to the next line when
-   they do not fit beside it, so they never squeeze the state into pieces of
-   its words. */
-.pjstate { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .1rem .45rem; max-width: 100%; font-size: var(--t-sm); font-weight: 600; }
-.pjstate .pjtext {
-    min-width: 0;
-    max-width: calc(100% - .95rem);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-}
-/* The age, Remote Control and automatic restart follow the state as quiet
-   words; their tips say where the session is reached and when it restarts. */
-.pjlived, .pjremote, .pjrestart { flex: none; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
-.pjlived::before, .pjremote::before, .pjrestart::before { content: "·"; margin-right: .45rem; }
-.pjrestart { display: inline-flex; align-items: center; gap: .2rem; }
-.pjrestart::before { margin-right: .25rem; }
-.pjrestart svg { width: var(--i-sm); height: var(--i-sm); }
-/* A call the person has not come for yet: a bell in the colour of waiting on
-   the state's line, as tall as the place after it, until the session is
-   opened. */
-.pjcalled {
-    flex: none;
-    margin-top: .02rem;
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    height: 1.05rem;
-    padding: 0 .3rem;
-    border-radius: var(--r-pill);
-    color: var(--wait);
-    background: color-mix(in srgb, var(--wait) 14%, transparent);
-}
-.pjcalled svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
-/* Where the session is in the checklist of its work: a line of its own under
-   the state, cut at its end rather than wrapped. */
-.pjchecklist {
-    align-self: stretch;
-    min-width: 0;
-    padding-left: .95rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--t-xs);
-    font-weight: 500;
-    color: var(--ink-dim);
-}
-.pjsince, .pjwork { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
-.pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.57em - .25rem); border-radius: 50%; background: currentColor; }
-.pj-wait { color: var(--wait); }
-.pj-limit { color: var(--warn); }
-.pj-wait .pjdot { box-shadow: 0 0 10px currentColor; }
-.pj-busy { color: var(--accent); }
-/* Background work: in the accent of work, a step lighter than an answer, and
-   the dot an empty ring — at work, but not answering. */
-.pj-bg { color: var(--accent); font-weight: 500; }
-.pj-bg .pjdot { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
-.pj-idle { color: var(--ink-faint); font-weight: 500; }
-.pj-idle .pjdot { background: var(--ok); opacity: .75; }
+.scfootlink .chev { display: inline-flex; width: .93rem; height: .93rem; opacity: .7; }
+.scfootlink .chev svg { width: 100%; height: 100%; }
+
 /* Who runs a session, as the word that opens the line of its model — on its
    row and under the name in its conversation: in the hue of
    its agent and a step heavier than the quiet words after it. */
 .agentword { font-weight: 600; color: var(--word-claude); }
 .agentword[data-agent="codex"] { color: var(--word-codex); }
-/* The place follows Remote Control on the state's line without raising it;
-   a tap on the chip opens the conversation like the rest of the card. */
-.pjtag {
-    flex: none;
-    margin-top: .02rem;
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    gap: .22rem;
-    height: 1.05rem;
-    padding: 0 .3rem;
-    border-radius: var(--r-pill);
-    border: var(--hair) solid var(--line);
-    background: none;
-    font-family: var(--mono);
-    font-size: var(--t-xs);
-    font-weight: 400;
-    line-height: 1;
-    color: var(--ink-dim);
-}
-.pjtag svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
-/* The icons are marks of the name's line, no taller than it, so the card
-   keeps its height. A finger takes each past its edge: up to the edge of the
-   row, down into the state's line, and sideways to half the gap, never onto
-   its neighbour — some thirty pixels tall however close the lines stand. */
-.pjacts { display: flex; flex: none; gap: .5rem; }
-.pjact {
-    box-sizing: border-box;
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    height: 1.05rem;
-    padding: 0 .3rem;
-    border-radius: var(--r-pill);
-    border: var(--hair) solid var(--line);
-    background: none;
-    color: var(--crit);
-    cursor: pointer;
-}
-.pjact::before { content: ""; position: absolute; inset: -.35rem -.25rem -.6rem; }
-.pjact svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
-.pjact:disabled { opacity: .45; cursor: default; }
-.pjpct { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
-.pjbusy {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: .5rem;
-    background: rgba(6, 7, 15, .72);
-    font-size: var(--t-sm);
-    color: var(--ink-dim);
-}
-.pjnote { padding: 0 .75rem .45rem; font-size: var(--t-xs); color: var(--warn); }
-.pjghost { color: var(--ink-dim); }
 
-.pjpast .pjabout {
-    max-width: 100%;
-    font-size: var(--t-sm);
-    color: var(--ink-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.pjpast .pjabout.pjnone { color: var(--ink-faint); font-style: italic; }
-.pjwhen { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
-.pjresume {
-    flex: none;
-    min-height: 1.95rem;
-    padding: 0 .7rem;
-    border-radius: var(--r-pill);
-    border: var(--hair) solid color-mix(in srgb, var(--accent) 45%, transparent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    font: inherit;
-    font-size: var(--t-xs);
-    font-weight: 600;
-    color: var(--accent);
-    cursor: pointer;
-}
-.pjresume:disabled { opacity: .45; cursor: default; }
 .pjlink {
     display: flex;
     align-items: center;
@@ -831,20 +756,3 @@ button.pjstub { cursor: pointer; }
 }
 .pjlink .chev { margin-left: auto; }
 .pjempty { margin: 0; padding: .6rem .75rem; border-top: var(--hair) solid var(--line); font-size: var(--t-sm); color: var(--ink-faint); }
-
-.pjact[aria-pressed="true"] { color: var(--accent); }
-
-.pjpause { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; padding: .3rem; border: var(--hair) solid var(--line); border-radius: var(--r-pill); background: none; color: var(--ink-dim); cursor: pointer; }
-.pjpause svg { width: var(--i-sm); height: var(--i-sm); }
-.pjpause[aria-disabled="true"] { opacity: .45; cursor: default; }
-.pjpause ~ .pjnew { margin-left: 0; }
-.pj-paused { color: var(--ink-dim); font-weight: 500; }
-.pjalarm { display: inline-flex; align-items: center; gap: .2rem; flex: none; color: var(--ink-faint); font-size: var(--t-xs); white-space: nowrap; }
-.sessionalarm svg { width: var(--i-sm); height: var(--i-sm); }
-.pausesheet .cxfield { display: block; width: 100%; margin-top: .3rem; }
-.pausepresets { display: flex; gap: .4rem; flex-wrap: wrap; margin: .7rem 0; }
-.pauserecipients { max-height: 8rem; overflow: auto; font-size: var(--t-sm); }
-.pauseresult { color: var(--warn); }
-.gtchoicelist .pkscope { flex-direction: column; border: 0; background: none; gap: .4rem; }
-.gtchoicelist .pkseg { width: 100%; white-space: normal; text-align: left; border: var(--hair) solid var(--line); border-radius: var(--r-small); padding: .7rem; }
-.gtchoicelist small { display: block; margin-top: .3rem; font-size: var(--t-sm); font-weight: 400; color: var(--ink-dim); }

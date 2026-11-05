@@ -2,9 +2,6 @@
 // this device at once while the next host poll catches up with the answer.
 import { useEffect, useState } from "preact/hooks";
 
-import { html } from "./html.js";
-import { Icon } from "./ui/icons.js";
-import { stamp, when } from "./screens/sessions/card.js";
 import { calledMark } from "./viewing.js";
 
 const settled = new Set();
@@ -40,13 +37,4 @@ export function useWaiting(session, viewed = false) {
         return () => listeners.delete(changed);
     }, []);
     return waitingOf(session, viewed);
-}
-
-// WaitingMark replaces the call bell; its containing button opens the session.
-export function WaitingMark({ session, desktop = false, viewed = false }) {
-    const items = useWaiting(session, viewed);
-    if (!items.length) return null;
-    const title = `${items.length} waiting for you: ${items.map((item) => `${item.kind}: ${item.title}${item.kind === "call" ? ` · ${when(stamp(item.at))}` : ""}`).join("; ")}`;
-    return html`<span class=${`${desktop ? "dkcalled" : "pjcalled"} waitingmark`} role="img"
-        title=${title} data-tip=${desktop ? title : undefined} aria-label=${title} data-waiting-count=${items.length}>${Icon.list()}<span>${items.length}</span></span>`;
 }

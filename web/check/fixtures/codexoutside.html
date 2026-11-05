@@ -10,7 +10,7 @@
 // the tools of its conversation offer no stop and no close.
 import { render } from "preact";
 import { html } from "/src/html.js";
-import { LiveLine } from "/src/screens/sessions/blocks.js";
+import { SessionCard } from "/src/screens/sessions/sessioncard.js";
 import { CodexSections } from "/src/screens/chat/codex.js";
 import { placeOf } from "/src/screens/sessions/kin.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -27,7 +27,7 @@ const exec = { available: true, kinds: ["session.close", "session.stop", "sessio
 
 render(html`
     <${ToastHost}><${GateHost}>
-        <div id="own"><${LiveLine} session=${own} exec=${exec} onOpen=${() => {}} /></div>
+        <div id="own"><${SessionCard} s=${own} exec=${exec} onOpen=${() => {}} /></div>
         <div id="ownTools"><${CodexSections} name=${own.session} live=${own} exec=${exec}
                                              onDone=${() => {}} onLook=${() => {}} /></div>
         <div id="daemonTools"><${CodexSections} name=${daemon.session} live=${daemon} exec=${exec}
@@ -42,12 +42,12 @@ const until = async (ok, ms = 3000) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 (async () => {
-    await until(() => document.querySelector(".pjcard") && document.querySelector("#daemonTools .toollabel"));
+    await until(() => document.querySelector(".sc") && document.querySelector("#daemonTools .toollabel"));
     window.done = {
         place: placeOf(own),
         daemonPlace: placeOf(daemon),
-        actions: document.querySelectorAll("#own .pjact, #own .pjmore").length,
-        opens: Boolean(document.querySelector("#own .pjopen")),
+        actions: document.querySelectorAll("#own .scact").length,
+        opens: Boolean(document.querySelector("#own .scopen")),
         ownTools: Array.from(document.querySelectorAll("#ownTools .toollabel")).map(text),
         ownNote: text(document.querySelector("#ownTools .toolnote")),
         daemonTools: Array.from(document.querySelectorAll("#daemonTools .toollabel")).map(text),

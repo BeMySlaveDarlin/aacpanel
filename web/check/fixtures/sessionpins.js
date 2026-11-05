@@ -67,7 +67,6 @@ export async function sessionPins(phoneOnly = false) {
         }
     };
     const text = (el) => el.textContent.trim();
-    const names = (selector) => [...mount.querySelectorAll(selector)].map(text);
     const refresh = () => { refreshed++; };
     function Lists({ snapshot }) {
         wait = useCatchUp(snapshot, refresh);
@@ -90,18 +89,18 @@ export async function sessionPins(phoneOnly = false) {
         render(html`<${Lists} snapshot=${snapshot} />`, mount);
         await quiet();
     };
+    const cards = (selector) => [...mount.querySelectorAll(selector)].map((c) => c.dataset.name);
     const read = () => ({
-        phone: names(".phone .pjsess"),
-        desk: names(".dklive .dkname"),
+        phone: cards(".phone .sc:not(.scpast)"),
+        desk: cards(".dkbody .sc:not(.scpast)"),
         keys: order.slice(),
         ordered: orderOf(snapshot.sessions, profileMap, wait).map((s) => s.session),
     });
-    const phoneButton = (name) => [...mount.querySelectorAll(".phone .pjcard")]
-        .find((c) => text(c.querySelector(".pjsess")) === name).querySelector(".pjact[aria-pressed]");
-    const deskRow = (name) => [...mount.querySelectorAll(".dklive")].find((r) => text(r.querySelector(".dkname")) === name);
+    const phoneButton = (name) => mount.querySelector(`.phone .sc[data-name="${name}"] .scact[aria-pressed]`);
+    const deskRow = (name) => mount.querySelector(`.dkbody .sc[data-name="${name}"]`);
     const look = (name) => {
         const button = phoneButton(name);
-        const mark = deskRow(name).querySelector(".dkact[aria-pressed]");
+        const mark = deskRow(name).querySelector(".scact[aria-pressed]");
         const accent = document.createElement("span");
         accent.style.color = "var(--accent)";
         mark.append(accent);
@@ -110,7 +109,7 @@ export async function sessionPins(phoneOnly = false) {
         return {
             pressed: button.getAttribute("aria-pressed") === "true",
             pending: button.getAttribute("aria-busy") === "true",
-            off: button.disabled,
+            off: button.getAttribute("aria-disabled") === "true",
             dim: Number(getComputedStyle(button).opacity) < 1,
             mark: Boolean(mark),
             markOn: mark && mark.getAttribute("aria-pressed") === "true",
@@ -124,23 +123,26 @@ export async function sessionPins(phoneOnly = false) {
     };
     const phonePin = async (name) => {
         const button = phoneButton(name);
-        if (!button || button.disabled) throw new Error(`no pin button for ${name}`);
-        const before = sent.length;
-        button.click();
-        await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
-        await until(() => phoneButton(name).getAttribute("aria-busy") === "true");
-        await until(() => order.join("\n") === names(".dklive .dkname").join("\n"));
-    };
-    const deskPin = async (name) => {
-        const button = deskRow(name).querySelector(".dkact[aria-pressed]");
         if (!button || button.getAttribute("aria-disabled") === "true") throw new Error(`no pin button for ${name}`);
         const before = sent.length;
         button.click();
         await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
-        await until(() => button.getAttribute("aria-busy") === "true");
+        await until(() => phoneButton(name).getAttribute("aria-busy") === "true");
+        await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
+    };
+    const deskPin = async (name) => {
+        const button = deskRow(name).querySelector(".scact[aria-pressed]");
+        if (!button || button.getAttribute("aria-disabled") === "true") throw new Error(`no pin button for ${name}`);
+        const before = sent.length;
         button.click();
+        await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
+        // The group moves to the pinned place at once: its card is drawn
+        // there anew.
+        const pending = () => deskRow(name).querySelector(".scact[aria-pressed]");
+        await until(() => pending().getAttribute("aria-busy") === "true");
+        pending().click();
         if (sent.length !== before + 1) throw new Error("a pending pin was sent twice");
-        await until(() => order.join("\n") === names(".dklive .dkname").join("\n"));
+        await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
     };
     const menuItem = async (name, label) => {
         const row = deskRow(name);
@@ -157,7 +159,7 @@ export async function sessionPins(phoneOnly = false) {
         item.click();
         await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
         await until(() => phoneButton(name).getAttribute("aria-busy") === "true");
-        await until(() => order.join("\n") === names(".dklive .dkname").join("\n"));
+        await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
     };
     const pendingMenu = async (name, label) => {
         const item = await menuItem(name, label);
@@ -195,7 +197,7 @@ export async function sessionPins(phoneOnly = false) {
         await confirm();
         out.pinned = read();
         out.confirmedLook = look("review");
-        out.pressed = [...mount.querySelectorAll('.phone .pjact[aria-pressed="true"]')]
+        out.pressed = [...mount.querySelectorAll('.phone .scact[aria-pressed="true"]')]
             .map((b) => b.getAttribute("aria-label"));
         if (phoneOnly) await phonePin("audit");
         else await menuPin("audit", "Pin the group");
@@ -281,12 +283,12 @@ export async function sessionPins(phoneOnly = false) {
         const sections = () => [...mount.querySelectorAll(".phone .pjsection")].map((head) => {
             const rows = [];
             for (let block = head.nextElementSibling; block && block.classList.contains("pjblock"); block = block.nextElementSibling) {
-                rows.push(...[...block.querySelectorAll(".pjsess")].map(text));
+                rows.push(...[...block.querySelectorAll(".sc:not(.scpast)")].map((card) => card.dataset.name));
             }
             return { title: head.firstChild.textContent.trim(), rows };
         });
-        const states = () => Object.fromEntries([...mount.querySelectorAll(".phone .pjcard")]
-            .map((card) => [text(card.querySelector(".pjsess")), text(card.querySelector(".pjtext"))]));
+        const states = () => Object.fromEntries([...mount.querySelectorAll(".phone .sc:not(.scpast)")]
+            .map((card) => [card.dataset.name, text(card.querySelector(".scsay"))]));
         await paint();
         out.sections = { before: sections(), statesBefore: states(), deskBefore: read().desk };
         sessions = sessions.map((s) => ({ ...s,

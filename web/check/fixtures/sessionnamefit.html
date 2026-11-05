@@ -42,9 +42,13 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
 
 window.done = (async () => {
     await quiet();
-    return Array.from(document.querySelectorAll("#desk .dksess.dklive .dkname")).map((el) => ({
-        name: el.textContent.trim(), shown: el.clientWidth, needs: el.scrollWidth,
-        marks: el.parentElement.querySelectorAll(".dkmark, .waitingmark").length,
-    }));
+    return Array.from(document.querySelectorAll("#desk .sc")).map((card) => {
+        const el = card.querySelector(".scname");
+        return {
+            name: el.getAttribute("aria-label"), shown: el.clientWidth, needs: el.scrollWidth,
+            restart: Boolean(card.querySelector(".scl5 .scb.scon svg")),
+            state: card.querySelector(".scsay").textContent.replace(/\s+/g, " ").trim(),
+        };
+    });
 })();
 </script>

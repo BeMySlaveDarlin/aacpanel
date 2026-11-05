@@ -69,11 +69,11 @@ window.done = (async () => {
     desk.querySelector(".dklimhead .dkrings").click();
     await until(() => document.querySelector(".dklimpop"));
     out.pop = Array.from(document.querySelectorAll(".dklimpop .dklimwintitle")).map(text);
-    const row = Array.from(desk.querySelectorAll(".dksess")).find((r) => r.querySelector(".dkname"));
-    out.deskName = { text: text(row.querySelector(".dkname")), tip: row.querySelector(".dkname").title };
-    row.click();
-    out.phoneName = text(document.querySelector("#phone .pjsess"));
-    document.querySelector("#phone .pjopen").click();
+    const row = desk.querySelector(".sc:not(.scpast)");
+    out.deskName = { text: text(row.querySelector(".scname")), tip: row.querySelector(".scname").title };
+    row.querySelector(".scopen").click();
+    out.phoneName = text(document.querySelector("#phone .sc .scname"));
+    document.querySelector("#phone .sc .scopen").click();
     out.opened = opened.map((o) => o.name);
     return out;
 })();

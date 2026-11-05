@@ -396,14 +396,19 @@ func TestChatStreamIsKeyedByConversationNotSnapshot(t *testing.T) {
 	}
 }
 
+// The head says a session's state in the words of its card (sessions/state.js):
+// a wait there is a waiting dot here, and the question is read before the work.
 func TestChatHeadDotSeparatesBusyFromWaiting(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat/head.js")
-
-	waits := strings.Index(src, `tone: "waiting"`)
-	busy := strings.Index(src, `word: "answering"`)
-	if waits < 0 || busy < 0 {
+	if !strings.Contains(src, `wait: "waiting"`) || !strings.Contains(src, `busy: "busy"`) {
 		t.Fatal("the chat header does not tell a busy session from one waiting for an answer — " +
 			"the dot does not say whether you are being called to the machine")
+	}
+	vocabulary := screenSrc(t, "src/screens/sessions/state.js")
+	waits := strings.Index(vocabulary, `make("wait", "ask"`)
+	busy := strings.Index(vocabulary, `make("busy", "work", "working")`)
+	if waits < 0 || busy < 0 {
+		t.Fatal("the vocabulary of states has no question or no work — the test guards the wrong place")
 	}
 	if waits > busy {
 		t.Error("busy is checked before waiting: a session with an open question is marked " +

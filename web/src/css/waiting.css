@@ -1,5 +1,4 @@
 /* A request is read and answered where the session left it in the feed. */
-.waitingmark { gap: .25rem; font-variant-numeric: tabular-nums; }
 .mrequest.blocking { border-left: 2px solid var(--wait); }
 .mrequest.blocking .sentico, .requestblocking { color: var(--wait); }
 .requesttitle { margin: .2rem 0; font-size: var(--t-base); font-weight: 600; }

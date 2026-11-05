@@ -212,8 +212,8 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     onNames() {}, onOrder() {}, onArchive() {}, exec, wait: null,
 }))), column);
 const rowOf = (name) => {
-    const row = Array.from(column.querySelectorAll(".dklive")).find((r) => text(r.querySelector(".dkname")) === name);
-    return row ? { tone: row.dataset.tone, said: text(row.querySelector(".dksessmain")) } : null;
+    const row = column.querySelector(`.sc[data-name="${name}"]`);
+    return row ? { tone: row.dataset.tone, said: text(row.querySelector(".scsay")) } : null;
 };
 const stands = (name) => ({ word: text(one(".chathead .talkword")), row: rowOf(name) });
 

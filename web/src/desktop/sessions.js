@@ -3,21 +3,17 @@
 // closed conversations of all of them on a shelf of their own below.
 //
 // Live and closed stand apart. A contour holds its live sessions only, in
-// blocks of their projects as the phone has them — a heading for every
-// project, the only session of one included, and a row a session under it —
-// in an order that does not follow their state: a place that moved whenever
-// a session started or stopped working could not be learned, and the eye and
+// blocks of their projects as the phone has them — a heading over a project
+// of two cards or more, a card a session, the card the phone draws — in an
+// order that does not follow their state: a place that moved whenever a
+// session started or stopped working could not be learned, and the eye and
 // the arrow keys go down the column by those places. What waits for the
-// person is said by its row and counted in the heading of its contour.
+// person is said by its card and counted in the heading of its contour.
 // Pinned groups keep their creation order before the rest of that contour.
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
-import { SessionAlarms } from "../screens/sessions/alarms.js";
-import { PauseControl } from "../screens/sessions/pause.js";
-import { ContextBurn, autoRestartTip } from "../ui/bar.js";
-import { fill, pct, plural, tokens } from "../format.js";
 import { knows, whyNot } from "../exec.js";
 import { useAction } from "../actions/gate.js";
 import { settled } from "../catchup.js";
@@ -25,22 +21,17 @@ import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contourOfLive } from "../screens/sessions/map.js";
-import { kinOf, kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
-import { comparePins, pinAt, pinOf } from "../screens/sessions/pin.js";
+import { kinOf, layoutOf } from "../screens/sessions/kin.js";
+import { comparePins, pinAt } from "../screens/sessions/pin.js";
 import { useFolds } from "../screens/sessions/folds.js";
-import { CODEX_CLOSE, CODEX_NOTE, CODEX_RESTART, agentKey, agentName, codexRestartWhy, isCodex, shownName, spoke } from "../agent.js";
-import { aboutOf, closedRow, liveBlocksOf, pastModel, stateOf, stopsOf, useAnswers, waitsOf } from "../screens/sessions/blocks.js";
-import { stamp, when } from "../screens/sessions/card.js";
-import { modelTitle } from "../screens/chat/head.js";
-import { checklistShort } from "../screens/chat/checklist.js";
-import { effortName, modeLoud, modeName, usualMode } from "../screens/chat/picker.js";
+import { spoke } from "../agent.js";
+import { LiveLines, aboutOf, headed, liveBlocksOf, splitNotes, stateOf, useAnswers } from "../screens/sessions/blocks.js";
+import { GhostCard, HeadActs, PastCard } from "../screens/sessions/sessioncard.js";
 import { homeProject, homeSession } from "../ui/home.js";
 import { useSessionsArchive } from "../history.js";
 import { Popover } from "../ui/popover.js";
 import { useMenu } from "../ui/menu.js";
-import { WaitingMark } from "../waiting.js";
-import { resume } from "../screens/sessions/actions.js";
-import { ago as age } from "./panels/util.js";
+import { plural } from "../format.js";
 import { ClosedMenu, ProjectMenu, liveMenuOf } from "./sessionmenu.js";
 
 // How many closed conversations the shelf shows, and how many it asks the
@@ -49,9 +40,6 @@ import { ClosedMenu, ProjectMenu, liveMenuOf } from "./sessionmenu.js";
 const SHELF = 6;
 
 const SHELF_ASK = 30;
-
-// The dot of a row by the tone of its state.
-const DOT = { wait: "dkwaiting", busy: "dkbusy", bg: "dkbg", idle: "dkidle", paused: "dkpaused", limit: "dklimit", off: "dkoff" };
 
 // ContourPick chooses which contours the column shows.
 export function ContourPick({ names, picks, onToggle }) {
@@ -64,10 +52,6 @@ export function ContourPick({ names, picks, onToggle }) {
             `)}
         </div>
     `;
-}
-
-function held(task) {
-    return Math.max(0, Math.round((Date.now() - task.since) / 1000));
 }
 
 // raising lists the sessions being started that are not in the snapshot yet.
@@ -113,242 +97,6 @@ export function orderOf(sessions, map, wait = null) {
         return [...roots.flatMap((root) => [root, ...list.filter((s) => s !== root && rootOf(s) === root)]),
             ...list.filter((s) => !roots.includes(rootOf(s)))];
     });
-}
-
-// levelOf says how loud the share of a context is: marked from seventy, loud
-// from ninety, quiet below.
-function levelOf(full) {
-    return full >= 90 ? "crit" : full >= 70 ? "warn" : "";
-}
-
-// factsOf is the quiet line under the state of a live session, in the words
-// the panel says them with elsewhere, most telling first: a column too narrow
-// for all of it drops them from the end, whole. It opens with who runs the
-// session and on which model, the agent in its hue. The share of the context
-// stands right after its tokens, in the tone of how full it is; a share the
-// session cannot know yet is left out rather than guessed. The project and
-// its group are said by the heading the row stands under, not here.
-export function factsOf(s, usual = "default") {
-    const out = [];
-    const say = (text, level = "", agent = "") => out.push({ text, level, agent });
-    say(agentName(s), "", agentKey(s));
-    const model = [s.model ? modelTitle(s.model, { withWindow: false }) : "", s.effort ? effortName(s.effort) : ""]
-        .filter(Boolean).join(" · ");
-    if (model) say(model);
-    // The usual mode goes without saying; one that stops the session asking
-    // at all is said even where it is usual.
-    if (s.mode && (s.mode !== usual || modeLoud(s.mode))) say(modeName(s.mode));
-    if (s.tokens > 0) {
-        const of = s.limit ? ` of ${s.limitKnown === false ? "~" : ""}${tokens(s.limit)}` : "";
-        say(`${tokens(s.tokens)}${of}`);
-        if (s.limitKnown !== false && !s.noRequests) say(pct(s.pct || 0), levelOf(s.pct || 0));
-    }
-    const up = age(s.startedAt);
-    if (up) say(`up ${up}`);
-    if (s.compacts > 0) say(`${s.compacts} ${plural(s.compacts, "compaction", "compactions")}`);
-    return out;
-}
-
-// GhostLine holds the place of a session being raised, in the contour it is
-// raised in.
-function GhostLine({ task }) {
-    return html`
-        <div class="dksess dklive dkghost" role="status">
-            <span class="dksessmain">
-                <span class="dkname">${task.target}</span>
-            </span>
-            <span class="dksay">
-                <span class="spin"></span>
-                <span class="dksaytext">starting on the host</span>
-                <span class="dksaysince">· ${held(task)} s</span>
-            </span>
-        </div>
-    `;
-}
-
-// SessionLine is one live session: its name and the marks of what is unusual
-// about it, with pin, restart and close in the corner on the line of the
-// name; its state in the words of the phone; its checklist; the quiet line
-// of what it runs on, how full its context is among it. A session another
-// opened stands a step in under it, on the line of the branch (branch "mid"
-// or "last"), a row like any other; one whose parent stands elsewhere says
-// which session opened it (from). A right click opens its menu, which offers
-// what the tools of its conversation do, and a restart to any session the
-// panel started (desktop/sessionmenu.js).
-function SessionLine({ s, usual, current, onPick, onTerm, exec, wait, snapshot, kid = false, branch = "", from = "" }) {
-    const run = useAction();
-    const menu = useMenu();
-    const closing = wait ? wait.of("close", s.session) : null;
-    const restarting = wait ? wait.of("restart", s.session) : null;
-    const busy = closing || restarting || s.restarting;
-    const known = knows(exec, "session.close");
-    const can = known && !busy;
-    const restartKnown = knows(exec, "session.restart");
-    const codexWhy = isCodex(s) ? codexRestartWhy(s) : "";
-    const canRestart = restartKnown && !codexWhy && !busy;
-    const state = stateOf(s, snapshot && snapshot.limits);
-    const tone = busy ? "off" : state.tone;
-    const said = closing ? "closing" : restarting ? "restarting" : state.text;
-    const since = closing || restarting ? `${held(closing || restarting)} s` : state.since;
-    const facts = factsOf(s, usual);
-    const steps = checklistShort(s.checklist);
-    // What a close or a restart ends with the session, said before the press;
-    // a codex thread says what a close does to it instead.
-    const lost = stopsOf(s);
-    const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
-    const restartNote = isCodex(s) ? CODEX_RESTART : ends("a new session with an empty context; this one stays in the archive");
-    const closeTip = isCodex(s) ? CODEX_CLOSE : ends("the conversation stays in the archive");
-    const full = s.pct || 0;
-    const open = () => onPick({ name: s.session, id: s.sessionId });
-    const pin = pinOf(s, (snapshot && snapshot.sessions) || [], wait);
-    const canPin = knows(exec, "session.pin") && !pin.pending;
-
-    return html`
-        <button
-            class=${`dksess dklive${current === s.session ? " on" : ""}${kid ? " dkkid" : ""}${branch ? ` dkbranch${branch === "last" ? " dkbranchend" : ""}` : ""}${steps ? " dkhaschecklist" : ""}`}
-            type="button"
-            data-tone=${tone}
-            data-fill=${s.noRequests ? undefined : fill(full)}
-            style=${s.noRequests ? undefined : `--fill:${Math.min(100, full)}%`}
-            onClick=${open}
-            onContextMenu=${menu && menu(...liveMenuOf(s, { exec, snapshot, wait, onOpen: open, onTerm }))}
-        >
-            <span class="dksessmain">
-                <span class="dkname" title=${shownName(s) !== s.session ? s.session : undefined}>${shownName(s)}</span>
-                ${s.home && html`<span class="dkhome">home</span>`}
-                ${s.outside && !kid && html`
-                    <span class="dkmark" data-tip=${outsideNote(s)}>
-                        <${Icon.exit} />outside
-                    </span>
-                `}
-                ${!s.outside && s.transport !== "stream" && html`
-                    <span class="dkmark" data-tip="Lives in tmux rather than on the stream">
-                        <${Icon.terminal} />tmux
-                    </span>
-                `}
-                ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
-                <${SessionAlarms} session=${s} paused=${state.tone === "paused"} desktop />
-                ${s.autoRestart && html`<span class="dkmark dkrestart" data-tip=${autoRestartTip(s.cap)}><${Icon.refresh} />auto</span>`}
-                ${html`<${WaitingMark} session=${s} desktop viewed=${current === s.session} />`}
-            </span>
-            <span class="dksay">
-                <span class=${`dkdot ${DOT[tone]}`}></span>
-                <span class="dksaytext">${said}</span>
-                ${since && html`<span class="dksaysince">· ${since}</span>`}
-            </span>
-            ${steps && html`<span class="dkchecklist" data-tip=${steps}>${steps}</span>`}
-            <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
-                ${!s.outside && html`
-                    <i
-                        class=${`dkact${canPin ? "" : " off"}`}
-                        aria-label=${`${pin.on ? "unpin" : "pin"} session group ${pin.root.session}`}
-                        aria-pressed=${pin.on ? "true" : "false"}
-                        aria-busy=${pin.pending ? "true" : undefined}
-                        aria-disabled=${!canPin ? "true" : undefined}
-                        data-tip=${pin.why || whyNot(exec, "session.pin") || pin.tip}
-                        data-tipside="left"
-                        onClick=${async () => {
-                            if (!canPin) return;
-                            await run("session.pin", pin.root.session, { on: !pin.on });
-                        }}
-                    ><${Icon.thumbtack} /></i>
-                `}
-                ${!s.outside && html`
-                    <i
-                        class=${`dkact danger${canRestart ? "" : " off"}`}
-                        aria-label=${`restart session ${s.session}`}
-                        aria-disabled=${!canRestart ? "true" : undefined}
-                        data-tip=${busy
-                            ? "the session is already closing or restarting"
-                            : codexWhy || (restartKnown ? restartNote : whyNot(exec, "session.restart"))}
-                        data-tipside="left"
-                        onClick=${async () => {
-                            if (!canRestart) return;
-                            await run("session.restart", s.session, {});
-                        }}
-                    ><${Icon.refresh} /></i>
-                `}
-                ${!s.home && !s.outside && html`
-                    <i
-                        class=${`dkact danger${can ? "" : " off"}`}
-                        aria-label=${`close session ${s.session}`}
-                        aria-disabled=${!can ? "true" : undefined}
-                        data-tip=${busy
-                            ? "the session is already closing or restarting"
-                            : known ? closeTip : whyNot(exec, "session.close")}
-                        data-tipside="left"
-                        onClick=${async () => {
-                            if (!can) return;
-                            await run("session.close", s.session, {});
-                        }}
-                    ><${Icon.close} /></i>
-                `}
-            </span>
-            ${facts.length > 0 && html`
-                <span class="dkdetail">${facts.map((fact, i) => html`<span key=${i} class=${fact.agent ? "agentword" : undefined}
-                    data-agent=${fact.agent || undefined} data-tip=${fact.agent === "codex" ? CODEX_NOTE : undefined}
-                    data-level=${fact.level || undefined}>${fact.text}</span>`)}</span>
-            `}
-            ${from && html`<span class="dkfrom">opened by <b>${from}</b></span>`}
-            ${!s.noRequests && html`
-                <span class=${`dksessbar ${fill(full)}`}>
-                    <${ContextBurn} cap=${s.cap} autoRestart=${s.autoRestart} />
-                    <i style=${`width:${Math.min(100, full)}%`}></i>
-                </span>
-            `}
-        </button>
-    `;
-}
-
-// OpenedFold heads the sessions a session had the panel open, as the phone's
-// does: how many direct children and the dots of their states while closed,
-// with who waits anywhere in their subtree. The arrow keys pass the sessions
-// of a closed fold by: they go down the rows the column shows.
-function OpenedFold({ kids, hidden, open, onToggle, limits }) {
-    const waits = waitsOf(hidden, limits);
-    return html`
-        <button class="dkkin dkfold" type="button" aria-expanded=${open ? "true" : "false"}
-                onClick=${onToggle}>
-            <span class=${`dkkinchev${open ? " open" : ""}`}><${Icon.chevron} /></span>
-            <span class="dkfoldtext">${openedLabel(kids.length)}</span>
-            ${!open && html`<span class="dkfolddots">${kids.map((s) => html`<i key=${s.session} data-tone=${stateOf(s, limits).tone}></i>`)}</span>`}
-            ${waits && html`<span class="dkfoldwaits">· ${waits}</span>`}
-        </button>
-    `;
-}
-
-// ParentStub holds the place of a parent that closed, over the sessions it
-// opened: its name, struck through, and when it closed; where the shelf has
-// read its conversation, a press opens it there.
-function ParentStub({ parent, row, onPick }) {
-    const closed = row ? `closed ${when(stamp(row.lastAt))}` : "closed";
-    return html`
-        <button class="dksess dkstub" type="button" disabled=${!row}
-                aria-label=${`open the closed conversation ${parent}`}
-                onClick=${() => row && onPick({ name: row.name, id: row.sessionId, archived: true, row })}>
-            <span class="dkstubname">${parent}</span>
-            <span class="dkstubnote">${closed}</span>
-        </button>
-    `;
-}
-
-// KinFold holds the runs a session started inside its work under it. A run
-// that waits for the person stands outside the fold, where it is seen; the
-// fold keeps the rest.
-function KinFold({ kids, line, limits }) {
-    const [open, setOpen] = useState(false);
-    const waiting = kids.filter((s) => stateOf(s, limits).tone === "wait");
-    const rest = kids.filter((s) => stateOf(s, limits).tone !== "wait");
-    return html`
-        ${waiting.map((s) => line(s, true))}
-        ${rest.length > 0 && html`
-            <button class="dkkin" type="button" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>
-                <span class=${`dkkinchev${open ? " open" : ""}`}><${Icon.chevron} /></span>
-                <span>${waiting.length > 0 ? `${rest.length} more ${plural(rest.length, "run", "runs")}` : kinLabel(rest.length)}</span>
-            </button>
-            ${open && rest.map((s) => line(s, true))}
-        `}
-    `;
 }
 
 // leftOf is how long a window of a limit has before it starts over, rounded
@@ -506,75 +254,46 @@ function NewSession({ name, entry, snapshot, exec }) {
     `;
 }
 
-// ProjectHead names the project the rows under it belong to: its name, the
-// group of the map it stands in, and a new session in it, the way the plus of
-// the contour starts one. The home session and a session no project of the
-// map holds have no plus: the host has one home session, and the other has no
-// project to start a session in. The heading of a project opens its menu on a
-// right click: the new session, its terminal, its page in the settings of the
-// map (onSettings, with where the page stands).
-function ProjectHead({ block, entry, snapshot, exec, onTerm, onSettings }) {
+// ProjectHead names the project of two cards or more: its name, the group of
+// the map it stands in, and its controls — a new session in it, its pause and
+// a restart of all of it (see HeadActs). A project of one card has no heading:
+// its card says the project. The heading opens the menu of the project on a
+// right click: its pause, a new session, its terminal, its page in the
+// settings of the map (onSettings, with where the page stands).
+function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings }) {
     const run = useAction();
     const menu = useMenu();
     const p = block.project;
-    const ready = knows(exec, "session.open");
+    const sessions = snapshot?.sessions || [];
     const start = p && !block.home ? () => run("session.open", p.session || p.name, { project: p.id }) : null;
     return html`
         <div class="dkproj" onContextMenu=${menu && p && menu(ProjectMenu, {
-            project: p, profile: entry, sessions: snapshot?.sessions || [], exec, onNew: start, onTerm,
+            project: p, profile: entry, sessions, exec, onNew: start, onTerm,
             onSettings: onSettings && entry ? () => onSettings({ contour: entry.id, project: p.id }) : null,
         }, `project ${block.name}`)}>
             <span class="dkprojname">${block.name}</span>
             ${block.group && html`<span class="dkprojgroup">${block.group}</span>`}
-            ${p && html`<${PauseControl} project=${p} profile=${entry} sessions=${snapshot?.sessions || []} exec=${exec} desktop />`}
-            ${start && html`
-                <button class="dkprojnew" type="button" aria-disabled=${ready ? undefined : "true"}
-                        aria-label=${`a new session in project ${block.name}`}
-                        data-tip=${ready ? `A new session in ${block.name}` : whyNot(exec, "session.open")}
-                        data-tipside="left"
-                        onClick=${() => ready && start()}><${Icon.plus} /></button>
-            `}
+            <${HeadActs} block=${block} profile=${entry} sessions=${sessions} exec=${exec} wait=${wait} />
         </div>
     `;
 }
 
 // ContourSection is one contour in the column: its heading with how many of
 // its sessions wait for the person, the way to a new one and the limit; then
-// its projects, each under a heading of its own, with their live sessions,
-// the sessions those opened and the runs they started under them, and the
-// sessions being raised in them. blocks holds the projects as the column lays
-// them out, with the rows of each. Descendants share the third level once
-// they reach it; the parent's branch carries past them to its next sister.
-function ContourSection({ name, entry, list, blocks, archive, onFold, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
+// its projects, a heading over those of two cards or more, with the cards of
+// their live sessions, the sessions those opened and the runs they started
+// under them, and the sessions being raised in them. blocks holds the
+// projects as the column lays them out.
+function ContourSection({ name, entry, list, blocks, archive, folds, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
+    const menu = useMenu();
     const waits = list.filter((s) => stateOf(s, snapshot && snapshot.limits).tone === "wait").length;
-    const line = (s, kid = false, branch = "", from = "") => html`<${SessionLine}
-        key=${s.session}
-        s=${s}
-        usual=${usualMode(snapshot && snapshot.profiles, s.profile)}
-        current=${current}
-        onPick=${onPick}
-        onTerm=${onTerm}
-        exec=${exec}
-        wait=${wait}
-        snapshot=${snapshot}
-        kid=${kid}
-        branch=${branch}
-        from=${from}
-    />`;
-    const row = (e) => {
-        switch (e.kind) {
-        case "fold":
-            return html`<${OpenedFold} limits=${snapshot && snapshot.limits} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
-                                      onToggle=${() => onFold(e.parent.session)} />`;
-        case "runs":
-            return html`<${KinFold} limits=${snapshot && snapshot.limits} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
-        case "stub":
-            return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(archive, e.parent)}
-                                      onPick=${onPick} />`;
-        default:
-            return line(e.s, false, e.branch || "", e.from || "");
-        }
-    };
+    const open = (session, id) => onPick({ name: session, id });
+    // The menu of a card that stands for its project alone carries the
+    // settings of the project, which a heading would have carried.
+    const menuOf = (settings) => (s) => menu && menu(...liveMenuOf(s, {
+        exec, snapshot, wait, onOpen: () => open(s.session, s.sessionId), onTerm, onSettings: settings,
+    }));
+    const notes = splitNotes((snapshot && snapshot.sessionNotes) || [], (snapshot && snapshot.sessions) || []).own;
     return html`
         <section>
             <div class="dkcontour dklimhead">
@@ -587,17 +306,24 @@ function ContourSection({ name, entry, list, blocks, archive, onFold, limits, ma
                 <${NewSession} name=${name} entry=${entry} snapshot=${snapshot} exec=${exec} />
                 <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
             </div>
-            ${blocks.flatMap(({ block, rows }) => [
-                html`<${ProjectHead} key=${`head:${block.key}`} block=${block} entry=${entry} snapshot=${snapshot} exec=${exec}
-                                    onTerm=${onTerm} onSettings=${onSettings} />`,
-                ...rows.map((e) => html`
-                    <div key=${`${e.kind}:${e.s ? e.s.session : e.parent.session || e.parent}`}
-                         class=${`dktree${e.depth > (e.kind === "row" ? 2 : 1) ? " dknested" : ""}${e.trail ? " dktrail" : ""}`}>
-                        ${row(e)}
+            ${blocks.map((block) => {
+                const head = headed(block);
+                const solo = head ? null : block.project || { name: block.name, session: block.name };
+                const known = head && block.project ? block.project.session || block.project.name : "";
+                const settings = !head && block.project && entry && onSettings
+                    ? () => onSettings({ contour: entry.id, project: block.project.id }) : null;
+                return html`
+                    <div class="dkblock" key=${block.key}>
+                        ${head && html`<${ProjectHead} block=${block} entry=${entry} snapshot=${snapshot} exec=${exec} wait=${wait}
+                                                       onTerm=${onTerm} onSettings=${onSettings} />`}
+                        <${LiveLines} list=${block.live} live=${snapshot?.sessions || []} past=${archive} limits=${limits} wait=${wait} notes=${notes}
+                                      exec=${exec} profile=${entry} solo=${block.live.length ? solo : null} known=${known}
+                                      folds=${folds} desk current=${current} menuOf=${menuOf(settings)} onOpen=${open}
+                                      onStub=${(row) => onPick({ name: row.name, id: row.sessionId, archived: true, row })} />
+                        ${block.ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} solo=${solo} known=${known} />`)}
                     </div>
-                `),
-                ...block.ghosts.map((task) => html`<${GhostLine} key=${`+${task.target}`} task=${task} />`),
-            ])}
+                `;
+            })}
             ${blocks.length === 0 && html`<p class="dkempty">nothing live</p>`}
         </section>
     `;
@@ -621,55 +347,16 @@ export function shelfOf(rows, max = SHELF) {
     return out;
 }
 
-// ClosedLine is a closed conversation on the shelf: its name, its contour when
-// the column shows more than one and when it was, over what it was about and
-// Resume; what it was about gives way, the time and Resume stay. A thread of
-// codex keeps no words in the archive, and says who ran it on which model. A
-// right click opens its menu.
-function ClosedLine({ row, contour, project, on, onPick, exec, snapshot }) {
-    const run = useAction();
-    const menu = useMenu();
-    const codex = isCodex(row);
-    const about = codex ? "" : aboutOf(row, project);
-    const ready = knows(exec, "session.resume");
-    const open = () => onPick({ name: row.name, id: row.sessionId, archived: true, row });
-    return html`
-        <div class=${`dkclosed${on ? " on" : ""}`} role="button" tabindex="0"
-             onClick=${open}
-             onKeyDown=${(e) => { if (e.key === "Enter") open(); }}
-             onContextMenu=${menu && menu(ClosedMenu, { row, exec, onOpen: open, snapshot }, `conversation ${row.name}`)}>
-            <span class="dkcltop">
-                <span class="dkclname">${row.name}</span>
-                ${contour && html`<span class="dkclcontour">${contour}</span>`}
-                <span class="dkclwhen">${when(stamp(row.lastAt))}</span>
-            </span>
-            <span class="dkclsub">
-                <span class="dkabout">${codex
-                    ? html`<span class="agentword" data-agent=${agentKey(row)}>${agentName(row)}</span>${pastModel(row)}`
-                    : about
-                        ? `«${about}»`
-                        : `${row.messages} ${plural(row.messages, "message", "messages")}`}</span>
-                ${row.sessionId && html`
-                    <button class=${`dkresume${ready ? "" : " off"}`} type="button"
-                            aria-label=${`resume conversation of ${row.name}`}
-                            data-tip=${ready ? undefined : whyNot(exec, "session.resume")}
-                            data-tipside="left"
-                            onClick=${async (e) => {
-                                e.stopPropagation();
-                                await resume(run, row, exec);
-                            }}>Resume</button>
-                `}
-            </span>
-        </div>
-    `;
-}
-
 // Shelf is the closed conversations of the contours shown, newest first, under
-// a heading of its own below all of them; the archive panel holds the rest.
+// a heading of its own below all of them, each a card of its own dimmed, its
+// contour beside its name when the column shows more than one; the archive
+// panel holds the rest. A right click opens the menu of a closed one.
 function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec, snapshot }) {
+    const menu = useMenu();
     if (past.kind === "loading") return null;
     const rows = past.kind === "ready" ? shelfOf((past.archive && past.archive.rows) || []) : [];
     if (past.kind === "ready" && rows.length === 0) return null;
+    const open = (row) => onPick({ name: row.name, id: row.sessionId, archived: true, row });
     return html`
         <section class="dkshelf">
             <div class="dkshelfhead">
@@ -680,9 +367,10 @@ function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec, s
             </div>
             ${past.kind !== "ready" && html`<p class="dkempty">${past.error}</p>`}
             ${rows.map((row) => html`
-                <${ClosedLine} key=${row.sessionId || row.name} row=${row} contour=${labelOf(row)}
-                               project=${projectOf(row)} on=${Boolean(currentId) && currentId === row.sessionId}
-                               onPick=${onPick} exec=${exec} snapshot=${snapshot} />
+                <${PastCard} key=${row.sessionId || row.name} row=${row} about=${aboutOf(row, projectOf(row))} exec=${exec}
+                             contour=${labelOf(row)} desk current=${Boolean(currentId) && currentId === row.sessionId}
+                             onOpen=${open}
+                             onMenu=${menu && menu(ClosedMenu, { row, exec, onOpen: () => open(row), snapshot }, `conversation ${row.name}`)} />
             `)}
         </section>
     `;
@@ -757,7 +445,8 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
     // fold is open. The arrow keys go down the same rows, block after block;
     // a run and a session still being raised are not among them.
     const entryOf = (name) => map.find((p) => p.profile === name) || null;
-    const [folded, fold] = useFolds();
+    const folds = useFolds();
+    const [folded] = folds;
     const blocksIn = new Map(sections.map((n) => [n, liveBlocksOf({
         profile: entryOf(n), sessions: byProfile.get(n) || [], opening: ghostsIn.get(n) || [], wait,
     }).map((block) => ({ block, rows: layoutOf(block.live, all, folded) }))]));
@@ -809,12 +498,12 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
             <div class="dkscroll">
                 ${sections.map((name) => html`
                     <${ContourSection} key=${name} name=${name} entry=${entryOf(name)}
-                                       list=${byProfile.get(name) || []} blocks=${blocksIn.get(name) || []}
-                                       archive=${archive} onFold=${fold} limits=${limits} map=${map}
+                                       list=${byProfile.get(name) || []} blocks=${(blocksIn.get(name) || []).map((b) => b.block)}
+                                       archive=${archive} folds=${folds} limits=${limits} map=${map}
                                        snapshot=${snapshot} current=${current} onPick=${onPick}
                                        onTerm=${onTerm} onSettings=${onSettings} exec=${exec} wait=${wait} />
                 `)}
-                ${sections.length === 0 && ghosts.map((task) => html`<${GhostLine} key=${`+${task.target}`} task=${task} />`)}
+                ${sections.length === 0 && ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} />`)}
                 ${sections.length === 0 && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}
                 ${sections.length > 0 && html`
                     <${Shelf} past=${past} labelOf=${labelOf} projectOf=${projectOf}

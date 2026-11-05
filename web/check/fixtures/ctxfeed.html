@@ -424,7 +424,8 @@ window.done = (async () => {
     await quiet();
     out.windowOff = { ...windowOff, sent: sent.length - windowOff.before, sheet: Boolean(document.querySelector(".sheet.on")) };
 
-    // The plus of a project, on a host that cannot open a session.
+    // The plus of a project — on the card of its one session — on a host that
+    // cannot open a session.
     const snapshot = {
         at: now, profiles: [{ name: "personal", auth: "builtin" }], host: { home: "/home/u" },
         profileMap: [{ id: 3, profile: "personal", groups: [{ name: "Side", projects: [{ id: 11, name: "proj", session: "proj", path: "/srv/proj" }] }] }],
@@ -434,9 +435,10 @@ window.done = (async () => {
     mount(html`<${SessionColumn} snapshot=${snapshot} limits=${null} current="" currentId="" onPick=${() => {}}
         picks=${[]} setPicks=${() => {}} onNames=${() => {}} onOrder=${() => {}} onArchive=${() => {}}
         exec=${oldExec} wait=${{ opening: () => [], of: () => null }} />`, true);
-    await until(() => document.querySelector(".dkprojnew"));
+    const plus = () => document.querySelector('.sc .scact[aria-label="new session in project proj"]');
+    await until(plus);
     await quiet();
-    const plusOff = off(document.querySelector(".dkprojnew"));
+    const plusOff = off(plus());
     await quiet();
     out.plusOff = { ...plusOff, sent: sent.length - plusOff.before, sheet: Boolean(document.querySelector(".sheet.on")) };
 

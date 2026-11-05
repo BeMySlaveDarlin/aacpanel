@@ -80,8 +80,8 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
             const nb = head.querySelector(".dkcontourname").getBoundingClientRect();
             return Boolean(rbox) && Math.abs((nb.top + nb.bottom) / 2 - (rbox.top + rbox.bottom) / 2) < 6 && box.height < 70;
         })(),
-        live: Array.from(sec.querySelectorAll(".dklive .dkname")).map(text),
-        closed: sec.querySelectorAll(".dkclosed").length,
+        live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),
+        closed: sec.querySelectorAll(".sc.scpast").length,
         empty: text(sec.querySelector(".dkempty")),
         bottom: sec.getBoundingClientRect().bottom,
     };
@@ -116,7 +116,7 @@ const painted = (el) => (el ? over(ownLayers(el), painted(el.parentElement)) : [
 // enough for the rows scrolling under it to stay unseen.
 const band = () => {
     const head = document.querySelector(".dkcontour.dklimhead");
-    const row = document.querySelector(".dklive");
+    const row = document.querySelector(".dkscroll .sc:not(.scpast)");
     const a = painted(head);
     const b = painted(row);
     return {
@@ -127,7 +127,7 @@ const band = () => {
 
 window.done = (async () => {
     await document.fonts.ready;
-    for (let i = 0; i < 60 && !document.querySelector(".dkshelf .dkclosed"); i++) await sleep(50);
+    for (let i = 0; i < 60 && !document.querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);
     await quiet();
     const shelf = document.querySelector(".dkshelf");
     const dark = band();
@@ -138,9 +138,9 @@ window.done = (async () => {
         band: { dark, sky },
         sections: sections(),
         asked,
-        shelf: Array.from(document.querySelectorAll(".dkshelf .dkclosed")).map((r) => ({
-            name: text(r.querySelector(".dkclname")), contour: text(r.querySelector(".dkclcontour")),
-            about: text(r.querySelector(".dkabout")), when: text(r.querySelector(".dkclwhen")),
+        shelf: Array.from(document.querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({
+            name: r.dataset.name, contour: text(r.querySelector(".sctag")),
+            about: text(r.querySelector(".scstep")), when: text(r.querySelector(".sctime")),
         })),
         shelfTop: shelf ? shelf.getBoundingClientRect().top : 0,
         shelfLast: Boolean(shelf) && shelf === shelf.parentElement.lastElementChild,

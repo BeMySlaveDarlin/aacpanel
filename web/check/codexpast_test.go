@@ -22,7 +22,8 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 		Agent  string `json:"agent"`
 		Hue    string `json:"hue"`
 		About  string `json:"about"`
-		When   string `json:"when"`
+		Runs   string `json:"runs"`
+		Ctx    string `json:"ctx"`
 		Resume bool   `json:"resume"`
 	}
 	type sent struct {
@@ -55,15 +56,17 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 		t.Fatalf("the phone's archive shows %d lines: %+v", len(got.Phone), got.Phone)
 	}
 	claude, codex := got.Phone[0], got.Phone[1]
-	if claude.Word != "" || !strings.Contains(claude.About, "login page") || !strings.Contains(claude.When, "peak 40%") {
+	// Every card says who ran it; a conversation of claude says what it was
+	// about and the peak of its context.
+	if claude.Word != "Claude" || !strings.Contains(claude.About, "login page") || claude.Ctx != "peak 40%" {
 		t.Errorf("the conversation of claude reads %+v", claude)
 	}
 	if codex.Word != "Codex" || codex.Agent != "codex" || codex.Hue != codexWordHue {
 		t.Errorf("the thread of codex is not signed by its agent in its colour: %+v, the colour of codex is %s", codex,
 			codexWordHue)
 	}
-	if !strings.Contains(codex.About, "gpt-6-astra") || !strings.Contains(codex.About, "xhigh") ||
-		!strings.Contains(codex.When, "29.4m tokens") || strings.Contains(codex.When, "peak") || !codex.Resume {
+	if !strings.Contains(codex.Runs, "gpt-6-astra") || !strings.Contains(codex.Runs, "Extra") ||
+		!strings.Contains(codex.Runs, "29.4m tokens") || strings.Contains(codex.Ctx, "peak") || !codex.Resume {
 		t.Errorf("the thread of codex reads %+v: its model, its effort and what it spent were meant", codex)
 	}
 

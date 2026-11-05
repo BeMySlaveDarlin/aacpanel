@@ -61,13 +61,6 @@ func TestTheChecklistSaysWhereTheSessionIs(t *testing.T) {
 			t.Errorf("checklist %d reads %+v, expected %+v", i, got[i], want[i])
 		}
 	}
-
-	short := runModuleJS(t, "src/screens/chat/checklist.js", "checklistShort", cases)
-	for i, w := range []string{"4/7 · d", "3/4 · c", "2/4 · c", "checklist done · 3/3", "", ""} {
-		if short[i] != w {
-			t.Errorf("the card says checklist %d as %q, expected %q", i, short[i], w)
-		}
-	}
 }
 
 type checklistLineSeen struct {
@@ -309,21 +302,24 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 }
 
 // A card of the sessions list says where a session is in its checklist on a
-// line of its own under the state, cut at its end; the state stays whole on
-// one line, with how long the session has lived after it, and a session with
-// no checklist says nothing of one. A thread of codex says it the same way.
+// line of its own under the state: the step in hand, wrapped rather than cut,
+// and n/N; under it a segment a step, done in grey and the step at work in the
+// colour of the state. A list with every step behind it is done and its bar
+// whole, and a session with no checklist says so over an empty bar. A thread
+// of codex says it the same way.
 func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 	type card struct {
-		State           string `json:"state"`
-		StateCut        bool   `json:"stateCut"`
-		StateLines      int    `json:"stateLines"`
-		Checklist       string `json:"checklist"`
-		InState         bool   `json:"inState"`
-		Below           bool   `json:"below"`
-		Lived           string `json:"lived"`
-		LivedOnLine     bool   `json:"livedOnLine"`
-		ChecklistWidth  int    `json:"checklistWidth"`
-		ChecklistInside bool   `json:"checklistInside"`
+		State      string `json:"state"`
+		StateCut   bool   `json:"stateCut"`
+		StateLines int    `json:"stateLines"`
+		Step       string `json:"step"`
+		StepCut    bool   `json:"stepCut"`
+		N          string `json:"n"`
+		Below      bool   `json:"below"`
+		Segs       string `json:"segs"`
+		Over       bool   `json:"over"`
+		Empty      bool   `json:"empty"`
+		StepWidth  int    `json:"stepWidth"`
 	}
 	var got struct {
 		Busy     card `json:"busy"`
@@ -336,27 +332,23 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 	runFixture(t, "checklistcard.html", &got)
 	for name, c := range map[string]struct {
 		card
-		checklist string
-		state     string
+		step, n, segs, state string
+		over                 bool
 	}{
-		"busy":  {got.Busy, "4/7 · the watcher waits for the background and checks a fresh snapshot again", "working"},
-		"done":  {got.Done, "checklist done · 7/7", "idle"},
-		"asks":  {got.Asks, "2/3 · later 1", "asks you · Which way"},
-		"codex": {got.Codex, "2/3 · fix the test of the router", "working"},
+		"busy":  {got.Busy, "the watcher waits for the background and checks a fresh snapshot again", "4/7", "ddda---", "working", false},
+		"done":  {got.Done, "step 6", "7/7", "ddddddd", "done", true},
+		"asks":  {got.Asks, "later 1", "2/3", "d--", "asks Which way", false},
+		"codex": {got.Codex, "fix the test of the router", "2/3", "da-", "working", false},
 	} {
-		if c.Checklist != c.checklist || c.InState || !c.Below || c.ChecklistWidth < 40 || !c.ChecklistInside {
-			t.Errorf("%s: the card says %q (in the state %v, on a line under it %v, %dpx, inside %v), expected %q",
-				name, c.Checklist, c.InState, c.Below, c.ChecklistWidth, c.ChecklistInside, c.checklist)
-		}
-		if c.Lived != "3 h 0 m" || !c.LivedOnLine {
-			t.Errorf("%s: after the state the card says the session has lived %q (on the state's line %v), expected 3 h 0 m",
-				name, c.Lived, c.LivedOnLine)
+		if c.Step != c.step || c.StepCut || c.N != c.n || !c.Below || c.Segs != c.segs || c.Over != c.over || c.StepWidth < 200 {
+			t.Errorf("%s: the card says %q %q (cut %v, under the state %v) over %q (whole %v, %dpx), expected %q %q over %q",
+				name, c.Step, c.N, c.StepCut, c.Below, c.Segs, c.Over, c.StepWidth, c.step, c.n, c.segs)
 		}
 		if c.State != c.state || c.StateCut || c.StateLines != 1 {
 			t.Errorf("%s: the state reads %q on %d lines (cut %v), expected %q whole on one", name, c.State, c.StateLines, c.StateCut, c.state)
 		}
 	}
-	if got.Plain.Checklist != "" || got.Plain.InState || got.Plain.State != "idle" {
+	if got.Plain.Step != "no checklist" || !got.Plain.Empty || got.Plain.N != "" || got.Plain.State != "idle" {
 		t.Errorf("a session with no checklist says %+v", got.Plain)
 	}
 	if got.Overflow > 0 {

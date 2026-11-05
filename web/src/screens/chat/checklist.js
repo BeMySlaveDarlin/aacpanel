@@ -43,14 +43,6 @@ export function checklistOf(checklist) {
     };
 }
 
-// checklistShort is the checklist in the few words a card of the sessions
-// list has room for: where the session is and the step it is on.
-export function checklistShort(checklist) {
-    const p = checklistOf(checklist);
-    if (!p) return "";
-    return p.over ? `checklist done · ${p.total}/${p.total}` : `${p.n}/${p.total} · ${p.step}`;
-}
-
 // clockOf is the time of day a step took its status, with the day when it
 // was not today.
 export function clockOf(iso) {

@@ -49,7 +49,7 @@ func TestASwipeUnderAShortListTurnsTheContourPage(t *testing.T) {
 		t.Fatalf("only %.0f px between the last row and the menu: there is no empty room to swipe in", room)
 	}
 
-	if got.Row.Tap != "contour settings" {
+	if got.Row.Tap != "Contour settings" {
 		t.Errorf("a tap on the last row at y=%.0f reaches %q, not the row", got.Row.Y, got.Row.Tap)
 	}
 	if got.Row.Sideways != "pfpages" {
@@ -89,7 +89,7 @@ func TestASwipeUnderAShortListTurnsTheContourPage(t *testing.T) {
 		t.Errorf("scrolled to its end, the long contour's last row still ends at %.0f, under the menu at %.0f",
 			got.TallEnd.Bottom, got.TallEnd.NavTop)
 	}
-	if got.TallEnd.Tap != "contour settings" {
+	if got.TallEnd.Tap != "Contour settings" {
 		t.Errorf("a tap on the long contour's last row reaches %q, not the row", got.TallEnd.Tap)
 	}
 }

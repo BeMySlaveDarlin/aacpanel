@@ -77,9 +77,9 @@ process.stdout.write(JSON.stringify(rows.map(placeOf)));
 }
 
 // A claude the panel did not start is shown for what it is. The runs a session
-// started inside its work stand under it: on the phone in a fold that says one
-// of them waits for the person, in the desktop column with the waiting one
-// outside the fold and the rest in it; a claude typed into a terminal by hand
+// started inside its work stand under it, the one that waits for the person
+// outside the fold and the rest in it, on both lists; a claude typed into a
+// terminal by hand
 // stands on its own, marked, with nothing to press. The conversation of either
 // is only read: no terminal, no window, no move, no Remote Control, no end,
 // and a note where the composer was.
@@ -121,7 +121,7 @@ func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 		t.Errorf("the open fold shows runs %v among %v", got.DeskKids, got.DeskOpen)
 	}
 
-	if strings.Join(got.PhoneRows, ",") != "rotation,typed" || !strings.Contains(got.PhoneFold, "2 runs started by it") {
+	if strings.Join(got.PhoneRows, ",") != "rotation,rotation-e8,typed" || got.PhoneFold != "1 more run" {
 		t.Errorf("the phone's list shows %v with the fold %q", got.PhoneRows, got.PhoneFold)
 	}
 	if len(got.PhoneTags) != 2 || got.PhoneTags[1] != "outside" {
@@ -150,8 +150,9 @@ func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 	}
 }
 
-// A live session with Remote Control up says so on its row of the desktop
-// column, the way the session's own tools say it; the others say nothing.
+// A live session with Remote Control up says so on its card in the desktop
+// column, in the place of Remote Control among its settings; on the others
+// that place is dimmed.
 func TestADeskRowSaysRemoteControlIsUp(t *testing.T) {
 	var got struct {
 		DeskRemote []string `json:"deskRemote"`

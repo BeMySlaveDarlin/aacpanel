@@ -106,70 +106,73 @@ const until = async (ok) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
 
-// phoneOf reads a page of the phone block by block: its name, and its rows in
-// order — a fold, a stub or a session, the session as its name with "+" for one
-// a step in and what it says of the session that opened it.
+// cardOf reads a card as its name, a "› " a step it stands in, and what it
+// says of the session that opened it; foldOf a fold as how many and who of
+// them waits.
+const cardOf = (row) => {
+    const depth = Number(row.style.getPropertyValue("--depth") || 0);
+    const tag = text(row.querySelector(".sctag"));
+    return `${"› ".repeat(depth)}${row.querySelector(".scname").getAttribute("aria-label")}${tag ? ` (${tag})` : ""}`;
+};
+const foldOf = (row) => {
+    const waits = text(row.querySelector(".scfoldwaits"));
+    return `fold: ${text(row.querySelector(".scfoldtext"))}${waits ? ` · ${waits}` : ""}`;
+};
+const rowOf = (row) => row.classList.contains("scfold") ? foldOf(row)
+    : row.classList.contains("scstub") ? `stub: ${text(row)}` : cardOf(row);
+const ROWS = ".scfold, .scstub, .sc:not(.scpast):not(.scghost)";
+// phoneOf reads a page of the phone block by block: the name of its heading —
+// none for a project of one card — and its rows in order.
 const phoneOf = (root) => Array.from(root.querySelectorAll(".pjblock")).map((block) => ({
     name: text(block.querySelector(".pjname")),
-    rows: Array.from(block.querySelectorAll(".pjfold, .pjstub, .pjrow.pjcard")).map((row) => {
-        if (row.classList.contains("pjfold")) return `fold: ${text(row)}`;
-        if (row.classList.contains("pjstub")) return `stub: ${text(row)}`;
-        const branch = row.classList.contains("pjbranch") ? (row.classList.contains("pjbranchend") ? "└ " : "├ ") : "";
-        const from = text(row.querySelector(".pjfrom"));
-        return `${branch}${text(row.querySelector(".pjsess"))}${from ? ` (${from})` : ""}`;
-    }),
+    rows: Array.from(block.querySelectorAll(ROWS)).map(rowOf),
 }));
 // deskOf reads the desktop column: its rows in order — the heading of a
 // project as its name, its group and "+" for the way to a new session in it,
-// a fold, a stub or a session as on the phone.
-const deskOf = () => Array.from(document.querySelectorAll("#desk .dkscroll > section :is(.dkproj, .dkfold, .dkstub, .dksess.dklive)"))
+// a fold, a stub or a card as on the phone.
+const deskOf = () => Array.from(document.querySelectorAll(`#desk .dkscroll > section :is(.dkproj, ${ROWS})`))
     .map((row) => {
         if (row.classList.contains("dkproj")) {
-            const plus = row.querySelector(".dkprojnew") ? " +" : "";
+            const plus = row.querySelector('.scact[aria-label^="new session"]') ? " +" : "";
             return `head: ${text(row.querySelector(".dkprojname"))} · ${text(row.querySelector(".dkprojgroup"))}${plus}`;
         }
-        if (row.classList.contains("dkfold")) return `fold: ${text(row)}`;
-        if (row.classList.contains("dkstub")) return `stub: ${text(row)}`;
-        const branch = row.classList.contains("dkbranch") ? (row.classList.contains("dkbranchend") ? "└ " : "├ ") : "";
-        const from = text(row.querySelector(".dkfrom"));
-        return `${branch}${text(row.querySelector(".dkname"))}${from ? ` (${from})` : ""}`;
+        return rowOf(row);
     });
 
 window.done = (async () => {
     await document.fonts.ready;
     const desk = document.getElementById("desk");
     const phone1 = document.getElementById("phone1");
-    if (!await until(() => desk.querySelector(".dkstub .dkstubnote") && text(desk.querySelector(".dkstub .dkstubnote")).includes("ago"))) {
+    if (!await until(() => desk.querySelector(".scstub .scstubnote") && text(desk.querySelector(".scstub .scstubnote")).includes("ago"))) {
         throw new Error("the stub of the closed parent did not learn when it closed");
     }
     const out = {};
     out.phone = phoneOf(phone1);
     out.phoneAlgo = phoneOf(document.getElementById("phone2"));
     out.plain = phoneOf(document.getElementById("plain"));
-    out.plainMarks = document.querySelectorAll("#plain .pjfold, #plain .pjstub, #plain .pjbranch, #plain .pjfrom").length;
+    out.plainMarks = document.querySelectorAll("#plain .scfold, #plain .scstub, #plain .sckid, #plain .sctag").length;
     out.desk = deskOf();
     out.order = order.slice();
-    out.waitHue = getComputedStyle(phone1.querySelector(".pjfoldwaits")).color;
-    out.guide = getComputedStyle(phone1.querySelector(".pjbranch"), "::before").borderLeftWidth;
+    out.waitHue = getComputedStyle(phone1.querySelector(".scfoldwaits")).color;
+    out.guide = getComputedStyle(phone1.querySelector(".sc.sckid"), "::before").borderLeftWidth;
 
     // The stub opens the conversation of the parent that closed.
-    phone1.querySelector("button.pjstub").click();
-    desk.querySelector(".dkstub").click();
+    phone1.querySelector("button.scstub").click();
+    desk.querySelector(".scstub").click();
     out.stubOpens = { phone: opened.slice(), desk: picked.map((p) => ({ name: p.name, id: p.id, archived: Boolean(p.archived) })) };
 
-    // A closed fold keeps who waits and the dots of the states, and on the
-    // desktop takes its sessions out of the way of the arrow keys; it stays
-    // closed for its parent, and opens again.
-    phone1.querySelector(".pjfold").click();
-    desk.querySelector(".dkfold").click();
-    await until(() => !phone1.querySelector(".pjbranch .pjsess") || order.length < out.order.length);
+    // A closed fold keeps who waits, and on the desktop takes its sessions out
+    // of the way of the arrow keys; it stays closed for its parent, and opens
+    // again.
+    phone1.querySelector(".scfold").click();
+    desk.querySelector(".scfold").click();
+    await until(() => !phone1.querySelector(".pjblock .sc.sckid") || order.length < out.order.length);
     await until(() => order.length < out.order.length);
     out.phoneFolded = phoneOf(phone1);
-    out.phoneDots = Array.from(phone1.querySelectorAll(".pjfolddots i")).map((i) => i.dataset.tone);
     out.deskFolded = deskOf();
     out.orderFolded = order.slice();
     out.kept = JSON.parse(localStorage.getItem("aacpanel.folds") || "[]");
-    desk.querySelector(".dkfold").click();
+    desk.querySelector(".scfold").click();
     await until(() => order.length === out.order.length);
     out.orderOpen = order.slice();
 
@@ -187,7 +190,7 @@ window.done = (async () => {
         updating: false, onApplyUpdate() {}, route: { here: "", via: "", why: "", onRecheck() {}, onOpen() {} },
         jump: { name: "shop", id: "id-shop" }, onJumped() {},
     })), shell);
-    const lit = () => text(shell.querySelector(".dksess.dklive.on .dkname"));
+    const lit = () => { const on = shell.querySelector(".sc.sccur"); return on ? on.dataset.name : ""; };
     await until(() => lit() === "shop");
     await quiet();
     const press = async (key) => {

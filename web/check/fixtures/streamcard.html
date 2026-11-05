@@ -72,17 +72,17 @@ const tapAt = (el) => {
     return tapPoint(box.left + box.width / 2, box.top + box.height / 2);
 };
 
-// called reads the bell of every card that has one, by the session's name.
-const called = () => Object.fromEntries(Array.from(document.querySelectorAll(".pjblock")).flatMap((block) => {
-    const bell = block.querySelector(".pjstate .pjcalled");
-    if (!bell) return [];
-    const box = bell.getBoundingClientRect();
-    const row = block.querySelector(".pjrow").getBoundingClientRect();
-    return [[block.querySelector(".pjname").textContent.trim(), {
-        title: bell.getAttribute("title") || "",
-        icon: Boolean(bell.querySelector("svg")),
+// called reads every card that says its session called, by the session's
+// name: the state's word, its glyph, and how long ago in the corner.
+const called = () => Object.fromEntries(Array.from(document.querySelectorAll(".sc[data-kind=\"call\"]")).map((card) => {
+    const glyph = card.querySelector(".scglyph");
+    const box = glyph.getBoundingClientRect();
+    const row = card.getBoundingClientRect();
+    return [card.dataset.name, {
+        title: `${text(card.querySelector(".scsay"))} · ${text(card.querySelector(".sctime"))}`,
+        icon: Boolean(glyph.querySelector("svg")),
         inside: box.width > 0 && box.left >= row.left && box.right <= row.right && box.bottom <= row.bottom,
-    }]];
+    }];
 }));
 
 // The feed of a session on screen is all a visit is: a screen that marks it
@@ -93,54 +93,46 @@ const Feed = ({ name }) => {
 };
 
 window.done = (async () => {
-    await until(() => document.querySelectorAll(".pjcard .pjtag").length === rows.length);
+    await until(() => document.querySelectorAll(".sc .scl5").length === rows.length);
     await document.fonts.ready;
-    const blocks = Array.from(document.querySelectorAll(".pjblock"));
-    const cards = blocks.map((block) => {
-        const rowEl = block.querySelector(".pjrow");
-        const row = rowEl.getBoundingClientRect();
-        const open = block.querySelector(".pjopen").getBoundingClientRect();
-        const tag = block.querySelector(".pjtag");
+    const cards = Array.from(document.querySelectorAll(".sc")).map((card) => {
+        const row = card.getBoundingClientRect();
+        const badges = Array.from(card.querySelectorAll(".scl5 .scb"));
+        const tag = badges[1];
         const box = tag.getBoundingClientRect();
-        const pct = block.querySelector(".pjpct").getBoundingClientRect();
-        const said = block.querySelector(".pjtext");
-        const rc = block.querySelector(".pjstate .pjremote");
-        const name = block.querySelector(".pjsess");
-        const nameBox = name ? name.getBoundingClientRect() : null;
-        const acts = rowEl.querySelector(".pjacts").getBoundingClientRect();
+        const rc = badges[3];
+        const ctx = card.querySelector(".scctx");
+        const said = card.querySelector(".scsay");
+        const agent = card.querySelector(".scagent");
+        const name = card.querySelector(".scname");
+        const nameBox = name.getBoundingClientRect();
+        const acts = card.querySelector(".scacts").getBoundingClientRect();
         return {
             state: text(said),
             stateCut: cut(said),
-            since: text(block.querySelector(".pjsince")),
-            sinceCut: cut(block.querySelector(".pjsince")),
-            sinceLines: lines(block.querySelector(".pjsince")),
-            sinceBelow: below(block.querySelector(".pjsince"), block.querySelector(".pjstate")),
-            work: text(block.querySelector(".pjwork")),
+            since: text(agent),
+            sinceCut: cut(agent),
+            sinceLines: lines(agent),
+            sinceBelow: below(agent, said),
+            work: Array.from(card.querySelectorAll(".scrun")).map((r) => r.title).join(", "),
             nameStands: (() => {
-                const since = block.querySelector(".pjsince");
-                if (!name || !since) return false;
-                const n = getComputedStyle(name), w = getComputedStyle(since);
+                const n = getComputedStyle(name), w = getComputedStyle(agent);
                 return Number(n.fontWeight) >= 600 && parseFloat(n.fontSize) > parseFloat(w.fontSize) && n.color !== w.color;
             })(),
             nameLines: lines(name),
-            // Only the name yields space to the actions in the top corner.
-            nameBeside: Boolean(nameBox) && nameBox.right <= acts.left && nameBox.bottom <= open.top + 1
-                && Math.abs(acts.top + acts.height / 2 - nameBox.top - nameBox.height / 2) <= 1,
-            workBelow: below(block.querySelector(".pjwork"), block.querySelector(".pjsince")),
-            ...agentOf(block.querySelector(".pjsince")),
-            tapPct: tapAt(block.querySelector(".pjpct")),
+            // Only the name yields space to the controls in the top corner.
+            nameBeside: nameBox.right <= acts.left && Math.abs(acts.top + acts.height / 2 - nameBox.top - nameBox.height / 2) <= 1,
+            workBelow: true,
+            ...agentOf(agent),
+            tapPct: tapAt(ctx),
             tapTag: tapAt(tag),
             tapRC: tapAt(rc),
-            name: block.querySelector(".pjname").textContent.trim(),
-            rc: rc ? rc.textContent.trim() : "",
-            rcElsewhere: Array.from(rowEl.querySelectorAll("*")).some((el) => el !== rc && el.children.length === 0 && el.textContent.trim() === "RC"),
-            mark: tag.textContent.trim(),
+            name: card.dataset.name,
+            rc: rc.classList.contains("scon") ? text(rc) : "",
+            rcElsewhere: Array.from(card.querySelectorAll("*")).some((el) => el !== rc && el.children.length === 0 && el.textContent.trim() === "RC"),
+            mark: text(tag),
             shown: box.width > 0 && box.height > 0 && box.right <= row.right,
-            // What the lines under the name give up on the right: the figure
-            // and the gap to it, no more.
-            leftGives: Math.round(pct.left - open.right),
-            marksInside: [box, pct].every((m) => m.right <= row.right && m.bottom <= row.bottom - 4),
-            pctAddsHeight: Math.round(pct.bottom - open.bottom),
+            marksInside: [box, ctx.getBoundingClientRect()].every((m) => m.right <= row.right && m.bottom <= row.bottom - 3),
             overflow: document.scrollingElement.scrollWidth - window.innerWidth,
         };
     });
@@ -151,12 +143,12 @@ window.done = (async () => {
     await until(() => viewing() === "aacpanel");
     render(null, feed);
     list(rows);
-    await until(() => !document.querySelector(".pjcalled"));
+    await until(() => !document.querySelector('.sc[data-kind="call"]'));
     const visited = called();
 
     const later = new Date(Date.now() + 60e3).toISOString().replace(/\.\d+Z$/, "Z");
     list(rows.map((r) => (r.session === "aacpanel" ? { ...r, called: later } : r)));
-    await until(() => document.querySelector(".pjcalled"));
+    await until(() => document.querySelector('.sc[data-kind="call"]'));
     return { cards, called: { before, visited, again: called() } };
 })();
 </script>

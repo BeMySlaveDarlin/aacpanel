@@ -89,19 +89,20 @@ const confirm = async (count) => {
 window.done = (async () => {
     const phone = document.getElementById("phone");
     const desk = document.getElementById("desk");
-    if (!await until(() => phone.querySelectorAll(".pjpast").length === 2)) throw new Error("the phone shows no archive");
+    if (!await until(() => phone.querySelectorAll(".sc.scpast").length === 2)) throw new Error("the phone shows no archive");
     if (!await until(() => desk.querySelectorAll(".dkarch").length === 2)) throw new Error("the desktop shows no archive");
 
     const line = (row) => ({
         word: text(row.querySelector(".agentword")),
         agent: (row.querySelector(".agentword") || { dataset: {} }).dataset.agent || "",
         hue: color(row.querySelector(".agentword")),
-        about: text(row.querySelector(".pjabout")),
-        when: text(row.querySelector(".pjwhen")),
-        resume: Boolean(row.querySelector(".pjresume")),
+        about: text(row.querySelector(".scstep")),
+        runs: text(row.querySelector(".scl4")),
+        ctx: text(row.querySelector(".scctx")),
+        resume: Boolean(row.querySelector(".scresume")),
     });
     const out = {
-        phone: Array.from(phone.querySelectorAll(".pjpast")).map(line),
+        phone: Array.from(phone.querySelectorAll(".sc.scpast")).map(line),
         desk: Array.from(desk.querySelectorAll(".dkarch")).map((row) => ({
             word: text(row.querySelector(".agentword")),
             hue: color(row.querySelector(".agentword")),
@@ -112,8 +113,8 @@ window.done = (async () => {
         shelf: shelfOf([rows[1]]).map((r) => r.sessionId),
     };
 
-    const codexRow = Array.from(phone.querySelectorAll(".pjpast")).find((row) => row.querySelector(".agentword"));
-    codexRow.querySelector(".pjresume").click();
+    const codexRow = Array.from(phone.querySelectorAll(".sc.scpast")).find((row) => row.querySelector('.agentword[data-agent="codex"]'));
+    codexRow.querySelector(".scresume").click();
     out.effect = await confirm(1);
 
     const deskRow = Array.from(desk.querySelectorAll(".dkarch")).find((row) => row.querySelector(".agentword"));
@@ -121,7 +122,7 @@ window.done = (async () => {
     await confirm(2);
     out.sent = sent;
 
-    codexRow.querySelector(".pjopen").click();
+    codexRow.querySelector(".scopen").click();
     const chat = document.getElementById("chat");
     if (!await until(() => chat.querySelector(".chatfeed .msg.ai"))) throw new Error("the feed of the thread did not open");
     out.opened = opened;

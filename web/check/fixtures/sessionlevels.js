@@ -28,8 +28,8 @@ export async function sessionLevels() {
             checklist: { items: [{ text: "Read the brief", status: "done" }, { text: "Check the layout", status: "active" }] } }),
         make("F", "E", 10, { cap: 100, autoRestart: true })];
     const panels = [
-        { root: mount.querySelector(".phone"), prefix: "pj", row: ".pjrow.pjcard", name: ".pjsess" },
-        { root: mount.querySelector(".dkbody"), prefix: "dk", row: ".dksess.dklive", name: ".dkname" },
+        { root: mount.querySelector(".phone"), desk: false },
+        { root: mount.querySelector(".dkbody"), desk: true },
     ];
     const text = (el) => el ? el.textContent.replace(/\s+/g, " ").trim() : "";
     const until = async (ok) => {
@@ -49,69 +49,57 @@ export async function sessionLevels() {
             onOrder(rows) { order = rows.map((s) => s.name); },
         })), panels[1].root);
     };
-    const rowOf = (p, name) => Array.from(p.root.querySelectorAll(p.row))
-        .find((row) => text(row.querySelector(p.name)) === name);
-    const foldOf = (p, name) => rowOf(p, name)?.closest(`.${p.prefix}tree`)
-        .nextElementSibling?.querySelector(`.${p.prefix}fold`);
-    const rowsOf = (p) => Array.from(p.root.querySelectorAll(`${p.row}, .${p.prefix}fold, .${p.prefix}stub, .${p.prefix}kin`))
-        .map((row) => row.matches(`.${p.prefix}fold`) ? `fold: ${text(row.querySelector(`.${p.prefix}foldtext`))}`
-            : row.matches(`.${p.prefix}stub`) ? `stub: ${text(row.querySelector(`.${p.prefix}stubname`))}`
-                : row.matches(`.${p.prefix}kin`) ? `runs: ${text(row)}` : text(row.querySelector(p.name)));
+    const CARD = ".sc:not(.scpast):not(.scghost)";
+    const rowOf = (p, name) => p.root.querySelector(`.sc[data-name="${name}"]`);
+    const foldOf = (p, name) => rowOf(p, name)?.closest(".pjtree").nextElementSibling?.querySelector(".scfold");
+    const runsFold = (row) => text(row.querySelector(".scfoldtext")).endsWith("started by it");
+    const rowsOf = (p) => Array.from(p.root.querySelectorAll(`${CARD}, .scfold, .scstub`))
+        .map((row) => row.matches(".scfold") ? `${runsFold(row) ? "runs" : "fold"}: ${text(row.querySelector(".scfoldtext"))}`
+            : row.matches(".scstub") ? `stub: ${text(row.querySelector(".scstubname"))}` : row.dataset.name);
     const rowsAre = (want) => panels.every((p) => rowsOf(p).join(",") === want);
     const read = (p) => ({
         rows: rowsOf(p),
-        waits: Array.from(p.root.querySelectorAll(`.${p.prefix}foldwaits`)).map(text),
-        dots: Array.from(p.root.querySelectorAll(`.${p.prefix}folddots`))
-            .map((dots) => Array.from(dots.children).map((dot) => dot.dataset.tone)),
+        waits: Array.from(p.root.querySelectorAll(".scfoldwaits")).map(text),
     });
     const geometry = (p) => {
         const origin = p.root.getBoundingClientRect().left;
         const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-        const rows = Array.from(p.root.querySelectorAll(p.row)).map((row) => {
+        const rows = Array.from(p.root.querySelectorAll(CARD)).map((row) => {
             const box = row.getBoundingClientRect();
-            const name = row.querySelector(p.name).getBoundingClientRect();
-            const bar = row.querySelector(p.prefix === "pj" ? ".ctxbar" : ".dksessbar");
+            const name = row.querySelector(".scname").getBoundingClientRect();
+            const acts = row.querySelector(".scacts");
+            const bar = row.querySelector(".scedge");
             const track = bar.getBoundingClientRect();
-            const burn = bar.querySelector(".ctxburn");
-            const burned = burn && burn.getBoundingClientRect();
+            const cap = bar.querySelector(".sccap");
             const fill = bar.querySelector("i");
-            const mark = row.querySelector(`.${p.prefix}restart`);
-            const branch = row.matches(`.${p.prefix}branch`);
-            const guide = getComputedStyle(row, p.prefix === "pj" ? "::before" : null);
-            const guideHeight = p.prefix === "pj" ? guide.height : guide.backgroundSize.split(" ")[1];
-            return { name: text(row.querySelector(p.name)), x: name.left - origin, width: name.width,
+            const mark = row.querySelector(".scl5 .scb:nth-child(3)");
+            const branch = row.classList.contains("sckid");
+            const guide = getComputedStyle(row, "::before");
+            return { name: row.dataset.name, x: name.left - origin,
+                width: (acts ? acts.getBoundingClientRect().left : box.right) - name.left,
                 top: box.top, bottom: box.bottom, height: box.height,
-                branch, rowX: box.left - origin + (p.prefix === "dk" ? parseFloat(getComputedStyle(row).paddingLeft) : 0),
+                branch, rowX: box.left - origin,
                 barX: track.left - origin, barWidth: track.width,
-                burn: Boolean(burn), burnLeft: burned ? (burned.left - track.left) / track.width * 100 : 0,
-                burnWidth: burned ? burned.width / track.width * 100 : 0,
-                burnPaint: burn ? getComputedStyle(burn).backgroundImage : "",
-                fillWidth: fill.getBoundingClientRect().width / track.width * 100,
-                fillAbove: getComputedStyle(fill).position === "relative" && (!burn || Boolean(burn.compareDocumentPosition(fill) & Node.DOCUMENT_POSITION_FOLLOWING)),
-                restart: text(mark), restartIcon: Boolean(mark?.querySelector("svg")),
-                restartTip: mark ? mark.getAttribute(p.prefix === "pj" ? "title" : "data-tip") : "",
-                checklist: text(row.querySelector(`.${p.prefix}checklist`)),
-                guideX: branch ? box.left - origin + parseFloat(p.prefix === "pj" ? guide.left : guide.backgroundPositionX) : 0,
-                guideHeight: branch ? guideHeight.endsWith("%") ? box.height : parseFloat(guideHeight) : 0 };
+                cap: cap ? (cap.getBoundingClientRect().left - track.left) / track.width * 100 : 0,
+                capAuto: Boolean(cap && cap.classList.contains("scauto")),
+                fillWidth: fill ? fill.getBoundingClientRect().width / track.width * 100 : 0,
+                restart: text(mark), restartIcon: Boolean(mark?.querySelector("svg")), restartTip: mark ? mark.getAttribute("title") || "" : "",
+                checklist: text(row.querySelector(".scl3")),
+                guideX: branch ? box.left - origin + parseFloat(guide.left) : 0,
+                guideHeight: branch ? parseFloat(guide.height) : 0 };
         });
-        const trails = Array.from(p.root.querySelectorAll(`.${p.prefix}trail`)).map((tree) => {
-            const box = tree.getBoundingClientRect();
-            const guide = getComputedStyle(tree, "::before");
-            return { x: box.left - origin + parseFloat(guide.left), top: box.top,
-                bottom: box.bottom, height: parseFloat(guide.height), line: parseFloat(guide.borderLeftWidth) };
-        });
-        const folds = Array.from(p.root.querySelectorAll(`.${p.prefix}fold`)).map((fold) => {
+        const folds = Array.from(p.root.querySelectorAll(".scfold")).filter((fold) => !runsFold(fold)).map((fold) => {
             const box = fold.getBoundingClientRect();
             const chevron = fold.firstElementChild.getBoundingClientRect();
-            const label = fold.querySelector(`.${p.prefix}foldtext`).getBoundingClientRect();
+            const label = fold.querySelector(".scfoldtext").getBoundingClientRect();
             return { height: box.height / rem, x: chevron.left - origin,
                 centered: Math.abs((label.top + label.bottom - box.top - box.bottom) / 2) < 1.5 };
         });
-        return { rows, trails, folds };
+        return { rows, folds };
     };
     draw(chain);
-    const tree = "A,fold: opened 3 sessions,G,B,fold: opened 2 sessions,C,D,E,fold: opened 1 session,F";
-    const childClosed = "A,fold: opened 3 sessions,G,B,fold: opened 2 sessions,E,fold: opened 1 session,F";
+    const tree = "A,fold: 3 opened,G,B,fold: 2 opened,C,D,E,fold: 1 opened,F";
+    const childClosed = "A,fold: 3 opened,G,B,fold: 2 opened,E,fold: 1 opened,F";
     await until(() => rowsAre(tree) && order.join(",") === "A,G,B,C,D,E,F");
     const out = { root: kinOf(chain).rootOf(chain[0]).session, phone: {}, desk: {} };
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].open = { ...read(p), ...geometry(p) }; });
@@ -121,7 +109,7 @@ export async function sessionLevels() {
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].childClosed = read(p); });
     out.childOrder = order.slice();
     for (const p of panels) foldOf(p, "A").click();
-    await until(() => rowsAre("A,fold: opened 3 sessions") && order.join(",") === "A");
+    await until(() => rowsAre("A,fold: 3 opened") && order.join(",") === "A");
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].rootClosed = read(p); });
     out.kept = JSON.parse(localStorage.getItem("aacpanel.folds") || "[]").filter((name) => name === "A" || name === "B").sort();
     for (const p of panels) foldOf(p, "A").click();
@@ -133,11 +121,11 @@ export async function sessionLevels() {
     const runs = [make("RA", "A", 6, { outside: true }), make("RB", "B", 7, { outside: true }),
         make("RC", "C", 8, { outside: true }), make("RD", "D", 9, { outside: true })];
     draw([...chain, ...runs]);
-    await until(() => rowsAre("A,fold: opened 3 sessions,G,B,fold: opened 2 sessions,C,D,runs: 3 runs started by it,"
-        + "E,fold: opened 1 session,F,runs: 1 run started by it"));
+    await until(() => rowsAre("A,fold: 3 opened,G,B,fold: 2 opened,C,D,runs: 3 runs started by it,"
+        + "E,fold: 1 opened,F,runs: 1 run started by it"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].runsClosed = read(p); });
     for (const p of panels) {
-        for (const fold of p.root.querySelectorAll(`.${p.prefix}kin:not(.${p.prefix}fold)`)) fold.click();
+        for (const fold of p.root.querySelectorAll(".scfold")) if (runsFold(fold)) fold.click();
     }
     await until(() => panels.every((p) => rowOf(p, "RA") && rowOf(p, "RD")));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].runsOpen = geometry(p); });
@@ -148,10 +136,10 @@ export async function sessionLevels() {
     await until(() => panels.every((p) => rowOf(p, "B")));
 
     draw(chain.filter((s) => s.session !== "A"));
-    await until(() => rowsAre("stub: A,G,B,fold: opened 2 sessions,C,D,E,fold: opened 1 session,F"));
+    await until(() => rowsAre("stub: A,G,B,fold: 2 opened,C,D,E,fold: 1 opened,F"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].stub = { ...read(p), ...geometry(p) }; });
     draw(chain.filter((s) => !["A", "E", "F"].includes(s.session)));
-    await until(() => rowsAre("stub: A,G,B,fold: opened 2 sessions,C,D"));
+    await until(() => rowsAre("stub: A,G,B,fold: 2 opened,C,D"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].last = geometry(p); });
     for (const p of panels) render(null, p.root);
     mount.remove();

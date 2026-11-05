@@ -14,8 +14,9 @@ type roleLine struct {
 	Placed    bool    `json:"placed"`
 }
 
-// The cards show the checklist, cut to one line under the state; the role
-// stays in the tools. Its sheet still counts, saves and clears the words.
+// The cards show the checklist on a line of its own under the state, the
+// step whole however long, wrapped rather than cut; the role stays in the
+// tools. Its sheet still counts, saves and clears the words.
 func TestTheChecklistTakesTheRowAndTheRoleStaysInTheTools(t *testing.T) {
 	var got struct {
 		Desk         []roleLine `json:"desk"`
@@ -51,16 +52,14 @@ func TestTheChecklistTakesTheRowAndTheRoleStaysInTheTools(t *testing.T) {
 		want := map[string]string{
 			"shop":             "1/1 · Review the branch and the changes to all the migrations before handing the work to the next session",
 			"shop-db-split":    "2/2 · Run migrations",
-			"shop-queue-watch": "",
+			"shop-queue-watch": "no checklist",
 		}[r.Name]
 		if r.Checklist != want {
 			t.Errorf("desktop: %s shows checklist %q, want %q", r.Name, r.Checklist, want)
 		}
-		if !r.OneLine || !r.Placed {
-			t.Errorf("desktop: the checklist of %s is on one line %v, under the state %v", r.Name, r.OneLine, r.Placed)
-		}
-		if r.Cut != (r.Name == "shop") {
-			t.Errorf("desktop: the checklist of %s is cut %v — only the long one is", r.Name, r.Cut)
+		if !r.Placed || r.Cut || r.OneLine == (r.Name == "shop") {
+			t.Errorf("desktop: the checklist of %s stands under the state %v, cut %v, on one line %v — the long one wraps whole",
+				r.Name, r.Placed, r.Cut, r.OneLine)
 		}
 	}
 	for _, r := range got.Phone {

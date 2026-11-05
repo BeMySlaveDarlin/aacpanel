@@ -61,7 +61,7 @@ const save = () => sheet().querySelector(".btn.primary");
 const open = async (label = "Session messages…") => {
     await quiet();
     if (wide) {
-        document.querySelector(".dksess.dklive").dispatchEvent(new MouseEvent("contextmenu", {
+        document.querySelector(".dkleft .sc").dispatchEvent(new MouseEvent("contextmenu", {
             bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
         }));
     } else {
@@ -124,7 +124,7 @@ window.done = (async () => {
     // Opening the role uses the same entry point, but its sheet has no intent fields.
     const roleOpen = async () => {
         await quiet();
-        if (wide) document.querySelector(".dksess.dklive").dispatchEvent(new MouseEvent("contextmenu", {
+        if (wide) document.querySelector(".dkleft .sc").dispatchEvent(new MouseEvent("contextmenu", {
             bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
         }));
         else document.querySelector(".pmore").click();
@@ -146,7 +146,7 @@ window.done = (async () => {
     exec.kinds = exec.kinds.filter((kind) => !["session.role", "session.intent"].includes(kind));
     render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component()))), document.getElementById("app"));
     await quiet();
-    if (wide) document.querySelector(".dksess.dklive").dispatchEvent(new MouseEvent("contextmenu", {
+    if (wide) document.querySelector(".dkleft .sc").dispatchEvent(new MouseEvent("contextmenu", {
         bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
     }));
     else document.querySelector(".pmore").click();

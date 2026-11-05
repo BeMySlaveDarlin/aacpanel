@@ -360,7 +360,6 @@
         text-overflow: ellipsis;
     }
 
-
     /* A row of the column: a mark in a column of its own, the name and what
        it says, over a thin bar. The open row is the one row with a fill; the
        rest sit on the page. */
@@ -382,123 +381,6 @@
 
     .dksess.on { background: var(--accent-bg); }
 
-    /* The runs a session started inside its work: a fold under it, and the
-       runs themselves a step in when it is open. */
-    .dkkin {
-        display: flex;
-        align-items: center;
-        gap: .3rem;
-        width: 100%;
-        padding: .25rem .55rem .3rem 1.4rem;
-        border: 0;
-        border-bottom: var(--hair) solid var(--line);
-        background: none;
-        font: inherit;
-        font-size: var(--t-xs);
-        color: var(--ink-faint);
-        text-align: left;
-        cursor: pointer;
-    }
-
-    .dkkin:hover { color: var(--ink-dim); }
-
-    .dkkinchev { display: flex; width: .8rem; height: .8rem; }
-
-    .dkkinchev svg { width: 100%; height: 100%; }
-
-    .dkkinchev.open { transform: rotate(90deg); }
-
-    .dksess.dkkid { padding-left: 1.45rem; }
-
-    /* The sessions a session had the panel open, as on the phone: a fold
-       under it, and the sessions a step in on the line of a branch. They keep
-       their names and rows of their own — they are sessions like any other,
-       not runs. The third level takes the same step; the parent's line runs
-       past its subtree only when another sister follows. */
-    .dktree { position: relative; }
-
-    .dktree.dknested { padding-left: .9rem; }
-
-    .dktree.dktrail::before {
-        content: "";
-        position: absolute;
-        left: .8rem;
-        top: 0;
-        bottom: 0;
-        border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 60%, transparent);
-        pointer-events: none;
-    }
-
-    .dkkin.dkfold { gap: .4rem; min-height: 1.4rem; padding: .05rem .55rem; }
-
-    .dkfoldtext { font-weight: 600; color: var(--ink-dim); }
-
-    .dkfoldwaits { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--wait); }
-
-    .dkfolddots { display: inline-flex; gap: .25rem; align-items: center; }
-
-    .dkfolddots i { width: .45rem; height: .45rem; border-radius: 50%; background: var(--ok); opacity: .8; }
-
-    .dkfolddots i[data-tone="busy"] { background: var(--accent); opacity: 1; }
-
-    .dkfolddots i[data-tone="bg"] { background: transparent; opacity: 1; box-shadow: inset 0 0 0 1.5px var(--accent); }
-
-    .dkfolddots i[data-tone="wait"] { background: var(--wait); opacity: 1; box-shadow: 0 0 8px var(--wait); }
-    .dkfolddots i[data-tone="limit"] { background: var(--warn); opacity: 1; }
-
-    .dksess.dklive.dkbranch {
-        padding-left: 1.45rem;
-        background-image: linear-gradient(var(--dkguide), var(--dkguide));
-        background-size: 1.5px 100%;
-        background-position: .8rem 0;
-        background-repeat: no-repeat;
-        --dkguide: color-mix(in srgb, var(--ink-faint) 60%, transparent);
-    }
-
-    .dksess.dklive.dkbranch.dkbranchend { background-size: 1.5px .85rem; }
-
-    .dksess.dklive.dkbranch::after {
-        content: "";
-        position: absolute;
-        left: .8rem;
-        top: .85rem;
-        width: .45rem;
-        border-top: 1.5px solid var(--dkguide);
-    }
-
-    .dksess.dklive.dkbranch.on { background-color: var(--accent-bg); }
-
-    /* A parent that closed holds its place over the sessions it opened. */
-    .dksess.dkstub {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .35rem .55rem;
-        background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255, 255, 255, .025) 6px 12px);
-    }
-
-    .dksess.dkstub:disabled { cursor: default; }
-
-    .dkstub::before {
-        content: "";
-        flex: none;
-        width: .5rem;
-        height: .5rem;
-        border-radius: 50%;
-        border: 1.5px dashed var(--ink-faint);
-    }
-
-    .dkstubname {
-        flex: none;
-        font-family: var(--mono);
-        font-size: var(--t-sm);
-        color: var(--ink-dim);
-        text-decoration: line-through;
-        text-decoration-color: var(--ink-faint);
-    }
-
-    .dkstubnote { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--ink-faint); }
-
     /* The heading of a project inside its contour: a quiet line in the ink
        of the rows under it, the group of the map beside it, a plus at the
        edge where the action of the rows stands. It is a label, not a band:
@@ -508,79 +390,72 @@
         align-items: center;
         gap: .45rem;
         min-height: 1.75rem;
-        padding: .5rem .45rem .15rem .55rem;
-        border-bottom: var(--hair) solid var(--line);
+        padding: .4rem .22rem .1rem .56rem;
     }
 
     /* The heading right under the band of the contour needs no air above. */
     .dkcontour + .dkproj { padding-top: .35rem; }
 
-    .dkprojname {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-family: var(--mono);
-        font-size: var(--t-sm);
-        font-weight: 600;
-        color: var(--ink-dim);
-    }
+    .dkprojname { min-width: 0; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); overflow-wrap: anywhere; }
 
     .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 
-    .dkprojnew {
-        flex: none;
-        display: grid;
-        place-items: center;
-        width: 1.4rem;
-        height: 1.3rem;
-        margin-left: auto;
-        padding: 0;
-        border: 0;
-        border-radius: var(--r-small);
-        background: none;
-        color: var(--ink-faint);
-        cursor: pointer;
+    /* The card of a session in the column: the five lines of the phone, a
+       step smaller, on the page rather than on glass. The controls stay in
+       sight on every card: no hover brings them, and none hides them. */
+    .dkblock > :not(:first-child) { border-top: var(--hair) solid var(--line); }
+
+    .dkleft .sc {
+        --step: .72rem;
+        grid-template-columns: .89rem minmax(0, 1fr);
+        column-gap: .39rem;
+        row-gap: .17rem;
+        padding: .44rem .22rem .61rem calc(.56rem + var(--depth) * var(--step));
     }
 
-    /* A plus the host cannot press yet is dimmed and still takes the pointer
-       and the focus its tip, which says why, is read by. */
-    .dkprojnew[aria-disabled="true"] { opacity: .45; cursor: default; }
+    .dkleft .sc.sckid::before, .dkleft .sc.sckid > .scedge { left: calc(.56rem + (var(--depth) - 1) * var(--step) + .3rem); }
 
-    .dkprojnew svg { width: var(--i-sm); height: var(--i-sm); }
+    .dkleft .scglyph { width: .89rem; height: 1rem; }
 
-    /* A session whose parent stands elsewhere says which session opened it,
-       on a quiet line under the rest. */
-    .dklive > .dkfrom {
-        grid-column: 1 / -1;
-        grid-row: 4;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: var(--t-xs);
-        color: var(--ink-faint);
-    }
+    .dkleft .scglyph svg { width: .83em; height: .83em; }
 
-    .dkfrom b { font-family: var(--mono); font-weight: 500; color: var(--ink-dim); }
+    .dkleft .scl1 { min-height: 1rem; }
 
-    /* The checklist takes its own line under the state, cut at its end;
-       the facts and the parent below it step down one. */
-    .dklive > .dkchecklist {
-        grid-column: 1 / -1;
-        grid-row: 3;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: var(--t-xs);
-        font-weight: 500;
-        color: var(--ink-dim);
-    }
+    .dkleft .scname { font-size: var(--t-sm); line-height: 1.2; }
 
-    .dklive.dkhaschecklist > .dkdetail { grid-row: 4; }
+    .dkleft .scacts { margin-block: -.17rem; }
 
-    .dklive.dkhaschecklist > .dkfrom { grid-row: 5; }
+    .dkleft .scact { width: 1.33rem; height: 1.33rem; }
+
+    .dkleft .scresume { min-height: 1.33rem; padding: 0 .3rem; font-size: var(--t-xs); }
+
+    .dkleft .scl2 { min-height: 1rem; column-gap: .5rem; font-size: var(--t-xs); }
+
+    .dkleft .scl3 { min-height: .94rem; gap: .5rem; font-size: var(--t-xs); }
+
+    .dkleft .scsegs { height: .28rem; gap: 1.5px; }
+
+    .dkleft .scl4 { min-height: 1rem; gap: .6rem; font-size: var(--t-xs); }
+
+    .dkleft .sctime { font-size: var(--t-xs); }
+
+    /* The settings read a step smaller than the lines over them, so their
+       places and the share of the context fit the column side by side. */
+    .dkleft .scl5 { grid-template-columns: 3.2em 3.7em 4.4em 1.6em 4.2em minmax(0, 1fr); column-gap: .2em; min-height: .89rem; font-size: var(--t-xs); }
+
+    .dkleft .scl5 > .scb { font-size: .92em; }
+
+    .dkleft .scctx { font-size: var(--t-xs); }
+
+    .dkleft .scmono { font-size: var(--t-xs); }
+
+    .dkleft .scfold { --step: .72rem; min-height: 1.4rem; padding: 0 .56rem 0 calc(.56rem + var(--depth) * var(--step) + .2rem); font-size: var(--t-xs); }
+
+    .dkleft .scstub { min-height: 1.6rem; padding: .1rem .56rem; }
+
+    .dkproj .scheadacts { margin-block: -.2rem; }
+
+    .dkproj .scact { width: 1.33rem; height: 1.33rem; }
 
     .dksessbody { min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
 
@@ -607,174 +482,9 @@
     .dksessbar.s3 i { background: var(--ctx-3); }
     .dksessbar.s4 i { background: var(--ctx-4); }
 
-    /* A live session of the column: the name with the marks of what is
-       unusual about it, and its actions in the corner beside it;
-       its state and checklist in the words of the phone; a quiet line of what it runs on
-       under all of it, how full the context is among it. The bar of its
-       context runs along the bottom edge, and a session that waits for the
-       person has an edge of its own on the left. Its lines stand with no gap
-       between them, so the column holds more sessions to a screen. */
-    .dksess.dklive {
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 0 .45rem;
-        padding: .25rem .45rem .3rem .55rem;
-    }
-
-    .dklive > .dksessmain { grid-column: 1; grid-row: 1; }
-
-    .dklive > .dksay { grid-column: 1 / -1; grid-row: 2; }
-
-    .dksess.dklive.dkkid { padding-left: 1.45rem; }
-
-    .dksess.dklive[data-tone="wait"] { box-shadow: inset 2px 0 0 var(--wait); }
-
-    .dksess.dkghost { cursor: default; }
-
-    /* The marks of a row wrap under its name rather than squeeze it: in a
-       narrow column a row with an alarm, the restart and waiting work would
-       otherwise leave its name a few pixels. */
-    .dklive .dksessmain { flex-wrap: wrap; gap: .2rem .35rem; min-width: 0; }
-
-    .dklive .dkname { flex: 0 1 auto; font-weight: 500; }
-
-    .dklive.dkkid .dkname { font-family: var(--mono); font-size: var(--t-sm); font-weight: 400; color: var(--ink-dim); }
-
-    .dkghost .dkname { color: var(--ink-dim); }
-
-    .dkhome { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
-
-    /* A mark says only what is unusual: the stream is where a session lives by
-       default and goes unmarked, a session in tmux and a session the panel did
-       not start are marked. Who runs it opens the quiet line of its model. */
-    .dkmark {
-        flex: none;
-        display: inline-flex;
-        align-items: center;
-        gap: .2rem;
-        padding: .1rem .3rem;
-        border: var(--hair) solid var(--line);
-        border-radius: var(--r-pill);
-        font-family: var(--mono);
-        font-size: var(--t-xs);
-        line-height: 1;
-        color: var(--ink-dim);
-    }
-
-    .dkmark svg { width: var(--i-sm); height: var(--i-sm); }
-
-    /* The state is the loud line of a row: bright while the session waits for
-       the person, the accent while it works, quiet when it idles. */
-    .dksay {
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-        min-width: 0;
-        overflow: hidden;
-        white-space: nowrap;
-        font-size: var(--t-sm);
-        font-weight: 500;
-        color: var(--ink-faint);
-    }
-
-    .dksaytext { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-
-    .dksaysince { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 400; opacity: .85; }
-
-    .dksay .spin { flex: none; width: .7rem; height: .7rem; }
-
-    .dklive[data-tone="wait"] .dksay { font-weight: 600; color: var(--wait); }
-    .dklive[data-tone="limit"] .dksay { font-weight: 600; color: var(--warn); }
-
-    .dklive[data-tone="wait"] .dksay .dkdot { background: var(--wait); box-shadow: 0 0 9px var(--wait); }
-
-    .dklive[data-tone="busy"] .dksay { font-weight: 600; color: var(--accent); }
-
-    /* Background work keeps the weight of the quiet rows: in the accent of
-       work, a step lighter than an answer. */
-    .dklive[data-tone="bg"] .dksay { color: var(--accent); }
-
-    .dklive .dksay .dkdot.dkidle { opacity: .8; }
-
-    /* What the session runs on, one quiet line under the name and the state,
-       reaching under the action as well. A fact that does not fit wraps onto
-       a second line the row does not show, so the line gives way from its end
-       a whole fact at a time rather than in the middle of one. */
-    .dkdetail {
-        grid-column: 1 / -1;
-        grid-row: 3;
-        display: flex;
-        flex-wrap: wrap;
-        min-width: 0;
-        max-height: 1.25em;
-        overflow: hidden;
-        font-size: var(--t-xs);
-        line-height: 1.25;
-        color: var(--ink-faint);
-    }
-
-    .dkdetail > span { flex: none; white-space: nowrap; }
-
-    .dkdetail > span:first-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-
-    .dkdetail > span + span::before { content: "·"; margin: 0 .35em; font-weight: 400; color: var(--ink-faint); }
-
-    /* How full the context is, among the facts right after its tokens: quiet
-       while there is room, marked from seventy, loud from ninety. */
-    .dkdetail > [data-level="warn"] { font-weight: 600; color: var(--warn); }
-
-    .dkdetail > [data-level="crit"] { font-weight: 600; color: var(--crit); }
-
     /* The actions stand in the top right corner, on the line of the
        name and at the same place on every row, so they read down one
        edge; a long name or its marks give way to it. */
-    /* The actions keep the line of the name when the marks wrap under it. */
-    .dklive > .dkrowacts { grid-column: 2; grid-row: 1; justify-self: end; align-self: start; margin: 0; }
-
-    .dklive > .dkrowacts .dkact { width: 1.7rem; height: 1rem; justify-content: end; }
-
-    .dklive > .dkrowacts .dkact svg { width: var(--i-sm); height: var(--i-sm); }
-
-    .dksess.dklive > .dksessbar {
-        grid-column: 1 / -1;
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 2px;
-        margin: 0;
-        border-radius: 0;
-        background: none;
-    }
-
-    .dksess.dklive.dkbranch > .dksessbar { grid-column: auto; left: .8rem; }
-
-    /* The ground of a live row fills faintly as far as its context, in the
-       colour of its bar and over the bar's own columns, so the fill starts and
-       ends where the bar does and how full the sessions are reads down the
-       column before a figure is read. The fill is a layer of its own under the
-       words: the ground of an open row or of one under the pointer is drawn
-       beneath it and does not take it away. */
-    .dksess.dklive { isolation: isolate; }
-
-    .dksess.dklive::before {
-        content: "";
-        grid-column: 1 / -1;
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        z-index: -1;
-        width: var(--fill, 0%);
-        background: color-mix(in srgb, var(--ctx-1) 12%, transparent);
-        pointer-events: none;
-    }
-
-    .dksess.dklive[data-fill="s2"]::before { background: color-mix(in srgb, var(--ctx-2) 12%, transparent); }
-
-    .dksess.dklive[data-fill="s3"]::before { background: color-mix(in srgb, var(--ctx-3) 12%, transparent); }
-
-    .dksess.dklive[data-fill="s4"]::before { background: color-mix(in srgb, var(--ctx-4) 12%, transparent); }
 
     /* The heading of a contour counts the sessions that wait for the person,
        and holds the way to a new session before its limit. */
@@ -864,70 +574,6 @@
     }
 
     .dkshelfall svg { width: var(--i-sm); height: var(--i-sm); }
-
-    .dkclosed {
-        display: flex;
-        flex-direction: column;
-        gap: .05rem;
-        padding: .3rem .55rem .35rem 1.7rem;
-        cursor: pointer;
-    }
-
-    .dkclosed.on { background: var(--accent-bg); }
-
-    .dkcltop { display: flex; align-items: center; gap: .4rem; min-width: 0; min-height: 1.35rem; }
-
-    .dkclname {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: var(--t-sm);
-        color: var(--ink-dim);
-    }
-
-    .dkclcontour { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
-
-    .dkclwhen {
-        flex: none;
-        margin-left: auto;
-        font-size: var(--t-xs);
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-        color: var(--ink-faint);
-    }
-
-    .dkclsub { display: flex; align-items: center; gap: .5rem; min-width: 0; }
-
-    .dkclsub .dkabout { flex: 1 1 auto; }
-
-    .dkresume {
-        flex: none;
-        margin-left: auto;
-        display: inline-flex;
-        align-items: center;
-        height: 1.25rem;
-        padding: 0 .5rem;
-        border: var(--hair) solid color-mix(in srgb, var(--accent) 40%, transparent);
-        border-radius: var(--r-pill);
-        background: none;
-        color: var(--accent);
-        font: inherit;
-        font-size: var(--t-xs);
-        font-weight: 600;
-        cursor: pointer;
-    }
-
-    .dkresume.off { opacity: .45; cursor: default; }
-
-    .dkabout {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: var(--t-xs);
-        color: var(--ink-faint);
-    }
 
     .dksegbar { display: flex; gap: 2px; }
 
@@ -1338,21 +984,6 @@
     }
 
     .dkrc::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
-
-    /* A call the person has not come for yet: a bell in the colour of
-       waiting among the marks of the name, until the session is opened. */
-    .dkcalled {
-        flex: none;
-        display: inline-flex;
-        align-items: center;
-        padding: .1rem .3rem;
-        border-radius: var(--r-pill);
-        line-height: 1;
-        color: var(--wait);
-        background: color-mix(in srgb, var(--wait) 14%, transparent);
-    }
-
-    .dkcalled svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dkpop {
         position: absolute;
@@ -2245,11 +1876,9 @@
 .dklogo:hover { background: var(--glass); }
     .dkbrand:hover { color: var(--ink); background: var(--glass); }
     .dkib:hover { color: var(--ink); background: var(--glass); }
-    .dksess:not(.on):not(.dkghost):hover { background: var(--glass); }
-    .dkclosed:not(.on):hover { background: var(--glass); }
-    .dknew:hover, .dkshelfall:hover, .dkprojnew:not([aria-disabled="true"]):hover { color: var(--ink); background: var(--glass); }
+    .dksess:not(.on):hover { background: var(--glass); }
+    .dknew:hover, .dkshelfall:hover { color: var(--ink); background: var(--glass); }
     .dknewrow:not(:disabled):hover { background: var(--glass); }
-    .dkresume:not(.off):hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
     .dktr:hover .dkc-acts { opacity: 1; }
     .dkact:hover { color: var(--ink); }
     .dkact.danger:hover { color: var(--crit); }
@@ -2765,10 +2394,8 @@
     .dkcol .pzbar { margin-left: 0; margin-right: 0; }
     .pzanchor { position: relative; }
     .pzanchor .dkpop { left: 0; right: auto; width: min(26rem, 100%); }
-    .dkprojpause { display: grid; place-items: center; margin-left: auto; width: 1.4rem; height: 1.3rem; padding: 0; border: 0; background: none; color: var(--ink-faint); cursor: pointer; }
-    .dkprojpause svg { width: var(--i-sm); height: var(--i-sm); }
-    .dkprojpause[aria-disabled="true"] { opacity: .45; cursor: default; }
-    .dkprojpause ~ .dkprojnew { margin-left: 0; }
     .dkdot.dkpaused { background: var(--ink-dim); }
-    .dklive[data-tone="paused"] .dksay, .dkword[data-tone="paused"] { color: var(--ink-dim); }
+    .dkdot.dkheld { background: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); }
+    .dkword[data-tone="held"] { color: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); }
+    .dkword[data-tone="paused"] { color: var(--ink-dim); }
 }

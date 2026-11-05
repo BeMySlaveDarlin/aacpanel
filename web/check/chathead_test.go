@@ -15,11 +15,15 @@ func TestLimitStoppedSessionsShowTheirResetAndWaitAfterIt(t *testing.T) {
 		t.Run(screen.name, func(t *testing.T) {
 			var got struct {
 				Limits struct {
-					Seen  []struct{ Name, Expected, Phone, PhoneTone, PhoneColour, Desk, DeskTone, DeskDot, DeskColour, Head, HeadTone, HeadColour, Orbit, Warning string }
+					Seen []struct {
+						Name, Expected, Ends, Phone, PhoneTone, PhoneEnds, PhoneColour, Desk, DeskTone, DeskGlyph, DeskColour string
+						Head, HeadTone, HeadColour, Orbit, Warning                                                            string
+					}
 					Folds []struct {
-						Reset                                                 bool
-						First, FirstShown, Phone, Desk, PhoneWaits, DeskWaits string
-						Rank                                                  int
+						Reset                 bool
+						First, FirstShown     string
+						PhoneWaits, DeskWaits string
+						Rank                  int
 					}
 				}
 			}
@@ -27,6 +31,9 @@ func TestLimitStoppedSessionsShowTheirResetAndWaitAfterIt(t *testing.T) {
 			if len(got.Limits.Seen) != 10 || len(got.Limits.Folds) != 2 {
 				t.Fatalf("limit states were not exercised: %+v", got.Limits)
 			}
+			// One vocabulary: the card on either screen and the graph say the
+			// state in the same words; the card says when a limit ends in its
+			// corner, the head of the conversation in its word.
 			for _, state := range got.Limits.Seen {
 				tone, headTone := "limit", "limit"
 				if state.Expected == "stopped by the limit" {
@@ -35,11 +42,17 @@ func TestLimitStoppedSessionsShowTheirResetAndWaitAfterIt(t *testing.T) {
 				if state.Name == "unmarked" {
 					tone, headTone = "idle", "idle"
 				}
-				if state.Phone != state.Expected || state.Desk != state.Expected || state.Head != state.Expected || state.Orbit != state.Expected {
+				head := state.Expected
+				if state.Ends != "" {
+					head = state.Expected + " · until " + state.Ends
+				}
+				if state.Phone != state.Expected || state.Desk != state.Expected || state.Head != head || state.Orbit != state.Expected {
 					t.Errorf("%s: inconsistent status words: %+v", state.Name, state)
 				}
-				if !strings.Contains(state.PhoneTone, "pj-"+tone) || state.DeskTone != tone || state.HeadTone != headTone ||
-					!strings.Contains(state.DeskDot, "dk"+headTone) {
+				if state.Ends != "" && state.PhoneEnds != "→"+state.Ends {
+					t.Errorf("%s: the card says the limit ends %q, want →%s", state.Name, state.PhoneEnds, state.Ends)
+				}
+				if state.PhoneTone != tone || state.DeskTone != tone || state.HeadTone != headTone || state.DeskGlyph != tone {
 					t.Errorf("%s: inconsistent status tones: %+v", state.Name, state)
 				}
 				if tone == "limit" && (state.PhoneColour != state.Warning || state.HeadColour != state.Warning ||
@@ -47,16 +60,16 @@ func TestLimitStoppedSessionsShowTheirResetAndWaitAfterIt(t *testing.T) {
 					t.Errorf("%s: the limit is not painted as a warning: %+v", state.Name, state)
 				}
 			}
+			// A child stopped by the limit under a closed fold: the fold says
+			// it once the limit has reset and it waits for the person, and the
+			// block rises to what needs the person.
 			for _, fold := range got.Limits.Folds {
-				tone, first, rank := "limit", "quiet", 2
+				first, rank, waits := "quiet", 2, ""
 				if fold.Reset {
-					tone, first, rank = "wait", "limited", 0
+					first, rank, waits = "limited", 0, "child"
 				}
-				if fold.Phone != tone || fold.Desk != tone || fold.First != first || fold.FirstShown != first || fold.Rank != rank {
+				if fold.First != first || fold.FirstShown != first || fold.Rank != rank || fold.PhoneWaits != waits || fold.DeskWaits != waits {
 					t.Errorf("a folded limit stopped session lost its state or priority: %+v", fold)
-				}
-				if fold.Reset && (!strings.Contains(fold.PhoneWaits, "child waits") || !strings.Contains(fold.DeskWaits, "child waits")) {
-					t.Errorf("the reset session is hidden without a waiting mark: %+v", fold)
 				}
 			}
 		})

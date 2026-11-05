@@ -149,4 +149,10 @@ export const Icon = {
     // A secret a session asked for: a file of the host the session uses by
     // its path and never reads.
     key: () => html`<svg ...${stroke}><circle cx="7.5" cy="15.5" r="4" /><path d="m10.4 12.6 9.1-9.1M16 7l2.8 2.8M13.4 9.6l2 2" /></svg>`,
+    // A tool that waits for the person's leave to run.
+    lock: () => html`<svg ...${stroke}><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg>`,
+    // A conversation being compacted: four corners drawn in.
+    compact: () => html`<svg ...${stroke}><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5" /></svg>`,
+    // A session stopped by the limit of its subscription.
+    limit: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="8" /><path d="m6.6 17.4 10.8-10.8" /></svg>`,
 };

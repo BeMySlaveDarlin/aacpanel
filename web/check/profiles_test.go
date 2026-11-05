@@ -692,8 +692,12 @@ func TestPermitAsksTheHostOnDemand(t *testing.T) {
 		t.Error("the card polls the host on a timer — that is load on the very machine being watched")
 	}
 
+	// The row of a session carries what a permission asks for — the tool and
+	// the head of what it runs, kept by the holder of the stream with the
+	// request — and the vocabulary of states says it on the card; the dialog
+	// itself is still asked for here alone.
 	for path, body := range srcFiles(t) {
-		if strings.HasSuffix(path, "chat/permit.js") {
+		if strings.HasSuffix(path, "chat/permit.js") || strings.HasSuffix(path, "sessions/state.js") {
 			continue
 		}
 		if strings.Contains(stripComments(body), "permission") && strings.Contains(body, "snapshot") {

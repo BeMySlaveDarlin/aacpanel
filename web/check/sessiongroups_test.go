@@ -21,14 +21,9 @@ type levelRow struct {
 	X, Width, Top, Bottom, Height, GuideX, GuideHeight float64
 }
 
-type levelTrail struct {
-	X, Top, Bottom, Height, Line float64
-}
-
 type levelGeometry struct {
-	Rows   []levelRow
-	Trails []levelTrail
-	Folds  []struct {
+	Rows  []levelRow
+	Folds []struct {
 		Height, X float64
 		Centered  bool
 	}
@@ -37,7 +32,6 @@ type levelGeometry struct {
 type levelRead struct {
 	Rows  []string
 	Waits []string
-	Dots  [][]string
 }
 
 type levelScreen struct {
@@ -88,11 +82,13 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 					a.X, b.X, c.X, d.X, e.X, f.X, g.X)
 			}
 			if g.Bottom > b.Top+1 || !near(g.GuideHeight, g.Height) {
-				t.Errorf("G, with nothing under it, does not stand over B on a running branch: %+v, %+v", g, b)
+				t.Errorf("G, with nothing under it, does not stand over B on its hairline: %+v, %+v", g, b)
 			}
+			// A session another opened stands on a hairline of its level, the
+			// whole height of its card.
 			if !near(c.GuideX-b.GuideX, step) || !near(c.GuideX, d.GuideX) || !near(b.GuideHeight, b.Height) ||
-				!near(c.GuideHeight, c.Height) || d.GuideHeight <= 0 || d.GuideHeight >= d.Height/2 {
-				t.Errorf("branches do not follow the levels or turn at the last child: %+v", screen.Open.Rows)
+				!near(c.GuideHeight, c.Height) || !near(d.GuideHeight, d.Height) {
+				t.Errorf("the hairlines do not follow the levels: %+v", screen.Open.Rows)
 			}
 			if name == "phone" && c.Width < 120 {
 				t.Errorf("the third-level name has only %.1f pixels on a 390px phone", c.Width)
@@ -108,32 +104,15 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 					t.Errorf("the fold is not a short, centered strip: %+v", fold)
 				}
 			}
-			if len(screen.Open.Trails) != 3 {
-				t.Fatalf("the branch to E passes %d parts of B's subtree, expected its fold, C and D", len(screen.Open.Trails))
-			}
-			bottom := b.Bottom
-			for _, trail := range screen.Open.Trails {
-				if !near(trail.X, b.GuideX) || !near(trail.Top, bottom) || !near(trail.Height, trail.Bottom-trail.Top) || trail.Line <= 0 {
-					t.Errorf("the branch from B to E breaks after %.1f at %+v", bottom, trail)
-				}
-				bottom = trail.Bottom
-			}
-			if !near(bottom, e.Top) {
-				t.Errorf("B's branch ends at %.1f before E at %.1f", bottom, e.Top)
-			}
-			childClosed := []string{"A", "fold: opened 3 sessions", "G", "B", "fold: opened 2 sessions", "E", "fold: opened 1 session", "F"}
+			childClosed := []string{"A", "fold: 3 opened", "G", "B", "fold: 2 opened", "E", "fold: 1 opened", "F"}
 			if !reflect.DeepEqual(screen.ChildClosed.Rows, childClosed) || !reflect.DeepEqual(screen.Reopened.Rows, childClosed) {
 				t.Errorf("B's fold hides the wrong rows or is lost when A reopens: %+v, %+v", screen.ChildClosed, screen.Reopened)
 			}
-			if !reflect.DeepEqual(screen.RootClosed.Rows, []string{"A", "fold: opened 3 sessions"}) {
+			if !reflect.DeepEqual(screen.RootClosed.Rows, []string{"A", "fold: 3 opened"}) {
 				t.Errorf("A's fold leaves descendants behind: %+v", screen.RootClosed)
 			}
-			if strings.Join(screen.ChildClosed.Waits, ",") != "· D waits,· D waits" || strings.Join(screen.RootClosed.Waits, ",") != "· D waits" {
+			if strings.Join(screen.ChildClosed.Waits, ",") != "D,D" || strings.Join(screen.RootClosed.Waits, ",") != "D" {
 				t.Errorf("D's question was hidden: child closed %+v, root closed %+v", screen.ChildClosed, screen.RootClosed)
-			}
-			if !reflect.DeepEqual(screen.ChildClosed.Dots, [][]string{{"idle", "wait"}}) ||
-				!reflect.DeepEqual(screen.RootClosed.Dots, [][]string{{"idle", "idle", "idle"}}) {
-				t.Errorf("fold dots must describe their direct children: child %+v, root %+v", screen.ChildClosed.Dots, screen.RootClosed.Dots)
 			}
 			runs := byName(screen.RunsOpen.Rows)
 			for _, run := range []string{"RB", "RC", "RD"} {
@@ -144,20 +123,17 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 			if row, ok := runs["RA"]; !ok || !near(row.X, b.X) {
 				t.Errorf("root run stands at %+v, expected the second level at %.1f", row, b.X)
 			}
-			if !reflect.DeepEqual(screen.RunsClosed.Rows, []string{"A", "fold: opened 3 sessions", "G", "B", "fold: opened 2 sessions",
-				"C", "D", "runs: 3 runs started by it", "E", "fold: opened 1 session", "F", "runs: 1 run started by it"}) {
+			if !reflect.DeepEqual(screen.RunsClosed.Rows, []string{"A", "fold: 3 opened", "G", "B", "fold: 2 opened",
+				"C", "D", "runs: 3 runs started by it", "E", "fold: 1 opened", "F", "runs: 1 run started by it"}) {
 				t.Errorf("runs do not follow their parent's subtree: %v", screen.RunsClosed.Rows)
 			}
-			if !reflect.DeepEqual(screen.RunsHidden.Rows, []string{"A", "fold: opened 3 sessions", "runs: 1 run started by it", "RA"}) {
+			if !reflect.DeepEqual(screen.RunsHidden.Rows, []string{"A", "fold: 3 opened", "runs: 1 run started by it", "RA"}) {
 				t.Errorf("the root's fold leaves a child's runs behind: %v", screen.RunsHidden.Rows)
 			}
 			stub := byName(screen.Stub.Rows)
 			if len(stub) != 6 || !near(stub["G"].X, b.X) || !near(stub["B"].X, b.X) || !near(stub["C"].X, c.X) || !near(stub["D"].X, c.X) ||
-				!near(stub["F"].X, c.X) || len(screen.Stub.Trails) != 3 {
+				!near(stub["F"].X, c.X) {
 				t.Errorf("a closed parent does not hold the root's place: %+v", screen.Stub)
-			}
-			if len(screen.Last.Trails) != 0 {
-				t.Errorf("the last second-level child carries a branch to no sister: %+v", screen.Last.Trails)
 			}
 		})
 	}
@@ -208,7 +184,6 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 			} `json:"desk"`
 		} `json:"stubOpens"`
 		PhoneFolded []groupBlock `json:"phoneFolded"`
-		PhoneDots   []string     `json:"phoneDots"`
 		DeskFolded  []string     `json:"deskFolded"`
 		OrderFolded []string     `json:"orderFolded"`
 		Kept        []string     `json:"kept"`
@@ -220,29 +195,29 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 	runWideFixture(t, "sessiongroups.html", &got)
 
 	phone := []groupBlock{
-		{"lead", []string{"lead", "fold: opened 2 sessions· person asks you", "├ person", "└ review the protocol"}},
-		{"wiki", []string{"stub: docsclosed 40 min ago", "└ wiki"}},
-		{"shop", []string{"shop"}},
+		{"lead", []string{"lead", "fold: 2 opened · person", "› person", "› review the protocol"}},
+		{"", []string{"stub: docsclosed 40 min ago", "› wiki"}},
+		{"", []string{"shop"}},
 	}
 	if !reflect.DeepEqual(got.Phone, phone) {
 		t.Errorf("the phone lays the contour out as\n%v\nexpected\n%v", got.Phone, phone)
 	}
-	if algo := []groupBlock{{"rotation", []string{"rotation"}}, {"quotes", []string{"quotes (opened by lead)"}}}; !reflect.DeepEqual(got.PhoneAlgo, algo) {
+	if algo := []groupBlock{{"", []string{"rotation"}}, {"", []string{"quotes (opened by lead)"}}}; !reflect.DeepEqual(got.PhoneAlgo, algo) {
 		t.Errorf("the page of the other contour reads %v, expected the child of lead on its own, naming lead", got.PhoneAlgo)
 	}
 	if got.WaitHue != waitHue {
 		t.Errorf("who of the children waits is said in %s, not in the colour of waiting %s", got.WaitHue, waitHue)
 	}
 	if got.Guide == "" || got.Guide == "0px" {
-		t.Errorf("a child stands with no line of the branch beside it (%q)", got.Guide)
+		t.Errorf("a child stands with no hairline beside it (%q)", got.Guide)
 	}
 
 	desk := []string{
-		"head: lead · work +", "lead", "fold: opened 2 sessions· person asks you", "├ person", "└ review the protocol",
-		"head: wiki · work +", "stub: docsclosed 40 min ago", "└ wiki",
-		"head: shop · side +", "shop",
-		"head: rotation · trading +", "rotation",
-		"head: quotes · trading +", "quotes (opened by lead)",
+		"head: lead · work +", "lead", "fold: 2 opened · person", "› person", "› review the protocol",
+		"stub: docsclosed 40 min ago", "› wiki",
+		"shop",
+		"rotation",
+		"quotes (opened by lead)",
 	}
 	if !reflect.DeepEqual(got.Desk, desk) {
 		t.Errorf("the desktop column reads\n%v\nexpected\n%v", got.Desk, desk)
@@ -271,17 +246,13 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		t.Errorf("the stub in the column opens %+v, expected the closed conversation of docs", got.StubOpens.Desk)
 	}
 
-	folded := []string{"lead", "fold: opened 2 sessions· person asks you"}
+	folded := []string{"lead", "fold: 2 opened · person"}
 	if len(got.PhoneFolded) == 0 || !reflect.DeepEqual(got.PhoneFolded[0].Rows, folded) {
 		t.Errorf("the closed fold on the phone leaves %v, expected the parent and the fold that still says who waits",
 			got.PhoneFolded)
 	}
-	if strings.Join(got.PhoneDots, ",") != "wait,busy" {
-		t.Errorf("the closed fold shows the states %v, expected a dot for each child, in the order they were opened", got.PhoneDots)
-	}
-	deskFolded := []string{"head: lead · work +", "lead", "fold: opened 2 sessions· person asks you",
-		"head: wiki · work +", "stub: docsclosed 40 min ago", "└ wiki", "head: shop · side +", "shop",
-		"head: rotation · trading +", "rotation", "head: quotes · trading +", "quotes (opened by lead)"}
+	deskFolded := []string{"head: lead · work +", "lead", "fold: 2 opened · person",
+		"stub: docsclosed 40 min ago", "› wiki", "shop", "rotation", "quotes (opened by lead)"}
 	if !reflect.DeepEqual(got.DeskFolded, deskFolded) {
 		t.Errorf("the column with the fold closed reads\n%v\nexpected\n%v", got.DeskFolded, deskFolded)
 	}
@@ -292,8 +263,8 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		t.Errorf("the closed fold is kept as %v, expected by the name of its parent", got.Kept)
 	}
 
-	plain := []groupBlock{{"person", []string{"person"}}, {"lead", []string{"review the protocol", "lead"}},
-		{"wiki", []string{"wiki"}}, {"shop", []string{"shop"}}}
+	plain := []groupBlock{{"", []string{"person"}}, {"lead", []string{"review the protocol", "lead"}},
+		{"", []string{"wiki"}}, {"", []string{"shop"}}}
 	if !reflect.DeepEqual(got.Plain, plain) || got.PlainMarks != 0 {
 		t.Errorf("a list where nobody opened anybody reads %v with %d marks of a group", got.Plain, got.PlainMarks)
 	}

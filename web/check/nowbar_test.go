@@ -433,7 +433,8 @@ func TestTheBarOfATurnThatEndedSaysTheAgentsAtWork(t *testing.T) {
 	if got.Overflow > 0 {
 		t.Errorf("the bar pushes the phone %dpx sideways", got.Overflow)
 	}
-	if got.HeadOver != "agents at work" || got.HeadBusy != "answering" || got.HeadWaiting != "waiting for you" {
+	// The header says the state in the words of the session's card.
+	if got.HeadOver != "agents running" || got.HeadBusy != "working" || got.HeadWaiting != "allow a tool" {
 		t.Errorf("the header says %q past the end of the turn, %q in it, %q with a dialog open",
 			got.HeadOver, got.HeadBusy, got.HeadWaiting)
 	}
@@ -459,7 +460,7 @@ func TestTheConversationWaitingOnItsAgentsSaysSo(t *testing.T) {
 	if !strings.Contains(got.Bar, "2 agents working") || strings.Contains(got.Bar, "thinking") {
 		t.Errorf("the bar above the composer says %q", got.Bar)
 	}
-	if got.Word != "agents at work" {
+	if got.Word != "agents running" {
 		t.Errorf("the header says %q", got.Word)
 	}
 	if got.Robots != "2" {

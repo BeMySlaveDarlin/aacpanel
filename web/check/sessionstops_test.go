@@ -19,6 +19,7 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 			Icon     bool    `json:"icon"`
 			Height   float64 `json:"height"`
 			Line     float64 `json:"line"`
+			NameLine float64 `json:"nameLine"`
 			Reach    bool    `json:"reach"`
 			Clear    bool    `json:"clear"`
 			Inside   bool    `json:"inside"`
@@ -44,8 +45,8 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	runFixture(t, "sessionstops.html", &got)
 
 	want := map[string]string{
-		"helios": "pin,restart", "lab": "pin,restart,close", "quiet": "pin,restart,close",
-		"codex-5afc361b": "pin,restart,close", "outside": "",
+		"helios": "pause,restart,pin", "lab": "pause,restart,pin,close", "quiet": "pause,restart,pin,close",
+		"codex-5afc361b": "pause,restart,pin,close", "outside": "",
 	}
 	if len(got.MobileActions) != len(want) {
 		t.Fatalf("the list has %d cards, expected %d", len(got.MobileActions), len(want))
@@ -54,16 +55,19 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 		var words []string
 		for _, b := range got.MobileActions[name] {
 			pin := b.Label == "pin session group "+name
+			// The host here knows no pin and no pause, and these sessions
+			// stand in no project a pause could be addressed by.
+			pause := strings.HasPrefix(b.Label, "pause session ")
 			if pin {
 				words = append(words, "pin")
 			} else {
 				words = append(words, strings.TrimSuffix(b.Label, " session "+name))
 			}
-			if b.Text != "" || !b.Top || b.Disabled != pin || !b.Icon || b.Height > b.Line+1 || !b.Reach || !b.Clear || !b.Inside || !b.Hit {
-				// The icon is no taller than the name's line, so the card keeps the
-				// height it had with one mark there; a finger still takes it past its
-				// edge.
-				t.Errorf("%s: its action does not stand small, readable and reachable on its own: %+v", name, b)
+			// The control takes a finger, and the line of the name keeps its
+			// height: the target reaches past the line, not the line past
+			// the name.
+			if b.Text != "" || !b.Top || b.Disabled != (pin || pause) || !b.Icon || b.Line > b.NameLine+1 || !b.Reach || !b.Clear || !b.Inside || !b.Hit {
+				t.Errorf("%s: its control does not stand small, readable and reachable on its own: %+v", name, b)
 			}
 		}
 		if strings.Join(words, ",") != labels {

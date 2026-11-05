@@ -11,30 +11,11 @@ import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
 import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
-import { blocksOf, ProjectBlock, RANK, stateOf, useAnswers } from "./sessions/blocks.js";
+import { blocksOf, ProjectBlock, RANK, splitNotes, stateOf, useAnswers } from "./sessions/blocks.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
 import { pagesOf, Project } from "./sessions/map.js";
-
-// splitNotes sorts the collector notes by whom they are addressed to.
-export function splitNotes(notes, sessions) {
-    const live = new Set(sessions.map((s) => s.session));
-    const own = new Map();
-    const common = [];
-
-    for (const note of notes || []) {
-        const at = note.indexOf(":");
-        const name = at > 0 ? note.slice(0, at) : "";
-        if (name && live.has(name)) {
-            const text = note.slice(at + 1).trim();
-            own.set(name, [...(own.get(name) || []), text]);
-            continue;
-        }
-        common.push(note);
-    }
-    return { own, common };
-}
 
 // sessionChips reports that the sessions tab has no chips.
 export function sessionChips() {
@@ -264,16 +245,12 @@ function Page({ name, profile, limits, stale, sessions, everyone, opening, recen
                     `)}
                 `;
             })}
-        <button class="crumb wide" type="button" ref=${keep} onClick=${onPast}>
-            all projects and the archive
-            <span class="chev">${Icon.chevron()}</span>
-        </button>
-        ${profile && html`
-            <button class="crumb wide" type="button" onClick=${() => onSettings(profile.id)}>
-                contour settings
-                <span class="chev">${Icon.chevron()}</span>
-            </button>
-        `}
+        <nav class="scfoot" ref=${keep}>
+            <button class="scfootlink" type="button" onClick=${onPast}>All projects and archive<span class="chev">${Icon.chevron()}</span></button>
+            ${profile && html`
+                <button class="scfootlink" type="button" onClick=${() => onSettings(profile.id)}>Contour settings<span class="chev">${Icon.chevron()}</span></button>
+            `}
+        </nav>
     `;
 }
 

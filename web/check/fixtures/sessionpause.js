@@ -1,4 +1,6 @@
-// Pause and restart controls share the pages that already exercise sessions.
+// Pause and restart controls share the pages that already exercise sessions:
+// the pause of a project from the heading over its cards, the pause and the
+// continue of one session from its card, and the restart choices.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { ProjectBlock } from "/src/screens/sessions/blocks.js";
@@ -26,14 +28,14 @@ export async function sessionPause() {
     mount.id = "pausepreview";
     const project = { id: 501, name: "lab", session: "lab", path: "/srv/lab" };
     const peer = { id: 502, name: "peer", session: "peer", path: "/srv/peer" };
-    const empty = { id: 503, name: "empty", session: "empty", path: "/srv/empty" };
-    const profile = { id: 50, profile: "Work", groups: [{ name: "Services", projects: [project, peer] }, { name: "Other", projects: [empty] }] };
+    const profile = { id: 50, profile: "Work", groups: [{ name: "Services", projects: [project, peer] }, { name: "Other", projects: [] }] };
     const next = new Date(Date.now() + 7200000).toISOString();
     const pause = { id: "0123456789abcdef", name: "pause", next };
     const alarm = { id: "fedcba9876543210", name: "review", next: new Date(Date.now()+3600000).toISOString() };
     const sessions = [
         { session: "lab", sessionId: "lab-id", project, contour: 50, status: "idle", transport: "stream", pct: 35,
             pauseAlarm: pause, nextAlarm: alarm, work: { alarms: 2 }, checklist: { items: [{ text: "Review the implementation", status: "active" }] } },
+        { session: "lab-docs", sessionId: "docs-id", project, contour: 50, status: "idle", transport: "stream", pct: 12 },
         { session: "thread", sessionId: "thread-id", project: peer, agent: "codex", contour: 50, status: "idle", pct: 10, transport: "stream" },
         { session: "quiet", sessionId: "quiet-id", project: peer, contour: 50, status: "idle", pct: 5, transport: "stream" },
         { session: "outside", sessionId: "outside-id", project, contour: 50, outside: true, status: "idle", pct: 5 },
@@ -60,8 +62,7 @@ export async function sessionPause() {
         ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
             <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
         </div></div>` : html`<div class="page">
-            <${ProjectBlock} block=${block(project,[sessions[0]])} profile=${profile} live=${sessions} exec=${exec} />
-            <${ProjectBlock} block=${block(empty,[])} profile=${profile} live=${sessions} exec=${exec} />
+            <${ProjectBlock} block=${block(project,[sessions[0], sessions[1]])} profile=${profile} live=${sessions} exec=${exec} />
         </div>`}
         <div class="pausechat" style="height:500px;display:flex;flex-direction:column">
             <${Chat} name="lab" id="lab-id" live=${sessions[0]} snapshot=${snapshot} exec=${exec} onBack=${() => {}} />
@@ -75,10 +76,10 @@ export async function sessionPause() {
     try {
         await until(() => pauseButton() && mount.querySelector(".pausechat .talkword, .pausechat .dkword"), "session controls");
         await quiet();
-        const card = wide ? mount.querySelector(".dklive") : mount.querySelector(".pjcard");
+        const card = mount.querySelector('.sc[data-name="lab"]');
         const out = {
-            state: text(card.querySelector(wide ? ".dksay" : ".pjtext")),
-            alarm: text(card.querySelector(".sessionalarm")),
+            state: text(card.querySelector(".scsay")),
+            ends: text(card.querySelector(".sctime")),
             header: text(mount.querySelector(".pausechat .talkword, .pausechat .dkword")),
             feed: [...mount.querySelectorAll(".pausecard .sentlabel")].map(text),
             letters: mount.querySelectorAll(".pausefeed .mletter").length,
@@ -120,6 +121,17 @@ export async function sessionPause() {
             await until(() => sent.length===3+i && !gate(), "restart request");
             out.restart.push(sent.at(-1));
         }
+        // One session: the paused card continues it at once, the pause of
+        // another opens the sheet with that session as its scope.
+        mount.querySelector('[aria-label="continue session lab"]').click();
+        await until(() => sent.length===6, "continue request");
+        mount.querySelector('[aria-label="pause session lab-docs"]').click();
+        await until(() => sheet(), "pause sheet of one session");
+        out.sessionScope = sheet().querySelector(".pausescope").value;
+        out.sessionRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
+        sheet().querySelector(".pauseapply").click();
+        await until(() => sent.length===7 && !sheet(), "pause request of one session");
+        out.oneSent = sent.slice(5);
         if (wide) {
             mount.querySelector(".dkproj").dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:50,clientY:100}));
             await until(() => mount.querySelector(".pkrow"), "project menu");
@@ -128,9 +140,6 @@ export async function sessionPause() {
             pauseItem.click();
             await until(() => sheet(), "pause from the menu");
             sheet().querySelector(".sheetclose").click();
-        } else {
-            const button=mount.querySelector('[aria-label="pause sessions in project empty"]');
-            out.empty=button.getAttribute("aria-disabled")==="true" && button.title.includes("No live sessions");
         }
         return out;
     } finally {

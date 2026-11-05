@@ -12,7 +12,6 @@
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
-import { shownName } from "/src/agent.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -58,7 +57,11 @@ const until = async (ok, ms = 3000) => {
     if (!ok()) throw new Error("the session cards did not reach the expected state");
 };
 const text = (el) => el ? el.textContent.replace(/\s+/g, " ").trim() : "";
-const row = (name) => phone.querySelector(`[aria-label="open conversation ${name}"]`).closest(".pjcard");
+const row = (name) => phone.querySelector(`[aria-label="open conversation ${name}"]`).closest(".sc");
+const off = (b) => b.getAttribute("aria-disabled") === "true";
+// A pause of a session outside the map has a reason of its own: no project
+// to address it by.
+const acts = (card) => [...card.querySelectorAll(".scact")].filter((b) => !b.getAttribute("aria-label").startsWith("pause "));
 const button = (name, kind) => phone.querySelector(`[aria-label="${kind} session ${name}"]`);
 const gate = () => phone.querySelector('.sheet.on[aria-label="action confirmation"]');
 const tip = (label) => {
@@ -68,29 +71,30 @@ const tip = (label) => {
 const meets = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
 
 window.done = (async () => {
-    await until(() => phone.querySelectorAll(".pjcard").length === sessions.length);
+    await until(() => phone.querySelectorAll(".sc").length === sessions.length);
     await document.fonts.ready;
     const out = { mobileActions: {}, gates: [], tips: {}, notes: {}, overflow: 0 };
     for (const s of sessions) {
         const card = row(s.session);
         card.scrollIntoView({block: "center"});
         const box = card.getBoundingClientRect();
-        const words = [".pjsess", ".pjopen", ".pjpct"].map((sel) => card.querySelector(sel).getBoundingClientRect());
-        const buttons = [...card.querySelectorAll(".pjact")];
-        const top = card.querySelector(".pjtop");
+        const words = [".scname", ".scsay", ".scctx"].map((sel) => card.querySelector(sel).getBoundingClientRect());
+        const buttons = [...card.querySelectorAll(".scact")];
+        const top = card.querySelector(".scl1");
         const topBox = top.getBoundingClientRect();
+        const name = card.querySelector(".scname").getBoundingClientRect();
         out.mobileActions[s.session] = buttons.map((b) => {
             const r = b.getBoundingClientRect();
-            return { text: text(b), label: b.getAttribute("aria-label"), top: b.closest(".pjtop") === top
-                    && r.top >= topBox.top && r.bottom <= topBox.bottom, width: r.width, disabled: b.disabled, icon: Boolean(b.querySelector("svg")), height: r.height,
-                line: card.querySelector(".pjsess").getBoundingClientRect().height,
-                reach: b.contains(document.elementFromPoint(r.left + r.width / 2, r.top - 5)),
+            return { text: text(b), label: b.getAttribute("aria-label"), top: b.closest(".scl1") === top
+                    && Math.abs((r.top + r.bottom) / 2 - (name.top + name.bottom) / 2) <= 2, width: r.width, disabled: off(b),
+                icon: Boolean(b.querySelector("svg")), height: r.height, line: topBox.height, nameLine: name.height,
+                reach: r.width >= 28 && r.height >= 30,
                 clear: !words.some((w) => meets(r, w)), inside: r.left >= box.left && r.right <= box.right && r.bottom <= box.bottom,
                 hit: (() => { const a = b.getBoundingClientRect();
                     return b.contains(document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2)); })() };
         });
         out.notes[s.session] = buttons.map((b) => b.title).join(" | ");
-        card.querySelector(".pjopen").click();
+        card.querySelector(".scopen").click();
     }
     out.opened = [...opened];
     out.more = phone.querySelectorAll(".pjmore, .pjends, .pjend").length;
@@ -110,8 +114,8 @@ window.done = (async () => {
     }
     for (const [name, kind] of [["helios", "restart"], ["lab", "close"], ["quiet", "close"]]) out.tips[name] = tip(`${kind} session ${name}`);
     out.desktopActions = Object.fromEntries(sessions.map((s) => {
-        const card = [...desk.querySelectorAll(".dklive")].find((r) => text(r.querySelector(".dkname")) === shownName(s));
-        return [s.session, [...card.querySelectorAll(".dkact")].map((b) => ({
+        const card = desk.querySelector(`.sc[data-name="${s.session}"]`);
+        return [s.session, [...card.querySelectorAll(".scact")].map((b) => ({
             label: b.getAttribute("aria-label"), off: b.getAttribute("aria-disabled") === "true",
             pressed: b.getAttribute("aria-pressed"), icon: Boolean(b.querySelector("svg")),
         }))];
@@ -130,7 +134,7 @@ window.done = (async () => {
     }
     mountDesk({ available: true, kinds: [] });
     await quiet();
-    out.desktopUnavailable = [...desk.querySelectorAll('[aria-label$=" lab"]')].map((b) => ({
+    out.desktopUnavailable = acts(desk.querySelector('.sc[data-name="lab"]')).map((b) => ({
         off: b.getAttribute("aria-disabled") === "true", why: b.getAttribute("data-tip"),
     }));
     out.desktopBusy = true;
@@ -146,17 +150,17 @@ window.done = (async () => {
     }
     mountDesk();
     mount({ available: true, kinds: [] });
-    await until(() => button("lab", "close").disabled && button("lab", "restart").disabled);
-    out.unavailable = [...row("lab").querySelectorAll(".pjact")].map((b) => ({ off: b.disabled, why: b.title }));
+    await until(() => off(button("lab", "close")) && off(button("lab", "restart")));
+    out.unavailable = acts(row("lab")).map((b) => ({ off: off(b), why: b.title }));
     out.busy = true;
     for (const kind of ["restart", "close"]) {
         mount(exec, { of: (act, name) => name === "lab" && act === kind ? { since: 1 } : null, opening: () => [] });
-        await until(() => text(row("lab").querySelector(".pjbusy")) === (kind === "restart" ? "restarting" : "closing"));
-        out.busy = out.busy && [...row("lab").querySelectorAll(".pjact")].every((b) => b.disabled);
+        await until(() => text(row("lab").querySelector(".scbusy")) === (kind === "restart" ? "restarting" : "closing"));
+        out.busy = out.busy && acts(row("lab")).every(off);
     }
     render(null, phone);
     mount();
-    await until(() => phone.querySelectorAll(".pjcard").length === sessions.length);
+    await until(() => phone.querySelectorAll(".sc").length === sessions.length);
     await quiet();
     window.scrollTo(0, 0);
     const { sessionPause } = await import("/check/fixtures/sessionpause.js");

@@ -107,9 +107,10 @@ const pageOf = (name) => {
     const i = profileMap.findIndex((p) => p.profile === name);
     return pages && pages.children[i];
 };
+// The last row of a contour's page: the second of its two ways on.
 const lastRow = (page) => {
-    const crumbs = page.querySelectorAll(".crumb");
-    return crumbs[crumbs.length - 1].getBoundingClientRect();
+    const links = page.querySelectorAll(".scfootlink");
+    return links[links.length - 1].getBoundingClientRect();
 };
 
 window.done = (async () => {
@@ -122,7 +123,7 @@ window.done = (async () => {
         // down to the menu.
         localStorage.setItem("aacpanel.sessions.profile", "Acme");
         show(2);
-        await until(() => current() === "Acme" && pageOf("Acme") && pageOf("Acme").querySelector(".crumb"));
+        await until(() => current() === "Acme" && pageOf("Acme") && pageOf("Acme").querySelector(".scfootlink"));
         await quiet();
 
         const navTop = document.querySelector("nav.tabs").getBoundingClientRect().top;
@@ -132,7 +133,9 @@ window.done = (async () => {
         out.navTop = navTop;
 
         const onRow = Math.round(last.top + last.height / 2);
-        out.row = { y: onRow, tap: tapped(x, onRow), sideways: (scrollerAt(x, onRow, "x") || {}).className || "" };
+        // The way on is a line of text, not a row as wide as the screen: the
+        // tap lands on it.
+        out.row = { y: onRow, tap: tapped(Math.round(last.left + last.width / 2), onRow), sideways: (scrollerAt(x, onRow, "x") || {}).className || "" };
 
         const mid = Math.round((last.bottom + navTop) / 2);
         const low = Math.round(navTop - 3);
@@ -157,7 +160,7 @@ window.done = (async () => {
         render(null, shell);
         localStorage.setItem("aacpanel.sessions.profile", "personal");
         show(14);
-        await until(() => current() === "personal" && pageOf("personal") && pageOf("personal").querySelector(".crumb"));
+        await until(() => current() === "personal" && pageOf("personal") && pageOf("personal").querySelector(".scfootlink"));
         await quiet();
         const tall = pageOf("personal");
         const pages = document.querySelector(".pfpages");
@@ -170,7 +173,7 @@ window.done = (async () => {
         await quiet();
         out.pagesMoved = pages.scrollLeft - sidewaysAt;
         const end = lastRow(tall);
-        out.tallEnd = { bottom: end.bottom, navTop, tap: tapped(x, Math.round(end.top + end.height / 2)) };
+        out.tallEnd = { bottom: end.bottom, navTop, tap: tapped(Math.round(end.left + end.width / 2), Math.round(end.top + end.height / 2)) };
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

@@ -8,57 +8,59 @@ import (
 
 // The home session of the host is the one the panel itself lives next to: the
 // panel does not close it, just as it does not stop its own container. The
-// desktop row leaves the action out entirely, rather than disabling it.
+// card — the one card of the phone and the desk — leaves the action out
+// entirely, rather than disabling it.
+const cardFile = "src/screens/sessions/sessioncard.js"
+
 func TestDesktopHidesCloseForTheHomeSession(t *testing.T) {
 	files := srcFiles(t)
-
-	const desk = "src/desktop/sessions.js"
-	src := stripComments(files[desk])
+	src := stripComments(files[cardFile])
 	if src == "" {
-		t.Fatalf("%s not found — the test looks in the wrong place", desk)
+		t.Fatalf("%s not found — the test looks in the wrong place", cardFile)
 	}
-	row := funcBody(t, src, "function SessionLine(")
-	acts := jsUntil(t, desk, row, `<span class="dkrowacts"`, "</span>")
+	acts := funcBody(t, src, "function Controls(")
 	if !strings.Contains(acts, `"session.close"`) {
-		t.Fatalf("%s: the row actions slot holds no close action — the test guards the wrong place", desk)
+		t.Fatalf("%s: the controls of a card hold no close action — the test guards the wrong place", cardFile)
 	}
 	gate := regexp.MustCompile(`!s\.home\s*&&`).FindStringIndex(acts)
 	if gate == nil {
-		t.Fatalf("%s: the desktop row offers to close the home session — the panel does not close the main session of the host, just as it does not stop its own container", desk)
+		t.Fatalf("%s: the card offers to close the home session — the panel does not close the main session of the host, just as it does not stop its own container", cardFile)
 	}
-	if icon := strings.Index(acts, `aria-label=${`+"`"+`close session`); icon < 0 || icon < gate[0] {
-		t.Errorf("%s: the home check comes after the close icon — the button is still drawn, only its handler is gated", desk)
+	if icon := strings.Index(acts, `label=${`+"`"+`close session`); icon < 0 || icon < gate[0] {
+		t.Errorf("%s: the home check comes after the close control — the button is still drawn, only its handler is gated", cardFile)
 	}
 }
 
 // The home session gets the one action the panel does have for it: a restart
-// from scratch. Every Claude row offers that action through the host check;
-// the home row offers no close.
+// from scratch. Every card of claude offers that action through the host
+// check; the home card offers no close.
 func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 	files := srcFiles(t)
-	const desk = "src/desktop/sessions.js"
-	src := stripComments(files[desk])
+	src := stripComments(files[cardFile])
 	if src == "" {
-		t.Fatalf("%s not found — the test looks in the wrong place", desk)
+		t.Fatalf("%s not found — the test looks in the wrong place", cardFile)
 	}
-	row := funcBody(t, src, "function SessionLine(")
-	acts := jsUntil(t, desk, row, `<span class="dkrowacts"`, "</span>")
+	acts := funcBody(t, src, "function Controls(")
 	restart := strings.Index(acts, "restart session")
 	if restart < 0 {
-		t.Fatalf("%s: the row actions slot has no restart", desk)
+		t.Fatalf("%s: the controls of a card have no restart", cardFile)
 	}
-	start := strings.LastIndex(acts[:restart], "<i")
-	home := acts[start : strings.Index(acts[restart:], "</i>")+restart]
+	start := strings.LastIndex(acts[:restart], "<${Act}")
+	end := strings.Index(acts[restart:], "Icon.refresh()")
+	if start < 0 || end < 0 {
+		t.Fatalf("%s: the restart of a card is not one control with its icon", cardFile)
+	}
+	home := acts[start : restart+end+len("Icon.refresh()")]
 	for _, want := range []string{`"session.restart"`, "Icon.refresh"} {
 		if !strings.Contains(home, want) {
-			t.Errorf("%s: the home row's block has no %s", desk, want)
+			t.Errorf("%s: the restart of a card has no %s", cardFile, want)
 		}
 	}
 	if strings.Contains(home, `"session.close"`) {
-		t.Errorf("%s: the home row offers to close the home session inside its own block", desk)
+		t.Errorf("%s: the restart of a card closes the session inside its own block", cardFile)
 	}
-	if !strings.Contains(row, `knows(exec, "session.restart")`) {
-		t.Errorf("%s: the restart icon does not ask whether the host can do it", desk)
+	if !strings.Contains(acts, `knows(exec, "session.restart")`) {
+		t.Errorf("%s: the restart control does not ask whether the host can do it", cardFile)
 	}
 
 	block := after(files[registryFile], `"session.restart":`)

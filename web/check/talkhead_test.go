@@ -79,7 +79,8 @@ func TestThePhoneHeaderIsOneLineWithTheToolsBehindIt(t *testing.T) {
 		t.Error("a piece of the header spreads over the screen: a class of the header took the rules of " +
 			"another screen's class of the same name")
 	}
-	if got.BusyWord != "answering" {
+	// The head says the state in the words of the session's card.
+	if got.BusyWord != "working" {
 		t.Errorf("a session at work says %q", got.BusyWord)
 	}
 	// Without a link the state is a snapshot's: dated, not said as now. The
@@ -92,7 +93,7 @@ func TestThePhoneHeaderIsOneLineWithTheToolsBehindIt(t *testing.T) {
 	if off := got.Offline; off.Desk != "as of 22:41" || !strings.Contains(off.DeskDot, "dkoff") {
 		t.Errorf("the wide header without a link reads %q with its dot %q", off.Desk, off.DeskDot)
 	}
-	if got.Dot != "waiting" || got.Word != "waiting for you" {
+	if got.Dot != "waiting" || got.Word != "asks Next" {
 		t.Errorf("a session waiting on a question stands as %q, saying %q", got.Dot, got.Word)
 	}
 	if got.Label != "acme-fingerprint-rotation-review-2" {

@@ -116,8 +116,8 @@ const until = async (ok, label = "the screen") => {
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
-const rowOf = (root, name) => Array.from(root.querySelectorAll(".dksess"))
-    .find((r) => text(r.querySelector(".dkname")) === name);
+const rowOf = (root, name) => root.querySelector(`.dkleft .sc[data-name="${name}"]`);
+const cards = (root, sel) => Array.from(root.querySelectorAll(sel)).map((c) => c.dataset.name);
 // agentOf reads the word that opens a quiet line: what it says, whose it is,
 // its tip and the hue it is painted in.
 const agentOf = (line) => {
@@ -185,24 +185,24 @@ window.done = (async () => {
     await until(() => rowOf(desk, codex.session), "the desktop Codex row");
     const deskRow = rowOf(desk, codex.session);
     const claudeRow = rowOf(desk, "shop");
-    out.deskMarks = names(deskRow, ".dksessmain .dkmark");
-    out.deskFacts = names(deskRow, ".dkdetail > span");
-    out.deskAgent = agentOf(deskRow.querySelector(".dkdetail"));
-    out.deskActs = Array.from(deskRow.querySelectorAll(".dkrowacts .dkact"))
+    out.deskMarks = names(deskRow, ".scl1 .sctag");
+    out.deskFacts = [text(deskRow.querySelector(".scagent"))];
+    out.deskAgent = agentOf(deskRow.querySelector(".scagent"));
+    out.deskActs = Array.from(deskRow.querySelectorAll(".scacts .scact"))
         .map((i) => ({ label: i.getAttribute("aria-label") || "", tip: i.dataset.tip || "" }));
-    out.deskSay = text(deskRow.querySelector(".dksay"));
-    out.claudeMarks = names(claudeRow, ".dksessmain .dkmark");
-    out.claudeAgent = agentOf(claudeRow.querySelector(".dkdetail"));
-    out.claudeActs = claudeRow.querySelectorAll(".dkrowacts .dkact").length;
+    out.deskSay = text(deskRow.querySelector(".scsay"));
+    out.claudeMarks = names(claudeRow, ".scl1 .sctag");
+    out.claudeAgent = agentOf(claudeRow.querySelector(".scagent"));
+    out.claudeActs = claudeRow.querySelectorAll(".scacts .scact").length;
 
-    out.phoneTags = names(phone, ".pjblock .pjrow .pjtag");
-    const phoneRows = Array.from(phone.querySelectorAll(".pjblock .pjrow"));
-    const phoneRow = phoneRows.find((r) => text(r.querySelector(".pjsess")) === codex.session);
-    out.phoneState = text(phoneRow.querySelector(".pjstate"));
-    out.phoneSince = text(phoneRow.querySelector(".pjsince"));
-    out.phoneAgents = phoneRows.map((r) => agentOf(r.querySelector(".pjsince")));
-    out.phoneActions = Array.from(phoneRow.querySelectorAll(".pjact"))
-        .map((b) => ({ text: text(b), label: b.getAttribute("aria-label"), note: b.title, off: b.disabled }));
+    out.phoneTags = names(phone, ".pjblock .sc .scl5 .scb:nth-child(2)");
+    const phoneRows = Array.from(phone.querySelectorAll(".pjblock .sc"));
+    const phoneRow = phoneRows.find((r) => r.dataset.name === codex.session);
+    out.phoneState = text(phoneRow.querySelector(".scsay"));
+    out.phoneSince = text(phoneRow.querySelector(".scagent"));
+    out.phoneAgents = phoneRows.map((r) => agentOf(r.querySelector(".scagent")));
+    out.phoneActions = Array.from(phoneRow.querySelectorAll(".scact"))
+        .map((b) => ({ text: text(b), label: b.getAttribute("aria-label"), note: b.title, off: b.getAttribute("aria-disabled") === "true" }));
 
     await until(() => chat.querySelector(".composer textarea"), "the composer");
     out.headMarks = names(chat, ".dkheadtop .dkmark");
@@ -297,7 +297,7 @@ window.done = (async () => {
 
     // The close of the desktop row and of the phone's card, each through
     // its own gate.
-    const deskClose = deskRow.querySelector('.dkrowacts .dkact[aria-label^="close session"]');
+    const deskClose = deskRow.querySelector('.scacts .scact[aria-label^="close session"]');
     if (deskClose) {
         deskClose.click();
         out.deskCloseSheet = await closeSheet(desk);
@@ -344,14 +344,14 @@ window.done = (async () => {
         await until(() => lifecycle && lifecycle.ready.current, "the action subscription");
     };
     await mount(original);
-    const phoneRestart = () => probe.querySelector(`.pjact[aria-label="restart session ${original.session}"]`);
+    const phoneRestart = () => probe.querySelector(`.pjblock .scact[aria-label="restart session ${original.session}"]`);
     await until(phoneRestart);
     phoneRestart().click();
     out.restarts["waiting row"] = await closeSheet(probe);
-    await until(() => lifecycle.wait.of("restart", original.session) && probe.querySelector(".pjbusy"), "the rendered restart wait");
+    await until(() => lifecycle.wait.of("restart", original.session) && probe.querySelector(".pjblock .scbusy"), "the rendered restart wait");
     const pending = () => Boolean(lifecycle.wait.of("restart", original.session));
-    out.waiting = { started: pending(), busy: Boolean(probe.querySelector(".pjbusy")),
-        beforeOrder: names(probe, ".pjrow .pjsess") };
+    out.waiting = { started: pending(), busy: Boolean(probe.querySelector(".pjblock .scbusy")),
+        beforeOrder: cards(probe, ".pjblock .sc") };
     const replacement = { ...original, session: "codex-77777777", sessionId: "new-thread" };
     const draw = async (atMs, list) => {
         const next = { ...initial, atMs, sessions: list };
@@ -368,8 +368,8 @@ window.done = (async () => {
     out.waiting.wrongDirectory = await draw(5000, [{ ...replacement, cwd: "/srv/elsewhere" }, sessions[0]]);
     out.waiting.wrongContour = await draw(6000, [{ ...replacement, profile: "Other", contour: 9 }, sessions[0]]);
     out.waiting.finished = !await draw(7000, [replacement, sessions[0]]);
-    out.waiting.busyAfter = Boolean(probe.querySelector(".pjbusy"));
-    out.waiting.afterOrder = names(probe, ".pjrow .pjsess");
+    out.waiting.busyAfter = Boolean(probe.querySelector(".pjblock .scbusy"));
+    out.waiting.afterOrder = cards(probe, ".pjblock .sc");
 
     out.unavailable = [];
     for (const [why, live, executor] of [
@@ -379,8 +379,8 @@ window.done = (async () => {
     ]) {
         await mount(live, executor);
         await until(() => probe.querySelector(".probe-tools .toollabel"));
-        const deskAct = probe.querySelector(`.dkact[aria-label="restart session ${live.session}"]`);
-        const phoneAct = probe.querySelector(`.pjact[aria-label="restart session ${live.session}"]`);
+        const deskAct = probe.querySelector(`.dkleft .scact[aria-label="restart session ${live.session}"]`);
+        const phoneAct = probe.querySelector(`.pjblock .scact[aria-label="restart session ${live.session}"]`);
         const toolAct = Array.from(probe.querySelectorAll(".probe-tools .toolrow"))
             .find((b) => text(b.querySelector(".toollabel")) === "Restart the session");
         const before = sent.length;
@@ -397,7 +397,7 @@ window.done = (async () => {
         if (!await quiet()) throw new Error(`The ${why} actions did not settle`);
         out.unavailable.push({ why,
             desk: deskAct ? { off: deskAct.getAttribute("aria-disabled") === "true", note: deskAct.dataset.tip } : null,
-            phone: phoneAct ? { off: phoneAct.disabled, note: phoneAct.title } : null,
+            phone: phoneAct ? { off: phoneAct.getAttribute("aria-disabled") === "true", note: phoneAct.title } : null,
             tool: toolAct ? { off: toolAct.disabled, note: text(toolAct.querySelector(".toolnote")) } : null,
             menu: menuAct ? { off: menuAct.getAttribute("aria-disabled") === "true", note: menuAct.dataset.tip } : null,
             sent: sent.length - before, gate: Boolean(probe.querySelector('.sheet.on[aria-label="action confirmation"]')),

@@ -107,7 +107,16 @@ function App() {
         current=${opened ? "work" : ""} onPick=${() => setOpened(true)} /><section class="dkcenter dkchat">${chat}</section></div></div>`
         : html`<div class="shell no-nav"><main class="body">${opened ? chat : html`<${Sessions} snapshot=${snapshot} ageSec=${0} exec=${exec} wait=${{ opening: () => [], of: () => null }} pick=${() => setOpened(true)} />`}</main></div>`;
 }
-const mark = () => document.querySelector(".waitingmark");
+// The card of the session says the first of what waits for the person and
+// how many more there are; a press on it opens the conversation.
+const sessionCard = () => document.querySelector(".sc:not(.scpast)");
+const cardCount = () => {
+    const c = sessionCard();
+    if (!c || c.dataset.tone !== "wait") return 0;
+    const more = (c.querySelector(".scaside")?.textContent || "").match(/(\d+) more/);
+    return 1 + (more ? Number(more[1]) : 0);
+};
+const openCard = () => sessionCard().querySelector(".scopen").click();
 const queue = () => document.querySelector(".waitingqueue");
 const queueCount = () => Number(document.querySelector(".waitinghead")?.textContent.match(/·\s*(\d+)/)?.[1] || 0);
 const requestSheet = () => document.querySelector('.sheet.on[aria-label="request"]');
@@ -122,13 +131,13 @@ window.done = (async () => {
     render(html`<${ToastHost}><${GateHost}><${App} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
     await document.fonts.ready;
     await quiet();
-    const out = { wide, countBefore: Number(mark()?.dataset.waitingCount || 0) };
-    out.needsYou = wide ? document.querySelector(".dklive")?.textContent.includes("Shall I publish?")
-        : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && document.querySelector(".pjcard")?.textContent.includes("Shall I publish?"));
+    const out = { wide, countBefore: cardCount() };
+    out.needsYou = wide ? sessionCard()?.textContent.includes("Shall I publish?")
+        : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && sessionCard()?.textContent.includes("Shall I publish?"));
     out.contourMark = wide ? document.querySelector(".dkwaitn")?.textContent.trim() === "1"
         : document.querySelector('.pftab .waitn')?.getAttribute("aria-label") === "1 waiting for you";
     if (new URLSearchParams(location.search).has("screenshot")) return out;
-    mark().click();
+    openCard();
     await until(() => queue() && document.querySelector(".feedrow"));
     await until(() => releaseRequests);
     out.opened = Boolean(queue() && document.querySelector(".composer"));
@@ -288,10 +297,10 @@ window.done = (async () => {
     out.horizontalOverflow = document.documentElement.scrollWidth > innerWidth;
     back();
     await quiet();
-    out.countBackInList = Number(mark()?.dataset.waitingCount || 0);
+    out.countBackInList = cardCount();
     session.agent = "codex";
     choices.id = "codex-question";
-    mark().click();
+    openCard();
     await until(() => queue() && document.querySelector(".feedrow"));
     await pick("Shall I publish?");
     out.quickCodex = Boolean(document.querySelector(".mquestionwhat")) && !quick();

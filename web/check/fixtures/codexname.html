@@ -71,17 +71,17 @@ window.done = (async () => {
     const desk = document.getElementById("desk");
     const phone = document.getElementById("phone");
     const chat = document.getElementById("chat");
-    if (!await until(() => desk.querySelectorAll(".dksess .dkname").length === sessions.length)) {
+    if (!await until(() => desk.querySelectorAll(".sc .scname").length === sessions.length)) {
         throw new Error("the desktop column does not show every session");
     }
     if (!await until(() => chat.querySelector(".midname"))) throw new Error("the conversation has no header name");
     const out = {};
     out.shown = Object.fromEntries(sessions.map((s) => [s.session, shownName(s)]));
-    out.desk = Array.from(desk.querySelectorAll(".dksess .dkname"))
-        .map((n) => ({ name: text(n), tip: n.getAttribute("title") || "" }));
-    out.phone = Array.from(phone.querySelectorAll(".pjrow")).map((r) => ({
-        name: text(r.querySelector(".pjsess")),
-        address: (r.querySelector(".pjopen").getAttribute("aria-label") || "").replace(/^open conversation /, ""),
+    out.desk = Array.from(desk.querySelectorAll(".sc .scname"))
+        .map((n) => ({ name: n.getAttribute("aria-label"), tip: n.getAttribute("title") || "" }));
+    out.phone = Array.from(phone.querySelectorAll(".sc")).map((r) => ({
+        name: r.querySelector(".scname").getAttribute("aria-label"),
+        address: (r.querySelector(".scopen").getAttribute("aria-label") || "").replace(/^open conversation /, ""),
     }));
     out.head = chat.querySelector(".midname").getAttribute("aria-label") || "";
     return out;

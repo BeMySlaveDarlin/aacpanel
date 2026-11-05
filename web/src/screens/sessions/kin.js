@@ -73,7 +73,7 @@ export function branchesOf(kids) {
 // openedLabel says how many sessions a session had the panel open, for the
 // fold under it.
 export function openedLabel(count) {
-    return `opened ${count} ${count === 1 ? "session" : "sessions"}`;
+    return `${count} opened`;
 }
 
 // layoutOf lays the live sessions of a list out as the rows a screen draws, in

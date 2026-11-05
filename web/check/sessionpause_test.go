@@ -16,21 +16,23 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 		t.Run(screen.name, func(t *testing.T) {
 			var got struct {
 				Pause struct {
-					State, Alarm, Header, Chosen                      string
-					Feed, ProjectRecipients, GroupRecipients, Options []string
-					Letters                                           int
-					Priority                                          [][]string
-					PauseSent, Restart                                []struct {
+					State, Ends, Header, Chosen, SessionScope                            string
+					Feed, ProjectRecipients, GroupRecipients, Options, SessionRecipients []string
+					Letters                                                              int
+					Priority                                                             [][]string
+					PauseSent, Restart, OneSent                                          []struct {
 						Kind, Target string
 						Params       map[string]any
 					}
-					NoConfirmation, Menu, Empty, PauseFits, RestartFits bool
+					NoConfirmation, Menu, PauseFits, RestartFits bool
 				}
 			}
 			screen.run(t, screen.file, &got)
 			p := got.Pause
-			if !strings.Contains(p.State, "paused · until") || !strings.Contains(p.Header, "paused · until") || p.Alarm == "" {
-				t.Errorf("pause state or alarm absent: %+v", p)
+			// The card says paused and, in its corner, when the pause ends;
+			// the head of the conversation has no corner and says both.
+			if p.State != "paused" || !strings.HasPrefix(p.Ends, "→") || !strings.Contains(p.Header, "paused · until") {
+				t.Errorf("pause state or its end absent: %+v", p)
 			}
 			if len(p.Feed) != 3 || !strings.HasPrefix(p.Feed[0], "Pause until") || p.Feed[1] != "Pause lifted" || p.Feed[2] != "Pause over" || p.Letters != 0 {
 				t.Errorf("pause letters lost their cards: %v", p.Feed)
@@ -44,7 +46,7 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 					t.Fatalf("pause overrode activity: %v", p.Priority)
 				}
 			}
-			if strings.Join(p.ProjectRecipients, ",") != "lab · paused" || strings.Join(p.GroupRecipients, ",") != "lab · paused,peer,quiet" {
+			if strings.Join(p.ProjectRecipients, ",") != "lab · paused,lab-docs" || strings.Join(p.GroupRecipients, ",") != "lab · paused,lab-docs,peer,quiet" {
 				t.Errorf("pause scope: %v / %v", p.ProjectRecipients, p.GroupRecipients)
 			}
 			if len(p.PauseSent) != 2 || !p.NoConfirmation {
@@ -74,8 +76,23 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 					t.Errorf("restart %s: %+v", key, r)
 				}
 			}
-			if screen.name == "desk" && !p.Menu || screen.name == "phone" && !p.Empty {
+			if screen.name == "desk" && !p.Menu {
 				t.Errorf("pause entry availability: %+v", p)
+			}
+			// One session is paused and continued by its card, by the same
+			// action addressed to the session within its project.
+			if p.SessionScope != "session" || strings.Join(p.SessionRecipients, ",") != "lab-docs" {
+				t.Errorf("the pause of one session opens on %q for %v", p.SessionScope, p.SessionRecipients)
+			}
+			if len(p.OneSent) != 2 {
+				t.Fatalf("the pause of one session sent %+v", p.OneSent)
+			}
+			if c := p.OneSent[0]; c.Kind != "project.pause" || c.Params["project"] != float64(501) || c.Params["session"] != "lab" ||
+				c.Params["resume"] != true || c.Params["group"] != nil {
+				t.Errorf("the continue of the paused card sent %+v", c)
+			}
+			if c := p.OneSent[1]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || c.Params["until"] == nil || c.Params["group"] != nil {
+				t.Errorf("the pause of one session sent %+v", c)
 			}
 		})
 	}

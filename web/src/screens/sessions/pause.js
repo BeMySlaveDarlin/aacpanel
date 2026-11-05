@@ -3,8 +3,6 @@
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { Icon } from "../../ui/icons.js";
-import { Sheet } from "../../ui/sheet.js";
 import { useToast } from "../../ui/toasts.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
@@ -15,7 +13,10 @@ function groupOf(project, profile) {
     return (profile?.groups || []).find((g) => (g.projects || []).some((p) => p.id === project.id));
 }
 
-export function pauseRows(project, profile, sessions = [], group = false) {
+// pauseRows lists the live sessions a pause reaches: those of the project,
+// of its whole group, or the one session it is given.
+export function pauseRows(project, profile, sessions = [], group = false, only = null) {
+    if (only) return [only].filter((s) => !s.outside && s.sessionId);
     const projects = group ? groupOf(project, profile)?.projects || [project] : [project];
     return sessions.filter((s) => !s.outside && s.sessionId && projects.some((p) => sessionsOf(p, [s]).length));
 }
@@ -39,15 +40,19 @@ export function pauseUntil(value) {
     return `${localInput(date)}:00${offset < 0 ? "-" : "+"}${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 }
 
-export function PauseSheet({ project, profile, sessions = [], exec, onDone }) {
+// PauseSheet pauses the live sessions of a project or of its group, or the
+// one session it is opened from, until a time the person picks.
+export function PauseSheet({ project, profile, sessions = [], session = null, exec, onDone }) {
     const run = useAction();
     const toast = useToast();
     const group = groupOf(project, profile);
-    const [whole, setWhole] = useState(!pauseRows(project, profile, sessions).length && Boolean(group));
+    const [scope, setScope] = useState(session ? "session"
+        : !pauseRows(project, profile, sessions).length && group ? "group" : "project");
+    const whole = scope === "group";
     const [value, setValue] = useState(() => localInput(new Date(Date.now() + 3600000)));
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
-    const rows = pauseRows(project, profile, sessions, whole);
+    const rows = pauseRows(project, profile, sessions, whole, scope === "session" ? session : null);
     const paused = rows.filter((s) => s.pauseAlarm);
     const why = whyNot(exec, "project.pause");
     const at = new Date(value).getTime();
@@ -55,7 +60,8 @@ export function PauseSheet({ project, profile, sessions = [], exec, onDone }) {
     const send = async (resume) => {
         setBusy(true);
         const reply = await run("project.pause", project.session || project.name, {
-            project: project.id, group: whole, ...(resume ? { resume: true } : { until: pauseUntil(value) }),
+            project: project.id, ...(scope === "session" ? { session: session.session } : { group: whole }),
+            ...(resume ? { resume: true } : { until: pauseUntil(value) }),
         });
         setBusy(false);
         if (!reply.ok) return;
@@ -69,7 +75,8 @@ export function PauseSheet({ project, profile, sessions = [], exec, onDone }) {
             <div class="shead cmdtitle"><span class="cmdhead">Pause sessions</span></div>
             <p class="cmdnote">Sessions finish their current step, set their own wake-up alarm and wait. A busy session reads the request when its turn allows it.</p>
             <label class="cmdnote">Scope
-                <select class="rnname cxfield pausescope" value=${whole ? "group" : "project"} onChange=${(e) => { setWhole(e.currentTarget.value === "group"); setResult(null); }}>
+                <select class="rnname cxfield pausescope" value=${scope} onChange=${(e) => { setScope(e.currentTarget.value); setResult(null); }}>
+                    ${session && html`<option value="session">This session · ${shownName(session)}</option>`}
                     <option value="project">This project · ${project.name}</option>
                     ${group && html`<option value="group">Whole group · ${group.name}</option>`}
                 </select>
@@ -92,18 +99,5 @@ export function PauseSheet({ project, profile, sessions = [], exec, onDone }) {
                 <button class="btn primary pauseapply" type="button" disabled=${busy || Boolean(why) || !rows.length || !valid} onClick=${() => send(false)}>${busy ? "Sending…" : "Pause"}</button>
             </div>
         </div>
-    `;
-}
-
-export function PauseControl({ project, profile, sessions, exec, desktop = false }) {
-    const [open, setOpen] = useState(false);
-    const why = pauseWhy(project, profile, sessions, exec);
-    return html`
-        <button class=${desktop ? "dkprojpause" : "pjpause"} type="button" aria-disabled=${why ? "true" : undefined}
-                aria-label=${`pause sessions in project ${project.name}`} title=${why || "Pause sessions…"}
-                onClick=${() => !why && setOpen(true)}><${Icon.pause} /></button>
-        ${open && html`<${Sheet} open tall onClose=${() => setOpen(false)} label="pause sessions">
-            <${PauseSheet} project=${project} profile=${profile} sessions=${sessions} exec=${exec} onDone=${() => setOpen(false)} />
-        <//>`}
     `;
 }

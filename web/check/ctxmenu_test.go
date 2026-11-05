@@ -120,6 +120,7 @@ type ctxMenu struct {
 	ProjectNew         *ctxSent       `json:"projectNew"`
 	ProjectNewByButton *ctxSent       `json:"projectNewByButton"`
 	Settings           map[string]int `json:"settings"`
+	SoloSettings       map[string]int `json:"soloSettings"`
 	SettingsStart      map[string]int `json:"settingsStart"`
 	Terminal           *struct {
 		ID    string `json:"id"`
@@ -308,8 +309,8 @@ func TestTheKeyboardMenuStandsUnderTheRow(t *testing.T) {
 
 // Every object has its menu: a live session of claude, the home one, one in
 // tmux, one the panel did not start, a thread of codex, a closed conversation
-// on the shelf and in the archive, a project's heading, a container running
-// and stopped, a stack. A dimmed item is marked ~.
+// on the shelf and in the archive, the heading of a project of two sessions or
+// more, a container running and stopped, a stack. A dimmed item is marked ~.
 func TestEveryObjectHasItsMenu(t *testing.T) {
 	got := ctxMenuPage(t)
 	if got.CodexRestart == nil || got.CodexRestart.Kind != "session.restart" || got.CodexRestart.Target != "codex-1" || len(got.CodexRestart.Params) != 0 {
@@ -324,19 +325,19 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
 		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
-			"Copy the session ID · Copy the resume command · | · Restart the session",
+			"Copy the session ID · Copy the resume command · | · Restart the session · | · Settings of the project",
 		"scratch": "Open · Terminal of the project · | · ~Rename… · ~Role… · ~Session messages… · | · Move to the stream · Open a window on this machine · " +
 			"~Turn Remote Control on · ~Stand under… · ~Pin the group · | · Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
 		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · " +
 			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
-		"ext":          "Open · | · Copy the session ID · Copy the resume command",
-		"codex":        "Open · | · ~Stand under… · ~Pin the group · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · Stop the turn · Restart the session · Close the session",
+		"ext": "Open · | · Copy the session ID · Copy the resume command",
+		"codex": "Open · | · ~Stand under… · ~Pin the group · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · " +
+			"Stop the turn · Restart the session · Close the session · | · Settings of the project",
 		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · Restart the session · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID · Copy the resume command",
 		"project":      "~Pause… · New session · Terminal of the project · | · Settings of the project",
-		"projectHome":  "~Pause… · Terminal of the project · | · Settings of the project",
 		"running":      "~Restart · Stop · | · Logs · Copy the name",
 		"exited":       "~Restart · Start · | · Logs · Copy the name",
 		"stack":        "Bring up · Bring down",
@@ -467,6 +468,9 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 	}
 	if got.Terminal == nil || got.Terminal.ID != "t-aac" || got.Terminal.Place != "/srv/aacpanel" {
 		t.Errorf("the terminal of the project opened %+v — expected the one typed into last there, t-aac", got.Terminal)
+	}
+	if !reflect.DeepEqual(got.SoloSettings, map[string]int{"contour": 3, "project": 14}) {
+		t.Errorf("the menu of the card of helios, a project of one session, opened the settings at %v, want project 14 of contour 3", got.SoloSettings)
 	}
 	if !reflect.DeepEqual(got.Settings, map[string]int{"contour": 3, "project": 11}) {
 		t.Errorf("the settings of the project were asked at %v — expected contour 3, project 11", got.Settings)

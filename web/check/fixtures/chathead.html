@@ -214,12 +214,15 @@ async function limitStatuses() {
     const base = { ...live, session: "limited", sessionId: "limited-id", profile: "client", contour: 7,
         status: "busy", transport: "stream", work: { agents: 2 }, limitHit: { at, window: "5h" } };
     const mount = (content) => { render(null, root); render(h(ToastHost, null, h(GateHost, null, content)), root); };
+    // The card says the limit and, in its corner, when it ends; the head of
+    // the conversation, with no corner, says both in its word.
+    const day = (at) => (at - now > 20 * 3600 ? new Date(at * 1000).toLocaleDateString("en-GB", { weekday: "short" }) : alarmTime(at * 1000));
     const cases = [
-        ["five", base, own, `limit · until ${alarmTime(five * 1000)}`],
-        ["profile", { ...base, contour: undefined }, own, `limit · until ${alarmTime(five * 1000)}`],
-        ["contour", { ...base, profile: undefined }, own, `limit · until ${alarmTime(five * 1000)}`],
-        ["week", { ...base, limitHit: { at, window: "7d" } }, own, `limit · until ${alarmTime(week * 1000)}`],
-        ["unknown", { ...base, limitHit: { at, window: "" } }, own, `limit · until ${alarmTime(week * 1000)}`],
+        ["five", base, own, "5h limit", day(five)],
+        ["profile", { ...base, contour: undefined }, own, "5h limit", day(five)],
+        ["contour", { ...base, profile: undefined }, own, "5h limit", day(five)],
+        ["week", { ...base, limitHit: { at, window: "7d" } }, own, "7d limit", day(week)],
+        ["unknown", { ...base, limitHit: { at, window: "" } }, own, "limit", day(week)],
         ["reset", base, { ...own, fiveHour: { pct: 100, resetsAt: now - 1 } }, "stopped by the limit"],
         ["normalized", base, { ...own, fiveHour: { pct: 0, resetsAt: null } }, "stopped by the limit"],
         ["renewed", base, { ...own, at: now, fiveHour: { pct: 4, resetsAt: five } }, "stopped by the limit"],
@@ -228,14 +231,15 @@ async function limitStatuses() {
         ["unmarked", { ...base, status: "idle", work: {}, limitHit: undefined }, own, "idle"],
     ];
     const seen = [];
-    for (const [name, session, contour, expected] of cases) {
+    for (const [name, session, contour, expected, ends = ""] of cases) {
         const limits = { contours: [{ ...own, contour: 1, profile: "personal", fiveHour: { pct: 100, resetsAt: week } }, contour] };
         const snapshot = { at: now, sessions: [session], profileMap: [], limits };
         mount(h(Sessions, { snapshot, error: null, ageSec: 1, exec, wait, faults: [], pick() {} }));
         await quiet();
-        const phone = root.querySelector(".pjstate");
-        const result = { name, expected, phone: phone.querySelector(".pjtext").textContent, phoneTone: phone.className,
-            phoneColour: getComputedStyle(phone).color };
+        const card = root.querySelector(".sc");
+        const phone = card.querySelector(".scword");
+        const result = { name, expected, phone: phone.textContent, phoneTone: card.dataset.tone,
+            phoneEnds: card.querySelector(".sctime").textContent, phoneColour: getComputedStyle(phone).color };
         const warning = document.createElement("i");
         warning.style.color = "var(--warn)";
         root.append(warning);
@@ -243,15 +247,16 @@ async function limitStatuses() {
         warning.remove();
         mount(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait }));
         await quiet();
-        const desk = root.querySelector(".dklive");
-        result.desk = desk.querySelector(".dksaytext").textContent;
+        const desk = root.querySelector(".dkleft .sc");
+        result.desk = desk.querySelector(".scword").textContent;
         result.deskTone = desk.dataset.tone;
-        result.deskDot = desk.querySelector(".dkdot").className;
-        result.deskColour = getComputedStyle(desk.querySelector(".dksay")).color;
+        result.deskGlyph = desk.querySelector(".scglyph").dataset.tone;
+        result.deskColour = getComputedStyle(desk.querySelector(".scword")).color;
         mount(h(Chat, { name: session.session, id: session.sessionId, live: session, snapshot, exec, onBack() {}, onUsage() {} }));
         await until(() => root.querySelector(".talkword, .dkword[data-tone]"));
         const head = root.querySelector(".talkword, .dkword[data-tone]");
         result.head = head.textContent;
+        result.ends = ends;
         result.headTone = head.dataset.tone;
         result.headColour = getComputedStyle(head).color;
         result.orbit = graphOf(snapshot).nodes[0].state.text;
@@ -275,13 +280,12 @@ async function limitStatuses() {
         const result = { reset, first: blocks[0].name, rank: blocks.find((b) => b.name === "limited").rank };
         mount(h(Sessions, { snapshot, error: null, ageSec: 1, exec, wait, faults: [], pick() {} }));
         await quiet();
-        result.phone = root.querySelector(".pjfolddots i").dataset.tone;
-        result.phoneWaits = root.querySelector(".pjfoldwaits")?.textContent || "";
-        result.firstShown = root.querySelector(".pjhead .pjname").textContent;
+        const first = root.querySelector(".pjblock");
+        result.phoneWaits = root.querySelector(".scfoldwaits")?.textContent || "";
+        result.firstShown = first.querySelector(".pjname")?.textContent || first.querySelector(".sc").dataset.name;
         mount(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait }));
         await quiet();
-        result.desk = root.querySelector(".dkfolddots i").dataset.tone;
-        result.deskWaits = root.querySelector(".dkfoldwaits")?.textContent || "";
+        result.deskWaits = root.querySelector(".dkleft .scfoldwaits")?.textContent || "";
         folds.push(result);
     }
     localStorage.removeItem("aacpanel.folds");

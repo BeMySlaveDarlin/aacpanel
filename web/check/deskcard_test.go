@@ -3,7 +3,6 @@ package check
 import (
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -16,12 +15,11 @@ type deskCardSection struct {
 }
 
 type deskCardFacts struct {
-	All    []string `json:"all"`
 	Agent  string   `json:"agent"`
-	Levels []string `json:"levels"`
-	Shown  []string `json:"shown"`
-	Lines  int      `json:"lines"`
-	Cut    []string `json:"cut"`
+	Line4  string   `json:"line4"`
+	More   []string `json:"more"`
+	Badges []string `json:"badges"`
+	Ctx    string   `json:"ctx"`
 	Row    int      `json:"row"`
 }
 
@@ -60,14 +58,12 @@ type deskCard struct {
 		Say     string `json:"say"`
 	} `json:"ghost"`
 	Says         map[string]string        `json:"says"`
+	Runs         map[string][]string      `json:"runs"`
 	SaysAfter    map[string]string        `json:"saysAfter"`
 	Tones        map[string]string        `json:"tones"`
 	Edge         string                   `json:"edge"`
 	NoEdge       string                   `json:"noEdge"`
-	Grounds      map[string]rowGround     `json:"grounds"`
-	GhostGround  rowGround                `json:"ghostGround"`
 	Facts        map[string]deskCardFacts `json:"facts"`
-	Marks        map[string][]string      `json:"marks"`
 	Bells        map[string]string        `json:"bells"`
 	BellsVisited map[string]string        `json:"bellsVisited"`
 	ColumnText   string                   `json:"columnText"`
@@ -140,23 +136,20 @@ func runDeskCard(t *testing.T) deskCard {
 }
 
 // The live sessions of a contour keep their places whatever they do: they
-// stand in blocks of their projects in the order of the project map, a
-// heading over every project with its group and the way to a new session in
-// it — none for the home session, whose host has one, and none for a session
-// no project holds — the sessions no project holds after them, and the arrow
-// keys go down the column in that order. A session being raised stands in the
-// block of its project, at the place the project has in the map. The
-// collector lists the sessions by how full they are, which changes by the
-// minute; a place that followed it would move every time the person looked,
-// and the eye and the arrow keys would lose the session they were on.
+// stand in blocks of their projects in the order of the project map — a
+// project of one session said by its card alone, with no heading over it —
+// the sessions no project holds after them, and the arrow keys go down the
+// column in that order. A session being raised stands in the block of its
+// project, at the place the project has in the map. The collector lists the
+// sessions by how full they are, which changes by the minute; a place that
+// followed it would move every time the person looked, and the eye and the
+// arrow keys would lose the session they were on.
 func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	got := runDeskCard(t)
 
 	want := []deskCardSection{
-		{Name: "personal", Rows: []string{"# aacpanel · Side +", "aacpanel", "# person · Side +", "person",
-			"# helios · Host", "helios", "# scratch · outside the map", "scratch"}},
-		{Name: "Globex Group", Rows: []string{"# shop · SHOP +", "shop", "# shop-admin · SHOP +", "shop-admin",
-			"# api · Platform +", "api", "# acme-fingerprint-rotation-review · outside the map", "acme-fingerprint-rotation-review"}},
+		{Name: "personal", Rows: []string{"aacpanel", "person", "helios", "scratch"}},
+		{Name: "Globex Group", Rows: []string{"shop", "api", "acme-fingerprint-rotation-review"}},
 	}
 	check := func(when string, sections []deskCardSection) {
 		if len(sections) != len(want) {
@@ -174,157 +167,117 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	if got.OrderBefore != "aacpanel,person,helios,scratch,shop,api,acme-fingerprint-rotation-review" || got.OrderAfter != got.OrderBefore {
 		t.Errorf("the arrow keys of the shell go %q, then %q — the same places the column shows, before and after", got.OrderBefore, got.OrderAfter)
 	}
-	if got.Ghost == nil || got.Ghost.Section != "Globex Group" || got.Ghost.Head != "shop-admin" ||
-		!strings.HasPrefix(got.Ghost.Say, "starting on the host") {
-		t.Errorf("the console being raised stands as %+v: in the contour and under the heading of its project", got.Ghost)
+	if got.Ghost == nil || got.Ghost.Section != "Globex Group" || got.Ghost.Head != "shop-admin" || got.Ghost.Say != "starting" {
+		t.Errorf("the console being raised stands as %+v: in the contour of its project, saying it starts", got.Ghost)
 	}
 }
 
-// A row says how its session stands in the words of the phone, and only what
-// is unusual about it is marked: Remote Control, the home session, a session
-// in tmux, a session the panel did not start — the stream is where a session
-// lives and goes unmarked. A session that waits for the person is the bright row, with
-// an edge of its own, counted in the heading of its contour.
+// A card says how its session stands in the words of the phone, with what
+// runs right after the state's word; a call the person has not come for
+// makes the card wait as a question does. A card that waits for the person
+// is the warm one, counted in the heading of its contour.
 func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 	got := runDeskCard(t)
 
 	for name, want := range map[string]string{
-		"person":   "asks you · Palette · 2 questions",
-		"aacpanel": "working · 2 agents",
-		"api":      "waiting: a dialog is open",
-		"shop":     "working · 1 agent · 1 background task",
+		"person":   "asks Palette · 2 questions",
+		"aacpanel": "working",
+		"api":      "allow a tool",
+		"shop":     "called you",
+		"helios":   "idle",
 	} {
 		if got.Says[name] != want {
 			t.Errorf("%s says %q, expected %q", name, got.Says[name], want)
 		}
 	}
-	if !regexp.MustCompile(`^idle · \d+ min ago$`).MatchString(got.Says["helios"]) {
-		t.Errorf("an idle session says %q — idle, and since when", got.Says["helios"])
+	for name, want := range map[string]string{
+		"aacpanel": "2 subagents running",
+		"shop":     "1 subagents running,1 observers watching",
+		"helios":   "",
+	} {
+		if strings.Join(got.Runs[name], ",") != want {
+			t.Errorf("%s counts %v running, expected %q", name, got.Runs[name], want)
+		}
 	}
-	if got.SaysAfter["aacpanel"] != "asks you · Scope" || !strings.HasPrefix(got.SaysAfter["person"], "idle") {
-		t.Errorf("after the change the rows say %v", got.SaysAfter)
+	if got.SaysAfter["aacpanel"] != "asks Scope" || got.SaysAfter["person"] != "idle" {
+		t.Errorf("after the change the cards say %v", got.SaysAfter)
 	}
-	for _, dead := range []string{"handling the request", "waiting for a message", "waiting for an answer to a question"} {
+	for _, dead := range []string{"handling the request", "waiting for a message", "waiting for an answer to a question", "answering"} {
 		if strings.Contains(got.ColumnText, dead) {
 			t.Errorf("the column still says %q — the state is said in the words of the phone", dead)
 		}
 	}
-	if got.Tones["person"] != "wait" || got.Tones["aacpanel"] != "busy" || got.Tones["helios"] != "idle" {
-		t.Errorf("the rows carry tones %v", got.Tones)
+	if got.Tones["person"] != "wait" || got.Tones["aacpanel"] != "busy" || got.Tones["helios"] != "idle" || got.Tones["shop"] != "wait" {
+		t.Errorf("the cards carry tones %v", got.Tones)
 	}
-	if !strings.Contains(got.Edge, "inset") || got.NoEdge != "none" {
-		t.Errorf("the waiting row has the edge %q and a quiet one %q — only the one waiting for the person gets it", got.Edge, got.NoEdge)
+	if !strings.Contains(got.Edge, "gradient") || got.NoEdge != "none" {
+		t.Errorf("the waiting card has the ground %q and a quiet one %q — only the one waiting for the person is warm", got.Edge, got.NoEdge)
 	}
-	if got.Before[0].Waits != "1" || got.Before[1].Waits != "1" {
-		t.Errorf("the headings count %q and %q waiting, expected one each", got.Before[0].Waits, got.Before[1].Waits)
-	}
-
-	for name, want := range map[string]string{
-		"aacpanel": "RC",
-		"helios":   "home,RC",
-		"scratch":  "tmux",
-		"shop":     "",
-	} {
-		if strings.Join(got.Marks[name], ",") != want {
-			t.Errorf("%s is marked %v, expected %q", name, got.Marks[name], want)
-		}
-	}
-	if regexp.MustCompile(`\bstream\b`).MatchString(got.ColumnText) {
-		t.Error("the column marks a session as living on the stream — that is where every session lives unless marked")
+	if got.Before[0].Waits != "1" || got.Before[1].Waits != "2" {
+		t.Errorf("the headings count %q and %q waiting, expected one and two", got.Before[0].Waits, got.Before[1].Waits)
 	}
 }
 
-// Under the state stands a quiet line of what the session runs on, in the
-// words the panel uses elsewhere and in the order of what tells most: who runs
-// it, in the hue of its agent, the model and its effort, the mode where it is
-// not the one the account starts in (a mode that stops the session asking is
-// said always), the context in tokens and right after them how full it is,
-// how long it has been up, and its compactions; the group of its project is
-// said by the heading over the row, not again on it. One line: what does not fit drops from the end, a
-// whole fact at a time. The share is quiet while there is room and loud when
-// the context is nearly spent. The lines of a row stand close, so the column
-// holds more sessions to a screen.
+// Under the state a card says who runs the session, in the hue of its agent,
+// on which model at which effort, and how often it was compacted, in words;
+// its settings stand in their places on every card — the mode, where it
+// lives, its cap, Remote Control, a worktree, an off one dimmed in its place —
+// and the share of its context closes them.
 func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	got := runDeskCard(t)
 
-	for name, want := range map[string]string{
-		"aacpanel": "Claude|Opus 5.5 · Extra|418k of 1m|42%|up 3 h|2 compactions",
-		"api":      "Claude|Opus 5.5 · Extra|Plan|370k of 1m|37%|up 3 h",
-		"shop":     "Claude|Opus 5.5 · Extra|Bypass|260k of 1m|26%|up 3 h",
-		"helios":   "Claude|Opus 5.5 · Extra|100k of 1m|10%|up 3 h",
-		"scratch":  "Claude|Opus 5.5 · Extra|50k of 1m|5%|up 3 h",
+	for name, want := range map[string]struct{ line4, more, badges, ctx string }{
+		"aacpanel": {"Claude Opus 5.5 Extra", "2 compactions", "Auto|stream|no cap|RC|worktree off", "42%"},
+		"api":      {"Claude Opus 5.5 Extra", "", "Plan|stream|no cap|RC off|worktree off", "37%"},
+		"shop":     {"Claude Opus 5.5 Extra", "", "Bypass|stream|no cap|RC off|worktree off", "26%"},
+		"helios":   {"Claude Opus 5.5 Extra", "", "Auto|stream|no cap|RC|worktree off", "10%"},
+		"scratch":  {"Claude Opus 5.5 Extra", "", "Auto|tmux|no cap|RC off|worktree off", "5%"},
 	} {
 		f := got.Facts[name]
-		if strings.Join(f.All, "|") != want {
-			t.Errorf("%s runs on %q, expected %q", name, strings.Join(f.All, "|"), want)
+		if f.Line4 != want.line4 || strings.Join(f.More, ",") != want.more || strings.Join(f.Badges, "|") != want.badges || f.Ctx != want.ctx {
+			t.Errorf("%s reads %q %v %v %q, expected %q %q %q %q", name, f.Line4, f.More, f.Badges, f.Ctx,
+				want.line4, want.more, want.badges, want.ctx)
 		}
 		if f.Agent != "claude" {
 			t.Errorf("%s: the line opens with a word painted as %q's, expected the word of its agent, claude", name, f.Agent)
 		}
-		if f.Lines != 1 {
-			t.Errorf("%s: the line of what it runs on takes %d lines", name, f.Lines)
-		}
-		if f.Row > 70 {
-			t.Errorf("%s: the row is %d px tall — its lines stand apart rather than close", name, f.Row)
-		}
-		if len(f.Shown) == 0 || strings.Join(f.Shown, "|") != strings.Join(f.All[:len(f.Shown)], "|") {
-			t.Errorf("%s shows %v of %v — what does not fit drops from the end", name, f.Shown, f.All)
-		}
-		if len(f.Cut) > 0 {
-			t.Errorf("%s shows %v cut at the edge of the column — a fact that does not fit is dropped whole", name, f.Cut)
-		}
-	}
-	if f := got.Facts["aacpanel"]; len(f.Shown) >= len(f.All) {
-		t.Errorf("the longest line shows all of %v — the fixture no longer checks what happens to a line too long for the column", f.All)
-	}
-	for name, want := range map[string]string{"aacpanel": "", "acme-fingerprint-rotation-review": "crit"} {
-		f := got.Facts[name]
-		at := -1
-		for i, fact := range f.All {
-			if strings.HasSuffix(fact, "%") {
-				at = i
-			}
-		}
-		if at < 1 || !strings.Contains(f.All[at-1], " of ") {
-			t.Errorf("%s runs on %v — how full the context is stands right after its tokens", name, f.All)
-			continue
-		}
-		if len(f.Levels) != len(f.All) || f.Levels[at] != want {
-			t.Errorf("%s: the share %q carries the level %v, expected %q", name, f.All[at], f.Levels, want)
-		}
 	}
 }
 
-// A row offers pin, restart and close without the pointer; the home session
-// has no close. The action group stands in the top right corner of the row, on the line of the name
-// at the right edge, where no share of the context stands any more, and
-// nothing of the row runs into it: not a long name, not its marks, not the
-// state or the line of what it runs on. The column stands as narrow as it
-// gets, with the right panel open. One the panel did not start has no action,
-// which the fixture of such sessions holds.
+// A card offers its controls without the pointer — a new session in its
+// project where the card stands for the project alone, pause, restart, pin
+// and close; the home session has no close and no plus. The controls stand
+// in the top right corner of the card, on the line of the name at the right
+// edge, and nothing of the card runs into them: not a long name, not the
+// state or the lines under it. The column stands as narrow as it gets, with
+// the right panel open. One the panel did not start has no controls, which
+// the fixture of such sessions holds.
 func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 	got := runDeskCard(t)
 
 	if len(got.Rows) < 7 {
-		t.Fatalf("the column shows %d live rows: %+v", len(got.Rows), got.Rows)
+		t.Fatalf("the column shows %d live cards: %+v", len(got.Rows), got.Rows)
 	}
 	for _, row := range got.Rows {
-		want := 3
-		if row.Name == "helios" {
-			want = 2
+		want := 5
+		switch row.Name {
+		case "helios":
+			want = 3
+		case "scratch", "acme-fingerprint-rotation-review":
+			want = 4
 		}
 		if row.Icons != want || !row.Shown {
-			t.Errorf("%s has %d actions, shown %v — every row the panel started shows its actions without the pointer", row.Name, row.Icons, row.Shown)
+			t.Errorf("%s has %d controls, shown %v — every card the panel started shows its controls without the pointer", row.Name, row.Icons, row.Shown)
 		}
 		if len(row.Bad) > 0 {
-			t.Errorf("%s: %v — the action keeps the corner of its own", row.Name, row.Bad)
+			t.Errorf("%s: %v — the controls keep the corner of their own", row.Name, row.Bad)
 		}
 	}
-	if got.HomeAct != "pin session group helios,restart session helios" {
-		t.Errorf("the home session offers %q, expected pin and restart", got.HomeAct)
+	if got.HomeAct != "pause session helios,restart session helios,pin session group helios" {
+		t.Errorf("the home session offers %q, expected pause, restart and pin", got.HomeAct)
 	}
 	if len(got.Hiding) > 0 {
-		t.Errorf("the stylesheet takes off the screen %v — the actions of the column stand without the pointer", got.Hiding)
+		t.Errorf("the stylesheet takes off the screen %v — the controls of the column stand without the pointer", got.Hiding)
 	}
 }
 
@@ -332,8 +285,8 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 // new session in a project of its map: the projects drop from it grouped as the map groups them, the home
 // project left out while the home session lives, and a press sends the same
 // action the projects panel does, addressed by the id of the map entry. The
-// plus in the heading of a project, there without the pointer too, sends the
-// same action for its own project.
+// plus of a card that stands for its project alone, there without the
+// pointer too, sends the same action for its own project.
 func TestDeskContourHeadingStartsASession(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -350,22 +303,23 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 		t.Errorf("the new session is addressed as %+v, expected the project of the map by its id", got.Opened[0].Params)
 	}
 	if got.ProjectPlus != "visible" {
-		t.Errorf("the plus of a project heading stands %q — it is there without the pointer", got.ProjectPlus)
+		t.Errorf("the plus of a project's card stands %q — it is there without the pointer", got.ProjectPlus)
 	}
 	if len(got.ProjectOpened) != 1 || got.ProjectOpened[0].Kind != "session.open" || got.ProjectOpened[0].Target != "person" {
 		t.Fatalf("a press on the plus of person sent %+v, expected one session.open", got.ProjectOpened)
 	}
 	if id, ok := got.ProjectOpened[0].Params["project"].(float64); !ok || int(id) != 12 {
-		t.Errorf("the session of the project heading is addressed as %+v, expected project 12 by its id", got.ProjectOpened[0].Params)
+		t.Errorf("the session of the project's card is addressed as %+v, expected project 12 by its id", got.ProjectOpened[0].Params)
 	}
 }
 
 // The closed conversations of every contour shown stand on a shelf below all
 // of them: one request for all the contours, newest first, one per project
-// and none where nothing was said; each with its name, its contour, what it
-// was about and when, and no dot or bar. The time closes the first line
-// and Resume the second, both on every row: what the conversation was about
-// gives way to them and nothing runs into them. The archive is a press away.
+// and none where nothing was said; each a card of the live skeleton, dimmed,
+// with its name, its contour, what it was about and how long ago, and the bar
+// of its edge drawn as the peak it reached rather than a fill. The time and
+// Resume stand on every card, and nothing runs into them. The archive is a
+// press away.
 func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -384,12 +338,12 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 		if first.Contour != "personal" || got.Shelf[1].Contour != "personal" || last.Contour != "Globex Group" {
 			t.Errorf("the shelf names the contours %q, %q, %q", first.Contour, got.Shelf[1].Contour, last.Contour)
 		}
-		if first.When != "1 h ago" || last.When != "1 d ago" || !strings.Contains(last.About, "move the report exports") {
+		if first.When != "1h10" || last.When != "26h" || !strings.Contains(last.About, "move the report exports") {
 			t.Errorf("the shelf says %q and %q, %q", first.When, last.When, last.About)
 		}
 		for _, row := range got.Shelf {
 			if row.Dot {
-				t.Errorf("%s on the shelf has a dot or a bar — a closed conversation is quiet", row.Name)
+				t.Errorf("%s on the shelf has a bar of a fill — a closed conversation shows the peak it reached", row.Name)
 			}
 			if row.Resume == "none" || row.When == "" {
 				t.Errorf("%s on the shelf shows Resume %q and the time %q — both stand without the pointer", row.Name, row.Resume, row.When)
@@ -433,7 +387,7 @@ func TestDeskChatHeaderStandsInTwoLines(t *testing.T) {
 		if head.Gap > 1 {
 			t.Errorf("%s the name leaves a hole of %d px after it", label, head.Gap)
 		}
-		if !strings.HasPrefix(head.Sub, "Claude · Opus 5.5 · answering · 26% ·") || head.Agent != "claude" {
+		if !strings.HasPrefix(head.Sub, "Claude · Opus 5.5 · working · 26% ·") || head.Agent != "claude" {
 			t.Errorf("%s the line under the name reads %q, opened by a word painted as %q's: the agent, the model, the state, the share, the path",
 				label, head.Sub, head.Agent)
 		}
@@ -450,123 +404,29 @@ func TestDeskChatHeaderStandsInTwoLines(t *testing.T) {
 }
 
 // The time of a closed conversation is said in the words of the screen: how
-// long ago, in English, not a date in the locale of the browser.
+// long ago, in the card's own short span, not a date in the locale of the
+// browser.
 func TestClosedConversationTimeIsRelative(t *testing.T) {
 	got := runDeskCard(t)
-	if !strings.HasPrefix(got.PhoneWhen, "2 h ago") || regexp.MustCompile(`\p{Cyrillic}`).MatchString(got.PhoneWhen) {
-		t.Errorf("a closed conversation on the phone reads %q, expected how long ago in English", got.PhoneWhen)
+	if got.PhoneWhen != "2h" || regexp.MustCompile(`\p{Cyrillic}`).MatchString(got.PhoneWhen) {
+		t.Errorf("a closed conversation on the phone reads %q, expected how long ago, 2h", got.PhoneWhen)
 	}
 }
 
-// The ground of a live row fills faintly as far as its context, in the colour
-// of its bar and over the bar's own columns, so the fill starts and ends where
-// the bar does: a fill measured against the whole row starts in the padding
-// the bar leaves out and ends off the bar's end. The fill lies under the
-// words and stays on the open row; a console still being raised has no
-// context and no fill.
-func TestDeskRowGroundFillsAsFarAsItsContext(t *testing.T) {
-	got := runDeskCard(t)
-	for name, pct := range map[string]float64{"aacpanel": 41.8, "person": 63, "helios": 10, "acme-fingerprint-rotation-review": 99.6} {
-		g, ok := got.Grounds[name]
-		if !ok {
-			t.Errorf("%s: the fixture measured no ground", name)
-			continue
-		}
-		if g.Track == 0 || g.Span < g.Track-1 || g.Span > g.Track+1 {
-			t.Errorf("%s: the ground spans %.1f px against the bar's %.1f — it is not laid over the bar's columns", name, g.Span, g.Track)
-		}
-		if share := g.Width / g.Track; share < pct/100-.01 || share > pct/100+.01 {
-			t.Errorf("%s: the ground fills %.3f of the bar's track against a context of %v%%", name, share, pct)
-		}
-		if d := g.Width - g.Reach; d > 1 || d < -1 {
-			t.Errorf("%s: the ground ends at %.1f px and the bar at %.1f — the two ends of one context do not meet", name, g.Width, g.Reach)
-		}
-		ground, alpha, okG := srgbOf(g.Ground)
-		bar, _, okB := srgbOf(g.Bar)
-		if !okG || !okB {
-			t.Errorf("%s: the colours %q and %q do not read", name, g.Ground, g.Bar)
-			continue
-		}
-		for i := range ground {
-			if d := ground[i] - bar[i]; d > 2 || d < -2 {
-				t.Errorf("%s: the ground is %q, not the colour of its bar %q", name, g.Ground, g.Bar)
-				break
-			}
-		}
-		if alpha < .04 || alpha > .2 {
-			t.Errorf("%s: the ground is %q — at %.2f it is no faint fill", name, g.Ground, alpha)
-		}
-		if g.Under != "-1" || g.Own != "isolate" {
-			t.Errorf("%s: the fill stands at z-index %s in a row isolated as %q — it has to lie under the words, over the row's own ground",
-				name, g.Under, g.Own)
-		}
-	}
-	if got.GhostGround.Width != 0 {
-		t.Errorf("the console being raised is filled %.1f px wide — it has no context yet", got.GhostGround.Width)
-	}
-}
-
-var colourNumber = regexp.MustCompile(`[0-9.]+`)
-
-// srgbOf reads a computed colour, rgb() or color(srgb …), into channels of
-// 0–255 and an alpha.
-func srgbOf(css string) ([3]float64, float64, bool) {
-	var c [3]float64
-	nums := colourNumber.FindAllString(css, -1)
-	if len(nums) < 3 {
-		return c, 0, false
-	}
-	scale := 1.0
-	if strings.HasPrefix(css, "color(srgb") {
-		scale = 255
-	}
-	for i := range c {
-		v, err := strconv.ParseFloat(nums[i], 64)
-		if err != nil {
-			return c, 0, false
-		}
-		c[i] = v * scale
-	}
-	alpha := 1.0
-	if len(nums) > 3 {
-		v, err := strconv.ParseFloat(nums[3], 64)
-		if err != nil {
-			return c, 0, false
-		}
-		alpha = v
-	}
-	return c, alpha, true
-}
-
-// rowGround is the faint fill under a live row of the column: how wide it is
-// and the box it is laid over, the width of the bar's track and how far the
-// bar's fill reaches, its colour against the bar's, and whether it lies under
-// the words.
-type rowGround struct {
-	Width  float64 `json:"width"`
-	Span   float64 `json:"span"`
-	Track  float64 `json:"track"`
-	Reach  float64 `json:"reach"`
-	Ground string  `json:"ground"`
-	Bar    string  `json:"bar"`
-	Under  string  `json:"under"`
-	Own    string  `json:"own"`
-}
-
-// A session that called the person rings on its row until its conversation
-// has been on screen: a bell among the marks of its name that says when it
-// called, on no other row, and gone once the person has been there and come
-// back, before the host says so.
+// A session that called the person waits on its card until its conversation
+// has been on screen: the state's word says the call and the corner how long
+// ago, on no other card, and the card is quiet again once the person has been
+// there and come back, before the host says so.
 func TestDeskRowRingsUntilTheSessionIsOpened(t *testing.T) {
 	got := runDeskCard(t)
-	tip, ok := got.Bells["shop"]
+	said, ok := got.Bells["shop"]
 	if len(got.Bells) != 1 || !ok {
-		t.Fatalf("the rows ringing are %v, wanted the one session that called", got.Bells)
+		t.Fatalf("the cards saying a call are %v, wanted the one session that called", got.Bells)
 	}
-	if tip != "1 waiting for you: call: Called you · 3 min ago" {
-		t.Errorf("the bell says %q, wanted when the session called", tip)
+	if said != "called you · 3m" {
+		t.Errorf("the card says %q, wanted the call and how long ago it came", said)
 	}
 	if len(got.BellsVisited) != 0 {
-		t.Errorf("the conversation of the session was on screen, and the column still rings: %v", got.BellsVisited)
+		t.Errorf("the conversation of the session was on screen, and the column still says the call: %v", got.BellsVisited)
 	}
 }

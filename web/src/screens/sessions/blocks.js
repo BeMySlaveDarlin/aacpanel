@@ -7,25 +7,17 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { ago, plural, since, tokens } from "../../format.js";
+import { plural } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { ContextBar, autoRestartTip } from "../../ui/bar.js";
-import { waitText } from "../../ui/waits.js";
-import { useAction } from "../../actions/gate.js";
-import { knows, whyNot } from "../../exec.js";
-import { checklistShort } from "../chat/checklist.js";
 import { sessionsOf } from "./of.js";
-import { limitState } from "../../contour.js";
-import { kinLabel, kinOf, layoutOf, openedLabel, placeOf } from "./kin.js";
+import { kinLabel, kinOf, layoutOf, openedLabel } from "./kin.js";
 import { useFolds } from "./folds.js";
-import { CODEX_CLOSE, CODEX_RESTART, agentKey, agentName, codexRestartWhy, codexResume, isCodex, shownName, spoke } from "../../agent.js";
-import { modelTitle, runningOf, stopsOf, workOf } from "../chat/head.js";
-import { listen, shown } from "../chat/answered.js";
+import { shownName } from "../../agent.js";
+import { listen } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
-import { WaitingMark, waitingOf } from "../../waiting.js";
-import { alarmTime, SessionAlarms } from "./alarms.js";
-import { PauseControl } from "./pause.js";
-import { comparePins, pinAt, pinOf } from "./pin.js";
+import { stateOf } from "./state.js";
+import { GhostCard, Glyph, HeadActs, PastCard, SessionCard, nameOf } from "./sessioncard.js";
+import { comparePins, pinAt } from "./pin.js";
 
 // The most pressing state of a block: who waits for the person, who works —
 // on an answer or in its background — and who is quiet.
@@ -39,36 +31,26 @@ export const QUIET_MAX = 5;
 // restart opens with. The card is named by the last one that says something.
 const ABOUT_MIN = 12;
 
-// stateOf says what a live session is doing, in the words and the tone of the
-// row that shows it: since is all that follows the state on one line, and
-// when and work are its two halves — since when, and what runs in the
-// background — for a row that gives each a line of its own. A question or a
-// permission answered from this page no longer has the session waiting,
-// whatever the snapshot has not caught up with yet (see shown in answered.js).
-export function stateOf(row, limits = null) {
-    const s = shown(row);
-    if (s.restarting) return { tone: "busy", text: "restarting", since: "", when: "", work: "" };
-    const limit = limitState(s, limits);
-    if (limit) return { ...limit, since: "", when: "", work: "" };
-    if (s.ask) {
-        const more = s.ask.count > 1 ? `${s.ask.count} ${plural(s.ask.count, "question", "questions")}` : "";
-        return { tone: "wait", text: `asks you${s.ask.header ? ` · ${s.ask.header}` : ""}`, since: more, when: more, work: "" };
+export { stateOf };
+
+// splitNotes sorts the collector notes by whom they are addressed to: a note
+// that opens with the name of a live session goes on its card.
+export function splitNotes(notes, sessions) {
+    const live = new Set(sessions.map((s) => s.session));
+    const own = new Map();
+    const common = [];
+
+    for (const note of notes || []) {
+        const at = note.indexOf(":");
+        const name = at > 0 ? note.slice(0, at) : "";
+        if (name && live.has(name)) {
+            const text = note.slice(at + 1).trim();
+            own.set(name, [...(own.get(name) || []), text]);
+            continue;
+        }
+        common.push(note);
     }
-    if (s.waitingFor || s.status === "waiting") {
-        return { tone: "wait", text: waitText(s.waitingFor), since: "", when: "", work: "" };
-    }
-    const work = workOf(s.work);
-    if (s.status === "busy") return { tone: "busy", text: "working", since: work, when: "", work };
-    const question = waitingOf(s).find((item) => item.kind === "question");
-    if (question) return { tone: "wait", text: question.title, since: "", when: "", work: "" };
-    if (s.noRequests) return { tone: "idle", text: "no replies yet", since: work, when: "", work };
-    const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
-    const since = [when, work].filter(Boolean).join(" · ");
-    // The answer is over and what it started still runs (see runningOf): the
-    // row says so rather than idle.
-    if (runningOf(s.work) > 0) return { tone: "bg", text: "background", since, when, work };
-    if (s.pauseAlarm) return { tone: "paused", text: `paused · until ${alarmTime(s.pauseAlarm.next)}`, since, when, work };
-    return { tone: "idle", text: "idle", since, when, work };
+    return { own, common };
 }
 
 // useAnswers redraws a list of sessions when an answer from this page marks a
@@ -239,84 +221,105 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [], wa
     return [...out.values()].sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt) || attention(a) - attention(b));
 }
 
-// ProjectBlock is one project: its name, a new session in it, and its live
-// sessions or, with none, its last conversation.
+// headed says whether a block stands under a heading of its own: a project
+// with two cards or more. A project with one card is said by its card, which
+// carries the project as a quiet prefix to its name and its plus.
+export function headed(block) {
+    return block.live.length + block.ghosts.length > 1;
+}
+
+// ProjectBlock is one project: a heading with its name, its group and its
+// controls over two cards or more; its live sessions, those being raised and,
+// with none, its last conversation.
 export function ProjectBlock({ block, profile, exec, wait, notes, live, past, onOpen, onProject, limits }) {
-    const run = useAction();
     const project = block.project;
-    const canNew = project && !block.home;
-    const ready = knows(exec, "session.open");
+    const head = headed(block);
+    const solo = head ? null : project || { name: block.name, session: block.name };
+    const known = head && project ? project.session || project.name : "";
+    const sessions = live || block.live;
     return html`
-        <section class=${`pjblock${block.live.length === 0 && block.ghosts.length === 0 ? " pjquiet" : ""}`}>
-            <div class="pjhead">
-                ${project && onProject
-                    ? html`<button class="pjname" type="button" aria-label=${`project ${block.name}`}
-                                   onClick=${() => onProject(project, block.group)}>${block.name}</button>`
-                    : html`<span class="pjname">${block.name}</span>`}
-                ${block.group && html`<span class="pjgroup">${block.group}</span>`}
-                ${project && html`<${PauseControl} project=${project} profile=${profile} sessions=${live || block.live} exec=${exec} />`}
-                ${canNew && html`
-                    <button class="pjnew" type="button" disabled=${!ready}
-                            aria-label=${`new session in project ${block.name}`}
-                            title=${ready ? "" : whyNot(exec, "session.open")}
-                            onClick=${() => run("session.open", project.session, { project: project.id })}>
-                        ${Icon.plus()}<span>New</span>
-                    </button>
-                `}
-            </div>
+        <section class=${`pjblock${head ? "" : " pjsolo"}${block.live.length === 0 && block.ghosts.length === 0 ? " pjquiet" : ""}`}>
+            ${head && html`
+                <div class="pjhead">
+                    ${project && onProject
+                        ? html`<button class="pjname" type="button" aria-label=${`project ${block.name}`}
+                                       onClick=${() => onProject(project, block.group)}>${block.name}</button>`
+                        : html`<span class="pjname">${block.name}</span>`}
+                    ${block.group && html`<span class="pjgroup">${block.group}</span>`}
+                    <${HeadActs} block=${block} profile=${profile} sessions=${sessions} exec=${exec} wait=${wait} />
+                </div>
+            `}
             <${LiveLines} limits=${limits} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
-                          onOpen=${onOpen} exec=${exec} />
-            ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
-            ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
+                          onOpen=${onOpen} exec=${exec} profile=${profile} solo=${block.live.length ? solo : null} known=${known} />
+            ${block.ghosts.map((task) => html`<${GhostCard} key=${task.target} task=${task} solo=${solo} known=${known} />`)}
+            ${block.past && html`<${PastCard} row=${block.past} about=${aboutOf(block.past, project)} exec=${exec}
+                                            solo=${project || { name: block.name, session: block.name }}
+                                            onOpen=${(row) => onOpen && onOpen(row.name, row.sessionId)} />`}
         </section>
     `;
 }
 
-// LiveLines lays out the live sessions of a project: the sessions a session
-// had the panel open stand a step in under it, behind a fold that is open
-// until the person closes it and says who of them waits; the runs it started
-// inside its work fold under it, closed; the sessions of a parent that closed
-// stand under what is left of it. Descendants stop at the third level, with
-// the branch to the parent's next sister running past them. live is every
-// live session the screen knows of, and past the closed conversations it has
-// read: they tell a parent alive elsewhere from one that closed, and when
-// it closed.
-export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits }) {
-    const [folded, fold] = useFolds();
-    const line = (s, kid = false, branch = "", from = "") => html`
-        <${LiveLine} key=${s.session} session=${s} kid=${kid} branch=${branch} from=${from}
-                     limits=${limits} pin=${pinOf(s, live || list, wait)}
-                     notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} exec=${exec} />
+// LiveLines lays out the live sessions of a project as cards: the sessions a
+// session had the panel open stand a step in under it, behind a fold that is
+// open until the person closes it and says who of them waits; the runs it
+// started inside its work fold under it, closed; the sessions of a parent
+// that closed stand under what is left of it. live is every live session the
+// screen knows of, and past the closed conversations it has read: they tell a
+// parent alive elsewhere from one that closed, and when it closed. solo is
+// the project a lone card stands for; known is what the heading over the
+// cards says of their names already. A desk hands its own folds — its arrow
+// keys go down the same rows — the conversation open beside the column
+// (current), the menu of a card (menuOf) and how a closed parent opens
+// (onStub).
+export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits, profile = null, solo = null, known = "",
+    folds = null, desk = false, current = "", menuOf = null, onStub = null }) {
+    const own = useFolds();
+    const [folded, fold] = folds || own;
+    const everyone = live || list;
+    const card = (s, depth = 0, from = "", parent = "") => html`
+        <${SessionCard} key=${s.session} s=${s} depth=${depth} from=${from} limits=${limits} wait=${wait} exec=${exec}
+                        sessions=${everyone} profile=${profile} notes=${notes && notes.get(s.session)}
+                        solo=${depth === 0 && list.length === 1 ? solo : null} known=${parent || known}
+                        desk=${desk} current=${current === s.session} onMenu=${menuOf ? menuOf(s) : null}
+                        onOpen=${(row) => onOpen && onOpen(row.session, row.sessionId)} />
     `;
+    const openStub = onStub || ((row) => onOpen && onOpen(row.name, row.sessionId));
     const row = (e) => {
         switch (e.kind) {
         case "fold":
             return html`<${OpenedFold} limits=${limits} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
-                                      onToggle=${() => fold(e.parent.session)} />`;
+                                      depth=${e.depth} onToggle=${() => fold(e.parent.session)} />`;
         case "runs":
-            return html`<${KinFold} limits=${limits} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
+            return html`<${KinFold} limits=${limits} key=${`kin:${e.parent.session}`} kids=${e.kids} depth=${e.depth}
+                                   line=${(s) => card(s, e.depth, "", e.parent.session)} />`;
         case "stub":
-            return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(past, e.parent)}
-                                      onOpen=${onOpen} />`;
+            return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(past, e.parent)} onOpen=${openStub} />`;
         default:
-            return line(e.s, false, e.branch || "", e.from || "");
+            return card(e.s, e.depth - 1, e.from || "", e.s.parent ? e.s.parent.session : "");
         }
     };
     return layoutOf(list, live, folded).map((e) => html`
-        <div key=${`${e.kind}:${e.s ? e.s.session : e.parent.session || e.parent}`}
-             class=${`pjtree${e.depth > (e.kind === "row" ? 2 : 1) ? " pjnested" : ""}${e.trail ? " pjtrail" : ""}`}>
-            ${row(e)}
-        </div>
+        <div key=${`${e.kind}:${e.s ? e.s.session : e.parent.session || e.parent}`} class="pjtree">${row(e)}</div>
     `);
 }
 
-// waitsOf says who under a fold waits for the person: by name where one does,
-// by count where several do.
+// waitsOf says who under a fold waits for the person: the one that does, by
+// its name and the state its glyph is drawn from, or how many do.
 export function waitsOf(kids, limits = null) {
-    const waiting = kids.filter((s) => stateOf(s, limits).tone === "wait");
-    if (waiting.length === 0) return "";
-    if (waiting.length > 1) return `${waiting.length} wait for you`;
-    return `${shownName(waiting[0])} ${shown(waiting[0]).ask ? "asks you" : "waits"}`;
+    const waiting = kids.map((s) => ({ s, state: stateOf(s, limits) })).filter((k) => k.state.tone === "wait");
+    if (waiting.length === 0) return null;
+    if (waiting.length > 1) return { count: waiting.length, name: "", state: waiting[0].state };
+    const s = waiting[0].s;
+    return { count: 1, name: nameOf(shownName(s), { known: s.parent ? s.parent.session : "" }).own, state: waiting[0].state };
+}
+
+// Waits is what waitsOf found, in the colour of waiting: a closed fold does
+// not hide a question. One that waits is its glyph and its name, several
+// are a count.
+export function Waits({ waits }) {
+    if (!waits) return null;
+    if (waits.count > 1) return html`<span class="scfoldwaits">${waits.count} wait for you</span>`;
+    return html`<span class="scfoldwaits" title=${`${waits.name}: ${waits.state.text}`}><${Glyph} state=${waits.state} />${waits.name}</span>`;
 }
 
 // closedRow is the latest closed conversation of a session, by its name, among
@@ -326,18 +329,15 @@ export function closedRow(past, name) {
 }
 
 // OpenedFold heads the sessions a session had the panel open: how many, and
-// who in their subtree waits for the person — in the colour of waiting, so
-// a closed fold does not hide a question. Its count and dots name only the
+// who in their subtree waits for the person. Its count names only the
 // children standing directly under it.
-function OpenedFold({ kids, hidden, open, onToggle, limits }) {
-    const waits = waitsOf(hidden, limits);
+function OpenedFold({ kids, hidden, open, onToggle, limits, depth = 1 }) {
     return html`
-        <button class="pjrow pjfold" type="button" aria-expanded=${open ? "true" : "false"}
+        <button class="scfold" type="button" aria-expanded=${open ? "true" : "false"} style=${`--depth:${depth}`}
                 onClick=${onToggle}>
-            <span class=${`pjkinchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
-            <span class="pjfoldtext">${openedLabel(kids.length)}</span>
-            ${!open && html`<span class="pjfolddots">${kids.map((s) => html`<i key=${s.session} data-tone=${stateOf(s, limits).tone}></i>`)}</span>`}
-            ${waits && html`<span class="pjfoldwaits">· ${waits}</span>`}
+            <span class=${`scfoldchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
+            <span class="scfoldtext">${openedLabel(kids.length)}</span>
+            <${Waits} waits=${waitsOf(hidden, limits)} />
         </button>
     `;
 }
@@ -349,175 +349,35 @@ function ParentStub({ parent, row, onOpen }) {
     const closed = row ? `closed ${when(stamp(row.lastAt))}` : "closed";
     if (!row || !onOpen) {
         return html`
-            <div class="pjrow pjstub"><span class="pjstubname">${parent}</span><span class="pjstubnote">${closed}</span></div>
+            <div class="scstub"><span class="scstubname">${parent}</span><span class="scstubnote">${closed}</span></div>
         `;
     }
     return html`
-        <button class="pjrow pjstub" type="button" aria-label=${`open the closed conversation ${parent}`}
-                onClick=${() => onOpen(row.name, row.sessionId)}>
-            <span class="pjstubname">${parent}</span>
-            <span class="pjstubnote">${closed}</span>
+        <button class="scstub" type="button" aria-label=${`open the closed conversation ${parent}`}
+                onClick=${() => onOpen(row)}>
+            <span class="scstubname">${parent}</span>
+            <span class="scstubnote">${closed}</span>
             <span class="chev">${Icon.chevron()}</span>
         </button>
     `;
 }
 
-function KinFold({ kids, line, limits }) {
+// KinFold holds the runs a session started inside its work under it, closed
+// until the person opens it. A run that waits for the person stands outside
+// the fold, where it is seen; the fold keeps the rest.
+function KinFold({ kids, line, limits, depth = 1 }) {
     const [open, setOpen] = useState(false);
-    const waiting = kids.filter((s) => stateOf(s, limits).tone === "wait").length;
+    const waiting = kids.filter((s) => stateOf(s, limits).tone === "wait");
+    const rest = kids.filter((s) => !waiting.includes(s));
     return html`
-        <button class="pjkin" type="button" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>
-            <span class=${`pjkinchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
-            <span>${kinLabel(kids.length)}</span>
-            ${waiting > 0 && html`<span class="pjkinwait">· ${waiting} waiting</span>`}
-        </button>
-        ${open && kids.map((s) => line(s, true))}
-    `;
-}
-
-// LiveLine is a live session inside its project, a line for each question:
-// what it is called, what it is doing, for how long it has lived and whether
-// Remote Control is up, where it is in the checklist of its work, who runs it
-// on which model and when it last asked, and what runs in its background. The
-// role of the session stays off the card: a phone's list is read for what the
-// sessions do, and the role is a press away in its tools. On
-// a phone one line holds no more than one of these: the state is read whole,
-// the checklist cut at its end. Every row opens with the name of its session,
-// the only session of its project included, and Restart and Close at the
-// right edge. The name yields to the buttons; where the session lives follows
-// Remote Control on the state's line. The home session is never closed,
-// a codex in tmux restarts from its terminal, and a session outside the panel is only read.
-// How full the session is stands level with the last line on the left, so
-// the lines under the name give up to the right no more than that figure. A
-// session another opened stands a step in under it, on the line of the branch
-// (branch "mid" or "last"); one whose parent stands elsewhere says which
-// session opened it (from).
-export function LiveLine({ session, wait, pin = pinOf(session, [], wait), kid = false, branch = "", from = "", notes, exec, onOpen, limits }) {
-    const run = useAction();
-    const state = stateOf(session, limits);
-    const steps = checklistShort(session.checklist);
-    const closing = wait ? wait.of("close", session.session) : null;
-    const restarting = wait ? wait.of("restart", session.session) : null;
-    const busy = closing || restarting || session.restarting;
-    const codex = isCodex(session);
-    const restartWhy = (codex ? codexRestartWhy(session) : "") || whyNot(exec, "session.restart");
-    const canRestart = knows(exec, "session.restart") && !restartWhy;
-    const canClose = knows(exec, "session.close");
-    const lost = stopsOf(session);
-    const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
-    const restartNote = codex ? CODEX_RESTART : ends("a new session with an empty context; this one stays in the archive");
-    const closeNote = codex ? CODEX_CLOSE : ends("the conversation stays in the archive");
-    const place = placeOf(session);
-    const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, daemon: Icon.plug }[place];
-    // The quiet line opens with who runs the session, in the hue of its agent.
-    const lived = session.startedAt ? since(session.startedAt) : "";
-    const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.when]
-        .filter(Boolean).map((part) => ` · ${part}`).join("");
-    return html`
-        <div class=${`pjrow pjcard${kid ? " pjkid" : ""}${branch ? ` pjbranch${branch === "last" ? " pjbranchend" : ""}` : ""}`}>
-            <div class="pjtop">
-                <span class="pjsess">${shownName(session)}</span>
-                ${!session.outside && html`
-                    <div class="pjacts">
-                        <button class="pjact" type="button" disabled=${pin.pending || !knows(exec, "session.pin")}
-                                aria-label=${`${pin.on ? "unpin" : "pin"} session group ${pin.root.session}`}
-                                aria-pressed=${pin.on ? "true" : "false"}
-                                aria-busy=${pin.pending ? "true" : undefined}
-                                title=${pin.why || whyNot(exec, "session.pin") || pin.tip}
-                                onClick=${() => run("session.pin", pin.root.session, { on: !pin.on })}>${Icon.thumbtack()}</button>
-                        <button class="pjact" type="button" disabled=${!canRestart || Boolean(busy)}
-                                aria-label=${`restart session ${session.session}`}
-                                title=${busy ? "the session is already closing or restarting" : restartWhy || restartNote}
-                                onClick=${() => run("session.restart", session.session, {})}>${Icon.refresh()}</button>
-                        ${!session.home && html`
-                            <button class="pjact" type="button" disabled=${!canClose || Boolean(busy)}
-                                    aria-label=${`close session ${session.session}`}
-                                    title=${busy ? "the session is already closing or restarting" : canClose ? closeNote : whyNot(exec, "session.close")}
-                                    onClick=${() => run("session.close", session.session, {})}>${Icon.close()}</button>
-                        `}
-                    </div>
-                `}
-            </div>
-            <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
-                    onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
-                <span class=${`pjstate pj-${state.tone}`}>
-                    <i class="pjdot"></i><span class="pjtext">${state.text}</span>
-                    ${lived && html`<span class="pjlived">${lived}</span>`}
-                    ${session.remote && html`<span class="pjremote" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
-                    <${SessionAlarms} session=${session} paused=${state.tone === "paused"} />
-                    ${session.autoRestart && html`<span class="pjrestart" title=${autoRestartTip(session.cap)}><${Icon.refresh} />auto</span>`}
-                    ${html`<${WaitingMark} session=${session} />`}
-                    <span class="pjtag">${tag()}${place}</span>
-                </span>
-                ${steps && html`<span class="pjchecklist">${steps}</span>`}
-                <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
-                ${state.work && html`<span class="pjwork">${state.work}</span>`}
-                ${from && html`<span class="pjfrom">opened by <b>${from}</b></span>`}
+        ${waiting.map((s) => line(s))}
+        ${rest.length > 0 && html`
+            <button class="scfold" type="button" aria-expanded=${open ? "true" : "false"} style=${`--depth:${depth}`}
+                    onClick=${() => setOpen(!open)}>
+                <span class=${`scfoldchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
+                <span class="scfoldtext">${waiting.length > 0 ? `${rest.length} more ${plural(rest.length, "run", "runs")}` : kinLabel(rest.length)}</span>
             </button>
-            <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
-            ${!session.noRequests && html`<${ContextBar} pct=${session.pct} cap=${session.cap} autoRestart=${session.autoRestart} edge />`}
-            ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
-        </div>
-        ${(notes || []).map((note) => html`<div class="pjnote" key=${note}>${note}</div>`)}
+            ${open && rest.map((s) => line(s))}
+        `}
     `;
-}
-
-// GhostLine holds the place of a session being raised.
-export function GhostLine({ task }) {
-    const sec = Math.max(0, Math.round((Date.now() - task.since) / 1000));
-    return html`
-        <div class="pjrow pjghost" role="status">
-            <span class="pjstate pj-busy"><span class="spin"></span><span class="pjtext">starting on the host · ${sec} s</span></span>
-        </div>
-    `;
-}
-
-// PastLine is the last conversation of a project: what it was about, when, and
-// the way back into it.
-export function PastLine({ row, project, exec, onOpen, named = false }) {
-    const run = useAction();
-    const codex = isCodex(row);
-    const about = codex ? "" : aboutOf(row, project);
-    const ready = knows(exec, "session.resume");
-    const ran = spanOf(stamp(row.startedAt), stamp(row.lastAt));
-    // A thread of codex keeps no words in the archive: its line says who ran
-    // it on which model, and what it spent, where a conversation of claude
-    // says what it was about and how full it got.
-    return html`
-        <div class="pjrow pjpast">
-            <button class="pjopen" type="button" aria-label=${`open conversation ${row.name}`}
-                    onClick=${() => onOpen && onOpen(row.name, row.sessionId)}>
-                ${named && html`<span class="pjsess">${row.name}</span>`}
-                ${codex
-                    ? html`<span class="pjabout"><span class="agentword" data-agent=${agentKey(row)}>${agentName(row)}</span>${pastModel(row)}</span>`
-                    : html`<span class=${`pjabout${about ? "" : " pjnone"}`}>${about
-                        ? `«${about}»`
-                        : row.messages > 0 ? `${row.messages} ${plural(row.messages, "message", "messages")}` : "not a word said"}</span>`}
-                <span class="pjwhen">${when(stamp(row.lastAt))}${ran ? ` · ${ran}` : ""} · ${codex
-                    ? (spoke(row) ? `${tokens(row.tokensUsed)} tokens` : "not a word said")
-                    : `peak ${Math.round(row.pctMax || 0)}%`}</span>
-            </button>
-            ${row.sessionId && html`
-                <button class="pjresume" type="button" disabled=${!ready}
-                        aria-label=${`resume conversation of ${row.name}`}
-                        title=${ready ? "" : whyNot(exec, "session.resume")}
-                        onClick=${() => run("session.resume", row.name, { session: row.sessionId, ...codexResume(row) })}>Resume</button>
-            `}
-        </div>
-    `;
-}
-
-// pastModel is the model and the effort an archived thread ran at, after the
-// word of its agent.
-export function pastModel(row) {
-    return [row.model ? modelTitle(row.model, { withWindow: false }) : "", row.effort || ""]
-        .filter(Boolean).map((part) => ` · ${part}`).join("");
-}
-
-function spanOf(from, to) {
-    const sec = Math.max(0, (to || 0) - (from || 0));
-    if (!from || !to) return "";
-    if (sec < 3600) return `${Math.max(1, Math.round(sec / 60))} min`;
-    if (sec < 86400) return `${Math.round(sec / 3600)} h`;
-    return `${Math.floor(sec / 86400)} d`;
 }

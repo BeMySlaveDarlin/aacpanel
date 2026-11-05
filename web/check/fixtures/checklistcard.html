@@ -53,31 +53,25 @@ window.done = (async () => {
     for (let i = 0; i < 100 && document.querySelectorAll(".pjblock").length < 5; i++) await sleep(20);
     await document.fonts.ready;
     const out = {};
-    for (const block of document.querySelectorAll(".pjblock")) {
-        const state = block.querySelector(".pjstate");
-        const said = block.querySelector(".pjtext");
-        const checklist = block.querySelector(".pjchecklist");
+    for (const card of document.querySelectorAll(".sc")) {
+        const said = card.querySelector(".scsay");
+        const line = card.querySelector(".scl3");
+        const step = card.querySelector(".scstep");
         const a = said.getBoundingClientRect();
-        const b = checklist ? checklist.getBoundingClientRect() : null;
-        out[text(block.querySelector(".pjname"))] = {
+        const b = line.getBoundingClientRect();
+        const segs = Array.from(card.querySelectorAll(".scsegs i"));
+        out[card.dataset.name] = {
             state: text(said),
             stateCut: cut(said),
             stateLines: Math.round(a.height / parseFloat(getComputedStyle(said).lineHeight)),
-            checklist: text(checklist),
-            inState: Boolean(checklist) && checklist.parentElement === state,
-            below: Boolean(b) && b.top >= state.getBoundingClientRect().bottom - 1,
-            lived: text(block.querySelector(".pjlived")),
-            livedOnLine: (() => {
-                const l = block.querySelector(".pjlived");
-                if (!l) return false;
-                const r = l.getBoundingClientRect();
-                return Math.abs(r.top - a.top) < 4 && r.left >= a.right - 1;
-            })(),
-            checklistWidth: b ? Math.round(b.width) : 0,
-            // The checklist stops short of the figure in the corner and lies
-            // under the state and its place chip, not beside them.
-            checklistInside: Boolean(b) && b.right <= block.querySelector(".pjpct").getBoundingClientRect().left + 0.5
-                && [".pjtag"].every((sel) => b.top >= block.querySelector(sel).getBoundingClientRect().bottom - 0.5),
+            step: text(step),
+            stepCut: cut(step) || getComputedStyle(step).textOverflow === "ellipsis",
+            n: text(card.querySelector(".scn")),
+            below: b.top >= a.bottom - 1,
+            segs: segs.map((i) => i.className === "scd" ? "d" : i.className === "sca" ? "a" : "-").join(""),
+            over: Boolean(card.querySelector(".scsegs.scover")),
+            empty: Boolean(card.querySelector(".scsegs.scempty")),
+            stepWidth: Math.round(b.width),
         };
     }
     out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;

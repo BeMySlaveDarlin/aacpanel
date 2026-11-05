@@ -19,10 +19,6 @@ export function ContextBurn({ cap, autoRestart }) {
     return html`<span class="ctxburn" style=${`left:${Math.max(0, cap)}%`} aria-hidden="true"></span>`;
 }
 
-export function autoRestartTip(cap) {
-    return `At ${cap}% context, the session saves its work and restarts with an empty context`;
-}
-
 // SegBar shows how many containers of a stack are up.
 export function SegBar({ total, done, kind }) {
     if (!total) return null;

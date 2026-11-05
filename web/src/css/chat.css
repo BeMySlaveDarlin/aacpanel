@@ -612,5 +612,9 @@ a.mcprow.toolrow { text-decoration: none; }
 
 .talkdot[data-tone="paused"] { background: var(--ink-dim); box-shadow: none; }
 .talkword[data-tone="paused"] { color: var(--ink-dim); }
+/* A child whose question waits at its parent: the colour of waiting, faded —
+   it waits, but not for the person yet. */
+.talkdot[data-tone="held"] { background: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); box-shadow: none; }
+.talkword[data-tone="held"] { color: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); }
 .pausecard .sentlabel { text-transform: none; }
 .pausecard summary { padding: .5rem .7rem; font-size: var(--t-xs); color: var(--ink-dim); cursor: pointer; }

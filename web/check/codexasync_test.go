@@ -113,15 +113,16 @@ func TestAnAnsweredSessionStopsWaitingAtOnce(t *testing.T) {
 			t.Errorf("%s: the head says %q and the row stands %+v, want %q and the tone %s", what, s.Word, s.Row, word, tone)
 		}
 	}
-	stands("claude asks", got.ClaudeAsks, "waiting for you", "wait")
+	// The head says the state in the words of the session's card.
+	stands("claude asks", got.ClaudeAsks, "asks Theme", "wait")
 	want := []sentAction{{Kind: "session.answer", Target: "site",
 		Params: map[string]any{"ask": "toolu_theme", "picks": []any{[]any{2.0}}}}}
 	if !reflect.DeepEqual(got.ClaudeSent, want) {
 		t.Fatalf("claude's question was answered with %+v, want %+v", got.ClaudeSent, want)
 	}
-	stands("claude answered", got.ClaudeAnswered, "answering", "busy")
-	stands("codex asks", got.CodexAsks, "asks you", "wait")
-	stands("codex answered", got.Going.Stands, "answering", "busy")
+	stands("claude answered", got.ClaudeAnswered, "working", "busy")
+	stands("codex asks", got.CodexAsks, "asks a question · works on", "wait")
+	stands("codex answered", got.Going.Stands, "working", "busy")
 }
 
 const (
@@ -164,7 +165,7 @@ func TestACodexQuestionItDidNotWaitForIsClaudesQuestion(t *testing.T) {
 	if c.Drop != "codex hears that you will answer in the conversation" {
 		t.Errorf("putting codex's question away says %q", c.Drop)
 	}
-	if !c.Sheet || c.Composer || c.Cards != 0 || c.Word != "asks you" {
+	if !c.Sheet || c.Composer || c.Cards != 0 || c.Word != "asks a question · works on" {
 		t.Errorf("a question above the end of the feed: %+v — the sheet stands in the composer's place, "+
 			"the head says the thread asks and works on", c.askScreen)
 	}

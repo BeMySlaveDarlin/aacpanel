@@ -45,15 +45,17 @@ const lines = (el) => {
 
 window.done = (async () => {
     await quiet();
-    const text = document.querySelector("#phone .pjstate .pjtext");
-    const long = document.querySelectorAll("#phone .pjstate")[1];
-    const top = (el) => el ? el.getBoundingClientRect().top : NaN;
+    const cards = document.querySelectorAll("#phone .sc");
+    const text = cards[0] && cards[0].querySelector(".scsay");
+    const long = cards[1] && cards[1].querySelector(".scsay");
     return {
-        longText: long ? long.querySelector(".pjtext").textContent.trim() : "",
-        longOff: long ? Math.abs(top(long.querySelector(".pjtext")) - top(long.querySelector(".pjdot"))) : NaN,
+        longText: long ? long.textContent.replace(/\s+/g, " ").trim() : "",
+        longLines: long ? lines(long) : 0,
+        longCut: long ? long.scrollWidth > long.clientWidth + 1 || getComputedStyle(long).textOverflow === "ellipsis" : true,
+        longInside: long ? long.getBoundingClientRect().right <= cards[1].getBoundingClientRect().right : false,
         text: text ? text.textContent.trim() : "",
         lines: text ? lines(text) : 0,
-        marks: document.querySelectorAll("#phone .pjstate :is(.pjlived, .pjalarm, .pjrestart, .pjtag)").length,
+        marks: cards[0] ? cards[0].querySelectorAll(".scl5 .scb").length : 0,
     };
 })();
 </script>

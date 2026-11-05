@@ -12,7 +12,8 @@ import { Icon } from "../../ui/icons.js";
 import { area, Chart } from "../../chart.js";
 import { bucketText, PERIODS, useSessionsArchive, useSessionsHistory } from "../../history.js";
 import { Chips } from "../../ui/chips.js";
-import { PastLine } from "./blocks.js";
+import { aboutOf } from "./blocks.js";
+import { PastCard } from "./sessioncard.js";
 import { Groups } from "./map.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
@@ -138,7 +139,8 @@ function ArchiveBlock({ block, map, exec, onOpen, onProject }) {
                     </button>
                 `}
             </div>
-            ${shown.map((row) => html`<${PastLine} key=${row.sessionId} row=${row} project=${own && own.project} exec=${exec} onOpen=${onOpen} />`)}
+            ${shown.map((row) => html`<${PastCard} key=${row.sessionId} row=${row} about=${aboutOf(row, own && own.project)} exec=${exec}
+                                                   known=${own ? own.project.session : ""} onOpen=${(r) => onOpen(r.name, r.sessionId)} />`)}
             ${rest > 0 && html`
                 <button class="pjlink" type="button" disabled=${!(own && onProject)}
                         onClick=${() => own && onProject({ ...own.project, profile: map.profile, contour: map.id, group: own.group })}>

@@ -1,0 +1,234 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>
+html,body{margin:0}
+#phone{width:390px} #phone .body{overflow:visible}
+#desk .deskshell{position:static;height:auto} #desk .dkbody{height:auto} #desk .dkscroll{overflow:visible}
+#desk .dkbody > .dkcenter, #desk .dkbody > .dkright{display:none}
+</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="phone"><div class="body"></div></div>
+<div id="desk"><div class="deskshell"><div class="dkbody withpanel"><div id="col" style="display:contents"></div><section class="dkcenter"></section><aside class="dkright"></aside></div></div></div>
+<script type="module">
+// The card of a session on its five lines, the list of a contour on the phone
+// and the column of the desk drawn from one scenario: a project of two
+// sessions under its heading, projects of one session said by their cards,
+// a session with two it opened, and the six states the skeleton has to hold
+// — working, quiet, done and not seen, waiting, paused and archived. On a
+// screen as wide as a desk the column is drawn; otherwise the phone's list.
+import { h, render } from "preact";
+import { Sessions } from "/src/screens/sessions.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const desk = matchMedia("(min-width: 1100px)").matches;
+if (desk) document.documentElement.style.setProperty("--ui-scale", "1.2");
+document.getElementById(desk ? "phone" : "desk").remove();
+
+const now = Date.now();
+const iso = (min) => new Date(now - min * 60e3).toISOString();
+const ahead = (min) => new Date(now + min * 60e3).toISOString();
+const P = (id, name, path = `/srv/${name}`) => ({ id, name, session: name, path });
+const pj = {
+    aacpanel: P(1, "aacpanel"), person: P(2, "person"), tg: P(3, "tg-ai-shadow"), kkam: P(4, "kkam-smart-home", "/srv/kkam"),
+    watchdog: P(5, "watchdog"), llm: P(6, "llm-ops"), notes: P(7, "notes-bot"), nightly: P(8, "nightly"),
+};
+const profileMap = [{ id: 1, profile: "personal", name: "personal", groups: [
+    { name: "Infra", projects: [pj.aacpanel] },
+    { name: "Combine", projects: [pj.person, pj.tg, pj.kkam, pj.watchdog, pj.llm, pj.nightly, pj.notes] },
+] }];
+const steps = (texts, done, active = true) => ({ at: iso(30), items: texts.map((text, i) => ({
+    text, status: i < done ? "done" : i === done && active ? "active" : "pending" })) });
+const seven = ["Read meters", "Map fields", "Wire meters", "Draw bars", "Test bars", "Shoot", "Ship"];
+const S = (project, o) => ({
+    transport: "stream", agent: "claude", model: "claude-opus-5-5", effort: "high", mode: "auto", cap: 80, limit: 1000000, limitKnown: true,
+    startedAt: iso(185), lastRequestAt: iso(5), statusUpdatedAt: iso(34), sessionId: `id-${o.session}`, profile: "personal", contour: 1,
+    cwd: project.path, project: { id: project.id, name: project.name, session: project.session }, status: "idle", tokens: 100000, ...o,
+});
+const sessions = [
+    S(pj.aacpanel, { session: "aacpanel", status: "busy", checklist: steps(seven, 2), work: { agents: 1, tasks: 0 }, pct: 46 }),
+    S(pj.aacpanel, { session: "aacpanel-cards", status: "waiting", ask: { header: "Layout", text: "Which layout?", count: 1, at: iso(12), toolUseId: "t1" },
+        checklist: steps(["Read", "Sketch", "Mock", "Re-layout cards", "Test", "Shoot", "Ship", "Tell", "Close"], 3),
+        work: { agents: 2, tasks: 1 }, queued: 2, pct: 66, remote: "https://claude.ai/code/session_x", checkout: "/srv/aacpanel" }),
+    S(pj.person, { session: "person-ingest", status: "waiting", waitingFor: "dialog open", permission: { tool: "Bash", head: "tar -xf" },
+        statusUpdatedAt: iso(3), checklist: steps(["Fetch", "Unpack", "Scan", "Import archive", "Index", "Check", "Tag", "Done"], 3), cap: 50, pct: 27 }),
+    S(pj.tg, { session: "tg-ai-shadow", statusUpdatedAt: iso(18), seenAt: iso(40),
+        checklist: steps(["Read", "Plan", "Build", "Test", "Fix", "Docs", "Ship reply bot"], 7, false), pct: 35 }),
+    S(pj.kkam, { session: "kkam-cameras", status: "busy", statusUpdatedAt: iso(12), mode: "default",
+        checklist: steps(["Probe", "List", "Read", "Pick", "Merge drivers", "Test", "Ship", "Docs", "Tell"], 4), pct: 31 }),
+    S(pj.kkam, { session: "kkam-cameras-onvif", status: "waiting", parent: { session: "kkam-cameras" }, startedAt: iso(60),
+        ask: { header: "Library", count: 1, at: iso(5), toolUseId: "t2" }, checklist: steps(["Read", "Pick library", "Wire", "Test"], 1), pct: 16 }),
+    S(pj.kkam, { session: "kkam-cameras-rtsp", status: "busy", parent: { session: "kkam-cameras" }, startedAt: iso(50), statusUpdatedAt: iso(8),
+        mode: "bypassPermissions", autoRestart: true,
+        work: { agents: 0, tasks: 1 }, checklist: steps(["Read", "Probe RTSP", "Wire", "Test", "Ship"], 1), pct: 24 }),
+    // A wake ahead: said on the state's line, with what runs, though it runs
+    // nothing.
+    S(pj.watchdog, { session: "watchdog-review", agent: "codex", model: "gpt-6.1-sol", effort: "medium", cap: null,
+        statusUpdatedAt: iso(6), seenAt: iso(1), pct: 21, nextAlarm: { id: "w1", name: "check the run", next: ahead(90) } }),
+    S(pj.llm, { session: "llm-ops-nightly", pauseAlarm: { id: "p1", next: ahead(300) },
+        checklist: steps(["Pull", "Rotate eval set", "Run", "Report"], 1, false), pct: 9 }),
+    // A project whose every session is paused: its heading continues them all.
+    S(pj.nightly, { session: "nightly-eval", pauseAlarm: { id: "p2", next: ahead(300) }, pct: 12 }),
+    S(pj.nightly, { session: "nightly-index", pauseAlarm: { id: "p3", next: ahead(300) }, pct: 7 }),
+];
+const archive = [
+    { name: "notes-bot", sessionId: "past-notes", profile: "personal", contour: 1, project: { id: 7, name: "notes-bot", group: "Combine" },
+      cwd: "/srv/notes-bot", startedAt: iso(400), lastAt: iso(180), messages: 20, pctMax: 41, prompts: ["Write the README for the bot"],
+      agent: "claude", model: "claude-opus-5-5", effort: "high",
+      last: { step: "Write the README", done: 6, total: 6, agent: "claude", model: "claude-opus-5-5", effort: "high", mode: "auto",
+              transport: "stream", cap: 80, autoRestart: false, remote: "", checkout: "" } },
+];
+const limits = { contours: [{ profile: "personal", contour: 1, ageSec: 30, at: now / 1000,
+    fiveHour: { pct: 12, resetsAt: now / 1000 + 3600 }, sevenDay: { pct: 84, resetsAt: now / 1000 + 61 * 3600 } }] };
+const snapshot = { at: now / 1000, sessions, profileMap, limits, sessionNotes: ["aacpanel-cards: feed lags 1 min"],
+    profiles: [{ name: "personal", account: { permissionMode: "auto" } }] };
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const sent = [];
+window.fetch = counted(async (url, init) => {
+    const u = String(url);
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true, detail: "done" });
+    }
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: archive, total: archive.length, limit: 30, offset: 0 });
+    return new Response("", { status: 404 });
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.open", "session.resume", "session.pin", "project.pause"] };
+const wait = { opening: () => [], of: () => null };
+const wrap = (node) => h(ToastHost, null, h(GateHost, null, node));
+if (desk) {
+    render(wrap(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait })),
+        document.getElementById("col"));
+} else {
+    render(wrap(h(Sessions, { snapshot, ageSec: 1, exec, wait, faults: [] })), document.querySelector("#phone .body"));
+}
+
+// The six states the skeleton holds, by the session that stands in each.
+const SIX = { working: "aacpanel", quiet: "watchdog-review", unseen: "tg-ai-shadow", waiting: "aacpanel-cards",
+    paused: "llm-ops-nightly", archived: "notes-bot" };
+// The main content of a card: what may wrap but must never be cut.
+const MAIN = [".scname", ".scword", ".scsubj", ".scmono", ".scstep", ".scagent", ".scb", ".scctx", ".sctime", ".scn"];
+const LINES = [".scl1", ".scl2", ".scl3", ".scsegs", ".scl4", ".scl5"];
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const box = (el) => el.getBoundingClientRect();
+
+window.done = (async () => {
+    await document.fonts.ready;
+    await quiet();
+    const end = performance.now() + 3000;
+    while (!document.querySelector(`.sc[data-name="notes-bot"]`) && performance.now() < end) await new Promise(requestAnimationFrame);
+    const card = (name) => document.querySelector(`.sc[data-name="${name}"]`);
+    const six = {};
+    for (const [state, name] of Object.entries(SIX)) {
+        const el = card(name);
+        if (!el) { six[state] = null; continue; }
+        const say = el.querySelector(".scsay");
+        const runs = [...el.querySelectorAll(".scrun")];
+        six[state] = {
+            name,
+            height: Math.round(box(el).height),
+            lines: LINES.map((sel) => el.querySelectorAll(`:scope > ${sel}`).length),
+            lineHeights: LINES.map((sel) => { const l = el.querySelector(`:scope > ${sel}`); return l ? Math.round(box(l).height) : 0; }),
+            line2: text(el.querySelector(".scl2")),
+            line3: text(el.querySelector(".scl3")),
+            line4: text(el.querySelector(".scl4")),
+            line5: text(el.querySelector(".scl5")),
+            name1: text(el.querySelector(".scname")),
+            controls: [...el.querySelectorAll(".scacts > button")].map((b) => {
+                const cs = getComputedStyle(b);
+                const r = box(b);
+                return { label: b.getAttribute("aria-label"), shown: cs.visibility === "visible" && cs.display !== "none"
+                    && Number(cs.opacity) >= .25 && r.width >= 16 && r.height >= 16 };
+            }),
+            cut: MAIN.flatMap((sel) => [...el.querySelectorAll(sel)]).filter((m) => {
+                const cs = getComputedStyle(m);
+                return cs.textOverflow === "ellipsis" || m.scrollWidth > m.clientWidth + 1;
+            }).map((m) => `${m.className}: ${text(m)}`),
+            runs: runs.map(text),
+            alarm: text(el.querySelector(".scl2 .scalarm")),
+            alarmIcon: Boolean(el.querySelector(".scl2 .scalarm svg")),
+            runsGap: runs.length && say ? Math.round(box(runs[0]).left - box(say).right) : null,
+            overflow: el.scrollWidth - el.clientWidth,
+        };
+    }
+    // Cut, or run into a neighbour on its line: the places of the settings
+    // and the share of the context stand side by side.
+    const meets = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+    const cutAnywhere = [...document.querySelectorAll(".sc")].flatMap((el) => [
+        ...MAIN.flatMap((sel) => [...el.querySelectorAll(sel)])
+            .filter((m) => getComputedStyle(m).textOverflow === "ellipsis" || m.scrollWidth > m.clientWidth + 1)
+            .map((m) => `${el.dataset.name} ${m.className}: ${text(m)}`),
+        ...[...el.querySelectorAll(".scl5 > *")].flatMap((a, i, all) => all.slice(i + 1)
+            .filter((b) => meets(box(a), box(b))).map((b) => `${el.dataset.name}: ${text(a)} runs into ${text(b)}`)),
+    ]);
+    const heads = [...document.querySelectorAll(desk ? ".dkproj" : ".pjhead")].map((head) => ({
+        name: text(head.querySelector(desk ? ".dkprojname" : ".pjname")),
+        acts: [...head.querySelectorAll(".scheadacts > button")].map((b) => b.getAttribute("aria-label")),
+    }));
+    const solo = card("person-ingest");
+    const foot = [...document.querySelectorAll(".scfootlink")].map((link) => {
+        const cs = getComputedStyle(link);
+        return { text: text(link), border: cs.borderTopStyle, bg: cs.backgroundColor, height: Math.round(box(link).height) };
+    });
+    const root = document.getElementById(desk ? "col" : "phone");
+    const width = Math.round(box(card("aacpanel") || root).width);
+    // A picture of the list is taken before anything is pressed.
+    if (new URLSearchParams(location.search).has("screenshot")) return { desk, width };
+
+    // The heading of a project restarts every live session under it, one
+    // after another, each through its own confirmation; a cancel stops the
+    // rest. The heading of a project all paused continues them all.
+    const gate = () => document.querySelector('.sheet.on[aria-label="action confirmation"]');
+    const wait = async (ok) => {
+        const end = performance.now() + 3000;
+        while (!ok() && performance.now() < end) await new Promise(requestAnimationFrame);
+        return ok();
+    };
+    const restartAll = document.querySelector('[aria-label="restart the sessions of kkam-smart-home"]');
+    const asked = [];
+    restartAll.click();
+    for (let i = 0; i < 3; i++) {
+        if (!await wait(() => gate() && gate().querySelector(".btnrow .btn:last-child"))) break;
+        asked.push(text(gate().querySelector(".stitle")));
+        const before = sent.length;
+        gate().querySelector(".btnrow .btn:last-child").click();
+        await wait(() => sent.length > before && (i === 2 || gate()));
+    }
+    await quiet();
+    const restarted = sent.filter((a) => a.kind === "session.restart").map((a) => a.target);
+    const beforeCancel = sent.length;
+    restartAll.click();
+    await wait(() => gate());
+    gate().querySelector(".btnrow .btn:first-child").click();
+    await quiet();
+    const cancelled = { sheet: Boolean(gate()), sent: sent.length - beforeCancel };
+    const continueAll = document.querySelector('[aria-label="continue sessions in project nightly"]');
+    const beforeContinue = sent.length;
+    if (continueAll) continueAll.click();
+    await wait(() => sent.length > beforeContinue);
+    const continued = sent.slice(beforeContinue);
+    return {
+        restartAll: { asked, restarted, cancelled },
+        continued,
+        desk,
+        six,
+        cutAnywhere,
+        heads,
+        solo: solo && {
+            pre: text(solo.querySelector(".scpre")), own: text(solo.querySelector(".scown")),
+            acts: [...solo.querySelectorAll(".scacts > button")].map((b) => b.getAttribute("aria-label")),
+        },
+        kid: card("kkam-cameras-onvif") && { own: text(card("kkam-cameras-onvif").querySelector(".scown")) },
+        fold: text(document.querySelector(".scfold")),
+        foot,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        width,
+    };
+})();
+</script>
