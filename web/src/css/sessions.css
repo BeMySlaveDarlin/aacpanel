@@ -599,8 +599,8 @@ span.pjname { cursor: default; }
    way at their end, cut, and the glyph before them and the counts after them
    keep their place. */
 .scl2 { display: flex; align-items: center; column-gap: .67rem; min-height: 1.27rem; font-size: var(--t-md); }
-/* The glyph leads the words of the state. */
-.scsay > .scglyph { margin-inline-end: .37rem; vertical-align: -.2em; }
+/* The glyph leads the words of the state, centred on their small letters. */
+.scsay > .scglyph { margin-inline-end: .37rem; vertical-align: middle; }
 .scsay { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); }
 .sc[data-tone="busy"] .scword, .sc[data-tone="bg"] .scword { color: var(--accent); }
 .sc[data-tone="wait"] .scword { color: var(--wait); font-weight: 600; }
