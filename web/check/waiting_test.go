@@ -5,6 +5,7 @@ import "testing"
 type waitingResult struct {
 	NeedsYou              bool
 	ContourMark           bool
+	ContourPick           string
 	AiHighlighted         bool
 	QuestionSummary       bool
 	QuestionFullText      bool
@@ -73,6 +74,9 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 				runWideFixture(t, "waiting.html", &got)
 			} else {
 				runFixture(t, "waiting.html", &got)
+			}
+			if wide && got.ContourPick != "personal:1:true|work:0:false" {
+				t.Errorf("the picker of contours reads %q, want the open sessions of each and a dot where one waits", got.ContourPick)
 			}
 			if got.CountBefore != 5 || got.CountAfterOpening != 4 || got.CountAfterAnswer != 3 || got.CountAfterReply != 2 || got.CountBackInList != 2 {
 				t.Errorf("waiting counts: %+v", got)

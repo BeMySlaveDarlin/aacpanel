@@ -136,6 +136,11 @@ window.done = (async () => {
         : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && sessionCard()?.textContent.includes("Shall I publish?"));
     out.contourMark = wide ? document.querySelector(".dkwaitn")?.textContent.trim() === "1"
         : document.querySelector('.pftab .waitn')?.getAttribute("aria-label") === "1 waiting for you";
+    // At a desk the picker of contours says it too: how many sessions of a
+    // contour are open, and a dot where one waits.
+    out.contourPick = wide ? [...document.querySelectorAll(".dkleft .dkpickbtn")].map((b) => [
+        b.querySelector(".dkpickname")?.textContent, b.querySelector(".dkpickn")?.textContent, Boolean(b.querySelector(".waitn")),
+    ].join(":")).join("|") : "";
     if (new URLSearchParams(location.search).has("screenshot")) return out;
     openCard();
     await until(() => queue() && document.querySelector(".feedrow"));

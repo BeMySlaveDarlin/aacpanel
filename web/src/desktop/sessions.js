@@ -41,15 +41,26 @@ const SHELF = 6;
 
 const SHELF_ASK = 30;
 
-// ContourPick chooses which contours the column shows.
-export function ContourPick({ names, picks, onToggle }) {
+// ContourPick chooses which contours the column shows. Given live and waits,
+// maps by name, a contour says how many of its sessions are open and, with a
+// dot before its name as the tab on the phone, that some wait for the person.
+export function ContourPick({ names, picks, onToggle, live = null, waits = null }) {
     return html`
         <div class="dkpick" role="group" aria-label="contours">
-            ${names.map((name) => html`
-                <button class="dkpickbtn" key=${name} type="button" title=${name}
-                        aria-pressed=${picks.includes(name) ? "true" : "false"}
-                        onClick=${() => onToggle(name)}>${name}</button>
-            `)}
+            ${names.map((name) => {
+                const open = (live && live.get(name)) || 0;
+                const waiting = (waits && waits.get(name)) || 0;
+                const said = [name, open > 0 && `${open} open`, waiting > 0 && `${waiting} waiting for you`].filter(Boolean).join(", ");
+                return html`
+                    <button class="dkpickbtn" key=${name} type="button" title=${said} aria-label=${said}
+                            aria-pressed=${picks.includes(name) ? "true" : "false"}
+                            onClick=${() => onToggle(name)}>
+                        ${waiting > 0 && html`<span class="waitn" aria-hidden="true"><i></i></span>`}
+                        <span class="dkpickname">${name}</span>
+                        ${live && html`<span class="dkpickn" aria-hidden="true">${open}</span>`}
+                    </button>
+                `;
+            })}
         </div>
     `;
 }
@@ -412,6 +423,16 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
     const ordered = useMemo(() => orderOf(all, map, wait), [all, map, wait]);
     const shown = picks.length ? ordered.filter((s) => picks.includes(pageOf(s))) : ordered;
 
+    // What the picker says of every contour, shown or not: its open sessions
+    // and those of them that wait for the person.
+    const live = new Map();
+    const waits = new Map();
+    for (const s of all) {
+        const key = pageOf(s);
+        live.set(key, (live.get(key) || 0) + 1);
+        if (stateOf(s, snapshot && snapshot.limits).tone === "wait") waits.set(key, (waits.get(key) || 0) + 1);
+    }
+
     const ghosts = raising(all, wait ? wait.opening() : [], (snapshot && snapshot.at) || 0);
 
     const byProfile = useMemo(() => {
@@ -493,6 +514,8 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
             <${ContourPick}
                 names=${names}
                 picks=${picks}
+                live=${live}
+                waits=${waits}
                 onToggle=${(name) => setPicks((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]))}
             />
             <div class="dkscroll">

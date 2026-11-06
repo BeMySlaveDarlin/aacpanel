@@ -91,10 +91,9 @@ const settle = async () => {
 };
 const query = () => (asked.length ? new URL(asked[asked.length - 1], location.origin).search : "");
 
-const byText = (selector, text) =>
-    [...document.querySelectorAll(selector)].find((e) => e.textContent.trim() === text);
-
 const buttons = (side) => [...document.querySelectorAll(`.dk${side} .dkpick button`)];
+const nameOf = (b) => (b.querySelector(".dkpickname") || b).textContent.trim();
+const pickButton = (side, name) => buttons(side).find((b) => nameOf(b) === name);
 const selection = (side) => ({
     picks: chosen[side],
     pressed: buttons(side).map((b) => b.getAttribute("aria-pressed")),
@@ -103,16 +102,16 @@ const selection = (side) => ({
 
 window.done = (async () => {
     await settle();
-    const long = buttons("right").find((b) => b.textContent === names[6]);
+    const long = pickButton("right", names[6]);
     const title = long ? long.title : "";
-    const pickRows = buttons("right").map((e) => e.textContent.trim());
+    const pickRows = buttons("right").map(nameOf);
     const toggles = {};
     let picked = "";
     for (const side of ["right", "left"]) {
         toggles[side] = [selection(side)];
         for (const name of [names[0], names[6], names[0], names[6]]) {
             asked.length = 0;
-            byText(`.dk${side} .dkpick button`, name).click();
+            pickButton(side, name).click();
             await settle();
             toggles[side].push(selection(side));
             if (side === "right" && toggles[side].length === 2) picked = query();

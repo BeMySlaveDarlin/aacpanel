@@ -306,25 +306,39 @@
 
     .dkscroll { flex: 1; min-height: 0; overflow-y: auto; }
 
+    /* The contours as one switch across the column: a segment a contour,
+       sharing the width, its name whole where it fits, how many of its
+       sessions are open in faint numbers after it, and the dot of the phone's
+       tab before it while some of them wait for the person. Many contours
+       go on to a second row. */
     .dkpick {
-        --pick-width: calc((100% - 4 * .25rem) / 5);
         flex: none;
         display: flex;
         flex-wrap: wrap;
-        gap: .25rem;
-        padding: .3rem .55rem;
-        border-bottom: var(--hair) solid var(--line);
+        gap: 2px;
+        margin: .4rem .55rem;
+        padding: 2px;
+        border-radius: var(--r-small);
+        background: rgba(var(--tint), .04);
+        box-shadow: inset 0 0 0 var(--hair) var(--line);
     }
 
     .dkpickbtn {
-        flex: 1 1 var(--pick-width);
-        /* A short last row keeps the columns of the full rows above it. */
-        max-width: var(--pick-width);
+        flex: 1 1 5.5rem;
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
     }
+
+    .dkpickname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .dkpickn { flex: none; font-size: var(--t-xs); font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+
+    .dkpickbtn[aria-pressed="true"] .dkpickn { color: inherit; opacity: .7; }
+
+    .dkpickbtn .waitn { flex: none; }
 
     /* The heading of a group in a column: a name in the ink, a count in the
        faint ink, on the ground of the page so the rows scroll under it. */
@@ -929,7 +943,7 @@
         gap: .25rem;
     }
 
-    .dkpickbtn { padding: 0 .3rem; box-shadow: inset 0 0 0 var(--hair) var(--line); }
+    .dkpickbtn { height: 1.75rem; padding: 0 .45rem; }
 
     .dktab:hover, .dkpickbtn:hover { color: var(--ink); background: var(--glass); }
 
