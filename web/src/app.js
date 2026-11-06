@@ -121,8 +121,13 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
                 return;
             }
             setTreeError(err ? err.message : "the tree is unavailable");
-            setConn((prev) => ({ ...prev, kind: "offline", at: lastTree.current || prev.at }));
-            if (!routed.current && err && !err.status) {
+            // The panel itself refusing the tree is docker silent behind it:
+            // the link is up, and the screen of the containers says what
+            // broke. A refusal from a proxy in front of the panel, or no
+            // answer at all, is the link.
+            const answered = Boolean(err && err.fromPanel);
+            setConn((prev) => ({ ...prev, kind: answered ? "live" : "offline", at: lastTree.current || prev.at }));
+            if (!routed.current && err && (answered || !err.status)) {
                 routed.current = true;
                 repick().then((changed) => changed && refresh());
             }

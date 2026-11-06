@@ -36,6 +36,9 @@ function failure(response, body) {
     const err = new Error((parsed && parsed.error) || text || `the server answered ${response.status}`);
     err.status = response.status;
     err.unauthorized = response.status === 401;
+    // The panel names itself in every answer; a refusal without the name is a
+    // proxy in front of it speaking for a panel it cannot reach.
+    err.fromPanel = response.headers.has("X-Aacpanel");
     if (parsed) {
         err.reason = parsed.reason || "";
         err.afterSec = parsed.after_sec || 0;

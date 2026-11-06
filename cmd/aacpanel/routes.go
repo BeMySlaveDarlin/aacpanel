@@ -25,7 +25,7 @@ func (s *Server) localGate() gate {
 }
 
 func (s *Server) handler(g gate) http.Handler {
-	return s.cors(s.noteScheme(s.routes(g)))
+	return s.own(s.cors(s.noteScheme(s.routes(g))))
 }
 
 func (s *Server) noteScheme(next http.Handler) http.Handler {

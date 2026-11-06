@@ -27,7 +27,7 @@ services:
     environment:
       CONTAINERS: 1   # /containers/json and /containers/*/logs
       EVENTS: 1       # change stream, so polling is not needed
-      PING: 1
+      PING: 1         # the healthcheck below goes through it
       VERSION: 1
       # On info the proxy writes a line per request, and the panel polls stats
       # constantly: the journal outgrows the whole database of the panel.
@@ -37,6 +37,21 @@ services:
     networks: [aacpanel]
     restart: unless-stopped
     logging: *rotate
+    # A bind-mount of a file holds its inode. When the socket of the daemon is
+    # made anew while live-restore keeps the containers running, the proxy
+    # stays on the old file and answers 503 to everything until it is
+    # recreated; the directory cannot be mounted instead, since /run holds the
+    # runtime directories of the users, with the sockets of the executor and
+    # the sessions. So the check pings the daemon through the proxy itself,
+    # and after three failed tries the proxy ends itself: the restart policy
+    # brings it back with the mount made anew, about seventeen seconds after
+    # the new socket at most — an interval, the tries, the restart. The tries
+    # ride out a daemon slow to answer for a few seconds; while the daemon is
+    # down no check runs, as the daemon is what runs them.
+    healthcheck:
+      test: ["CMD-SHELL", "for i in 1 2 3; do wget -q -T 3 -O /dev/null http://127.0.0.1:2375/_ping && exit 0; sleep 2; done; kill 1; exit 1"]
+      interval: 10s
+      timeout: 20s
 
   # Database of the panel. Its own instance: the monitor must not fall together
   # with the database of a neighbouring project. No port is published, so

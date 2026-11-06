@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<script>
+// The fake host stands in before any module loads: the router asks the map
+// and the legs through the fetch the api took at its import.
+window.fetch = (...args) => window.fakeHost(...args);
+</script>
+<div id="root"></div>
+<script type="module">
+// The whole application while the tree is refused, twice. Once by a proxy in
+// front of the panel — a 502 with no name of the panel on it, as nginx gives
+// when the panel is down: that is the link, and the chip says there is no
+// connection. Once by the panel itself, docker silent behind it: the link is
+// up, the chip names the leg the requests take, the map of addresses is asked
+// for and measured, and the containers say what broke.
+import { h, render } from "preact";
+import { App } from "/src/app.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const refusals = {
+    proxy: () => new Response("<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>",
+        { status: 502, headers: { "Content-Type": "text/html" } }),
+    panel: () => new Response("docker is unavailable\n",
+        { status: 502, headers: { "Content-Type": "text/plain; charset=utf-8", "X-Aacpanel": "p1" } }),
+};
+const legs = [
+    { kind: "lan", url: "https://helios.example.net:8443" },
+    { kind: "public", url: "https://panel.example" },
+];
+
+let world = null;
+window.fakeHost = counted(async (url) => {
+    const u = String(url);
+    world.asked.push(u);
+    if (u === "/api/tree") return world.tree();
+    if (u === "/api/host" || u.startsWith("/api/host?")) {
+        return json({ at: Math.floor(Date.now() / 1000), hostName: "helios", profileMap: [], sessions: [] });
+    }
+    if (u === "/api/endpoints") return json({ panel: "p1", here: "public", endpoints: legs });
+    if (u === "https://helios.example.net:8443/probe") return json({ panel: "p1", kind: "lan" });
+    if (u === "https://panel.example/probe") return json({ panel: "p1", kind: "public" });
+    if (u === "/api/session/token") return json({ token: "t1" });
+    return new Response("", { status: 404 });
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(25);
+    return ok();
+};
+const count = (path) => world.asked.filter((u) => u === path).length;
+
+// run mounts the application over a host whose tree is refused by who, and
+// reads what the phone says once it has settled.
+async function run(who, settled) {
+    localStorage.clear();
+    world = { tree: refusals[who], asked: [] };
+    const root = document.getElementById("root");
+    render(h(ToastHost, null, h(GateHost, null, h(App, {}))), root);
+    await until(() => count("/api/tree") > 0 && settled());
+    await quiet();
+    const trouble = [...document.querySelectorAll(".trouble")]
+        .find((t) => t.querySelector("h2") && t.querySelector("h2").textContent === "the container tree");
+    const out = {
+        chip: document.querySelector(".conn .cword").textContent,
+        tone: document.querySelector(".conn").dataset.tone || "",
+        dot: (document.querySelector(".conn .cdot") || { dataset: {} }).dataset.dot || "",
+        maps: count("/api/endpoints"),
+        trees: count("/api/tree"),
+        trouble: trouble ? (trouble.querySelector(".sub") || { textContent: "" }).textContent : "",
+    };
+    render(null, root);
+    return out;
+}
+
+window.done = (async () => ({
+    proxy: await run("proxy", () => document.querySelector(".conn") && /No connection/.test(document.querySelector(".conn").textContent)),
+    panel: await run("panel", () => count("/api/endpoints") > 0 && count("/api/tree") > 1),
+}))();
+</script>

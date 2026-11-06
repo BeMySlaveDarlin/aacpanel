@@ -134,6 +134,17 @@ rather than drawing it empty.
                             sessions
 ```
 
+**The docker proxy ends itself when the socket under it is gone.** The socket
+is mounted as a file, since its directory is `/run` with the sockets of every
+user in it, and a file holds its inode: once the daemon makes its socket anew
+while live-restore keeps the containers running, the proxy answers 503 until
+its healthcheck, a ping through the proxy itself, ends it and the restart
+policy mounts the new socket. While docker is silent the panel itself refuses
+the tree, and every answer of the panel carries `X-Aacpanel`: with it the
+client keeps the link live and says on the screen of the containers that
+docker is silent, while the same 502 without it — a proxy in front of a panel
+that is down — is no connection.
+
 **The snapshot.** The collector writes the state of the machine as a file into
 the state directory; that directory is mounted into the service read-only.
 Everything else that only the host knows goes through it as well: the socket of

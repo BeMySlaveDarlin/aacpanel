@@ -97,6 +97,20 @@ func (s *Server) apiSessionToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"token": token})
 }
 
+// panelHeader names the panel in every answer it gives. A proxy in front of
+// the panel answers 502 when the panel is down, and the panel answers 502 when
+// docker behind it is silent: the client tells a broken link from a silent
+// docker by this header, which no proxy makes up.
+const panelHeader = "X-Aacpanel"
+
+// own puts panelHeader on every answer of a listener, its refusals included.
+func (s *Server) own(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(panelHeader, s.endpoints.panel)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func corsPath(path string) bool {
 	return strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/dist/")
 }
@@ -113,6 +127,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 		h.Add("Vary", "Origin")
 		h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE")
 		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept")
+		h.Set("Access-Control-Expose-Headers", panelHeader)
 		h.Set("Access-Control-Allow-Private-Network", "true")
 		h.Set("Access-Control-Max-Age", "600")
 		if r.Method == http.MethodOptions {

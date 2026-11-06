@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"aacpanel/internal/auth"
+	"aacpanel/internal/docker"
+	"aacpanel/internal/hub"
 )
 
 const testPanelSecret = "0123456789abcdef0123456789abcdef"
@@ -388,5 +390,52 @@ func TestCORSAnswersOnlyPanelOrigins(t *testing.T) {
 		if rec.Header().Get("Access-Control-Allow-Origin") != "" {
 			t.Errorf("%s: CORS on the static files of the shell", l.name)
 		}
+	}
+}
+
+// The panel names itself on every answer, a refusal included, and lets a page
+// on another of its addresses read the name: a 502 for the tree from the panel
+// is docker silent behind it, and the same status from a proxy in front of
+// the panel is a link that does not reach it.
+func TestEveryAnswerOfThePanelNamesIt(t *testing.T) {
+	s := testServer(t, auth.SessionTTL{Idle: time.Hour, Absolute: 24 * time.Hour})
+	s.endpoints = testEndpoints(t)
+	// The socket proxy answers so while the socket it holds is gone.
+	gone := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "No server is available to handle this request.", http.StatusServiceUnavailable)
+	}))
+	defer gone.Close()
+	s.docker = docker.New(gone.URL)
+	s.hub = hub.New(s.docker, nil)
+	token := bearerFor(t, s, s.routes(s.publicGate()))
+
+	for _, l := range []struct {
+		name string
+		mux  http.Handler
+	}{
+		{"main", s.handler(s.publicGate())},
+		{"local network", s.handler(s.lanGate())},
+		{"tailscale", s.handler(s.tsGate())},
+		{"local panel", s.handler(s.localGate())},
+	} {
+		r := bearerRequest(http.MethodGet, "/api/tree", token)
+		r.Header.Set("Origin", "https://lan.example:8443")
+		rec := httptest.NewRecorder()
+		l.mux.ServeHTTP(rec, r)
+		if rec.Code != http.StatusBadGateway || strings.TrimSpace(rec.Body.String()) != "docker is unavailable" {
+			t.Errorf("%s: the tree with docker gone: %d %q", l.name, rec.Code, rec.Body.String())
+		}
+		if got := rec.Header().Get(panelHeader); got != s.endpoints.panel {
+			t.Errorf("%s: the refusal of the tree names the panel %q, not %q", l.name, got, s.endpoints.panel)
+		}
+		if got := rec.Header().Get("Access-Control-Expose-Headers"); !strings.Contains(got, panelHeader) {
+			t.Errorf("%s: a page on another address cannot read the name of the panel: Expose-Headers %q", l.name, got)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	s.handler(s.publicGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusUnauthorized || rec.Header().Get(panelHeader) != s.endpoints.panel {
+		t.Errorf("a refusal of the door: %d, named %q", rec.Code, rec.Header().Get(panelHeader))
 	}
 }
