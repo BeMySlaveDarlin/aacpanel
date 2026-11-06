@@ -39,6 +39,9 @@ type browser struct {
 	// disposeWait bounds the dispose of a run's browser context; zero is
 	// disposeBound.
 	disposeWait time.Duration
+	// started is closed once the Chrome has served its first page, or failed
+	// to within startBound.
+	started chan struct{}
 }
 
 // page keeps a tab's failures and last observed state, and what took its
@@ -249,7 +252,22 @@ var (
 	over bool
 )
 
+// sharedBrowser gives a Chrome that serves pages: one still starting is waited
+// for, so a test's own bound, set after it has the browser, counts its own
+// work and none of the start.
 func sharedBrowser(chrome, pointer string) (*browser, error) {
+	b, err := pooledBrowser(chrome, pointer)
+	if err != nil {
+		return nil, err
+	}
+	<-b.started
+	if err := b.alive(); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func pooledBrowser(chrome, pointer string) (*browser, error) {
 	browsersMu.Lock()
 	defer browsersMu.Unlock()
 	if over {
@@ -355,7 +373,7 @@ func startBrowser(chrome, pointer string) (*browser, error) {
 	}
 	b := &browser{
 		to: to, profile: profile, stderr: &tailBuffer{limit: 8 << 10},
-		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{},
+		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{}, started: make(chan struct{}),
 	}
 	b.cmd = exec.Command(chrome, "--headless=new", "--remote-debugging-pipe", "--user-data-dir="+profile,
 		"--password-store=basic", "--no-first-run", "--no-default-browser-check",
@@ -372,7 +390,31 @@ func startBrowser(chrome, pointer string) (*browser, error) {
 	_ = chromeIn.Close()
 	_ = chromeOut.Close()
 	go b.read(from)
+	go b.warm()
 	return b, nil
+}
+
+// startBound bounds the start of a Chrome, from its process to the first page
+// it has drawn. On a cold machine that takes seconds — the binary read from
+// disk, the GPU process failing over to software, the first renderers — and
+// none of it is the time of the fixture that happens to ask first: counted in
+// a test's bound of a few seconds, it leaves the test nothing of its own.
+const startBound = 60 * time.Second
+
+// warmPage is the first page a Chrome serves: a script that runs and a frame
+// that is drawn, which is all a fixture needs of it to begin.
+const warmPage = `data:text/html,<p>ready</p><script>window.done = new Promise((r) => requestAnimationFrame(() => r(true)));</script>`
+
+// warm serves the first page of the Chrome and lets the fixtures waiting for
+// it go. A Chrome that serves none within startBound is dead to them, and the
+// next fixture to ask starts another.
+func (b *browser) warm() {
+	defer close(b.started)
+	ctx, cancel := context.WithTimeout(context.Background(), startBound)
+	defer cancel()
+	if _, err := b.run(ctx, warmPage, phoneScreen); err != nil {
+		b.fail(fmt.Errorf("Chrome served no page after its start: %w", err))
+	}
 }
 
 func (b *browser) read(from io.ReadCloser) {
