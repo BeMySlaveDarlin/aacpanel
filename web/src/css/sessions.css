@@ -548,14 +548,6 @@ span.pjname { cursor: default; }
 .scglyph[data-unseen] { color: var(--ok); }
 .scglyph .spin { width: var(--i-sm); height: var(--i-sm); }
 
-/* On a phone the words of a card read a fifth smaller than the rest of the
-   panel: the cards are the densest screen, and at the panel's size a name and
-   its state took the width. The buttons of a card keep their size. */
-@media (max-width: 1099.98px) {
-    .sc { --t-k: .8; }
-    .sc :is(button, a) { --t-k: 1; }
-}
-
 /* Line one: the name, the part a heading over it says already dropped and
    the project a lone card stands for as a quiet prefix; the controls at the
    right, always there. The name wraps rather than gives up its tail: the
@@ -673,6 +665,23 @@ span.pjname { cursor: default; }
    others stay in theirs. */
 .scb.scoff { visibility: hidden; }
 .scctx { justify-self: end; font-size: var(--t-md); font-weight: 600; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* On a phone the words of a card read a fifth smaller than the rest of the
+   panel, and its lines stand as close as those words: the cards are the
+   densest screen, and at the panel's size a name and its state took the
+   width and every line kept the height of the larger type. The buttons of a
+   card keep their size. After the lines, so their floors give way here. */
+@media (max-width: 1099.98px) {
+    .sc { --t-k: .8; line-height: 1.15; row-gap: .1rem; padding-top: .33rem; padding-bottom: .47rem; }
+    .sc :is(button, a) { --t-k: 1; }
+    .scl2, .scl3, .scl4, .scl5 { min-height: 1.15em; }
+}
+/* And the list stands as close as its cards: half the room between the
+   blocks of projects and around the headings of their sections. */
+@media (max-width: 1099.98px) {
+    .pfcol { gap: .16rem; }
+    .pjblock { margin-bottom: .08rem; }
+    .grouphead.pjsection { margin: .2rem 0 .05rem; }
+}
 
 /* The context bar along the bottom edge: of the whole window, the cap a tick
    on it — in the accent where the session restarts at it. */
