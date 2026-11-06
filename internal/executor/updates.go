@@ -371,13 +371,12 @@ func (e *Executor) updateCodex(ctx context.Context) (string, error) {
 }
 
 func (e *Executor) restartCodex(ctx context.Context, program, home string) (busy int, running bool, err error) {
-	// The launcher also uses the home's control socket to decide whether a
-	// daemon exists. With no socket the next start takes the selected package;
-	// a link that has not polled a live daemon is still unsafe to restart.
-	if _, err := os.Stat(codex.SocketPath(home)); errors.Is(err, os.ErrNotExist) {
+	// A home whose control socket takes no connection has no daemon, as the
+	// start of a codex session decides too, and the next start takes the
+	// selected package; a link that has not polled a live daemon is still
+	// unsafe to restart.
+	if !codex.Running(home) {
 		return 0, false, nil
-	} else if err != nil {
-		return 0, true, fmt.Errorf("restart pending: daemon control socket: %w", err)
 	}
 	restart := func() error {
 		args := daemonArgs(cleanEnv(os.Environ()), program, home, home, e.cores)

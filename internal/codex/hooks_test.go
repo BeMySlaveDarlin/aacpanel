@@ -122,6 +122,25 @@ func TestHookTrustWithoutADaemon(t *testing.T) {
 	}
 }
 
+// A daemon that went down with its host leaves its control socket behind: the
+// check asks an app-server of its own, as where no daemon ever ran.
+func TestHookTrustBesideTheSocketOfADaemonGoneWithItsHost(t *testing.T) {
+	srv := codextest.New(t)
+	srv.Crash()
+	if _, err := os.Stat(srv.Socket()); err != nil {
+		t.Fatalf("the daemon took its socket with it: %v", err)
+	}
+	want := HookCheck{Name: "ask-hook", Key: srv.Home + "/hooks.json:pre_tool_use:0:0", Command: "/home/u/bin/aacpanel-exec hook ask-hook"}
+	program := codextest.HooksProgram(t, map[string]any{"cwd": srv.Home, "hooks": []any{
+		map[string]any{"key": want.Key, "command": want.Command, "handlerType": "command", "enabled": true, "trustStatus": "trusted"},
+	}})
+	source, err := CheckHooks(context.Background(), program, srv.Home, []HookCheck{want})
+	if source != "asked a codex app-server started for the check" || err != nil {
+		t.Fatalf("the check beside a dead daemon's socket: %q, %v", source, err)
+	}
+	assertHookProgramExited(t, program)
+}
+
 func TestAHookCheckKillsItsServerAtTheDeadline(t *testing.T) {
 	home := t.TempDir()
 	program := codextest.HooksProgram(t, map[string]any{"cwd": home})

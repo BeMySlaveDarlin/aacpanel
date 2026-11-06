@@ -197,11 +197,11 @@ func (e *Executor) runCodexTerminal(ctx context.Context, p project, home, thread
 }
 
 // codexDaemon makes sure the daemon of a home runs and the link to it is
-// connected; it reports whether it started the daemon. A home without its
-// control socket has no daemon, and the executor starts one in a transient
-// unit of its own: started from the executor it would live in the executor's
-// unit and its sandbox, and from a session in that session's unit, going down
-// with whichever stops first.
+// connected; it reports whether it started the daemon. A home whose control
+// socket takes no connection has no daemon, and the executor starts one in a
+// transient unit of its own: started from the executor it would live in the
+// executor's unit and its sandbox, and from a session in that session's unit,
+// going down with whichever stops first.
 func (e *Executor) codexDaemon(ctx context.Context, link *codex.Link, dir string) (bool, error) {
 	e.daemons.Lock()
 	defer e.daemons.Unlock()
@@ -262,13 +262,14 @@ func daemonArgs(env []string, bin, home, dir, cores string) []string {
 	return append(args, "--setenv=CODEX_HOME="+home, "--", bin, "app-server", "daemon", "start")
 }
 
-// waitUp waits for the control socket of a daemon the executor started. A
-// socket that does not come is most often a program that chose another home.
+// waitUp waits for the control socket of a daemon the executor started to take
+// a connection. A socket that does not is most often a program that chose
+// another home.
 func waitUp(ctx context.Context, link *codex.Link, bin string) error {
 	deadline := time.Now().Add(daemonWait)
 	for !link.Up() {
 		if !time.Now().Before(deadline) {
-			return fmt.Errorf("the codex daemon was started, and no control socket appeared in %s within %s: "+
+			return fmt.Errorf("the codex daemon was started, and no control socket in %s took a connection within %s: "+
 				"%s may choose its home by itself — name the codex program itself in %s", link.Home(), daemonWait,
 				bin, codexEnv)
 		}

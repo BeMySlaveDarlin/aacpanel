@@ -1180,14 +1180,17 @@ answering round alone through `stop_hook_active`.
     terminal takes an effort — refuses a thread the daemon holds loaded. The
     id in the command tmux keeps for the pane is how a close finds the
     session.
-- **The panel starts the daemon where none runs.** A home without its control
-  socket gets `codex app-server daemon start` with the home in `CODEX_HOME`, in
-  a transient unit of its own and in the project's directory: started from the
-  executor the daemon would live in the executor's unit and its sandbox, and
-  from a session in that session's unit, going down with whichever stops
-  first. The executor waits for the socket in that home and for its
-  connection; a daemon that puts up no socket there is named — most often a
-  program that chose the home by itself. The program is `AACP_CODEX`, or
+- **The panel starts the daemon where none runs.** A home whose control socket
+  takes no connection gets `codex app-server daemon start` with the home in
+  `CODEX_HOME`, in a transient unit of its own and in the project's directory:
+  started from the executor the daemon would live in the executor's unit and
+  its sandbox, and from a session in that session's unit, going down with
+  whichever stops first. The file of the socket says nothing: a daemon that
+  went down with its host leaves it behind wherever the restart does not clear
+  `/tmp`, and codex starts the new daemon on the same path, so the panel only
+  dials it and leaves the file to codex. The executor waits for the socket in
+  that home to take a connection; a daemon that puts up none there is named —
+  most often a program that chose the home by itself. The program is `AACP_CODEX`, or
   the standalone `~/.codex/packages/standalone/current/bin/codex` when present,
   or `codex` from the executor's `PATH`. An update waits for running turns
   before restarting their daemon.
@@ -1218,7 +1221,7 @@ answering round alone through `stop_hook_active`.
   packages and disables their latest-channel updater. This costs a package per
   home and its download. The panel restarts each idle daemon in its own transient
   unit, waits for its new version at the handshake, and checks its panel hooks.
-  A home without a control socket has no daemon to restart: the report names
+  A home whose control socket takes no connection has no daemon to restart: the report names
   it as not running, its next start takes the selected package, and its hooks
   are checked with a private stdio app-server that exits after the check.
   The link's existing poll supplies the status of every loaded thread, including
@@ -1253,7 +1256,7 @@ answering round alone through `stop_hook_active`.
   schema, and the check does not see them change.
   The ordinary run also asks codex in `CODEX_HOME` (`~/.codex` by default)
   for `hooks/list`, using the installer's check of the question relay and
-  installed optional hooks. With no daemon socket, it starts the same program
+  installed optional hooks. With no daemon taking a connection on its socket, it starts the same program
   used for schema generation as a private stdio app-server for this call.
   Missing, untrusted or disabled hooks are red: a changed trust formula must not silently stop delivery. A saved
   `-schema` directory checks only the protocol and reports trust as unchecked.

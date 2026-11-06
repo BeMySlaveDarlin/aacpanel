@@ -18,16 +18,15 @@ type HookCheck struct {
 	Name, Key, Command string
 }
 
-// CheckHooks asks the daemon, or a private stdio app-server when its socket
-// is absent, without loading a thread. The home is also the discovery directory:
+// CheckHooks asks the daemon, or a private stdio app-server when no daemon
+// runs, without loading a thread. The home is also the discovery directory:
 // project hooks must not stand in for the hooks installed for the whole home.
 // The returned text names which server answered, including on a failed check.
 func CheckHooks(ctx context.Context, program, home string, want []HookCheck) (source string, err error) {
 	ctx, cancel := context.WithTimeout(ctx, callWait)
 	defer cancel()
 	var c *conn
-	_, statErr := os.Stat(SocketPath(home))
-	private := errors.Is(statErr, os.ErrNotExist)
+	private := !Running(home)
 	if private {
 		c, err = hookServer(ctx, program, home)
 		if err != nil {

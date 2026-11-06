@@ -378,45 +378,62 @@ func fakeCodex(t *testing.T, fail bool) (string, string) {
 // A home whose daemon does not run gets one: codex app-server daemon start in
 // a transient unit of its own, with the home named, in the project's
 // directory; the executor waits for its socket and its connection and starts
-// the thread within the same action.
+// the thread within the same action. A daemon that went down with its host
+// left its socket behind, and that home gets one the same way: codex starts
+// it on the same path.
 func TestNewStartsTheDaemonWhereNoneRuns(t *testing.T) {
-	// There is no daemon before the link starts. Closing it after the link
-	// begins races its first handshake and can leave an old connection in
-	// Ready; this test exercises a cold start, not a dropped connection.
-	srv, e, p := onCodexContour(t, (*codextest.Server).Close)
-	bin, started := fakeCodex(t, false)
-	unit := fakeSystemdRun(t)
-	go func() {
-		deadline := time.Now().Add(10 * time.Second)
-		for time.Now().Before(deadline) {
-			if _, err := os.Stat(started); err == nil {
-				srv.Start(t)
-				return
+	for _, tc := range []struct {
+		name string
+		// stop takes the daemon down before the link starts. Taking it down
+		// after the link begins races its first handshake and can leave an
+		// old connection in Ready; this test exercises a cold start, not a
+		// dropped connection.
+		stop func(*codextest.Server)
+		left bool
+	}{
+		{"closed", (*codextest.Server).Close, false},
+		{"gone with its host", (*codextest.Server).Crash, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, e, p := onCodexContour(t, tc.stop)
+			home := registry.CodexHomes()[0].Dir
+			if _, err := os.Stat(codex.SocketPath(home)); (err == nil) != tc.left {
+				t.Fatalf("the socket left behind: %v, want %t", err, tc.left)
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
+			bin, started := fakeCodex(t, false)
+			unit := fakeSystemdRun(t)
+			go func() {
+				deadline := time.Now().Add(10 * time.Second)
+				for time.Now().Before(deadline) {
+					if _, err := os.Stat(started); err == nil {
+						srv.Start(t)
+						return
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}()
 
-	detail, name, err := open(t, e, p, `{"agent":"codex"}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	home := registry.CodexHomes()[0].Dir
-	if name == "" || !strings.Contains(detail, "the daemon of "+home+" was not running and was started") {
-		t.Errorf("New answered %q naming %q", detail, name)
-	}
-	args := strings.Split(strings.TrimSpace(string(readArgv(t, unit))), "\n")
-	for _, want := range []string{"--user", "--wait", "--collect", "--property=KillMode=process",
-		"--working-directory=" + p.Path, "--setenv=CODEX_HOME=" + home} {
-		if !slices.Contains(args, want) {
-			t.Errorf("systemd-run went without %q: %q", want, args)
-		}
-	}
-	if at := slices.Index(args, "--"); at < 0 || !slices.Equal(args[at+1:], []string{bin, "app-server", "daemon", "start"}) {
-		t.Errorf("the unit runs %q", args)
-	}
-	if got := string(readArgv(t, started)); got != "app-server daemon start\nCODEX_HOME="+home+"\n" {
-		t.Errorf("codex started as %q", got)
+			detail, name, err := open(t, e, p, `{"agent":"codex"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "" || !strings.Contains(detail, "the daemon of "+home+" was not running and was started") {
+				t.Errorf("New answered %q naming %q", detail, name)
+			}
+			args := strings.Split(strings.TrimSpace(string(readArgv(t, unit))), "\n")
+			for _, want := range []string{"--user", "--wait", "--collect", "--property=KillMode=process",
+				"--working-directory=" + p.Path, "--setenv=CODEX_HOME=" + home} {
+				if !slices.Contains(args, want) {
+					t.Errorf("systemd-run went without %q: %q", want, args)
+				}
+			}
+			if at := slices.Index(args, "--"); at < 0 || !slices.Equal(args[at+1:], []string{bin, "app-server", "daemon", "start"}) {
+				t.Errorf("the unit runs %q", args)
+			}
+			if got := string(readArgv(t, started)); got != "app-server daemon start\nCODEX_HOME="+home+"\n" {
+				t.Errorf("codex started as %q", got)
+			}
+		})
 	}
 }
 

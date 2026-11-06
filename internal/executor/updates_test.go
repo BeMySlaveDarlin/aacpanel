@@ -270,6 +270,16 @@ mv -Tf "$root/next" "$root/current"
 	if _, running, err := unlinked.restartCodex(ctx, program, homes[0]); !running || err == nil || !strings.Contains(err.Error(), "daemon activity is not known") {
 		t.Fatalf("a live daemon without a link was treated as absent: %t, %v", running, err)
 	}
+	// A daemon gone with its host leaves its socket behind, and nothing
+	// listens on it: the home has no daemon to restart.
+	gone := codextest.New(t)
+	gone.Crash()
+	if _, err := os.Stat(codex.SocketPath(gone.Home)); err != nil {
+		t.Fatalf("the daemon took its socket with it: %v", err)
+	}
+	if _, running, err := unlinked.restartCodex(ctx, program, gone.Home); err != nil || running {
+		t.Fatalf("a daemon gone with its host was taken for a live one: %t, %v", running, err)
+	}
 
 	// Unknown activity still fails, but later homes get their packages,
 	// restarts and hook checks even when the first daemon cannot be restarted.

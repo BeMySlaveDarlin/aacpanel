@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -100,6 +101,27 @@ var ErrAnswered = errors.New("the request is answered already")
 // SocketPath is the control socket of the daemon of a codex home.
 func SocketPath(home string) string {
 	return filepath.Join(home, "app-server-control", "app-server-control.sock")
+}
+
+// runningWait bounds the dial that asks whether a daemon runs.
+const runningWait = time.Second
+
+// Running says whether a daemon of the home takes a connection on its control
+// socket. The socket itself says nothing: a daemon that went down with its
+// host leaves it behind wherever the restart does not clear /tmp, and the
+// connection is refused there until codex starts a daemon on the same path.
+// The socket is dialled where it really lies, as the link dials it.
+func Running(home string) bool {
+	socket, err := filepath.EvalSymlinks(SocketPath(home))
+	if err != nil {
+		return false
+	}
+	c, err := net.DialTimeout("unix", socket, runningWait)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
 }
 
 // SessionName is what the panel calls a thread: the tail of its id. The head

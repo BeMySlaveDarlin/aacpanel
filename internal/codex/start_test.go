@@ -338,6 +338,25 @@ func TestReadyDialsAtOnce(t *testing.T) {
 	}
 }
 
+// A daemon that went down with its host leaves its control socket behind, and
+// nothing listens on it: the daemon is not up until codex starts one there.
+func TestADaemonGoneWithItsHostIsNotUp(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	srv := codextest.New(t)
+	srv.Crash()
+	if _, err := os.Stat(srv.Socket()); err != nil {
+		t.Fatalf("the daemon took its socket with it: %v", err)
+	}
+	l := NewLink(srv.Home, "acme")
+	if l.Up() {
+		t.Fatal("a daemon gone with its host is up")
+	}
+	srv.Start(t)
+	if !l.Up() {
+		t.Fatal("a daemon started on the socket left behind is not up")
+	}
+}
+
 // A close may land while a poll reads the thread, between what the daemon said
 // and what the link does with it. Closed before the poll takes what it read,
 // the thread is not taken back; closed after, the link finds nothing to keep

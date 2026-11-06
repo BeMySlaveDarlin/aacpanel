@@ -76,12 +76,9 @@ func toolsConfig(program string, allowed []string) map[string]any {
 	return out
 }
 
-// Up says whether the daemon of the home has its control socket: whether
-// there is a daemon to connect to at all.
-func (l *Link) Up() bool {
-	_, err := filepath.EvalSymlinks(l.socket)
-	return err == nil
-}
+// Up says whether the daemon of the home runs: whether its control socket
+// takes a connection at all. See Running.
+func (l *Link) Up() bool { return Running(l.home) }
 
 // Home is the codex home the link is to.
 func (l *Link) Home() string { return l.home }

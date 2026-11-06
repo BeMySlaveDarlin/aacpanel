@@ -126,7 +126,7 @@ type Server struct {
 	// Home is the codex home the daemon serves.
 	Home string
 
-	ln  net.Listener
+	ln  *net.UnixListener
 	srv *http.Server
 
 	mu        sync.Mutex
@@ -198,8 +198,8 @@ func (s *Server) Socket() string {
 	return filepath.Join(s.Home, "app-server-control", "app-server-control.sock")
 }
 
-// Start listens on the socket: once at New, and again after Close for a
-// daemon that comes back.
+// Start listens on the socket: once at New, and again after Close or Crash
+// for a daemon that comes back.
 func (s *Server) Start(t testing.TB) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(s.Socket()), 0o700); err != nil {
@@ -210,7 +210,7 @@ func (s *Server) Start(t testing.TB) {
 	// the bound path short leaves room for a test home inside a worktree.
 	socket := filepath.Join(s.Home, "control.sock")
 	_ = os.Remove(socket)
-	ln, err := net.Listen("unix", socket)
+	ln, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,17 @@ func (s *Server) Start(t testing.TB) {
 }
 
 // Close stops the daemon: the socket goes and every client is dropped.
-func (s *Server) Close() {
+func (s *Server) Close() { s.stop(true) }
+
+// Crash stops the daemon as a host going down stops it: every client is
+// dropped and nothing listens any more, but the socket and the symlink to it
+// stay where they were, as they stay on a disk the host's restart does not
+// clear. Start brings the daemon back in their place.
+func (s *Server) Crash() { s.stop(false) }
+
+// stop drops every client and the listener, and with unlink the socket and
+// its symlink too.
+func (s *Server) stop(unlink bool) {
 	s.mu.Lock()
 	srv := s.srv
 	ln := s.ln
@@ -242,6 +252,7 @@ func (s *Server) Close() {
 	// Serve may not have registered the listener yet. Close it here so a
 	// late Serve cannot unlink the next daemon's socket after Start.
 	if ln != nil {
+		ln.SetUnlinkOnClose(unlink)
 		_ = ln.Close()
 	}
 	if srv != nil {
@@ -250,7 +261,9 @@ func (s *Server) Close() {
 	for c := range clients {
 		_ = c.ws.CloseNow()
 	}
-	_ = os.Remove(s.Socket())
+	if unlink {
+		_ = os.Remove(s.Socket())
+	}
 }
 
 // Catalogue sets the models the daemon lists.

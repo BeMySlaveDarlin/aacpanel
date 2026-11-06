@@ -161,7 +161,7 @@ with `-schema` is refused there: it does not say which release wrote it.
 The ordinary run also asks codex in `CODEX_HOME` (`~/.codex` by default) for
 `hooks/list`: the question relay and every installed optional panel hook must
 be present, trusted and enabled. It uses the running daemon when its socket
-exists; otherwise the same program starts a private `app-server --stdio` for
+takes a connection; otherwise the same program starts a private `app-server --stdio` for
 the check, then exits. The report names which path answered. No thread is
 loaded, no tokens are spent, and the shared daemon is never started or stopped.
 Missing, untrusted or disabled hooks are red with the hook's name. `-schema`
