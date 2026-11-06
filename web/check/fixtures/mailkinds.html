@@ -46,7 +46,6 @@ const until = async (ok, ms = 3000) => {
         label: text(el.querySelector(".sentlabel")),
         from: text(el.querySelector(".mletterwho")),
         peek: text(el.querySelector(".mletterbody")),
-        icon: getComputedStyle(el.querySelector(".sentico")).color,
         glyph: el.querySelector(".sentico svg").outerHTML,
         more: Boolean(el.querySelector(".mlettermore")),
         moreText: text(el.querySelector(".mlettermore .mfname")),

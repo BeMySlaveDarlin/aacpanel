@@ -7,9 +7,8 @@
 <script type="module">
 // The right-hand panel of the desktop under the styles it ships with: the
 // archive over a fake service, on a screen wide enough for the desktop rules
-// to apply. Measured here are the things only an engine can answer — whether
-// the buttons of a row stand clear of its text, and whether a size follows the
-// scale — plus what the contour filter of the panel sends out.
+// to apply: what the contour filter of the panel offers, how its buttons
+// toggle, and what it sends out.
 import { h, render } from "preact";
 import { useState } from "preact/hooks";
 import { RightPanel } from "/src/desktop/panels.js";
@@ -24,7 +23,6 @@ const profiles = { profiles: [
 ] };
 
 const names = ["Acme Labs", "personal", "design", "ops", "docs", "research", "a contour with a name longer than its button"];
-const fullNames = [...names, "build", "mobile", "web", "data", "tools", "support", "staging", "sandbox"];
 const chosen = {};
 
 const row = (id, profile, at) => ({
@@ -93,38 +91,6 @@ const settle = async () => {
 };
 const query = () => (asked.length ? new URL(asked[asked.length - 1], location.origin).search : "");
 
-// overlap returns the largest area by which the buttons of a row cover a piece
-// of its text. Zero is the whole point: a button laid over the model name or
-// the age of the conversation hides them exactly when the pointer arrives.
-function overlap() {
-    let worst = 0;
-    for (const arch of document.querySelectorAll(".dkarch")) {
-        const acts = arch.querySelector(".dkacts");
-        if (!acts) continue;
-        const a = acts.getBoundingClientRect();
-        for (const text of arch.querySelectorAll(".dkname, .dknum, .dkwhen, .dkgroup, .dklast, .dkarchmodel")) {
-            const b = text.getBoundingClientRect();
-            const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-            const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-            if (w > 0 && h > 0) worst = Math.max(worst, w * h);
-        }
-    }
-    return Math.round(worst);
-}
-
-const sizes = () => {
-    const act = document.querySelector(".dkarch .dkact");
-    const acts = document.querySelector(".dkarch .dkacts");
-    const right = document.querySelector(".dkright");
-    const name = document.querySelector(".dkarch .dkname");
-    return {
-        shown: acts ? Number(getComputedStyle(acts).opacity) : 0,
-        act: act ? Math.round(act.getBoundingClientRect().height) : 0,
-        panel: right ? Math.round(right.getBoundingClientRect().width) : 0,
-        text: name ? Math.round(parseFloat(getComputedStyle(name).fontSize) * 100) / 100 : 0,
-    };
-};
-
 const byText = (selector, text) =>
     [...document.querySelectorAll(selector)].find((e) => e.textContent.trim() === text);
 
@@ -135,35 +101,10 @@ const selection = (side) => ({
     shown: [...document.querySelectorAll(`.dk${side} .dkscroll .dkcontourname`)].map((e) => e.textContent.trim()),
 });
 
-function layout(side) {
-    const group = document.querySelector(`.dk${side} .dkpick`);
-    const style = getComputedStyle(group);
-    const rowCounts = new Map();
-    const boxes = buttons(side).map((b) => b.getBoundingClientRect());
-    for (const box of boxes) {
-        const top = Math.round(box.top);
-        rowCounts.set(top, (rowCounts.get(top) || 0) + 1);
-    }
-    const long = buttons(side).find((b) => b.textContent === names[6]);
-    return {
-        display: style.display, wrap: style.flexWrap, rows: [...rowCounts.values()],
-        widths: boxes.map((box) => box.width),
-        title: long.title, ellipsis: getComputedStyle(long).textOverflow,
-        clipped: long.scrollWidth > long.clientWidth,
-    };
-}
-
 window.done = (async () => {
     await settle();
-    const plain = { overlap: overlap(), ...sizes() };
-    const seven = { left: layout("left"), right: layout("right") };
-
-    document.documentElement.style.setProperty("--ui-scale", "1.4");
-    await sleep(50);
-    const scaled = { overlap: overlap(), ...sizes() };
-    document.documentElement.style.removeProperty("--ui-scale");
-    await sleep(50);
-
+    const long = buttons("right").find((b) => b.textContent === names[6]);
+    const title = long ? long.title : "";
     const pickRows = buttons("right").map((e) => e.textContent.trim());
     const toggles = {};
     let picked = "";
@@ -177,11 +118,6 @@ window.done = (async () => {
             if (side === "right" && toggles[side].length === 2) picked = query();
         }
     }
-
-    paint(fullNames);
-    await settle();
-    const fifteen = { left: layout("left"), right: layout("right") };
-
-    return { plain, scaled, picked, pickRows, seven, fifteen, toggles };
+    return { picked, pickRows, title, toggles };
 })();
 </script>

@@ -418,7 +418,7 @@ window.done = (async () => {
         const tip = document.querySelector(".dktip.on");
         button.click();
         return { aria: button.getAttribute("aria-disabled") || "", disabled: button.disabled, focused,
-            tip: tip ? text(tip) : "", opacity: Number(getComputedStyle(button).opacity), before };
+            tip: tip ? text(tip) : "", before };
     };
     const windowOff = off(all(".dkterm .btn").find((b) => text(b) === "Open in a window"));
     await quiet();

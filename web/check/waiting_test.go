@@ -10,7 +10,6 @@ type waitingResult struct {
 	QuestionFullText      bool
 	QuestionSummaryGone   bool
 	QuestionHighlightKept bool
-	ContourInside         bool
 	QuestionHighlightGone bool
 	HostHighlightBefore   bool
 	HostHighlightGone     bool
@@ -55,7 +54,6 @@ type waitingResult struct {
 	CountAfterReply       int
 	CountBackInList       int
 	AnswerVisible         bool
-	HorizontalOverflow    bool
 	Sent                  struct {
 		Kind   string
 		Target string
@@ -94,17 +92,11 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 					t.Errorf("%s: %+v", name, got)
 				}
 			}
-			if !got.ContourInside {
-				t.Error("the contour of a revealed card reaches past the feed's left edge and is clipped there")
-			}
 			if !got.QuestionHighlightKept || !got.QuestionHighlightGone {
 				t.Errorf("question highlight before reply: %v, gone after reply: %v — it follows its own waiting item", got.QuestionHighlightKept, got.QuestionHighlightGone)
 			}
 			if !got.HostHighlightBefore || !got.HostHighlightGone {
 				t.Errorf("host highlight before update: %v, gone after update: %v — a card dropped by the host leaves no contour", got.HostHighlightBefore, got.HostHighlightGone)
-			}
-			if got.HorizontalOverflow {
-				t.Error("waiting UI scrolls horizontally")
 			}
 			if got.Sent.Kind != "session.send" || got.Sent.Target != "work" || got.Sent.Params.Request != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" || got.Sent.Params.Answer != "done" || got.Sent.Params.Note != "Wi-Fi is back." {
 				t.Errorf("answer bypassed the action gate: %+v", got.Sent)

@@ -8,14 +8,12 @@ import (
 
 type commandCardShot struct {
 	Before struct {
-		Tag      string   `json:"tag"`
-		Title    string   `json:"title"`
-		Figure   string   `json:"figure"`
-		Height   int      `json:"height"`
-		Bar      []string `json:"bar"`
-		Messages float64  `json:"messages"`
-		Coloured bool     `json:"coloured"`
-		FeedText bool     `json:"feedText"`
+		Tag      string    `json:"tag"`
+		Title    string    `json:"title"`
+		Figure   string    `json:"figure"`
+		Bar      []string  `json:"bar"`
+		Shares   []float64 `json:"shares"`
+		FeedText bool      `json:"feedText"`
 	} `json:"before"`
 	Opened []string `json:"opened"`
 	Found  bool     `json:"found"`
@@ -49,9 +47,6 @@ func TestTheContextAnswerIsOneCardInTheFeed(t *testing.T) {
 	if b.Figure != "259k / 1m (26%)" {
 		t.Errorf("the card says %q about how full the window is", b.Figure)
 	}
-	if b.Height > 90 {
-		t.Errorf("the card is %dpx tall: it is a line of the feed, not the breakdown", b.Height)
-	}
 	if b.FeedText {
 		t.Errorf("a table of the answer reached the feed as text")
 	}
@@ -72,12 +67,17 @@ func TestTheContextBarDrawsOnlyWhatTakesRoom(t *testing.T) {
 	if !reflect.DeepEqual(got.Before.Bar, want) {
 		t.Errorf("the bar is drawn as %v, want %v", got.Before.Bar, want)
 	}
-	// Messages are 205830 of a million.
-	if math.Abs(got.Before.Messages-0.206) > 0.01 {
-		t.Errorf("messages take %.3f of the bar, want about 0.206 of it", got.Before.Messages)
+	// Each piece is its tokens of the million of the window; messages are
+	// 205830 of it.
+	shares := []float64{0.38, 1.46, 0.37, 2.15, 0.99, 20.58, 3.3}
+	if len(got.Before.Shares) != len(shares) {
+		t.Fatalf("the bar has %d pieces with a share, want %d: %v", len(got.Before.Shares), len(shares), got.Before.Shares)
 	}
-	if !got.Before.Coloured {
-		t.Errorf("a piece of the bar has no colour of its own")
+	for i, share := range shares {
+		if math.Abs(got.Before.Shares[i]-share) > 0.05 {
+			t.Errorf("the pieces take %v%% of the bar, want about %v%%", got.Before.Shares, shares)
+			break
+		}
 	}
 }
 

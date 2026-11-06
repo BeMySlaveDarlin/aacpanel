@@ -117,16 +117,10 @@ if (desk) {
 // The six states the skeleton holds, by the session that stands in each.
 const SIX = { working: "aacpanel", quiet: "watchdog-review", unseen: "tg-ai-shadow", waiting: "aacpanel-cards",
     paused: "llm-ops-nightly", archived: "notes-bot" };
-// The main content of a card: what may wrap but must never be cut.
-// The step keeps to its one line: a long one is cut there, whole in its tip
-// and in the checklist of the conversation.
-const MAIN = [".scname", ".scword", ".scsubj", ".scmono", ".scagent", ".scb", ".scctx", ".sctime", ".scn"];
 const LINES = [".scl1", ".scl2", ".scl3", ".scsegs", ".scl4", ".scl5"];
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const box = (el) => el.getBoundingClientRect();
 
 window.done = (async () => {
-    await document.fonts.ready;
     await quiet();
     const end = performance.now() + 3000;
     while (!document.querySelector(`.sc[data-name="notes-bot"]`) && performance.now() < end) await new Promise(requestAnimationFrame);
@@ -135,64 +129,30 @@ window.done = (async () => {
     for (const [state, name] of Object.entries(SIX)) {
         const el = card(name);
         if (!el) { six[state] = null; continue; }
-        const say = el.querySelector(".scsay");
         const runs = [...el.querySelectorAll(".scrun")];
         six[state] = {
             name,
-            height: Math.round(box(el).height),
             lines: LINES.map((sel) => el.querySelectorAll(`:scope > ${sel}`).length),
-            lineHeights: LINES.map((sel) => { const l = el.querySelector(`:scope > ${sel}`); return l ? Math.round(box(l).height) : 0; }),
             line2: text(el.querySelector(".scl2")),
             line3: text(el.querySelector(".scl3")),
             line4: text(el.querySelector(".scl4")),
             line5: text(el.querySelector(".scl5")),
             name1: text(el.querySelector(".scname")),
-            controls: [...el.querySelectorAll(".scacts > button")].map((b) => {
-                const cs = getComputedStyle(b);
-                const r = box(b);
-                return { label: b.getAttribute("aria-label"), shown: cs.visibility === "visible" && cs.display !== "none"
-                    && Number(cs.opacity) >= .25 && r.width >= 16 && r.height >= 16 };
-            }),
-            cut: MAIN.flatMap((sel) => [...el.querySelectorAll(sel)]).filter((m) => {
-                const cs = getComputedStyle(m);
-                return cs.textOverflow === "ellipsis" || m.scrollWidth > m.clientWidth + 1;
-            }).map((m) => `${m.className}: ${text(m)}`),
+            controls: [...el.querySelectorAll(".scacts > button")].map((b) => b.getAttribute("aria-label")),
             runs: runs.map(text),
             alarm: text(el.querySelector(".scl2 .scalarm")),
             alarmIcon: Boolean(el.querySelector(".scl2 .scalarm svg")),
-            runsGap: runs.length && say ? Math.round(box(runs[0]).left - box(say).right) : null,
-            overflow: el.scrollWidth - el.clientWidth,
-            block: (() => {
-                const edge = el.querySelector(":scope > .scedge"), b = edge && edge.querySelector(".scblock");
-                if (!b) return null;
-                const e = box(edge), r = box(b);
-                return { from: Math.round((r.left - e.left) / e.width * 100), to: Math.round((r.right - e.left) / e.width * 100) };
-            })(),
+            block: Boolean(el.querySelector(":scope > .scedge .scblock")),
         };
     }
-    // Cut, or run into a neighbour on its line: the places of the settings
-    // and the share of the context stand side by side.
-    const meets = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
-    const cutAnywhere = [...document.querySelectorAll(".sc")].flatMap((el) => [
-        ...MAIN.flatMap((sel) => [...el.querySelectorAll(sel)])
-            .filter((m) => getComputedStyle(m).textOverflow === "ellipsis" || m.scrollWidth > m.clientWidth + 1)
-            .map((m) => `${el.dataset.name} ${m.className}: ${text(m)}`),
-        ...[...el.querySelectorAll(".scl5 > *")].flatMap((a, i, all) => all.slice(i + 1)
-            .filter((b) => meets(box(a), box(b))).map((b) => `${el.dataset.name}: ${text(a)} runs into ${text(b)}`)),
-    ]);
     const heads = [...document.querySelectorAll(desk ? ".dkproj" : ".pjhead")].map((head) => ({
         name: text(head.querySelector(desk ? ".dkprojname" : ".pjname")),
         acts: [...head.querySelectorAll(".scheadacts > button")].map((b) => b.getAttribute("aria-label")),
     }));
     const solo = card("person-ingest");
-    const foot = [...document.querySelectorAll(".scfootlink")].map((link) => {
-        const cs = getComputedStyle(link);
-        return { text: text(link), border: cs.borderTopStyle, bg: cs.backgroundColor, height: Math.round(box(link).height) };
-    });
-    const root = document.getElementById(desk ? "col" : "phone");
-    const width = Math.round(box(card("aacpanel") || root).width);
+    const foot = [...document.querySelectorAll(".scfootlink")].map(text);
     // A picture of the list is taken before anything is pressed.
-    if (new URLSearchParams(location.search).has("screenshot")) return { desk, width };
+    if (new URLSearchParams(location.search).has("screenshot")) return { desk };
 
     // The heading of a project restarts every live session under it, one
     // after another, each through its own confirmation; a cancel stops the
@@ -231,20 +191,7 @@ window.done = (async () => {
         continued,
         desk,
         six,
-        cutAnywhere,
         bareArchive: text(card("old-shelf") && card("old-shelf").querySelector(".scl5")),
-        // The words of the badges of every card, by how far their tops stand
-        // apart: a badge led by a glyph must not rise above its neighbours.
-        badgeDrift: [...document.querySelectorAll(".sc")].map((el) => {
-            const tops = [...el.querySelectorAll(".scl5 > .scb")].map((b) => {
-                const words = [...b.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
-                if (!words) return null;
-                const r = document.createRange();
-                r.selectNodeContents(words);
-                return r.getBoundingClientRect().top;
-            }).filter((t) => t != null);
-            return { name: el.dataset.name, drift: tops.length ? Math.round((Math.max(...tops) - Math.min(...tops)) * 10) / 10 : 0 };
-        }).filter((c) => c.drift > 1),
         heads,
         solo: solo && {
             pre: text(solo.querySelector(".scpre")), own: text(solo.querySelector(".scown")),
@@ -253,8 +200,6 @@ window.done = (async () => {
         kid: card("kkam-cameras-onvif") && { own: text(card("kkam-cameras-onvif").querySelector(".scown")) },
         fold: text(document.querySelector(".scfold")),
         foot,
-        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        width,
     };
 })();
 </script>

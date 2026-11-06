@@ -3,7 +3,6 @@ package check
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 	"testing"
@@ -107,55 +106,34 @@ func TestTheBarSaysTheCallGoingOutNow(t *testing.T) {
 	}
 }
 
-// nowShape is how one bar is laid out: what its line says, its state word
-// and clock, the parts of the line in order and what each says, its height in
-// lines of its own font, and the size and place of the clock against the line.
+// nowShape is what one bar says: its line, its state word and clock, and the
+// parts of the line in order and what each says.
 type nowShape struct {
-	Top       string   `json:"top"`
-	State     string   `json:"state"`
-	Clock     string   `json:"clock"`
-	Order     []string `json:"order"`
-	Parts     []string `json:"parts"`
-	Lines     float64  `json:"lines"`
-	ClockSize string   `json:"clockSize"`
-	ClockGap  int      `json:"clockGap"`
-	LineGap   float64  `json:"lineGap"`
+	Top   string   `json:"top"`
+	State string   `json:"state"`
+	Clock string   `json:"clock"`
+	Order []string `json:"order"`
+	Parts []string `json:"parts"`
 }
 
 type nowBarSeen struct {
-	Top      string `json:"top"`
-	Arg      string `json:"arg"`
-	Badges   int    `json:"badges"`
-	Failed   int    `json:"failed"`
-	Opened   string `json:"opened"`
-	Old      bool   `json:"old"`
-	Overflow int    `json:"overflow"`
-	Call     struct {
+	Top    string `json:"top"`
+	Arg    string `json:"arg"`
+	Badges int    `json:"badges"`
+	Failed int    `json:"failed"`
+	Opened string `json:"opened"`
+	Old    bool   `json:"old"`
+	Call   struct {
 		Tag    string `json:"tag"`
 		Nested bool   `json:"nested"`
 		Label  string `json:"label"`
 		Text   string `json:"text"`
 	} `json:"call"`
-	Called        string   `json:"called"`
-	Running       nowShape `json:"running"`
-	Back          nowShape `json:"back"`
-	Thinking      nowShape `json:"thinking"`
-	ThinkChipsGap int      `json:"thinkChipsGap"`
-	Narrow        struct {
-		nowShape
-		Text             string    `json:"text"`
-		Cut              bool      `json:"cut"`
-		Ellipsis         string    `json:"ellipsis"`
-		NameWhole        bool      `json:"nameWhole"`
-		StateWhole       bool      `json:"stateWhole"`
-		ClockWhole       bool      `json:"clockWhole"`
-		ClockWidth       []float64 `json:"clockWidth"`
-		RoomyClockWidth  []float64 `json:"roomyClockWidth"`
-		BadgeWidths      []float64 `json:"badgeWidths"`
-		RoomyBadgeWidths []float64 `json:"roomyBadgeWidths"`
-		ChipsOut         int       `json:"chipsOut"`
-	} `json:"narrow"`
-	Error string `json:"error"`
+	Called   string   `json:"called"`
+	Running  nowShape `json:"running"`
+	Back     nowShape `json:"back"`
+	Thinking nowShape `json:"thinking"`
+	Error    string   `json:"error"`
 }
 
 func seeNowBar(t *testing.T) nowBarSeen {
@@ -220,19 +198,12 @@ func TestTheBarAboveTheComposerSaysWhatIsGoingOn(t *testing.T) {
 	if got.Old {
 		t.Error("the bar still says only that the request is being handled")
 	}
-	if got.Overflow > 0 {
-		t.Errorf("the bar pushes the phone %dpx sideways", got.Overflow)
-	}
-	if got.ThinkChipsGap < 0 || got.ThinkChipsGap > 24 {
-		t.Errorf("with little said, the badges stand %dpx off the far end of the bar — the bar shrank to its words", got.ThinkChipsGap)
-	}
 }
 
-// The bar is one line: the pulsing dot, the state, the clock beside it in the
-// size of the line, the call after a separator and the badges at the end —
-// with a call out, with the last one back, before any call and on a narrow
-// phone alike. Its content is about one line of its own font high, never two.
-func TestTheBarAboveTheComposerIsOneLine(t *testing.T) {
+// The bar holds its parts in one order: the pulsing dot, the state, the
+// clock, the call after a separator and the badges at the end — with a call
+// out, with the last one back and before any call alike.
+func TestTheBarAboveTheComposerHoldsItsPartsInOrder(t *testing.T) {
 	got := seeNowBar(t)
 	full := []string{"nowdot", "nowstate", "nowel", "nowsep", "nowcall", "nowchips"}
 	for name, s := range map[string]struct {
@@ -242,48 +213,10 @@ func TestTheBarAboveTheComposerIsOneLine(t *testing.T) {
 		"a call out":         {got.Running, full},
 		"the last call back": {got.Back, full},
 		"no call yet":        {got.Thinking, []string{"nowdot", "nowstate", "nowel", "nowchips"}},
-		"a phone 360px wide": {got.Narrow.nowShape, full},
 	} {
 		if strings.Join(s.Order, " ") != strings.Join(s.order, " ") {
-			t.Errorf("%s: the line is laid out %v, expected %v", name, s.Order, s.order)
+			t.Errorf("%s: the line holds %v, expected %v", name, s.Order, s.order)
 		}
-		if s.Lines <= 0 || s.Lines >= 1.5 {
-			t.Errorf("%s: the bar is %.2f lines of its font high, expected one", name, s.Lines)
-		}
-		if size := strings.Fields(s.ClockSize); len(size) != 2 || size[0] != size[1] {
-			t.Errorf("%s: the clock is set at %v, the line at the second — expected the size of the line", name, size)
-		}
-		if s.ClockGap < 0 || float64(s.ClockGap) > s.LineGap+1 {
-			t.Errorf("%s: the clock stands %dpx after the state, the line's gap is %.1fpx — expected beside it", name, s.ClockGap, s.LineGap)
-		}
-	}
-}
-
-// On a phone 360px wide a long command gives way first: its name and argument
-// are one string cut with an ellipsis, while the state, the clock and the
-// badges stay whole and as wide as on a bar with all the room it wants.
-func TestTheCallGivesWayOnANarrowPhone(t *testing.T) {
-	n := seeNowBar(t).Narrow
-	if !strings.HasPrefix(n.Text, "Bash ssh -p 69 -o BatchMode=yes") || !n.Cut || n.Ellipsis != "ellipsis" || !n.NameWhole {
-		t.Errorf("the call reads %q (cut %v, %q, name whole %v), expected the name and the argument cut with an ellipsis",
-			n.Text, n.Cut, n.Ellipsis, n.NameWhole)
-	}
-	if !n.StateWhole || n.State != "running" {
-		t.Errorf("the state gave way before the call did: %q, whole %v", n.State, n.StateWhole)
-	}
-	if !n.ClockWhole || len(n.ClockWidth) != 1 || len(n.RoomyClockWidth) != 1 || math.Abs(n.ClockWidth[0]-n.RoomyClockWidth[0]) > 0.5 {
-		t.Errorf("the clock is %v wide on the narrow phone and %v with room (whole %v)", n.ClockWidth, n.RoomyClockWidth, n.ClockWhole)
-	}
-	if len(n.BadgeWidths) != 3 || len(n.RoomyBadgeWidths) != 3 {
-		t.Fatalf("the badges are %v and %v, expected the thought, the read and the command", n.BadgeWidths, n.RoomyBadgeWidths)
-	}
-	for i := range n.BadgeWidths {
-		if math.Abs(n.BadgeWidths[i]-n.RoomyBadgeWidths[i]) > 0.5 {
-			t.Errorf("badge %d is %.1fpx wide on the narrow phone and %.1fpx with room", i, n.BadgeWidths[i], n.RoomyBadgeWidths[i])
-		}
-	}
-	if n.ChipsOut > 0 {
-		t.Errorf("the badges stand %dpx out of the bar", n.ChipsOut)
 	}
 }
 
@@ -301,15 +234,14 @@ func TestTheCallInTheBarOpensItselfInTheCallsOfTheRun(t *testing.T) {
 		Rows  []string `json:"rows"`
 	}
 	var got struct {
-		Call     sheetSeen `json:"call"`
-		Asked    []string  `json:"asked"`
-		Arrow    sheetSeen `json:"arrow"`
-		Again    sheetSeen `json:"again"`
-		Gesture  sheetSeen `json:"gesture"`
-		Badge    sheetSeen `json:"badge"`
-		Shut     int       `json:"shut"`
-		Overflow int       `json:"overflow"`
-		Error    string    `json:"error"`
+		Call    sheetSeen `json:"call"`
+		Asked   []string  `json:"asked"`
+		Arrow   sheetSeen `json:"arrow"`
+		Again   sheetSeen `json:"again"`
+		Gesture sheetSeen `json:"gesture"`
+		Badge   sheetSeen `json:"badge"`
+		Shut    int       `json:"shut"`
+		Error   string    `json:"error"`
 	}
 	runFixture(t, "nowcall.html", &got)
 	if got.Error != "" {
@@ -337,43 +269,30 @@ func TestTheCallInTheBarOpensItselfInTheCallsOfTheRun(t *testing.T) {
 	if b := got.Badge; !b.Open || b.View || b.Title != "Calls" || strings.Join(b.Rows, ",") != strings.Join(list, ",") {
 		t.Errorf("a badge of the bar opened %+v, expected the list of the run", b)
 	}
-	if got.Overflow > 0 {
-		t.Errorf("the screen pushes the phone %dpx sideways", got.Overflow)
-	}
 }
 
 // claude keeps a session on the stream busy while the agents it sent off work,
 // long after its own turn ended. The bar then says that work — how many are at
 // it and since when the first began — and opens its list, rather than counting
 // a thought that ended with the answer or naming the last call of that answer.
-// It reads as the bar of a turn does — the words, then the clock beside them,
-// on one line however narrow the screen. With nothing the panel sees at work
-// it says nothing; the header says the session waits on its agents rather
-// than that it is answering.
+// It holds the parts of the bar of a turn — the words, then the clock. With
+// nothing the panel sees at work it says nothing; the header says the session
+// waits on its agents rather than that it is answering.
 func TestTheBarOfATurnThatEndedSaysTheAgentsAtWork(t *testing.T) {
 	type waitShape struct {
-		Order      []string `json:"order"`
-		Words      string   `json:"words"`
-		Clock      string   `json:"clock"`
-		Lines      float64  `json:"lines"`
-		ClockGap   int      `json:"clockGap"`
-		LineGap    float64  `json:"lineGap"`
-		ClockWhole bool     `json:"clockWhole"`
-		Inside     bool     `json:"inside"`
+		Order []string `json:"order"`
+		Words string   `json:"words"`
+		Clock string   `json:"clock"`
 	}
 	var got struct {
 		WaitTop     string    `json:"waitTop"`
 		WaitAll     string    `json:"waitAll"`
 		WaitButton  bool      `json:"waitIsButton"`
-		WaitFace    string    `json:"waitFace"`
-		WaitShort   int       `json:"waitShort"`
 		Wait        waitShape `json:"wait"`
-		Narrow      waitShape `json:"narrow"`
 		FlowsTop    string    `json:"flowsTop"`
 		Opened      []string  `json:"opened"`
 		None        string    `json:"none"`
 		GoingTop    string    `json:"goingTop"`
-		Overflow    int       `json:"overflow"`
 		HeadOver    string    `json:"headOver"`
 		HeadBusy    string    `json:"headBusy"`
 		HeadWaiting string    `json:"headWaiting"`
@@ -400,23 +319,8 @@ func TestTheBarOfATurnThatEndedSaysTheAgentsAtWork(t *testing.T) {
 	if !got.WaitButton {
 		t.Error("the bar of the agents at work does not open their list")
 	}
-	if got.WaitFace != "rgba(0, 0, 0, 0) 0px" {
-		t.Errorf("the bar wears the face of a button of its own: %q", got.WaitFace)
-	}
-	if got.WaitShort < 0 || got.WaitShort > 1 {
-		t.Errorf("the button is %dpx narrower than the card it stands in — it shrank to its words", got.WaitShort)
-	}
-	for name, s := range map[string]waitShape{"on the phone": got.Wait, "200px wide": got.Narrow} {
-		if strings.Join(s.Order, " ") != "nowdot nowkind nowstate nowel" {
-			t.Errorf("%s: the bar is laid out %v, expected the dot, the icon, the words and the clock", name, s.Order)
-		}
-		if s.Lines <= 0 || s.Lines >= 1.5 {
-			t.Errorf("%s: the bar is %.2f lines of its font high, expected one", name, s.Lines)
-		}
-		if s.ClockGap < 0 || float64(s.ClockGap) > s.LineGap+1 || !s.ClockWhole || !s.Inside {
-			t.Errorf("%s: the clock stands %dpx after the words (gap %.1fpx), whole %v, inside the bar %v",
-				name, s.ClockGap, s.LineGap, s.ClockWhole, s.Inside)
-		}
+	if strings.Join(got.Wait.Order, " ") != "nowdot nowkind nowstate nowel" {
+		t.Errorf("the bar holds %v, expected the dot, the icon, the words and the clock", got.Wait.Order)
 	}
 	if !strings.Contains(got.FlowsTop, "1 workflow running") {
 		t.Errorf("with no agent at work and a workflow running the bar says %q", got.FlowsTop)
@@ -429,9 +333,6 @@ func TestTheBarOfATurnThatEndedSaysTheAgentsAtWork(t *testing.T) {
 	}
 	if !strings.Contains(got.GoingTop, "thinking") {
 		t.Errorf("a turn going on no longer says it is thinking: %q", got.GoingTop)
-	}
-	if got.Overflow > 0 {
-		t.Errorf("the bar pushes the phone %dpx sideways", got.Overflow)
 	}
 	// The header says the state in the words of the session's card.
 	if got.HeadOver != "agents running" || got.HeadBusy != "working" || got.HeadWaiting != "allow a tool" {

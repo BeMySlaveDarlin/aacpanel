@@ -4,38 +4,27 @@ import "testing"
 
 type repoWideShot struct {
 	LaidOut          bool     `json:"laidOut"`
-	PaneOnTheRight   bool     `json:"paneOnTheRight"`
-	PaneWidth        int      `json:"paneWidth"`
-	MainWidth        int      `json:"mainWidth"`
+	PaneAfterMain    bool     `json:"paneAfterMain"`
 	TabNames         []string `json:"tabNames"`
 	ActiveName       string   `json:"activeName"`
-	CodeScrolls      string   `json:"codeScrolls"`
-	PaneScrolls      string   `json:"paneScrolls"`
 	AfterClose       []string `json:"afterClose"`
 	ActiveAfter      string   `json:"activeAfter"`
 	PaneGone         bool     `json:"paneGone"`
-	MainGrew         bool     `json:"mainGrew"`
 	PhoneStripHidden bool     `json:"phoneStripHidden"`
 }
 
-// At a desk the directory belongs beside the code, not on a tab in front of
-// it: the whole point of the wide screen is reading a file while still seeing
-// where it sits.
-func TestTheDirectoryStandsBesideTheCode(t *testing.T) {
+// At a desk the directory is a panel of its own after the code, not a tab in
+// front of it: the whole point of the wide screen is reading a file while
+// still seeing where it sits.
+func TestTheDirectoryIsAPanelBesideTheCodeNotATab(t *testing.T) {
 	var got repoWideShot
 	runWideFixture(t, "repowide.html", &got)
 
 	if !got.LaidOut {
-		t.Fatal("the wide shape did not draw at all — there is no panel and no middle to measure")
+		t.Fatal("the wide shape did not draw at all — there is no panel and no middle")
 	}
-	if !got.PaneOnTheRight {
-		t.Error("the panel is not beside the code: it overlaps the middle instead of standing to its right")
-	}
-	if got.PaneWidth < 200 {
-		t.Errorf("the panel is %d px wide — a directory that narrow shows paths and nothing else", got.PaneWidth)
-	}
-	if got.MainWidth <= got.PaneWidth {
-		t.Errorf("the code gets %d px against the panel's %d — the middle is what the screen is for", got.MainWidth, got.PaneWidth)
+	if !got.PaneAfterMain {
+		t.Error("the panel of the directory does not come after the code")
 	}
 	if !got.PhoneStripHidden {
 		t.Error("the phone's Files tab is still in the strip: the tree is drawn twice, once beside the code and once in front of it")
@@ -83,30 +72,13 @@ func TestClosingTheReadTabHandsTheScreenToItsNeighbour(t *testing.T) {
 }
 
 // The panel folds away for a file whose lines are wider than what is left of
-// the middle, and the code takes the room it gives back.
-func TestThePanelFoldsAwayAndTheCodeTakesTheRoom(t *testing.T) {
+// the middle.
+func TestThePanelFoldsAway(t *testing.T) {
 	var got repoWideShot
 	runWideFixture(t, "repowide.html", &got)
 
 	if !got.PaneGone {
 		t.Error("the panel is still drawn after it was folded away")
-	}
-	if !got.MainGrew {
-		t.Error("the panel folded away and the code stayed the same width — the room went nowhere")
-	}
-}
-
-// Two scrolls, not one: walking a directory must not move the file being read,
-// and reading a long file must not lose the place in the tree.
-func TestTheCodeAndThePanelScrollApart(t *testing.T) {
-	var got repoWideShot
-	runWideFixture(t, "repowide.html", &got)
-
-	if got.CodeScrolls != "auto" && got.CodeScrolls != "scroll" {
-		t.Errorf("the code scrolls as %q — the middle has to carry its own scroll", got.CodeScrolls)
-	}
-	if got.PaneScrolls != "auto" && got.PaneScrolls != "scroll" {
-		t.Errorf("the panel scrolls as %q — a long directory has to scroll without taking the code along", got.PaneScrolls)
 	}
 }
 

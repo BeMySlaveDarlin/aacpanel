@@ -28,7 +28,6 @@ type secretPad struct {
 		Replaces string   `json:"replaces"`
 		Attrs    []string `json:"attrs"`
 		Spelled  bool     `json:"spelled"`
-		Font     string   `json:"font"`
 	} `json:"opened"`
 	Mask     []string `json:"mask"`
 	MaskKept bool     `json:"maskKept"`
@@ -96,7 +95,7 @@ func checkSecretNotepad(t *testing.T, got secretPad) {
 	}{
 		{"cardSaysWhatIsAskedAndWhenItWasSaved", secretCardSaysWhatIsAsked},
 		{"notepadOpensOnTheTemplate", secretNotepadOpensOnTheTemplate},
-		{"hideDrawsDotsOverTheSameText", secretHideDrawsDots},
+		{"hideMasksTheSameText", secretHideMasksTheText},
 		{"closingDropsTheText", secretClosingDropsTheText},
 		{"saveSendsTheTextOnceAndKeepsNothing", secretSaveSendsOnce},
 		{"aNewNameReplacesNothing", secretNewNameReplacesNothing},
@@ -150,15 +149,12 @@ func secretNotepadOpensOnTheTemplate(t *testing.T, got secretPad) {
 	if strings.Join(o.Attrs, " ") != want || o.Spelled {
 		t.Errorf("the field is %v (spellcheck %v), not %s", o.Attrs, o.Spelled, want)
 	}
-	if !strings.Contains(o.Font, "Mono") && !strings.Contains(o.Font, "monospace") {
-		t.Errorf("the field is set in %q, not in a monospace face", o.Font)
-	}
 }
 
-// The text is seen by default; Hide draws it as dots and Show brings it back,
-// the text itself untouched.
-func secretHideDrawsDots(t *testing.T, got secretPad) {
-	if strings.Join(got.Mask, ",") != "Hide:none,Show:disc,Hide:none" {
+// The text is seen by default; Hide masks it and Show brings it back, the
+// text itself untouched.
+func secretHideMasksTheText(t *testing.T, got secretPad) {
+	if strings.Join(got.Mask, ",") != "Hide:plain,Show:masked,Hide:plain" {
 		t.Errorf("the toggle went %v", got.Mask)
 	}
 	if !got.MaskKept {

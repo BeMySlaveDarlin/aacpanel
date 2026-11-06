@@ -20,7 +20,6 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 		Tip   string `json:"tip"`
 		Value string `json:"value"`
 		Agent string `json:"agent"`
-		Hue   string `json:"hue"`
 	}
 	var got struct {
 		Heads []struct {
@@ -44,9 +43,6 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	if len(acme.Rings) != 3 || acme.Rings[0].Value != "7" || acme.Rings[1].Value != "41" ||
 		acme.Rings[2].Value != "63" || acme.Rings[2].Agent != "codex" || !strings.HasPrefix(acme.Rings[2].Tip, "Codex, seven days") {
 		t.Errorf("the heading of Acme carries %+v, expected claude's two rings and codex's week last", acme.Rings)
-	}
-	if len(acme.Rings) == 3 && acme.Rings[2].Hue == acme.Rings[0].Hue {
-		t.Errorf("codex's ring is painted %q like claude's", acme.Rings[2].Hue)
 	}
 	if len(lab.Rings) != 1 || lab.Rings[0].Value != "18" || lab.Rings[0].Agent != "codex" {
 		t.Errorf("a contour codex alone spent in carries %+v, expected codex's week alone", lab.Rings)

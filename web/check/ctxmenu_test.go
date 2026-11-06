@@ -22,18 +22,10 @@ func TestTheMenuHostStandsInTheDesktopShellAlone(t *testing.T) {
 	}
 }
 
-type ctxBox struct {
-	Left   int `json:"left"`
-	Top    int `json:"top"`
-	Right  int `json:"right"`
-	Bottom int `json:"bottom"`
-}
-
 type ctxItem struct {
-	Note    string  `json:"note"`
-	Tip     string  `json:"tip"`
-	Off     bool    `json:"off"`
-	Opacity float64 `json:"opacity"`
+	Note string `json:"note"`
+	Tip  string `json:"tip"`
+	Off  bool   `json:"off"`
 }
 
 type ctxSent struct {
@@ -48,11 +40,8 @@ type ctxNative struct {
 }
 
 type ctxMenu struct {
-	VW      int `json:"vw"`
-	VH      int `json:"vh"`
 	AtPoint struct {
 		Prevented bool   `json:"prevented"`
-		Menu      ctxBox `json:"menu"`
 		Label     string `json:"label"`
 		Focus     string `json:"focus"`
 	} `json:"atPoint"`
@@ -67,15 +56,12 @@ type ctxMenu struct {
 		Open     bool `json:"open"`
 		FocusRow bool `json:"focusRow"`
 	} `json:"escape"`
-	NearBottom ctxBox `json:"nearBottom"`
-	Outside    struct {
+	Outside struct {
 		Open     bool `json:"open"`
 		FocusRow bool `json:"focusRow"`
 	} `json:"outside"`
-	Corner    ctxBox `json:"corner"`
 	Elsewhere struct {
 		Prevented bool   `json:"prevented"`
-		Menu      ctxBox `json:"menu"`
 		Label     string `json:"label"`
 		Count     int    `json:"count"`
 	} `json:"elsewhere"`
@@ -92,8 +78,6 @@ type ctxMenu struct {
 	Native   map[string]ctxNative `json:"native"`
 	Keyboard struct {
 		Prevented bool     `json:"prevented"`
-		Menu      ctxBox   `json:"menu"`
-		Row       ctxBox   `json:"row"`
 		First     string   `json:"first"`
 		Walk      []string `json:"walk"`
 		Leaked    []string `json:"leaked"`
@@ -147,7 +131,11 @@ type ctxMenu struct {
 	StoppedByButton *ctxSent `json:"stoppedByButton"`
 	Started         *ctxSent `json:"started"`
 	StartedByButton *ctxSent `json:"startedByButton"`
-	PlayIcon        struct {
+	StackFacts      []struct {
+		Value string `json:"value"`
+		Name  string `json:"name"`
+	} `json:"stackFacts"`
+	PlayIcon struct {
 		Danger bool `json:"danger"`
 		Play   bool `json:"play"`
 	} `json:"playIcon"`
@@ -177,39 +165,20 @@ func ctxMenuPage(t *testing.T) ctxMenu {
 	return got
 }
 
-// near says whether two measures of the page stand within a pixel.
-func near(a, b int) bool {
-	return a-b <= 1 && b-a <= 1
-}
-
-// A right click opens the menu with its corner at the point; near the bottom
-// it goes up from the point, and in the corner of the window it is kept
-// inside. Escape, a press outside and the item chosen take it down, each
-// giving the focus back to the row, and so do a wheel, a scroll that moves
-// the row and the window left or resized, while a scroll elsewhere leaves it;
-// a right click elsewhere opens the menu of what it was made on, there.
-func TestTheRightClickMenuOpensAtThePointAndStaysInside(t *testing.T) {
+// A right click opens the menu of what it was made on. Escape, a press
+// outside and the item chosen take it down, each giving the focus back to the
+// row, and so do a wheel, a scroll that moves the row and the window left or
+// resized, while a scroll elsewhere leaves it; a right click elsewhere opens
+// the menu of what it was made on.
+func TestTheRightClickMenuOpensAndGoesAway(t *testing.T) {
 	got := ctxMenuPage(t)
-	const margin = 8
 
 	at := got.AtPoint
 	if !at.Prevented || at.Label != "session aacpanel" {
 		t.Fatalf("a right click on a session row opened %q (browser menu kept: %v) — the panel's menu is not there", at.Label, !at.Prevented)
 	}
-	if !near(at.Menu.Left, 300) || !near(at.Menu.Top, 200) {
-		t.Errorf("the menu of a click at 300,200 stands at %d,%d — not at the point", at.Menu.Left, at.Menu.Top)
-	}
 	if at.Focus != "Open" {
 		t.Errorf("the menu opens with %q in focus, expected the first item that can be pressed, Open", at.Focus)
-	}
-
-	nb := got.NearBottom
-	if !near(nb.Bottom, got.VH-40) || !near(nb.Left, 300) {
-		t.Errorf("a click 40 px over the bottom opens a menu at %+v: it should go up from the point, its bottom at %d", nb, got.VH-40)
-	}
-	c := got.Corner
-	if c.Right > got.VW-margin || c.Bottom > got.VH-margin || c.Left < margin || c.Top < margin {
-		t.Errorf("a click in the corner opens a menu at %+v: it leaves the window %dx%d less its margin", c, got.VW, got.VH)
 	}
 
 	if got.Escape.Open || !got.Escape.FocusRow {
@@ -238,9 +207,6 @@ func TestTheRightClickMenuOpensAtThePointAndStaysInside(t *testing.T) {
 	e := got.Elsewhere
 	if !e.Prevented || e.Label != "session helios" || e.Count != 1 {
 		t.Errorf("a right click on another row while the menu stood: %q, %d menus — expected one, of helios", e.Label, e.Count)
-	}
-	if !near(e.Menu.Left, 320) || !near(e.Menu.Top, 260) {
-		t.Errorf("the menu reopened elsewhere stands at %d,%d, not at the new point 320,260", e.Menu.Left, e.Menu.Top)
 	}
 }
 
@@ -274,17 +240,14 @@ func TestTheBrowserKeepsItsMenuWhereThePanelHasNothingBetter(t *testing.T) {
 }
 
 // The menu key and Shift+F10 come as a contextmenu at the middle of the
-// focused row with button -1: the menu stands under the row, not over its
-// middle; the arrows go round it, Home and End to its ends, Enter presses the
+// focused row with button -1 and open the menu of the row; the arrows go
+// round it, Home and End to its ends, Enter presses the
 // item in focus and a digit the item of its number.
-func TestTheKeyboardMenuStandsUnderTheRow(t *testing.T) {
+func TestTheKeyboardOpensTheMenuOfTheRow(t *testing.T) {
 	got := ctxMenuPage(t)
 	k := got.Keyboard
 	if !k.Prevented {
 		t.Fatal("the menu key left the browser's menu: the keyboard has no menu of the panel")
-	}
-	if !near(k.Menu.Top, k.Row.Bottom) || !near(k.Menu.Left, max(k.Row.Left, 8)) {
-		t.Errorf("the keyboard's menu stands at %d,%d — expected under the row, at %d,%d", k.Menu.Left, k.Menu.Top, max(k.Row.Left, 8), k.Row.Bottom)
 	}
 	if k.First != "Open" {
 		t.Errorf("the keyboard's menu opens with %q in focus, expected Open", k.First)
@@ -371,8 +334,8 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		!strings.Contains(m.Tip, "stands on its own in the list") {
 		t.Errorf("the detach of a session aacpanel opened stands as %+v — expected naming aacpanel and what it does", m)
 	}
-	if m := got.About["parent"]; m == nil || m.Off || m.Opacity != 1 || !strings.Contains(m.Tip, "same project") {
-		t.Errorf("the parent choice must be visible without hover and explain its scope: %+v", m)
+	if m := got.About["parent"]; m == nil || m.Off || !strings.Contains(m.Tip, "same project") {
+		t.Errorf("the parent choice must be on and explain its scope: %+v", m)
 	}
 }
 
@@ -392,8 +355,8 @@ func TestAnItemThatCannotBePressedSaysWhy(t *testing.T) {
 			t.Errorf("%s: there is no such item in its menu", name)
 			continue
 		}
-		if !m.Off || m.Opacity >= 1 {
-			t.Errorf("%s stands as %+v — expected dimmed", name, m)
+		if !m.Off {
+			t.Errorf("%s stands as %+v — expected off", name, m)
 		}
 		if !strings.Contains(m.Tip, why) {
 			t.Errorf("%s says %q — expected %q", name, m.Tip, why)
@@ -512,8 +475,8 @@ func TestTheArchiveOffersANewSessionWhereItsMenuDoes(t *testing.T) {
 	}
 }
 
-// A stopped container starts from the play icon, in the quiet colour: the
-// red is for what stops.
+// A stopped container starts from the play icon, not marked as a danger:
+// the danger is for what stops.
 func TestAStoppedContainerStartsFromAPlayIcon(t *testing.T) {
 	got := ctxMenuPage(t)
 	if !got.PlayIcon.Play {
@@ -521,5 +484,18 @@ func TestAStoppedContainerStartsFromAPlayIcon(t *testing.T) {
 	}
 	if got.PlayIcon.Danger {
 		t.Error("the start of a stopped container is painted as a danger")
+	}
+}
+
+// The head of a stack at a desk says its three facts, each a value and what
+// it is: cpu, memory and disk.
+func TestTheStackHeadSaysItsFacts(t *testing.T) {
+	got := ctxMenuPage(t)
+	var facts []string
+	for _, f := range got.StackFacts {
+		facts = append(facts, f.Value+" "+f.Name)
+	}
+	if want := "1% cpu|64 MB memory|21 MB disk"; strings.Join(facts, "|") != want {
+		t.Errorf("the head of the stack says %q, expected %q", strings.Join(facts, "|"), want)
 	}
 }

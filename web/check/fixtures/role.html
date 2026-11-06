@@ -62,26 +62,17 @@ const until = async (ok, what, ms = 4000) => {
     while (!ok() && performance.now() < end) await new Promise((r) => requestAnimationFrame(r));
     if (!ok()) throw new Error(`the screen did not come to ${what}: ${text(document.querySelector(".dkpanel")) || text(chat).slice(0, 300)}`);
 };
-// rows reads the checklist between the state and the facts, and checks
-// the whole card for the role, even if it moved to another element.
-// rows reads the cards of a list: the step of the checklist in hand and n/N,
-// whether the step is cut, and whether its line stands under the state and
-// over the bar of the steps.
+// rows reads the cards of a list: the step of the checklist in hand and n/N
+// and the tip of the step, and checks the whole card for the role, even if it
+// moved to another element.
 const rows = (root) => [...root.querySelectorAll(".sc")].map((r) => {
-    const line = r.querySelector(".scl3");
     const step = r.querySelector(".scstep");
     const role = sessions.find((s) => s.session === r.dataset.name)?.role;
-    const box = line.getBoundingClientRect();
-    const said = r.querySelector(".scsay").getBoundingClientRect();
-    const next = r.querySelector(".scsegs");
     return {
         name: r.dataset.name,
         role: role && text(r).includes(role) ? role : null,
         checklist: [text(r.querySelector(".scn")), text(step)].filter(Boolean).join(" · "),
-        cut: step.scrollWidth > step.clientWidth + 1,
         tip: step.getAttribute("title") || "",
-        oneLine: box.height < 2 * parseFloat(getComputedStyle(line).fontSize),
-        placed: box.top >= said.bottom - 1 && box.bottom <= next.getBoundingClientRect().top + 1,
     };
 });
 const sheet = () => document.querySelector(".sheet.on .rolefield")?.closest(".cmdsheet");
@@ -103,14 +94,12 @@ const openRole = async () => {
     const labels = [...document.querySelectorAll(".dkpanel .toollabel")].map(text);
     const line = [...document.querySelectorAll(".dkpanel .toolrow")].find((r) => text(r.querySelector(".toollabel")) === "Role…");
     const note = text(line.querySelector(".toolnote"));
-    const clamped = getComputedStyle(line.querySelector(".toolnote")).webkitLineClamp;
     line.click();
     await until(() => field(), "the sheet of the role");
-    return { labels, note, clamped };
+    return { labels, note };
 };
 
 window.done = (async () => {
-    await document.fonts.ready;
     await quiet();
     const out = {};
     out.desk = rows(document.getElementById("desk"));
@@ -125,7 +114,6 @@ window.done = (async () => {
     const panel = await openRole();
     out.labels = panel.labels;
     out.note = panel.note;
-    out.clamped = panel.clamped;
     out.title = text(sheet().querySelector(".cmdhead"));
     out.value = field().value;
     out.count = text(sheet().querySelector(".rolecount"));

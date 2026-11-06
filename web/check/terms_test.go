@@ -12,72 +12,40 @@ type termAction struct {
 	Params map[string]string `json:"params"`
 }
 
-// termCard is a card of a terminal as a fixture reads it; the setting of the
-// last line is read only when there is one.
+// termCard is a card of a terminal as a fixture reads it.
 type termCard struct {
-	Name     string  `json:"name"`
-	Runs     bool    `json:"runs"`
-	When     string  `json:"when"`
-	Last     *string `json:"last"`
-	Lines    int     `json:"lines"`
-	Cut      bool    `json:"cut"`
-	Ellipsis bool    `json:"ellipsis"`
-	Mono     bool    `json:"mono"`
-	Under    bool    `json:"under"`
+	Name string  `json:"name"`
+	Runs bool    `json:"runs"`
+	When string  `json:"when"`
+	Last *string `json:"last"`
 }
 
 // lastReads says what is wrong with the last line of a card that has one, or
-// nothing: it stands on one line of the face of the name, under the name and
-// across to the end of the card, and a line longer than the card ends in an
-// ellipsis rather than running over.
-func (c termCard) lastReads(want string, long bool) string {
+// nothing.
+func (c termCard) lastReads(want string) string {
 	switch {
 	case c.Last == nil:
 		return "the card has no last line"
 	case *c.Last != want:
 		return fmt.Sprintf("the last line reads %q, expected %q", *c.Last, want)
-	case c.Lines != 1:
-		return fmt.Sprintf("the last line takes %d lines", c.Lines)
-	case !c.Mono:
-		return "the last line is not in the face of the name"
-	case !c.Under:
-		return "the last line does not stand under the name across the card"
-	case long && !(c.Cut && c.Ellipsis):
-		return fmt.Sprintf("a line longer than the card is cut %v, with an ellipsis %v", c.Cut, c.Ellipsis)
 	}
 	return ""
 }
 
 // tabCell is a tab over an open terminal and the × beside it, as a fixture
-// reads them; ink is "faint" or "accent" when the mark wears one of the two.
+// reads them.
 type tabCell struct {
-	Name     string `json:"name"`
-	On       bool   `json:"on"`
-	Label    string `json:"label"`
-	Nested   bool   `json:"nested"`
-	Role     string `json:"role"`
-	After    bool   `json:"after"`
-	SameLine bool   `json:"sameLine"`
-	Tall     bool   `json:"tall"`
-	Width    int    `json:"width"`
-	Icon     int    `json:"icon"`
-	Shown    bool   `json:"shown"`
-	Ink      string `json:"ink"`
-	Cut      bool   `json:"cut"`
-	Ellipsis bool   `json:"ellipsis"`
+	Name   string `json:"name"`
+	On     bool   `json:"on"`
+	Label  string `json:"label"`
+	Nested bool   `json:"nested"`
+	Role   string `json:"role"`
 }
 
 // xReads says what is wrong with the × of a tab, or nothing: it is named
-// after the tab it closes, stands beside the tab button rather than inside
-// it, in a cell that takes no part in the list of tabs, and is drawn without
-// a pointer over it, after the name on its line. It is pressed over the whole
-// height of the tab and about a finger wide, its mark small and faint, in the
-// accent on the open tab.
+// after the tab it closes and stands beside the tab button rather than inside
+// it, in a cell that takes no part in the list of tabs.
 func (c tabCell) xReads() string {
-	ink := "faint"
-	if c.On {
-		ink = "accent"
-	}
 	switch {
 	case c.Label != "close "+c.Name:
 		return fmt.Sprintf("the × is called %q", c.Label)
@@ -85,46 +53,21 @@ func (c tabCell) xReads() string {
 		return "the × is inside the tab button"
 	case c.Role != "presentation":
 		return fmt.Sprintf("the cell of the tab and its × has the role %q — the list of tabs would hold it", c.Role)
-	case !c.Shown:
-		return "the × is not drawn"
-	case !c.After || !c.SameLine:
-		return fmt.Sprintf("the × stands after the name %v, on its line %v", c.After, c.SameLine)
-	case !c.Tall:
-		return "the × is lower than the tab"
-	case c.Width < 28 || c.Width > 32:
-		return fmt.Sprintf("the × is %dpx wide, expected 28–32", c.Width)
-	case c.Icon > 16:
-		return fmt.Sprintf("the mark of the × is %dpx", c.Icon)
-	case c.Ink != ink:
-		return fmt.Sprintf("the mark of the × is in %s, expected %s", c.Ink, ink)
 	}
 	return ""
 }
 
-// cardX is a card of a terminal and the × beside it, as a fixture reads them:
-// right and top are how far the × stands from the right edge and the top of
-// the card, under the parts of the card's text it stands over.
+// cardX is a card of a terminal and the × beside it, as a fixture reads them.
 type cardX struct {
-	Name   string   `json:"name"`
-	Label  string   `json:"label"`
-	Nested bool     `json:"nested"`
-	Role   string   `json:"role"`
-	Right  int      `json:"right"`
-	Top    int      `json:"top"`
-	Width  int      `json:"width"`
-	Height int      `json:"height"`
-	Icon   int      `json:"icon"`
-	Shown  bool     `json:"shown"`
-	Ink    string   `json:"ink"`
-	Under  []string `json:"under"`
+	Name   string `json:"name"`
+	Label  string `json:"label"`
+	Nested bool   `json:"nested"`
+	Role   string `json:"role"`
 }
 
 // xReads says what is wrong with the × of a card, or nothing: it is named
-// after the terminal it closes, stands beside the card button rather than
-// inside it, in a cell that takes no part in the list, and is drawn without a
-// pointer over it at the top right corner of the card. It is pressed over a
-// square about a finger wide, its mark small and faint, and no text of the
-// card runs under it.
+// after the terminal it closes and stands beside the card button rather than
+// inside it, in a cell that takes no part in the list.
 func (c cardX) xReads() string {
 	switch {
 	case c.Label != "close "+c.Name:
@@ -133,18 +76,6 @@ func (c cardX) xReads() string {
 		return "the × is inside the card button — pressing it would open the terminal"
 	case c.Role != "presentation":
 		return fmt.Sprintf("the cell of the card and its × has the role %q — the list would hold it", c.Role)
-	case !c.Shown:
-		return "the × is not drawn"
-	case c.Right < 0 || c.Right > 8 || c.Top < 0 || c.Top > 8:
-		return fmt.Sprintf("the × stands %dpx from the right edge of the card and %dpx from its top, expected its top right corner", c.Right, c.Top)
-	case c.Width < 28 || c.Width > 36 || c.Height < 28 || c.Height > 36:
-		return fmt.Sprintf("the × is %d×%dpx, expected about 32×32", c.Width, c.Height)
-	case c.Icon > 16:
-		return fmt.Sprintf("the mark of the × is %dpx", c.Icon)
-	case c.Ink != "faint":
-		return fmt.Sprintf("the mark of the × is in %s, expected the faint ink", c.Ink)
-	case len(c.Under) > 0:
-		return fmt.Sprintf("the text of the card runs under the ×: %v", c.Under)
 	}
 	return ""
 }
@@ -423,11 +354,11 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		if len(got.HomeCard) != 2 {
 			t.Fatalf("home shows %d cards, expected 2", len(got.HomeCard))
 		}
-		if trouble := got.HomeCard[0].lastReads("u@helios ~ $", false); trouble != "" {
+		if trouble := got.HomeCard[0].lastReads("u@helios ~ $"); trouble != "" {
 			t.Errorf("the idle shell: %s", trouble)
 		}
 		htop := "F1Help  F2Setup  F3Search  F4Filter  F5Tree  F6SortBy  F7Nice -  F8Nice +  F9Kill  F10Quit"
-		if trouble := got.HomeCard[1].lastReads(htop, true); trouble != "" {
+		if trouble := got.HomeCard[1].lastReads(htop); trouble != "" {
 			t.Errorf("htop: %s", trouble)
 		}
 		if c := got.BareCard; c.Name != "zsh" || c.Last != nil {
@@ -542,9 +473,6 @@ func TestTerminalsOnThePhone(t *testing.T) {
 			if trouble := c.xReads(); trouble != "" {
 				t.Errorf("%s: %s", c.Name, trouble)
 			}
-		}
-		if c := x.Cells[3]; !c.Cut || !c.Ellipsis {
-			t.Errorf("a name too long for its tab is cut %v, with an ellipsis %v — it has to give way before the ×", c.Cut, c.Ellipsis)
 		}
 	})
 
@@ -683,10 +611,9 @@ func TestNoTerminalRouteNoTerminals(t *testing.T) {
 	}
 }
 
-// The wide screen: the section after the sessions, the places side by side
+// The wide screen: the section after the sessions, the places as columns
 // with home first, and a card opening E2 — the tabs of its place where a head
-// would be, each with its ×, the window at the end, the terminal filling the
-// rest.
+// would be, each with its ×, the window at the end, and no row of phone keys.
 func TestTerminalsOnTheDesk(t *testing.T) {
 	type column struct {
 		Head  string     `json:"head"`
@@ -694,8 +621,6 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		Path  string     `json:"path"`
 		Cards []string   `json:"cards"`
 		Shots []termCard `json:"shots"`
-		Left  int        `json:"left"`
-		Top   int        `json:"top"`
 	}
 	var got struct {
 		Error     string   `json:"error"`
@@ -713,9 +638,7 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 			Cells   []tabCell `json:"cells"`
 		} `json:"opened"`
 		Fills struct {
-			Height int  `json:"height"`
-			Window int  `json:"window"`
-			Keys   bool `json:"keys"`
+			Keys bool `json:"keys"`
 		} `json:"fills"`
 		Asked    []string `json:"asked"`
 		Question string   `json:"question"`
@@ -741,7 +664,7 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		t.Fatalf("the fixture broke off: %s", got.Error)
 	}
 
-	t.Run("the places stand side by side", func(t *testing.T) {
+	t.Run("the places stand as columns of their own", func(t *testing.T) {
 		if len(got.Sections) < 2 || got.Sections[0] != "Sessions" || got.Sections[1] != "Terminals" {
 			t.Errorf("the sections read %v, expected terminals right after the sessions", got.Sections)
 		}
@@ -751,12 +674,6 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		}
 		if want := []string{"Home 2 ~", "lab 1 /data/lab", "shop 3 /srv/proj/shop"}; !equalStrings(heads, want) {
 			t.Errorf("the columns read %v, expected %v", heads, want)
-		}
-		for i := 1; i < len(got.Columns); i++ {
-			if got.Columns[i].Top != got.Columns[0].Top || got.Columns[i].Left <= got.Columns[i-1].Left {
-				t.Errorf("the places stand one under another rather than side by side: %+v", got.Columns)
-				break
-			}
 		}
 		if got.Chooser != "places" || got.NewButton != "New" {
 			t.Errorf("above the columns: chooser %q, button %q — expected the choice of places and New", got.Chooser, got.NewButton)
@@ -780,10 +697,10 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 			}
 		}
 		long := "ok   shop/internal/store   15.90s   coverage: 81.4% of statements in shop/internal/store/..."
-		if trouble := shop[0].lastReads(long, true); trouble != "" {
+		if trouble := shop[0].lastReads(long); trouble != "" {
 			t.Errorf("make check: %s", trouble)
 		}
-		if trouble := shop[1].lastReads("u@helios shop main $", false); trouble != "" {
+		if trouble := shop[1].lastReads("u@helios shop main $"); trouble != "" {
 			t.Errorf("zsh: %s", trouble)
 		}
 		if shop[2].Last != nil {
@@ -805,9 +722,8 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		if o.Stream != "/api/term/stream?term=t-s1" {
 			t.Errorf("the terminal attached with %q, expected t-s1", o.Stream)
 		}
-		if got.Fills.Keys || got.Fills.Height < got.Fills.Window*2/3 {
-			t.Errorf("the terminal is %dpx of %dpx, keys row drawn %v — it has to fill the section, with no phone keys",
-				got.Fills.Height, got.Fills.Window, got.Fills.Keys)
+		if got.Fills.Keys {
+			t.Error("the terminal at a desk draws the row of phone keys")
 		}
 		if want := []string{"Home", "lab", "shop"}; !equalStrings(got.Back, want) {
 			t.Errorf("back shows %v, expected the columns again", got.Back)

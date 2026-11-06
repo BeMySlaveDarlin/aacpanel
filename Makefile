@@ -1,7 +1,7 @@
 GOVULNCHECK_VERSION ?= v1.7.0
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract codex-contract shellcheck release
+.PHONY: check fmt vet test test-go test-web vuln build image front agent-import agent-test agent-confined usage-replay stream-contract codex-contract shellcheck release
 
 # check — everything that runs before a commit. front is here as a check, not for
 # the bundle: an error in the screen markup is caught by no test. It goes first,
@@ -15,8 +15,11 @@ GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 #
 # CHECK_JOBS caps how many parts run at once; empty runs them all together. A
 # shared machine sets it, with GOMAXPROCS for the test binaries: each of them
-# otherwise takes every core, whatever -p says about how many run.
-CHECKS = fmt vet shellcheck agent-import test agent-test agent-confined vuln
+# otherwise takes every core, whatever -p says about how many run. The parts
+# are listed longest first, since make starts them in that order: the
+# frontend checks and the Go tests are the length of the run, and what is
+# short fits in beside them.
+CHECKS = test-web test-go agent-test agent-confined vet vuln fmt shellcheck agent-import
 CHECK_JOBS ?=
 check:
 	@times=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-checktimes.XXXXXX"); \
@@ -50,39 +53,62 @@ vet:
 # where walking tests would find it. Without AACP_TEST_DSN the tests with a
 # database are skipped silently, hence the reminder.
 #
+# The build and module caches are the machine's, read before the home is
+# substituted: asked under the new home, go names caches inside it, and every
+# run builds the standard library and the modules from nothing and downloads
+# the modules again. A cached test result is not taken (-count=1): every test
+# runs on every check, as it would on a tree nobody built before.
+#
 # GOTEST_FLAGS is for a run that wants the outcome of every test by name — a CI
 # that counts what was skipped, say. The substitution of the home directory is
 # worth more than the convenience of calling go test by hand, so the flags come
 # through here rather than around.
 #
-# GOTEST_PARALLEL is how many frontend fixtures run at once. A fixture spends
-# its time in the pauses of its page, not on the CPU, so it is more than the
-# cores: sixteen keep a machine of eight cores under six. A small CI runner
-# asks for fewer.
+# The frontend checks (test-web) and the other packages (test-go) are two
+# parts of check that run side by side: the frontend checks are one package
+# that is the length of the run on its own, and the rest is many packages that
+# wait more than they work.
 #
-# The packages that take longest are named before ./...: go test starts the
-# packages in the order it is given them, a few at a time (-p), and ./... names
-# the frontend checks last — started after every other package, the longest
-# one would be the tail of the run on its own.
-SLOW_PACKAGES = ./web/check/ ./internal/executor/
+# GOTEST_PARALLEL is how many frontend fixtures run at once. A fixture keeps a
+# renderer of the shared Chrome busy while its page runs, so it is about a
+# core: a machine sets it to the cores it gives the check, less what the other
+# parts take.
+#
+# GOTEST_PACKAGES is how many packages of test-go build and run at once. Their
+# tests mostly wait on fakes, a database and timers, so a few at once cost
+# little more than one. The packages that take longest are named first: go
+# test starts them in the order it is given them, and the longest one started
+# last would be the tail of the run on its own.
+SLOW_PACKAGES = ./internal/executor/ ./internal/store/ ./internal/install/ ./cmd/aacpanel/
 GOTEST_FLAGS ?=
 GOTEST_PARALLEL ?= 16
+GOTEST_PACKAGES ?= 4
 # The installer writes the test database it makes into .env; a DSN in the
 # environment wins.
 AACP_TEST_DSN ?= $(shell sed -n 's/^AACP_TEST_DSN=//p' .env 2>/dev/null | tail -n 1)
 export AACP_TEST_DSN
-test:
+define testhome
+gocache=$$(go env GOCACHE) gomodcache=$$(go env GOMODCACHE); \
+home=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-testhome.XXXXXX"); \
+trap 'chmod -R u+w "$$home" 2>/dev/null; rm -rf "$$home"' EXIT; \
+HOME="$$home" \
+XDG_CONFIG_HOME="$$home/.config" \
+XDG_DATA_HOME="$$home/.local/share" \
+XDG_STATE_HOME="$$home/.local/state" \
+XDG_CACHE_HOME="$$home/.cache" \
+GOCACHE="$$gocache" \
+GOMODCACHE="$$gomodcache"
+endef
+test: test-go test-web
+
+test-go:
 	@test -n "$$AACP_TEST_DSN" || echo "!! AACP_TEST_DSN is not set: the tests with a database will be skipped"
-	@home=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-testhome.XXXXXX"); \
-	trap 'chmod -R u+w "$$home" 2>/dev/null; rm -rf "$$home"' EXIT; \
-	HOME="$$home" \
-	XDG_CONFIG_HOME="$$home/.config" \
-	XDG_DATA_HOME="$$home/.local/share" \
-	XDG_STATE_HOME="$$home/.local/state" \
-	XDG_CACHE_HOME="$$home/.cache" \
-	GOCACHE="$$(go env GOCACHE)" \
-	GOMODCACHE="$$(go env GOMODCACHE)" \
-	go test -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) $(SLOW_PACKAGES) ./...
+	@$(testhome) \
+	go test -count=1 -p $(GOTEST_PACKAGES) $(GOTEST_FLAGS) $(SLOW_PACKAGES) $$(go list ./... | grep -v '/web/check$$')
+
+test-web:
+	@$(testhome) \
+	go test -count=1 -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) ./web/check/
 
 # The agent is deployed from the working tree, so a restart is a release: a name
 # undefined at module level keeps the service from starting at all, and tests do

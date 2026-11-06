@@ -93,13 +93,6 @@ window.done = (async () => {
     await tick(150);
 
     const rows = all(".cdsprow");
-    const tops = rows.map((r) => {
-        const cells = [...r.children];
-        if (cells.length < 2) return { drift: 999, heights: 999 };
-        const a = cells[0].getBoundingClientRect();
-        const b = cells[1].getBoundingClientRect();
-        return { drift: Math.abs(a.top - b.top), heights: Math.abs(a.height - b.height) };
-    });
 
     // The last row is the line of context that closes the hunk. After two
     // lopsided blocks it is the line a column laid out by numbers has carried
@@ -126,8 +119,7 @@ window.done = (async () => {
         pickLabel,
         unifiedRows,
         rows: rows.length,
-        drifted: tops.filter((t) => t.drift > 1).length,
-        unevenHeights: tops.filter((t) => t.heights > 1).length,
+        unpaired: rows.filter((r) => r.children.length !== 2).length,
         voids: all(".cdsplit .cdln.void").length,
         lastLeft,
         lastRight,

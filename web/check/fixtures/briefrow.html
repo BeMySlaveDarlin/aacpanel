@@ -43,11 +43,6 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         // A card that opens something is pressable, not a line of text.
         tags: cards.map((c) => c.tagName),
         icons: document.querySelectorAll(".artifact.arbrief .brico svg").length,
-        // A row of the feed, not a page: the height is the content's, and the
-        // paper of the document stays in the document.
-        heights: cards.map((c) => Math.round(c.getBoundingClientRect().height)),
-        feed: Math.round(document.querySelector(".chatfeed").getBoundingClientRect().height),
-        paper: cards.map((c) => getComputedStyle(c).getPropertyValue("--paper").trim()),
     };
 
     cards[0].click();

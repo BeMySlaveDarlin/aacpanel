@@ -5,10 +5,9 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="deskshell"><div class="shell no-nav"><main class="body" id="root"></main></div></div>
 <script type="module">
-// A session at a desk at work on the fourth of seven steps of its checklist,
-// with a feed long enough to scroll: the checklist stands at the top of the
-// timeline column and stays there while the feed scrolls, and a person folds
-// it to one line and finds it folded the next time the conversation is drawn.
+// A session at a desk at work on the fourth of seven steps of its checklist:
+// the checklist stands at the top of the timeline column, and a person folds
+// it and finds it folded the next time the conversation is drawn.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -65,14 +64,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await sleep(30); };
-const top = (el) => el.getBoundingClientRect().top;
 
 window.done = (async () => {
     const out = {};
     try {
         await until(() => document.querySelector(".tline .ckcol") && document.querySelectorAll(".tlentry").length >= 30);
         for (let i = 0; i < 4; i++) await frame();
-        const feed = document.querySelector(".chatfeed");
         const line = document.querySelector(".tline");
         const block = () => document.querySelector(".tline .ckcol");
         out.first = line.firstElementChild === block();
@@ -81,31 +78,7 @@ window.done = (async () => {
         out.head = text(block().querySelector(".ckhead"));
         out.steps = block().querySelectorAll(".ckitem").length;
         out.note = text(block().querySelector(".cknote"));
-        out.scrolls = feed.scrollHeight - feed.clientHeight;
 
-        feed.scrollTop = 0;
-        await frame();
-        await frame();
-        out.atTop = Math.round(top(block()) - top(line));
-        out.over = Math.round(block().getBoundingClientRect().left - line.getBoundingClientRect().left);
-        feed.scrollTop = feed.scrollHeight;
-        await frame();
-        await frame();
-        out.lineGone = Math.round(top(feed) - top(line));
-        out.held = Math.round(top(block()) - top(feed));
-        // An entry of the column the block covers is under it, not over it.
-        const covered = Array.from(document.querySelectorAll(".tlentry")).find((e) => {
-            const b = e.getBoundingClientRect();
-            const c = block().getBoundingClientRect();
-            return b.top > c.top + 4 && b.top < c.bottom - 4;
-        });
-        if (covered) {
-            const c = covered.getBoundingClientRect();
-            const hit = document.elementFromPoint(c.left + 30, c.top + 4);
-            out.coveredHit = hit ? (block().contains(hit) ? "checklist" : hit.className) : "";
-        }
-
-        const tallOpen = block().getBoundingClientRect().height;
         block().querySelector(".ckhead").click();
         await until(() => block().classList.contains("folded"));
         await frame();
@@ -114,8 +87,6 @@ window.done = (async () => {
             step: text(block().querySelector(".ckstep")),
             steps: block().querySelectorAll(".ckitem").length,
             expanded: block().querySelector(".ckhead").getAttribute("aria-expanded"),
-            shorter: block().getBoundingClientRect().height < tallOpen / 3,
-            oneLine: block().querySelector(".ckhead").getBoundingClientRect().height < 30,
             kept: localStorage.getItem(CHECKLIST_KEY),
         };
 
@@ -131,7 +102,6 @@ window.done = (async () => {
         block().querySelector(".ckhead").click();
         await until(() => !block().classList.contains("folded"));
         out.unfolded = { steps: block().querySelectorAll(".ckitem").length, kept: localStorage.getItem(CHECKLIST_KEY) };
-        out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

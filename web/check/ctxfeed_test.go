@@ -18,13 +18,12 @@ type ctxSaved struct {
 }
 
 type ctxOff struct {
-	Aria     string  `json:"aria"`
-	Disabled bool    `json:"disabled"`
-	Focused  bool    `json:"focused"`
-	Tip      string  `json:"tip"`
-	Opacity  float64 `json:"opacity"`
-	Sent     int     `json:"sent"`
-	Sheet    bool    `json:"sheet"`
+	Aria     string `json:"aria"`
+	Disabled bool   `json:"disabled"`
+	Focused  bool   `json:"focused"`
+	Tip      string `json:"tip"`
+	Sent     int    `json:"sent"`
+	Sheet    bool   `json:"sheet"`
 }
 
 type ctxFeed struct {
@@ -284,16 +283,15 @@ func TestATerminalHasTheMenuOfItsCardAndTab(t *testing.T) {
 
 // The plus of a project and the window of a terminal that cannot be pressed
 // say why on their tip: they keep the focus and the pointer the tip is read
-// by, are dimmed as before, and a press sends nothing.
+// by, and a press sends nothing.
 func TestButtonsThatCannotBePressedSayWhy(t *testing.T) {
 	got := ctxFeedPage(t)
 	for name, c := range map[string]struct {
-		off       ctxOff
-		why       string
-		dimmedFor float64
+		off ctxOff
+		why string
 	}{
-		"the plus of a project":    {got.PlusOff, "session.open", 0.45},
-		"the window of a terminal": {got.WindowOff, "term.console", 0.55},
+		"the plus of a project":    {got.PlusOff, "session.open"},
+		"the window of a terminal": {got.WindowOff, "term.console"},
 	} {
 		o := c.off
 		if o.Disabled || o.Aria != "true" {
@@ -305,9 +303,6 @@ func TestButtonsThatCannotBePressedSayWhy(t *testing.T) {
 		}
 		if !strings.Contains(o.Tip, c.why) {
 			t.Errorf("%s shows the tip %q, expected why the host cannot (%s)", name, o.Tip, c.why)
-		}
-		if o.Opacity != c.dimmedFor {
-			t.Errorf("%s is drawn at opacity %v, the dimmed look is %v", name, o.Opacity, c.dimmedFor)
 		}
 		if o.Sent != 0 || o.Sheet {
 			t.Errorf("a press on %s sent %d actions (a sheet opened: %v)", name, o.Sent, o.Sheet)

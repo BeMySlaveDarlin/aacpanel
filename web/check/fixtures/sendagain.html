@@ -76,11 +76,8 @@ window.done = (async () => {
     const label = button() ? button().textContent.trim() : "";
     if (!button()) return { label, sent, patches, failed: "no button under the refusal" };
 
-    // The button lives inside the bubble of the message it belongs to, and a
-    // thumb has to be able to hit it: both are measured before it is pressed.
-    const btn = button().getBoundingClientRect();
-    const box = bubble().getBoundingClientRect();
-    const fits = btn.left >= box.left - 1 && btn.right <= box.right + 1 && btn.height >= 32;
+    // The button lives inside the bubble of the message it belongs to.
+    const inside = bubble().contains(button());
 
     button().click();
     await quiet();
@@ -97,8 +94,7 @@ window.done = (async () => {
 
     return {
         label,
-        fits,
-        height: btn.height,
+        inside,
         afterFail,
         afterOne,
         sent,

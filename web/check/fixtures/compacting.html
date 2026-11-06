@@ -42,11 +42,6 @@ const read = (id) => {
         pct: (box.querySelector(".workpct") || { textContent: "" }).textContent.trim(),
         now: bar ? bar.getAttribute("aria-valuenow") : "",
         fill: fill ? fill.style.width : "",
-        barHeight: bar ? bar.getBoundingClientRect().height : 0,
-        barShare: bar ? bar.getBoundingClientRect().width / box.querySelector(".workbar").getBoundingClientRect().width : 0,
-        fillShare: fill && bar ? fill.getBoundingClientRect().width / bar.getBoundingClientRect().width : 0,
-        pctRight: box.querySelector(".workpct")
-            ? box.querySelector(".workbar").getBoundingClientRect().right - box.querySelector(".workpct").getBoundingClientRect().right : -1,
     };
 };
 

@@ -119,12 +119,11 @@ const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
 const rowOf = (root, name) => root.querySelector(`.dkleft .sc[data-name="${name}"]`);
 const cards = (root, sel) => Array.from(root.querySelectorAll(sel)).map((c) => c.dataset.name);
 // agentOf reads the word that opens a quiet line: what it says, whose it is,
-// its tip and the hue it is painted in.
+// and its tip.
 const agentOf = (line) => {
     const word = line && line.firstElementChild;
-    if (!word || !word.classList.contains("agentword")) return { text: "", agent: "", tip: "", colour: "" };
-    return { text: text(word), agent: word.dataset.agent || "", tip: word.dataset.tip || "",
-        colour: getComputedStyle(word).color };
+    if (!word || !word.classList.contains("agentword")) return { text: "", agent: "", tip: "" };
+    return { text: text(word), agent: word.dataset.agent || "", tip: word.dataset.tip || "" };
 };
 
 // closeSheet reads the sheet the gate put up inside root, presses its own

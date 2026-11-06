@@ -6,15 +6,12 @@
 <script type="module">
 // The limits at the top of every contour page of the phone: claude's five
 // hours and seven days, signed Claude, and beside them in their row codex's
-// week, signed Codex, each word in the colour of its agent. A contour without
-// codex keeps claude's two, a contour codex alone spent in has codex's alone,
-// and an account that told no week, ran into its limit or has not renewed its
-// numbers for a while says so. The last contour has the widest words a window
-// carries three to a row: a share with a tenth, a reset that has come and one
-// in minutes, and no week. An account with no five-hour window has its week
-// beside codex's, two to the row. Every page is measured for words cut off or
-// windows run into one another, at whatever width the screen of the run is,
-// and the words of the agents are read again on the sky.
+// week, signed Codex. A contour without codex keeps claude's two, a contour
+// codex alone spent in has codex's alone, and an account that told no week,
+// ran into its limit or has not renewed its numbers for a while says so. One
+// contour has a share with a tenth, a reset that has come and one in minutes,
+// and no week. An account with no five-hour window has its week beside
+// codex's.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sessions } from "/src/screens/sessions.js";
@@ -79,92 +76,38 @@ const until = async (ok) => {
     return ok();
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-// hue is the colour a custom property of the theme comes to on this page.
-const hue = (name) => {
-    const probe = document.createElement("span");
-    probe.style.color = `var(${name})`;
-    document.body.appendChild(probe);
-    const got = getComputedStyle(probe).color;
-    probe.remove();
-    return got;
-};
-// lines counts the lines a box of text takes.
-const lines = (el) => {
-    if (!el) return 0;
-    const step = parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.2;
-    return Math.round(el.getBoundingClientRect().height / step);
-};
-const meets = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > .5
-    && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > .5;
-const within = (inner, outer) => inner.left >= outer.left - .5 && inner.right <= outer.right + .5
-    && inner.top >= outer.top - .5 && inner.bottom <= outer.bottom + .5;
 
 window.done = (async () => {
-    await document.fonts.ready;
     if (!await until(() => document.querySelectorAll(".pfpage .pflimits").length === profileMap.length)) {
         throw new Error("the contour pages did not show their limits");
     }
-    const out = { width: window.innerWidth, codexHue: hue("--agent-codex"), accent: hue("--accent"), pages: [] };
+    const out = { pages: [] };
     Array.from(document.querySelectorAll(".pfpage")).forEach((page, i) => {
         const box = page.querySelector(".pflimits");
-        const edge = box.getBoundingClientRect();
-        const plates = Array.from(box.querySelectorAll(".limit"));
-        const cut = [];
-        for (const el of box.querySelectorAll("*")) {
-            if (getComputedStyle(el).display === "inline") continue;
-            if (el.scrollWidth > el.clientWidth) cut.push(`${el.className}: ${text(el)} (${el.scrollWidth} > ${el.clientWidth})`);
-        }
-        const overlaps = [];
-        plates.forEach((a, j) => plates.slice(j + 1).forEach((b) => {
-            if (meets(a.getBoundingClientRect(), b.getBoundingClientRect())) overlaps.push(`${text(a)} | ${text(b)}`);
-        }));
         out.pages.push({
             name: profileMap[i].profile,
-            width: Math.round(edge.width),
-            dim: getComputedStyle(box).opacity,
-            plates: plates.map((l) => {
+            stale: box.classList.contains("stale"),
+            plates: Array.from(box.querySelectorAll(".limit")).map((l) => {
                 const word = l.querySelector(".agentword");
                 const fill = l.querySelector(".fill");
-                const rect = l.getBoundingClientRect();
                 const rows = l.querySelectorAll(":scope > .lrow");
                 const foot = rows.length > 1 ? rows[rows.length - 1] : null;
-                const span = foot ? foot.querySelector(".lname") : null;
-                const sub = l.querySelector(".lsub");
                 return {
                     value: text(l.querySelector(".lval")),
-                    span: text(span),
-                    sub: text(sub),
+                    span: text(foot ? foot.querySelector(".lname") : null),
+                    sub: text(l.querySelector(".lsub")),
                     agent: l.dataset.agent || "",
                     word: text(word),
                     wordAgent: word ? word.dataset.agent || "" : "",
-                    wordHue: word ? getComputedStyle(word).color : "",
-                    fillHue: fill ? getComputedStyle(fill).backgroundColor : "",
-                    fillShare: fill ? Math.round(fill.getBoundingClientRect().width / fill.parentElement.getBoundingClientRect().width * 100) : -1,
-                    dim: getComputedStyle(l.parentElement).opacity,
-                    x: Math.round(rect.left - edge.left),
-                    y: Math.round(rect.top - edge.top),
-                    width: Math.round(rect.width),
-                    height: Math.round(rect.height),
+                    share: fill ? fill.style.width : "",
+                    old: l.parentElement.classList.contains("pfold"),
                     title: l.title,
-                    // Where the word of the agent and the last line stand in
-                    // the window: the top of the one, the bottom of the other.
-                    headAt: word ? Math.round(word.getBoundingClientRect().top - rect.top) : -1,
-                    footAt: sub ? Math.round(sub.getBoundingClientRect().bottom - rect.top) : -1,
-                    lines: [word, l.querySelector(".lval"), span, sub].map(lines),
-                    inside: within(rect, edge),
                 };
             }),
             notes: Array.from(box.querySelectorAll(".limits-note")).map(text),
             none: text(box.querySelector(".limitnone")),
-            cut,
-            overlaps,
         });
     });
-    const root = document.documentElement;
-    root.classList.add("sky");
-    out.sky = Array.from(document.querySelector(".pfpage .pflimits").querySelectorAll(".agentword"))
-        .map((word) => `${text(word)} ${getComputedStyle(word).color}`);
-    root.classList.remove("sky");
     return out;
 })();
 </script>

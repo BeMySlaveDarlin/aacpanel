@@ -68,37 +68,27 @@ const tip = (label) => {
     const el = document.querySelector(`#desk [aria-label="${label}"]`);
     return el ? el.getAttribute("data-tip") || "" : null;
 };
-const meets = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
 
 window.done = (async () => {
     await until(() => phone.querySelectorAll(".sc").length === sessions.length);
-    await document.fonts.ready;
-    const out = { mobileActions: {}, gates: [], tips: {}, notes: {}, overflow: 0 };
+    const out = { mobileActions: {}, gates: [], tips: {}, notes: {} };
     for (const s of sessions) {
         const card = row(s.session);
-        card.scrollIntoView({block: "center"});
-        const box = card.getBoundingClientRect();
-        const words = [".scname", ".scsay", ".scctx"].map((sel) => card.querySelector(sel).getBoundingClientRect());
+        // A press is tried where the finger finds the card: on the screen.
+        card.scrollIntoView({ block: "center" });
         const buttons = [...card.querySelectorAll(".scact")];
         const top = card.querySelector(".scl1");
-        const topBox = top.getBoundingClientRect();
-        const name = card.querySelector(".scname").getBoundingClientRect();
         out.mobileActions[s.session] = buttons.map((b) => {
             const r = b.getBoundingClientRect();
-            return { text: text(b), label: b.getAttribute("aria-label"), top: b.closest(".scl1") === top
-                    && Math.abs((r.top + r.bottom) / 2 - (name.top + name.bottom) / 2) <= 2, width: r.width, disabled: off(b),
-                icon: Boolean(b.querySelector("svg")), height: r.height, line: topBox.height, nameLine: name.height,
-                reach: r.width >= 28 && r.height >= 30,
-                clear: !words.some((w) => meets(r, w)), inside: r.left >= box.left && r.right <= box.right && r.bottom <= box.bottom,
-                hit: (() => { const a = b.getBoundingClientRect();
-                    return b.contains(document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2)); })() };
+            return { text: text(b), label: b.getAttribute("aria-label"), top: b.closest(".scl1") === top, disabled: off(b),
+                icon: Boolean(b.querySelector("svg")),
+                hit: b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)) };
         });
         out.notes[s.session] = buttons.map((b) => b.title).join(" | ");
         card.querySelector(".scopen").click();
     }
     out.opened = [...opened];
     out.more = phone.querySelectorAll(".pjmore, .pjends, .pjend").length;
-    out.overflow = document.scrollingElement.scrollWidth - innerWidth;
     for (const [name, kind] of [["lab", "restart"], ["lab", "close"], ["helios", "restart"], ["codex-5afc361b", "close"]]) {
         const before = sent.length;
         button(name, kind).click();

@@ -7,16 +7,14 @@ import (
 
 type codexRunShot struct {
 	Rows []struct {
-		Name   string `json:"name"`
-		Word   string `json:"word"`
-		Key    string `json:"key"`
-		Colour string `json:"colour"`
-		Stop   string `json:"stop"`
-		State  string `json:"state"`
+		Name  string `json:"name"`
+		Word  string `json:"word"`
+		Key   string `json:"key"`
+		Stop  string `json:"stop"`
+		State string `json:"state"`
 	} `json:"rows"`
-	Sub          string `json:"sub"`
-	ClaudeColour string `json:"claudeColour"`
-	Opened       struct {
+	Sub    string `json:"sub"`
+	Opened struct {
 		ID    string `json:"id"`
 		Agent string `json:"agent"`
 		Name  string `json:"name"`
@@ -31,7 +29,7 @@ type codexRunShot struct {
 }
 
 // A run of codex exec a claude session started is one of its agents: its row
-// says Codex in the colour of codex, offers no stop — claude has no task of it
+// says Codex, offers no stop — claude has no task of it
 // and the panel no daemon of its thread — and opens the feed of its thread,
 // asked for by the id of the thread alone rather than as an agent beside the
 // conversation, which the service would refuse. A run that is over reads as
@@ -56,9 +54,6 @@ func TestACodexRunStandsAmongTheAgentsAndOpensItsThread(t *testing.T) {
 	}
 	if !strings.HasPrefix(run.Name, "reviewer") || run.Word != "Codex" || run.Key != "codex" {
 		t.Errorf("the run reads %+v: its role, then the word of codex", run)
-	}
-	if run.Colour == "" || run.Colour == got.ClaudeColour {
-		t.Errorf("the word of the run is painted %q, the word of claude %q", run.Colour, got.ClaudeColour)
 	}
 	if run.Stop != "no" {
 		t.Errorf("the run offers a stop the panel has no way to make")

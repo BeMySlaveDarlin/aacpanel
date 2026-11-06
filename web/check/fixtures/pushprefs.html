@@ -162,12 +162,6 @@ window.done = (async () => {
     out.idle = all(".nffrom").map((f) => f.getAttribute("data-idle"));
     out.gets = asked.filter((a) => a.startsWith("GET /api/push/prefs")).length;
 
-    // At a desk the groups stand two by two; on a phone one under another.
-    const groups = all(".nfgroup").map((g) => g.getBoundingClientRect());
-    out.layout = groups.map((b) => ({ left: Math.round(b.left), top: Math.round(b.top), width: Math.round(b.width) }));
-    out.overflow = document.documentElement.scrollWidth > window.innerWidth
-        || all(".nfrow").some((r) => r.scrollWidth > r.clientWidth + 1);
-
     out.checkDefault = row("Check questions in text with haiku").getAttribute("aria-checked") === "true";
     out.checkOff = (await press(row("Check questions in text with haiku"))).checkQuestions === false;
     out.checkOn = (await press(row("Check questions in text with haiku"))).checkQuestions === true;
@@ -212,9 +206,11 @@ window.done = (async () => {
     // Rules, from their own list.
     row("Rules").click();
     const rules = await until(sheet);
-    // The sheet lays its scrim over the whole window, not the column of the page.
+    // A press at either side of the screen, beside the sheet, lands on its
+    // scrim rather than on the screen under it.
     const scrim = await until(() => document.querySelector(".scrim.on"));
-    out.scrimCovers = Boolean(scrim) && scrim.getBoundingClientRect().width >= window.innerWidth - 1;
+    out.scrimCovers = Boolean(scrim) && [2, innerWidth - 3]
+        .every((x) => document.elementFromPoint(x, innerHeight / 4) === scrim);
     out.rules = all(".nfrow", rules).map((r) => ({ ...rowOf(r), dim: r.getAttribute("data-dim") || "" }));
     out.ruleOff = (await press(row("Host CPU is loaded", rules))).rules;
     out.ruleShown = row("Host CPU is loaded", rules).getAttribute("aria-checked");

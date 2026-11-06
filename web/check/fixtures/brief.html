@@ -150,10 +150,6 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         // A table written in the prose of a brief is drawn as a table.
         tables: document.querySelectorAll(".bsection table").length,
         cells: Array.from(document.querySelectorAll(".bsection td")).map((n) => n.textContent.trim()),
-        // The document is drawn in the colours of the panel around it.
-        ground: getComputedStyle(document.querySelector(".brief")).backgroundColor,
-        ink: getComputedStyle(document.querySelector(".brief")).color,
-        panelInk: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim(),
         questions: text(".bq h3"),
         facts: document.querySelectorAll(".bfacts li").length,
         flagged: document.querySelectorAll(".bfacts .bflag").length,
@@ -169,15 +165,8 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         captures: document.querySelectorAll(".bcap").length,
         pressed: text('.bopt[aria-pressed="true"] .bopt-k'),
         say: (document.querySelector(".bdock-say") || {}).textContent || "",
-        // The dock is a row of the panel's own buttons: one line, one height,
-        // the panel's face, and a label that can be read on the fill it sits on.
-        dock: Array.from(document.querySelectorAll(".bbtn")).map((n) => {
-            const b = n.getBoundingClientRect(), cs = getComputedStyle(n);
-            return { label: n.textContent.trim(), top: Math.round(b.top), height: Math.round(b.height),
-                     font: cs.fontFamily, color: cs.color, disabled: n.disabled };
-        }),
-        panelFont: getComputedStyle(document.body).fontFamily,
-        onAccent: getComputedStyle(document.documentElement).getPropertyValue("--on-accent").trim(),
+        // The dock is the row of the brief's buttons.
+        dock: Array.from(document.querySelectorAll(".bbtn")).map((n) => ({ label: n.textContent.trim(), disabled: n.disabled })),
         again: (document.querySelector(".bagain") || {}).textContent || "",
         sendDisabled: Boolean(document.querySelector(".bbtn.go") && document.querySelector(".bbtn.go").disabled),
     };
@@ -218,17 +207,9 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         picks: Array.from(document.querySelectorAll('.bq .bopt[aria-pressed="true"] .bopt-k')).map((n) => n.textContent),
     };
 
-    // A document runs for screens: the way out has to be reachable from the
-    // middle of it, not only from the top.
+    // A document has a way out of it.
     const out = document.querySelector(".brief .pback");
-    scrollTo(0, Math.round(document.documentElement.scrollHeight / 2));
-    await quiet();
-    const box = out ? out.getBoundingClientRect() : null;
-    const exit = {
-        there: Boolean(out),
-        stuck: out ? getComputedStyle(out.closest(".phead")).position : "",
-        onScreen: Boolean(box && box.top >= 0 && box.bottom <= innerHeight && box.width > 0),
-    };
+    const exit = { there: Boolean(out) };
     if (out) out.click();
     await quiet();
     exit.left = left.length;

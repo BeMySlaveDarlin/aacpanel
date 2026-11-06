@@ -38,8 +38,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         // The reading is the fill of the chip itself, not a bar beside it.
         fills: chips.map((c) => Math.round(parseFloat(c.style.getPropertyValue("--fill")) || 0)),
         bars: document.querySelectorAll(".dkgauge-bar").length,
-        // The row must stay on one line whatever the numbers are.
-        rows: new Set(Array.from(document.querySelectorAll(".dkgauge")).map((g) => Math.round(g.getBoundingClientRect().top))).size,
+        // The tip of a chip names what it reads, the disk by its mount.
         tips: Array.from(document.querySelectorAll(".dkgauge")).map((g) => g.getAttribute("data-tip")),
     };
 

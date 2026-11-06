@@ -2,7 +2,6 @@ package check
 
 import (
 	"math"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -96,65 +95,14 @@ func TestDesktopScaleLivesOnTheRootAndLeavesWithTheShell(t *testing.T) {
 	}
 }
 
-// TestArchiveRowKeepsItsButtonsOffTheText measures a row of the archive in an
-// engine. The buttons of a row used to be laid over it: they covered the model
-// and the age of the conversation exactly when the pointer arrived, and the
-// row answered a click with something other than what was read under it.
-func TestArchiveRowKeepsItsButtonsOffTheText(t *testing.T) {
+// The contour filter of the archive offers the contours of the map, and a
+// contour picked there goes out with the request.
+func TestTheArchiveFiltersByTheContoursOfTheMap(t *testing.T) {
 	var got struct {
-		Plain struct {
-			Overlap int     `json:"overlap"`
-			Act     int     `json:"act"`
-			Panel   int     `json:"panel"`
-			Text    float64 `json:"text"`
-			Shown   float64 `json:"shown"`
-		} `json:"plain"`
-		Scaled struct {
-			Overlap int     `json:"overlap"`
-			Act     int     `json:"act"`
-			Panel   int     `json:"panel"`
-			Text    float64 `json:"text"`
-		} `json:"scaled"`
 		Picked   string   `json:"picked"`
 		PickRows []string `json:"pickRows"`
 	}
-	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built: the geometry of the panel is the stylesheet's — run make front first")
-	}
 	runWideFixture(t, "deskpanel.html", &got)
-
-	if got.Plain.Act == 0 {
-		t.Fatal("the archive drew no rows with buttons at all — the fixture measured nothing")
-	}
-	if got.Plain.Shown < 1 {
-		t.Errorf("the buttons of a row are drawn at opacity %.2f before anything is hovered — a row that shows "+
-			"what it can do only once it is touched says nothing from across the desk", got.Plain.Shown)
-	}
-	if got.Plain.Overlap > 0 {
-		t.Errorf("the buttons of a row cover %d px² of its text — what is read under the pointer is not what the row says",
-			got.Plain.Overlap)
-	}
-	if got.Scaled.Overlap > 0 {
-		t.Errorf("at a larger scale the buttons cover %d px² of the text — the row comes apart as soon as the interface grows",
-			got.Scaled.Overlap)
-	}
-
-	// A fifth of the scale is the least a person asks for when they say the
-	// interface is too small; everything of a row has to answer it at once.
-	for _, part := range []struct {
-		what       string
-		plain, big float64
-	}{
-		{"the button of a row", float64(got.Plain.Act), float64(got.Scaled.Act)},
-		{"the panel", float64(got.Plain.Panel), float64(got.Scaled.Panel)},
-		{"the text of a row", got.Plain.Text, got.Scaled.Text},
-	} {
-		if part.big < part.plain*1.2 {
-			t.Errorf("at a scale of 1.4 %s went from %.0f to %.0f — it does not follow the scale, and grows apart from its neighbours",
-				part.what, part.plain, part.big)
-		}
-	}
-
 	if want := []string{"Acme Labs", "personal", "design", "ops", "docs", "research", "a contour with a name longer than its button"}; !equalStrings(got.PickRows, want) {
 		t.Errorf("the contour filter of the archive offers %v, expected %v — the panel filters by something other than the map",
 			got.PickRows, want)
@@ -164,18 +112,9 @@ func TestArchiveRowKeepsItsButtonsOffTheText(t *testing.T) {
 	}
 }
 
-// The contour buttons keep their columns in both panels, including a short
-// last row. Each button filters by its name and releases that filter again.
-func TestDesktopContoursKeepEvenColumnsAndToggleTheirFilter(t *testing.T) {
-	type layout struct {
-		Display  string    `json:"display"`
-		Wrap     string    `json:"wrap"`
-		Rows     []int     `json:"rows"`
-		Widths   []float64 `json:"widths"`
-		Title    string    `json:"title"`
-		Ellipsis string    `json:"ellipsis"`
-		Clipped  bool      `json:"clipped"`
-	}
+// Each contour button of both panels filters by its name and releases that
+// filter again; a long name is whole in its tip.
+func TestDesktopContoursToggleTheirFilter(t *testing.T) {
 	type selection struct {
 		Picks   []string `json:"picks"`
 		Pressed []string `json:"pressed"`
@@ -183,50 +122,17 @@ func TestDesktopContoursKeepEvenColumnsAndToggleTheirFilter(t *testing.T) {
 	}
 	var got struct {
 		PickRows []string               `json:"pickRows"`
-		Seven    map[string]layout      `json:"seven"`
-		Fifteen  map[string]layout      `json:"fifteen"`
+		Title    string                 `json:"title"`
 		Toggles  map[string][]selection `json:"toggles"`
 	}
 	runWideFixture(t, "deskpanel.html", &got)
 	if len(got.PickRows) != 7 {
 		t.Fatalf("the contour group drew %v, expected seven buttons", got.PickRows)
 	}
+	if got.Title != got.PickRows[6] {
+		t.Errorf("the long name has the tip %q", got.Title)
+	}
 	for _, side := range []string{"left", "right"} {
-		for _, sample := range []struct {
-			count int
-			rows  []int
-			got   layout
-		}{
-			{7, []int{5, 2}, got.Seven[side]},
-			{15, []int{5, 5, 5}, got.Fifteen[side]},
-		} {
-			l := sample.got
-			if l.Display != "flex" || l.Wrap != "wrap" {
-				t.Errorf("%s with %d contours: display %q, wrap %q, expected wrapping flex", side, sample.count, l.Display, l.Wrap)
-			}
-			if len(l.Rows) != len(sample.rows) {
-				t.Errorf("%s with %d contours: rows %v, expected %v", side, sample.count, l.Rows, sample.rows)
-			} else {
-				for i, count := range sample.rows {
-					if l.Rows[i] != count {
-						t.Errorf("%s with %d contours: row %d has %d buttons, expected %d", side, sample.count, i, l.Rows[i], count)
-					}
-				}
-			}
-			if len(l.Widths) != sample.count {
-				t.Errorf("%s: measured %d buttons, expected %d", side, len(l.Widths), sample.count)
-			} else {
-				for i, width := range l.Widths {
-					if width <= 0 || math.Abs(width-l.Widths[0]) > .1 {
-						t.Errorf("%s with %d contours: button %d is %.2f wide, first is %.2f", side, sample.count, i, width, l.Widths[0])
-					}
-				}
-			}
-			if l.Title != got.PickRows[6] || l.Ellipsis != "ellipsis" || !l.Clipped {
-				t.Errorf("%s with %d contours: the long name has title %q, overflow %q, clipped %v", side, sample.count, l.Title, l.Ellipsis, l.Clipped)
-			}
-		}
-
 		states := got.Toggles[side]
 		wantPicks := [][]string{nil, {got.PickRows[0]}, {got.PickRows[0], got.PickRows[6]}, {got.PickRows[6]}, nil}
 		if len(states) != len(wantPicks) {

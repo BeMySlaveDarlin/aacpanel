@@ -23,10 +23,10 @@ render(h(LaunchLine, { line: tmux }), document.getElementById("b"));
 window.done = (async () => {
     await new Promise((r) => setTimeout(r, 50));
     const words = (id) => [...document.querySelectorAll(`#${id} .lw`)].map((w) => w.textContent);
-    const deco = (id, n) => getComputedStyle(document.querySelectorAll(`#${id} .lw`)[n]).textDecorationStyle;
+    // Where the value of each word came from, as the line marks it.
+    const layers = (id) => [...document.querySelectorAll(`#${id} .lw`)].map((w) => w.dataset.layer);
     return {
-        stream: words("a"), tmux: words("b"),
-        own: deco("b", 3), contour: deco("a", 4), plain: getComputedStyle(document.querySelectorAll("#b .lw")[0]).textDecorationLine,
+        stream: words("a"), tmux: words("b"), streamLayers: layers("a"), tmuxLayers: layers("b"),
         then: (document.querySelector("#a .lthen") || {}).textContent || "",
         tmuxThen: Boolean(document.querySelector("#b .lthen")),
         onStream: [onStream(stream), onStream(tmux), onStream(null)],

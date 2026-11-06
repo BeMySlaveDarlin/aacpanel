@@ -7,19 +7,16 @@ import (
 
 // hostPage is what stands on the screen with the host tab on one of its pages.
 type hostPage struct {
-	Page       string   `json:"page"`
-	Kept       string   `json:"kept"`
-	Back       bool     `json:"back"`
-	Head       []string `json:"head"`
-	RowTop     int      `json:"rowTop"`
-	RowBottom  int      `json:"rowBottom"`
-	Filters    []string `json:"filters"`
-	FiltersTop int      `json:"filtersTop"`
-	Outside    []string `json:"outside"`
-	Stacks     int      `json:"stacks"`
-	Grid       bool     `json:"grid"`
-	Entries    int      `json:"entries"`
-	Records    []string `json:"records"`
+	Page    string   `json:"page"`
+	Kept    string   `json:"kept"`
+	Back    bool     `json:"back"`
+	Head    []string `json:"head"`
+	Filters []string `json:"filters"`
+	Outside []string `json:"outside"`
+	Stacks  int      `json:"stacks"`
+	Grid    bool     `json:"grid"`
+	Entries int      `json:"entries"`
+	Records []string `json:"records"`
 }
 
 // hostLayer is a page the host menu opened over the screen.
@@ -40,10 +37,6 @@ type hostReturn struct {
 	Page  string `json:"page"`
 	Title string `json:"title"`
 }
-
-// filtersGapMax is the most the filters of the containers may stand below the
-// row of pages: a margin, not room for a strip between them.
-const filtersGapMax = 24
 
 // The host tab of the phone: the containers, the machine and the journal as
 // pages of one tab, turned by a swipe the way the sessions turn their
@@ -69,11 +62,16 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		First       hostPage  `json:"first"`
 		Forward     hostTurn  `json:"forward"`
 		Machine     hostPage  `json:"machine"`
-		Further     hostTurn  `json:"further"`
-		Journal     hostPage  `json:"journal"`
-		Backward    hostTurn  `json:"backward"`
-		Again       string    `json:"again"`
-		Reopened    struct {
+		Pulled      struct {
+			Box   string  `json:"box"`
+			Moved float64 `json:"moved"`
+			Page  string  `json:"page"`
+		} `json:"pulled"`
+		Further  hostTurn `json:"further"`
+		Journal  hostPage `json:"journal"`
+		Backward hostTurn `json:"backward"`
+		Again    string   `json:"again"`
+		Reopened struct {
 			Page  string `json:"page"`
 			NavOn string `json:"navOn"`
 			Tab   string `json:"tab"`
@@ -154,25 +152,15 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		}
 	})
 
-	// The row of pages is the first thing under the header, as on the
-	// sessions: what belongs to the containers turns with their page and
-	// never pushes the row about. The figures of the machine have a page of
-	// their own, so nothing stands between the row and the filters.
-	t.Run("the row of pages stands still and the filters turn with the containers", func(t *testing.T) {
+	// What belongs to the containers turns with their page: the filters are
+	// the containers page's own.
+	t.Run("the filters turn with the containers", func(t *testing.T) {
 		f, m, j := got.First, got.Machine, got.Journal
-		if f.RowTop <= 0 || f.RowTop != m.RowTop || f.RowTop != j.RowTop {
-			t.Errorf("the row of pages stands at %d on the containers, %d on the machine, %d on the journal — "+
-				"expected one place on all three", f.RowTop, m.RowTop, j.RowTop)
-		}
 		for _, p := range []hostPage{f, m, j} {
 			if len(p.Outside) != 0 {
 				t.Errorf("on the %s page %v stand outside the pages — the filters belong to the containers page",
 					p.Page, p.Outside)
 			}
-		}
-		if gap := f.FiltersTop - f.RowBottom; gap < 0 || gap > filtersGapMax {
-			t.Errorf("on the containers page the row ends at %d and the filters start at %d — expected the filters "+
-				"right under the row, at most %d px below it", f.RowBottom, f.FiltersTop, filtersGapMax)
 		}
 	})
 
@@ -186,6 +174,14 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		}
 		if got.Backward.Page != "Machine" {
 			t.Errorf("a swipe back left the tab on %q, expected the machine", got.Backward.Page)
+		}
+	})
+
+	t.Run("a pull up scrolls the page and leaves the pages where they stand", func(t *testing.T) {
+		p := got.Pulled
+		if p.Box != "pfpage" || p.Moved != 0 || p.Page != "Machine" {
+			t.Errorf("a pull up on the machine moved %q, the pages sideways by %v, and left the tab on %q — "+
+				"expected the machine's own page scrolled and the pages still on it", p.Box, p.Moved, p.Page)
 		}
 	})
 

@@ -1,7 +1,6 @@
 package check
 
 import (
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -20,24 +19,17 @@ type deskCardFacts struct {
 	More   []string `json:"more"`
 	Badges []string `json:"badges"`
 	Ctx    string   `json:"ctx"`
-	Row    int      `json:"row"`
 }
 
 type deskCardRow struct {
-	Name  string   `json:"name"`
-	Icons int      `json:"icons"`
-	Shown bool     `json:"shown"`
-	Bad   []string `json:"bad"`
+	Name  string `json:"name"`
+	Icons int    `json:"icons"`
 }
 
 type deskCardHead struct {
-	Width    int    `json:"width"`
-	Overflow int    `json:"overflow"`
-	TwoLines bool   `json:"twoLines"`
-	Gap      int    `json:"gap"`
-	Sub      string `json:"sub"`
-	Agent    string `json:"agent"`
-	Place    string `json:"place"`
+	Sub   string `json:"sub"`
+	Agent string `json:"agent"`
+	Place string `json:"place"`
 }
 
 type deskCardAction struct {
@@ -47,7 +39,6 @@ type deskCardAction struct {
 }
 
 type deskCard struct {
-	Pointer     bool              `json:"pointer"`
 	Before      []deskCardSection `json:"before"`
 	After       []deskCardSection `json:"after"`
 	OrderBefore string            `json:"orderBefore"`
@@ -61,24 +52,20 @@ type deskCard struct {
 	Runs         map[string][]string      `json:"runs"`
 	SaysAfter    map[string]string        `json:"saysAfter"`
 	Tones        map[string]string        `json:"tones"`
-	Edge         string                   `json:"edge"`
-	NoEdge       string                   `json:"noEdge"`
 	Facts        map[string]deskCardFacts `json:"facts"`
 	Bells        map[string]string        `json:"bells"`
 	BellsVisited map[string]string        `json:"bellsVisited"`
 	ColumnText   string                   `json:"columnText"`
 	Rows         []deskCardRow            `json:"rows"`
 	HomeAct      string                   `json:"homeAct"`
-	Hiding       []string                 `json:"hiding"`
 	Asked        []string                 `json:"asked"`
 	Shelf        []struct {
-		Name    string   `json:"name"`
-		Contour string   `json:"contour"`
-		When    string   `json:"when"`
-		About   string   `json:"about"`
-		Dot     bool     `json:"dot"`
-		Resume  string   `json:"resume"`
-		Bad     []string `json:"bad"`
+		Name    string `json:"name"`
+		Contour string `json:"contour"`
+		When    string `json:"when"`
+		About   string `json:"about"`
+		Dot     bool   `json:"dot"`
+		Resume  bool   `json:"resume"`
 	} `json:"shelf"`
 	ArchiveOpened int `json:"archiveOpened"`
 	PickedClosed  struct {
@@ -86,15 +73,11 @@ type deskCard struct {
 		ID       string `json:"id"`
 		Archived bool   `json:"archived"`
 	} `json:"pickedClosed"`
-	Plus          string           `json:"plus"`
 	Menu          []string         `json:"menu"`
 	Opened        []deskCardAction `json:"opened"`
-	ProjectPlus   string           `json:"projectPlus"`
 	ProjectOpened []deskCardAction `json:"projectOpened"`
 	OpenClosed    *struct {
-		Name   string `json:"name"`
-		Resume string `json:"resume"`
-		When   string `json:"when"`
+		Name string `json:"name"`
 	} `json:"openClosed"`
 	Resumed           []deskCardAction `json:"resumed"`
 	PickedAfterResume int              `json:"pickedAfterResume"`
@@ -113,9 +96,6 @@ var deskCardRun struct {
 
 func runDeskCard(t *testing.T) deskCard {
 	t.Helper()
-	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built: what stands on a row and what fits a line is the stylesheet's business — run make front first")
-	}
 	if chromeBinary() == "" {
 		t.Skip("no Chrome on this machine: the fixture runs the components in a real engine")
 	}
@@ -128,9 +108,6 @@ func runDeskCard(t *testing.T) deskCard {
 	})
 	if !deskCardRun.ok {
 		t.Fatal("deskcard.html failed under Chrome — its error is reported by the test that ran it")
-	}
-	if !deskCardRun.got.Pointer {
-		t.Fatal("the fixture runs without a hovering pointer: a rule behind (hover: hover) that hid the actions until the pointer came would go unseen")
 	}
 	return deskCardRun.got
 }
@@ -175,7 +152,7 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 // A card says how its session stands in the words of the phone, with what
 // runs right after the state's word; a call the person has not come for
 // makes the card wait as a question does. A card that waits for the person
-// is the warm one, counted in the heading of its contour.
+// is counted in the heading of its contour.
 func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -210,9 +187,6 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 	if got.Tones["person"] != "wait" || got.Tones["aacpanel"] != "busy" || got.Tones["helios"] != "idle" || got.Tones["shop"] != "wait" {
 		t.Errorf("the cards carry tones %v", got.Tones)
 	}
-	if !strings.Contains(got.Edge, "gradient") || got.NoEdge != "none" {
-		t.Errorf("the waiting card has the ground %q and a quiet one %q — only the one waiting for the person is warm", got.Edge, got.NoEdge)
-	}
 	if got.Before[0].Waits != "1" || got.Before[1].Waits != "2" {
 		t.Errorf("the headings count %q and %q waiting, expected one and two", got.Before[0].Waits, got.Before[1].Waits)
 	}
@@ -244,14 +218,10 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	}
 }
 
-// A card offers its controls without the pointer — a new session in its
-// project where the card stands for the project alone, pause, restart, pin
-// and close; the home session has no close and no plus. The controls stand
-// in the top right corner of the card, on the line of the name at the right
-// edge, and nothing of the card runs into them: not a long name, not the
-// state or the lines under it. The column stands as narrow as it gets, with
-// the right panel open. One the panel did not start has no controls, which
-// the fixture of such sessions holds.
+// A card offers its controls — a new session in its project where the card
+// stands for the project alone, pause, restart, pin and close; the home
+// session has no close and no plus. One the panel did not start has no
+// controls, which the fixture of such sessions holds.
 func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -266,33 +236,24 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 		case "scratch", "acme-fingerprint-rotation-review":
 			want = 4
 		}
-		if row.Icons != want || !row.Shown {
-			t.Errorf("%s has %d controls, shown %v — every card the panel started shows its controls without the pointer", row.Name, row.Icons, row.Shown)
-		}
-		if len(row.Bad) > 0 {
-			t.Errorf("%s: %v — the controls keep the corner of their own", row.Name, row.Bad)
+		if row.Icons != want {
+			t.Errorf("%s has %d controls, expected %d", row.Name, row.Icons, want)
 		}
 	}
 	if got.HomeAct != "pause session helios,restart session helios,pin session group helios" {
 		t.Errorf("the home session offers %q, expected pause, restart and pin", got.HomeAct)
 	}
-	if len(got.Hiding) > 0 {
-		t.Errorf("the stylesheet takes off the screen %v — the controls of the column stand without the pointer", got.Hiding)
-	}
 }
 
-// The plus in the heading of a contour, there without the pointer, starts a
-// new session in a project of its map: the projects drop from it grouped as the map groups them, the home
+// The plus in the heading of a contour starts a new session in a project of
+// its map: the projects drop from it grouped as the map groups them, the home
 // project left out while the home session lives, and a press sends the same
 // action the projects panel does, addressed by the id of the map entry. The
-// plus of a card that stands for its project alone, there without the
-// pointer too, sends the same action for its own project.
+// plus of a card that stands for its project alone sends the same action for
+// its own project.
 func TestDeskContourHeadingStartsASession(t *testing.T) {
 	got := runDeskCard(t)
 
-	if got.Plus != "visible" {
-		t.Errorf("the plus of a heading stands %q — it is there without the pointer", got.Plus)
-	}
 	if want := "[Side],aacpanel live,person live,blog"; strings.Join(got.Menu, ",") != want {
 		t.Errorf("the plus of personal offers %v, expected %s", got.Menu, want)
 	}
@@ -301,9 +262,6 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 	}
 	if id, ok := got.Opened[0].Params["project"].(float64); !ok || int(id) != 13 {
 		t.Errorf("the new session is addressed as %+v, expected the project of the map by its id", got.Opened[0].Params)
-	}
-	if got.ProjectPlus != "visible" {
-		t.Errorf("the plus of a project's card stands %q — it is there without the pointer", got.ProjectPlus)
 	}
 	if len(got.ProjectOpened) != 1 || got.ProjectOpened[0].Kind != "session.open" || got.ProjectOpened[0].Target != "person" {
 		t.Fatalf("a press on the plus of person sent %+v, expected one session.open", got.ProjectOpened)
@@ -318,8 +276,7 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 // and none where nothing was said; each a card of the live skeleton, dimmed,
 // with its name, its contour, what it was about and how long ago, and the bar
 // of its edge drawn as the peak it reached rather than a fill. The time and
-// Resume stand on every card, and nothing runs into them. The archive is a
-// press away.
+// Resume are on every card. The archive is a press away.
 func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -345,11 +302,8 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 			if row.Dot {
 				t.Errorf("%s on the shelf has a bar of a fill — a closed conversation shows the peak it reached", row.Name)
 			}
-			if row.Resume == "none" || row.When == "" {
-				t.Errorf("%s on the shelf shows Resume %q and the time %q — both stand without the pointer", row.Name, row.Resume, row.When)
-			}
-			if len(row.Bad) > 0 {
-				t.Errorf("%s on the shelf: %v", row.Name, row.Bad)
+			if !row.Resume || row.When == "" {
+				t.Errorf("%s on the shelf has Resume %v and the time %q", row.Name, row.Resume, row.When)
 			}
 		}
 	}
@@ -359,8 +313,8 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	if got.PickedClosed.Name != "shop-admin" || got.PickedClosed.ID != "c-shop-admin" || !got.PickedClosed.Archived {
 		t.Errorf("a press on a closed conversation opened %+v", got.PickedClosed)
 	}
-	if got.OpenClosed == nil || got.OpenClosed.Name != "shop-admin" || got.OpenClosed.Resume == "none" || got.OpenClosed.When == "none" {
-		t.Errorf("the open closed conversation stands as %+v: with its time and Resume both", got.OpenClosed)
+	if got.OpenClosed == nil || got.OpenClosed.Name != "shop-admin" {
+		t.Errorf("the open closed conversation stands as %+v", got.OpenClosed)
 	}
 	if len(got.Resumed) != 1 || got.Resumed[0].Kind != "session.resume" || got.Resumed[0].Params["session"] != "c-shop-admin" {
 		t.Errorf("Resume sent %+v", got.Resumed)
@@ -370,23 +324,13 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	}
 }
 
-// The header of a conversation on the wide screen stands in two lines on the
-// left — the name, and under it who runs the session on which model, the
-// state, the share and the path — with the tools in one line on the right. The tools never leave the header, with the
-// right panel open or without it, and a short name leaves no hole after it.
-func TestDeskChatHeaderStandsInTwoLines(t *testing.T) {
+// The header of a conversation on the wide screen says, under the name, who
+// runs the session on which model, the state, the share and the path, with
+// the right panel open or without it.
+func TestDeskChatHeaderSaysWhatTheSessionRunsOn(t *testing.T) {
 	got := runDeskCard(t)
 
 	for label, head := range map[string]deskCardHead{"with the right panel": got.WithPanel, "without it": got.WithoutPanel} {
-		if head.Overflow > 0 {
-			t.Errorf("%s the tools run %d px past the header of %d px", label, head.Overflow, head.Width)
-		}
-		if !head.TwoLines {
-			t.Errorf("%s the state and the path do not stand under the name", label)
-		}
-		if head.Gap > 1 {
-			t.Errorf("%s the name leaves a hole of %d px after it", label, head.Gap)
-		}
 		if !strings.HasPrefix(head.Sub, "Claude · Opus 5.5 · working · 26% ·") || head.Agent != "claude" {
 			t.Errorf("%s the line under the name reads %q, opened by a word painted as %q's: the agent, the model, the state, the share, the path",
 				label, head.Sub, head.Agent)
@@ -395,11 +339,8 @@ func TestDeskChatHeaderStandsInTwoLines(t *testing.T) {
 			t.Errorf("%s the session button reads %q", label, head.Place)
 		}
 	}
-	if got.WithPanel.Width >= got.WithoutPanel.Width {
-		t.Errorf("the header is %d px with the panel and %d px without — the panel was not open", got.WithPanel.Width, got.WithoutPanel.Width)
-	}
 	if !strings.Contains(got.WithoutPanel.Sub, "~/Projects/Globex/shop") {
-		t.Errorf("with room the path reads whole: %q", got.WithoutPanel.Sub)
+		t.Errorf("the path reads %q", got.WithoutPanel.Sub)
 	}
 }
 

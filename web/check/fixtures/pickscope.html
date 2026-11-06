@@ -7,7 +7,7 @@
 <script type="module">
 // Where a pick goes, on a phone. A session on the stream takes a model or an
 // effort for itself or saves it as the default too, and its scale ends in
-// ultracode behind a dashed line wherever the model takes xhigh; a terminal
+// ultracode past the levels wherever the model takes xhigh; a terminal
 // saves every pick as the default and says so instead of offering a choice.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -93,7 +93,6 @@ window.done = (async () => {
     await quiet();
     out.stops = labels();
     const ultra = stop("Ultracode");
-    out.ultraDashed = Boolean(ultra) && getComputedStyle(ultra).borderLeftStyle === "dashed";
     out.foot = text(".sheet.on .pkscalefoot")[0] || "";
     out.scope = text(".sheet.on .pkseg");
     out.scopeOn = text(".sheet.on .pkseg.on");

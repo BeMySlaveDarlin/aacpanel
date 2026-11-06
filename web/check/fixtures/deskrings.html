@@ -3,11 +3,11 @@
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{height:100%;margin:0} .deskshell{position:static;height:100%}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
-<div class="deskshell"><div id="root"></div><i id="probe"></i></div>
+<div class="deskshell"><div id="root"></div></div>
 <script type="module">
 // The rings of a contour's limit at a desk, one pair a contour: the share
-// spent fills each ring in one colour that steps at the thresholds, and under
-// it stands how long until the window starts over, short and rounded up.
+// spent in each ring, and under it how long until the window starts over,
+// short and rounded up.
 import { h, render } from "preact";
 import { ContourLimits } from "/src/desktop/sessions.js";
 import { quiet } from "/check/fixtures/quiet.js";
@@ -32,32 +32,14 @@ render(h("div", null, pairs.map((_, i) => h("div", { key: i },
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-// tone is the colour a token of the theme resolves to where the rings stand.
-const probe = document.getElementById("probe");
-const tone = (name) => {
-    probe.style.color = `var(${name})`;
-    return getComputedStyle(probe).color;
-};
-// stops reads the conic fill the dial is cut out of: each colour with the
-// position it runs to.
-const stops = (dial) => {
-    const image = getComputedStyle(dial, "::before").backgroundImage;
-    return { image, stops: Array.from(image.matchAll(/(rgba?\([^)]*\))\s*([^,)]*)/g))
-        .map((m) => ({ color: m[1], at: m[2].trim() })) };
-};
 
 window.done = (async () => {
-    await document.fonts.ready;
     for (let i = 0; i < 60 && document.querySelectorAll(".dkring").length < pairs.length * 2; i++) await sleep(50);
-    const rings = Array.from(document.querySelectorAll(".dkring")).map((r) => {
-        const fill = stops(r.querySelector(".dkringdial"));
-        return {
-            value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")),
-            image: fill.image, stops: fill.stops, ink: getComputedStyle(r.querySelector("b")).color,
-            tip: r.getAttribute("data-tip") || "",
-        };
-    });
-    const tones = { accent: tone("--accent"), warn: tone("--warn"), crit: tone("--crit"), ink: tone("--ink-dim") };
+    const rings = Array.from(document.querySelectorAll(".dkring")).map((r) => ({
+        value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")),
+        tip: r.getAttribute("data-tip") || "",
+        tone: Array.from(r.classList).filter((c) => c !== "dkring").join(" "),
+    }));
     // The details of the third contour: a window of a minute and one of a
     // day and a half.
     document.querySelectorAll(".dkrings")[2].click();
@@ -69,6 +51,6 @@ window.done = (async () => {
     document.querySelectorAll(".dkrings")[3].click();
     await quiet();
     const past = document.querySelector(".dklimpop");
-    return { rings, tones, details, past: past ? Array.from(past.querySelectorAll(".dklimwin")).map(text) : null };
+    return { rings, details, past: past ? Array.from(past.querySelectorAll(".dklimwin")).map(text) : null };
 })();
 </script>

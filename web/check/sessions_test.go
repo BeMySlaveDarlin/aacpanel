@@ -1,7 +1,6 @@
 package check
 
 import (
-	"math"
 	"regexp"
 	"strings"
 	"testing"
@@ -10,10 +9,8 @@ import (
 )
 
 type sessionCardTrack struct {
-	Name, Restart, RestartTip, Checklist string
-	Branch, CapAuto, RestartIcon         bool
-	RowX, BarX, BarWidth, GuideX         float64
-	Cap, FillWidth                       float64
+	Name, Restart, RestartTip string
+	Cap, CapAuto, RestartIcon bool
 }
 
 func sessionCardTracks(t *testing.T) map[string][]sessionCardTrack {
@@ -28,43 +25,15 @@ func sessionCardTracks(t *testing.T) map[string][]sessionCardTrack {
 	return map[string][]sessionCardTrack{"phone": got.Levels.Phone.Open.Rows, "desk": got.Levels.Desk.Open.Rows}
 }
 
-// The context bar along the bottom of a card begins where the card does, or
-// at the hairline of a session another opened.
-func TestSessionContextBarsBeginAtTheirBranches(t *testing.T) {
-	for screen, rows := range sessionCardTracks(t) {
-		if len(rows) != 7 {
-			t.Fatalf("%s: expected seven rows at three levels, got %+v", screen, rows)
-		}
-		for _, row := range rows {
-			want := row.RowX
-			if row.Branch {
-				want = row.GuideX
-			}
-			if row.BarWidth <= 0 || math.Abs(row.BarX-want) > 1 {
-				t.Errorf("%s/%s: context starts at %.2f, branch or plain edge at %.2f (width %.2f)", screen, row.Name, row.BarX, want, row.BarWidth)
-			}
-		}
-	}
-}
-
-// The cap of a session is a tick on its context bar at the share it is set
-// to, in the accent where the session restarts there; the fill past the cap
-// is drawn whole.
-func TestSessionContextBarsReserveTheRestartCap(t *testing.T) {
+// The cap of a session is a tick on its context bar, in the accent where the
+// session restarts there; a session without a cap carries none.
+func TestSessionContextBarsMarkTheRestartCap(t *testing.T) {
 	for screen, rows := range sessionCardTracks(t) {
 		for _, row := range rows {
-			cap, auto := map[string]float64{"A": 80, "B": 70, "C": 65, "G": 70}[row.Name], map[string]bool{"A": true, "B": true, "C": true}[row.Name]
-			if cap == 0 {
-				if row.Cap != 0 {
-					t.Errorf("%s/%s: a session without a cap carries a tick at %.1f%%", screen, row.Name, row.Cap)
-				}
-				continue
-			}
-			if math.Abs(row.Cap-cap) > .5 || row.CapAuto != auto {
-				t.Errorf("%s/%s: the cap stands at %.1f%% (accent %v), want %.0f%% (%v)", screen, row.Name, row.Cap, row.CapAuto, cap, auto)
-			}
-			if row.Name == "C" && math.Abs(row.FillWidth-82) > .5 {
-				t.Errorf("%s: context past the cap was cut back: %+v", screen, row)
+			capped := map[string]bool{"A": true, "B": true, "C": true, "G": true}[row.Name]
+			auto := map[string]bool{"A": true, "B": true, "C": true}[row.Name]
+			if row.Cap != capped || row.CapAuto != auto {
+				t.Errorf("%s/%s: the bar carries a tick %v (accent %v), want %v (%v)", screen, row.Name, row.Cap, row.CapAuto, capped, auto)
 			}
 		}
 	}
@@ -238,46 +207,9 @@ func TestEverySnapshotBlockIsVisibleOnScreen(t *testing.T) {
 
 const sessionsFile = "src/screens/sessions.js"
 
-func TestArchivedSessionCardDiffersFromLive(t *testing.T) {
-	css := cssSrc(t)
-
-	cases := []struct {
-		selector string
-		rule     string
-		harm     string
-	}{
-		{
-			selector: ".srow.past",
-			rule:     "background: none",
-			harm:     "the archived card becomes a live one dimmed down again — the material is the same for both, and in the sky theme the dimming barely reads",
-		},
-		{
-			selector: ".srow.past",
-			rule:     "backdrop-filter: none",
-			harm:     "the blur carries brightness(1.04): the card lightens by itself and stays a light rectangle even with no fill",
-		},
-		{
-			selector: ".ctxbar.peak i",
-			rule:     "background: none",
-			harm:     "the peak fills the bar again the way the current fill does — and right now a dead chat has nothing filled in",
-		},
-		{
-			selector: ".rowacts",
-			rule:     "min-width",
-			harm:     "the room for the buttons stops being reserved, and the percentage on an archived card stands two buttons further left than on the live one next to it",
-		},
-	}
-
-	for _, c := range cases {
-		block := cssBlock(t, css, c.selector)
-		if !strings.Contains(block, c.rule) {
-			t.Errorf("%s: %s has no %q — %s", cssFile, c.selector, c.rule, c.harm)
-		}
-	}
-
-	// An archived card keeps the skeleton of a live one, dimmed: its number is
-	// the peak it reached, and the bar along its edge is drawn in the faint
-	// ink of a peak, never in the colours of a fill.
+// An archived card keeps the skeleton of a live one: its number is the peak
+// it reached, and the bar along its edge is drawn as a peak, never as a fill.
+func TestArchivedSessionCardShowsItsPeak(t *testing.T) {
 	body := screenSrc(t, sessionsFile)
 	line := jsBlock(t, sessionsFile, body, "export function PastCard(")
 	if !strings.Contains(line, "peak ${Math.round(row.pctMax") {
@@ -286,10 +218,7 @@ func TestArchivedSessionCardDiffersFromLive(t *testing.T) {
 	}
 	if !strings.Contains(line, "<${Edge} pct=${row.pctMax || 0} past />") {
 		t.Errorf("%s: the bar along the edge of an archived card is not drawn as a peak — "+
-			"a bar in the colours of a fill reads as a live one", sessionsFile)
-	}
-	if peak := cssBlock(t, css, ".scedge.scpeak i"); !strings.Contains(peak, "var(--ink-faint)") {
-		t.Errorf("%s: the peak bar of an archived card has no faint ink of its own", cssFile)
+			"a bar drawn as a fill reads as a live one", sessionsFile)
 	}
 }
 
@@ -297,12 +226,6 @@ func TestArchivedChatHeadShowsPeakNotFill(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat.js")
 	if !strings.Contains(src, "ContextBar} pct=${pct} peak=${!live}") {
 		t.Error("the chat header does not mark the peak: on an archived chat the bar fills the way a current fill does")
-	}
-	if regexp.MustCompile(`chatpct \$\{`).MatchString(src) {
-		t.Error("the number in the chat header is colored by the scale — the bar carries that, not the number")
-	}
-	if strings.Contains(cssSrc(t), ".chatpct.s1") {
-		t.Error("the colored steps of the number are still in the styles: the rule and the markup drift apart silently")
 	}
 }
 

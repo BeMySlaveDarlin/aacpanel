@@ -113,7 +113,6 @@ const deskOf = (box) => Array.from(box.querySelectorAll(".dkscroll > section:not
 }));
 
 window.done = (async () => {
-    await document.fonts.ready;
     const out = { wide, cases: {} };
     for (const c of cases) {
         const box = document.getElementById(c.key);

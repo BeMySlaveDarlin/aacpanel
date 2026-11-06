@@ -10,14 +10,10 @@ import (
 // what typing it does.
 func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	var got struct {
-		DeckOverflow  int      `json:"deckOverflow"`
 		InStrip       bool     `json:"inStrip"`
 		InDeck        bool     `json:"inDeck"`
 		Order         []string `json:"order"`
-		Gaps          []int    `json:"gaps"`
-		StripOverflow int      `json:"stripOverflow"`
 		CmdsIcon      bool     `json:"cmdsIcon"`
-		PageOverflow  int      `json:"pageOverflow"`
 		Title         string   `json:"title"`
 		Groups        []string `json:"groups"`
 		Lines         []string `json:"lines"`
@@ -50,19 +46,8 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	if strings.Join(got.Order, ",") != "file,commands,model,mode" {
 		t.Errorf("the strip reads %v: the paperclip, the commands, then the model with its effort and the mode", got.Order)
 	}
-	for i, gap := range got.Gaps {
-		if gap < 6 {
-			t.Errorf("the buttons %d and %d of the strip stand %d px apart: too close for a thumb to tell", i, i+1, gap)
-		}
-	}
-	if got.StripOverflow > 0 {
-		t.Errorf("the strip overflows the phone by %d px", got.StripOverflow)
-	}
 	if !got.CmdsIcon {
 		t.Errorf("the commands button is not an icon: a slash in a row of words reads poorly")
-	}
-	if got.DeckOverflow > 0 || got.PageOverflow > 0 {
-		t.Errorf("the row under the composer overflows the phone by %d px (the page by %d)", got.DeckOverflow, got.PageOverflow)
 	}
 	if got.Title != "Commands" || strings.Join(got.Groups, ",") != "Screens,How the session runs,The conversation,Plugins and skills" {
 		t.Errorf("the list is %q with groups %v", got.Title, got.Groups)

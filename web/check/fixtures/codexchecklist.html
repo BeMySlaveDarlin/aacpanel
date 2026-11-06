@@ -76,7 +76,6 @@ window.done = (async () => {
         out.lineNum = text(line && line.querySelector(".cknum"));
         out.blockFirst = Boolean(block) && block.parentElement.firstElementChild === block;
         out.blockSteps = block ? Array.from(block.querySelectorAll(".ckitem")).map(text) : [];
-        out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

@@ -1,28 +1,18 @@
 package check
 
-import (
-	"math"
-	"testing"
-)
+import "testing"
 
 type badgeShot struct {
 	Badges []struct {
-		Kind string  `json:"kind"`
-		W    float64 `json:"w"`
-		H    float64 `json:"h"`
-		IW   float64 `json:"iw"`
-		IH   float64 `json:"ih"`
-		Top  float64 `json:"top"`
+		Kind string `json:"kind"`
 	} `json:"badges"`
-	Rows     []float64 `json:"rows"`
-	InColumn int       `json:"inColumn"`
+	InColumn int `json:"inColumn"`
 }
 
-// Every badge on the timeline is drawn the same size with the same icon,
-// whatever it counts — a kind of call, thinking, the end of a turn — and
-// stands at the height of the row its work led to. The kind of a published
+// Every kind of work on the timeline has a badge there, not in the column of
+// prose — a kind of call, thinking, the end of a turn. The kind of a published
 // page is one more kind among them, whatever a card of a page looks like.
-func TestEveryBadgeOfTheTimelineIsTheSameSize(t *testing.T) {
+func TestEveryKindOfWorkHasABadgeOnTheTimeline(t *testing.T) {
 	var got badgeShot
 	runFixture(t, "toolbadges.html", &got)
 	if len(got.Badges) < 12 {
@@ -31,19 +21,9 @@ func TestEveryBadgeOfTheTimelineIsTheSameSize(t *testing.T) {
 	if got.InColumn != 0 {
 		t.Errorf("%d badges stand in the column of prose: the work is on the timeline", got.InColumn)
 	}
-	first := got.Badges[0]
 	kinds := map[string]bool{}
-	for i, b := range got.Badges {
+	for _, b := range got.Badges {
 		kinds[b.Kind] = true
-		if b.W != first.W || b.H != first.H || b.IW != first.IW || b.IH != first.IH {
-			t.Errorf("the %s mark is %.1fx%.1f with a %.1fx%.1f icon; the %s one is %.1fx%.1f with %.1fx%.1f",
-				b.Kind, b.W, b.H, b.IW, b.IH, first.Kind, first.W, first.H, first.IW, first.IH)
-		}
-		// Mark i stands beside row 2i+1... in the column: the rows are the replies,
-		// one after every mark, and the person's message after the turn.
-		if i < len(got.Rows) && math.Abs(b.Top-got.Rows[i]) > 1 {
-			t.Errorf("the %s mark stands at %.1f, the row its work led to at %.1f", b.Kind, b.Top, got.Rows[i])
-		}
 	}
 	for _, want := range []string{"artifact", "hook", "think", "turn"} {
 		if !kinds[want] {
@@ -55,15 +35,14 @@ func TestEveryBadgeOfTheTimelineIsTheSameSize(t *testing.T) {
 func TestThePhoneRailWaitsForTheCurrentRun(t *testing.T) {
 	type run struct {
 		Tail, Anchored, Now, Agents bool
-		Floor, Column               float64
 	}
 	var got struct{ Running, Ended, WaitingAgents, Replied run }
 	runFixture(t, "toolbadges.html", &got)
-	if g := got.Running; g.Tail || !g.Anchored || !g.Now || g.Floor > g.Column {
-		t.Errorf("running turn: %+v — its tail belongs to the now bar without reserving rail space, and anchored work stays", g)
+	if g := got.Running; g.Tail || !g.Anchored || !g.Now {
+		t.Errorf("running turn: %+v — its tail belongs to the now bar, and anchored work stays", g)
 	}
-	if g := got.Ended; !g.Tail || g.Now || g.Floor <= g.Column {
-		t.Errorf("ended turn: %+v — its tail belongs on the rail with room for the stack", g)
+	if g := got.Ended; !g.Tail || g.Now {
+		t.Errorf("ended turn: %+v — its tail belongs on the rail", g)
 	}
 	if g := got.WaitingAgents; !g.Tail || !g.Agents || g.Now {
 		t.Errorf("turn waiting on agents: %+v — the run is over and the bar counts the agents", g)

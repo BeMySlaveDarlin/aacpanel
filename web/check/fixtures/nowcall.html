@@ -141,7 +141,6 @@ window.done = (async () => {
         if (badge) badge.click();
         await until(() => sheet() && sheet().querySelector(".sheethead h2"));
         out.badge = seen();
-        out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

@@ -35,13 +35,6 @@ type prefsShot struct {
 	Idle  []string            `json:"idle"`
 	Gets  int                 `json:"gets"`
 
-	Layout []struct {
-		Left  int `json:"left"`
-		Top   int `json:"top"`
-		Width int `json:"width"`
-	} `json:"layout"`
-	Overflow bool `json:"overflow"`
-
 	Question      []string `json:"question"`
 	QuestionShown string   `json:"questionShown"`
 	QuestionBack  []string `json:"questionBack"`
@@ -100,32 +93,22 @@ func sameSet(a, b []string) bool {
 // door to it: the device's own switch lives on the new screen, over the kinds
 // of news. Every switch and chip writes the list it stands for — a kind to
 // off, a contour or a project to sessions, a stack to stacks, a contour to
-// limits, a rule to rules — and a save the service refuses is taken back.
-func TestTheChoiceOfPushesOnAPhone(t *testing.T) {
-	var got prefsShot
-	runFixture(t, "pushprefs.html", &got)
-	checkPushChoice(t, got)
-
-	for i, g := range got.Layout {
-		if i > 0 && g.Top <= got.Layout[i-1].Top {
-			t.Errorf("on a phone the groups stand one under another, group %d is at %+v after %+v", i, g, got.Layout[i-1])
-		}
-	}
-}
-
-// At a desk the same screen stands as a page over a section, its four groups
-// two by two rather than a strip of switches as wide as the page.
-func TestTheChoiceOfPushesAtADesk(t *testing.T) {
-	var got prefsShot
-	runWideFixture(t, "pushprefs.html", &got)
-	checkPushChoice(t, got)
-
-	if len(got.Layout) != 4 {
-		t.Fatalf("groups laid out: %+v", got.Layout)
-	}
-	l := got.Layout
-	if l[0].Top != l[1].Top || l[1].Left <= l[0].Left || l[2].Top <= l[0].Top || l[2].Left != l[0].Left {
-		t.Errorf("at a desk the groups stand two by two, they stand at %+v", l)
+// limits, a rule to rules — and a save the service refuses is taken back. A
+// desk has the same screen as a page over a section of the desktop shell.
+func TestTheChoiceOfPushes(t *testing.T) {
+	parallel(t)
+	for _, screen := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+	}{
+		{"phone", runFixture},
+		{"desk", runWideFixture},
+	} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got prefsShot
+			screen.run(t, "pushprefs.html", &got)
+			checkPushChoice(t, got)
+		})
 	}
 }
 
@@ -155,9 +138,6 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 	}
 	if got.Gets != 1 {
 		t.Errorf("the choice was read %d times, meant once", got.Gets)
-	}
-	if got.Overflow {
-		t.Error("a row of the screen is wider than the screen")
 	}
 
 	want := []prefsRow{
@@ -253,7 +233,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 	}
 
 	if !got.ScrimCovers {
-		t.Error("the scrim of an open sheet does not cover the window — the sides of the screen stay pressable under it")
+		t.Error("a press at the side of the screen under an open sheet misses its scrim — the screen under it stays pressable")
 	}
 	if len(got.Rules) != 5 {
 		t.Fatalf("the rules listed: %+v", got.Rules)

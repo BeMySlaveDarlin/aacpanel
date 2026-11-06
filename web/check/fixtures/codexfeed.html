@@ -102,7 +102,7 @@ window.done = (async () => {
                 title: text(row.querySelector(".askeda")),
                 at: text(row.querySelector(".askedsubj")),
                 tone: Array.from(row.classList).find((c) => c.startsWith("s-")) || "",
-                clamped: row.querySelector(".xrbody").scrollHeight > row.querySelector(".xrbody").clientHeight + 1,
+                expanded: row.getAttribute("aria-expanded"),
             })),
         })),
         goals: all(".chatfeed .xrgoal").map((card) => ({
@@ -119,8 +119,7 @@ window.done = (async () => {
     if (row) {
         row.click();
         await settled();
-        const b = row.querySelector(".xrbody");
-        out.opened = { expanded: row.getAttribute("aria-expanded"), clamped: b.scrollHeight > b.clientHeight + 1 };
+        out.opened = { expanded: row.getAttribute("aria-expanded") };
     }
     const copy = root.querySelector(".msg.me .msgcopy");
     if (copy) {

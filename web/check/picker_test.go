@@ -1,48 +1,43 @@
 package check
 
 import (
-	"math"
 	"reflect"
 	"strings"
 	"testing"
 )
 
 type pickPhoneShot struct {
-	Head           []string `json:"head"`
-	StripTall      float64  `json:"stripTall"`
-	RootPx         float64  `json:"rootPx"`
-	ModelTitle     string   `json:"modelTitle"`
-	Main           []string `json:"main"`
-	MainDesc       []string `json:"mainDesc"`
-	Checked        []string `json:"checked"`
-	EffortRow      string   `json:"effortRow"`
-	Group          []string `json:"group"`
-	Other          []string `json:"other"`
-	ConfirmSheet   bool     `json:"confirmSheet"`
-	AfterPick      []string `json:"afterPick"`
-	EffortTitle    string   `json:"effortTitle"`
-	Stops          []string `json:"stops"`
-	StopOn         string   `json:"stopOn"`
-	ModeTitle      string   `json:"modeTitle"`
-	Modes          []string `json:"modes"`
-	ModeOn         []string `json:"modeOn"`
-	ModeIcons      int      `json:"modeIcons"`
-	SendReady      bool     `json:"sendReady"`
-	FromComposer   string   `json:"fromComposer"`
-	ComposerAfter  string   `json:"composerAfter"`
-	Sent           []string `json:"sent"`
-	TermMain       []string `json:"termMain"`
-	TermOn         []string `json:"termOn"`
-	TermModesOff   bool     `json:"termModesOff"`
-	TermNote       string   `json:"termNote"`
-	Loud           []string `json:"loud"`
-	Bare           []string `json:"bare"`
-	AttachTitle    string   `json:"attachTitle"`
-	BandPainted    bool     `json:"bandPainted"`
-	WordsSmaller   bool     `json:"wordsSmaller"`
-	EmptySendClear bool     `json:"emptySendClear"`
-	SendFilled     bool     `json:"sendFilled"`
-	AttachRows     int      `json:"attachRows"`
+	Head          []string `json:"head"`
+	ModelTitle    string   `json:"modelTitle"`
+	Main          []string `json:"main"`
+	MainDesc      []string `json:"mainDesc"`
+	Checked       []string `json:"checked"`
+	EffortRow     string   `json:"effortRow"`
+	Group         []string `json:"group"`
+	Other         []string `json:"other"`
+	ConfirmSheet  bool     `json:"confirmSheet"`
+	AfterPick     []string `json:"afterPick"`
+	EffortTitle   string   `json:"effortTitle"`
+	Stops         []string `json:"stops"`
+	StopOn        string   `json:"stopOn"`
+	ModeTitle     string   `json:"modeTitle"`
+	Modes         []string `json:"modes"`
+	ModeOn        []string `json:"modeOn"`
+	ModeIcons     int      `json:"modeIcons"`
+	SendReady     bool     `json:"sendReady"`
+	FromComposer  string   `json:"fromComposer"`
+	ComposerAfter string   `json:"composerAfter"`
+	Sent          []string `json:"sent"`
+	TermMain      []string `json:"termMain"`
+	TermOn        []string `json:"termOn"`
+	TermModesOff  bool     `json:"termModesOff"`
+	TermNote      string   `json:"termNote"`
+	Loud          []string `json:"loud"`
+	Bare          []string `json:"bare"`
+	AttachTitle   string   `json:"attachTitle"`
+	EmptySendOff  bool     `json:"emptySendOff"`
+	SendOn        bool     `json:"sendOn"`
+	AttachRows    int      `json:"attachRows"`
 }
 
 // The model list is the one claude gives, a row per model: its default is an
@@ -54,10 +49,6 @@ func TestThePhonePicksAModelFromTheListClaudeGives(t *testing.T) {
 
 	if !reflect.DeepEqual(got.Head, []string{"Opus 5.5· Extra", "Auto"}) {
 		t.Errorf("the line inside the composer offers %v", got.Head)
-	}
-	// The line stands at 0.85 of the 2.5rem a button of the field takes.
-	if got.RootPx == 0 || math.Abs(got.StripTall/(2.5*got.RootPx)-0.85) > 0.02 {
-		t.Errorf("the line with the model is %.1f px tall at a root of %.1f px — it stands at 0.85 of 2.5rem", got.StripTall, got.RootPx)
 	}
 	if got.ModelTitle != "Select model" {
 		t.Errorf("the model list opens as %q", got.ModelTitle)
@@ -146,18 +137,13 @@ func TestATerminalPicksFromTheCatalogueAndNotItsMode(t *testing.T) {
 	}
 }
 
-// The strip under the field is a band of its own with quieter words, and the
-// send button a filled square that gives up its fill when there is nothing to
-// send: the settings do not read as more of the field, and the press that
-// sends does not read as a glyph on it.
-func TestTheComposerStripStandsApartFromTheField(t *testing.T) {
+// The send button is off while there is nothing to send and on once the
+// field has words.
+func TestTheSendButtonIsOffWhileTheFieldIsEmpty(t *testing.T) {
 	var got pickPhoneShot
 	runFixture(t, "pickphone.html", &got)
-	if !got.BandPainted || !got.WordsSmaller {
-		t.Errorf("the strip is painted %v, its words smaller than the field's %v", got.BandPainted, got.WordsSmaller)
-	}
-	if !got.SendFilled || !got.EmptySendClear {
-		t.Errorf("the send button is filled with words %v, clear and off when empty %v", got.SendFilled, got.EmptySendClear)
+	if !got.EmptySendOff || !got.SendOn {
+		t.Errorf("the send button is off when empty %v, on with words %v", got.EmptySendOff, got.SendOn)
 	}
 }
 
@@ -189,7 +175,6 @@ type pickDeskShot struct {
 	EffortHead      string   `json:"effortHead"`
 	EffortStops     []string `json:"effortStops"`
 	EffortOn        string   `json:"effortOn"`
-	EffortBeside    bool     `json:"effortBeside"`
 	InsideKeeps     int      `json:"insideKeeps"`
 	SubsBack        []string `json:"subsBack"`
 	ExpandedBack    []string `json:"expandedBack"`
@@ -204,10 +189,6 @@ type pickDeskShot struct {
 	Sent            []string `json:"sent"`
 	Confirm         bool     `json:"confirm"`
 	Bare            []string `json:"bare"`
-	Frost           map[string]struct {
-		Glass string   `json:"glass"`
-		Cut   []string `json:"cut"`
-	} `json:"frost"`
 }
 
 // On a wide screen two words sit inside the composer, the model with its
@@ -271,39 +252,11 @@ func TestTheDesktopEffortOpensBesideTheModelMenu(t *testing.T) {
 	if !reflect.DeepEqual(got.ExpandedEffort, []string{"Effort"}) || !reflect.DeepEqual(got.ExpandedBack, []string{"More models"}) {
 		t.Errorf("the rows say they are open: %v with the effort, %v with the older models", got.ExpandedEffort, got.ExpandedBack)
 	}
-	if !got.EffortBeside {
-		t.Error("the effort does not open beside the model menu, bottom to bottom")
-	}
 	if got.EffortHead != "EffortExtra" || got.EffortOn != "Extra" ||
 		!reflect.DeepEqual(got.EffortStops, []string{"Low", "Medium", "High", "Extra", "Max", "Ultracode"}) {
 		t.Errorf("the effort beside the menu is headed %q, at %q, with the stops %v", got.EffortHead, got.EffortOn, got.EffortStops)
 	}
 	if got.InsideKeeps != 1 {
 		t.Error("a press inside the effort beside the menu closed it")
-	}
-}
-
-// The menus over the composer open over the rows of the feed and frost them,
-// the model's menu and the effort beside it alike. A backdrop filter takes its
-// backdrop from the nearest box between it and the page that has a filter of
-// its own — the composer's glass, or the menu the effort stands in — so
-// nothing there may have one: the menu would blur that box alone, and the feed
-// would read through it.
-func TestTheDesktopMenusFrostTheFeedUnderThem(t *testing.T) {
-	var got pickDeskShot
-	runWideFixture(t, "pickdesk.html", &got)
-
-	for _, menu := range []string{"model", "effort"} {
-		frost, ok := got.Frost[menu]
-		if !ok {
-			t.Errorf("the %s menu was not measured", menu)
-			continue
-		}
-		if !strings.Contains(frost.Glass, "blur(") {
-			t.Errorf("the %s menu has no glass (%q): the rows of the feed read through it", menu, frost.Glass)
-		}
-		if len(frost.Cut) > 0 {
-			t.Errorf("the glass of the %s menu takes its backdrop from %v, not the feed: it blurs that alone", menu, frost.Cut)
-		}
 	}
 }

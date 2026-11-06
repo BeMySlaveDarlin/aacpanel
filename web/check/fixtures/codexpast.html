@@ -74,7 +74,6 @@ const until = async (ok) => {
     return ok();
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const color = (el) => (el ? getComputedStyle(el).color : "");
 
 // confirm presses the button of the gate's sheet and waits for the action to go.
 const confirm = async (count) => {
@@ -95,7 +94,6 @@ window.done = (async () => {
     const line = (row) => ({
         word: text(row.querySelector(".agentword")),
         agent: (row.querySelector(".agentword") || { dataset: {} }).dataset.agent || "",
-        hue: color(row.querySelector(".agentword")),
         about: text(row.querySelector(".scstep")),
         runs: text(row.querySelector(".scl4")),
         ctx: text(row.querySelector(".scctx")),
@@ -105,7 +103,6 @@ window.done = (async () => {
         phone: Array.from(phone.querySelectorAll(".sc.scpast")).map(line),
         desk: Array.from(desk.querySelectorAll(".dkarch")).map((row) => ({
             word: text(row.querySelector(".agentword")),
-            hue: color(row.querySelector(".agentword")),
             num: text(row.querySelector(".dknum")),
             model: text(row.querySelector(".dkarchmodel")),
         })),

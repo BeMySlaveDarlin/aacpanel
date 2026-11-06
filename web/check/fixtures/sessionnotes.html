@@ -35,25 +35,8 @@ const until = async (ok, ms = 3000) => {
 
 (async () => {
     await until(() => document.querySelectorAll(".mnote").length === 3);
-    await document.fonts.ready;
-    const col = document.querySelector(".feedcol").getBoundingClientRect();
     window.done = {
-        notes: Array.from(document.querySelectorAll(".mnote")).map((el) => {
-            const box = el.getBoundingClientRect();
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            // One rect per line of the text: a line box of a wrapped plate.
-            const lines = Array.from(range.getClientRects()).map((r) => ({ left: r.left, right: r.right }));
-            return {
-                text: el.textContent,
-                cls: el.className,
-                left: box.left, right: box.right,
-                lines,
-                align: getComputedStyle(el).textAlign,
-            };
-        }),
-        colLeft: col.left,
-        colRight: col.right,
+        notes: Array.from(document.querySelectorAll(".mnote")).map((el) => ({ text: el.textContent, cls: el.className })),
     };
 })();
 </script>

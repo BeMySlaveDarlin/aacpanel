@@ -6,8 +6,7 @@
 <div class="shell"><main class="body" id="root"></main></div>
 <script type="module">
 // Pages sent to the person, a few megabytes each: a tap on the card of one
-// opens it as a document — the whole screen on a phone, a wide window at a
-// desk — read whole before it is drawn, by the window of a page and with no
+// opens it as a document, read whole before it is drawn, by the window of a page and with no
 // press for the rest of it. A page past what the panel draws says to save it,
 // and a log next to them is read by the default window, a press at a time. A
 // song, a PDF and a photo past what the viewer reads whole are shown from the
@@ -99,7 +98,6 @@ window.done = (async () => {
     await pause(300);
     const sheet = document.querySelector(".sheet.on");
     const frame = document.querySelector(".sheet.on .filehtml");
-    const box = (el) => (el ? el.getBoundingClientRect() : { width: 0, height: 0, top: 0 });
     const doc = frame ? frame.getAttribute("srcdoc") || "" : "";
     const page = {
         whole: doc.includes("THE START") && doc.includes("THE END"),
@@ -108,11 +106,6 @@ window.done = (async () => {
         more: document.querySelectorAll(".sheet.on .filemore").length,
         doc: sheet ? sheet.classList.contains("doc") : false,
         back: Boolean(sheet && sheet.querySelector(".pback")),
-        viewW: innerWidth,
-        viewH: innerHeight,
-        sheetW: box(sheet).width,
-        sheetH: box(sheet).height,
-        frameH: box(frame).height,
     };
 
     await close();
@@ -133,15 +126,6 @@ window.done = (async () => {
     const other = {
         more: document.querySelectorAll(".sheet.on .filemore").length,
         asked: asked["/srv/lab/notes.log"],
-        sheetW: box(document.querySelector(".sheet.on")).width,
-        sheetH: box(document.querySelector(".sheet.on")).height,
-        scrolls: (() => {
-            const body = document.querySelector(".sheet.on .sheetbody");
-            body.scrollTop = 80;
-            const moved = body.scrollTop > 0;
-            body.scrollTop = 0;
-            return moved;
-        })(),
     };
 
     if (new URLSearchParams(location.search).has("screenshot")) return { ...page, over, other };

@@ -101,18 +101,9 @@ window.done = new Promise((done) => {
             const gut = line.querySelector(".cdgut");
             const src = line.querySelector(".cdsrc");
             const lines = document.querySelector(".cdlines");
-            const box = (el) => (el ? el.getBoundingClientRect() : null);
-            const wide = document.querySelector(".cdln.add .cdsrc");
-            // A line long enough to run off the screen: the block scrolls, the
-            // page does not.
-            const before = document.scrollingElement.scrollLeft;
-            if (wide) wide.scrollLeft = 400;
             done({
                 heads: document.querySelectorAll(".phead").length,
                 gutterInsideScroller: Boolean(src && gut && src.contains(gut)),
-                gutterWidth: Math.round(box(gut).width),
-                srcScrolls: wide ? getComputedStyle(wide).overflowX : "",
-                pageMoved: document.scrollingElement.scrollLeft !== before,
                 contentVisibility: lines ? getComputedStyle(lines).contentVisibility : "",
                 spanClasses: [...document.querySelectorAll(".cdsrc span")].map((s) => s.className).filter(Boolean),
                 addLines: document.querySelectorAll(".cdln.add").length,

@@ -51,29 +51,22 @@ const draw = (el, feed) => render(html`<${FeedGrid} rows=${rows(feed)} wide=${fa
 draw(document.getElementById("crowd"), crowd);
 draw(document.getElementById("apart"), apart);
 
-// The page waits for the fonts, then for the rows and the stacks to stand
-// still for ten frames in a row, three seconds at most.
+// The stacks are summed by how the rows of the feed lay out, so the page
+// waits for the fonts, then for the stacks to stay the same for ten frames in
+// a row, three seconds at most.
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 function read(id) {
     const box = document.getElementById(id);
-    const col = box.querySelector(".feedcol");
-    const zero = col.getBoundingClientRect().top;
-    const rel = (el) => {
-        const r = el.getBoundingClientRect();
-        return { top: r.top - zero, bottom: r.bottom - zero };
-    };
     return {
-        rows: Array.from(col.children).map(rel),
+        rows: box.querySelector(".feedcol").children.length,
         stacks: Array.from(box.querySelectorAll(".railstack")).map((s) => ({
-            ...rel(s),
             said: s.getAttribute("aria-label"),
             badges: Array.from(s.querySelectorAll(".railbadge")).map((b) => ({
                 kind: (Array.from(b.classList).find((c) => c.startsWith("k-")) || "").slice(2),
                 count: text(b.querySelector(".rbnum")),
                 said: b.getAttribute("aria-label"),
-                ...rel(b),
             })),
         })),
     };

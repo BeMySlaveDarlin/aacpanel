@@ -29,11 +29,11 @@ func TestACodexMessageCopiesThroughTheFeed(t *testing.T) {
 // goal.
 func TestACodexFeedDrawsWhatCodexAloneWrites(t *testing.T) {
 	type finding struct {
-		Tag     string `json:"tag"`
-		Title   string `json:"title"`
-		At      string `json:"at"`
-		Tone    string `json:"tone"`
-		Clamped bool   `json:"clamped"`
+		Tag      string `json:"tag"`
+		Title    string `json:"title"`
+		At       string `json:"at"`
+		Tone     string `json:"tone"`
+		Expanded string `json:"expanded"`
 	}
 	var got struct {
 		AI    []string `json:"ai"`
@@ -64,7 +64,6 @@ func TestACodexFeedDrawsWhatCodexAloneWrites(t *testing.T) {
 		Notes  []string `json:"notes"`
 		Opened struct {
 			Expanded string `json:"expanded"`
-			Clamped  bool   `json:"clamped"`
 		} `json:"opened"`
 	}
 	runFixture(t, "codexfeed.html", &got)
@@ -104,14 +103,14 @@ func TestACodexFeedDrawsWhatCodexAloneWrites(t *testing.T) {
 	if !strings.Contains(bad.Text, "regresses the existing add function") {
 		t.Errorf("the explanation of the review reads %q", bad.Text)
 	}
-	wantFinding := []finding{{Tag: "P1", Title: "Preserve addition semantics in add", At: "calc.py:2", Tone: "s-crit", Clamped: true}}
+	wantFinding := []finding{{Tag: "P1", Title: "Preserve addition semantics in add", At: "calc.py:2", Tone: "s-crit", Expanded: "false"}}
 	if !reflect.DeepEqual(bad.Findings, wantFinding) {
 		t.Errorf("the findings read %+v, want %+v", bad.Findings, wantFinding)
 	}
 	if good.Tone != "v-ok" || len(good.Findings) != 0 {
 		t.Errorf("the review that found nothing reads %+v", good)
 	}
-	if got.Opened.Expanded != "true" || got.Opened.Clamped {
+	if got.Opened.Expanded != "true" {
 		t.Errorf("a finding tapped stays shut: %+v", got.Opened)
 	}
 

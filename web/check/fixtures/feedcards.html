@@ -8,9 +8,8 @@
 // after, the files sent to the person: a round of questions answered, one
 // nobody answered, permissions answered, a page published and published again,
 // a brief, a wake-up of two paragraphs, a call of the person and a call the
-// tool refused. The feed is the real one — the grid
-// with its timeline — in the shell of a phone or of a desk, whichever the
-// screen is.
+// tool refused. The feed is the real one — the grid with its timeline — in
+// the shell of a phone or of a desk, whichever the screen is.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
@@ -21,7 +20,6 @@ const wide = innerWidth >= 1100;
 document.getElementById("stage").innerHTML = wide
     ? `<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="root"></section></div></div>`
     : `<div class="shell"><div class="body" id="root"></div></div>`;
-if (wide) document.documentElement.style.setProperty("--ui-scale", "1.2");
 
 const at = (s) => `2026-09-28T05:24:${String(s).padStart(2, "0")}Z`;
 const url = "https://claude.ai/public/artifacts/9f3c2e1a";
@@ -71,34 +69,16 @@ const until = async (ok, ms = 3000) => {
     const root = document.getElementById("root");
     const cards = () => Array.from(root.querySelectorAll(".feedcol > .feedrow:not(.r-ai) > :first-child"));
     await until(() => cards().length === 10 && root.querySelector(".mletter.k-wake"));
-    await document.fonts.ready;
     const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-    const box = (el) => {
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { left: r.left, right: r.right, width: r.width, top: r.top };
-    };
-    const look = (el) => {
-        if (!el) return null;
-        const s = getComputedStyle(el);
-        return [s.backgroundImage, s.boxShadow, s.borderRadius, s.paddingLeft, s.paddingRight].join(" | ");
-    };
     const shot = (el) => {
         const head = el.firstElementChild;
-        const label = el.querySelector(":scope > .senthead > .sentlabel");
-        const plate = el.querySelector(":scope > .mflist");
         return {
             cls: el.className,
-            box: box(el),
-            look: look(el),
             head: head ? head.className : "",
             icon: Boolean(el.querySelector(":scope > .senthead > .sentico svg")),
-            label: text(label),
-            labelFont: label ? [getComputedStyle(label).fontFamily, getComputedStyle(label).textTransform].join(" | ") : "",
-            at: box(el.querySelector(":scope > .senthead > .sentat")),
-            plate: box(plate),
-            plateLook: plate ? [getComputedStyle(plate).backgroundImage, getComputedStyle(plate).borderRadius].join(" | ") : "",
-            rows: plate ? Array.from(plate.children).map((row) => ({ box: box(row), radius: getComputedStyle(row).borderRadius })) : [],
+            label: text(el.querySelector(":scope > .senthead > .sentlabel")),
+            at: Boolean(el.querySelector(":scope > .senthead > .sentat")),
+            plate: Boolean(el.querySelector(":scope > .mflist")),
         };
     };
     const [sent, asked, afk, permitted, page, again, brief, wake, called, refused] = cards();
@@ -107,8 +87,7 @@ const until = async (ok, ms = 3000) => {
         cards: [sent, asked, afk, permitted, page, again, brief, wake, called, refused].map(shot),
         questions: Array.from(asked.querySelectorAll(".askedrow")).map((row) => ({
             tag: text(row.querySelector(".mftag")),
-            tagCase: row.querySelector(".mftag") ? getComputedStyle(row.querySelector(".mftag")).textTransform : "",
-            tagColour: row.querySelector(".mftag") ? getComputedStyle(row.querySelector(".mftag")).color : "",
+            tone: Array.from(row.classList).find((c) => c.startsWith("s-")) || "",
             question: text(row.querySelector(".askedq")),
             answer: text(row.querySelector(".askeda")),
         })),
@@ -118,10 +97,10 @@ const until = async (ok, ms = 3000) => {
         },
         permits: Array.from(permitted.querySelectorAll(".askedrow")).map((row) => ({
             tag: text(row.querySelector(".mftag")),
-            tagColour: getComputedStyle(row.querySelector(".mftag")).color,
+            tone: Array.from(row.classList).find((c) => c.startsWith("s-")) || "",
             subject: text(row.querySelector(".askedsubj")),
             answer: text(row.querySelector(".askeda")),
-            answerColour: getComputedStyle(row.querySelector(".askeda")).color,
+            denied: row.querySelector(".askeda").classList.contains("denied"),
         })),
         page: {
             title: text(page.querySelector(".artitle")),
@@ -145,7 +124,7 @@ const until = async (ok, ms = 3000) => {
         calls: [called, refused].map((card) => ({
             text: text(card.querySelector(".mcallline")),
             why: text(card.querySelector(".mcallwhy")),
-            mark: getComputedStyle(card.querySelector(".sentico")).color,
+            lost: card.classList.contains("lost"),
         })),
     };
     brief.querySelector(".artifact").click();

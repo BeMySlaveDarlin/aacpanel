@@ -33,26 +33,19 @@ const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const tap = (el) => {
     const r = el.getClientRects()[0];
     el.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
-    return r;
 };
 
 (async () => {
-    await document.fonts.ready;
     const chip = document.querySelector("code.copyable");
     const path = document.querySelector("code.path");
     const block = document.querySelector(".mdcode code");
-    const at = tap(chip);
+    tap(chip);
     await frame();
     await frame();
     const tip = document.querySelector(".copiedtip");
-    const tr = tip ? tip.getBoundingClientRect() : null;
     const first = {
         copied: copied.slice(),
         tip: tip ? tip.textContent : "",
-        tipBottom: tr ? tr.bottom : 0,
-        chipTop: at.top,
-        tipMiddle: tr ? tr.left + tr.width / 2 : 0,
-        chipMiddle: at.left + at.width / 2,
         marked: chip.classList.contains("copied"),
     };
     await new Promise((r) => setTimeout(r, INLINE_TIP_MS + 100));

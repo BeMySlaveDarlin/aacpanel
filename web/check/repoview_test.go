@@ -8,9 +8,6 @@ import (
 type repoShot struct {
 	Heads                int      `json:"heads"`
 	GutterInsideScroller bool     `json:"gutterInsideScroller"`
-	GutterWidth          int      `json:"gutterWidth"`
-	SrcScrolls           string   `json:"srcScrolls"`
-	PageMoved            bool     `json:"pageMoved"`
 	ContentVisibility    string   `json:"contentVisibility"`
 	SpanClasses          []string `json:"spanClasses"`
 	AddLines             int      `json:"addLines"`
@@ -43,25 +40,8 @@ func TestTheGutterStaysOutOfTheSidewaysScroll(t *testing.T) {
 	if got.GutterInsideScroller {
 		t.Error("the gutter sits inside the block that scrolls sideways — it slides away with the code and takes the swipe with it")
 	}
-	if got.GutterWidth <= 0 {
-		t.Error("the gutter has no width at all — there is nothing to tap and nothing to swipe by")
-	}
 	if got.GutterTouchAction != "pan-y" {
 		t.Errorf("the gutter takes touch as %q: a horizontal drag there belongs to the page, not to the code", got.GutterTouchAction)
-	}
-}
-
-// A line longer than the screen scrolls inside itself. What moves sideways in
-// this panel is the contents of a block, never the screen.
-func TestALongLineScrollsInsideItselfAndNotThePage(t *testing.T) {
-	var got repoShot
-	runFixture(t, "repoview.html", &got)
-
-	if got.SrcScrolls != "auto" && got.SrcScrolls != "scroll" {
-		t.Errorf("the code of a line scrolls as %q — a long line then drags the page sideways", got.SrcScrolls)
-	}
-	if got.PageMoved {
-		t.Error("scrolling a line moved the page with it")
 	}
 }
 

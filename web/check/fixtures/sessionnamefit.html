@@ -7,7 +7,8 @@
 <script type="module">
 // A session of a narrow column with every mark at once — an alarm, the
 // automatic restart, work waiting for the person — under the session that
-// opened it, where the row is narrower still: its name has to stay readable.
+// opened it: the restart in the place of its cap, the waiting work the
+// state's line.
 import { h, render } from "preact";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -45,7 +46,7 @@ window.done = (async () => {
     return Array.from(document.querySelectorAll("#desk .sc")).map((card) => {
         const el = card.querySelector(".scname");
         return {
-            name: el.getAttribute("aria-label"), shown: el.clientWidth, needs: el.scrollWidth,
+            name: el.getAttribute("aria-label"),
             restart: Boolean(card.querySelector(".scl5 .scb.scon svg")),
             state: card.querySelector(".scsay").textContent.replace(/\s+/g, " ").trim(),
         };

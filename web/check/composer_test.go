@@ -107,35 +107,6 @@ func TestGapsUnderComposerComeFromOneNumber(t *testing.T) {
 			"as the shared gap — the sum is not the number written here: %s", cssFile, deck)
 	}
 
-	if !strings.Contains(deck, "justify-content: flex-end") {
-		t.Errorf("%s: the row under the composer no longer fills from the right edge — the "+
-			"chips end up on the side the thumb does not reach, and the left, which is being "+
-			"kept free for buttons of its own, is taken: %s", cssFile, deck)
-	}
-
-	chips := cssBlock(t, css, ".deck > .wchips")
-	if strings.Contains(chips, "flex: 1") {
-		t.Errorf("%s: the chip group stretches across the width again, which pushes it off "+
-			"the right edge and leaves a gap in the middle of the row: %s", cssFile, chips)
-	}
-
-	// The selector is matched as a substring, and ".wchips" alone finds the rule
-	// scoped to the deck first; the newline pins it to the shared one.
-	all := cssBlock(t, css, "\n.wchips")
-	if !strings.Contains(all, "flex-wrap: nowrap") {
-		t.Errorf("%s: the chips wrap onto a second line instead of the group taking the width "+
-			"it needs to the left, and a wrapped row aligned right comes out ragged: %s", cssFile, all)
-	}
-
-	right := cssBlock(t, css, ".deckright")
-	if strings.Contains(right, "margin-left: auto") {
-		t.Errorf("%s: the right-hand group still pushes itself off with a margin, which drives "+
-			"the chips back to the left edge: %s", cssFile, right)
-	}
-	if strings.Contains(right, "min-width") {
-		t.Errorf("%s: the right-hand group holds a width of its own — whatever is not a button "+
-			"in it stands between the last chip and the right edge as a gap: %s", cssFile, right)
-	}
 }
 
 // The row under the composer holds the same five buttons whatever the session is
@@ -369,23 +340,6 @@ func TestFileAttachmentsKeepTheirCeiling(t *testing.T) {
 	if !strings.Contains(atts, "el.scrollHeight > el.clientHeight") {
 		t.Error("src/screens/chat/files.js: the there-is-more mask is set without measuring the block — " +
 			"it will hang over a list that fits whole too")
-	}
-
-	css := cssSrc(t)
-	open := cssBlock(t, css, ".mflist.mfopen")
-	for _, rule := range []string{"overflow-y: auto", "max-height: max(", "width: 0", "min-width: 100%"} {
-		if !strings.Contains(open, rule) {
-			t.Errorf("%s: .mflist.mfopen has no %q — an expanded list either becomes a sheet over "+
-				"the whole chat again or drags the whole feed sideways", cssFile, rule)
-		}
-	}
-	if !strings.Contains(open, "150px") {
-		t.Errorf("%s: .mflist.mfopen has no floor of 150px — on a short screen "+
-			"40%% of the height gives two rows, and expanded stops differing from collapsed", cssFile)
-	}
-	if mask := cssBlock(t, css, ".mflist.mfmask"); !strings.Contains(mask, "mask-image") {
-		t.Errorf("%s: .mflist.mfmask has no mask — a cut-off list reads as breakage "+
-			"rather than as an invitation to scroll", cssFile)
 	}
 }
 

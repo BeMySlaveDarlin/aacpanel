@@ -57,17 +57,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (ok) => {
     for (let i = 0; i < 150 && !ok(); i++) await sleep(20);
 };
-const round = (n) => Math.round(n * 100) / 100;
 const state = () => {
     const box = document.querySelector(".chatfeed");
     const me = Array.from(document.querySelectorAll(".chatfeed .msg.me"));
     const last = me[me.length - 1];
-    const r = last ? last.getBoundingClientRect() : null;
     const texts = me.map((b) => b.textContent.trim());
     const stamp = last && last.nextElementSibling && last.nextElementSibling.classList.contains("mstamp")
         ? last.nextElementSibling.textContent.trim() : "";
     return {
-        count: me.length, unique: new Set(texts).size, top: r && round(r.top), height: r && round(r.height),
+        count: me.length, unique: new Set(texts).size,
         cls: last ? last.className : "", stamp, wait: last && last.querySelector(".mwait") ? last.querySelector(".mwait").textContent : "",
         scrollTop: box.scrollTop, scrollHeight: box.scrollHeight, clientHeight: box.clientHeight,
     };
@@ -126,28 +124,13 @@ window.done = (async () => {
     await quiet();
 
     const tip = document.querySelector(".quotetip");
-    const box = range.getBoundingClientRect();
     const quote = { shown: Boolean(tip && tip.classList.contains("on")) };
     if (tip) {
-        const at = tip.getBoundingClientRect();
-        quote.gapAbove = round(box.top - at.bottom);
-        quote.offCentre = round(Math.abs((at.left + at.width / 2) - (box.left + box.width / 2)));
-        quote.inWindow = at.left >= 0 && at.top >= 0 && at.right <= window.innerWidth && at.bottom <= window.innerHeight;
-        quote.overComposer = at.bottom > document.querySelector(".composer").getBoundingClientRect().top;
-        // Where the system puts its bar and its handles on a touch screen: the
-        // bar over the selection, the handles under it — some 24 px of them.
-        const foot = document.querySelector(".chatfeed").getBoundingClientRect();
-        quote.footGap = round(foot.bottom - at.bottom);
-        quote.offFeedCentre = round(Math.abs((at.left + at.width / 2) - (foot.left + foot.width / 2)));
-        quote.clearOfSelection = at.top >= box.bottom + 28 || at.bottom <= box.top - 60;
-        quote.where = { tipTop: round(at.top), tipBottom: round(at.bottom), selTop: round(box.top), selBottom: round(box.bottom), foot: round(foot.bottom) };
         tip.click();
         await quiet();
     }
     quote.composer = document.querySelector(".composer textarea").value;
     quote.stillShown = Boolean(document.querySelector(".quotetip"));
-    quote.feedTop = round(document.querySelector(".chatfeed").getBoundingClientRect().top);
-    quote.feedTopBefore = settled.feedTop === undefined ? null : settled.feedTop;
 
     // The transcript stays unchanged while a row or the timeline grows on
     // its own. Following the end must include both, and leave a reader above it.

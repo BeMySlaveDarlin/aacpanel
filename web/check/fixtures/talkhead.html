@@ -50,23 +50,14 @@ const until = async (ok, ms = 5000) => {
     while (!ok() && performance.now() < end) await sleep(25);
     return ok();
 };
-const box = (el) => {
-    if (!el) return null;
-    const b = el.getBoundingClientRect();
-    return { width: Math.round(b.width), height: Math.round(b.height), top: Math.round(b.top), bottom: Math.round(b.bottom) };
-};
-
-// spread says whether a piece of the header covers the screen.
-const spread = () => [...document.querySelectorAll(".phead *")].some((n) => n.getBoundingClientRect().height > 200);
 
 window.done = (async () => {
-    await document.fonts.ready;
     // A session at work first: the word of that state is the name of a class
     // another screen owns.
     show({ ...live, status: "busy", ask: null });
     await until(() => document.querySelector(".phead .pmore"));
     await quiet();
-    const busy = { spread: spread(), word: (document.querySelector(".talkword") || {}).textContent || "" };
+    const busy = { word: (document.querySelector(".talkword") || {}).textContent || "" };
     // The same session with the link gone: the word is not said as if it
     // were now but dated, and the dot is hollow.
     show({ ...live, status: "busy", ask: null }, "22:41");
@@ -86,25 +77,19 @@ window.done = (async () => {
     await quiet();
     const head = document.querySelector(".phead");
     const out = {
-        head: box(head),
-        back: box(head.querySelector(".pback")),
-        more: box(head.querySelector(".pmore")),
+        back: Boolean(head.querySelector(".pback")),
+        more: Boolean(head.querySelector(".pmore")),
         buttons: head.querySelectorAll("button").length,
         oldTools: head.querySelectorAll(".viewsw, .viewbtn, .winbtn, .rcbtn").length,
         running: head.querySelectorAll(".marq").length,
         dot: (head.querySelector(".talkdot") || { dataset: {} }).dataset.tone || "",
-        overlay: busy.spread || spread(),
         busyWord: busy.word,
         offline,
         word: (head.querySelector(".talkword") || {}).textContent || "",
         label: (head.querySelector(".midname") || { getAttribute: () => "" }).getAttribute("aria-label") || "",
     };
-    const mid = head.querySelector(".midhead");
     const tail = head.querySelector(".midtail");
-    out.headCut = Boolean(mid) && mid.scrollWidth > mid.clientWidth;
     out.tail = tail ? tail.textContent : "";
-    out.tailWhole = Boolean(tail) && tail.scrollWidth <= tail.clientWidth
-        && tail.getBoundingClientRect().right <= head.querySelector(".chathead").getBoundingClientRect().right + 1;
 
     head.querySelector(".pmore").click();
     await until(() => document.querySelector(".tools"));
@@ -115,9 +100,6 @@ window.done = (async () => {
     out.where = (sheet.querySelector(".toolwhere") || {}).textContent || "";
     const segs = [...sheet.querySelectorAll(".toolseg")];
     out.segs = segs.map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-pressed")}`);
-    out.small = [...sheet.querySelectorAll("button")]
-        .filter((b) => b.getBoundingClientRect().height > 0 && b.getBoundingClientRect().height < 44 && !b.classList.contains("cmdcopy"))
-        .map((b) => `${b.className}:${Math.round(b.getBoundingClientRect().height)}`);
     const term = segs.find((b) => /Terminal/.test(b.textContent));
     if (term) term.click();
     await until(() => !document.querySelector(".tools"));

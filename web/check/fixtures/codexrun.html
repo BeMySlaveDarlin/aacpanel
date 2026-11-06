@@ -71,7 +71,6 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
                 name: text(r.querySelector(".wname")),
                 word: word ? text(word) : "",
                 key: word ? word.dataset.agent : "",
-                colour: word ? getComputedStyle(word).color : "",
                 stop: r.querySelector(".wstop") ? "yes" : "no",
                 state: text(r.querySelector(".wstate")),
             };
@@ -79,7 +78,6 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
         sub: text(document.querySelector("#agents .chatsub")),
     };
     const codex = rows.find((r) => r.querySelector(".wname .agentword"));
-    out.claudeColour = getComputedStyle(document.getElementById("claude")).color;
     codex.querySelector(".wrow").click();
     await until(() => opened.length > 0);
     const agent = opened[0] || {};

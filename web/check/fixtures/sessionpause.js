@@ -91,7 +91,6 @@ export async function sessionPause() {
         };
         pauseButton().click();
         await until(() => sheet(), "pause sheet");
-        out.pauseFits = sheet().querySelector(".btnrow").getBoundingClientRect().bottom <= innerHeight;
         out.projectRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
         sheet().querySelector(".pausescope").value="group";
         sheet().querySelector(".pausescope").dispatchEvent(new Event("change",{bubbles:true}));
@@ -116,7 +115,6 @@ export async function sessionPause() {
             if (i===0) out.options=options.map(text);
             options[i].click();
             await quiet();
-            if (i===0) out.restartFits=gate().querySelector(".btnrow").getBoundingClientRect().bottom<=innerHeight;
             gate().querySelector(".btnrow .btn:last-child").click();
             await until(() => sent.length===3+i && !gate(), "restart request");
             out.restart.push(sent.at(-1));

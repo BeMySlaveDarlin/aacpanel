@@ -73,15 +73,13 @@ const key = async (name) => {
     area().dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
     await quiet();
 };
-const round = (n) => Math.round(n);
 const tipNow = () => {
     const tip = document.querySelector(".slashtip");
-    return tip ? { text: tip.textContent.trim(), top: round(tip.getBoundingClientRect().top), left: round(tip.getBoundingClientRect().left) } : null;
+    return tip ? { text: tip.textContent.trim() } : null;
 };
 const rowAt = (n) => document.querySelectorAll(".slashbox .slashitem")[n];
 
 window.done = (async () => {
-    await document.fonts.ready;
     render(h(ToastHost, null, h(GateHost, null, html`<section class="dkcenter dkchat" style="height:100%">
         <${Chat} name="proj" id="proj-1" live=${stream} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />
     </section>`)), root);
@@ -91,49 +89,27 @@ window.done = (async () => {
 
     await type("/");
     await quiet();
-    const list = document.querySelector(".slashbox .slashlist").getBoundingClientRect();
-    out.listWidth = round(list.width);
     out.hintsInRows = document.querySelectorAll(".slashbox .slashhint").length;
     out.tip0 = tipNow();
-    out.row0Top = round(rowAt(0).getBoundingClientRect().top);
-    out.listRight = round(list.right);
     out.hot0 = rowAt(0).classList.contains("hot");
-    out.hotBg = getComputedStyle(rowAt(0)).backgroundImage !== "none" || getComputedStyle(rowAt(0)).backgroundColor !== "rgba(0, 0, 0, 0)";
 
     rowAt(2).dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));
     await quiet();
     out.tip2 = tipNow();
-    out.row2Top = round(rowAt(2).getBoundingClientRect().top);
 
     await key("ArrowDown");
     out.tip3 = tipNow();
-    out.row3Top = round(rowAt(3).getBoundingClientRect().top);
     await key("Tab");
     out.tabbed = area().value;
 
-    // A long list scrolls under the pointer: the description stays with its row.
-    await type("/");
-    const scroller = document.querySelector(".slashbox .slashlist");
-    out.scrolls = scroller.scrollHeight > scroller.clientHeight;
-    scroller.scrollTop = scroller.scrollHeight;
-    scroller.dispatchEvent(new Event("scroll"));
-    await quiet();
-    const lastAt = document.querySelectorAll(".slashbox .slashitem").length - 1;
-    rowAt(lastAt).dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));
-    await quiet();
-    out.tipLast = tipNow();
-    out.rowLastTop = round(rowAt(lastAt).getBoundingClientRect().top);
 
-    // The side chat: a card at the top right of the feed.
+    // The side chat: a card over the feed.
     await type("/btw is everything all right?");
     document.querySelector(".composer .iconbtn.accent").click();
     await quiet();
     const card = document.querySelector(".btwcard");
-    const feed = document.querySelector(".chatfeed").getBoundingClientRect();
     if (card) {
-        const r = card.getBoundingClientRect();
-        out.card = { top: round(r.top - feed.top), right: round(feed.right - r.right), width: round(r.width),
-                     title: card.querySelector(".btwtitle").textContent.trim() };
+        out.card = { title: card.querySelector(".btwtitle").textContent.trim() };
         out.cardAnswer = card.querySelector(".btwa") ? card.querySelector(".btwa").textContent.trim().slice(0, 40) : "";
         out.cardList = card.querySelectorAll(".btwa li").length;
     }

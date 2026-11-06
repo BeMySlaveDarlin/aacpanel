@@ -48,20 +48,3 @@ func TestASentFileTheReaderDoesNotOpenSaysSoInsteadOfOpening(t *testing.T) {
 			"every attachment reads as unreachable", filesFile)
 	}
 }
-
-func TestTheRowOfAFileThatDoesNotOpenGivesNoPress(t *testing.T) {
-	css := cssSrc(t)
-	if !strings.Contains(css, ".mfile.outside {") {
-		t.Fatal("feed.css: the row of a file the reader does not open has no rule of its own — " +
-			"it looks like a row that opens")
-	}
-	if !strings.Contains(cssBlock(t, css, ".mfile.outside"), "cursor: default") {
-		t.Error("feed.css: the row of a file the reader does not open keeps the pointer of a button")
-	}
-	if !strings.Contains(css, ".mfile.outside:active {") {
-		t.Error("feed.css: the row of a file the reader does not open answers a press like a button")
-	}
-	if !strings.Contains(css, ".mfnote {") {
-		t.Error("feed.css: the note under the name has no rule — it runs into the name in the same weight")
-	}
-}

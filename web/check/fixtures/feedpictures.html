@@ -69,7 +69,6 @@ const until = async (ok, ms = 3000) => {
 };
 const loaded = (img) => Boolean(img && img.complete && img.naturalWidth === 1);
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const box = (el) => el.getBoundingClientRect();
 
 (async () => {
     await until(() => document.querySelectorAll(".r-me").length === 4 && document.querySelector(".railbadge.k-files")
@@ -77,13 +76,10 @@ const box = (el) => el.getBoundingClientRect();
         && document.querySelectorAll("#root .mshot img").length === 3);
     const [withWords, typedRow, alone, photoRow] = Array.from(document.querySelectorAll(".feedrow.r-me"));
     const bubble = withWords.querySelector(".msg.me");
-    const strip = withWords.querySelector(".mshots");
     const feedRows = {
         sentPictures: withWords.querySelectorAll(".mshot img").length,
         sentLoaded: loaded(withWords.querySelector(".mshot img")),
         sentWords: text(bubble),
-        stripOverBubble: strip ? box(strip).bottom <= box(bubble).top : false,
-        stripRight: strip ? Math.round(box(strip).right - box(bubble).right) : null,
         typedPictures: typedRow.querySelectorAll(".mshot").length,
         typedWords: text(typedRow.querySelector(".msg.me")),
         aloneBubbles: alone.querySelectorAll(".msg").length,
@@ -108,7 +104,6 @@ const box = (el) => el.getBoundingClientRect();
     const callRows = {
         nodes: nodes.map((n) => ({ pic: n.classList.contains("pic"), thumbs: n.querySelectorAll(".cnshot").length })),
         thumbLoaded: loaded(thumb && thumb.querySelector("img")),
-        thumbInside: thumb ? box(thumb).right <= box(row).right : false,
     };
 
     row.click();

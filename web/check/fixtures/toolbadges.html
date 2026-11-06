@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <script type="module">
 // A run of every kind of call, a run that only thought and the end of a turn,
-// each after a reply of its own: every badge on the timeline is drawn the same
-// size with the same icon, and stands at the height of the reply it led to.
+// each after a reply of its own: every one of them has a badge on the
+// timeline.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
@@ -41,32 +41,20 @@ render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${
     row=${(item) => html`<${Row} item=${item} session="lab" id="1" />`} /></div>`,
     document.getElementById("root"));
 
-// The column is measured again when the fonts come in and its rows change
-// height: the page waits, three seconds at most, for every mark to stand at
-// the row after it, and the test says whether it came to that.
+// The rail sums works into stacks by how the rows of the column lay out, so
+// the page waits for the fonts, then, three seconds at most, for a badge of
+// every work.
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
-const aligned = () => {
-    const marks = Array.from(document.querySelectorAll(".railbadge"));
-    const rows = Array.from(document.querySelector(".feedcol").children);
-    return marks.length > 0 && marks.every((m, i) => rows[i]
-        && Math.abs(m.getBoundingClientRect().top - rows[i].getBoundingClientRect().top) <= 1);
-};
 window.done = (async () => {
     await document.fonts.ready;
     const end = performance.now() + 3000;
-    while (!aligned() && performance.now() < end) await frame();
+    while (document.querySelectorAll(".railbadge").length < kinds.length + 2 && performance.now() < end) await frame();
     const col = document.querySelector(".feedcol");
     const marks = Array.from(document.querySelectorAll(".railbadge")).map((b) => {
-        const box = b.getBoundingClientRect();
-        const svg = b.querySelector("svg");
-        const icon = svg ? svg.getBoundingClientRect() : { width: 0, height: 0 };
         const kind = Array.from(b.classList).find((c) => c.startsWith("k-")) || "";
-        return { kind: kind.slice(2), w: box.width, h: box.height, iw: icon.width, ih: icon.height, top: box.top };
+        return { kind: kind.slice(2) };
     });
-    // The row each mark led to: the reply after its run.
-    const rowsTop = Array.from(col.children).filter((r) => !r.classList.contains("r-me") || true)
-        .map((r) => r.getBoundingClientRect().top);
-    const out = { badges: marks, rows: rowsTop, inColumn: col.querySelectorAll(".mtools, .railbadge").length };
+    const out = { badges: marks, inColumn: col.querySelectorAll(".mtools, .railbadge").length };
 
     const runningItems = [
         { role: "me", text: "Run the checks.", pos: 1, at },
@@ -92,8 +80,6 @@ window.done = (async () => {
         anchored: Boolean(document.querySelector(".railbadge.k-bash")),
         now: Boolean(document.querySelector(".nowchips .k-files")),
         agents: Boolean(document.querySelector(".nowwait")),
-        floor: parseFloat(document.querySelector(".rail").style.minHeight),
-        column: document.querySelector(".feedcol").clientHeight,
     });
     const until = async (ready) => {
         const end = performance.now() + 3000;

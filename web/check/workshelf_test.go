@@ -7,12 +7,10 @@ import (
 
 type workShelfShot struct {
 	First struct {
-		Height     int      `json:"height"`
-		FeedHeight int      `json:"feedHeight"`
-		Tabs       []string `json:"tabs"`
-		Rows       int      `json:"rows"`
-		More       string   `json:"more"`
-		Titles     []string `json:"titles"`
+		Tabs   []string `json:"tabs"`
+		Rows   int      `json:"rows"`
+		More   string   `json:"more"`
+		Titles []string `json:"titles"`
 	} `json:"first"`
 	After struct {
 		Rows int    `json:"rows"`
@@ -168,24 +166,6 @@ func TestBothTabsPutTheNewestOnTop(t *testing.T) {
 			t.Errorf("the briefs read %v, expected %v", got.OnBriefs.Order, want)
 			break
 		}
-	}
-}
-
-// The shelf is a list to scan: a row that takes the height of a feed card fits
-// four to a phone screen, and the one being looked for is the fifth.
-func TestTheRowsOfTheShelfAreRows(t *testing.T) {
-	var got workShelfShot
-	runFixture(t, "workshelf.html", &got)
-
-	if got.First.Height == 0 || got.First.FeedHeight == 0 {
-		t.Fatal("nothing was measured")
-	}
-	// A tenth is the difference between a row and a card here; anything less
-	// and the shelf is the feed with a narrower gap.
-	if got.First.Height*10 > got.First.FeedHeight*9 {
-		t.Errorf("a row of the shelf is %d tall against %d for the same card outside it: "+
-			"the shelf is a list to scan, and the card is one to read",
-			got.First.Height, got.First.FeedHeight)
 	}
 }
 

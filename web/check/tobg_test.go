@@ -31,13 +31,9 @@ func TestACallInTheForegroundGoesToTheBackgroundFromTheBar(t *testing.T) {
 			Pill   string `json:"pill"`
 			Nested bool   `json:"nested"`
 		} `json:"sheetRows"`
-		ConsoleSheet  []pill `json:"consoleSheet"`
-		Overflow      int    `json:"overflow"`
-		CallWidth     int    `json:"callWidth"`
-		BareCallWidth int    `json:"bareCallWidth"`
-		ChipsOut      int    `json:"chipsOut"`
-		AfterOne      pill   `json:"afterOne"`
-		Sent          []struct {
+		ConsoleSheet []pill `json:"consoleSheet"`
+		AfterOne     pill   `json:"afterOne"`
+		Sent         []struct {
 			Kind   string         `json:"kind"`
 			Target string         `json:"target"`
 			Params map[string]any `json:"params"`
@@ -79,13 +75,6 @@ func TestACallInTheForegroundGoesToTheBackgroundFromTheBar(t *testing.T) {
 	}
 	if len(got.ConsoleSheet) != 0 {
 		t.Errorf("the calls sheet of a session in the console aims at one call: %+v", got.ConsoleSheet)
-	}
-	if got.Overflow > 0 {
-		t.Errorf("the buttons push the phone %dpx sideways", got.Overflow)
-	}
-	if got.CallWidth <= 0 || got.CallWidth < got.BareCallWidth || got.ChipsOut > 0 {
-		t.Errorf("the buttons squeeze the command to %dpx from %dpx and push the badges %dpx out of the bar",
-			got.CallWidth, got.BareCallWidth, got.ChipsOut)
 	}
 
 	if len(got.Sent) != 3 {

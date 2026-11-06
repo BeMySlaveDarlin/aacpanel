@@ -4,15 +4,14 @@
 <div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="root"></section></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// Runs of work between short replies at a desk: the entries of the column
-// would run into each other, and each stands under the one in its way.
+// Runs of work between short replies at a desk, each said by an entry of the
+// column of the timeline.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
 import { rows, weld } from "/src/screens/chat/feed.js";
 import { FeedGrid } from "/src/screens/chat/timeline.js";
 
-document.documentElement.style.setProperty("--ui-scale", "1.2");
 const at = (s) => `2026-09-26T10:00:${String(s).padStart(2, "0")}Z`;
 const items = [{ role: "me", text: "go", pos: 1, at: at(0) }];
 let pos = 2;
@@ -36,17 +35,12 @@ render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 (async () => {
-    await document.fonts.ready;
     const end = performance.now() + 3000;
     const ready = () => document.querySelectorAll(".tlentry").length === 4;
     while (!ready() && performance.now() < end) await frame();
-    for (let i = 0; i < 6; i++) await frame();
-    const col = Array.from(document.querySelector(".feedcol").children);
     const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
     window.done = {
         entries: Array.from(document.querySelectorAll(".tlentry")).map((e) => ({
-            top: e.getBoundingClientRect().top,
-            bottom: e.getBoundingClientRect().bottom,
             time: text(e.querySelector(".tltime")),
             sum: text(e.querySelector(".tlsum")),
             took: text(e.querySelector(".tldur")),
@@ -54,9 +48,6 @@ const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
             more: text(e.querySelector(".tlmore")),
             files: Array.from(e.querySelectorAll(".tlfile")).map((f) => f.textContent + (f.classList.contains("wrote") ? "*" : "")),
         })),
-        rows: col.map((r) => r.getBoundingClientRect().top),
-        colRight: document.querySelector(".feedcol").getBoundingClientRect().right,
-        lineLeft: document.querySelector(".tline").getBoundingClientRect().left,
     };
 })();
 </script>

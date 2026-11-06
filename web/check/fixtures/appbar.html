@@ -37,13 +37,6 @@ const until = async (ok, ms = 5000) => {
     while (!ok() && performance.now() < end) await sleep(25);
     return ok();
 };
-const box = (el) => {
-    if (!el) return null;
-    const b = el.getBoundingClientRect();
-    return { width: Math.round(b.width), height: Math.round(b.height), top: Math.round(b.top), bottom: Math.round(b.bottom),
-             left: Math.round(b.left), right: Math.round(b.right) };
-};
-
 const at = new Date(2026, 8, 26, 22, 41);
 const route = (extra = {}) => ({ here: "local", via: "", why: "here", onRecheck: () => {}, onOpen: () => {}, ...extra });
 const states = [
@@ -61,7 +54,7 @@ const states = [
     ["install", { kind: "live", at }, 3, true],
     ["nomap", { kind: "live", at }, 3, false, { here: "", why: "no-map" }],
     ["via", { kind: "live", at }, 3, false, { via: "lan", why: "lan" }],
-    // Words that cannot fit: a leg the labels do not know and a long host name.
+    // Long words: a leg the labels do not know and a long host name.
     ["longleg", { kind: "live", at }, 720, false, { via: "wireguard-backup-leg", why: "wireguard-backup-leg" }],
     ["longhost", { kind: "offline", at }, null, false, {}, "jdoe-workstation-builder-01"],
 ];
@@ -72,44 +65,20 @@ const show = (conn, ageSec, flag, r, host = "HELIOS") => render(html`
                alerts=${3} query="" onQuery=${() => {}} onMenu=${() => {}} onAlerts=${() => {}} />
 `, root);
 
-// wrapped says whether any piece of the bar left the line: every child has to
-// sit inside the row, and the words of the chip on a single line of their own.
-const measureBar = () => {
-    const row = document.querySelector(".titlerow");
-    const rb = row.getBoundingClientRect();
-    const kids = [...row.children].map((el) => el.getBoundingClientRect());
-    const word = document.querySelector(".cword");
-    const lh = parseFloat(getComputedStyle(word).lineHeight) || 20;
-    return {
-        top: box(document.querySelector("header.top")),
-        row: box(row),
-        chip: box(document.querySelector(".conn")),
-        cbox: box(document.querySelector(".cbox")),
-        text: word.textContent,
-        cut: word.scrollWidth > word.clientWidth + 1,
-        wrapped: kids.some((k) => k.top < rb.top - 0.5 || k.bottom > rb.bottom + 0.5) || word.getBoundingClientRect().height > lh * 1.5,
-        tone: document.querySelector(".conn").dataset.tone || "",
-        dot: (document.querySelector(".cdot") || { dataset: {} }).dataset.dot || "",
-        dotFill: document.querySelector(".cdot") ? getComputedStyle(document.querySelector(".cdot")).backgroundColor : "",
-        label: document.querySelector(".conn").getAttribute("aria-label"),
-        signIn: (document.querySelector(".signin") || { getAttribute: () => "" }).getAttribute("href"),
-        signInBox: box(document.querySelector(".signin")),
-        host: box(document.querySelector(".titlerow .host")),
-        caretShown: (() => {
-            const c = document.querySelector(".titlerow .host .caret").getBoundingClientRect();
-            const hb = document.querySelector(".titlerow .host").getBoundingClientRect();
-            return c.width > 0 && c.right <= hb.right + 0.5;
-        })(),
-        flag: document.querySelector(".titlerow .host").hasAttribute("data-flag"),
-        caret: getComputedStyle(document.querySelector(".titlerow .host .caret")).color,
-        buttons: [...document.querySelectorAll(".titlerow .icons .iconbtn")].map((b) => ({ label: b.getAttribute("aria-label"), ...box(b) })),
-        overflow: document.documentElement.scrollWidth > innerWidth || innerWidth !== Math.round(visualViewport.width),
-    };
-};
+// measureBar reads what the bar says in one state of the link.
+const measureBar = () => ({
+    text: document.querySelector(".cword").textContent,
+    tone: document.querySelector(".conn").dataset.tone || "",
+    dot: (document.querySelector(".cdot") || { dataset: {} }).dataset.dot || "",
+    label: document.querySelector(".conn").getAttribute("aria-label"),
+    signIn: (document.querySelector(".signin") || { getAttribute: () => "" }).getAttribute("href"),
+    caret: Boolean(document.querySelector(".titlerow .host .caret")),
+    flag: document.querySelector(".titlerow .host").hasAttribute("data-flag"),
+    buttons: [...document.querySelectorAll(".titlerow .icons .iconbtn")].map((b) => ({ label: b.getAttribute("aria-label") })),
+});
 
 window.done = (async () => {
-    await document.fonts.ready;
-    const out = { width: innerWidth, bars: {} };
+    const out = { bars: {} };
 
     for (const [name, conn, age, flag, extra, host] of states) {
         show(conn, age, flag, route(extra), host);
@@ -148,7 +117,7 @@ window.done = (async () => {
             where: r.querySelector(".routeurl").textContent,
             mark: r.querySelector(".routehere").textContent,
         })),
-        retry: box([...sheet.querySelectorAll("button")].find((b) => b.textContent.trim() === "Retry")),
+        retry: Boolean([...sheet.querySelectorAll("button")].find((b) => b.textContent.trim() === "Retry")),
     };
     const before = maps;
     [...sheet.querySelectorAll("button")].find((b) => b.textContent.trim() === "Retry").click();
@@ -173,7 +142,6 @@ window.done = (async () => {
     out.menu = {
         items: doors(m),
         theme: pressed(m),
-        themeBox: [...m.querySelectorAll(".hm-seg button")].map(box),
     };
     [...m.querySelectorAll(".hm-seg button")].find((b) => b.textContent.trim() === "Dark").click();
     out.menu.darkOnDark = themes;

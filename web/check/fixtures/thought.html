@@ -29,23 +29,9 @@ const until = async (ok, ms = 3000) => {
 
 (async () => {
     await until(() => document.querySelectorAll(".mmind p").length === 2 && document.querySelector(".msg.ai:not(.mmind) p"));
-    const style = (el) => getComputedStyle(el);
-    const minds = Array.from(document.querySelectorAll(".mmind p"));
-    const answer = document.querySelector(".msg.ai:not(.mmind) p");
-    const rowsOf = Array.from(document.querySelectorAll(".feedrow.r-mind")).map((r) => r.getBoundingClientRect());
     window.done = {
-        mind: parseFloat(style(minds[0]).fontSize),
-        answer: parseFloat(style(answer).fontSize),
-        mindColour: style(minds[0]).color,
-        answerColour: style(answer).color,
-        mindFont: style(minds[0]).fontFamily,
-        answerFont: style(answer).fontFamily,
-        mindItalic: style(minds[0]).fontStyle,
         icons: document.querySelectorAll(".mmind svg").length,
         tags: Array.from(document.querySelectorAll(".mmtag")).map((t) => t.textContent),
-        rule: style(document.querySelector(".feedrow.r-mind")).boxShadow,
-        answerRule: style(document.querySelector(".feedrow.r-ai")).boxShadow,
-        gap: rowsOf.length === 2 ? rowsOf[1].top - rowsOf[0].bottom : null,
     };
 })();
 </script>

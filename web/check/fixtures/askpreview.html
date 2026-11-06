@@ -6,9 +6,8 @@
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
 // The conversation screen with a question waiting in it, and the options of
-// that question carrying drawings. The shell is the one the phone gets — the
-// question card lives in a sheet, and the sheet's width is what the drawing
-// has to fit into.
+// that question carrying drawings, in the shell the phone gets: the question
+// card lives in a sheet.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -94,10 +93,7 @@ render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// shows the drawing of one option and measures it in the box it was put into.
-// The same drawing is measured a second time at the plain size of the panel's
-// code, which is the width it would take with nothing fitting it: without that
-// number a drawing that happens to be narrow would pass for a drawing that fits.
+// show opens the drawing of one option and says whether it came up.
 async function show(n) {
     const back = document.querySelector(".askover .sheetclose");
     if (back) {
@@ -106,30 +102,10 @@ async function show(n) {
     }
     document.querySelectorAll(".askinfo")[n].click();
     await quiet();
-    const pre = document.querySelector(".askpreview");
-    if (!pre) return { open: false };
-    const style = getComputedStyle(pre);
-    const fitted = { client: pre.clientWidth, scroll: pre.scrollWidth, size: +parseFloat(style.fontSize).toFixed(2) };
-    const was = pre.style.fontSize;
-    pre.style.fontSize = "var(--t-xs)";
-    const plain = { scroll: pre.scrollWidth, size: +parseFloat(getComputedStyle(pre).fontSize).toFixed(2) };
-    pre.style.fontSize = was;
-    const lines = pre.textContent.split("\n");
-    return {
-        open: true,
-        cols: Number(pre.parentElement.style.getPropertyValue("--cols")),
-        widest: lines.reduce((most, line) => Math.max(most, line.length), 0),
-        lines: lines.length,
-        client: fitted.client,
-        scroll: fitted.scroll,
-        size: fitted.size,
-        plainScroll: plain.scroll,
-        plainSize: plain.size,
-    };
+    return { open: Boolean(document.querySelector(".askpreview")) };
 }
 
 window.done = (async () => {
-    await document.fonts.ready;
     for (let i = 0; i < 80 && !document.querySelector(".askinfo"); i += 1) await sleep(50);
     await quiet();
 

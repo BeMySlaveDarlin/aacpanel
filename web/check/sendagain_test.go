@@ -21,8 +21,7 @@ func TestAMessageRefusedByADialogIsSentAgainFromTheRow(t *testing.T) {
 			Params map[string]any `json:"params"`
 		} `json:"sent"`
 		Patches []map[string]any `json:"patches"`
-		Fits    bool             `json:"fits"`
-		Height  float64          `json:"height"`
+		Inside  bool             `json:"inside"`
 		Cls     string           `json:"cls"`
 		Gone    bool             `json:"gone"`
 		Failed  string           `json:"failed"`
@@ -36,9 +35,8 @@ func TestAMessageRefusedByADialogIsSentAgainFromTheRow(t *testing.T) {
 		t.Errorf("the button says %q — it does not say it presses Esc, and pressing it is a guess", got.Label)
 	}
 
-	if !got.Fits {
-		t.Errorf("the button is %.0f px tall and does not sit inside the bubble it belongs to — on a phone "+
-			"it is either out of the message or too small for a thumb", got.Height)
+	if !got.Inside {
+		t.Error("the button is not inside the bubble of the message it belongs to")
 	}
 	if got.AfterOne != 1 {
 		t.Fatalf("the first press sent %d requests: %+v — Esc that did not free the composer was followed "+

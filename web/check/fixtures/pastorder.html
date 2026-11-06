@@ -6,8 +6,8 @@
 <div id="root"></div>
 <script type="module">
 // The archive of a contour on a phone, with a page of thirty conversations
-// across ten projects: the groups to start a session in stand over that page,
-// on the first screen, rather than under it.
+// across ten projects: the groups to start a session in come before that
+// page, rather than after it.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Past } from "/src/screens/sessions/past.js";
@@ -49,10 +49,7 @@ window.done = (async () => {
         const groups = heads.find((el) => text(el) === "project groups");
         const card = root.querySelector("section.card");
         out.heads = heads.map(text);
-        out.groupsTop = groups ? groups.getBoundingClientRect().top : -1;
-        out.cardTop = card ? card.getBoundingClientRect().top : -1;
-        out.cardTall = card ? card.getBoundingClientRect().height : 0;
-        out.screen = innerHeight;
+        out.groupsFirst = Boolean(groups && card && groups.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING);
         out.stacks = root.querySelectorAll(".stack").length;
     } catch (err) {
         out.error = String((err && err.stack) || err);

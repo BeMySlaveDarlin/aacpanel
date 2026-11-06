@@ -77,12 +77,10 @@ const until = async (ok, ms = 3000) => {
         states: text(".bcard-state"),
         live: text(".bcard-live"),
         meta: text(".bcard-meta"),
-        // Where each card sits, to see whether the shelf is a column or a grid.
-        tops: cards.map((c) => Math.round(c.getBoundingClientRect().top)),
-        widths: cards.map((c) => Math.round(c.getBoundingClientRect().width)),
+        // How far the bar of each card is filled, as the card sets it.
         bars: cards.map((c) => {
             const fill = c.querySelector(".bcard-bar i");
-            return fill ? Math.round(fill.getBoundingClientRect().width / c.getBoundingClientRect().width * 100) : -1;
+            return fill ? parseInt(fill.style.width, 10) : -1;
         }),
     };
 

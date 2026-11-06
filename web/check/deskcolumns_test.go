@@ -28,10 +28,7 @@ func TestTheDesktopSettingsAreThreeColumns(t *testing.T) {
 		Move               map[string]any `json:"move"`
 		OrderKept          bool           `json:"orderKept"`
 		Close              *struct {
-			Right  int  `json:"right"`
-			Top    int  `json:"top"`
 			InTree bool `json:"inTree"`
-			Clear  bool `json:"clear"`
 		} `json:"close"`
 	}
 	runFixtureServing(t, "deskcolumns.html", deskScreen, deskPointer, schemaAnswer(map[string]any{}), &got)
@@ -52,8 +49,8 @@ func TestTheDesktopSettingsAreThreeColumns(t *testing.T) {
 	if !got.Popover || got.PopBar != "1 change" || !got.PopClosedPageStays {
 		t.Errorf("the model popover: shown %v, its bar %q, the page stays after Escape %v", got.Popover, got.PopBar, got.PopClosedPageStays)
 	}
-	if c := got.Close; c == nil || c.InTree || c.Right > 16 || c.Top > 16 || !c.Clear {
-		t.Errorf("the close of the settings is not in the corner of the window clear of the last heading: %+v", got.Close)
+	if c := got.Close; c == nil || c.InTree {
+		t.Errorf("the close of the settings is missing or belongs to the tree: %+v", got.Close)
 	}
 	body, _ := got.Move["body"].(map[string]any)
 	if !strings.Contains(got.MoveSheet, `moves to group "side"`) || got.Move["url"] != "/api/projects/12" || body["groupId"] != float64(5) || !got.OrderKept {

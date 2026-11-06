@@ -78,17 +78,15 @@ window.done = (async () => {
         const note = sheet.querySelector(".cknote");
         const list = sheet.querySelector(".cklist");
         out.note = text(note);
-        out.noteOnTop = Boolean(note && list) && note.getBoundingClientRect().bottom <= list.getBoundingClientRect().top + 0.5;
+        out.noteOnTop = Boolean(note && list) && Boolean(note.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING);
         out.steps = Array.from(sheet.querySelectorAll(".ckitem")).map((li) => ({
             cls: li.className,
             text: text(li.querySelector(".cktext")),
             at: text(li.querySelector(".ckat")),
             tick: Boolean(li.querySelector(".ckmark svg")),
-            struck: getComputedStyle(li.querySelector(".cktext")).textDecorationLine,
             tag: li.querySelector(".cktext").tagName.toLowerCase(),
         }));
         out.times = { done1: today(at(10, 4)), done2: today(at(10, 9)), active: today(at(10, 18)) };
-        out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

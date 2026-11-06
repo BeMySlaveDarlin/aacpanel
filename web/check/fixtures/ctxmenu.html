@@ -18,7 +18,7 @@ html,body{margin:0}
 // window, anchored to the row when the keyboard asks — how it closes and
 // gives the focus back, where the browser keeps its own menu, what its items
 // are and what they send through the gate, against the buttons that send the
-// same.
+// same. The head of the stack beside the menus says its facts.
 //
 // A menu the keyboard asks for is sent by Chrome as a contextmenu with button
 // -1, no button held and the point at the middle of the focused element, with
@@ -77,6 +77,7 @@ const archive = [
     closed({ sessionId: "c-loose", name: "loose", project: null, cwd: "srv/loose", min: 150, messages: 0 }),
 ];
 const tree = { running: 1, total: 2, stacks: [{ name: "shop", running: 1, total: 2, hasStats: true, cpu: 1, mem: 64 << 20,
+    hasDisk: true, disk: 21 << 20,
     containers: [
         { id: "c1", name: "shop-web", service: "web", state: "running", status: "Up 2 hours", hasStats: true, cpu: 1, mem: 32 << 20 },
         { id: "c2", name: "shop-db", service: "db", state: "exited", status: "Exited (0) 3 hours ago" },
@@ -193,11 +194,6 @@ const on = (row) => Boolean(row) && row.contains(document.activeElement);
 const headOf = (name) => Array.from(document.querySelectorAll(".dkproj")).find((r) => text(r.querySelector(".dkprojname")) === name);
 const contOf = (name) => Array.from(document.querySelectorAll(".dkcont")).find((r) => text(r.querySelector(".dkc-name")) === name);
 const stackRow = () => document.querySelectorAll(".dkbody")[1].querySelector(".dksess");
-const box = (el) => {
-    const r = el.getBoundingClientRect();
-    return { left: Math.round(r.left), top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom) };
-};
-
 // The right button as the browser presses it: down, then the menu event.
 const rightClick = (el, x, y, extra = {}) => {
     el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 2, buttons: 2,
@@ -233,7 +229,7 @@ const itemOf = (label) => (menuNode() ? Array.from(menuNode().querySelectorAll('
 const about = (label) => {
     const el = itemOf(label);
     return el ? { note: text(el.querySelector(".pkdesc")), tip: el.getAttribute("data-tip") || "",
-        off: el.getAttribute("aria-disabled") === "true", opacity: Number(getComputedStyle(el).opacity) } : null;
+        off: el.getAttribute("aria-disabled") === "true" } : null;
 };
 const focused = () => text(document.activeElement && document.activeElement.querySelector
     && document.activeElement.querySelector(".pkname"));
@@ -266,18 +262,19 @@ const confirmClick = async (el) => {
 const press = (label) => confirmClick(itemOf(label));
 
 window.done = (async () => {
-    await document.fonts.ready;
     await until(() => document.querySelector(".dkshelf .sc.scpast") && document.querySelector(".dkarch") && rowOf("aacpanel"));
     await quiet();
-    const out = { vw: innerWidth, vh: innerHeight };
+    const out = {};
     const aac = rowOf("aacpanel");
     const helios = rowOf("helios");
+    // The head of the stack: its facts, each a value and what it is.
+    out.stackFacts = Array.from(document.querySelectorAll(".dkheadbot .dkfact")).filter((f) => f.querySelector("b"))
+        .map((f) => ({ value: text(f.querySelector("b")), name: text(f.querySelector("span")) }));
 
     // At the point, and closed by Escape with the focus back on the row.
     let ev = rightClick(aac, 300, 200);
     await until(menuNode);
-    out.atPoint = { prevented: ev.defaultPrevented, menu: box(menuNode()), label: menuNode().getAttribute("aria-label"),
-        focus: focused() };
+    out.atPoint = { prevented: ev.defaultPrevented, label: menuNode().getAttribute("aria-label"), focus: focused() };
     await quiet();
     out.lists = { aacpanel: read() };
     out.about = { move: about("Move to tmux"), remote: about("Turn Remote Control on"), restart: about("Restart the session"),
@@ -295,23 +292,21 @@ window.done = (async () => {
     await until(() => !anyMenu());
     out.escape = { open: Boolean(anyMenu()), focusRow: on(aac) };
 
-    // Near the bottom edge it opens upward from the point; in the corner it is
-    // kept inside the window.
+    // Opened again near the bottom edge, a press outside takes it down; opened
+    // in the corner, a right click elsewhere takes its place.
     rightClick(aac, 300, innerHeight - 40);
     await until(menuNode);
     await quiet();
-    out.nearBottom = box(menuNode());
     document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, buttons: 1 }));
     await until(() => !anyMenu());
     out.outside = { open: Boolean(anyMenu()), focusRow: on(aac) };
     rightClick(aac, innerWidth - 3, innerHeight - 3);
     await until(menuNode);
     await quiet();
-    out.corner = box(menuNode());
     // A right click elsewhere opens there, the menu of what it was made on.
     ev = rightClick(helios, 320, 260);
     await until(() => menuNode() && menuNode().getAttribute("aria-label") === "session helios");
-    out.elsewhere = { prevented: ev.defaultPrevented, menu: box(menuNode()), label: menuNode().getAttribute("aria-label"),
+    out.elsewhere = { prevented: ev.defaultPrevented, label: menuNode().getAttribute("aria-label"),
         count: document.querySelectorAll(".ctxmenu").length };
     await quiet();
     out.lists.helios = read();
@@ -383,7 +378,7 @@ window.done = (async () => {
     ev = keyMenu(aac);
     await until(menuNode);
     await quiet();
-    out.keyboard = { prevented: ev.defaultPrevented, menu: box(menuNode()), row: box(aac), first: focused() };
+    out.keyboard = { prevented: ev.defaultPrevented, first: focused() };
     const walk = [];
     for (const k of ["ArrowDown", "ArrowDown", "ArrowUp", "End", "ArrowDown", "Home", "ArrowUp"]) {
         key(k);

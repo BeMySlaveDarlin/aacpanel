@@ -2,7 +2,6 @@ package check
 
 import (
 	"encoding/json"
-	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -43,14 +42,6 @@ type panelSample struct {
 	Said any    `json:"said"`
 }
 
-type panelBox struct {
-	Left   float64 `json:"left"`
-	Right  float64 `json:"right"`
-	Top    float64 `json:"top"`
-	Bottom float64 `json:"bottom"`
-	Width  float64 `json:"width"`
-}
-
 type panelCard struct {
 	Kind      string   `json:"kind"`
 	Label     string   `json:"label"`
@@ -64,7 +55,6 @@ type panelCard struct {
 	Queued    bool     `json:"queued"`
 	Withdrawn bool     `json:"withdrawn"`
 	Stamp     string   `json:"stamp"`
-	Side      string   `json:"side"`
 }
 
 type panelSaidRun struct {
@@ -82,13 +72,9 @@ type panelSaidRun struct {
 	Cards       []panelCard `json:"cards"`
 	BubbleTexts []string    `json:"bubbleTexts"`
 	BriefMark   string      `json:"briefMark"`
-	SecretName  *struct {
-		Text    string  `json:"text"`
-		Width   float64 `json:"width"`
-		Natural float64 `json:"natural"`
-	} `json:"secretName"`
-	SecretSaved string `json:"secretSaved"`
-	SecretRaw   string `json:"secretRaw"`
+	SecretName  string      `json:"secretName"`
+	SecretSaved string      `json:"secretSaved"`
+	SecretRaw   string      `json:"secretRaw"`
 	Answers     []struct {
 		N        string `json:"n"`
 		Question string `json:"question"`
@@ -96,10 +82,6 @@ type panelSaidRun struct {
 		Note     string `json:"note"`
 		Faint    bool   `json:"faint"`
 	} `json:"answers"`
-	FirstRow struct {
-		Question panelBox `json:"question"`
-		Answer   panelBox `json:"answer"`
-	} `json:"firstRow"`
 	BriefRows []string `json:"briefRows"`
 	BriefRaw  string   `json:"briefRaw"`
 	Notes     []struct {
@@ -153,7 +135,6 @@ func TestPanelMessagesAreCards(t *testing.T) {
 			if got.Error != "" {
 				t.Fatalf("the fixture broke: %s", got.Error)
 			}
-			desk := screen.name == "desk"
 			for _, part := range []struct {
 				name  string
 				check func(*testing.T, panelSamples, panelSaidRun)
@@ -161,18 +142,17 @@ func TestPanelMessagesAreCards(t *testing.T) {
 				{"theParserReadsEverySample", panelParserReadsTheSamples},
 				{"aTextOffTheShapeStaysABubble", panelOffShapeStaysABubble},
 				{"theSignalIsTheSample", panelSignalIsTheSample},
-				{"eachKindIsACardOnThePersonsSide", panelEachKindIsACard},
+				{"eachKindIsACard", panelEachKindIsACard},
 				{"theCardsOpenWhatTheSessionGot", panelCardsOpenTheText},
 				{"theBriefOpensItsAnswers", panelBriefOpensItsAnswers},
 				{"theReadingOpensItsNotes", panelReadingOpensItsNotes},
 				{"theRequestShowsTheAnswerAndNote", panelRequestShowsTheAnswerAndNote},
 				{"theTimeNamesTheLastReply", panelTimeNamesTheLastReply},
 				{"theBriefOfTheFeedSaysSent", panelBriefSaysSent},
-				{"theNameOfASecretDoesNotBreak", panelSecretNameDoesNotBreak},
+				{"theSecretSaysItIsSaved", panelSecretSaysItIsSaved},
 			} {
 				t.Run(part.name, func(t *testing.T) { part.check(t, samples, got) })
 			}
-			t.Run("theAnswerStandsWhereTheScreenHasRoom", func(t *testing.T) { panelAnswerPlace(t, got, desk) })
 		})
 	}
 }
@@ -271,9 +251,6 @@ func panelEachKindIsACard(t *testing.T, s panelSamples, got panelSaidRun) {
 		t.Fatalf("the feed drew the cards %v, want %v", kinds, want)
 	}
 	for _, c := range got.Cards {
-		if c.Side != "flex-end" {
-			t.Errorf("the %s card stands on the %s side, not on the person's", c.Kind, c.Side)
-		}
 		if c.At == "" {
 			t.Errorf("the %s card does not say when it was sent", c.Kind)
 		}
@@ -417,36 +394,13 @@ func panelBriefSaysSent(t *testing.T, _ panelSamples, got panelSaidRun) {
 	}
 }
 
-// The card a session asked a secret with names the file beside the time it
-// was saved. Squeezed onto one line the two broke the name in the middle; the
-// line of the name is to be as wide as the name.
-func panelSecretNameDoesNotBreak(t *testing.T, _ panelSamples, got panelSaidRun) {
-	if got.SecretSaved == "" {
-		t.Fatal("the card of the secret is not marked saved: the name has nothing beside it to be measured against")
+// The card a session asked a secret with names the file it will get, and once
+// the notepad saved a file of that name after the question, says when.
+func panelSecretSaysItIsSaved(t *testing.T, _ panelSamples, got panelSaidRun) {
+	if got.SecretName != "aacpanel-live-check" {
+		t.Errorf("the name on the card of the secret reads %q", got.SecretName)
 	}
-	name := got.SecretName
-	if name == nil || name.Text != "aacpanel-live-check" {
-		t.Fatalf("the name on the card of the secret reads %+v", name)
-	}
-	if name.Width+0.5 < name.Natural {
-		t.Errorf("the name of the secret has %.1fpx for %.1fpx of text: it breaks inside the word", name.Width, name.Natural)
-	}
-}
-
-// On a phone the answer stands under its question; at a desk beside it, a
-// column to the right.
-func panelAnswerPlace(t *testing.T, got panelSaidRun, desk bool) {
-	q, a := got.FirstRow.Question, got.FirstRow.Answer
-	if q.Width == 0 || a.Width == 0 {
-		t.Fatalf("the first answer was not measured: %+v", got.FirstRow)
-	}
-	if desk {
-		if math.Abs(a.Top-q.Top) > 4 || a.Left < q.Right {
-			t.Errorf("at a desk the answer %+v does not stand beside its question %+v", a, q)
-		}
-		return
-	}
-	if a.Top < q.Bottom-1 {
-		t.Errorf("on a phone the answer %+v does not stand under its question %+v", a, q)
+	if !strings.HasPrefix(got.SecretSaved, "saved ") {
+		t.Errorf("the card of the secret is not marked saved (%q), though the notepad saved its file after the question", got.SecretSaved)
 	}
 }

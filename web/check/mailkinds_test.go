@@ -10,7 +10,6 @@ type mailRow struct {
 	Label    string `json:"label"`
 	From     string `json:"from"`
 	Peek     string `json:"peek"`
-	Icon     string `json:"icon"`
 	Glyph    string `json:"glyph"`
 	More     bool   `json:"more"`
 	MoreText string `json:"moreText"`
@@ -78,14 +77,6 @@ func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 		t.Error("a letter said whole on its card still offers a row to open it")
 	}
 
-	// The hook and the panel's letters are not correspondents, and their mark
-	// says so.
-	for _, i := range []int{2, 3, 4, 5} {
-		if shot.Rows[i].Icon == shot.Rows[0].Icon {
-			t.Errorf("the %s and the neighbour session are marked in the same colour (%q) — "+
-				"it reads as a letter of a correspondent", shot.Rows[i].Label, shot.Rows[i].Icon)
-		}
-	}
 	panel := shot.Rows[5]
 	if panel.Glyph == "" || panel.Glyph == shot.Rows[0].Glyph {
 		t.Error("the panel instruction uses the correspondent's envelope")

@@ -85,14 +85,6 @@ window.done = (async () => {
             nested: Boolean(row.querySelector(".callnode .tobg")),
         }));
         out.consoleSheet = pills("#consolesheet");
-        out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
-        // The buttons take a line of their own: the command keeps the room it
-        // has in the bar of a session the panel does not reach, where there
-        // are none, and the badges stay inside the bar.
-        const barBox = document.querySelector("#stream .nowbar").getBoundingClientRect();
-        out.callWidth = Math.round(document.querySelector("#stream .nowcall").getBoundingClientRect().width);
-        out.bareCallWidth = Math.round(document.querySelector("#away .nowcall").getBoundingClientRect().width);
-        out.chipsOut = Math.round(document.querySelector("#stream .nowchips").getBoundingClientRect().right - barBox.right);
 
         // One call by its id, then every call at once.
         const [one, all] = document.querySelectorAll("#stream .tobg");

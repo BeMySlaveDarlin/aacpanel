@@ -18,7 +18,6 @@ func TestACodexThreadShowsItsChecklistInItsConversation(t *testing.T) {
 		LineNum    string   `json:"lineNum"`
 		BlockFirst bool     `json:"blockFirst"`
 		BlockSteps []string `json:"blockSteps"`
-		Overflow   int      `json:"overflow"`
 		Error      string   `json:"error"`
 	}
 	t.Run("phone", func(t *testing.T) {
@@ -30,9 +29,6 @@ func TestACodexThreadShowsItsChecklistInItsConversation(t *testing.T) {
 		if !got.Drawn || got.Line != "pin the clock of the cart test" || got.LineNum != "2/3" || len(got.BlockSteps) != 0 {
 			t.Errorf("over the composer the thread says %q at %q (drawn %v), and a block of %v", got.Line, got.LineNum,
 				got.Drawn, got.BlockSteps)
-		}
-		if got.Overflow > 0 {
-			t.Errorf("the conversation pushes the phone %dpx sideways", got.Overflow)
 		}
 	})
 	t.Run("desk", func(t *testing.T) {

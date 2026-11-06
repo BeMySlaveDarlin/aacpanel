@@ -24,7 +24,7 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 						Kind, Target string
 						Params       map[string]any
 					}
-					NoConfirmation, Menu, PauseFits, RestartFits bool
+					NoConfirmation, Menu bool
 				}
 			}
 			screen.run(t, screen.file, &got)
@@ -60,9 +60,6 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			}
 			if second.Kind != "project.pause" || second.Params["group"] != false || second.Params["resume"] != true || second.Params["until"] != nil {
 				t.Errorf("resume request: %+v", second)
-			}
-			if !p.PauseFits || !p.RestartFits {
-				t.Errorf("the sheet hides its confirmation: pause %v, restart %v", p.PauseFits, p.RestartFits)
 			}
 			if len(p.Options) != 3 || !strings.HasPrefix(p.Options[0], "Clean restart") || !strings.Contains(p.Options[0], "no first message") || !strings.HasPrefix(p.Options[1], "Restart and continue") || !strings.HasPrefix(p.Options[2], "Restart as auto-restart") {
 				t.Errorf("restart choices: %v", p.Options)

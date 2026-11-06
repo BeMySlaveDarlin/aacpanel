@@ -68,7 +68,7 @@ window.done = (async () => {
     });
     const note = (document.querySelector(".dktopnote") || document.querySelector(".dkempty") || {}).textContent || "";
 
-    const order = [".dkttr", ".programs", ".lancert"].map((selector) => document.querySelector(selector).getBoundingClientRect().top);
+    const order = [".dkttr", ".programs", ".lancert"].map((selector) => [...document.querySelectorAll("*")].indexOf(document.querySelector(selector)));
     return { rows, note, order, programs: document.querySelector(".programs")?.textContent, certificate: document.querySelector(".lancert")?.textContent, warning: !!document.querySelector(".lancert .warn") };
 })();
 </script>

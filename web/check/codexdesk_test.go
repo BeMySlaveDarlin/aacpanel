@@ -32,7 +32,6 @@ func TestTheBandOfACodexThreadOpensMenusAtADesk(t *testing.T) {
 			Plan   bool     `json:"plan"`
 			Models []string `json:"models"`
 			Stops  []string `json:"stops"`
-			Above  bool     `json:"above"`
 		} `json:"think"`
 		ByNumber []map[string]any `json:"byNumber"`
 		Closed   bool             `json:"closed"`
@@ -62,7 +61,7 @@ func TestTheBandOfACodexThreadOpensMenusAtADesk(t *testing.T) {
 	if strings.Join(got.Thread, "|") != "1 Compact|2 Review|3 Rename|4 Goal" || !got.GoalPane.MenuDown || got.GoalPane.Back {
 		t.Errorf("the menu of the thread is %v, and its goal opens as %+v — a sheet with nothing to go back to", got.Thread, got.GoalPane)
 	}
-	if got.Think.Label != "how codex thinks" || !got.Think.Plan || !got.Think.Above ||
+	if got.Think.Label != "how codex thinks" || !got.Think.Plan ||
 		strings.Join(got.Think.Models, "|") != "1 gpt-6-astra|2 gpt-6-astra-mini" ||
 		strings.Join(got.Think.Stops, ",") != "Low,Medium,High,Extra" {
 		t.Errorf("the menu of how codex thinks is %+v", got.Think)

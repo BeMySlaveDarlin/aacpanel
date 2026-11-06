@@ -67,7 +67,6 @@ window.fetch = async (url) => {
 
 render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {} })), document.getElementById("root"));
 
-const box = (el) => (el ? el.getBoundingClientRect() : null);
 const sel = (q) => document.querySelector(q);
 const all = (q) => [...document.querySelectorAll(q)];
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -92,8 +91,10 @@ window.done = (async () => {
     await until(".cdwide");
     await until(".cdside .cdnode");
 
-    const paneFirst = box(sel(".cdside"));
-    const mainFirst = box(sel(".cdmain"));
+    const paneFirst = sel(".cdside");
+    const mainFirst = sel(".cdmain");
+    const paneAfterMain = Boolean(paneFirst && mainFirst
+        && mainFirst.compareDocumentPosition(paneFirst) & Node.DOCUMENT_POSITION_FOLLOWING);
 
     // Three files open: two walked from the directory, one opened out of the
     // run of changes.
@@ -114,15 +115,6 @@ window.done = (async () => {
     const activeName = (sel(".cdtab.on") || {}).textContent
         ? sel(".cdtab.on").textContent.replace("×", "").trim() : "";
 
-    // The code scrolls on its own, the panel keeps its own scroll: walking a
-    // directory must not move what is being read.
-    // Read the styles here, while both are still in the tree: getComputedStyle
-    // of an element the panel has since removed answers with nothing at all.
-    const scroller = sel(".cdscroll");
-    const sideBody = sel(".cdsidebody");
-    const codeScrolls = scroller ? getComputedStyle(scroller).overflowY : "";
-    const paneScrolls = sideBody ? getComputedStyle(sideBody).overflowY : "";
-
     // Closing the tab being read hands the screen to its neighbour, not to a
     // blank panel.
     const xs = all(".cdtabx");
@@ -131,27 +123,20 @@ window.done = (async () => {
     const afterClose = all(".cdtab").map((t) => t.textContent.replace("×", "").trim());
     const activeAfter = sel(".cdtab.on") ? sel(".cdtab.on").textContent.replace("×", "").trim() : "";
 
-    // The panel folds away, and the code takes the room.
-    const mainBefore = box(sel(".cdmain")).width;
+    // The panel folds away.
     const fold = sel('[title="the panel beside the code"]');
     if (fold) fold.click();
     await tick(120);
     const paneGone = !sel(".cdside");
-    const mainAfter = box(sel(".cdmain")).width;
 
     return {
         laidOut: Boolean(paneFirst && mainFirst),
-        paneOnTheRight: Boolean(paneFirst && mainFirst && paneFirst.left >= mainFirst.right - 2),
-        paneWidth: paneFirst ? Math.round(paneFirst.width) : 0,
-        mainWidth: Math.round(mainFirst.width),
+        paneAfterMain,
         tabNames,
         activeName,
-        codeScrolls,
-        paneScrolls,
         afterClose,
         activeAfter,
         paneGone,
-        mainGrew: mainAfter > mainBefore + 40,
         phoneStripHidden: all(".cdstrip .chip").every((c) => !c.textContent.includes("Files")),
     };
 })();

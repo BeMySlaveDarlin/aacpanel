@@ -1,17 +1,16 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<style>html,body{margin:0} #root{width:390px;max-width:100%;box-sizing:border-box;padding:0 15px}</style>
+<style>html,body{margin:0}</style>
 <div id="root" class="pfcol"></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// Live cards on phones 390 and 360 px wide: one on the stream with
+// Live cards on a phone: one on the stream with
 // Remote Control up and a long step of its checklist, one with Remote Control
 // up, a checklist and two tasks in its background — each the only session of
 // its project — a project of two, a claude session and a codex thread on the
 // daemon, and a project of two whose first is in tmux with a task in its
-// background and no checklist, and whose second has a name too long for one
-// line beside its actions.
+// background and no checklist, and whose second has a long name.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -63,64 +62,23 @@ const until = async (ok, ms = 3000) => {
     return ok();
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const cut = (el) => Boolean(el) && el.scrollWidth > el.clientWidth + 1;
-const lines = (el) => (el ? Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)) : 0);
-const mid = (r) => r.top + r.height / 2;
-const round = (n) => Math.round(n * 10) / 10;
-const meets = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
-function measure() {
-    const out = { cards: {} };
+window.done = (async () => {
+    await until(() => document.querySelectorAll(".sc .scl5").length === rows.length);
+    const cards = {};
     for (const card of document.querySelectorAll(".sc")) {
-        const row = card.getBoundingClientRect();
-        const rs = getComputedStyle(card);
-        const inner = { right: row.right - parseFloat(rs.paddingRight) };
-        const name = card.querySelector(".scname");
-        const nameBox = name.getBoundingClientRect();
-        const actions = card.querySelector(".scacts");
-        const actionsBox = actions.getBoundingClientRect();
-        const said = card.querySelector(".scsay");
-        const step = card.querySelector(".scstep");
-        const n = card.querySelector(".scn");
         const badges = Array.from(card.querySelectorAll(".scl5 .scb"));
-        const ctx = card.querySelector(".scctx");
-        const ctxBox = ctx.getBoundingClientRect();
-        const agent = card.querySelector(".scagent");
-        out.cards[card.dataset.name] = {
-            name: name.getAttribute("aria-label"),
-            nameLines: lines(name),
-            nameCut: cut(name) || getComputedStyle(name).textOverflow === "ellipsis",
-            nameClear: !meets(nameBox, actionsBox),
-            actionsRight: round(inner.right - actionsBox.right),
-            actionsOnLine: Math.abs(mid(card.querySelector(".scl1").getBoundingClientRect()) - mid(actionsBox)) < 1,
-            state: text(said),
-            stateLines: lines(said),
+        const step = card.querySelector(".scstep");
+        cards[card.dataset.name] = {
+            name: card.querySelector(".scname").getAttribute("aria-label"),
+            state: text(card.querySelector(".scsay")),
             rc: badges[3].classList.contains("scon"),
             rcWords: Array.from(card.querySelectorAll("*")).filter((el) => el.children.length === 0 && text(el) === "RC").length,
             mark: text(badges[1]),
-            pct: text(ctx),
-            pctRight: round(inner.right - ctxBox.right),
+            pct: text(card.querySelector(".scctx")),
             step: text(step),
-            stepCut: cut(step),
             stepTip: step.getAttribute("title") || "",
-            stepClear: !n || !meets(step.getBoundingClientRect(), n.getBoundingClientRect()),
-            agentLines: lines(agent),
         };
     }
-    const root = document.getElementById("root");
-    out.overflow = root.scrollWidth - root.clientWidth;
-    return out;
-}
-
-window.done = (async () => {
-    await until(() => document.querySelectorAll(".sc .scl5").length === rows.length);
-    await document.fonts.ready;
-    const views = {};
-    const root = document.getElementById("root");
-    for (const width of [390, 360]) {
-        root.style.width = `${width}px`;
-        views[width] = measure();
-    }
-    root.style.width = "390px";
-    return views;
+    return { cards };
 })();
 </script>

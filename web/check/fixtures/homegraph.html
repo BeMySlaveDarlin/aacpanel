@@ -21,18 +21,16 @@
 // The picture is handled as a map: the page drags it, turns it with Shift
 // and the middle button, scales it with the wheel, and reads where the graph
 // wrote each name in its last frame — a name rides with its mark through a
-// move and a zoom, and keeps its side through a slow turn. How a name keeps
-// its side is asked of the drawing itself, on a crowded ring, turned step by
-// step: a name leaves its side only for one it covered.
+// move and a zoom.
 import { h, render } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { html } from "/src/html.js";
 import { Home, PERIOD } from "/src/desktop/home.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { attachTips } from "/src/desktop/tip.js";
-import { between, graphOf, lensOf, orbitsIn, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
-import { HOME, IDLE, INCLINE, MOON, MOONS, TAU, TURN, ZOOM, add, at, boxOf, camera, inclined, lensAt, onOrbit, orbitOf, placeOrbit, slotsFor, spinOf, turnBy, worldOf } from "/src/desktop/orbits/space.js";
-import { TOUCH, drawScene, spritesMade, starSize } from "/src/desktop/orbits/scene.js";
+import { graphOf, lensOf, orbitsIn, orderOf, placesOf, sceneOf } from "/src/desktop/orbits/orbits.js";
+import { HOME, IDLE, MOONS, TAU, TURN, ZOOM, add, at, camera, inclined, onOrbit, spinOf, turnBy, worldOf } from "/src/desktop/orbits/space.js";
+import { drawScene, spritesMade } from "/src/desktop/orbits/scene.js";
 import { periodRange } from "/src/data/usage.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -207,7 +205,6 @@ const until = async (fn, ms = 3000) => {
     return fn();
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const deg = (rad) => Math.round((rad * 180) / Math.PI * 10) / 10;
 const stage = () => document.querySelector(".dkorbstage");
 const tipText = () => text(document.querySelector(".dkorbtip"));
 const tipLines = () => Array.from(document.querySelectorAll(".dkorbtip > *")).map(text);
@@ -235,18 +232,6 @@ const starOf = (contour, front, order) => {
     const { places, pr, win } = viewOf(front, order);
     return win(pr(places.get(contour).c));
 };
-// extentOf is the box a system takes on the canvas: the disc of its radius
-// in its plane, and the orbits in their leans and every planet and moon as
-// they are drawn, wherever a lean takes them past the disc.
-const extentOf = (sys, place, pr) => {
-    const pts = [];
-    for (let i = 0; i < 48; i++) pts.push(pr(worldOf(place, at((i / 48) * TAU, sys.R))));
-    for (const o of sys.orbits) for (let i = 0; i < 48; i++) pts.push(pr(worldOf(place, onOrbit(o, (i / 48) * TAU))));
-    for (const n of sys.members) pts.push(pr(worldOf(place, n.w)));
-    const xs = pts.map((q) => q.x);
-    const ys = pts.map((q) => q.y);
-    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
-};
 const pointer = (type, p, extra = {}) => {
     const ev = new PointerEvent(type, { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y,
         pointerType: "mouse", pointerId: 1, button: 0, buttons: type === "pointerup" ? 0 : 1, ...extra });
@@ -273,42 +258,30 @@ window.done = (async () => {
     await quiet();
     const out = {};
 
-    // The places, from the graph's own functions. Where a planet stands on its
-    // orbit is its own and says nothing of its time: an hour later, every
-    // request an hour older, every planet stands where it stood; the planets
-    // of an orbit stand clear of each other.
+    // The systems, their orbits and their moons, from the graph's own
+    // functions.
     const g = graphOf(snapshot);
     const node = (name) => g.nodes.find((x) => x.s.session === name);
-    out.angles = Object.fromEntries(g.nodes.map((n) => [n.s.session, deg(n.p.ang)]));
-    out.anglesLater = Object.fromEntries(graphOf({ ...snapshot, at: snapshot.at + 3600 }).nodes.map((n) => [n.s.session, deg(n.p.ang)]));
-    out.apart = Math.round(Math.min(...g.systems.flatMap((sys) => sys.orbits.flatMap((o) => o.planets.flatMap((a, i) =>
-        o.planets.slice(i + 1).map((b) => Math.hypot(a.w[0] - b.w[0], a.w[1] - b.w[1], a.w[2] - b.w[2])))))));
     out.systems = g.systems.map((sys) => ({ name: sys.name, live: sys.live, summary: sys.summary,
-        orbits: sys.orbits.map((o) => ({ key: o.key, name: o.name, R: o.R, label: Boolean(o.label),
+        orbits: sys.orbits.map((o) => ({ key: o.key, name: o.name, label: Boolean(o.label),
             planets: o.planets.map((p) => p.key) })) }));
-    const moonOf = (child, parent, depth) => {
+    const moonOf = (child) => {
         const kid = node(child).p;
-        const up = node(parent).p;
-        const expect = add(up.w, inclined(up.lean, at(kid.ang, orbitOf(depth - 1))));
-        return { depth: kid.depth, parent: kid.parent, system: kid.system,
-            offBy: Math.max(...expect.map((v, i) => Math.abs(v - kid.w[i]))),
-            orbit: Math.round(Math.hypot(kid.w[0] - up.w[0], kid.w[1] - up.w[1], kid.w[2] - up.w[2])) };
+        return { depth: kid.depth, parent: kid.parent, system: kid.system };
     };
-    out.moon = moonOf("codex-1", "blog", 1);
-    out.grandchild = moonOf("deep", "codex-1", 2);
-    out.moonSizes = [orbitOf(0), orbitOf(1), MOON];
+    out.moon = moonOf("codex-1");
+    out.grandchild = moonOf("deep");
     out.orbitOf = Object.fromEntries(g.nodes.map((n) => [n.s.session, n.orbit]));
     out.notes = node("blog").note;
     // draft has asked nothing yet and counts from its start; stray names
     // neither and counts a day.
     out.notesOf = { draft: node("draft").note, stray: node("stray").note };
-    out.stars = [0, 1, 4].map((live) => starSize(live));
 
     // The orbits of a contour go out by weight — the small and quiet inside,
-    // the large and lively outside — each as wide as its widest family, each
-    // leaning its own way, and barely there. The map has big, pair, solo and
-    // late in that order; big holds four sessions and a moon with a moon of
-    // its own, pair two, solo one, and late one that waits.
+    // the large and lively outside — and turn as the planets of a sun do. The
+    // map has big, pair, solo and late in that order; big holds four sessions
+    // and a moon with a moon of its own, pair two, solo one, and late one that
+    // waits.
     {
         const Q = (id, name) => ({ id, name, session: name, path: `/srv/${name}`, group: "Work" });
         const bigP = Q(41, "big");
@@ -335,8 +308,6 @@ window.done = (async () => {
         out.weights = {
             order: keys(gw),
             weights: Object.fromEntries(sys.orbits.map((o) => [o.key, o.weight])),
-            bands: sys.orbits.map((o) => Math.round(o.band * 10) / 10),
-            radii: sys.orbits.map((o) => Math.round(o.R * 10) / 10),
             // solo gains a session and weighs as pair does.
             tieFresh: keys(graphOf(work([W1("s2", soloP, "idle", 200)]))),
             tieKept: keys(graphOf(work([W1("s2", soloP, "idle", 200)]), before)),
@@ -344,65 +315,6 @@ window.done = (async () => {
             // solo gains three at work and outweighs big.
             reordered: keys(graphOf(work(["s2", "s3", "s4"].map((n) => W1(n, soloP, "busy", 1))), before)),
         };
-        const lean = (t) => [deg(t.inc), deg(t.node)];
-        out.leans = {
-            range: [deg(INCLINE[0]), deg(INCLINE[1])],
-            first: Object.fromEntries(sys.orbits.map((o) => [o.key, lean(o.tilt)])),
-            later: Object.fromEntries(later.systems[0].orbits.map((o) => [o.key, lean(o.tilt)])),
-            moons: Object.fromEntries(["b1", "m1"].map((k) => [k, lean(gw.nodes.find((n) => n.s.session === k).p.lean)])),
-        };
-        // How the orbits are drawn, asked of the drawing: every segment of
-        // every orbit and moon orbit found among the strokes, and its opacity.
-        const Wd = 900;
-        const Hd = 420;
-        const sheet = document.createElement("canvas");
-        sheet.width = Wd;
-        sheet.height = Hd;
-        const cx = sheet.getContext("2d");
-        const segs = [];
-        let from = null;
-        let style = "";
-        const proto = CanvasRenderingContext2D.prototype;
-        const stroke = Object.getOwnPropertyDescriptor(proto, "strokeStyle");
-        Object.defineProperty(cx, "strokeStyle", { get: () => stroke.get.call(cx), set: (v) => { style = v; stroke.set.call(cx, v); } });
-        cx.moveTo = (x, y) => { from = { x, y }; proto.moveTo.call(cx, x, y); };
-        cx.lineTo = (x, y) => { segs.push({ a: from, b: { x, y }, style }); from = { x, y }; proto.lineTo.call(cx, x, y); };
-        const places = placesOf(gw, ["work"], "work");
-        const place = places.get("work");
-        const pr = camera(HOME, Wd, Hd, lensOf(gw, Wd, Hd));
-        drawScene(cx, Wd, Hd, pr, { ...sceneOf(gw, places, ["#6b9c83"]), pal: { ink: "#eef1ff", wait: "#e3c97a", busy: "#63a8ff", cap: "#b98cff" },
-            type: { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } },
-            sides: new Map(), settle: true });
-        const rings = [
-            ...sys.orbits.map((o) => ({ centre: pr(place.c), pts: Array.from({ length: 121 }, (_, i) => pr(worldOf(place, onOrbit(o, (i / 120) * TAU)))) })),
-            ...sys.members.filter((n) => n.kids.length > 0).map((n) => ({ centre: pr(worldOf(place, n.w)),
-                pts: Array.from({ length: 41 }, (_, i) => pr(worldOf(place, add(n.w, inclined(n.lean, at((i / 40) * TAU, n.orbit)))))) })),
-        ];
-        const same = (u, v) => Math.abs(u.x - v.x) < 0.01 && Math.abs(u.y - v.y) < 0.01;
-        const alphaOf = (st) => Number((/rgba\([^)]*,([\d.]+)\)/.exec(st) || [])[1]);
-        const near = [];
-        const far = [];
-        let wanted = 0;
-        for (const r of rings) {
-            for (let i = 1; i < r.pts.length; i++) {
-                wanted += 1;
-                const a = r.pts[i - 1];
-                const b = r.pts[i];
-                const seg = segs.find((x) => same(x.a, a) && same(x.b, b));
-                if (seg) ((a.z + b.z) / 2 < r.centre.z ? near : far).push(alphaOf(seg.style));
-            }
-        }
-        const mean = (l) => Math.round((l.reduce((x, y) => x + y, 0) / Math.max(1, l.length)) * 1000) / 1000;
-        out.orbitInk = { rings: rings.length, wanted, found: near.length + far.length, min: Math.min(...near, ...far),
-            max: Math.max(...near, ...far), near: mean(near), far: mean(far) };
-        // The planets of one orbit stand off the plane of the system: the
-        // galaxy has depth within a system too.
-        out.leans.heights = sys.orbits.map((o) => Math.round(Math.max(...o.planets.map((n) => Math.abs(n.w[1]))) * 10) / 10);
-        // No meridian runs from a star any more.
-        const outer = sys.orbits[sys.orbits.length - 1];
-        const from0 = pr(place.c);
-        const to0 = pr(worldOf(place, onOrbit({ ...outer, R: outer.R + 14 }, 0)));
-        out.orbitInk.meridian = segs.some((x) => same(x.a, from0) && same(x.b, to0));
         // The orbits turn as the planets of a sun do: solo, pair and big idle,
         // late waits; the moons of b1 round it, and of m1 round m1.
         const inner = sys.orbits[0].R;
@@ -430,41 +342,13 @@ window.done = (async () => {
         out.spins.kept = turns.size;
     }
 
-    // The galaxy, as the page opens: the liveliest in front, no system over
-    // another, every one inside the box; an orbit says its project only where
-    // its planets do not.
+    // The galaxy, as the page opens: the liveliest nearest; an orbit says its
+    // project only where its planets do not.
     out.order = orderOf(g);
     {
-        const box0 = stage().getBoundingClientRect();
         const { places, pr } = viewOf();
-        const boxes = g.systems.map((sys) => ({ name: sys.name, ...extentOf(sys, places.get(sys.name), pr),
-            z: pr(places.get(sys.name).c).z }));
-        out.galaxy = {
-            covered: boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => a.x < b.x + b.w && b.x < a.x + a.w
-                && a.y < b.y + b.h && b.y < a.y + a.h).map((b) => `${a.name}/${b.name}`)),
-            outside: boxes.filter((b) => b.x < 0 || b.y < 0 || b.x + b.w > box0.width || b.y + b.h > box0.height).map((b) => b.name),
-            nearest: boxes.slice().sort((a, b) => a.z - b.z)[0].name,
-        };
-        // However many contours there are, their places stand clear of each
-        // other.
-        out.galaxy.crowded = [];
-        for (let count = 2; count <= 8; count++) {
-            const bx = slotsFor(count, 300).map((slot) => boxOf(slot.c, slot.R));
-            bx.forEach((a, i) => bx.slice(i + 1).forEach((b, j) => {
-                if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) out.galaxy.crowded.push(`${count}:${i}/${i + j + 1}`);
-            }));
-        }
-        // The system in front is the near plan: most of the height of the box.
-        const front = boxes.find((b) => b.name === out.galaxy.nearest);
-        out.galaxy.frontShare = Math.round((front.h / box0.height) * 100) / 100;
-        // The others are markedly smaller, in a row above it and to its sides.
-        const mid = front.x + front.w / 2;
-        out.galaxy.behind = boxes.filter((b) => b !== front).map((b) => ({
-            name: b.name,
-            above: b.y + b.h <= front.y,
-            side: b.x >= mid ? "right" : b.x + b.w <= mid ? "left" : "middle",
-            share: Math.round(((b.w * b.h) / (front.w * front.h)) * 100) / 100,
-        }));
+        const depths = g.systems.map((sys) => ({ name: sys.name, z: pr(places.get(sys.name).c).z }));
+        out.galaxy = { nearest: depths.sort((a, b) => a.z - b.z)[0].name };
         out.written = { blog: times.get("blog") || 0, drafts: times.get("drafts") || 0, outside: times.get("outside the map") || 0,
             shop: times.get("shop") || 0, client: times.get("client") || 0,
             helper: times.get("codex · blog") || 0, thread: times.get("cx-thread") || 0,
@@ -478,12 +362,6 @@ window.done = (async () => {
     out.jumps = Array.from(document.querySelectorAll(".dkhmjump .dkhmjumplabel b")).map(text);
     document.querySelectorAll(".dkhmjump")[1].click();
     out.sections = sections.slice();
-
-    // The canvas is as large as its box at the density of the screen.
-    const cv = stage().querySelector("canvas");
-    out.canvas = { width: cv.width, height: cv.height,
-        boxWidth: Math.round(stage().getBoundingClientRect().width * devicePixelRatio),
-        boxHeight: Math.round(stage().getBoundingClientRect().height * devicePixelRatio) };
 
     // The tip names the session under the pointer, and none stands over the
     // empty dial.
@@ -642,28 +520,16 @@ window.done = (async () => {
     await resetView();
 
     // Shift and a drag turn the scene, as the middle button does: the names
-    // part from one another, not only slide. Turned a little at a time, no
-    // name jumps across its mark.
-    // A step of the turn moves a mark a few pixels; a name that moves more
-    // than JUMP in one step has crossed its mark.
-    const JUMP = 18;
+    // part from one another, not only slide.
     const unturned = names();
     pointer("pointerdown", corner, { shiftKey: true });
-    let last = unturned;
-    const jumps = [];
     for (let i = 1; i <= 50; i++) {
         pointer("pointermove", { x: corner.x + 3 * i, y: corner.y }, { shiftKey: true });
         await frames(2);
-        const seen = names();
-        for (const [, n] of NAMES) {
-            if (Math.hypot(seen[n].x - last[n].x, seen[n].y - last[n].y) > JUMP) jumps.push(`${n}@${i}`);
-        }
-        last = seen;
     }
     const turned = names();
     pointer("pointerup", { x: corner.x + 150, y: corner.y }, { shiftKey: true });
     await quiet();
-    g2.turnJumps = jumps;
     g2.turnApart = shifted(unturned, turned, turned.blog.x - unturned.blog.x, turned.blog.y - unturned.blog.y);
     count = opened.length;
     await resetView();
@@ -691,11 +557,8 @@ window.done = (async () => {
     for (const [s, n, said = n] of NAMES) g2.resetTips.push((await tipAt(spotOf(s))) === said ? said : `${said}?`);
     g2.resetOpened = opened.length - count;
 
-    // How a name keeps its side, asked of the drawing: a crowded ring turned
-    // a little at a time, as far out as the wheel takes it, where its names
-    // crowd the most. A name leaves its side only for one it covered, and
-    // only for one markedly clearer; a move or a zoom alone, drawn without
-    // settling, moves none.
+    // A crowded ring of fourteen sessions, one of them waiting and three the
+    // moons of the first, drawn on a canvas of its own.
     const crowd = { at: Math.floor(now / 1000), profileMap: [], sessions: Array.from({ length: 14 }, (_, i) => S({
         session: `node-${String.fromCharCode(97 + i)}`, profile: "personal", status: i === 5 ? "waiting" : i % 3 ? "idle" : "busy",
         lastRequestAt: iso(2 + i * 1.5), pct: 10 + i * 5,
@@ -703,61 +566,19 @@ window.done = (async () => {
     const cg = graphOf(crowd);
     const corder = orderOf(cg);
     const cplaces = placesOf(cg, corder, corder[0]);
-    // Eleven planets on one orbit stand clear of each other all round it.
-    {
-        const ring = cg.systems[0].orbits[0];
-        const ws = ring.planets.map((n) => n.w);
-        out.crowdApart = {
-            count: ws.length,
-            even: Math.round((TAU * ring.R) / ws.length),
-            least: Math.round(Math.min(...ws.flatMap((a, i) => ws.slice(i + 1).map((b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))))),
-        };
-    }
     const W = 900;
     const H = 420;
     const sheet = document.createElement("canvas");
     sheet.width = W;
     sheet.height = H;
-    // A lone contour is the same near plan, not the whole height of the box.
-    {
-        const pr = camera(HOME, W, H, lensOf(cg, W, H));
-        const sys = cg.systems[0];
-        out.galaxy.alone = Math.round((extentOf(sys, cplaces.get(sys.name), pr).h / H) * 100) / 100;
-    }
     const cx = sheet.getContext("2d");
     const pal = { ink: "#eef1ff", wait: "#e3c97a", busy: "#63a8ff", cap: "#b98cff", void: "#06070f", sky: false };
     const type = { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } };
-    const lens = lensAt(lensOf(cg, W, H), ZOOM[0], { x: 0, y: 0 });
-    const sides = new Map();
-    const hues = ["#6b9c83", "#7fe3d4", "#b98cff"];
-    const scene = (settle) => ({ ...sceneOf(cg, cplaces, hues), pal, type, sides, settle });
-    const sideOf = (labels) => Object.fromEntries(labels.map((l) => [l.key, `${l.dir}/${l.reach}`]));
-    const keep = { steps: 0, changes: 0, unforced: [], unearned: [], frozen: 0 };
-    for (let i = 0; i <= 60; i++) {
-        cx.clearRect(0, 0, W, H);
-        const drawn = drawScene(cx, W, H, camera({ yaw: HOME.yaw + i * 0.015, pitch: HOME.pitch }, W, H, lens), scene(true));
-        keep.steps += 1;
-        for (const l of drawn.labels) {
-            if (!l.left) continue;
-            keep.changes += 1;
-            if (l.left.clash <= TOUCH) keep.unforced.push(`${l.key}@${i}`);
-            if (l.clash >= l.left.clash / 2) keep.unearned.push(`${l.key}@${i}`);
-        }
-    }
-    const settled = sideOf(drawScene(cx, W, H, camera({ yaw: HOME.yaw + 0.9, pitch: HOME.pitch }, W, H, lens), scene(true)).labels);
-    for (const [z, px, py] of [[1.6, 0, 0], [3, 120, -40], [0.7, -200, 60], [4, 300, 200]]) {
-        cx.clearRect(0, 0, W, H);
-        const drawn = drawScene(cx, W, H, camera({ yaw: HOME.yaw + 0.9, pitch: HOME.pitch }, W, H, lensAt(lens, z, { x: px, y: py })), scene(false));
-        const now2 = sideOf(drawn.labels);
-        keep.frozen += Object.keys(settled).filter((k) => settled[k] !== now2[k]).length;
-    }
-    keep.names = Object.keys(settled).filter((k) => !k.startsWith("*") && !k.includes("/")).length;
-    out.keep = keep;
 
     // Behind the front only the name of the system and that of a session
-    // waiting for the person are written; the same crowded system in front
-    // writes every name.
-    // Drawn small, so the names cannot all stand clear.
+    // waiting for the person are written; the same crowded system in front,
+    // drawn small, writes every name.
+    const hues = ["#6b9c83", "#7fe3d4", "#b98cff"];
     const SW = 380;
     const SH = 200;
     const clearOf = (front) => {
@@ -765,351 +586,9 @@ window.done = (async () => {
         const lab = drawScene(cx, SW, SH, camera(HOME, SW, SH, lensOf(cg, SW, SH)), { ...sceneOf(cg, cplaces, hues), front,
             pal, type, sides: new Map(), settle: true }).labels;
         const shown = lab.filter((l) => !l.hidden);
-        let clashes = 0;
-        shown.forEach((a, i) => shown.slice(i + 1).forEach((b) => {
-            const w = Math.min(a.rect.x + a.rect.w, b.rect.x + b.rect.w) - Math.max(a.rect.x, b.rect.x);
-            const hh = Math.min(a.rect.y + a.rect.h, b.rect.y + b.rect.h) - Math.max(a.rect.y, b.rect.y);
-            if (w > 2 && hh > 2) clashes += 1;
-        }));
-        return { hidden: lab.filter((l) => l.hidden).map((l) => l.key), shown: shown.length, shownKeys: shown.map((l) => l.key), clashes };
+        return { hidden: lab.filter((l) => l.hidden).map((l) => l.key), shown: shown.length, shownKeys: shown.map((l) => l.key) };
     };
     out.quiet = { behind: clearOf("elsewhere"), front: clearOf(corder[0]) };
-
-    // Six projects whose names put the planet of the inner orbit at the far
-    // side of the star and every next one by the one inside it: the home view
-    // shows every planet apart from the others and the star, on a canvas the
-    // size of the widget.
-    {
-        const projects = ["sirius", "zeta", "delta", "sigma", "alpha", "rho"].map((name, i) => P(41 + i, name, "Crowd"));
-        const snap = { at: Math.floor(now / 1000), profileMap: [{ id: 9, profile: "crowd", groups: [{ name: "Crowd", projects }] }],
-            sessions: projects.map((pj) => S({ session: pj.name, profile: "crowd", project: pj, status: "idle", lastRequestAt: iso(30) })) };
-        const g3 = graphOf(snap);
-        const o3 = orderOf(g3);
-        const p3 = placesOf(g3, o3, o3[0]);
-        const pr = camera(HOME, 1092, 472, lensOf(g3, 1092, 472));
-        const spots = g3.nodes.map((n) => pr(worldOf(p3.get(n.p.system), n.p.w)));
-        const sun = pr(p3.get(g3.systems[0].name).c);
-        let apart = Infinity;
-        spots.forEach((a, i) => spots.slice(i + 1).forEach((b) => { apart = Math.min(apart, Math.hypot(a.x - b.x, a.y - b.y)); }));
-        out.crowded = { orbits: g3.systems[0].orbits.map((o) => o.planets.map((pl) => pl.key).join()), apart: Math.round(apart),
-            star: Math.round(Math.min(...spots.map((q) => Math.hypot(q.x - sun.x, q.y - sun.y)))) };
-    }
-
-    // The phase of a planet: lit by its star, the lit share of its disc the
-    // share of its context, lit in its own tone, and in the tone of the cap
-    // near the cap; its night side a little lit; its surface its own, the same
-    // every time it is drawn. Drawn alone and four times larger, over the
-    // dark of the sky, and counted pixel by pixel: a pixel is lit where it is
-    // brighter than a quarter of its tone.
-    const lumaOf = (rgb) => 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
-    const sheetOf = (sessions, palette = pal, unit = 4, front) => {
-        const one = { at: Math.floor(now / 1000), profileMap: [], sessions };
-        const pg = graphOf(one);
-        const po = orderOf(pg);
-        const pp = placesOf(pg, po, front || po[0]);
-        const PW = unit === 4 ? 600 : 900;
-        const PH = unit === 4 ? 400 : 420;
-        const pc = document.createElement("canvas");
-        pc.width = PW;
-        pc.height = PH;
-        const px = pc.getContext("2d");
-        const big = { unit, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } };
-        const pr = camera(HOME, PW, PH, lensOf(pg, PW, PH));
-        drawScene(px, PW, PH, pr, { ...sceneOf(pg, pp, hues), pal: palette, type: big, sides: new Map(), settle: true });
-        const at = (name) => {
-            const n = pg.nodes.find((x) => x.s.session === name);
-            return pr(worldOf(pp.get(n.p.system), n.p.w));
-        };
-        return { px, at, star: pr(pp.get(pg.systems[0].name).c), PW, PH, unit: big.unit };
-    };
-    // disc reads the disc of radius r round q: every pixel's colour and its
-    // place against the centre.
-    const disc = (px, q, r) => {
-        const x0 = Math.round(q.x - r);
-        const y0 = Math.round(q.y - r);
-        const data = px.getImageData(x0, y0, 2 * r + 1, 2 * r + 1).data;
-        const out2 = [];
-        for (let y = 0; y <= 2 * r; y++) {
-            for (let x = 0; x <= 2 * r; x++) {
-                const dx = x0 + x + 0.5 - q.x;
-                const dy = y0 + y + 0.5 - q.y;
-                if (Math.hypot(dx, dy) > r) continue;
-                const i = (y * (2 * r + 1) + x) * 4;
-                out2.push({ dx, dy, rgb: [data[i], data[i + 1], data[i + 2]], a: data[i + 3] });
-            }
-        }
-        return { pixels: out2, bytes: Array.from(data) };
-    };
-    const phaseOf = (pct, name = "solo") => {
-        const sh = sheetOf([S({ session: name, profile: "personal", status: "idle", pct, lastRequestAt: iso(30) })]);
-        const q = sh.at(name);
-        const tone = pct >= 62 ? pal.cap : pal.ink;
-        const toneRgb = [1, 3, 5].map((i) => parseInt(tone.slice(i, i + 2), 16));
-        const { pixels, bytes } = disc(sh.px, q, Math.round(9.5 * sh.unit) - 2);
-        const lit = pixels.filter((p) => lumaOf(p.rgb) > lumaOf(toneRgb) / 4);
-        const dark = pixels.filter((p) => lumaOf(p.rgb) <= lumaOf(toneRgb) / 4);
-        const rgb = [0, 1, 2].map((k) => Math.round(lit.reduce((sum, p) => sum + p.rgb[k], 0) / Math.max(1, lit.length)));
-        const toward = Math.atan2(sh.star.y - q.y, sh.star.x - q.x);
-        const cx = lit.reduce((sum, p) => sum + p.dx, 0) / Math.max(1, lit.length);
-        const cy = lit.reduce((sum, p) => sum + p.dy, 0) / Math.max(1, lit.length);
-        const off = Math.abs(Math.atan2(Math.sin(Math.atan2(cy, cx) - toward), Math.cos(Math.atan2(cy, cx) - toward)));
-        return {
-            pixels,
-            toward,
-            share: Math.round((lit.length / pixels.length) * 1000) / 1000,
-            rgb,
-            facing: lit.length ? Math.round((off * 180) / Math.PI) : null,
-            night: dark.length ? Math.round((dark.reduce((sum, p) => sum + lumaOf(p.rgb), 0) / dark.length / lumaOf(toneRgb)) * 1000) / 1000 : null,
-            bytes,
-        };
-    };
-    {
-        const drop = (ph) => ({ share: ph.share, rgb: ph.rgb, facing: ph.facing, night: ph.night });
-        const ph = { "0": phaseOf(0), "25": phaseOf(25), "50": phaseOf(50), "75": phaseOf(75), "40": phaseOf(40), "70": phaseOf(70) };
-        out.phase = Object.fromEntries(Object.entries(ph).map(([k, v]) => [k, drop(v)]));
-        out.phase.ink = [1, 3, 5].map((i) => parseInt(pal.ink.slice(i, i + 2), 16));
-        out.phase.cap = [1, 3, 5].map((i) => parseInt(pal.cap.slice(i, i + 2), 16));
-        // The surface is the session's own: drawn again once its picture is
-        // long gone from the keep — four hundred and twenty others drawn after
-        // it — the same to the byte; another session, another surface.
-        for (let i = 0; i < 21; i++) {
-            sheetOf(Array.from({ length: 20 }, (_, j) => S({ session: `crowd-${i}-${j}`, profile: "personal", status: "idle",
-                pct: 50, lastRequestAt: iso(30) })), pal, 1);
-        }
-        const again = phaseOf(50);
-        const other = phaseOf(50, "solo-two");
-        const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
-        // Two planets stand at their own angles to the star, so their pictures
-        // are turned their own ways: each pixel of the lit half of one is
-        // turned back into the light's own frame and read off the other where
-        // that frame puts it.
-        const unlike = (a, b) => {
-            const grid = new Map(b.pixels.map((p) => [`${Math.round(p.dx)},${Math.round(p.dy)}`, p]));
-            let sum = 0;
-            let n = 0;
-            for (const p of a.pixels) {
-                const x = p.dx * Math.cos(a.toward) + p.dy * Math.sin(a.toward);
-                const y = -p.dx * Math.sin(a.toward) + p.dy * Math.cos(a.toward);
-                if (x < 6) continue;
-                const q = grid.get(`${Math.round(x * Math.cos(b.toward) - y * Math.sin(b.toward))},${Math.round(x * Math.sin(b.toward) + y * Math.cos(b.toward))}`);
-                if (!q) continue;
-                sum += Math.abs(lumaOf(p.rgb) - lumaOf(q.rgb));
-                n += 1;
-            }
-            return Math.round((sum / Math.max(1, n)) * 10) / 10;
-        };
-        out.surface = { again: same(ph["50"].bytes, again.bytes), unlike: unlike(ph["50"], other) };
-        // A planet and its moon as drawn at the scale the interface opens on:
-        // the radius of each, from the area of its disc.
-        const sh = sheetOf([S({ session: "solo", profile: "personal", status: "idle", pct: 50, lastRequestAt: iso(30) }),
-            S({ session: "moon", profile: "personal", status: "idle", pct: 50, lastRequestAt: iso(30), parent: { session: "solo" } })], pal, 1);
-        // The area is the coverage of the pixels against the fullest of
-        // them: a moon further back is fainter, not smaller.
-        const radius = (name, reach) => {
-            const { pixels } = disc(sh.px, sh.at(name), reach);
-            const full = Math.max(...pixels.map((p) => p.a));
-            return Math.round(Math.sqrt(pixels.reduce((sum, p) => sum + p.a / full, 0) / Math.PI) * 10) / 10;
-        };
-        out.sizes = { planet: radius("solo", 13), moon: radius("moon", 8) };
-        // A planet of a system behind the front one is drawn at half its
-        // size, counted by the pixels at least half as opaque as its fullest,
-        // so the faint light of its star near it does not count.
-        const core = (sheet, name, reach) => {
-            const { pixels } = disc(sheet.px, sheet.at(name), reach);
-            const full = Math.max(...pixels.map((p) => p.a));
-            return Math.round(Math.sqrt(pixels.filter((p) => p.a >= full / 2).length / Math.PI) * 10) / 10;
-        };
-        const pair = (front) => sheetOf([S({ session: "solo", profile: "personal", status: "idle", pct: 50, lastRequestAt: iso(30) }),
-            S({ session: "other", profile: "client", status: "idle", pct: 50, lastRequestAt: iso(30) })], pal, 1, front);
-        out.sizes.front = core(pair("personal"), "solo", 13);
-        out.sizes.behind = core(pair("client"), "solo", 13);
-        // The far stars: on the dark theme a sparse field behind the scene, on
-        // the light one none. Counted away from the system.
-        const field = (palette) => {
-            const s2 = sheetOf([S({ session: "solo", profile: "personal", status: "idle", pct: 50, lastRequestAt: iso(30) })], palette, 1);
-            let lit = 0;
-            for (const x0 of [0, s2.PW - 80]) {
-                const data = s2.px.getImageData(x0, 0, 80, s2.PH).data;
-                for (let i = 3; i < data.length; i += 4) if (data[i] > 0) lit += 1;
-            }
-            return lit;
-        };
-        out.field = { space: field(pal), sky: field({ ...pal, ink: "#0f2338", void: "#bcd9f2", sky: true }) };
-    }
-
-    // The surface reads at the scale the interface opens on: the light of a
-    // planet fully lit varies round each circle about its centre only by its
-    // bands or its spots, as a share of the light of that circle — on a planet
-    // of banded clouds and on a mottled one, at that scale and four times it.
-    {
-        const textureOf = (name, unit) => {
-            const sh = sheetOf([S({ session: name, profile: "personal", status: "idle", pct: 100, lastRequestAt: iso(30) })], pal, unit);
-            const R = 9.5 * sh.unit;
-            const circles = new Map();
-            for (const p of disc(sh.px, sh.at(name), Math.round(R) - 1).pixels) {
-                const d = Math.round(Math.hypot(p.dx, p.dy));
-                if (d < 0.15 * R || d > 0.8 * R) continue;
-                if (!circles.has(d)) circles.set(d, []);
-                circles.get(d).push(lumaOf(p.rgb));
-            }
-            const shares = [...circles.values()].filter((l) => l.length >= 6).map((l) => {
-                const mean = l.reduce((a, b) => a + b, 0) / l.length;
-                return Math.sqrt(l.reduce((a, b) => a + (b - mean) ** 2, 0) / l.length) / mean;
-            });
-            return Math.round((shares.reduce((a, b) => a + b, 0) / shares.length) * 1000) / 1000;
-        };
-        out.texture = { small: [textureOf("bands", 1), textureOf("spots", 1)], large: [textureOf("bands", 4), textureOf("spots", 4)] };
-    }
-
-    // On the light theme a planet is lit lighter than the sky, as on the dark
-    // one: its lit part, past the soft terminator, in a light tint of the tone
-    // of its state; its night side darker than the sky.
-    {
-        const skyPal = { ink: "#0f2338", wait: "#7a5a12", busy: "#14548f", cap: "#8b5fd8", void: "#bcd9f2", sky: true };
-        const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-        const hueOf = (rgb) => {
-            const [r, g1, b] = rgb;
-            const hi = Math.max(r, g1, b);
-            const c = hi - Math.min(r, g1, b);
-            if (c === 0) return 0;
-            const h = hi === r ? ((g1 - b) / c) % 6 : hi === g1 ? (b - r) / c + 2 : (r - g1) / c + 4;
-            return (h * 60 + 360) % 360;
-        };
-        const halves = (status, pct, tone) => {
-            const sh = sheetOf([S({ session: "solo", profile: "personal", status, pct, lastRequestAt: iso(30) })], skyPal, 4);
-            const q = sh.at("solo");
-            const R = 9.5 * sh.unit;
-            const toward = Math.atan2(sh.star.y - q.y, sh.star.x - q.x);
-            const along = (p) => (p.dx * Math.cos(toward) + p.dy * Math.sin(toward)) / R;
-            const { pixels } = disc(sh.px, q, Math.round(R) - 2);
-            const mean = (list) => [0, 1, 2].map((k) => list.reduce((a, p) => a + p.rgb[k], 0) / Math.max(1, list.length));
-            const lit = mean(pixels.filter((p) => along(p) > 0.15));
-            const night = mean(pixels.filter((p) => along(p) < -0.15));
-            const off = Math.abs(hueOf(lit) - hueOf(rgbOf(tone)));
-            return { lit: Math.round(lumaOf(lit)), night: Math.round(lumaOf(night)), hue: Math.round(Math.min(off, 360 - off)) };
-        };
-        out.sky = {
-            void: Math.round(lumaOf(rgbOf(skyPal.void))),
-            idle: halves("idle", 50, skyPal.ink),
-            busy: halves("busy", 50, skyPal.busy),
-            wait: halves("waiting", 50, skyPal.wait),
-            cap: halves("idle", 75, skyPal.cap),
-        };
-    }
-
-    // In a system behind the front one a planet and its moon stand clear of
-    // each other, the rings of their waits too, all the way round; in front a
-    // moon stands where its orbit puts it. back has a planet waiting with a
-    // moon waiting and an idle planet with an idle moon, front three at work.
-    {
-        const K = (session, profile, status, parent) => S({ session, profile, project: null, status, lastRequestAt: iso(10),
-            parent: parent ? { session: parent } : undefined });
-        const gk = graphOf({ at: Math.floor(now / 1000), profileMap: [], sessions: [
-            K("f1", "front", "busy"), K("f2", "front", "busy"), K("f3", "front", "busy"),
-            K("pw", "back", "waiting"), K("pm", "back", "waiting", "pw"), K("qi", "back", "idle"), K("qm", "back", "idle", "qi"),
-        ] });
-        const ko = orderOf(gk);
-        const KW = 900;
-        const KH = 420;
-        const pr = camera(HOME, KW, KH, lensOf(gk, KW, KH));
-        const sheet = document.createElement("canvas");
-        sheet.width = KW;
-        sheet.height = KH;
-        const kx = sheet.getContext("2d");
-        const proto = CanvasRenderingContext2D.prototype;
-        let arc = null;
-        let rings = [];
-        kx.beginPath = () => { arc = null; proto.beginPath.call(kx); };
-        kx.arc = (x, y, r, a0, a1) => { arc = { x, y, r }; proto.arc.call(kx, x, y, r, a0, a1); };
-        // A ring of a wait is a circle stroked 1.3 wide, as the canvas keeps
-        // that width.
-        kx.stroke = () => { if (arc && Math.abs(kx.lineWidth - 1.3) < 0.01) rings.push(arc); proto.stroke.call(kx); };
-        const planets = gk.systems.flatMap((sys) => sys.orbits.map((o) => ({ o, families: o.planets.filter((p) => p.kids.length > 0) })));
-        const kin = { frames: 0, rings: Infinity, marks: Infinity, front: 0 };
-        for (let i = 0; i < 48; i++) {
-            for (const { o, families } of planets) {
-                for (const p of families) p.turn = (i / 48) * TAU;
-                placeOrbit(o);
-            }
-            for (const front of ["front", "back"]) {
-                const places = placesOf(gk, ko, front);
-                rings = [];
-                kx.clearRect(0, 0, KW, KH);
-                const { hits } = drawScene(kx, KW, KH, pr, { ...sceneOf(gk, places, hues), front, pal, type, sides: new Map(), settle: true });
-                const hit = (name) => hits.find((h) => h.node && h.node.s.session === name);
-                if (front === "front") {
-                    kin.frames += rings.length === 2 ? 1 : 0;
-                    if (rings.length === 2) {
-                        const [a, b] = rings;
-                        kin.rings = Math.min(kin.rings, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r - 1.3);
-                    }
-                    // A planet behind is half its size in front, 9.5 across the
-                    // radius, and its moon half of 5.
-                    kin.marks = Math.min(kin.marks, Math.hypot(hit("qi").x - hit("qm").x, hit("qi").y - hit("qm").y) - (9.5 + 5) / 2);
-                } else {
-                    for (const name of ["pm", "qm"]) {
-                        const n = gk.nodes.find((x) => x.s.session === name);
-                        const raw = pr(worldOf(places.get(n.p.system), n.p.w));
-                        kin.front = Math.max(kin.front, Math.hypot(hit(name).x - raw.x, hit(name).y - raw.y));
-                    }
-                }
-            }
-        }
-        out.kin = { frames: kin.frames, rings: Math.round(kin.rings * 10) / 10, marks: Math.round(kin.marks * 10) / 10,
-            front: Math.round(kin.front * 1000) / 1000 };
-    }
-
-    // The names of the system in front are placed before the name of a star
-    // behind it. Then two contours of a session each: the star behind is put
-    // just over the name of the planet in front, so that the side its name
-    // takes first, under it, is that name's; the star names itself elsewhere,
-    // and the planet keeps the side it has with the star away.
-    {
-        const LW = 900;
-        const LH = 420;
-        const lens0 = lensOf(g, LW, LH);
-        const pr0 = camera(HOME, LW, LH, lens0);
-        const o0 = orderOf(g);
-        const placed = drawScene(document.createElement("canvas").getContext("2d"), LW, LH, pr0, { ...sceneOf(g, placesOf(g, o0, o0[0]), hues),
-            front: o0[0], pal, type, sides: new Map(), settle: true }).labels.filter((l) => !l.hidden).map((l) => l.key);
-        const own = new Set([`*${o0[0]}`, ...g.nodes.filter((n) => n.p.system === o0[0]).map((n) => n.s.session),
-            ...g.systems.find((sys) => sys.name === o0[0]).orbits.map((o) => `${o0[0]}/${o.key}`)]);
-        const two = graphOf({ at: Math.floor(now / 1000), profileMap: [], sessions: [
-            S({ session: "anchor", profile: "near", status: "idle", lastRequestAt: iso(10) }),
-            S({ session: "aside", profile: "far", status: "idle", lastRequestAt: iso(10) }),
-        ] });
-        const lens = lensOf(two, LW, LH);
-        const pr = camera(HOME, LW, LH, lens);
-        const sideOf = (places) => {
-            const labels = drawScene(document.createElement("canvas").getContext("2d"), LW, LH, pr, { ...sceneOf(two, places, hues),
-                front: "near", pal, type, sides: new Map(), settle: true }).labels;
-            return { anchor: labels.find((l) => l.key === "anchor"), star: labels.find((l) => l.key === "*far") };
-        };
-        const places = placesOf(two, orderOf(two), "near");
-        const alone = sideOf(places);
-        // The point of the scene the home view shows at x, y of the canvas, at
-        // the depth z from the eye.
-        const behind = (x, y, z) => {
-            const s = lens.f / (lens.dist + z);
-            const cx = (x - LW / 2 - lens.ox) / s;
-            const cy = -(y - LH / 2 - lens.oy) / s;
-            const [cyw, syw, cp, sp] = [Math.cos(HOME.yaw), Math.sin(HOME.yaw), Math.cos(HOME.pitch), Math.sin(HOME.pitch)];
-            const z0 = cy * sp + z * cp;
-            return [cx * cyw - z0 * syw, cy * cp - z * sp, cx * syw + z0 * cyw];
-        };
-        const r = alone.anchor.rect;
-        const far = places.get("far");
-        const reach = starSize(two.systems.find((sys) => sys.name === "far").live) + 6;
-        const moved = new Map(places);
-        moved.set("far", { ...far, c: behind(r.x + r.w / 2, r.y - reach - 0.5, pr(far.c).z) });
-        const crossed = sideOf(moved);
-        out.labels = {
-            placed, own: [...own],
-            alone: `${alone.anchor.dir}/${alone.anchor.reach}`,
-            crossed: `${crossed.anchor.dir}/${crossed.anchor.reach}`,
-            star: crossed.star ? { at: Math.round(pr(moved.get("far").c).y - r.y), dir: crossed.star.dir } : null,
-        };
-    }
 
     // Nothing is drawn while nothing changes.
     await quiet();
@@ -1153,30 +632,12 @@ window.done = (async () => {
         }, 3000);
     };
     gal.order = orderOf(graphOf(snapshot));
-    // The area every system takes on the screen with front in front, and
-    // whether the one in front is the largest — asked of the drawing too:
-    // a planet of it is where its size puts it.
-    const areasOf = (front, order) => {
-        const { g: seen, places, pr } = viewOf(front, order);
-        return Object.fromEntries(seen.systems.map((sys) => {
-            const b = extentOf(sys, places.get(sys.name), pr);
-            return [sys.name, Math.round(b.w * b.h)];
-        }));
-    };
-    const largest = async (front, planet, order) => {
-        const a = areasOf(front, order);
-        const most = Object.keys(a).every((n) => n === front || a[n] < a[front]);
-        const drawn = (await tipAt(spotOf(planet, front, order))) === planet;
-        return `${front}: ${most ? "the largest" : "not the largest"}${drawn ? "" : ", drawn elsewhere"}`;
-    };
-    gal.largest = [];
     gal.first = await fronts();
     let drawn0 = draws;
     gal.prevented = await shiftWheel(-100);
     await rest();
     gal.instant = draws - drawn0;
     gal.up = await fronts("personal");
-    gal.largest.push(await largest("personal", "shop"));
     pointer("pointermove", starOf("personal", "personal"), { buttons: 0 });
     await frames(2);
     gal.frontSays = text(document.querySelector(".dkorbtip em"));
@@ -1184,11 +645,9 @@ window.done = (async () => {
     await shiftWheel(100);
     await rest();
     gal.down = await fronts("client");
-    gal.largest.push(await largest("client", "notes"));
     await shiftWheel(100);
     await rest();
     gal.wrap = await fronts("lab");
-    gal.largest.push(await largest("lab", "bench-1"));
     count = opened.length;
     await press(starOf("personal", "lab"));
     await rest();
@@ -1281,21 +740,7 @@ window.done = (async () => {
     gal.glided = await fronts(gal.reorder[1], gal.reorder);
     lessMotion = true;
     await resetView();
-    // Midway through the glide the one coming forward is midway in size and
-    // in how it leans, and the one going back midway in size.
-    {
-        const seen = graphOf(snapshot);
-        const o = gal.reorder;
-        const a = placesOf(seen, o, o[0]);
-        const b = placesOf(seen, o, o[1]);
-        const sizes = (n) => [a.get(n).k, between(a.get(n), b.get(n), 0.5).k, b.get(n).k].map((v) => Math.round(v * 100) / 100);
-        gal.grows = sizes(o[1]);
-        gal.shrinks = sizes(o[0]);
-        const lean = (t) => Math.round((Math.abs(t.tx) + Math.abs(t.tz)) * 1000) / 1000;
-        gal.straightens = [lean(a.get(o[1]).tilt), lean(between(a.get(o[1]), b.get(o[1]), 0.5).tilt), lean(b.get(o[1]).tilt)];
-    }
-    // A contour of one orbit brought in front of one of five is drawn up to
-    // it, and the one of five goes back smaller.
+    // A contour of one orbit is brought in front of one of five.
     {
         const P2 = (id, name, group) => ({ id, name, session: name, path: `/srv/${name}`, group });
         const five = [1, 2, 3, 4, 5].map((i) => P2(100 + i, `part-${i}`, "Parts"));
@@ -1316,8 +761,6 @@ window.done = (async () => {
         await shiftWheel(-100);
         await rest();
         gal.five.front = (await tipAt(starOf("small", "small", order))) === "small" ? "small" : "?";
-        gal.five.largest = await largest("small", "solo", order);
-        gal.five.areas = areasOf("small", order);
         snapshot = before;
         show();
         await quiet();

@@ -96,7 +96,6 @@ window.done = (async () => {
         plan: Boolean(menu().querySelector(".cxplan[role=switch]")),
         models: Array.from(menu().querySelectorAll(".pkrow:not(.cxplan)")).map((r) => `${text(r.querySelector(".pknum"))} ${text(r.querySelector(".pkname"))}`),
         stops: Array.from(menu().querySelectorAll(".pkstop")).map((s) => s.getAttribute("aria-label")),
-        above: menu().getBoundingClientRect().bottom <= strip.getBoundingClientRect().top,
     };
     // The keys are heard once the menu's effects are bound, after it is drawn.
     await settled();

@@ -61,48 +61,25 @@ export async function sessionLevels() {
         rows: rowsOf(p),
         waits: Array.from(p.root.querySelectorAll(".scfoldwaits")).map(text),
     });
-    const geometry = (p) => {
-        const origin = p.root.getBoundingClientRect().left;
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-        const rows = Array.from(p.root.querySelectorAll(CARD)).map((row) => {
-            const box = row.getBoundingClientRect();
-            const name = row.querySelector(".scname").getBoundingClientRect();
-            const acts = row.querySelector(".scacts");
-            const bar = row.querySelector(".scedge");
-            const track = bar.getBoundingClientRect();
-            const cap = bar.querySelector(".sccap");
-            const fill = bar.querySelector("i");
+    const depthOf = (el) => Number(el.style.getPropertyValue("--depth") || 0);
+    // levels reads the cards of a list by the level each stands at, with what
+    // a card says of its cap and its restart, and the folds by their levels.
+    const levels = (p) => ({
+        rows: Array.from(p.root.querySelectorAll(CARD)).map((row) => {
+            const cap = row.querySelector(".scedge .sccap");
             const mark = row.querySelector(".scl5 .scb:nth-child(3)");
-            const branch = row.classList.contains("sckid");
-            const guide = getComputedStyle(row, "::before");
-            return { name: row.dataset.name, x: name.left - origin,
-                width: (acts ? acts.getBoundingClientRect().left : box.right) - name.left,
-                top: box.top, bottom: box.bottom, height: box.height,
-                branch, rowX: box.left - origin,
-                barX: track.left - origin, barWidth: track.width,
-                cap: cap ? (cap.getBoundingClientRect().left - track.left) / track.width * 100 : 0,
-                capAuto: Boolean(cap && cap.classList.contains("scauto")),
-                fillWidth: fill ? fill.getBoundingClientRect().width / track.width * 100 : 0,
-                restart: text(mark), restartIcon: Boolean(mark?.querySelector("svg")), restartTip: mark ? mark.getAttribute("title") || "" : "",
-                checklist: text(row.querySelector(".scl3")),
-                guideX: branch ? box.left - origin + parseFloat(guide.left) : 0,
-                guideHeight: branch ? parseFloat(guide.height) : 0 };
-        });
-        const folds = Array.from(p.root.querySelectorAll(".scfold")).filter((fold) => !runsFold(fold)).map((fold) => {
-            const box = fold.getBoundingClientRect();
-            const chevron = fold.firstElementChild.getBoundingClientRect();
-            const label = fold.querySelector(".scfoldtext").getBoundingClientRect();
-            return { height: box.height / rem, x: chevron.left - origin,
-                centered: Math.abs((label.top + label.bottom - box.top - box.bottom) / 2) < 1.5 };
-        });
-        return { rows, folds };
-    };
+            return { name: row.dataset.name, depth: depthOf(row),
+                cap: Boolean(cap), capAuto: Boolean(cap && cap.classList.contains("scauto")),
+                restart: text(mark), restartIcon: Boolean(mark?.querySelector("svg")), restartTip: mark ? mark.getAttribute("title") || "" : "" };
+        }),
+        folds: Array.from(p.root.querySelectorAll(".scfold")).filter((fold) => !runsFold(fold)).map(depthOf),
+    });
     draw(chain);
     const tree = "A,fold: 3 opened,G,B,fold: 2 opened,C,D,E,fold: 1 opened,F";
     const childClosed = "A,fold: 3 opened,G,B,fold: 2 opened,E,fold: 1 opened,F";
     await until(() => rowsAre(tree) && order.join(",") === "A,G,B,C,D,E,F");
     const out = { root: kinOf(chain).rootOf(chain[0]).session, phone: {}, desk: {} };
-    panels.forEach((p, i) => { out[i ? "desk" : "phone"].open = { ...read(p), ...geometry(p) }; });
+    panels.forEach((p, i) => { out[i ? "desk" : "phone"].open = { ...read(p), ...levels(p) }; });
     out.order = order.slice();
     for (const p of panels) foldOf(p, "B").click();
     await until(() => rowsAre(childClosed) && order.join(",") === "A,G,B,E,F");
@@ -128,7 +105,7 @@ export async function sessionLevels() {
         for (const fold of p.root.querySelectorAll(".scfold")) if (runsFold(fold)) fold.click();
     }
     await until(() => panels.every((p) => rowOf(p, "RA") && rowOf(p, "RD")));
-    panels.forEach((p, i) => { out[i ? "desk" : "phone"].runsOpen = geometry(p); });
+    panels.forEach((p, i) => { out[i ? "desk" : "phone"].runsOpen = levels(p); });
     for (const p of panels) foldOf(p, "A").click();
     await until(() => panels.every((p) => !rowOf(p, "B") && !rowOf(p, "RD") && rowOf(p, "RA")));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].runsHidden = read(p); });
@@ -137,10 +114,9 @@ export async function sessionLevels() {
 
     draw(chain.filter((s) => s.session !== "A"));
     await until(() => rowsAre("stub: A,G,B,fold: 2 opened,C,D,E,fold: 1 opened,F"));
-    panels.forEach((p, i) => { out[i ? "desk" : "phone"].stub = { ...read(p), ...geometry(p) }; });
+    panels.forEach((p, i) => { out[i ? "desk" : "phone"].stub = { ...read(p), ...levels(p) }; });
     draw(chain.filter((s) => !["A", "E", "F"].includes(s.session)));
     await until(() => rowsAre("stub: A,G,B,fold: 2 opened,C,D"));
-    panels.forEach((p, i) => { out[i ? "desk" : "phone"].last = geometry(p); });
     for (const p of panels) render(null, p.root);
     mount.remove();
     return out;

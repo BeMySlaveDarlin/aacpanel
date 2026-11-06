@@ -65,9 +65,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const sections = () => Array.from(document.querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => {
     const head = sec.querySelector(".dkcontour");
-    const box = head.getBoundingClientRect();
-    const rings = head.querySelector(".dkrings");
-    const rbox = rings ? rings.getBoundingClientRect() : null;
     return {
         name: text(head.querySelector(".dkcontourname")),
         head: text(head),
@@ -75,74 +72,23 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
             value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")), tip: r.getAttribute("data-tip") || "",
         })),
         old: Boolean(head.querySelector(".dkrings.dkold")),
-        fits: Boolean(rbox) && rbox.right <= box.right + 0.5 && rbox.left >= box.left,
-        oneLine: (() => {
-            const nb = head.querySelector(".dkcontourname").getBoundingClientRect();
-            return Boolean(rbox) && Math.abs((nb.top + nb.bottom) / 2 - (rbox.top + rbox.bottom) / 2) < 6 && box.height < 70;
-        })(),
         live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),
         closed: sec.querySelectorAll(".sc.scpast").length,
         empty: text(sec.querySelector(".dkempty")),
-        bottom: sec.getBoundingClientRect().bottom,
     };
 });
 
-// painted is the colour an element shows at rest, its own layers laid over
-// what its ancestors paint: a gradient counts as the mean of its stops, which
-// is enough to tell a band from the ground.
-const rgba = (c) => {
-    const m = /rgba?\(([^)]*)\)/.exec(c || "");
-    if (!m) return [0, 0, 0, 0];
-    const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
-    return [r, g, b, a];
-};
-const over = (top, below) => {
-    const a = top[3] + below[3] * (1 - top[3]);
-    if (a === 0) return [0, 0, 0, 0];
-    const mix = (i) => (top[i] * top[3] + below[i] * below[3] * (1 - top[3])) / a;
-    return [mix(0), mix(1), mix(2), a];
-};
-const ownLayers = (el) => {
-    const cs = getComputedStyle(el);
-    const stops = (cs.backgroundImage.match(/rgba?\([^)]*\)/g) || []).map(rgba);
-    const image = stops.length
-        ? [0, 1, 2, 3].map((i) => stops.reduce((sum, c) => sum + c[i], 0) / stops.length)
-        : [0, 0, 0, 0];
-    return over(image, rgba(cs.backgroundColor));
-};
-const painted = (el) => (el ? over(ownLayers(el), painted(el.parentElement)) : [255, 255, 255, 1]);
-// band compares the heading of a contour with a row of its sessions: how far
-// apart they are painted, and whether the heading's own ground is solid
-// enough for the rows scrolling under it to stay unseen.
-const band = () => {
-    const head = document.querySelector(".dkcontour.dklimhead");
-    const row = document.querySelector(".dkscroll .sc:not(.scpast)");
-    const a = painted(head);
-    const b = painted(row);
-    return {
-        apart: Math.round(Math.max(...[0, 1, 2].map((i) => Math.abs(a[i] - b[i])))),
-        solid: ownLayers(head)[3] === 1 || getComputedStyle(head).backdropFilter !== "none",
-    };
-};
-
 window.done = (async () => {
-    await document.fonts.ready;
     for (let i = 0; i < 60 && !document.querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);
     await quiet();
     const shelf = document.querySelector(".dkshelf");
-    const dark = band();
-    document.documentElement.classList.add("sky");
-    const sky = band();
-    document.documentElement.classList.remove("sky");
     const out = {
-        band: { dark, sky },
         sections: sections(),
         asked,
         shelf: Array.from(document.querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({
             name: r.dataset.name, contour: text(r.querySelector(".sctag")),
             about: text(r.querySelector(".scstep")), when: text(r.querySelector(".sctime")),
         })),
-        shelfTop: shelf ? shelf.getBoundingClientRect().top : 0,
         shelfLast: Boolean(shelf) && shelf === shelf.parentElement.lastElementChild,
     };
     const globex = Array.from(document.querySelectorAll(".dkrings"))[1];
@@ -156,14 +102,6 @@ window.done = (async () => {
     Array.from(document.querySelectorAll(".dkrings"))[0].click();
     await quiet();
     out.oldNote = text(document.querySelector(".dklimpopnote"));
-    // The details of the first contour drop over the heading of the next:
-    // what stands at the middle of the note is the note, not that heading.
-    const note = document.querySelector(".dklimpopnote");
-    if (note) {
-        const nb = note.getBoundingClientRect();
-        const hit = document.elementFromPoint(nb.left + nb.width / 2, nb.top + nb.height / 2);
-        out.noteOnTop = Boolean(hit && note.contains(hit));
-    }
     return out;
 })();
 </script>

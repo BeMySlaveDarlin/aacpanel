@@ -20,7 +20,6 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 	type line struct {
 		Word   string `json:"word"`
 		Agent  string `json:"agent"`
-		Hue    string `json:"hue"`
 		About  string `json:"about"`
 		Runs   string `json:"runs"`
 		Ctx    string `json:"ctx"`
@@ -35,7 +34,6 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 		Phone []line `json:"phone"`
 		Desk  []struct {
 			Word  string `json:"word"`
-			Hue   string `json:"hue"`
 			Num   string `json:"num"`
 			Model string `json:"model"`
 		} `json:"desk"`
@@ -61,16 +59,15 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 	if claude.Word != "Claude" || !strings.Contains(claude.About, "login page") || claude.Ctx != "peak 40%" {
 		t.Errorf("the conversation of claude reads %+v", claude)
 	}
-	if codex.Word != "Codex" || codex.Agent != "codex" || codex.Hue != codexWordHue {
-		t.Errorf("the thread of codex is not signed by its agent in its colour: %+v, the colour of codex is %s", codex,
-			codexWordHue)
+	if codex.Word != "Codex" || codex.Agent != "codex" {
+		t.Errorf("the thread of codex is not signed by its agent: %+v", codex)
 	}
 	if !strings.Contains(codex.Runs, "gpt-6-astra") || !strings.Contains(codex.Runs, "Extra") ||
 		!strings.Contains(codex.Runs, "29.4m tokens") || strings.Contains(codex.Ctx, "peak") || !codex.Resume {
 		t.Errorf("the thread of codex reads %+v: its model, its effort and what it spent were meant", codex)
 	}
 
-	if len(got.Desk) != 2 || got.Desk[1].Word != "Codex" || got.Desk[1].Hue != codexWordHue ||
+	if len(got.Desk) != 2 || got.Desk[1].Word != "Codex" ||
 		got.Desk[1].Num != "29.4m" || !strings.Contains(got.Desk[1].Model, "gpt-6-astra") || got.Desk[0].Word != "" {
 		t.Errorf("the archive panel of the desktop reads %+v", got.Desk)
 	}

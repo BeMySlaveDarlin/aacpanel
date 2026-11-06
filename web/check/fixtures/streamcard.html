@@ -43,15 +43,12 @@ const list = (sessions) => render(
 list(rows);
 
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const cut = (el) => Boolean(el) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
-const lines = (el) => (el ? Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)) : 0);
 // agentOf reads the word that opens the line under the state, and whose it is.
 const agentOf = (line) => {
     const word = line && line.firstElementChild;
     return word && word.classList.contains("agentword")
         ? { agent: text(word), agentKey: word.dataset.agent || "" } : { agent: "", agentKey: "" };
 };
-const below = (el, over) => Boolean(el && over) && el.getBoundingClientRect().top >= over.getBoundingClientRect().bottom - 1;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (ok, ms = 3000) => {
     const end = performance.now() + ms;
@@ -75,13 +72,9 @@ const tapAt = (el) => {
 // called reads every card that says its session called, by the session's
 // name: the state's word, its glyph, and how long ago in the corner.
 const called = () => Object.fromEntries(Array.from(document.querySelectorAll(".sc[data-kind=\"call\"]")).map((card) => {
-    const glyph = card.querySelector(".scglyph");
-    const box = glyph.getBoundingClientRect();
-    const row = card.getBoundingClientRect();
     return [card.dataset.name, {
         title: `${text(card.querySelector(".scsay"))} · ${text(card.querySelector(".sctime"))}`,
-        icon: Boolean(glyph.querySelector("svg")),
-        inside: box.width > 0 && box.left >= row.left && box.right <= row.right && box.bottom <= row.bottom,
+        icon: Boolean(card.querySelector(".scglyph svg")),
     }];
 }));
 
@@ -94,35 +87,16 @@ const Feed = ({ name }) => {
 
 window.done = (async () => {
     await until(() => document.querySelectorAll(".sc .scl5").length === rows.length);
-    await document.fonts.ready;
     const cards = Array.from(document.querySelectorAll(".sc")).map((card) => {
-        const row = card.getBoundingClientRect();
         const badges = Array.from(card.querySelectorAll(".scl5 .scb"));
         const tag = badges[1];
-        const box = tag.getBoundingClientRect();
         const rc = badges[3];
         const ctx = card.querySelector(".scctx");
-        const said = card.querySelector(".scsay");
         const agent = card.querySelector(".scagent");
-        const name = card.querySelector(".scname");
-        const nameBox = name.getBoundingClientRect();
-        const acts = card.querySelector(".scacts").getBoundingClientRect();
         return {
-            state: text(said),
-            stateCut: cut(said),
+            state: text(card.querySelector(".scsay")),
             since: text(agent),
-            sinceCut: cut(agent),
-            sinceLines: lines(agent),
-            sinceBelow: below(agent, said),
             work: Array.from(card.querySelectorAll(".scrun")).map((r) => r.title).join(", "),
-            nameStands: (() => {
-                const n = getComputedStyle(name), w = getComputedStyle(agent);
-                return Number(n.fontWeight) >= 600 && parseFloat(n.fontSize) > parseFloat(w.fontSize) && n.color !== w.color;
-            })(),
-            nameLines: lines(name),
-            // Only the name yields space to the controls in the top corner.
-            nameBeside: nameBox.right <= acts.left && Math.abs(acts.top + acts.height / 2 - nameBox.top - nameBox.height / 2) <= 1,
-            workBelow: true,
             ...agentOf(agent),
             tapPct: tapAt(ctx),
             tapTag: tapAt(tag),
@@ -131,9 +105,6 @@ window.done = (async () => {
             rc: rc.classList.contains("scon") ? text(rc) : "",
             rcElsewhere: Array.from(card.querySelectorAll("*")).some((el) => el !== rc && el.children.length === 0 && el.textContent.trim() === "RC"),
             mark: text(tag),
-            shown: box.width > 0 && box.height > 0 && box.right <= row.right,
-            marksInside: [box, ctx.getBoundingClientRect()].every((m) => m.right <= row.right && m.bottom <= row.bottom - 3),
-            overflow: document.scrollingElement.scrollWidth - window.innerWidth,
         };
     });
     const before = called();

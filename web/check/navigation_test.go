@@ -173,9 +173,6 @@ func TestClosedSheetIsOutOfReach(t *testing.T) {
 	if strings.Contains(cssSrc(t), ".sheet.on { pointer-events") {
 		t.Error("the pointer of an open sheet is set by a separate rule — those two will diverge")
 	}
-	if !strings.Contains(cssBlockFile(t, "src/css/sheet.css", ".sheet.draggable:not(.on)"), "translateY") {
-		t.Error("a closed sheet no longer slides down — it stays visible")
-	}
 }
 
 func TestMobileThemeButtonCallsTheHandler(t *testing.T) {

@@ -73,7 +73,8 @@ others found:
 | `front` | the bundle build: an error in a screen's markup is caught by no test — they work with ready structures |
 | `shellcheck` | the deployment and stand scripts; with no linter on the machine it is a skip said out loud, not silence |
 | `agent-import` | that every module of the collector imports: an undefined name at module level does not break one screen — it stops the service from coming up at all |
-| `test` | the Go tests with a substituted home directory |
+| `test-go` | the Go tests with a substituted home directory, every package but the frontend checks |
+| `test-web` | the frontend checks of `web/check`, the fixtures in a headless Chrome, beside `test-go` |
 | `agent-test` | the collector's tests with a substituted state directory |
 | `agent-confined` | the same tests inside the restrictions of the collector's production unit |
 | `vuln` | `govulncheck ./...` |
@@ -105,11 +106,23 @@ difference goes into the description. The ways to pay:
 
 A change that makes the check slower and says nothing about it is not done.
 
-**The same checks run on a push and on a pull request**, minus the ones that need
-a live host: the tests of `internal/executor` and `internal/launcher` skip
-themselves without tmux, konsole and a graphical session, and `agent-confined`
-has no user systemd manager to run inside. The workflow counts what it skipped
-and prints the reasons, so a green tick is not read as "everything was checked".
+**A test checks behaviour and content, not layout.** What a screen says, which
+states and marks it shows, which elements are there, what a press does and
+sends, the shape of data and its errors — that is what a test holds. Where a
+thing stands, how wide or tall it is, its colour, its font, whether it fits a
+line or is cut, is read off the screen by a person, not off a test, and a page
+measured on every screen it is drawn on costs the run its time. A test that
+reads the stylesheet holds a convention of the code — the token scale, rules
+kept inside their media query — not the values a rule draws with.
+
+**The same checks run on a push and on a pull request**, the frontend checks in
+a job of their own beside the rest, minus the ones that need a live host: the
+tests of `internal/executor` and `internal/launcher` skip themselves without
+tmux, konsole and a graphical session, and `agent-confined` has no user
+systemd manager to run inside. The workflow counts what it skipped and prints
+the reasons, so a green tick is not read as "everything was checked"; a run of
+the fixtures that found no Chrome fails, as one of the tests with a database
+that found no database does.
 
 The database is a service container there, and a run where the tests with a
 database quietly skipped is failed on purpose: without `AACP_TEST_DSN` every

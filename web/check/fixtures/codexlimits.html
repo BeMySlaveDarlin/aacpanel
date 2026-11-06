@@ -46,28 +46,12 @@ const until = async (ok) => {
     return ok();
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-// lineCount counts the lines an element's words are set in on the screen.
-const lineCount = (el) => {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
-};
-// hue is a colour of the palette as the screen paints a background with it.
-const hue = (name) => {
-    const probe = document.body.appendChild(document.createElement("i"));
-    probe.style.background = `var(${name})`;
-    const got = getComputedStyle(probe).backgroundColor;
-    probe.remove();
-    return got;
-};
-
 window.done = (async () => {
-    await document.fonts.ready;
     render(h(ToastHost, null, h(GateHost, null, html`<${Usage} snapshot=${{ sessions: [], limits }}
         exec=${{ available: true, kinds: [] }} onBack=${() => {}} />`)), root);
     if (!await until(() => root.querySelector(".ulimits .ulimit"))) throw new Error("the limits did not show");
     const card = root.querySelector(".ulimits");
-    const out = { codexHue: hue("--agent-codex") };
+    const out = {};
     out.after = card.previousElementSibling ? card.previousElementSibling.className : "";
     out.contours = Array.from(card.querySelectorAll(".ulimit")).map((c) => {
         const lines = [];
@@ -75,15 +59,10 @@ window.done = (async () => {
         for (const el of c.querySelector(".ulimitrows").children) {
             if (el.classList.contains("agentword")) {
                 agent = text(el);
-                lines.push({ agent, windows: [], colour: getComputedStyle(el).color });
+                lines.push({ agent, windows: [] });
             } else if (el.classList.contains("limits")) {
                 lines[lines.length - 1].windows = Array.from(el.querySelectorAll(".limit")).map((l) =>
                     [text(l.querySelector(".lname")), text(l.querySelector(".lval")), text(l.querySelector(".lsub"))].filter(Boolean).join(" "));
-                lines[lines.length - 1].width = Math.round(el.querySelector(".limit").getBoundingClientRect().width);
-                const fill = el.querySelector(".limit .fill");
-                lines[lines.length - 1].fill = fill ? getComputedStyle(fill).backgroundColor : "";
-                const empty = el.querySelector(".limit.lempty .lsub");
-                lines[lines.length - 1].emptyLines = empty ? lineCount(empty) : 0;
             } else if (el.textContent.trim()) {
                 lines[lines.length - 1].note = text(el);
             }

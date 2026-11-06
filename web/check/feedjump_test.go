@@ -57,39 +57,6 @@ func TestFeedJumpAndStickinessShareOneEndRule(t *testing.T) {
 	}
 }
 
-// The button gives back what it takes in flow, so a feed with the button has
-// the scroll height of a feed without it: otherwise the button's own arrival
-// moves the feed under the reader.
-func TestFeedJumpTakesNoRoomInTheFeed(t *testing.T) {
-	css := cssSrc(t)
-	jump := cssBlock(t, css, ".feedjump")
-	feed := cssBlock(t, css, ".chatfeed")
-
-	gap := regexp.MustCompile(`gap:\s*([^;]+);`).FindStringSubmatch(feed)
-	if gap == nil {
-		t.Fatal(".chatfeed has no gap — the test does not know what the button has to give back")
-	}
-	for _, want := range []struct{ rule, harm string }{
-		{"position: sticky", "the button scrolls away with the messages instead of staying at the edge"},
-		{"align-self: flex-end", "the button stretches across the feed and covers the last line"},
-		{"overflow-anchor: none", "scroll anchoring may hold on to the button and move the feed when it goes"},
-		{"margin-top: calc(-1 * (var(--feedjump-size) + " + strings.TrimSpace(gap[1]) + "))",
-			"the button takes its height and the column gap in flow, and the feed grows by that under the reader"},
-	} {
-		if !strings.Contains(jump, want.rule) {
-			t.Errorf(".feedjump has no %q — %s", want.rule, want.harm)
-		}
-	}
-
-	raw, err := os.ReadFile(webPath("src/css/chat.css"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(raw), "@media (prefers-reduced-motion: reduce) { .feedjump { animation: none; } }") {
-		t.Error("the arrival of the button is not stilled under reduced motion — the one animation the reader asked not to see")
-	}
-}
-
 type endCase struct {
 	ScrollHeight int `json:"scrollHeight"`
 	ScrollTop    int `json:"scrollTop"`

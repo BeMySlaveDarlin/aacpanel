@@ -1,7 +1,6 @@
 package check
 
 import (
-	"os"
 	"reflect"
 	"testing"
 )
@@ -30,9 +29,6 @@ type contourPlace struct {
 // of its section say so, the place of Personal does not.
 func TestASessionNoContourClaimsStandsInThePersonalOne(t *testing.T) {
 	parallel(t)
-	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built — run make front first")
-	}
 	marked := []contourPlace{
 		{"Acme", 1, true, []string{"shop"}},
 		{"Personal", 2, false, []string{"notes", "stray"}},

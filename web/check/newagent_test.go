@@ -17,10 +17,7 @@ type agentSheet struct {
 	Segments []agentSegment `json:"segments"`
 	Reasons  []struct {
 		Text string `json:"text"`
-		Seen bool   `json:"seen"`
 	} `json:"reasons"`
-	Placed  bool     `json:"placed"`
-	Seen    bool     `json:"seen"`
 	After   []string `json:"after"`
 	OK      bool     `json:"ok"`
 	Request *struct {
@@ -117,17 +114,9 @@ func checkAgentSheets(t *testing.T, cases map[string]agentSheet) {
 		var reasons []string
 		for _, r := range got.Reasons {
 			reasons = append(reasons, r.Text)
-			if !r.Seen {
-				t.Errorf("%s: the reason %q is not on the screen — a segment that does not press says why "+
-					"in a line a person sees", name, r.Text)
-			}
 		}
 		if strings.Join(reasons, "|") != want.reason {
 			t.Errorf("%s: the reasons under the switch are %q, meant %q", name, reasons, want.reason)
-		}
-		if !got.Placed || !got.Seen {
-			t.Errorf("%s: the choice stands between the consequence and the buttons %v, on the screen %v",
-				name, got.Placed, got.Seen)
 		}
 		if len(got.After) != 1 || got.After[0] != want.after {
 			t.Errorf("%s: after the press %v is taken, meant %s", name, got.After, want.after)

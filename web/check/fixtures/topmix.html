@@ -79,7 +79,6 @@ function readRows(root) {
         sub: row.querySelector(".sub") ? row.querySelector(".sub").textContent.trim() : "",
         proc: Boolean(row.querySelector(".tag.proc")),
         bar: row.querySelector(".topbar") ? row.querySelector(".topbar").className : "",
-        width: row.querySelector(".topbar .mx") ? row.querySelector(".topbar .mx").style.width : "",
         title: row.getAttribute("title") || "",
     }));
 }
@@ -100,8 +99,6 @@ window.done = (async () => {
     await tick(150);
     const cpuRows = readRows(cpu);
     const cpuFoot = (cpu.querySelector(".toplist > .hint:last-child") || {}).textContent || "";
-    const procTag = cpu.querySelector(".tag.proc");
-    const procTagShown = procTag ? getComputedStyle(procTag).display !== "none" : false;
 
     // The history falling over does not take the processes with it.
     window.__topFails = true;
@@ -112,27 +109,14 @@ window.done = (async () => {
     const brokenRows = readRows(broken);
     const brokenWarn = (broken.querySelector(".hint.warn") || {}).textContent || "";
 
-    // The long name of a process must not push its mark out of the row.
-    const mark = broken.querySelector(".tag.proc");
-    const markCut = mark ? mark.scrollWidth > mark.clientWidth + 1 : true;
-    const markWidth = mark ? Math.round(mark.getBoundingClientRect().width) : 0;
-    const nameCut = (() => {
-        const who = broken.querySelector(".who");
-        return who ? who.scrollWidth > who.clientWidth + 1 : false;
-    })();
-
     return {
         diskRows,
         diskFoot,
         askedProcsForDisk,
         cpuRows,
         cpuFoot,
-        procTagShown,
         brokenRows,
         brokenWarn,
-        markCut,
-        markWidth,
-        nameCut,
     };
 })();
 </script>

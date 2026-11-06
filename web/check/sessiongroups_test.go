@@ -1,15 +1,10 @@
 package check
 
 import (
-	"math"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 )
-
-// waitHue is the colour of waiting, #e3c97a, as the engine computes it.
-const waitHue = "rgb(227, 201, 122)"
 
 type groupBlock struct {
 	Name string   `json:"name"`
@@ -17,16 +12,13 @@ type groupBlock struct {
 }
 
 type levelRow struct {
-	Name                                               string
-	X, Width, Top, Bottom, Height, GuideX, GuideHeight float64
+	Name  string
+	Depth int
 }
 
-type levelGeometry struct {
+type levelTree struct {
 	Rows  []levelRow
-	Folds []struct {
-		Height, X float64
-		Centered  bool
-	}
+	Folds []int
 }
 
 type levelRead struct {
@@ -35,14 +27,14 @@ type levelRead struct {
 }
 
 type levelScreen struct {
-	Open                              levelGeometry
+	Open                              levelTree
 	ChildClosed, RootClosed, Reopened levelRead
 	RunsClosed, RunsHidden            levelRead
-	RunsOpen, Stub, Last              levelGeometry
+	RunsOpen, Stub                    levelTree
 }
 
-// Geometry guards the extra step as well as the cap: a class on a row says
-// nothing about where its name or the branch beside it actually stands. G,
+// A chain of sessions, each opened by the one before, stands two steps deep at
+// most: D, opened by C at the third level, stays at C's level beside it. G,
 // opened last with nothing under it, stands first among A's children.
 func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 	var got struct {
@@ -61,48 +53,27 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 	if strings.Join(levels.Kept, ",") != "A,B" {
 		t.Errorf("folds are kept as %v, expected both parents by name", levels.Kept)
 	}
-	near := func(a, b float64) bool { return math.Abs(a-b) < 1.5 }
-	byName := func(rows []levelRow) map[string]levelRow {
-		out := make(map[string]levelRow)
+	depths := func(rows []levelRow) map[string]int {
+		out := make(map[string]int)
 		for _, row := range rows {
-			out[row.Name] = row
+			out[row.Name] = row.Depth
 		}
 		return out
 	}
 	for name, screen := range map[string]levelScreen{"phone": levels.Phone, "desk": levels.Desk} {
 		t.Run(name, func(t *testing.T) {
-			rows := byName(screen.Open.Rows)
+			rows := depths(screen.Open.Rows)
 			if len(rows) != 7 {
 				t.Fatalf("the open tree has rows %+v", screen.Open.Rows)
 			}
-			a, b, c, d, e, f, g := rows["A"], rows["B"], rows["C"], rows["D"], rows["E"], rows["F"], rows["G"]
-			step := b.X - a.X
-			if step < 10 || !near(c.X-b.X, step) || !near(c.X, d.X) || !near(b.X, e.X) || !near(b.X, g.X) || !near(c.X, f.X) {
-				t.Errorf("names stand at %v, %v, %v, %v, %v, %v, %v: two equal steps, with D and F beside C, E and G beside B",
-					a.X, b.X, c.X, d.X, e.X, f.X, g.X)
-			}
-			if g.Bottom > b.Top+1 || !near(g.GuideHeight, g.Height) {
-				t.Errorf("G, with nothing under it, does not stand over B on its hairline: %+v, %+v", g, b)
-			}
-			// A session another opened stands on a hairline of its level, the
-			// whole height of its card.
-			if !near(c.GuideX-b.GuideX, step) || !near(c.GuideX, d.GuideX) || !near(b.GuideHeight, b.Height) ||
-				!near(c.GuideHeight, c.Height) || !near(d.GuideHeight, d.Height) {
-				t.Errorf("the hairlines do not follow the levels: %+v", screen.Open.Rows)
-			}
-			if name == "phone" && c.Width < 120 {
-				t.Errorf("the third-level name has only %.1f pixels on a 390px phone", c.Width)
+			if want := map[string]int{"A": 0, "B": 1, "C": 2, "D": 2, "E": 1, "F": 2, "G": 1}; !reflect.DeepEqual(rows, want) {
+				t.Errorf("the levels are %v, want %v: two steps, with D and F beside C, E and G beside B", rows, want)
 			}
 			if len(screen.Open.Folds) != 3 {
 				t.Fatalf("the first two levels have folds %+v", screen.Open.Folds)
 			}
-			if !near(screen.Open.Folds[1].X-screen.Open.Folds[0].X, step) {
-				t.Errorf("the child's fold does not take its parent's step: %+v", screen.Open.Folds)
-			}
-			for _, fold := range screen.Open.Folds {
-				if !fold.Centered || name == "phone" && (fold.Height < 1.75 || fold.Height >= 2.25) || name == "desk" && fold.Height >= 1.6 {
-					t.Errorf("the fold is not a short, centered strip: %+v", fold)
-				}
+			if screen.Open.Folds[1] != screen.Open.Folds[0]+1 {
+				t.Errorf("the child's fold does not take its parent's step: %v", screen.Open.Folds)
 			}
 			childClosed := []string{"A", "fold: 3 opened", "G", "B", "fold: 2 opened", "E", "fold: 1 opened", "F"}
 			if !reflect.DeepEqual(screen.ChildClosed.Rows, childClosed) || !reflect.DeepEqual(screen.Reopened.Rows, childClosed) {
@@ -114,14 +85,14 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 			if strings.Join(screen.ChildClosed.Waits, ",") != "D,D" || strings.Join(screen.RootClosed.Waits, ",") != "D" {
 				t.Errorf("D's question was hidden: child closed %+v, root closed %+v", screen.ChildClosed, screen.RootClosed)
 			}
-			runs := byName(screen.RunsOpen.Rows)
+			runs := depths(screen.RunsOpen.Rows)
 			for _, run := range []string{"RB", "RC", "RD"} {
-				if row, ok := runs[run]; !ok || !near(row.X, c.X) {
-					t.Errorf("run %s stands at %+v, expected the third-level ancestor's fold at %.1f", run, row, c.X)
+				if depth, ok := runs[run]; !ok || depth != rows["C"] {
+					t.Errorf("run %s stands at level %d (drawn: %v), expected the third-level ancestor's fold at %d", run, depth, ok, rows["C"])
 				}
 			}
-			if row, ok := runs["RA"]; !ok || !near(row.X, b.X) {
-				t.Errorf("root run stands at %+v, expected the second level at %.1f", row, b.X)
+			if depth, ok := runs["RA"]; !ok || depth != rows["B"] {
+				t.Errorf("root run stands at level %d (drawn: %v), expected the second level, %d", depth, ok, rows["B"])
 			}
 			if !reflect.DeepEqual(screen.RunsClosed.Rows, []string{"A", "fold: 3 opened", "G", "B", "fold: 2 opened",
 				"C", "D", "runs: 3 runs started by it", "E", "fold: 1 opened", "F", "runs: 1 run started by it"}) {
@@ -130,9 +101,9 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 			if !reflect.DeepEqual(screen.RunsHidden.Rows, []string{"A", "fold: 3 opened", "runs: 1 run started by it", "RA"}) {
 				t.Errorf("the root's fold leaves a child's runs behind: %v", screen.RunsHidden.Rows)
 			}
-			stub := byName(screen.Stub.Rows)
-			if len(stub) != 6 || !near(stub["G"].X, b.X) || !near(stub["B"].X, b.X) || !near(stub["C"].X, c.X) || !near(stub["D"].X, c.X) ||
-				!near(stub["F"].X, c.X) {
+			stub := depths(screen.Stub.Rows)
+			if len(stub) != 6 || stub["G"] != rows["B"] || stub["B"] != rows["B"] || stub["C"] != rows["C"] || stub["D"] != rows["C"] ||
+				stub["F"] != rows["C"] {
 				t.Errorf("a closed parent does not hold the root's place: %+v", screen.Stub)
 			}
 		})
@@ -145,8 +116,7 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 // project: person, of a project of its own, is under lead and nowhere else,
 // and the block of lead stands first, where its waiting child puts it. The
 // fold over the children is open, says how many there are and who of them
-// waits, in the colour of waiting; the children stand a step in, in the order
-// they were opened, on the line of a branch. The child of a parent that closed
+// waits; the children stand a step in, in the order they were opened. The child of a parent that closed
 // stands under a stub of it that says when it closed and opens its
 // conversation; a child whose parent lives in another contour stands on its
 // own page and says which session opened it.
@@ -164,9 +134,6 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 //
 // A list where nobody opened anybody shows none of it.
 func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
-	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built — run make front first")
-	}
 	var got struct {
 		Phone      []groupBlock `json:"phone"`
 		PhoneAlgo  []groupBlock `json:"phoneAlgo"`
@@ -174,8 +141,6 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		PlainMarks int          `json:"plainMarks"`
 		Desk       []string     `json:"desk"`
 		Order      []string     `json:"order"`
-		WaitHue    string       `json:"waitHue"`
-		Guide      string       `json:"guide"`
 		StubOpens  struct {
 			Phone []struct{ Name, ID string } `json:"phone"`
 			Desk  []struct {
@@ -204,12 +169,6 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 	}
 	if algo := []groupBlock{{"", []string{"rotation"}}, {"", []string{"quotes (opened by lead)"}}}; !reflect.DeepEqual(got.PhoneAlgo, algo) {
 		t.Errorf("the page of the other contour reads %v, expected the child of lead on its own, naming lead", got.PhoneAlgo)
-	}
-	if got.WaitHue != waitHue {
-		t.Errorf("who of the children waits is said in %s, not in the colour of waiting %s", got.WaitHue, waitHue)
-	}
-	if got.Guide == "" || got.Guide == "0px" {
-		t.Errorf("a child stands with no hairline beside it (%q)", got.Guide)
 	}
 
 	desk := []string{

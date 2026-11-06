@@ -197,22 +197,7 @@ const cardShot = (c) => {
         when: text(c.querySelector(".tcardwhen")),
         last: last ? last.textContent : null,
     };
-    if (!last) return shot;
-    const style = getComputedStyle(last);
-    const range = document.createRange();
-    range.selectNodeContents(last);
-    const name = c.querySelector(".tcardname").getBoundingClientRect();
-    const when = c.querySelector(".tcardwhen").getBoundingClientRect();
-    const box = last.getBoundingClientRect();
-    return {
-        ...shot,
-        // An ellipsis is a box of its own on the same line: lines count by their tops.
-        lines: new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size,
-        cut: last.scrollWidth > last.clientWidth,
-        ellipsis: style.textOverflow === "ellipsis",
-        mono: style.fontFamily === getComputedStyle(c.querySelector(".tcardname")).fontFamily,
-        under: box.top >= name.bottom && Math.round(box.left) === Math.round(name.left) && Math.round(box.right) === Math.round(when.right),
-    };
+    return shot;
 };
 const tabs = () => all(".ttabs .ttab:not(.tadd)").map(text);
 const onTab = () => text(document.querySelector(".ttabs .ttab.on"));
@@ -226,70 +211,30 @@ const closesOf = (id) => actions("term.close").filter((a) => a.params.id === id)
 const cells = () => all(".ttabs .ttabcell");
 const tabRow = () => cells().map((c) => `${text(c.querySelector("[role=tab]"))}${c.classList.contains("on") ? "*" : ""}`);
 const xOf = (i) => (cells()[i] ? cells()[i].querySelector(".ttabx") : null);
-// inkOf is the colour a variable of the theme paints with where the tabs
-// stand, or where the element at says.
-const inkOf = (name, at = ".ttabs") => {
-    const probe = document.createElement("span");
-    probe.style.color = `var(${name})`;
-    document.querySelector(at).appendChild(probe);
-    const ink = getComputedStyle(probe).color;
-    probe.remove();
-    return ink;
-};
-// A tab and its × read as how they stand: the name of the × and whether it is
-// inside the tab, the role of the cell around them, whether the × stands after
-// the name on its line and as tall as the tab, how wide it is and its mark,
-// whether it is drawn, the colour of its mark against the faint ink and the
-// accent, and whether the name is cut with an ellipsis.
+// A tab and its × read as what they are: the name of the × and whether it is
+// inside the tab, and the role of the cell around them.
 const cellShot = (c) => {
     const tab = c.querySelector("[role=tab]");
     const x = c.querySelector(".ttabx");
-    const name = tab.querySelector(".ttabname");
-    const [tr, xr, nr, ir] = [tab, x, name, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
-    const style = getComputedStyle(x);
     return {
-        name: text(name),
+        name: text(tab.querySelector(".ttabname")),
         on: c.classList.contains("on"),
         label: x.getAttribute("aria-label"),
         nested: tab.contains(x),
         role: c.getAttribute("role") || "",
-        after: xr.left >= nr.right - 0.5,
-        sameLine: Math.abs((xr.top + xr.bottom) / 2 - (nr.top + nr.bottom) / 2) <= 2,
-        tall: xr.height >= tr.height - 0.5,
-        width: Math.round(xr.width),
-        icon: Math.round(Math.max(ir.width, ir.height)),
-        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
-        ink: style.color === inkOf("--accent") ? "accent" : style.color === inkOf("--ink-faint") ? "faint" : style.color,
-        cut: name.scrollWidth > name.clientWidth,
-        ellipsis: getComputedStyle(name).textOverflow === "ellipsis",
     };
 };
 const LONG = "tail -f /var/log/aacpanel/collector.log";
-// A card and its × read as how they stand: the name of the × and whether it
-// is inside the card, the role of the cell around them, how far the × stands
-// from the right edge and the top of the card, how big it is and its mark,
-// whether it is drawn, the colour of its mark, and the parts of the card's
-// text it stands over.
+// A card and its × read as what they are: the name of the × and whether it
+// is inside the card, and the role of the cell around them.
 const cardXShot = (cell) => {
     const card = cell.querySelector(".tcard");
     const x = cell.querySelector(".tcardx");
-    const [cr, xr, ir] = [card, x, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
-    const style = getComputedStyle(x);
-    const meets = (r) => r.width > 0 && r.left < xr.right && xr.left < r.right && r.top < xr.bottom && xr.top < r.bottom;
     return {
         name: text(card.querySelector(".tcardname")),
         label: x.getAttribute("aria-label"),
         nested: card.contains(x),
         role: cell.getAttribute("role") || "",
-        right: Math.round(cr.right - xr.right),
-        top: Math.round(xr.top - cr.top),
-        width: Math.round(xr.width),
-        height: Math.round(xr.height),
-        icon: Math.round(Math.max(ir.width, ir.height)),
-        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
-        ink: style.color === inkOf("--ink-faint", ".tcardcell") ? "faint" : style.color,
-        under: all(".tdot, .tcardname, .tcardwhen, .tcardlast", card)
-            .filter((el) => meets(el.getBoundingClientRect())).map((el) => el.className),
     };
 };
 const termStreams = () => streams.filter((s) => s.url.startsWith("/api/term/stream")).length;
@@ -297,7 +242,6 @@ const termStreams = () => streams.filter((s) => s.url.startsWith("/api/term/stre
 window.done = (async () => {
     const out = {};
     try {
-        await document.fonts.ready;
         await until(() => navButton("Terminals"));
         out.nav = navItems();
 

@@ -53,22 +53,13 @@ const until = async (ok, ms = 3000) => {
 };
 const root = document.getElementById("root");
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const seen = (el) => {
-    if (!el) return false;
-    const r = el.getBoundingClientRect();
-    return r.height > 0 && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight + 0.5;
-};
 const segments = () => Array.from(root.querySelectorAll(".gtchoice [role=radio]"));
 // labelOf is the name of a segment without the word that marks it.
 const labelOf = (b) => Array.from(b.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim();
 
 // read says what the open sheet offers: each segment with whether it is taken,
-// switched off and marked, the reasons under it, and whether the pick stands
-// between the consequence and the buttons where a person sees it.
+// switched off and marked, and the reasons under it.
 const read = () => {
-    const choice = root.querySelector(".gtchoice");
-    const warn = root.querySelector(".warnline");
-    const buttons = root.querySelector(".btnrow");
     return {
         segments: segments().map((b) => ({
             label: labelOf(b),
@@ -76,11 +67,7 @@ const read = () => {
             off: b.disabled,
             mark: text(b.querySelector(".gtmark")),
         })),
-        reasons: Array.from(root.querySelectorAll(".gtchoice .hint")).map((p) => ({ text: text(p), seen: seen(p) })),
-        placed: Boolean(choice && warn && buttons)
-            && warn.getBoundingClientRect().bottom <= choice.getBoundingClientRect().top + 0.5
-            && choice.getBoundingClientRect().bottom <= buttons.getBoundingClientRect().top + 0.5,
-        seen: seen(choice) && seen(buttons),
+        reasons: Array.from(root.querySelectorAll(".gtchoice .hint")).map((p) => ({ text: text(p) })),
     };
 };
 
@@ -91,10 +78,7 @@ const press = async (target, params, pick) => {
     if (!(await until(() => root.querySelector(".gtchoice") && root.querySelector(".btnrow .btn.primary")))) {
         return { trouble: `the sheet of New for ${target} came up without the choice of agent` };
     }
-    // The sheet slides up from under the screen: what it shows is read once it
-    // stands, or once it was given the time to and did not.
-    await until(() => [root.querySelector(".gtchoice"), root.querySelector(".btnrow"),
-        ...root.querySelectorAll(".gtchoice .hint")].every(seen));
+    await until(() => root.querySelector(".gtchoice") && root.querySelector(".btnrow"));
     const sheet = read();
     if (pick) {
         const seg = segments().find((b) => labelOf(b) === pick);

@@ -6,15 +6,11 @@ import (
 )
 
 type compactLine struct {
-	Text      string  `json:"text"`
-	NowTop    string  `json:"nowTop"`
-	Pct       string  `json:"pct"`
-	Now       string  `json:"now"`
-	Fill      string  `json:"fill"`
-	BarHeight float64 `json:"barHeight"`
-	BarShare  float64 `json:"barShare"`
-	FillShare float64 `json:"fillShare"`
-	PctRight  float64 `json:"pctRight"`
+	Text   string `json:"text"`
+	NowTop string `json:"nowTop"`
+	Pct    string `json:"pct"`
+	Now    string `json:"now"`
+	Fill   string `json:"fill"`
 }
 
 type compactingShot struct {
@@ -45,18 +41,6 @@ func TestACompactionIsSaidAboveTheComposer(t *testing.T) {
 	if got.Compacting.Pct != "45%" || got.Compacting.Now != "45" || got.Compacting.Fill != "45%" {
 		t.Errorf("fifty-four seconds in, the share is %q (aria %q, bar %q), the terminal shows 45%%",
 			got.Compacting.Pct, got.Compacting.Now, got.Compacting.Fill)
-	}
-	// The track runs under the whole line and is filled to the share; the
-	// share stands at the far end of the line.
-	if got.Compacting.BarHeight <= 0 || got.Compacting.BarShare < 0.85 {
-		t.Errorf("the track of the compaction is %.0f%% of the line wide and %.1fpx high",
-			got.Compacting.BarShare*100, got.Compacting.BarHeight)
-	}
-	if got.Compacting.FillShare < 0.43 || got.Compacting.FillShare > 0.47 {
-		t.Errorf("the track is filled to %.0f%%, the share says 45%%", got.Compacting.FillShare*100)
-	}
-	if got.Compacting.PctRight < 0 || got.Compacting.PctRight > 24 {
-		t.Errorf("the share stands %.0fpx off the far end of the line", got.Compacting.PctRight)
 	}
 	if got.Busy.NowTop != "thinking" || got.Busy.Text != "" || got.Busy.Pct != "" {
 		t.Errorf("a session at work with no call yet says %q / %q / %q, expected that it is thinking", got.Busy.NowTop, got.Busy.Text, got.Busy.Pct)

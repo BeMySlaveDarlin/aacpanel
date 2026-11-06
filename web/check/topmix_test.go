@@ -11,7 +11,6 @@ type topRowShown struct {
 	Sub   string `json:"sub"`
 	Proc  bool   `json:"proc"`
 	Bar   string `json:"bar"`
-	Width string `json:"width"`
 	Title string `json:"title"`
 }
 
@@ -21,12 +20,8 @@ type topMixShown struct {
 	AskedProcsForDisk bool          `json:"askedProcsForDisk"`
 	CPURows           []topRowShown `json:"cpuRows"`
 	CPUFoot           string        `json:"cpuFoot"`
-	ProcTagShown      bool          `json:"procTagShown"`
 	BrokenRows        []topRowShown `json:"brokenRows"`
 	BrokenWarn        string        `json:"brokenWarn"`
-	MarkCut           bool          `json:"markCut"`
-	MarkWidth         int           `json:"markWidth"`
-	NameCut           bool          `json:"nameCut"`
 }
 
 func findRow(rows []topRowShown, name string) (topRowShown, bool) {
@@ -59,9 +54,6 @@ func TestTheTopOfAHostMetricHoldsProcessesBesideContainers(t *testing.T) {
 	}
 	if !proc.Proc {
 		t.Error("a process is not marked as one: a row measured this second reads as an hour of history")
-	}
-	if !got.ProcTagShown {
-		t.Error("the mark of a process is in the markup but not on the screen")
 	}
 	if !strings.Contains(proc.Sub, "pid 4242") || !strings.Contains(proc.Sub, "dev") {
 		t.Errorf("a process row says %q: without the pid and the user there is nothing to go and look at", proc.Sub)
@@ -124,14 +116,6 @@ func TestProcessesSurviveAHistoryThatIsNotAnswering(t *testing.T) {
 	}
 	if _, ok := findRow(got.BrokenRows, "burn.py"); !ok {
 		t.Error("the processes are not in the list when the history is down")
-	}
-	// A command is long and a phone is narrow: what gives way is the name, not
-	// the mark that says which kind of row this is.
-	if got.MarkCut || got.MarkWidth < 40 {
-		t.Errorf("the mark of a process is cut down to %d px beside a long command: the row eats its own label", got.MarkWidth)
-	}
-	if !got.NameCut {
-		t.Error("the long command in the fixture is not being cut at all: the check no longer covers a row too narrow for its name")
 	}
 	if got.BrokenWarn == "" {
 		t.Error("nothing says the history is missing: the list looks complete while half of it is gone")

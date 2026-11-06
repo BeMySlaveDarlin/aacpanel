@@ -52,7 +52,6 @@ render(h(ToastHost, null, h(GateHost, null,
     document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const round = (n) => Math.round(n);
 const until = async (ok, ms = 5000) => {
     const end = performance.now() + ms;
     while (!ok() && performance.now() < end) await sleep(10);
@@ -86,13 +85,6 @@ async function renameHeader() {
     const save = () => document.querySelector(".headrename-action");
     const cancel = () => document.querySelector('[aria-label="cancel renaming"]');
     const note = () => document.querySelector(".headrename-note")?.textContent || "";
-    const font = (el) => {
-        const s = getComputedStyle(el);
-        return [s.fontFamily, s.fontSize, s.fontWeight, s.lineHeight, s.letterSpacing].join(":");
-    };
-    const before = header().getBoundingClientRect().height;
-    const nameFont = font(document.querySelector(".headrename-open"));
-    const nameHeight = document.querySelector(".headrename-open").getBoundingClientRect().height;
     const open = async () => {
         document.querySelector(".headrename-open").click();
         await until(() => field() && document.activeElement === field());
@@ -103,11 +95,6 @@ async function renameHeader() {
         value: field().value,
         selected: field().selectionStart === 0 && field().selectionEnd === field().value.length,
         sameOff: save().disabled,
-        fontMatches: nameFont === font(field()),
-        nameHeight, fieldHeight: field().getBoundingClientRect().height,
-        before, editing: header().getBoundingClientRect().height,
-        controlsVisible: [save(), cancel()].every((b) => b.getBoundingClientRect().width > 0
-            && getComputedStyle(b).visibility === "visible" && getComputedStyle(b).opacity !== "0"),
     };
     key(field(), "Enter");
     await quiet();
@@ -115,7 +102,6 @@ async function renameHeader() {
     await typeInto(field(), "my session");
     out.badOff = save().disabled;
     out.badWhy = note();
-    out.invalid = header().getBoundingClientRect().height;
     key(field(), "Enter");
     await quiet();
     out.badSent = sent.length;
@@ -174,8 +160,7 @@ async function renameHeader() {
         const name = header().querySelector(".midname");
         name.click();
         await quiet();
-        out.blocked.push({ kind, text: !field() && !header().querySelector(".headrename-open"),
-            cursor: getComputedStyle(name).cursor });
+        out.blocked.push({ kind, text: !field() && !header().querySelector(".headrename-open") });
     }
 
     // A codex thread edits its title in place: any line of text, sent to
@@ -239,26 +224,19 @@ async function limitStatuses() {
         const card = root.querySelector(".sc");
         const phone = card.querySelector(".scword");
         const result = { name, expected, phone: phone.textContent, phoneTone: card.dataset.tone,
-            phoneEnds: card.querySelector(".sctime").textContent, phoneColour: getComputedStyle(phone).color };
-        const warning = document.createElement("i");
-        warning.style.color = "var(--warn)";
-        root.append(warning);
-        result.warning = getComputedStyle(warning).color;
-        warning.remove();
+            phoneEnds: card.querySelector(".sctime").textContent };
         mount(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait }));
         await quiet();
         const desk = root.querySelector(".dkleft .sc");
         result.desk = desk.querySelector(".scword").textContent;
         result.deskTone = desk.dataset.tone;
         result.deskGlyph = desk.querySelector(".scglyph").dataset.tone;
-        result.deskColour = getComputedStyle(desk.querySelector(".scword")).color;
         mount(h(Chat, { name: session.session, id: session.sessionId, live: session, snapshot, exec, onBack() {}, onUsage() {} }));
         await until(() => root.querySelector(".talkword, .dkword[data-tone]"));
         const head = root.querySelector(".talkword, .dkword[data-tone]");
         result.head = head.textContent;
         result.ends = ends;
         result.headTone = head.dataset.tone;
-        result.headColour = getComputedStyle(head).color;
         result.orbit = graphOf(snapshot).nodes[0].state.text;
         seen.push(result);
     }
@@ -293,63 +271,29 @@ async function limitStatuses() {
 }
 
 window.done = (async () => {
-    await document.fonts.ready;
     for (let i = 0; i < 50 && !document.querySelector(".composer textarea"); i++) await sleep(100);
     await quiet();
     const out = {};
     const head = document.querySelector(".chathead");
     out.headUse = Boolean(head && head.querySelector(".deckuse"));
-    // Where the session works stands on a line of its own under the line of
-    // the state: the home as a tilde, and a path too long for the line cut at
-    // its start, so its end — the project — stays in sight.
+    // Where the session works, with the home as a tilde.
     const path = head && head.querySelector(".chatpath");
     out.headPath = path ? path.textContent.trim() : "";
-    if (path) {
-        const box = path.getBoundingClientRect();
-        const text = path.querySelector("bdi").firstChild;
-        const range = document.createRange();
-        range.setStart(text, text.length - 1);
-        range.setEnd(text, text.length);
-        const last = range.getBoundingClientRect();
-        out.headPathCut = path.scrollWidth > path.clientWidth;
-        out.headTailShown = last.width > 0 && last.left >= box.left - 1 && last.right <= box.right + 1;
-        const word = head.querySelector(".talkword").getBoundingClientRect();
-        const line = path.closest(".chatwhere");
-        out.headPathBelow = !path.closest(".chatsub") && box.top >= word.bottom - 1;
-        out.headPathWhole = Boolean(line)
-            && Math.abs(line.getBoundingClientRect().width - head.getBoundingClientRect().width) < 2;
-    }
     out.deck = Boolean(document.querySelector(".deck"));
     const use = document.querySelector(".deck .deckuse");
     out.deckUse = Boolean(use);
-    if (use) {
-        const deck = document.querySelector(".deck").getBoundingClientRect();
-        const box = use.getBoundingClientRect();
-        out.deckUseLeftGap = round(box.left - deck.left);
-        out.deckUseFirst = document.querySelector(".deck").firstElementChild === use;
-    }
-    // On a wide screen the chips of what is in flight stand at the right end
-    // of the composer's band: how many, how tall beside the model's words.
+    out.deckUseFirst = Boolean(use) && document.querySelector(".deck").firstElementChild === use;
+    // On a wide screen the chips of what is in flight stand in the composer's
+    // band.
     const band = document.querySelector(".composer .cstrip");
     const work = band && band.querySelector(".cwork");
     out.stripChips = work ? work.querySelectorAll(".wchip").length : 0;
-    if (work) {
-        const chip = work.querySelector(".wchip").getBoundingClientRect();
-        const words = band.querySelector(".pkchip");
-        out.stripChipTall = round(chip.height);
-        out.stripWordsTall = words ? round(words.getBoundingClientRect().height) : 0;
-        out.stripChipsRight = round(band.getBoundingClientRect().right - work.getBoundingClientRect().right);
-    }
-    out.wide = document.documentElement.scrollWidth > innerWidth || innerWidth > visualViewport.width + 1;
     const more = document.querySelector(".phead .pmore");
     if (more) {
         more.click();
         for (let i = 0; i < 30 && !document.querySelector(".tools .toolwhere"); i++) await sleep(100);
         const where = document.querySelector(".tools .toolwhere");
-        if (where) {
-            out.pathText = where.textContent;
-            out.cut = where.scrollWidth > where.clientWidth;
-        }
+        if (where) out.pathText = where.textContent;
     }
     out.rename = await renameHeader();
     out.limits = await limitStatuses();

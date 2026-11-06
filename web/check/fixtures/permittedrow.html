@@ -51,10 +51,9 @@ const until = async (ok, ms = 3000) => {
         rows: Array.from(card.querySelectorAll(".askedrow")).map((row) => ({
             tool: text(row.querySelector(".mftag")),
             subject: text(row.querySelector(".askedsubj")),
-            mono: row.querySelector(".askedsubj")
-                ? getComputedStyle(row.querySelector(".askedsubj")).fontFamily : "",
+            subjectTag: row.querySelector(".askedsubj") ? row.querySelector(".askedsubj").tagName.toLowerCase() : "",
             answer: text(row.querySelector(".askeda")),
-            colour: getComputedStyle(row.querySelector(".askeda")).color,
+            tone: Array.from(row.classList).filter((c) => c.startsWith("s-")).join(" "),
         })),
     }));
     window.done = { cards };

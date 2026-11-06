@@ -11,19 +11,12 @@ import (
 func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	var got struct {
 		MobileActions map[string][]struct {
-			Text     string  `json:"text"`
-			Label    string  `json:"label"`
-			Top      bool    `json:"top"`
-			Width    float64 `json:"width"`
-			Disabled bool    `json:"disabled"`
-			Icon     bool    `json:"icon"`
-			Height   float64 `json:"height"`
-			Line     float64 `json:"line"`
-			NameLine float64 `json:"nameLine"`
-			Reach    bool    `json:"reach"`
-			Clear    bool    `json:"clear"`
-			Inside   bool    `json:"inside"`
-			Hit      bool    `json:"hit"`
+			Text     string `json:"text"`
+			Label    string `json:"label"`
+			Top      bool   `json:"top"`
+			Disabled bool   `json:"disabled"`
+			Icon     bool   `json:"icon"`
+			Hit      bool   `json:"hit"`
 		} `json:"mobileActions"`
 		Gates []struct {
 			Name, Kind, Title, Effect, OK string
@@ -33,7 +26,6 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 		} `json:"gates"`
 		Opened      []struct{ Name, ID string } `json:"opened"`
 		More        int                         `json:"more"`
-		Overflow    int                         `json:"overflow"`
 		Notes       map[string]string           `json:"notes"`
 		Tips        map[string]*string          `json:"tips"`
 		Unavailable []struct {
@@ -63,19 +55,19 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 			} else {
 				words = append(words, strings.TrimSuffix(b.Label, " session "+name))
 			}
-			// The control takes a finger, and the line of the name keeps its
-			// height: the target reaches past the line, not the line past
-			// the name.
-			if b.Text != "" || !b.Top || b.Disabled != (pin || pause) || !b.Icon || b.Line > b.NameLine+1 || !b.Reach || !b.Clear || !b.Inside || !b.Hit {
-				t.Errorf("%s: its control does not stand small, readable and reachable on its own: %+v", name, b)
+			// The control is an icon without words on the line of the name,
+			// off where the host does not know its action, and a press on it
+			// lands on it.
+			if b.Text != "" || !b.Top || b.Disabled != (pin || pause) || !b.Icon || !b.Hit {
+				t.Errorf("%s: its control is not an icon of its own on the line of the name that a press reaches: %+v", name, b)
 			}
 		}
 		if strings.Join(words, ",") != labels {
 			t.Errorf("%s offers %v, expected %q", name, words, labels)
 		}
 	}
-	if got.More != 0 || got.Overflow > 0 {
-		t.Errorf("the list has %d menus and overflows the phone by %dpx", got.More, got.Overflow)
+	if got.More != 0 {
+		t.Errorf("the list has %d menus", got.More)
 	}
 	if len(got.Opened) != len(want) {
 		t.Errorf("the cards opened %+v", got.Opened)

@@ -96,22 +96,6 @@ const cards = () => Array.from(root.querySelectorAll(".sent.pnm"));
 const cardOf = (kind) => root.querySelector(`.sent.pnm.k-${kind}`);
 const rowNamed = (card, word) => Array.from(card.querySelectorAll(".mflist > .mfile"))
     .find((b) => text(b.querySelector(".mfname")) === word);
-const box = (el) => {
-    const r = el.getBoundingClientRect();
-    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width };
-};
-
-// natural is how wide an element's text is when nothing makes it wrap: the
-// same words in the same face, laid out on one line beside it.
-const natural = (el) => {
-    const twin = el.cloneNode(true);
-    twin.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;width:max-content;max-width:none";
-    el.parentNode.appendChild(twin);
-    const width = twin.getBoundingClientRect().width;
-    twin.remove();
-    return width;
-};
-const measure = (el) => (el ? { text: text(el), width: el.getBoundingClientRect().width, natural: natural(el) } : null);
 
 const readCard = (card) => ({
     label: text(card.querySelector(".sentlabel")),
@@ -128,7 +112,6 @@ const readCard = (card) => ({
     withdrawn: card.classList.contains("withdrawn"),
     stamp: card.nextElementSibling && card.nextElementSibling.classList.contains("mstamp")
         ? text(card.nextElementSibling) : "",
-    side: getComputedStyle(card).alignSelf,
 });
 
 // raw opens the text the session got and reads it back as it stands.
@@ -161,7 +144,7 @@ window.done = (async () => {
         out.cards = cards().map((card) => ({ kind: card.className.replace(/.*\bk-(\w+).*/, "$1"), ...readCard(card) }));
         out.bubbleTexts = Array.from(root.querySelectorAll(".msg.me")).map((b) => b.innerText.replace(/\s+/g, " ").trim());
         out.briefMark = text(root.querySelector(".mbrief .brstate"));
-        out.secretName = measure(root.querySelector(".msecret .armeta > span:first-child"));
+        out.secretName = text(root.querySelector(".msecret .armeta > span:first-child"));
         out.secretSaved = text(root.querySelector(".msecret .sksaved"));
         out.lastReply = text(root.querySelector(".lastreq"));
 
@@ -188,8 +171,6 @@ window.done = (async () => {
                 note: text(row.querySelector(".pnmnote")),
                 faint: row.classList.contains("s-faint"),
             }));
-            const first = brief.querySelector(".askedrow.pnmq");
-            out.firstRow = { question: box(first.querySelector(".askedq")), answer: box(first.querySelector(".askeda")) };
             out.briefRows = readCard(brief).rows;
             out.briefRaw = await raw(brief);
         }

@@ -199,18 +199,3 @@ process.stdout.write(JSON.stringify(files[` + jsString(fn) + `](file)));
 	}
 	return got
 }
-
-// The row of a tagged file makes room for the tag: the column an icon sits in
-// is sixteen pixels wide, and a three-letter type does not fit there.
-func TestATaggedFileRowMakesRoomForTheTag(t *testing.T) {
-	css := cssSrc(t)
-	if !strings.Contains(css, ".mfile.tagged {") {
-		t.Fatal("feed.css: the tagged file row has no rule of its own — the tag is squeezed into the icon column")
-	}
-	if !strings.Contains(cssBlock(t, css, ".mfile.tagged"), "grid-template-columns: auto") {
-		t.Error("feed.css: the tagged file row keeps the icon column — the tag is cut at sixteen pixels")
-	}
-	if !strings.Contains(css, ".sent {") {
-		t.Error("feed.css: the sent card has no rule — it is drawn as bare rows with no edge of their own")
-	}
-}

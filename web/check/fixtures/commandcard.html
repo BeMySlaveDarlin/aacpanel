@@ -44,18 +44,14 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const card = document.querySelector(".chatfeed .cmdcard");
     const bar = card.querySelector(".cmdbar");
     const cells = Array.from(bar.children);
-    const full = bar.getBoundingClientRect().width;
     const before = {
         tag: card.tagName,
         title: text(".chatfeed .cmdcard .artitle")[0] || "",
         figure: text(".chatfeed .cmdcard .cmdfig")[0] || "",
-        height: Math.round(card.getBoundingClientRect().height),
         // The bar in the order it is drawn: a class per piece, the track as "track".
         bar: cells.map((c) => (c.tagName === "B" ? "track" : c.className)),
-        messages: Math.round((bar.querySelector(".t-messages").getBoundingClientRect().width / full) * 1000) / 1000,
-        coloured: cells.filter((c) => c.tagName === "I")
-            .map((c) => getComputedStyle(c))
-            .every((cs) => cs.backgroundColor !== "rgba(0, 0, 0, 0)" || cs.backgroundImage !== "none"),
+        // The share of the window each piece is drawn as, in percent.
+        shares: cells.filter((c) => c.tagName === "I").map((c) => parseFloat(c.style.width)),
         feedText: document.querySelector(".chatfeed").textContent.includes("|"),
     };
 

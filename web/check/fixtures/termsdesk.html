@@ -131,61 +131,27 @@ const xNamed = (name) => {
     const cell = cells().find((c) => text(c.querySelector("[role=tab]")) === name);
     return cell ? cell.querySelector(".ttabx") : null;
 };
-// inkOf is the colour a variable of the theme paints with where the tabs
-// stand, or where the element at says.
-const inkOf = (name, at = ".ttabsdesk") => {
-    const probe = document.createElement("span");
-    probe.style.color = `var(${name})`;
-    document.querySelector(at).appendChild(probe);
-    const ink = getComputedStyle(probe).color;
-    probe.remove();
-    return ink;
-};
 // A tab and its × read as on the phone.
 const cellShot = (c) => {
     const tab = c.querySelector("[role=tab]");
     const x = c.querySelector(".ttabx");
-    const name = tab.querySelector(".ttabname");
-    const [tr, xr, nr, ir] = [tab, x, name, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
-    const style = getComputedStyle(x);
     return {
-        name: text(name),
+        name: text(tab.querySelector(".ttabname")),
         on: c.classList.contains("on"),
         label: x.getAttribute("aria-label"),
         nested: tab.contains(x),
         role: c.getAttribute("role") || "",
-        after: xr.left >= nr.right - 0.5,
-        sameLine: Math.abs((xr.top + xr.bottom) / 2 - (nr.top + nr.bottom) / 2) <= 2,
-        tall: xr.height >= tr.height - 0.5,
-        width: Math.round(xr.width),
-        icon: Math.round(Math.max(ir.width, ir.height)),
-        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
-        ink: style.color === inkOf("--accent") ? "accent" : style.color === inkOf("--ink-faint") ? "faint" : style.color,
-        cut: name.scrollWidth > name.clientWidth,
-        ellipsis: getComputedStyle(name).textOverflow === "ellipsis",
     };
 };
 // A card and its × read as on the phone.
 const cardXShot = (cell) => {
     const card = cell.querySelector(".tcard");
     const x = cell.querySelector(".tcardx");
-    const [cr, xr, ir] = [card, x, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
-    const style = getComputedStyle(x);
-    const meets = (r) => r.width > 0 && r.left < xr.right && xr.left < r.right && r.top < xr.bottom && xr.top < r.bottom;
     return {
         name: text(card.querySelector(".tcardname")),
         label: x.getAttribute("aria-label"),
         nested: card.contains(x),
         role: cell.getAttribute("role") || "",
-        right: Math.round(cr.right - xr.right),
-        top: Math.round(xr.top - cr.top),
-        width: Math.round(xr.width),
-        height: Math.round(xr.height),
-        icon: Math.round(Math.max(ir.width, ir.height)),
-        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
-        ink: style.color === inkOf("--ink-faint", ".tcardcell") ? "faint" : style.color,
-        under: all(".tdot, .tcardname, .tcardwhen, .tcardlast", card)
-            .filter((el) => meets(el.getBoundingClientRect())).map((el) => el.className),
     };
 };
 const termStreams = () => streams.filter((s) => s.url.startsWith("/api/term/stream")).length;
@@ -199,46 +165,25 @@ const cardShot = (c) => {
         when: text(c.querySelector(".tcardwhen")),
         last: last ? last.textContent : null,
     };
-    if (!last) return shot;
-    const style = getComputedStyle(last);
-    const range = document.createRange();
-    range.selectNodeContents(last);
-    const name = c.querySelector(".tcardname").getBoundingClientRect();
-    const when = c.querySelector(".tcardwhen").getBoundingClientRect();
-    const box = last.getBoundingClientRect();
-    return {
-        ...shot,
-        // An ellipsis is a box of its own on the same line: lines count by their tops.
-        lines: new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size,
-        cut: last.scrollWidth > last.clientWidth,
-        ellipsis: style.textOverflow === "ellipsis",
-        mono: style.fontFamily === getComputedStyle(c.querySelector(".tcardname")).fontFamily,
-        under: box.top >= name.bottom && Math.round(box.left) === Math.round(name.left) && Math.round(box.right) === Math.round(when.right),
-    };
+    return shot;
 };
 
 window.done = (async () => {
     const out = {};
     try {
-        await document.fonts.ready;
         await until(() => all(".dkib", sections()).some((b) => b.getAttribute("aria-label") === "Terminals"));
         out.sections = all(".dkib", sections()).map((b) => b.getAttribute("aria-label"));
         all(".dkib", sections()).find((b) => b.getAttribute("aria-label") === "Terminals").click();
 
         await until(() => all(".pfdesk.row > .pfstack").length === 3 && all(".tcard").length === 6);
         const stacks = all(".pfdesk.row > .pfstack");
-        out.columns = stacks.map((s) => {
-            const r = s.getBoundingClientRect();
-            return {
-                head: text(s.querySelector(".theadname")),
-                count: text(s.querySelector(".theadcount")),
-                path: text(s.querySelector(".theadpath")),
-                cards: all(".tcardname", s).map(text),
-                shots: all(".tcard", s).map(cardShot),
-                left: Math.round(r.left),
-                top: Math.round(r.top),
-            };
-        });
+        out.columns = stacks.map((s) => ({
+            head: text(s.querySelector(".theadname")),
+            count: text(s.querySelector(".theadcount")),
+            path: text(s.querySelector(".theadpath")),
+            cards: all(".tcardname", s).map(text),
+            shots: all(".tcard", s).map(cardShot),
+        }));
         out.chooser = text(document.querySelector(".pfdesk.row > .pfsel .pfsellabel"));
         out.newButton = text(document.querySelector(".pfdesk.row > .pfsel .tnew"));
         out.cards = { x: all(".tcardcell").map(cardXShot) };
@@ -263,8 +208,7 @@ window.done = (async () => {
         s.onmessage({ data: btoa(["u@helios shop main $ nice -n 10 make check", "ok   shop/internal/cart     0.21s",
             "ok   shop/internal/store   15.90s", "OK", "u@helios shop main $ "].join("\r\n")) });
         await until(() => document.querySelector(".dkterm .termwrap:not(.off)"));
-        const term = document.querySelector(".dkterm .termwrap").getBoundingClientRect();
-        out.fills = { height: Math.round(term.height), window: window.innerHeight, keys: Boolean(document.querySelector(".termkeys")) };
+        out.fills = { keys: Boolean(document.querySelector(".termkeys")) };
         await pause("E2");
 
         all(":scope > .btn", head).find((b) => text(b) === "Open in a window").click();

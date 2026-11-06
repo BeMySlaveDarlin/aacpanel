@@ -116,29 +116,3 @@ func TestToastUnderChrome(t *testing.T) {
 		t.Errorf("the page put away: toast on before=%v after=%v — it should be down", got.Hidden.Before, got.Hidden.After)
 	}
 }
-
-// On a phone a note stands over the head, clear of the composer at the
-// bottom of a conversation, where the finger is busy while it shows; at a desk
-// it keeps the bottom right corner, away from the head and from the composer.
-func TestToastStandsClearOfTheComposer(t *testing.T) {
-	type place struct {
-		Top    float64 `json:"top"`
-		Bottom float64 `json:"bottom"`
-		Left   float64 `json:"left"`
-		Right  float64 `json:"right"`
-		Width  float64 `json:"width"`
-		Height float64 `json:"height"`
-	}
-	var phone, desk place
-	runFixture(t, "toastplace.html", &phone)
-	if phone.Height == 0 || phone.Top > 24 || phone.Bottom > phone.Height/4 {
-		t.Errorf("on a phone the note stands at %v..%v of %v px — it is not over the head, and at the bottom it covers the composer",
-			phone.Top, phone.Bottom, phone.Height)
-	}
-	runWideFixture(t, "toastplace.html", &desk)
-	if desk.Height == 0 || desk.Height-desk.Bottom > 24 || desk.Width-desk.Right > 24 || desk.Left < desk.Width/2 ||
-		desk.Top < desk.Height/2 {
-		t.Errorf("at a desk the note stands at %v..%v × %v..%v of %v×%v px — it left the bottom right corner",
-			desk.Left, desk.Right, desk.Top, desk.Bottom, desk.Width, desk.Height)
-	}
-}

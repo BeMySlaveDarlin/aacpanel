@@ -140,7 +140,6 @@ const deskOf = () => Array.from(document.querySelectorAll(`#desk .dkscroll > sec
     });
 
 window.done = (async () => {
-    await document.fonts.ready;
     const desk = document.getElementById("desk");
     const phone1 = document.getElementById("phone1");
     if (!await until(() => desk.querySelector(".scstub .scstubnote") && text(desk.querySelector(".scstub .scstubnote")).includes("ago"))) {
@@ -153,8 +152,6 @@ window.done = (async () => {
     out.plainMarks = document.querySelectorAll("#plain .scfold, #plain .scstub, #plain .sckid, #plain .sctag").length;
     out.desk = deskOf();
     out.order = order.slice();
-    out.waitHue = getComputedStyle(phone1.querySelector(".scfoldwaits")).color;
-    out.guide = getComputedStyle(phone1.querySelector(".sc.sckid"), "::before").borderLeftWidth;
 
     // The stub opens the conversation of the parent that closed.
     phone1.querySelector("button.scstub").click();

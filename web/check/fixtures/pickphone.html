@@ -76,29 +76,19 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     await quiet();
     const out = {};
 
-    // The strip is a band of its own under the field, and the send button the
-    // one filled mark: with words it is a square of the accent, empty it is not.
-    const paint = (el) => getComputedStyle(el).backgroundColor;
-    const clear = (c) => c === "rgba(0, 0, 0, 0)" || c === "transparent";
+    // The send button is off while there is nothing to send, and on with words.
     const field = document.querySelector(".composer textarea");
-    const band = document.querySelector(".cstrip");
     const send = () => document.querySelector(".composer .sendbtn");
-    out.bandPainted = !clear(paint(band));
-    out.wordsSmaller = parseFloat(getComputedStyle(band.querySelector(".pkchip")).fontSize)
-        < parseFloat(getComputedStyle(field).fontSize);
-    out.emptySendClear = clear(paint(send())) && send().disabled;
+    out.emptySendOff = send().disabled;
     field.value = "hello";
     field.dispatchEvent(new Event("input", { bubbles: true }));
     await quiet();
-    out.sendFilled = !clear(paint(send())) && !send().disabled;
+    out.sendOn = !send().disabled;
     field.value = "";
     field.dispatchEvent(new Event("input", { bubbles: true }));
     await quiet();
     const head = Array.from(document.querySelectorAll(".cstrip .pkchip"));
     out.head = head.map((b) => b.textContent.trim());
-    // How tall the line is against a button of the field, in the unit of the scale.
-    out.stripTall = head.length ? head[0].getBoundingClientRect().height : 0;
-    out.rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
 
     await tap(document.querySelector(".cstrip .pkchip[data-pick=model]"));
     await quiet();

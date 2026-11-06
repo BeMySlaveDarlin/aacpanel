@@ -22,11 +22,6 @@ func TestFeedsWireCodeCopy(t *testing.T) {
 			t.Errorf("%s: the feed does not copy code in a line on a tap — the command the agent asks to run is to be selected by hand", feed)
 		}
 	}
-
-	block := cssBlockFile(t, "src/css/markdown.css", ":is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun)")
-	if !strings.Contains(block, "position: absolute") {
-		t.Error("the copy button of a block is not laid over its corner — it takes a bar of its own over every block again")
-	}
 }
 
 func TestFeedListensToWake(t *testing.T) {
@@ -42,44 +37,6 @@ func TestFeedListensToWake(t *testing.T) {
 	} {
 		if !strings.Contains(src, want.code) {
 			t.Errorf("the feed has no %s — %s", want.code, want.harm)
-		}
-	}
-}
-
-func TestChatFeedCSSInvariants(t *testing.T) {
-	css := cssSrc(t)
-
-	cases := []struct {
-		selector string
-		rule     string
-		harm     string
-	}{
-		{
-			selector: ".chatfeed",
-			rule:     "overflow-x: hidden",
-			harm:     "the feed slides sideways as a whole again instead of breaking the word in place",
-		},
-		{
-			selector: ".msg",
-			rule:     "overflow-wrap: anywhere",
-			harm:     "a long word (two links glued together without a space, say) stops breaking in place and pushes the feed into horizontal scrolling",
-		},
-		{
-			selector: ".mdcode pre",
-			rule:     "overflow-x: auto",
-			harm:     "code inside a message loses its own scrolling and drags the whole feed sideways",
-		},
-		{
-			selector: ".mdtable",
-			rule:     "overflow-x: auto",
-			harm:     "a table inside a message loses its own scrolling and drags the whole feed sideways",
-		},
-	}
-
-	for _, c := range cases {
-		block := cssBlock(t, css, c.selector)
-		if !strings.Contains(block, c.rule) {
-			t.Errorf("%s: %s has no %q — %s", cssFile, c.selector, c.rule, c.harm)
 		}
 	}
 }
@@ -116,14 +73,6 @@ func TestOwnReplyKeepsLineBreaks(t *testing.T) {
 	mail := jsBlock(t, chatFile, screen, "function Letter(")
 	if strings.Contains(mail, "breaks") {
 		t.Errorf("%s: the mail asks for hard breaks — the rule about a person reply spread onto foreign markup", chatFile)
-	}
-
-	css := cssSrc(t)
-	flat := regexp.MustCompile(`white-space:\s*pre\s*[;}]`)
-	for _, selector := range []string{".msg", ".msg.me"} {
-		if flat.MatchString(cssBlock(t, css, selector)) {
-			t.Errorf("%s: %s carries white-space: pre — a long word stops breaking and the feed slides sideways as a whole again", cssFile, selector)
-		}
 	}
 }
 

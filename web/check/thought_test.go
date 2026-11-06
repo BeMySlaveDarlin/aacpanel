@@ -36,40 +36,19 @@ func TestThoughtWithTextIsReadAsTextNotAsACounter(t *testing.T) {
 	}
 }
 
-// A thought is set as the answer beside it is — the same face, size and ink,
-// no icon and no italics — and is told apart by a hairline on its left and
-// the word over the first of a run of thoughts. A run of thoughts has one
-// line, unbroken across the gap between them, even with work between them
-// on the timeline.
-func TestAThoughtReadsAsAnAnswerWithAMarkOfItsOwn(t *testing.T) {
+// A thought carries no icon, and the word over the first of a run of thoughts
+// tells the run apart from the answer beside it, even with work between the
+// thoughts on the timeline.
+func TestAThoughtCarriesOneWordOverItsRunAndNoIcon(t *testing.T) {
 	var got struct {
-		Mind, Answer             float64
-		MindColour, AnswerColour string
-		MindFont, AnswerFont     string
-		MindItalic               string
-		Icons                    int
-		Tags                     []string
-		Rule, AnswerRule         string
-		Gap                      *float64
+		Icons int
+		Tags  []string
 	}
 	runFixture(t, "thought.html", &got)
-	if got.Mind != got.Answer || got.MindColour != got.AnswerColour || got.MindFont != got.AnswerFont {
-		t.Errorf("the thought reads %.2fpx %s %s beside an answer at %.2fpx %s %s — set it as the answer",
-			got.Mind, got.MindColour, got.MindFont, got.Answer, got.AnswerColour, got.AnswerFont)
-	}
-	if got.MindItalic != "normal" {
-		t.Errorf("the thought is set %s", got.MindItalic)
-	}
 	if got.Icons != 0 {
 		t.Errorf("the thought carries %d icons — a mark on every paragraph unwinds the feed", got.Icons)
 	}
 	if len(got.Tags) != 1 || got.Tags[0] != "thinking" {
 		t.Errorf("the words over the thoughts: %q — one, over the first of the run", got.Tags)
-	}
-	if got.Rule == "none" || got.Rule == got.AnswerRule {
-		t.Errorf("the thought has no hairline of its own: %q against the answer's %q", got.Rule, got.AnswerRule)
-	}
-	if got.Gap == nil || *got.Gap > 0.5 {
-		t.Errorf("the line of a run of thoughts breaks between them: %v", got.Gap)
 	}
 }

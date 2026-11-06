@@ -63,7 +63,6 @@ window.done = (async () => {
         name: text(head.querySelector(".dkcontourname")),
         rings: Array.from(head.querySelectorAll(".dkring")).map((r) => ({
             tip: r.dataset.tip || "", value: text(r.querySelector(".dkringdial b")), agent: r.dataset.agent || "",
-            hue: getComputedStyle(r.querySelector(".dkringdial")).getPropertyValue("--ring").trim(),
         })),
     }));
     desk.querySelector(".dklimhead .dkrings").click();

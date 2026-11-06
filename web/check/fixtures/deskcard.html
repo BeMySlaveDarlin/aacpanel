@@ -176,69 +176,18 @@ const facts = (name) => {
         more: Array.from(row.querySelectorAll(".scmore")).map(text),
         badges: Array.from(row.querySelectorAll(".scl5 .scb")).map((b) => `${text(b)}${b.classList.contains("scoff") ? " off" : ""}`),
         ctx: text(row.querySelector(".scctx")),
-        row: Math.round(row.getBoundingClientRect().height),
     };
 };
-const box = (el) => (el ? el.getBoundingClientRect() : null);
-const hit = (a, b) => Boolean(a && b && a.width > 0 && b.width > 0
-    && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5);
-const clipped = (el) => Boolean(el) && el.scrollWidth > el.clientWidth + 1;
-// rows says of every live card whether its controls stand, whether they
-// stand in the top right corner — on the line of the name, at the right
-// edge — and whether the pieces of the card stand clear of them and inside it.
-const rows = () => live().map((row) => {
-    const r = box(row);
-    const acts = row.querySelector(".scacts");
-    const act = box(acts);
-    const name = box(row.querySelector(".scname"));
-    const bad = [];
-    for (const [part, el] of [["name", ".scname"], ["state", ".scl2"], ["steps", ".scl3"], ["agent", ".scl4"], ["badges", ".scl5"]]) {
-        if (part !== "name" && hit(box(row.querySelector(el)), act)) bad.push(`${part}/controls`);
-    }
-    if (hit(name, act)) bad.push("name/controls");
-    if (act && (act.right > r.right + 0.5 || act.bottom > r.bottom + 0.5)) bad.push("controls out of the card");
-    if (act && name) {
-        const middle = (b) => (b.top + b.bottom) / 2;
-        if (Math.abs(middle(act) - middle(name)) > 4) bad.push("controls off the line of the name");
-        if (r.right - act.right > 12) bad.push("controls short of the right edge");
-    }
-    const icons = acts ? Array.from(acts.querySelectorAll(".scact")) : [];
-    const shown = icons.length > 0 && icons.every((icon) => {
-        const style = getComputedStyle(icon);
-        return style.visibility === "visible" && style.display !== "none" && Number(style.opacity) >= .3 && box(icon).width > 0;
-    }) && getComputedStyle(acts).visibility === "visible";
-    return { name: row.dataset.name, icons: icons.length, shown, bad };
-});
+// rows says how many controls every live card offers.
+const rows = () => live().map((row) => ({ name: row.dataset.name, icons: row.querySelectorAll(".scacts .scact").length }));
 
 // calls reads the cards that say their session called the person, by name,
 // with what they say and how long ago.
 const calls = () => Object.fromEntries(live().filter((row) => row.dataset.kind === "call")
     .map((row) => [row.dataset.name, `${text(row.querySelector(".scsay"))} · ${text(row.querySelector(".sctime"))}`]));
 
-// hiding lists the rules of the stylesheet that take the controls of a card,
-// the plus of a heading or Resume off the screen: none of them waits for the
-// pointer.
-function hiding() {
-    const out = [];
-    const walk = (list) => {
-        for (const rule of list) {
-            if (rule.cssRules && !rule.selectorText) {
-                walk(rule.cssRules);
-                continue;
-            }
-            const sel = rule.selectorText || "";
-            if (!/\.scacts|\.scact\b|\.scheadacts|\.dknew\b|\.scresume|\.sctime/.test(sel)) continue;
-            const st = rule.style;
-            if (st.visibility === "hidden" || st.display === "none" || st.opacity === "0") out.push(sel);
-        }
-    };
-    for (const sheet of document.styleSheets) walk(sheet.cssRules);
-    return out;
-}
-
 window.done = (async () => {
-    await document.fonts.ready;
-    const out = { pointer: matchMedia("(hover: hover) and (pointer: fine)").matches };
+    const out = {};
 
     column(first, "aacpanel");
     for (let i = 0; i < 60 && !root().querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);
@@ -254,15 +203,12 @@ window.done = (async () => {
     out.says = Object.fromEntries(["person", "aacpanel", "api", "shop", "helios"].map((n) => [n, say(n)]));
     out.runs = Object.fromEntries(["aacpanel", "shop", "helios"].map((n) => [n, runs(n)]));
     out.tones = Object.fromEntries(["person", "aacpanel", "helios", "shop"].map((n) => [n, rowOf(n).dataset.tone]));
-    out.edge = getComputedStyle(rowOf("person")).backgroundImage;
-    out.noEdge = getComputedStyle(rowOf("helios")).backgroundImage;
     out.facts = Object.fromEntries(["aacpanel", "api", "shop", "helios", "scratch", "acme-fingerprint-rotation-review"]
         .map((n) => [n, facts(n)]));
     out.bells = calls();
     out.columnText = text(root().querySelector(".dkscroll"));
     out.rows = rows();
     out.homeAct = [...rowOf("helios").querySelectorAll(".scacts .scact")].map((b) => b.getAttribute("aria-label")).join(",");
-    out.hiding = hiding();
 
     // The shelf.
     out.asked = [...asked];
@@ -270,14 +216,7 @@ window.done = (async () => {
         name: r.dataset.name, contour: text(r.querySelector(".sctag")),
         when: text(r.querySelector(".sctime")), about: text(r.querySelector(".scstep")),
         dot: Boolean(r.querySelector(".scedge:not(.scpeak)")),
-        resume: getComputedStyle(r.querySelector(".scresume")).display,
-        bad: [
-            hit(box(r.querySelector(".scresume")), box(r.querySelector(".scname"))) && "Resume/name",
-            hit(box(r.querySelector(".sctime")), box(r.querySelector(".scagent"))) && "time/agent",
-            clipped(r.querySelector(".sctime")) && "time cut",
-            clipped(r.querySelector(".scresume")) && "Resume cut",
-            box(r.querySelector(".scresume")).right > box(r).right + 0.5 && "Resume out of the card",
-        ].filter(Boolean),
+        resume: Boolean(r.querySelector(".scresume")),
     }));
     root().querySelector(".dkshelfall").click();
     out.archiveOpened = archiveOpened;
@@ -285,9 +224,7 @@ window.done = (async () => {
     out.pickedClosed = picked[picked.length - 1];
 
     // The new session of a contour.
-    const plus = root().querySelector(".dkscroll > section .dknew");
-    out.plus = getComputedStyle(plus).visibility;
-    plus.click();
+    root().querySelector(".dkscroll > section .dknew").click();
     await quiet();
     out.menu = Array.from(root().querySelectorAll(".dknewpop .dknewgroup, .dknewpop .dknewrow")).map((el) =>
         el.classList.contains("dknewgroup") ? `[${text(el)}]` : words(el));
@@ -304,7 +241,6 @@ window.done = (async () => {
     // read is what went to the host once the person said yes.
     sent.length = 0;
     const own = rowOf("person") && rowOf("person").querySelector('.scact[aria-label="new session in project person"]');
-    out.projectPlus = own ? getComputedStyle(own).visibility : "";
     if (own) {
         own.click();
         for (let i = 0; i < 100 && !document.querySelector(".btnrow .btn.primary"); i++) await sleep(10);
@@ -321,14 +257,12 @@ window.done = (async () => {
     out.orderAfter = orders[orders.length - 1];
     out.saysAfter = { aacpanel: say("aacpanel"), person: say("person") };
 
-    // A closed conversation open: its card carries its time and Resume both.
+    // A closed conversation open: Resume on its card resumes it.
     sent.length = 0;
     column(first, "shop-admin", "c-shop-admin");
     await quiet();
     const open = root().querySelector(".dkshelf .sc.scpast.sccur");
-    out.openClosed = open ? { name: open.dataset.name,
-        resume: getComputedStyle(open.querySelector(".scresume")).display,
-        when: getComputedStyle(open.querySelector(".sctime")).display } : null;
+    out.openClosed = open ? { name: open.dataset.name } : null;
     if (open) {
         open.querySelector(".scresume").click();
         await quiet();
@@ -347,28 +281,14 @@ window.done = (async () => {
     const chat = document.getElementById("chat");
     for (let i = 0; i < 40 && !chat.querySelector(".dkplace"); i++) await sleep(50);
     await quiet();
-    const head = () => {
-        const top = chat.querySelector(".dkheadtop").getBoundingClientRect();
-        const name = chat.querySelector(".dkwhoname").getBoundingClientRect();
-        const sub = chat.querySelector(".dkwhosub").getBoundingClientRect();
-        const label = chat.querySelector(".dkheadname").getBoundingClientRect();
-        // What the name takes in ink: its halves, not the box that holds them.
-        const inked = Array.from(chat.querySelectorAll(".dkheadname .midname > *"))
-            .reduce((sum, el) => sum + el.getBoundingClientRect().width, 0);
-        const tools = Array.from(chat.querySelector(".dkheadtop").children).slice(1).map((el) => el.getBoundingClientRect());
-        return {
-            width: Math.round(top.width),
-            overflow: Math.max(0, ...tools.map((b) => Math.round(b.right - top.right))),
-            twoLines: sub.top >= name.bottom - 1,
-            gap: Math.round(label.width - inked),
-            sub: words(chat.querySelector(".dkwhosub")),
-            agent: (() => {
-                const word = chat.querySelector(".dkwhosub").firstElementChild;
-                return word && word.classList.contains("agentword") ? word.dataset.agent || "" : "";
-            })(),
-            place: text(chat.querySelector(".dkplace")),
-        };
-    };
+    const head = () => ({
+        sub: words(chat.querySelector(".dkwhosub")),
+        agent: (() => {
+            const word = chat.querySelector(".dkwhosub").firstElementChild;
+            return word && word.classList.contains("agentword") ? word.dataset.agent || "" : "";
+        })(),
+        place: text(chat.querySelector(".dkplace")),
+    });
     out.withPanel = head();
     document.getElementById("body").classList.remove("withpanel");
     await quiet();

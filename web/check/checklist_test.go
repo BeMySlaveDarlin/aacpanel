@@ -64,34 +64,26 @@ func TestTheChecklistSaysWhereTheSessionIs(t *testing.T) {
 }
 
 type checklistLineSeen struct {
-	Bar        bool     `json:"bar"`
-	Line       bool     `json:"line"`
-	First      bool     `json:"first"`
-	Kids       []string `json:"kids"`
-	Word       string   `json:"word"`
-	Icon       bool     `json:"icon"`
-	Num        string   `json:"num"`
-	Label      string   `json:"label"`
-	Gap        float64  `json:"gap"`
-	Pad        float64  `json:"pad"`
-	Step       string   `json:"step"`
-	StepWidth  int      `json:"stepWidth"`
-	Ticks      []string `json:"ticks"`
-	TicksRight int      `json:"ticksRight"`
-	LineAbove  bool     `json:"lineAbove"`
-	Inside     bool     `json:"inside"`
-	OneLine    bool     `json:"oneLine"`
-	Now        bool     `json:"now"`
+	Bar   bool     `json:"bar"`
+	Line  bool     `json:"line"`
+	First bool     `json:"first"`
+	Kids  []string `json:"kids"`
+	Word  string   `json:"word"`
+	Icon  bool     `json:"icon"`
+	Num   string   `json:"num"`
+	Label string   `json:"label"`
+	Step  string   `json:"step"`
+	Ticks []string `json:"ticks"`
+	Now   bool     `json:"now"`
 }
 
 // On a phone the checklist heads the card over the composer: a check mark and
 // where the session is as a count, the step it is on and a tick for every
-// step, right above what the session is doing this moment — no more room
-// between the two lines than the bar under it holds as its padding. Its label
-// says the checklist in words. A quiet session keeps the line alone over the
-// composer, a checklist all behind says it is done, forty steps still leave
-// room for the step, and a session with no checklist draws nothing of it. A
-// tap on the line opens the checklist.
+// step, before what the session is doing this moment. Its label says the
+// checklist in words. A quiet session keeps the line alone over the composer,
+// a checklist all behind says it is done, forty steps still say the step, and
+// a session with no checklist draws nothing of it. A tap on the line opens the
+// checklist.
 func TestTheChecklistHeadsTheCardOverTheComposer(t *testing.T) {
 	var got struct {
 		Busy     checklistLineSeen `json:"busy"`
@@ -101,7 +93,6 @@ func TestTheChecklistHeadsTheCardOverTheComposer(t *testing.T) {
 		None     checklistLineSeen `json:"none"`
 		BusyNone checklistLineSeen `json:"busynone"`
 		Opened   string            `json:"opened"`
-		Overflow int               `json:"overflow"`
 		Error    string            `json:"error"`
 	}
 	runFixture(t, "checklistline.html", &got)
@@ -109,18 +100,15 @@ func TestTheChecklistHeadsTheCardOverTheComposer(t *testing.T) {
 		t.Fatalf("the fixture broke: %s", got.Error)
 	}
 	b := got.Busy
-	if !b.Line || !b.First || !b.LineAbove || !b.Inside || !b.Now {
-		t.Errorf("the checklist does not head the card of a session at work, inside it and over what it does: %+v", b)
+	if !b.Line || !b.First || !b.Now {
+		t.Errorf("the checklist does not head the card of a session at work: %+v", b)
 	}
-	if !b.Icon || b.Word != "" || b.Num != "4/7" || !strings.HasPrefix(b.Step, "the watcher waits") || !b.OneLine {
-		t.Errorf("the line heads with mark %v, %q, %q and says %q (one line %v), expected the mark, 4/7 and the step at work",
-			b.Icon, b.Word, b.Num, b.Step, b.OneLine)
+	if !b.Icon || b.Word != "" || b.Num != "4/7" || !strings.HasPrefix(b.Step, "the watcher waits") {
+		t.Errorf("the line heads with mark %v, %q, %q and says %q, expected the mark, 4/7 and the step at work",
+			b.Icon, b.Word, b.Num, b.Step)
 	}
 	if !strings.HasPrefix(b.Label, "checklist: step 4 of 7, the watcher waits") || !strings.HasSuffix(b.Label, "open the checklist") {
 		t.Errorf("the line is labelled %q, expected the checklist in words", b.Label)
-	}
-	if b.Pad <= 0 || b.Gap < 0 || b.Gap > b.Pad+0.5 {
-		t.Errorf("the now line stands %.1fpx under the checklist line, the bar's padding is %.1fpx", b.Gap, b.Pad)
 	}
 	wantTicks := []string{"t-done", "t-done", "t-done", "t-active now", "t-pending", "t-pending", "t-pending"}
 	if !reflect.DeepEqual(b.Ticks, wantTicks) {
@@ -131,16 +119,16 @@ func TestTheChecklistHeadsTheCardOverTheComposer(t *testing.T) {
 		t.Errorf("a quiet session with a checklist does not keep the line alone over the composer: %+v", i)
 	}
 	o := got.Over
-	if !o.Icon || o.Word != "" || o.Num != "7/7" || o.Step != "" || o.TicksRight > 40 || !strings.HasPrefix(o.Label, "checklist done, 7 of 7") {
-		t.Errorf("a checklist all behind heads with mark %v, %q, %q, says %q, labelled %q, its ticks %dpx from the end — expected the mark, 7/7 and checklist done in words",
-			o.Icon, o.Word, o.Num, o.Step, o.Label, o.TicksRight)
+	if !o.Icon || o.Word != "" || o.Num != "7/7" || o.Step != "" || !strings.HasPrefix(o.Label, "checklist done, 7 of 7") {
+		t.Errorf("a checklist all behind heads with mark %v, %q, %q, says %q, labelled %q — expected the mark, 7/7 and checklist done in words",
+			o.Icon, o.Word, o.Num, o.Step, o.Label)
 	}
 	if n := len(o.Ticks); n != 7 || o.Ticks[6] != "t-dropped" {
 		t.Errorf("the ticks of the checklist done are %v, the dropped step not marked", o.Ticks)
 	}
 	l := got.Long
-	if len(l.Ticks) != 40 || l.Num != "21/40" || l.StepWidth < 80 || !l.OneLine {
-		t.Errorf("forty steps: %d ticks, %q, the step %dpx wide (one line %v)", len(l.Ticks), l.Num, l.StepWidth, l.OneLine)
+	if len(l.Ticks) != 40 || l.Num != "21/40" || l.Step == "" {
+		t.Errorf("forty steps: %d ticks, %q, the step %q", len(l.Ticks), l.Num, l.Step)
 	}
 	if got.None.Bar || got.None.Line {
 		t.Errorf("a quiet session with no checklist draws a bar: %+v", got.None)
@@ -151,15 +139,12 @@ func TestTheChecklistHeadsTheCardOverTheComposer(t *testing.T) {
 	if got.Opened != "idle,busy" {
 		t.Errorf("taps on the line opened %q", got.Opened)
 	}
-	if got.Overflow > 0 {
-		t.Errorf("the checklist pushes the phone %dpx sideways", got.Overflow)
-	}
 }
 
 // The line opens the whole checklist in a sheet: its note on top, every step
 // with its mark — a done one ticked with the time it was done, the one at
-// work lit with since when, the rest hollow and a dropped one struck out — in
-// the order the model keeps them.
+// work lit with since when, the rest hollow and a dropped one struck out as
+// struck text — in the order the model keeps them.
 func TestTheLineOpensTheWholeChecklist(t *testing.T) {
 	var got struct {
 		LineFirst bool   `json:"lineFirst"`
@@ -170,16 +155,14 @@ func TestTheLineOpensTheWholeChecklist(t *testing.T) {
 		Note      string `json:"note"`
 		NoteOnTop bool   `json:"noteOnTop"`
 		Steps     []struct {
-			Cls    string `json:"cls"`
-			Text   string `json:"text"`
-			At     string `json:"at"`
-			Tick   bool   `json:"tick"`
-			Struck string `json:"struck"`
-			Tag    string `json:"tag"`
+			Cls  string `json:"cls"`
+			Text string `json:"text"`
+			At   string `json:"at"`
+			Tick bool   `json:"tick"`
+			Tag  string `json:"tag"`
 		} `json:"steps"`
-		Times    map[string]string `json:"times"`
-		Overflow int               `json:"overflow"`
-		Error    string            `json:"error"`
+		Times map[string]string `json:"times"`
+		Error string            `json:"error"`
 	}
 	runFixture(t, "checklistsheet.html", &got)
 	if got.Error != "" {
@@ -215,20 +198,13 @@ func TestTheLineOpensTheWholeChecklist(t *testing.T) {
 		if tick := strings.Contains(w.cls, "done") || strings.Contains(w.cls, "dropped"); s.Tick != tick {
 			t.Errorf("step %d (%s) carries a mark %v", n, w.cls, s.Tick)
 		}
-		if struck := s.Struck == "line-through"; struck != (w.tag == "s") {
-			t.Errorf("step %d (%s) is struck out: %q", n, w.cls, s.Struck)
-		}
-	}
-	if got.Overflow > 0 {
-		t.Errorf("the sheet pushes the phone %dpx sideways", got.Overflow)
 	}
 }
 
 // At a desk the checklist is a block at the top of the timeline column, not a
-// line over the composer, and it stays at the top of the feed while the feed
-// scrolls under it, over the entries it covers. Folded, it is one line with
-// the step; the fold is kept by the browser, so the conversation drawn again
-// comes up folded, and unfolding is kept the same way.
+// line over the composer. Folded, it is its head with the step; the fold is
+// kept by the browser, so the conversation drawn again comes up folded, and
+// unfolding is kept the same way.
 func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 	var got struct {
 		First      bool   `json:"first"`
@@ -237,19 +213,11 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 		Head       string `json:"head"`
 		Steps      int    `json:"steps"`
 		Note       string `json:"note"`
-		Scrolls    int    `json:"scrolls"`
-		AtTop      int    `json:"atTop"`
-		Over       int    `json:"over"`
-		LineGone   int    `json:"lineGone"`
-		Held       int    `json:"held"`
-		CoveredHit string `json:"coveredHit"`
 		Folded     struct {
 			Head     string `json:"head"`
 			Step     string `json:"step"`
 			Steps    int    `json:"steps"`
 			Expanded string `json:"expanded"`
-			Shorter  bool   `json:"shorter"`
-			OneLine  bool   `json:"oneLine"`
 			Kept     string `json:"kept"`
 		} `json:"folded"`
 		Again struct {
@@ -260,8 +228,7 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 			Steps int    `json:"steps"`
 			Kept  string `json:"kept"`
 		} `json:"unfolded"`
-		Overflow int    `json:"overflow"`
-		Error    string `json:"error"`
+		Error string `json:"error"`
 	}
 	runWideFixture(t, "checklistdesk.html", &got)
 	if got.Error != "" {
@@ -273,20 +240,8 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 	if got.InComposer || !got.NowBar {
 		t.Errorf("at a desk the checklist stands over the composer too (%v), or the card of what is going on is gone (%v)", got.InComposer, !got.NowBar)
 	}
-	if got.Scrolls < 1000 {
-		t.Fatalf("the feed scrolls %dpx: too little to see the checklist held", got.Scrolls)
-	}
-	if got.AtTop < -1 || got.AtTop > 2 || got.Over > 0 {
-		t.Errorf("at the top of the feed the checklist stands %dpx under the top of the column, %dpx off its line", got.AtTop, got.Over)
-	}
-	if got.LineGone < 500 || got.Held < -1 || got.Held > 2 {
-		t.Errorf("scrolled down, the column is %dpx above the feed and the checklist %dpx under its top: it is not held", got.LineGone, got.Held)
-	}
-	if got.CoveredHit != "" && got.CoveredHit != "checklist" {
-		t.Errorf("an entry under the checklist shows through it: a point there is %q", got.CoveredHit)
-	}
 	f := got.Folded
-	if f.Steps != 0 || f.Expanded != "false" || !f.Shorter || !f.OneLine || f.Kept != "folded" ||
+	if f.Steps != 0 || f.Expanded != "false" || f.Kept != "folded" ||
 		!strings.HasPrefix(f.Head, "Checklist4 of 7") || f.Step != "mutate the lines of the feature" {
 		t.Errorf("folded, the checklist is %+v", f)
 	}
@@ -296,65 +251,50 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 	if got.Unfolded.Steps != 7 || got.Unfolded.Kept != "open" {
 		t.Errorf("unfolded, the checklist is %+v", got.Unfolded)
 	}
-	if got.Overflow > 0 {
-		t.Errorf("the desk scrolls %dpx sideways", got.Overflow)
-	}
 }
 
-// A card of the sessions list says where a session is in its checklist on a
-// line of its own under the state: the step in hand, wrapped rather than cut,
-// and n/N; under it a segment a step, done in grey and the step at work in the
-// colour of the state. A list with every step behind it is done and its bar
+// A card of the sessions list says where a session is in its checklist: the
+// step in hand, whole in its tip, and n/N, with a segment a step, done and at
+// work told apart. A list with every step behind it is done and its bar
 // whole, and a session with no checklist says so over an empty bar. A thread
 // of codex says it the same way.
 func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 	type card struct {
-		State      string `json:"state"`
-		StateCut   bool   `json:"stateCut"`
-		StateLines int    `json:"stateLines"`
-		Step       string `json:"step"`
-		StepCut    bool   `json:"stepCut"`
-		StepTip    string `json:"stepTip"`
-		N          string `json:"n"`
-		Below      bool   `json:"below"`
-		Segs       string `json:"segs"`
-		Over       bool   `json:"over"`
-		Empty      bool   `json:"empty"`
-		StepWidth  int    `json:"stepWidth"`
+		State   string `json:"state"`
+		Step    string `json:"step"`
+		StepTip string `json:"stepTip"`
+		N       string `json:"n"`
+		Segs    string `json:"segs"`
+		Over    bool   `json:"over"`
+		Empty   bool   `json:"empty"`
 	}
 	var got struct {
-		Busy     card `json:"busy"`
-		Done     card `json:"done"`
-		Asks     card `json:"asks"`
-		Plain    card `json:"plain"`
-		Codex    card `json:"codex-5afc361b"`
-		Overflow int  `json:"overflow"`
+		Busy  card `json:"busy"`
+		Done  card `json:"done"`
+		Asks  card `json:"asks"`
+		Plain card `json:"plain"`
+		Codex card `json:"codex-5afc361b"`
 	}
 	runFixture(t, "checklistcard.html", &got)
 	for name, c := range map[string]struct {
 		card
 		step, n, segs, state string
-		over, cut            bool
+		over                 bool
 	}{
-		"busy":  {got.Busy, "the watcher waits for the background and checks a fresh snapshot again", "4/7", "ddda---", "working", false, true},
-		"done":  {got.Done, "step 6", "7/7", "ddddddd", "done", true, false},
-		"asks":  {got.Asks, "later 1", "2/3", "d--", "asks Which way", false, false},
-		"codex": {got.Codex, "fix the test of the router", "2/3", "da-", "working", false, false},
+		"busy":  {got.Busy, "the watcher waits for the background and checks a fresh snapshot again", "4/7", "ddda---", "working", false},
+		"done":  {got.Done, "step 6", "7/7", "ddddddd", "done", true},
+		"asks":  {got.Asks, "later 1", "2/3", "d--", "asks Which way", false},
+		"codex": {got.Codex, "fix the test of the router", "2/3", "da-", "working", false},
 	} {
-		// The step keeps to its one line: the long one is cut there and whole
-		// in its tip, a short one stands whole.
-		if c.Step != c.step || c.StepCut != c.cut || (c.cut && c.StepTip != c.step) || c.N != c.n || !c.Below || c.Segs != c.segs || c.Over != c.over || c.StepWidth < 200 {
-			t.Errorf("%s: the card says %q %q (cut %v, under the state %v) over %q (whole %v, %dpx), expected %q %q over %q",
-				name, c.Step, c.N, c.StepCut, c.Below, c.Segs, c.Over, c.StepWidth, c.step, c.n, c.segs)
+		if c.Step != c.step || c.StepTip != c.step || c.N != c.n || c.Segs != c.segs || c.Over != c.over {
+			t.Errorf("%s: the card says %q %q (tip %q) over %q (whole %v), expected %q %q over %q",
+				name, c.Step, c.N, c.StepTip, c.Segs, c.Over, c.step, c.n, c.segs)
 		}
-		if c.State != c.state || c.StateCut || c.StateLines != 1 {
-			t.Errorf("%s: the state reads %q on %d lines (cut %v), expected %q whole on one", name, c.State, c.StateLines, c.StateCut, c.state)
+		if c.State != c.state {
+			t.Errorf("%s: the state reads %q, expected %q", name, c.State, c.state)
 		}
 	}
 	if got.Plain.Step != "no checklist" || !got.Plain.Empty || got.Plain.N != "" || got.Plain.State != "idle" {
 		t.Errorf("a session with no checklist says %+v", got.Plain)
-	}
-	if got.Overflow > 0 {
-		t.Errorf("the list pushes the phone %dpx sideways", got.Overflow)
 	}
 }

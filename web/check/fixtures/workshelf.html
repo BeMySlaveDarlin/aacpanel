@@ -10,7 +10,6 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { WorkList, WorkRefs } from "/src/screens/chat/work.js";
-import { ArtifactCard } from "/src/screens/chat/rows.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { quiet } from "/check/fixtures/quiet.js";
@@ -56,12 +55,6 @@ const opened = { pages: [], briefs: [] };
 const draw = () => render(html`
     <${ToastHost}><${GateHost}>
         <div id="chip"><${WorkRefs} work=${work} pages=${onShelf} briefs=${briefs} onOpen=${() => {}} /></div>
-        <!-- The same card in the same box, only outside the shelf: the
-             difference between the two heights is the shelf's own doing and
-             nothing else. -->
-        <div id="feedish" style="display:flex;flex-direction:column;gap:.5rem">
-            <${ArtifactCard} item=${inFeed[0]} />
-        </div>
         <div id="pages">
             <${WorkList} session="lab" id="1" kind="arts" work=${work} exec=${{ available: true, kinds: [] }}
                          pages=${onShelf} briefs=${briefs}
@@ -93,14 +86,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         said: chips.map((c) => c.getAttribute("aria-label") || ""),
     };
 
-    const rowsNow = Array.from(document.querySelectorAll("#pages .worklist .artifact"));
     const first = {
-        // A row of the shelf is scanned, not read: its height is what decides
-        // how many of a dozen fit on a phone at once.
-        height: rowsNow.length ? Math.round(rowsNow[0].getBoundingClientRect().height) : 0,
-        feedHeight: Math.round((document.querySelector("#feedish .artifact") || { getBoundingClientRect: () => ({ height: 0 }) })
-            .getBoundingClientRect().height),
-        
         rows: document.querySelectorAll("#pages .worklist .artifact").length,
         more: (document.querySelector(".wmore") || {}).textContent || "",
         titles: text("#pages .worklist .artifact .artitle").slice(0, 3),

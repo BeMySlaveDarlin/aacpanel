@@ -45,51 +45,12 @@ const until = async (ok, ms = 3000) => {
 
 (async () => {
     await until(() => document.querySelectorAll(".mdcode").length === 2 && document.querySelector(".mdtab"));
-    await document.fonts.ready;
-    const box = (el) => el.getBoundingClientRect();
-    const [one, many] = document.querySelectorAll(".mdcode");
-    const block = (el) => {
-        const b = box(el);
-        const pre = box(el.querySelector("pre"));
-        const btn = box(el.querySelector(".mdcopy"));
-        const code = el.querySelector("code");
-        const range = document.createRange();
-        range.selectNodeContents(code);
-        const lines = Array.from(range.getClientRects());
-        return {
-            height: b.height, preHeight: pre.height,
-            btnInside: btn.top >= b.top && btn.right <= b.right + 0.5 && btn.bottom <= b.bottom,
-            btnTop: btn.top - b.top, btnRight: b.right - btn.right,
-            textRight: Math.max(...lines.map((r) => r.right)),
-            btnLeft: btn.left,
-            firstLineTop: lines.length ? lines[0].top : 0,
-            btnBottom: btn.bottom,
-            position: getComputedStyle(el.querySelector(".mdcopy")).position,
-            opacity: parseFloat(getComputedStyle(el.querySelector(".mdcopy")).opacity),
-        };
-    };
-    const tab = document.querySelector(".mdtab");
-    const th = Array.from(tab.querySelectorAll("th"));
-    const td = Array.from(tab.querySelectorAll("tbody tr:first-child td"));
-    const cs = (el) => getComputedStyle(el);
+    const [one] = document.querySelectorAll(".mdcode");
+    // The copy buttons each block and the table carry, by what they say.
+    const copies = (el) => Array.from(el.querySelectorAll(".mdcopy")).map((b) => b.getAttribute("aria-label"));
     window.done = {
-        one: block(one),
-        many: block(many),
         oneClass: one.className,
-        table: {
-            plate: cs(tab).backgroundImage,
-            headWeight: parseInt(cs(th[0]).fontWeight, 10),
-            bodyWeight: parseInt(cs(td[0]).fontWeight, 10),
-            headGround: cs(th[0]).backgroundColor,
-            bodyGround: cs(td[0]).backgroundColor,
-            vertical: [...th, ...td].map((c) => cs(c).borderLeftWidth + "/" + cs(c).borderRightWidth),
-            rowRule: cs(tab.querySelector("tbody tr + tr td")).boxShadow,
-            align: td.map((c) => cs(c).textAlign),
-            fonts: td.map((c) => cs(c).fontFamily),
-            btnInside: (() => { const b = box(tab), k = box(tab.querySelector(".mdcopy")); return k.top >= b.top && k.bottom <= b.bottom; })(),
-            height: box(tab).height,
-            tableHeight: box(tab.querySelector(".mdtable")).height,
-        },
+        copies: [...document.querySelectorAll(".mdcode"), document.querySelector(".mdtab")].map(copies),
         list: {
             buttons: document.querySelectorAll(".mdlist .mdcopy, .mdlist + .mdcopy").length,
             wrapped: Boolean(document.querySelector(".mdlist").parentElement.classList.contains("msg")),

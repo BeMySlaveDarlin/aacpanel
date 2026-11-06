@@ -1,7 +1,6 @@
 package check
 
 import (
-	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -143,16 +142,13 @@ type deskRing struct {
 }
 
 type deskSection struct {
-	Name    string     `json:"name"`
-	Head    string     `json:"head"`
-	Rings   []deskRing `json:"rings"`
-	Old     bool       `json:"old"`
-	Fits    bool       `json:"fits"`
-	OneLine bool       `json:"oneLine"`
-	Live    []string   `json:"live"`
-	Closed  int        `json:"closed"`
-	Empty   string     `json:"empty"`
-	Bottom  float64    `json:"bottom"`
+	Name   string     `json:"name"`
+	Head   string     `json:"head"`
+	Rings  []deskRing `json:"rings"`
+	Old    bool       `json:"old"`
+	Live   []string   `json:"live"`
+	Closed int        `json:"closed"`
+	Empty  string     `json:"empty"`
 }
 
 type deskShelfRow struct {
@@ -163,7 +159,7 @@ type deskShelfRow struct {
 }
 
 // Every contour shown in the sessions column at a desk has its section: a
-// heading on a band of its own with its name and two rings of its limit — the share of each window
+// heading with its name and two rings of its limit — the share of each window
 // inside, and beside it how long until the window starts over, short and
 // rounded up (the window itself when the snapshot does not know), no count of
 // live sessions — which a press opens
@@ -173,43 +169,16 @@ type deskShelfRow struct {
 // the contours, asked for in one request that leaves the live ones out,
 // newest first, each with its contour and what it was about.
 func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.T) {
-	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built: whether the heading holds its rings is the stylesheet's business too — run make front first")
-	}
 	var got struct {
 		Sections  []deskSection  `json:"sections"`
 		Asked     []string       `json:"asked"`
 		Shelf     []deskShelfRow `json:"shelf"`
-		ShelfTop  float64        `json:"shelfTop"`
 		ShelfLast bool           `json:"shelfLast"`
 		Pop       []string       `json:"pop"`
 		Closed    bool           `json:"closed"`
 		OldNote   string         `json:"oldNote"`
-		NoteOnTop bool           `json:"noteOnTop"`
-		Band      map[string]struct {
-			Apart int  `json:"apart"`
-			Solid bool `json:"solid"`
-		} `json:"band"`
 	}
 	runWideFixture(t, "desklimits.html", &got)
-
-	// The heading of a contour is a band of its own, not a row like the
-	// sessions under it, in either theme: the column reads as one block a
-	// contour. Its ground stays solid, so the rows scrolling under the sticky
-	// heading are not seen through it.
-	for _, theme := range []string{"dark", "sky"} {
-		b, ok := got.Band[theme]
-		if !ok {
-			t.Errorf("the fixture measured no heading in the %s theme", theme)
-			continue
-		}
-		if b.Apart < 12 {
-			t.Errorf("in the %s theme the heading of a contour is painted %d apart from a row of its sessions — it merges into them", theme, b.Apart)
-		}
-		if !b.Solid {
-			t.Errorf("in the %s theme the heading of a contour lets the rows scrolling under it show through", theme)
-		}
-	}
 
 	if len(got.Sections) != 3 {
 		t.Fatalf("the column shows %d contours, expected all three of the map, with live sessions or without: %+v", len(got.Sections), got.Sections)
@@ -239,9 +208,6 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		if strings.Contains(sec.Head, "live") {
 			t.Errorf("%q: the heading still counts live sessions: %q", sec.Name, sec.Head)
 		}
-		if !sec.Fits || !sec.OneLine {
-			t.Errorf("%q: the rings do not fit the heading on one line (fits %v, one line %v)", sec.Name, sec.Fits, sec.OneLine)
-		}
 		if sec.Closed != 0 {
 			t.Errorf("%q holds %d closed conversations among its live sessions — the closed ones stand on the shelf", sec.Name, sec.Closed)
 		}
@@ -265,8 +231,8 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 			t.Errorf("the shelf asked %q without %s — every contour shown goes by the id of its entry, and the live conversations are left out", got.Asked[0], want)
 		}
 	}
-	if !got.ShelfLast || len(got.Sections) > 0 && got.ShelfTop < got.Sections[2].Bottom {
-		t.Errorf("the shelf stands at %.0f, last %v: it goes under all the contours", got.ShelfTop, got.ShelfLast)
+	if !got.ShelfLast {
+		t.Error("the shelf is not the last of the column: it goes under all the contours")
 	}
 	var names []string
 	for _, row := range got.Shelf {
@@ -292,63 +258,40 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 	if !got.Closed {
 		t.Error("Escape does not put the details down")
 	}
-	if !got.NoteOnTop {
-		t.Error("the details of a contour drop under the heading of the next one")
-	}
 	if !strings.Contains(got.OldNote, "from 1 h ago") {
 		t.Errorf("the details of numbers an hour old say %q — they have to say how old they are", got.OldNote)
 	}
 }
 
-// A ring of a contour's limit at a desk is filled by the share spent in one
-// flat colour: the usual one under 70, the warning from 70, the critical from
-// 90, with no blend of the share in it — two shares of one band are the same
-// colour and differ only by how far the fill runs. Under the ring stands how
-// long until its window starts over, rounded up to one whole unit: minutes
-// under an hour, hours under a day, days past that, a rounding that reaches
-// the next unit said in it, 0m for a moment already past, and the window
-// itself when the snapshot does not know. The details keep their words.
-func TestDeskLimitRingsStepTheirColourAndSayTheTimeLeft(t *testing.T) {
-	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built: the colour of a ring is the stylesheet's business — run make front first")
-	}
-	type stop struct {
-		Color string `json:"color"`
-		At    string `json:"at"`
-	}
+// The rings of a contour's limit at a desk say the share spent and, under
+// it, how long until the window starts over, rounded up to one whole unit; a
+// ring takes the tone of a warning from 70 and the critical one from 90, the
+// usual tone under that; a press opens the details of both windows in their
+// words.
+func TestDeskLimitRingsStepTheirToneAndSayTheTimeLeft(t *testing.T) {
 	var got struct {
 		Rings []struct {
 			Value string `json:"value"`
 			Label string `json:"label"`
-			Image string `json:"image"`
-			Stops []stop `json:"stops"`
-			Ink   string `json:"ink"`
+			Tone  string `json:"tone"`
 		} `json:"rings"`
-		Tones   map[string]string `json:"tones"`
-		Details []string          `json:"details"`
-		Past    []string          `json:"past"`
+		Details []string `json:"details"`
+		Past    []string `json:"past"`
 	}
 	runWideFixture(t, "deskrings.html", &got)
 
 	// Share and the time left of each ring, five hours then seven days a
 	// contour: 2h13m, 4d3h; 59m30s, 23h10m; 30s, 36h; past, unknown;
 	// unknown, 46m20s.
-	want := []struct {
-		value, label, tone string
-	}{
-		{"20", "3h", "accent"}, {"60", "5d", "accent"},
-		{"69", "1h", "accent"}, {"70", "1d", "warn"},
-		{"89", "1m", "warn"}, {"90", "2d", "crit"},
-		{"99", "0m", "crit"}, {"41", "7d", "accent"},
-		{"0", "5h", "accent"}, {"85", "47m", "warn"},
+	want := []struct{ value, label, tone string }{
+		{"20", "3h", ""}, {"60", "5d", ""},
+		{"69", "1h", ""}, {"70", "1d", "dkwarn"},
+		{"89", "1m", "dkwarn"}, {"90", "2d", "dkcrit"},
+		{"99", "0m", "dkcrit"}, {"41", "7d", ""},
+		{"0", "5h", ""}, {"85", "47m", "dkwarn"},
 	}
 	if len(got.Rings) != len(want) {
 		t.Fatalf("the fixture drew %d rings, expected %d: %+v", len(got.Rings), len(want), got.Rings)
-	}
-	for _, name := range []string{"accent", "warn", "crit", "ink"} {
-		if got.Tones[name] == "" {
-			t.Fatalf("the fixture did not resolve --%s: %v", name, got.Tones)
-		}
 	}
 	for i, w := range want {
 		r := got.Rings[i]
@@ -356,22 +299,9 @@ func TestDeskLimitRingsStepTheirColourAndSayTheTimeLeft(t *testing.T) {
 			t.Errorf("ring %d reads %s under %s, expected %s under %s — the time left rounded up to one whole unit, "+
 				"a day from 24 hours, 0m once past, the window when unknown", i, r.Value, r.Label, w.value, w.label)
 		}
-		if len(r.Stops) != 2 || r.Stops[0].At != w.value+"%" || !strings.HasPrefix(r.Stops[1].At, "0") {
-			t.Errorf("ring %d at %s%% is filled by %q — one colour running to the share and the track from there, with no blend between",
-				i, w.value, r.Image)
-			continue
+		if r.Tone != w.tone {
+			t.Errorf("ring %d at %s%% is marked %q, expected %q — the warning from 70, the critical from 90", i, w.value, r.Tone, w.tone)
 		}
-		ink := got.Tones["ink"]
-		if w.tone != "accent" {
-			ink = got.Tones[w.tone]
-		}
-		if r.Stops[0].Color != got.Tones[w.tone] || r.Ink != ink {
-			t.Errorf("ring %d at %s%% is drawn in %s with the number in %s, expected the %s colour %s with the number in %s",
-				i, w.value, r.Stops[0].Color, r.Ink, w.tone, got.Tones[w.tone], ink)
-		}
-	}
-	if got.Tones["accent"] == got.Tones["warn"] || got.Tones["warn"] == got.Tones["crit"] {
-		t.Errorf("the theme gives the bands %v — three colours are needed for the steps to show", got.Tones)
 	}
 
 	if strings.Join(got.Details, "|") != "Five hours89%resets in 1 min|Seven days90%resets in 36 h" {

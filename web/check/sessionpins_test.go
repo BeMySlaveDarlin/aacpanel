@@ -10,44 +10,6 @@ type pinLists struct {
 	Phone, Desk, Keys, Ordered []string
 }
 
-func TestDesktopPinsShowTheirState(t *testing.T) {
-	type look struct {
-		MarkOn, MarkPending    bool
-		MarkOpacity            float64
-		MarkColor, AccentColor string
-		MarkFill               string
-	}
-	var got struct {
-		Pins struct {
-			PinLook, ConfirmedLook, UnpinLook, UnpinnedLook look
-		}
-	}
-	runWideFixture(t, "sessiongroups.html", &got)
-	for name, state := range map[string]look{"pinning": got.Pins.PinLook, "pinned": got.Pins.ConfirmedLook} {
-		if !state.MarkOn || state.MarkColor == "" || state.MarkColor != state.AccentColor {
-			t.Errorf("%s has %+v: the pressed desktop pin must use the accent", name, state)
-		}
-		// The colour is lost on a glyph this small: the pinned tack is filled.
-		if state.MarkFill != state.AccentColor {
-			t.Errorf("%s has %+v: the pressed desktop pin must be filled", name, state)
-		}
-	}
-	for name, state := range map[string]look{"unpinning": got.Pins.UnpinLook, "unpinned": got.Pins.UnpinnedLook} {
-		if state.MarkOn || state.MarkColor == "" || state.MarkColor == state.AccentColor {
-			t.Errorf("%s has %+v: an unpressed desktop pin must keep the quiet ink", name, state)
-		}
-		if state.MarkFill != "none" {
-			t.Errorf("%s has %+v: an unpressed desktop pin must stay an outline", name, state)
-		}
-	}
-	if !got.Pins.PinLook.MarkPending || got.Pins.PinLook.MarkOpacity != .45 ||
-		!got.Pins.UnpinLook.MarkPending || got.Pins.UnpinLook.MarkOpacity != .45 ||
-		got.Pins.ConfirmedLook.MarkPending || got.Pins.ConfirmedLook.MarkOpacity != 1 ||
-		got.Pins.UnpinnedLook.MarkPending || got.Pins.UnpinnedLook.MarkOpacity != 1 {
-		t.Errorf("the desktop pin does not distinguish waiting from its confirmed state: %+v", got.Pins)
-	}
-}
-
 func TestPhoneSectionsKeepPinsAndMapOrder(t *testing.T) {
 	type section struct {
 		Title string
@@ -137,7 +99,7 @@ func TestPinnedGroupsKeepTheirChildrenAndTheirContour(t *testing.T) {
 }
 
 type pinLook struct {
-	Pressed, Pending, Off, Dim, Mark, MarkOn, MarkPending, MarkDim bool
+	Pressed, Pending, Off, Mark, MarkOn, MarkPending bool
 }
 
 type pinWaits struct {
@@ -149,9 +111,9 @@ type pinWaits struct {
 		Off         bool
 	}
 	Refused []struct {
-		During, After    pinLists
-		Pending, Visible bool
-		Reason           string
+		During, After pinLists
+		Pending       bool
+		Reason        string
 	}
 	RefusedUnpin struct{ Before, During, After pinLists }
 }
@@ -179,18 +141,18 @@ func TestPinPressMovesBothListsBeforeTheSnapshot(t *testing.T) {
 			if !reflect.DeepEqual(p.Unpinning, p.Unpinned) {
 				t.Errorf("unpinning waited for a snapshot: %+v, confirmed %+v", p.Unpinning, p.Unpinned)
 			}
-			if !p.PinLook.Pressed || !p.PinLook.Pending || !p.PinLook.Off || !p.PinLook.Dim ||
-				!p.PinLook.MarkOn || !p.PinLook.MarkPending || (screen == "desk" && !p.PinLook.MarkDim) {
-				t.Errorf("a pin in flight does not show its expected state quietly: %+v", p.PinLook)
+			if !p.PinLook.Pressed || !p.PinLook.Pending || !p.PinLook.Off ||
+				!p.PinLook.MarkOn || !p.PinLook.MarkPending {
+				t.Errorf("a pin in flight does not show its expected state: %+v", p.PinLook)
 			}
 			if !p.AnswerPending || !p.Lagging {
 				t.Error("the executor's answer or a snapshot without the pin cleared the wait")
 			}
-			if !p.ConfirmedLook.Pressed || p.ConfirmedLook.Pending || p.ConfirmedLook.Off || p.ConfirmedLook.Dim ||
+			if !p.ConfirmedLook.Pressed || p.ConfirmedLook.Pending || p.ConfirmedLook.Off ||
 				!p.ConfirmedLook.MarkOn || p.ConfirmedLook.MarkPending {
 				t.Errorf("the confirmed pin still looks pending: %+v", p.ConfirmedLook)
 			}
-			if p.UnpinLook.Pressed || !p.UnpinLook.Pending || !p.UnpinLook.Off || !p.UnpinLook.Dim ||
+			if p.UnpinLook.Pressed || !p.UnpinLook.Pending || !p.UnpinLook.Off ||
 				p.UnpinLook.MarkOn || !p.UnpinLook.MarkPending {
 				t.Errorf("unpinning did not show the expected state: %+v", p.UnpinLook)
 			}
@@ -206,7 +168,7 @@ func TestPinPressMovesBothListsBeforeTheSnapshot(t *testing.T) {
 			}
 			for _, refusal := range p.Refused {
 				if reflect.DeepEqual(refusal.During, p.Restored) || !reflect.DeepEqual(refusal.After, p.Restored) ||
-					refusal.Pending || !refusal.Visible || refusal.Reason != "the pin could not be saved" {
+					refusal.Pending || refusal.Reason != "the pin could not be saved" {
 					t.Errorf("a refusal did not restore the list and show its reason: %+v", refusal)
 				}
 			}

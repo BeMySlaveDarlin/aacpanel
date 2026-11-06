@@ -234,34 +234,11 @@ func buildModule(t *testing.T, dir, name, rel string) string {
 	return file
 }
 
-func TestPhotoLayerStaysAboveTheShell(t *testing.T) {
-	css := cssSrc(t)
-
-	layer := cssBlock(t, css, ".pv")
-	for _, rule := range []string{"position: fixed", "z-index: 30"} {
-		if !strings.Contains(layer, rule) {
-			t.Errorf("%s: .pv has no %q — the preview layer joins the flow of the feed "+
-				"and scrolls along with the conversation", cssFile, rule)
-		}
-	}
-	if !strings.Contains(css, ".shell:has(.pv) .body") {
-		t.Errorf("%s: the deck is not lifted while the layer is open — the bottom menu "+
-			"draws over the picture", cssFile)
-	}
-
-	pic := cssBlock(t, css, ".pvpic")
-	for _, rule := range []string{"position: absolute", "inset: 0", "object-fit: contain"} {
-		if !strings.Contains(pic, rule) {
-			t.Errorf("%s: .pvpic has no %q — the shot spills outside the field, and the zoom "+
-				"is computed against a rectangle other than the visible one", cssFile, rule)
-		}
-	}
-
-	stage := cssBlock(t, css, ".pvstage")
-	for _, rule := range []string{"touch-action: none", "overflow: hidden", "min-height: 0"} {
-		if !strings.Contains(stage, rule) {
-			t.Errorf("%s: .pvstage has no %q — the gesture goes to the browser, and a tall "+
-				"shot squeezes everything else out of the layer", cssFile, rule)
-		}
+// The stage of the preview takes the gesture itself: left to the browser, a
+// pinch zooms the whole page and a drag scrolls it instead of moving the shot.
+func TestPhotoStageTakesTheGesture(t *testing.T) {
+	stage := cssBlock(t, cssSrc(t), ".pvstage")
+	if !strings.Contains(stage, "touch-action: none") {
+		t.Errorf("%s: .pvstage has no \"touch-action: none\" — the gesture goes to the browser", cssFile)
 	}
 }

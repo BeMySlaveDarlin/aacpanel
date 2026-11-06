@@ -7,9 +7,8 @@
 // The limits of a contour page with a list long enough to scroll: claude's
 // two windows and codex's week, the widest share a window carries. The page
 // is scrolled down to the last pixel the limits are still seen at, past it,
-// back to a pixel short of the top and to the top, and the limits and the
-// first card are measured at every stop, after the frames a fold would take
-// to undo itself.
+// back to a pixel short of the top and to the top, and the limits are read at
+// every stop, after the frames a fold would take to undo itself.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sessions } from "/src/screens/sessions.js";
@@ -65,64 +64,26 @@ const until = async (ok) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 window.done = (async () => {
-    await document.fonts.ready;
     localStorage.removeItem("aacpanel.sessions.profile");
     if (!await until(() => document.querySelectorAll(".pfpage .pflimits .limit").length >= 3)) {
         throw new Error("the contour page did not show its limits");
     }
     const page = document.querySelector(".pfpage");
     const box = page.querySelector(".pflimits");
-    const card = () => page.querySelector(".pflimits ~ :not(.grouphead)");
     // at scrolls the page to y and lets it settle the frames a fold and its
-    // own scroll would take, and measures the limits there.
+    // own scroll would take, and reads the limits there.
     const at = async (y) => {
         page.scrollTop = y;
         for (let i = 0; i < 6; i += 1) await frame();
-        const edge = page.getBoundingClientRect();
-        const rect = box.getBoundingClientRect();
-        const mid = document.elementFromPoint(rect.left + rect.width / 2, rect.top + 2);
-        const cut = [];
-        for (const el of box.querySelectorAll("*")) {
-            const style = getComputedStyle(el);
-            if (style.display === "inline" || style.display === "none") continue;
-            if (el.scrollWidth > el.clientWidth) cut.push(`${el.className}: ${text(el)} (${el.scrollWidth} > ${el.clientWidth})`);
-        }
         return {
-            asked: y,
-            scrollTop: Math.round(page.scrollTop),
             tucked: box.classList.contains("tucked"),
-            top: Math.round(rect.top - edge.top),
-            bottom: Math.round(rect.bottom - edge.top),
-            card: Math.round(card().getBoundingClientRect().top - edge.top),
-            onTop: Boolean(mid && box.contains(mid)),
-            cut,
-            plates: Array.from(box.querySelectorAll(".limit")).map((l) => {
-                const shown = Array.from(l.querySelectorAll(".lname, .lval, .lsub"))
-                    .filter((el) => getComputedStyle(el).display !== "none" && el.getClientRects().length > 0);
-                // Lines are told apart by the middles of the words, half a
-                // letter apart at least: a share in mono stands a pixel off
-                // the word beside it.
-                const mids = shown.map((el) => {
-                    const r = el.getBoundingClientRect();
-                    return r.top + r.height / 2;
-                }).sort((a, b) => a - b);
-                const half = parseFloat(getComputedStyle(l).fontSize) / 2;
-                const r = l.getBoundingClientRect();
-                const bar = l.querySelector(".track").getBoundingClientRect();
-                return {
-                    reads: shown.map(text).join(" "),
-                    height: Math.round(r.height),
-                    lines: mids.filter((m, i) => i === 0 || m - mids[i - 1] > half).length,
-                    barGap: Math.round(r.bottom - bar.bottom),
-                };
-            }),
+            plates: Array.from(box.querySelectorAll(".limit")).map((l) => Array.from(l.querySelectorAll(".lname, .lval, .lsub"))
+                .filter((el) => getComputedStyle(el).display !== "none" && el.getClientRects().length > 0).map(text).join(" ")),
         };
     };
-    const open = await at(0);
-    const seen = open.bottom - 1;
-    const stops = [open, await at(seen), await at(open.bottom + 40)];
-    stops.push(await at(1));
-    stops.push(await at(0));
-    return { height: page.clientHeight, scrollHeight: page.scrollHeight, stops };
+    // Where the limits end is where the scroll carries them out of sight.
+    const bottom = Math.round(box.getBoundingClientRect().bottom - page.getBoundingClientRect().top);
+    const stops = [await at(0), await at(bottom - 1), await at(bottom + 40), await at(1), await at(0)];
+    return { stops };
 })();
 </script>

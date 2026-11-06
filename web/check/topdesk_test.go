@@ -18,11 +18,11 @@ func TestTheMachineTableAtADeskKeepsBothKinds(t *testing.T) {
 			Peak  string `json:"peak"`
 			Title string `json:"title"`
 		} `json:"rows"`
-		Note        string    `json:"note"`
-		Certificate string    `json:"certificate"`
-		Warning     bool      `json:"warning"`
-		Programs    string    `json:"programs"`
-		Order       []float64 `json:"order"`
+		Note        string `json:"note"`
+		Certificate string `json:"certificate"`
+		Warning     bool   `json:"warning"`
+		Programs    string `json:"programs"`
+		Order       []int  `json:"order"`
 	}
 	runWideFixture(t, "topdesk.html", &got)
 	if len(got.Order) != 3 || got.Order[0] >= got.Order[1] || got.Order[1] >= got.Order[2] {

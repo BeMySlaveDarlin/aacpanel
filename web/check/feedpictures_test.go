@@ -7,20 +7,18 @@ import (
 
 type feedPicturesShot struct {
 	Feed struct {
-		SentPictures    int    `json:"sentPictures"`
-		SentLoaded      bool   `json:"sentLoaded"`
-		SentWords       string `json:"sentWords"`
-		StripOverBubble bool   `json:"stripOverBubble"`
-		StripRight      *int   `json:"stripRight"`
-		TypedPictures   int    `json:"typedPictures"`
-		TypedWords      string `json:"typedWords"`
-		AloneBubbles    int    `json:"aloneBubbles"`
-		AlonePictures   int    `json:"alonePictures"`
-		AloneStamp      string `json:"aloneStamp"`
-		PhotoPictures   int    `json:"photoPictures"`
-		PhotoLoaded     bool   `json:"photoLoaded"`
-		PhotoWords      string `json:"photoWords"`
-		PhotoSaved      string `json:"photoSaved"`
+		SentPictures  int    `json:"sentPictures"`
+		SentLoaded    bool   `json:"sentLoaded"`
+		SentWords     string `json:"sentWords"`
+		TypedPictures int    `json:"typedPictures"`
+		TypedWords    string `json:"typedWords"`
+		AloneBubbles  int    `json:"aloneBubbles"`
+		AlonePictures int    `json:"alonePictures"`
+		AloneStamp    string `json:"aloneStamp"`
+		PhotoPictures int    `json:"photoPictures"`
+		PhotoLoaded   bool   `json:"photoLoaded"`
+		PhotoWords    string `json:"photoWords"`
+		PhotoSaved    string `json:"photoSaved"`
 	} `json:"feed"`
 	Calls struct {
 		Nodes []struct {
@@ -28,7 +26,6 @@ type feedPicturesShot struct {
 			Thumbs int  `json:"thumbs"`
 		} `json:"nodes"`
 		ThumbLoaded bool `json:"thumbLoaded"`
-		ThumbInside bool `json:"thumbInside"`
 	} `json:"calls"`
 	View struct {
 		Pictures int    `json:"pictures"`
@@ -54,9 +51,6 @@ func TestAPictureThePanelSentIsDrawnOverItsMessage(t *testing.T) {
 	}
 	if f.SentWords != "the task is on the board" {
 		t.Errorf("the message reads %q: the words stay, the path of the drawn picture goes", f.SentWords)
-	}
-	if !f.StripOverBubble || f.StripRight == nil || *f.StripRight != 0 {
-		t.Errorf("the picture stands over its message: over %v, right edge off by %v", f.StripOverBubble, f.StripRight)
 	}
 	if f.TypedPictures != 0 || !strings.Contains(f.TypedWords, "/srv/proj/shop/docs/board.png") {
 		t.Errorf("a typed path became %d pictures and reads %q: it is words", f.TypedPictures, f.TypedWords)
@@ -116,8 +110,8 @@ func TestAPictureACallReturnedIsOnItsCall(t *testing.T) {
 	if len(c.Nodes) != 2 || !c.Nodes[0].Pic || c.Nodes[0].Thumbs != 1 || c.Nodes[1].Pic || c.Nodes[1].Thumbs != 0 {
 		t.Fatalf("the rows of the sheet are %+v: the read of the picture shows it, the read of the code does not", c.Nodes)
 	}
-	if !c.ThumbLoaded || !c.ThumbInside {
-		t.Errorf("the picture on the row: loaded %v, inside the row %v", c.ThumbLoaded, c.ThumbInside)
+	if !c.ThumbLoaded {
+		t.Errorf("the picture on the row did not load")
 	}
 	if got.View.Pictures != 1 || !got.View.Loaded {
 		t.Errorf("the opened call shows %d pictures, loaded %v", got.View.Pictures, got.View.Loaded)

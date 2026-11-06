@@ -1,16 +1,13 @@
 package check
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 type permittedRow struct {
-	Tool    string `json:"tool"`
-	Subject string `json:"subject"`
-	Mono    string `json:"mono"`
-	Answer  string `json:"answer"`
-	Colour  string `json:"colour"`
+	Tool       string `json:"tool"`
+	Subject    string `json:"subject"`
+	SubjectTag string `json:"subjectTag"`
+	Answer     string `json:"answer"`
+	Tone       string `json:"tone"`
 }
 
 type permittedShot struct {
@@ -48,8 +45,8 @@ func TestAnAnsweredPermissionReadsLikeAnAnsweredQuestion(t *testing.T) {
 	if len(once) != 1 || once[0].Tool != "Bash" || once[0].Subject != "git push origin main" || once[0].Answer != "Allowed" {
 		t.Errorf("a call allowed once reads %+v", once)
 	}
-	if !strings.Contains(strings.ToLower(once[0].Mono), "mono") {
-		t.Errorf("what the call was about is not set as code: %q", once[0].Mono)
+	if once[0].SubjectTag != "code" {
+		t.Errorf("what the call was about stands in <%s>, not as code", once[0].SubjectTag)
 	}
 
 	together := got.Cards[1].Rows
@@ -62,8 +59,9 @@ func TestAnAnsweredPermissionReadsLikeAnAnsweredQuestion(t *testing.T) {
 	if together[1].Answer != "Denied" {
 		t.Errorf("a refusal reads %q", together[1].Answer)
 	}
-	if together[1].Colour == together[0].Colour {
-		t.Errorf("a refusal is drawn in the colour of a permission: %s", together[1].Colour)
+	if together[0].Tone != "s-ok" || together[1].Tone != "s-crit" {
+		t.Errorf("an answer for good takes the tone %q and a refusal %q, want s-ok and s-crit",
+			together[0].Tone, together[1].Tone)
 	}
 
 	bare := got.Cards[2].Rows

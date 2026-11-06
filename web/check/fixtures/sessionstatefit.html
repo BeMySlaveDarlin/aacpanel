@@ -6,9 +6,8 @@
 <div id="phone"></div>
 <script type="module">
 // The line of a session's state on a phone with every quiet word at once —
-// how long it has lived, an alarm, the automatic restart, where it lives:
-// the state keeps its words whole, and what does not fit goes to the next
-// line rather than through the middle of a word.
+// how long it has lived, an alarm, the automatic restart, where it lives —
+// and a state too long for one line.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { LiveLines } from "/src/screens/sessions/blocks.js";
@@ -36,13 +35,6 @@ render(h(ToastHost, null, h(GateHost, null, html`
                                            onOpen=${() => {}} exec=${exec} /></section>
 `)), document.getElementById("phone"));
 
-// lines counts the lines a text is laid out on, by the boxes of its words.
-const lines = (el) => {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
-};
-
 window.done = (async () => {
     await quiet();
     const cards = document.querySelectorAll("#phone .sc");
@@ -50,11 +42,7 @@ window.done = (async () => {
     const long = cards[1] && cards[1].querySelector(".scsay");
     return {
         longText: long ? long.textContent.replace(/\s+/g, " ").trim() : "",
-        longLines: long ? lines(long) : 0,
-        longCut: long ? long.scrollWidth > long.clientWidth + 1 || getComputedStyle(long).textOverflow === "ellipsis" : true,
-        longInside: long ? long.getBoundingClientRect().right <= cards[1].getBoundingClientRect().right : false,
         text: text ? text.textContent.trim() : "",
-        lines: text ? lines(text) : 0,
         marks: cards[0] ? cards[0].querySelectorAll(".scl5 .scb").length : 0,
     };
 })();

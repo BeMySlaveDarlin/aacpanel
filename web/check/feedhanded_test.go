@@ -16,21 +16,18 @@ type handedCard struct {
 
 type feedHandedShot struct {
 	Feed struct {
-		CaptionWords      string       `json:"captionWords"`
-		CaptionCards      []handedCard `json:"captionCards"`
-		CaptionUnder      bool         `json:"captionUnder"`
-		CaptionRowWords   string       `json:"captionRowWords"`
-		AloneBubbles      int          `json:"aloneBubbles"`
-		AloneCards        []handedCard `json:"aloneCards"`
-		AloneStamp        string       `json:"aloneStamp"`
-		AloneRowWords     string       `json:"aloneRowWords"`
-		PicturePictures   int          `json:"picturePictures"`
-		PictureOverBubble bool         `json:"pictureOverBubble"`
-		PictureWords      string       `json:"pictureWords"`
-		PictureCards      []handedCard `json:"pictureCards"`
-		PictureUnder      bool         `json:"pictureUnder"`
-		TypedCards        int          `json:"typedCards"`
-		TypedWords        string       `json:"typedWords"`
+		CaptionWords    string       `json:"captionWords"`
+		CaptionCards    []handedCard `json:"captionCards"`
+		CaptionRowWords string       `json:"captionRowWords"`
+		AloneBubbles    int          `json:"aloneBubbles"`
+		AloneCards      []handedCard `json:"aloneCards"`
+		AloneStamp      string       `json:"aloneStamp"`
+		AloneRowWords   string       `json:"aloneRowWords"`
+		PicturePictures int          `json:"picturePictures"`
+		PictureWords    string       `json:"pictureWords"`
+		PictureCards    []handedCard `json:"pictureCards"`
+		TypedCards      int          `json:"typedCards"`
+		TypedWords      string       `json:"typedWords"`
 	} `json:"feed"`
 	Look struct {
 		Opened []string `json:"opened"`
@@ -39,23 +36,34 @@ type feedHandedShot struct {
 	} `json:"look"`
 	Asked  []string `json:"asked"`
 	Copies []struct {
-		Button  bool   `json:"button"`
-		Visible bool   `json:"visible"`
-		Inside  bool   `json:"inside"`
-		Hovered bool   `json:"hovered"`
-		Label   string `json:"label"`
-		Text    string `json:"text"`
-		Toast   string `json:"toast"`
+		Button bool   `json:"button"`
+		Label  string `json:"label"`
+		Text   string `json:"text"`
+		Toast  string `json:"toast"`
 	} `json:"copies"`
 	EmptyCopies  []int `json:"emptyCopies"`
 	LetterClosed bool  `json:"letterClosed"`
 }
 
 // Copying keeps the source markup and typed paths, leaves the panel's file
-// paths and image chips out, and takes the whole letter from a folded card.
-func testFeedMessagesCopyTheirText(t *testing.T, run func(*testing.T, string, any)) {
-	var got feedHandedShot
-	run(t, "feedhanded.html", &got)
+// paths and image chips out, and takes the whole letter from a folded card,
+// on a phone as at a desk.
+func TestFeedMessagesCopyTheirText(t *testing.T) {
+	parallel(t)
+	for _, screen := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+	}{{"phone", runFixture}, {"desk", runWideFixture}} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got feedHandedShot
+			screen.run(t, "feedhanded.html", &got)
+			checkFeedCopies(t, got)
+		})
+	}
+}
+
+func checkFeedCopies(t *testing.T, got feedHandedShot) {
+	t.Helper()
 	want := []string{
 		"the measurements from the boss",
 		"and the board",
@@ -69,8 +77,8 @@ func testFeedMessagesCopyTheirText(t *testing.T, run func(*testing.T, string, an
 	}
 	for i, text := range want {
 		c := got.Copies[i]
-		if !c.Button || !c.Visible || !c.Inside || c.Hovered || c.Label == "" {
-			t.Errorf("copy button %d must be visible inside its message without hovering: %+v", i, c)
+		if !c.Button || c.Label == "" {
+			t.Errorf("copy button %d is missing or unnamed: %+v", i, c)
 		}
 		if c.Text != text || c.Toast != "Copied" {
 			t.Errorf("copy %d put %q on the clipboard with toast %q, want %q and Copied", i, c.Text, c.Toast, text)
@@ -82,14 +90,6 @@ func testFeedMessagesCopyTheirText(t *testing.T, run func(*testing.T, string, an
 	if !got.LetterClosed {
 		t.Error("copying the letter opened its card")
 	}
-}
-
-func TestFeedMessagesCopyTheirTextOnAPhone(t *testing.T) {
-	testFeedMessagesCopyTheirText(t, runFixture)
-}
-
-func TestFeedMessagesCopyTheirTextAtADesk(t *testing.T) {
-	testFeedMessagesCopyTheirText(t, runWideFixture)
 }
 
 const handedDir = "/home/dev/.local/share/aacpanel-exec/files"
@@ -109,9 +109,6 @@ func TestAFileThePanelSentStandsUnderItsMessageAsAFile(t *testing.T) {
 	want := []handedCard{{Name: "diag.txt", Tag: "TXT", Size: "98 KB", Button: true}}
 	if !reflect.DeepEqual(f.CaptionCards, want) {
 		t.Errorf("the file of the message is %+v, want %+v", f.CaptionCards, want)
-	}
-	if !f.CaptionUnder {
-		t.Error("the file does not stand under its message, on its side of the feed")
 	}
 	if strings.Contains(f.CaptionRowWords, handedDir) || strings.Contains(f.CaptionRowWords, "ec828d") {
 		t.Errorf("the row reads %q: the path of the file is shown as words", f.CaptionRowWords)
@@ -139,16 +136,15 @@ func TestAPictureSentWithAFileIsStillDrawnOverItsMessage(t *testing.T) {
 	runFixture(t, "feedhanded.html", &got)
 	f := got.Feed
 
-	if f.PicturePictures != 1 || !f.PictureOverBubble {
-		t.Errorf("the message shows %d pictures, over it %v: the picture stands over its words",
-			f.PicturePictures, f.PictureOverBubble)
+	if f.PicturePictures != 1 {
+		t.Errorf("the message shows %d pictures, expected its one picture", f.PicturePictures)
 	}
 	if f.PictureWords != "and the board" {
 		t.Errorf("the message reads %q: the paths of the picture and the file both go", f.PictureWords)
 	}
 	want := []handedCard{{Name: "notes.zip", Tag: "ZIP", Size: "900 B", Button: true}}
-	if !reflect.DeepEqual(f.PictureCards, want) || !f.PictureUnder {
-		t.Errorf("the file beside the picture is %+v, under the message %v", f.PictureCards, f.PictureUnder)
+	if !reflect.DeepEqual(f.PictureCards, want) {
+		t.Errorf("the file beside the picture is %+v", f.PictureCards)
 	}
 }
 

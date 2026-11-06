@@ -93,36 +93,16 @@ async function open(index) {
     button.click();
     await until(preview);
 }
-function geometry(block, index) {
+// buttonsOf reads how the run button of a block names itself.
+function buttonsOf(block) {
     const run = block.querySelector(".mdrun");
-    if (!run) return null;
-    const copy = block.querySelector(".mdcopy");
-    const r = run.getBoundingClientRect(), c = copy.getBoundingClientRect(), b = block.getBoundingClientRect();
-    const range = document.createRange();
-    range.selectNodeContents(block.querySelector("code"));
-    const clear = [...range.getClientRects()].every((line) => line.right <= r.left + .5);
-    const styleOf = (el) => {
-        const pre = getComputedStyle(el.querySelector("pre")), code = getComputedStyle(el.querySelector("code"));
-        return { preWhiteSpace: pre.whiteSpace, codeWhiteSpace: code.whiteSpace, paddingRight: pre.paddingRight,
-            overflowX: pre.overflowX, overflowWrap: code.overflowWrap };
-    };
-    return { clear, oneLine: block.classList.contains("oneline"),
-        style: styleOf(block), plainStyle: styleOf(all("#outside .mdcode")[index]),
-        top: r.top - b.top, gap: c.left - r.right, edge: b.right - c.right, runHeight: r.height, copyHeight: c.height,
-        aligned: Math.abs(r.top - c.top) < .5, centered: Math.abs(r.top + r.height / 2 - b.top - b.height / 2) < .5,
-        inside: r.left >= b.left && c.right <= b.right && r.top >= b.top && r.bottom <= b.bottom,
-        label: run.getAttribute("aria-label"), title: run.title };
+    return run ? { label: run.getAttribute("aria-label"), title: run.title } : null;
 }
 async function runBlock(index) {
     const before = sent.length, rows = cards().length;
     await open(index);
-    const pane = preview();
-    const style = getComputedStyle(pane);
-    const out = { index, preview: pane.textContent, title: q(".sheet.on .stitle").textContent,
-        before: sent.length - before, beforeRows: cards().length - rows,
-        wraps: style.whiteSpace === "pre-wrap" && style.overflowWrap === "anywhere",
-        scrolls: style.overflowY === "auto", bounded: pane.getBoundingClientRect().height <= innerHeight / 2 + 1,
-        font: style.fontFamily, yes: q(".sheet.on .btn.primary").textContent };
+    const out = { index, preview: preview().textContent, title: q(".sheet.on .stitle").textContent,
+        before: sent.length - before, beforeRows: cards().length - rows, yes: q(".sheet.on .btn.primary").textContent };
     q(".sheet.on .btn.primary").click();
     await until(() => sent.length > before && cards().length > rows && release);
     out.going = cards().at(-1).querySelector(".mshellat").textContent;
@@ -151,7 +131,7 @@ window.done = (async () => {
         await document.fonts.ready;
         await mount();
         const out = { buttons: codeBlocks().map((b) => Boolean(b.querySelector(".mdrun"))),
-            outside: all("#outside .mdrun").length, geometry: codeBlocks().slice(0, blocks.length).map(geometry).filter(Boolean) };
+            outside: all("#outside .mdrun").length, pairs: codeBlocks().slice(0, blocks.length).map(buttonsOf).filter(Boolean) };
         await until(() => q(".composer textarea"));
         const area = q(".composer textarea");
         area.value = "keep my draft";

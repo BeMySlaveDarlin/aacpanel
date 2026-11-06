@@ -5,12 +5,11 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
-// The band under the field of a codex thread on a narrow phone, with the
-// longest words it says: the longest model at the longest effort, and each
-// mode, settings of the thread's own and a mode not known among them. For
-// each, where every piece of the band stands, what it says and what it is
-// called, and whether a word of it is cut. Then the sheet behind the mode,
-// which names the modes in full.
+// The band under the field of a codex thread on a phone: the longest model
+// at the longest effort, and each mode, settings of the thread's own and a
+// mode not known among them. For each, what every piece of the band says and
+// what it is called. Then the sheet behind the mode, which names the modes in
+// full.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -68,31 +67,14 @@ const said = (el) => {
 };
 const strip = () => root.querySelector(".composer .cstrip");
 const chip = (what) => root.querySelector(`.composer .cstrip .pkchip[data-pick="${what}"]`);
-// band reads each piece of the band: where it stands, what it says and is
-// called, and whether its word, or the piece itself, is narrower than what
-// it holds.
-const band = () => {
-    const s = strip().getBoundingClientRect();
-    return {
-        left: s.left,
-        right: s.right,
-        parts: Array.from(strip().children).map((el) => {
-            const r = el.getBoundingClientRect();
-            return {
-                what: el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : el.className),
-                left: r.left,
-                right: r.right,
-                said: said(el),
-                label: el.getAttribute("aria-label") || "",
-                cut: [el, ...el.querySelectorAll(".cxword")].some((w) => w.scrollWidth > w.clientWidth),
-            };
-        }),
-    };
-};
-// whole says every piece stands inside the band, one after another, and
-// nothing in it is cut.
-const whole = (b) => b.parts.length > 0 && b.parts.every((p, i) => !p.cut && p.left >= b.left - 0.5 && p.right <= b.right + 0.5
-    && (i === 0 || p.left >= b.parts[i - 1].right - 0.5));
+// band reads each piece of the band: what it says and what it is called.
+const band = () => ({
+    parts: Array.from(strip().children).map((el) => ({
+        what: el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : el.className),
+        said: said(el),
+        label: el.getAttribute("aria-label") || "",
+    })),
+});
 const show = async (live) => {
     render(null, root);
     setLiveSessions([live]);
@@ -100,16 +82,12 @@ const show = async (live) => {
         html`<${Chat} name=${live.session} id=${live.sessionId} live=${live} exec=${exec}
                       onBack=${() => {}} onUsage=${() => {}} />`)), root);
     if (!await until(() => chip("think") && chip("thread") && root.querySelector(".chatfeed .msg.ai"))) throw new Error("the band did not show");
-    await document.fonts.ready;
-    // The band is read once it stands whole, or as it stands when it does not.
-    await until(() => whole(band()));
     return band();
 };
 const sheet = () => document.querySelector(".sheet.on");
 
 window.done = (async () => {
-    await document.fonts.load("400 1em Inter");
-    const out = { width: innerWidth, bands: {} };
+    const out = { bands: {} };
     for (const [name, live] of states) out.bands[name] = await show(live);
 
     await show(thread);

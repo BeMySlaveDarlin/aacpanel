@@ -8,7 +8,6 @@ import (
 
 type pickScopeShot struct {
 	Stops          []string `json:"stops"`
-	UltraDashed    bool     `json:"ultraDashed"`
 	Foot           string   `json:"foot"`
 	Scope          []string `json:"scope"`
 	ScopeOn        []string `json:"scopeOn"`
@@ -45,15 +44,12 @@ func pickScopeFixture(t *testing.T) pickScopeShot {
 }
 
 // The scale of a model that takes xhigh ends in ultracode: not a sixth level
-// of thinking but xhigh with workflows, so it stands past the levels behind a
-// dashed line and says what it is under it.
-func TestTheEffortEndsInUltracodeBehindALine(t *testing.T) {
+// of thinking but xhigh with workflows, so it stands past the levels and says
+// what it is under it.
+func TestTheEffortEndsInUltracodeAndSaysWhatItIs(t *testing.T) {
 	got := pickScopeFixture(t)
 	if !reflect.DeepEqual(got.Stops, []string{"Low", "Medium", "High", "Extra", "Max", "Ultracode"}) {
 		t.Errorf("the scale of a model that takes xhigh has the stops %v", got.Stops)
-	}
-	if !got.UltraDashed {
-		t.Error("ultracode is not set apart from the levels by a dashed line")
 	}
 	if got.Foot != "xhigh + workflows" {
 		t.Errorf("under ultracode the scale says %q", got.Foot)

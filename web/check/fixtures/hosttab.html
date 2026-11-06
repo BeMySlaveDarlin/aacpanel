@@ -8,9 +8,9 @@
 // The host tab of the phone, walked in the whole shell: a phone that kept the
 // containers tab from before opens on it, its three pages are turned by a
 // swipe and by their names, the page chosen comes back after another tab and
-// after a new start, the row of pages stands in one place on every page with
-// the filters of the containers right under it, inside their page, and the
-// host menu still opens the
+// after a new start, a pull up scrolls the page under it and leaves the pages
+// where they stand, the filters of the containers stand inside their page,
+// and the host menu still opens the
 // machine and the journal over the screen with the way back — the way back
 // keeps its page even when the next layer opens before the pager under it drew
 // a frame. Headless has no touch gestures, so a swipe is
@@ -139,14 +139,16 @@ const settled = (name) => {
     if (current() !== name || !kid) return false;
     return Math.abs(kid.getBoundingClientRect().left - el.getBoundingClientRect().left) < 2;
 };
-const scrolls = (el) => {
+const scrolls = (el, axis) => {
     const style = getComputedStyle(el);
-    if (style.overflowX !== "auto" && style.overflowX !== "scroll") return false;
-    return el.scrollWidth > el.clientWidth;
+    const overflow = axis === "x" ? style.overflowX : style.overflowY;
+    if (overflow !== "auto" && overflow !== "scroll") return false;
+    return axis === "x" ? el.scrollWidth > el.clientWidth : el.scrollHeight > el.clientHeight;
 };
-const scrollerAt = (x, y) => {
+// scrollerAt is the box a gesture begun at the point moves along the axis.
+const scrollerAt = (x, y, axis = "x") => {
     for (let el = document.elementFromPoint(x, y); el && el !== document.documentElement; el = el.parentElement) {
-        if (scrolls(el)) return el;
+        if (scrolls(el, axis)) return el;
     }
     return null;
 };
@@ -162,24 +164,31 @@ const swipe = async (by, to) => {
     await until(() => settled(to), 2000);
     return { box: scroller.className, page: current() };
 };
-const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : -1);
-const bottom = (el) => (el ? Math.round(el.getBoundingClientRect().bottom) : -1);
+// pull scrolls to its end the box a pull up in the middle of the pages moves,
+// and says which box that is, how far the pages went sideways meanwhile and
+// which page the pager stands on after; the box is put back at its top.
+const pull = async () => {
+    const r = pages().getBoundingClientRect();
+    const box = scrollerAt(Math.round(r.left + r.width / 2), Math.round(r.top + Math.min(r.height / 2, 200)), "y");
+    const left = pages().scrollLeft;
+    if (box) box.scrollTop = box.scrollHeight;
+    await quiet();
+    const out = { box: box ? box.className : "", moved: pages().scrollLeft - left, page: current() };
+    if (box) box.scrollTop = 0;
+    await quiet();
+    return out;
+};
 // look reads what stands on the screen with the pager on the page it names:
-// where the row of pages stands, and the filters — those of the page, and any
-// standing outside the pages.
+// the filters — those of the page, and any standing outside the pages.
 const look = (name) => {
     const page = pageAt(names().indexOf(name));
     const chips = page && page.querySelector(".chips");
-    const row = document.querySelector(".pftabs");
     return {
         page: current(),
         kept: localStorage.getItem("aacpanel.host.page") || "",
         back: Boolean(page && page.querySelector(".pback")),
         head: page ? Array.from(page.querySelectorAll(".phead h2")).map(text) : [],
-        rowTop: top(row),
-        rowBottom: bottom(row),
         filters: chips ? Array.from(chips.querySelectorAll(".chip")).map((c) => c.firstChild.textContent.trim()) : [],
-        filtersTop: top(chips),
         outside: Array.from(document.querySelectorAll(".chips"))
             .filter((el) => !el.closest(".pfpages")).map((el) => el.className),
         stacks: page ? page.querySelectorAll(".stack").length : 0,
@@ -237,11 +246,12 @@ window.done = (async () => {
 
         out.forward = await swipe(1, "Machine");
         out.machine = look("Machine");
+        out.pulled = await pull();
         out.certificate = pageAt(1).querySelector(".lancert")?.textContent;
         const machine = pageAt(1);
         const traffic = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector("h2")?.textContent === "Traffic over the period");
         const probes = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector(".tname")?.textContent === "Probes");
-        out.order = [machine.querySelector(".metrics"), traffic, machine.querySelector(".programs"), machine.querySelector(".lancert"), probes].map((el) => el.getBoundingClientRect().top);
+        out.order = [machine.querySelector(".metrics"), traffic, machine.querySelector(".programs"), machine.querySelector(".lancert"), probes].map((el) => (el ? Array.from(machine.querySelectorAll("*")).indexOf(el) : -1));
         await pause("machine");
         const programRows = () => Array.from(pageAt(1).querySelectorAll(".program-row"));
         out.programs = { before: text(pageAt(1).querySelector(".programs")) };

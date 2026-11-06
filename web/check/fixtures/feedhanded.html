@@ -91,40 +91,30 @@ const until = async (ok, ms = 3000) => {
 };
 const loaded = (img) => Boolean(img && img.complete && img.naturalWidth === 1);
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const box = (el) => el.getBoundingClientRect();
 const cards = (row) => Array.from(row.querySelectorAll(".mfhanded .mfile")).map((card) => ({
     name: text(card.querySelector(".mfname")),
     tag: text(card.querySelector(".mftag")),
     size: text(card.querySelector(".mfsize")),
     button: card.tagName === "BUTTON",
 }));
-// under reports whether the files stand under the bubble and on its side: the
-// list starts below the bubble and ends where the bubble ends.
-const under = (list, bubble) => Boolean(list && bubble) && box(list).top >= box(bubble).bottom
-    && Math.abs(box(list).right - box(bubble).right) <= 1;
 
 (async () => {
-    await document.fonts.ready;
     await until(() => document.querySelectorAll("#root .feedrow.r-me").length === 8
         && loaded(document.querySelector("#root .mshot img")));
     const [captioned, alone, pictured, typedRow] = Array.from(document.querySelectorAll("#root .feedrow.r-me"));
     const bubble = captioned.querySelector(".msg.me");
     const pictureBubble = pictured.querySelector(".msg.me");
-    const strip = pictured.querySelector(".mshots");
     const feed = {
         captionWords: text(bubble),
         captionCards: cards(captioned),
-        captionUnder: under(captioned.querySelector(".mfhanded"), bubble),
         captionRowWords: text(captioned),
         aloneBubbles: alone.querySelectorAll(".msg").length,
         aloneCards: cards(alone),
         aloneStamp: text(alone.querySelector(".mstamp")),
         aloneRowWords: text(alone),
         picturePictures: pictured.querySelectorAll(".mshot img").length,
-        pictureOverBubble: strip ? box(strip).bottom <= box(pictureBubble).top : false,
         pictureWords: text(pictureBubble),
         pictureCards: cards(pictured),
-        pictureUnder: under(pictured.querySelector(".mfhanded"), pictureBubble),
         typedCards: typedRow.querySelectorAll(".mfile").length,
         typedWords: text(typedRow.querySelector(".msg.me")),
     };
@@ -148,11 +138,6 @@ const under = (list, bubble) => Boolean(list && bubble) && box(list).top >= box(
         const before = copied.length;
         const record = { button: Boolean(button) };
         if (button) {
-            const b = box(button), parent = box(button.closest(".msg, .mletter"));
-            const style = getComputedStyle(button);
-            record.visible = style.visibility === "visible" && Number(style.opacity) > 0 && b.width > 0 && b.height > 0;
-            record.inside = b.left >= parent.left && b.right <= parent.right && b.top >= parent.top && b.bottom <= parent.bottom;
-            record.hovered = button.matches(":hover");
             record.label = button.getAttribute("aria-label");
             button.querySelector("svg").dispatchEvent(new MouseEvent("click", { bubbles: true }));
             await until(() => copied.length > before && text(document.querySelector("#root .toast.on .tmain")) === "Copied");

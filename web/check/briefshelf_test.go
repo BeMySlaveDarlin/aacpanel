@@ -11,8 +11,6 @@ type shelfShot struct {
 	States []string `json:"states"`
 	Live   []string `json:"live"`
 	Meta   []string `json:"meta"`
-	Tops   []int    `json:"tops"`
-	Widths []int    `json:"widths"`
 	Bars   []int    `json:"bars"`
 }
 
@@ -56,41 +54,6 @@ func TestShelfNamesWhoIsStillThere(t *testing.T) {
 	}
 	if len(got.Meta) < 1 || !strings.Contains(got.Meta[0], "gateway") {
 		t.Errorf("a brief whose session has ended does not name its directory: %v", got.Meta)
-	}
-}
-
-// On a wide screen the shelf is a grid. A column of full-width rows down the
-// middle of a desktop is the shape the screen had when it was called bad.
-func TestShelfIsAGridOnAWideScreen(t *testing.T) {
-	var got shelfShot
-	runWideFixture(t, "briefshelf.html", &got)
-
-	if len(got.Tops) < 4 {
-		t.Fatalf("cards drawn: %d", len(got.Tops))
-	}
-	if got.Tops[0] != got.Tops[1] {
-		t.Errorf("the first two cards are not side by side: tops %v", got.Tops)
-	}
-	if got.Tops[2] <= got.Tops[0] {
-		t.Errorf("the shelf fits everything in one row: tops %v", got.Tops)
-	}
-	// Rows end level: a short title next to a long one must not leave a step.
-	if got.Tops[2] != got.Tops[3] {
-		t.Errorf("the second row is ragged: tops %v", got.Tops)
-	}
-}
-
-// On a phone the same shelf is one column: two cards of this width side by side
-// would be a title cut into four lines.
-func TestShelfIsOneColumnOnAPhone(t *testing.T) {
-	var got shelfShot
-	runFixture(t, "briefshelf.html", &got)
-
-	if len(got.Tops) < 2 {
-		t.Fatalf("cards drawn: %d", len(got.Tops))
-	}
-	if got.Tops[0] == got.Tops[1] {
-		t.Errorf("the phone shelf put two cards in a row: tops %v, widths %v", got.Tops, got.Widths)
 	}
 }
 

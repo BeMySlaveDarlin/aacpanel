@@ -5,21 +5,21 @@ import (
 	"testing"
 )
 
-// The launch line folds the stream's plumbing into one word, underlines the
-// project's own values and dashes the contour's, and says what the holder
-// does past the handshake — the first message by what it is, not its words.
+// The launch line folds the stream's plumbing into one word, marks the
+// project's own values apart from the contour's and from the command's own
+// words, and says what the holder does past the handshake — the first message
+// by what it is, not its words.
 func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 	var got struct {
-		Stream   []string `json:"stream"`
-		Tmux     []string `json:"tmux"`
-		Own      string   `json:"own"`
-		Contour  string   `json:"contour"`
-		Plain    string   `json:"plain"`
-		Then     string   `json:"then"`
-		TmuxThen bool     `json:"tmuxThen"`
-		OnStream []bool   `json:"onStream"`
-		Labels   []string `json:"labels"`
-		Drift    []string `json:"drift"`
+		Stream       []string `json:"stream"`
+		Tmux         []string `json:"tmux"`
+		StreamLayers []string `json:"streamLayers"`
+		TmuxLayers   []string `json:"tmuxLayers"`
+		Then         string   `json:"then"`
+		TmuxThen     bool     `json:"tmuxThen"`
+		OnStream     []bool   `json:"onStream"`
+		Labels       []string `json:"labels"`
+		Drift        []string `json:"drift"`
 	}
 	runFixture(t, "launchline.html", &got)
 	if strings.Join(got.Stream, " ") != "claude ⟨stream⟩ -n person --effort high" {
@@ -28,8 +28,9 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 	if strings.Join(got.Tmux, " ") != "claude -n aacpanel --remote-control aacpanel" {
 		t.Errorf("the tmux line reads %q", strings.Join(got.Tmux, " "))
 	}
-	if got.Own != "solid" || got.Contour != "dashed" || got.Plain != "none" {
-		t.Errorf("own %q, contour %q, the command's own %q — meant solid, dashed, none", got.Own, got.Contour, got.Plain)
+	if s, m := strings.Join(got.StreamLayers, ","), strings.Join(got.TmuxLayers, ","); s != ",project,,,contour,contour" || m != ",,,project,project" {
+		t.Errorf("the words of the stream line come from %q and of the tmux line from %q — meant "+
+			"the project's own, the contour's and the command's own told apart", s, m)
 	}
 	if got.Then != "then: remote control on · the first message" || got.TmuxThen {
 		t.Errorf("then reads %q (tmux has one: %v)", got.Then, got.TmuxThen)

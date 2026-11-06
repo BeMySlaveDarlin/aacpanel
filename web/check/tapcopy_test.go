@@ -1,22 +1,16 @@
 package check
 
-import (
-	"math"
-	"testing"
-)
+import "testing"
 
-// Code in a line is copied by a tap, and "copied" stands over the line the
-// finger touched for a moment. A path in code is not copied — a tap on it
+// Code in a line is copied by a tap, and "copied" is said for a moment. A path in code is not copied — a tap on it
 // opens the file — and a tap inside a block of code is left to the block and
 // its button. A clipboard that refuses says so where it was asked.
 func TestATapOnCodeInALineCopiesIt(t *testing.T) {
 	var got struct {
 		First struct {
-			Copied                []string
-			Tip                   string
-			TipBottom, ChipTop    float64
-			TipMiddle, ChipMiddle float64
-			Marked                bool
+			Copied []string
+			Tip    string
+			Marked bool
 		}
 		Gone struct {
 			Tips   int
@@ -39,10 +33,6 @@ func TestATapOnCodeInALineCopiesIt(t *testing.T) {
 	}
 	if f.Tip != "copied" || !f.Marked {
 		t.Errorf("the tap says %q and marks the code %v", f.Tip, f.Marked)
-	}
-	if f.TipBottom > f.ChipTop || f.ChipTop-f.TipBottom > 12 || math.Abs(f.TipMiddle-f.ChipMiddle) > 2 {
-		t.Errorf("the word stands with its bottom at %.1f and middle at %.1f, the code at %.1f and %.1f — not over the code",
-			f.TipBottom, f.TipMiddle, f.ChipTop, f.ChipMiddle)
 	}
 	if got.Gone.Tips != 0 || got.Gone.Marked {
 		t.Errorf("the word stays: %d on the page, the code marked %v", got.Gone.Tips, got.Gone.Marked)

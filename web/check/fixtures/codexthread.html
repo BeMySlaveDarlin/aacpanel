@@ -126,19 +126,8 @@ window.done = (async () => {
     await show(thread);
     // What is seen, not what is written: a space a flex item drops is not read.
     out.title = root.querySelector(".chathead h2").innerText.replace(/\s+/g, " ").trim();
-    // The space a title splits before is drawn: a flex item that dropped it
-    // would glue the words, and the range over it would have no width.
-    const tail = root.querySelector(".chathead .midtail");
-    const gap = document.createRange();
-    if (tail && tail.firstChild) {
-        gap.setStart(tail.firstChild, 0);
-        gap.setEnd(tail.firstChild, 1);
-    }
-    out.titleGap = tail && tail.textContent.startsWith(" ") ? Math.round(gap.getBoundingClientRect().width) : -1;
     const strip = root.querySelector(".composer .cstrip");
     out.band = Array.from(strip.children).map((el) => el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : el.className));
-    const last = strip.lastElementChild.getBoundingClientRect();
-    out.threadAtEnd = Math.round(strip.getBoundingClientRect().right - last.right) < 12;
     const deck = root.querySelector(".deck");
     out.deck = Array.from(deck.querySelectorAll(":scope > .wchips .wchip")).map((b) => b.getAttribute("aria-label"));
 

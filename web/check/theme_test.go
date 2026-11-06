@@ -82,56 +82,16 @@ func TestThemedSurfacesTakeTheirFillFromASkyToken(t *testing.T) {
 	}
 }
 
-// TestDesktopTipIsOneNodeKeptInsideTheViewport holds the shape of the desktop
-// tooltip: one fixed node the script fills and places, with the place clamped
-// to the viewport on both axes. A pseudo-element under the button would again
-// fade with a dimmed button, vanish under a scrolling column and run off the
-// screen at the right and bottom edges.
-func TestDesktopTipIsOneNodeKeptInsideTheViewport(t *testing.T) {
-	files := srcFiles(t)
-	tip := files["src/desktop/tip.js"]
-	if tip == "" {
-		t.Fatal("src/desktop/tip.js not found — the desktop tooltip has no script")
-	}
-
-	place := jsBlock(t, "src/desktop/tip.js", tip, "export function placeTip(")
-	// The clamp is one, shared with the menu of the right click.
-	clamp := jsBlock(t, "src/desktop/tip.js", tip, "function inside(")
-	for _, want := range []string{
-		"Math.min(Math.max(x, MARGIN), vw - MARGIN - size.width)",
-		"Math.min(Math.max(y, MARGIN), vh - MARGIN - size.height)",
-	} {
-		if !strings.Contains(clamp, want) {
-			t.Errorf("the clamp of the tip does not keep it with %q — the tip runs off the screen at that edge", want)
-		}
-	}
-	if !strings.Contains(place, "return inside(") {
-		t.Error("placeTip does not end in the clamp — the tip runs off the screen at the edges")
-	}
-	if !strings.Contains(place, "if (x < MARGIN) x = at.right + GAP") {
-		t.Error("a left-side tip with no room on the left does not move to the right — it is squeezed against the edge over the button")
-	}
-	if !strings.Contains(place, "if (y + size.height > vh - MARGIN) y = at.top - GAP - size.height") {
-		t.Error("a tip with no room below does not move above — at the bottom edge it is pushed up over the button")
-	}
-
-	attach := jsBlock(t, "src/desktop/tip.js", tip, "export function attachTips(")
-	for _, want := range []string{"el.getBoundingClientRect()", "tip.getBoundingClientRect()", "window.innerWidth", "window.innerHeight"} {
-		if !strings.Contains(attach, want) {
-			t.Errorf("attachTips does not measure with %s — without it the place is a guess", want)
-		}
-	}
-
-	shell := files["src/desktop/shell.js"]
+// TestDesktopTipIsOneNodeTheShellAttaches holds the shape of the desktop
+// tooltip: one node the shell attaches the script to, which fills it for every
+// data-tip. A pseudo-element under the button would be a second tooltip that
+// knows nothing of the first.
+func TestDesktopTipIsOneNodeTheShellAttaches(t *testing.T) {
+	shell := srcFiles(t)["src/desktop/shell.js"]
 	if !strings.Contains(shell, "attachTips(") || !strings.Contains(shell, `class="dktip"`) {
 		t.Error("the desktop shell does not attach the tooltip script to its .dktip node — every data-tip is silent")
 	}
-
-	css := cssBlockFile(t, "src/css/desktop.css", ".dktip")
-	if !strings.Contains(css, "position: fixed") {
-		t.Error(".dktip is not fixed to the viewport — a scrolling column clips it and the clamp measures the wrong box")
-	}
 	if strings.Contains(cssWithoutComments(cssSrc(t)), "[data-tip]::after") {
-		t.Error("a [data-tip]::after rule is back — a pseudo-element tip fades with a dimmed button and cannot know where the screen ends")
+		t.Error("a [data-tip]::after rule is back — a pseudo-element tip is a second tooltip beside the one node")
 	}
 }

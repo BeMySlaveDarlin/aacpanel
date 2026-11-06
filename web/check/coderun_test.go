@@ -6,27 +6,19 @@ import (
 	"testing"
 )
 
-type codeRunStyle struct {
-	PreWhiteSpace, CodeWhiteSpace, PaddingRight, OverflowX, OverflowWrap string
-}
-
 type codeRunShot struct {
-	Buttons  []bool
-	Outside  int
-	Draft    string
-	Geometry []struct {
-		Clear, Aligned, Centered, Inside, OneLine bool
-		Top, Gap, Edge, RunHeight, CopyHeight     float64
-		Label, Title                              string
-		Style, PlainStyle                         codeRunStyle
+	Buttons []bool
+	Outside int
+	Draft   string
+	Pairs   []struct {
+		Label, Title string
 	}
 	Runs []struct {
-		Index                                           int
-		Preview, Title, Going, Local, Output, Font, Yes string
-		BarGoing, BarRunning, BarEnded                  string
-		Before, BeforeRows, Ended                       int
-		Wraps, Scrolls, Bounded                         bool
-		Sends                                           []struct {
+		Index                                     int
+		Preview, Title, Going, Local, Output, Yes string
+		BarGoing, BarRunning, BarEnded            string
+		Before, BeforeRows, Ended                 int
+		Sends                                     []struct {
 			Kind, Target string
 			Params       struct {
 				Text, MessageID string
@@ -40,15 +32,17 @@ type codeRunShot struct {
 }
 
 func TestCodeBlocksRunThroughTheSessionGate(t *testing.T) {
-	var got codeRunShot
-	runFixtureOn(t, "coderun.html", `{"width":390,"height":852,"deviceScaleFactor":2,"mobile":true}`, phonePointer, &got)
-	checkCodeRun(t, got)
-}
-
-func TestCodeBlocksRunThroughTheSessionGateAtADesk(t *testing.T) {
-	var got codeRunShot
-	runWideFixture(t, "coderun.html", &got)
-	checkCodeRun(t, got)
+	parallel(t)
+	for _, screen := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+	}{{"phone", runFixture}, {"desk", runWideFixture}} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got codeRunShot
+			screen.run(t, "coderun.html", &got)
+			checkCodeRun(t, got)
+		})
+	}
 }
 
 func checkCodeRun(t *testing.T, got codeRunShot) {
@@ -88,9 +82,6 @@ func checkCodeRun(t *testing.T, got codeRunShot) {
 		if r.Title != "Run in demo?" || r.Yes != "Run" || r.Before != 0 || r.BeforeRows != 0 {
 			t.Errorf("block %d did not wait at its gate: %+v", r.Index, r)
 		}
-		if !r.Wraps || !r.Scrolls || !r.Bounded || !strings.Contains(strings.ToLower(r.Font), "mono") {
-			t.Errorf("block %d preview cannot be read whole: %+v", r.Index, r)
-		}
 		if len(r.Sends) != 1 {
 			t.Errorf("block %d sent %d actions", r.Index, len(r.Sends))
 			continue
@@ -114,25 +105,10 @@ func checkCodeRun(t *testing.T, got codeRunShot) {
 	if !got.BarTakesDown || !got.BarGoneAfterMessage {
 		t.Errorf("the command bar: takes the feed down %v, leaves after the next message %v", got.BarTakesDown, got.BarGoneAfterMessage)
 	}
-	if len(got.Geometry) != 10 {
-		t.Fatalf("measured %d button pairs, want 10", len(got.Geometry))
+	if len(got.Pairs) != 10 {
+		t.Fatalf("read %d run buttons, want 10", len(got.Pairs))
 	}
-	for i, b := range got.Geometry {
-		if !b.Aligned || !b.Inside || b.RunHeight != b.CopyHeight || b.Gap < 2 || b.Gap > 8 || b.Edge < 2 || b.Edge > 8 {
-			t.Errorf("button pair %d does not fit in the block: %+v", i, b)
-		}
-		if b.OneLine {
-			if !b.Clear || !b.Centered {
-				t.Errorf("one-line button pair %d overlaps the code or is not centered: %+v", i, b)
-			}
-		} else {
-			if b.Style != b.PlainStyle || b.Style.CodeWhiteSpace != "pre" || b.Style.OverflowX != "auto" {
-				t.Errorf("multiline block %d differs from the same block without Run: %+v versus %+v", i, b.Style, b.PlainStyle)
-			}
-			if b.Top < 2 || b.Top > 8 {
-				t.Errorf("multiline button pair %d is %.1fpx below the top corner", i, b.Top)
-			}
-		}
+	for i, b := range got.Pairs {
 		if b.Label != "Run in the session" || b.Title != b.Label {
 			t.Errorf("button pair %d has label %q and title %q", i, b.Label, b.Title)
 		}

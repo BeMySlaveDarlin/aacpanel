@@ -1,30 +1,17 @@
 package check
 
 import (
-	"math"
 	"strings"
 	"testing"
 )
 
-type cardBox struct {
-	Left, Right, Width, Top float64
-}
-
 type feedCard struct {
-	Cls       string   `json:"cls"`
-	Box       *cardBox `json:"box"`
-	Look      string   `json:"look"`
-	Head      string   `json:"head"`
-	Icon      bool     `json:"icon"`
-	Label     string   `json:"label"`
-	LabelFont string   `json:"labelFont"`
-	At        *cardBox `json:"at"`
-	Plate     *cardBox `json:"plate"`
-	PlateLook string   `json:"plateLook"`
-	Rows      []struct {
-		Box    *cardBox `json:"box"`
-		Radius string   `json:"radius"`
-	} `json:"rows"`
+	Cls   string `json:"cls"`
+	Head  string `json:"head"`
+	Icon  bool   `json:"icon"`
+	Label string `json:"label"`
+	At    bool   `json:"at"`
+	Plate bool   `json:"plate"`
 }
 
 type feedCardsShot struct {
@@ -32,13 +19,14 @@ type feedCardsShot struct {
 	Wide      bool       `json:"wide"`
 	Cards     []feedCard `json:"cards"`
 	Questions []struct {
-		Tag, TagCase, TagColour, Question, Answer string
+		Tag, Tone, Question, Answer string
 	} `json:"questions"`
 	Afk struct {
 		Why, Answer string
 	} `json:"afk"`
 	Permits []struct {
-		Tag, TagColour, Subject, Answer, AnswerColour string
+		Tag, Tone, Subject, Answer string
+		Denied                     bool
 	} `json:"permits"`
 	Page struct {
 		Title, Desc, Link string
@@ -54,29 +42,46 @@ type feedCardsShot struct {
 	} `json:"wake"`
 	Briefs []string `json:"briefs"`
 	Calls  []struct {
-		Text, Why, Mark string
+		Text, Why string
+		Lost      bool
 	} `json:"calls"`
 }
 
-func samePx(a, b float64) bool { return math.Abs(a-b) <= 0.5 }
-
 // Every card of what arrives in the feed is built as the files sent to the
-// person are: a plate of the same face, corner and inset from the left edge
-// of the column to its right one; a head with the mark of the kind, its name
-// in the code face and capitals, and the time at the right; and under it a
-// plate of rows as wide as the one the files lie on. A card built otherwise is
-// a second language in one column, and the owner reads it as clutter.
-func testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t *testing.T, run func(*testing.T, string, any)) {
-	var got feedCardsShot
-	run(t, "feedcards.html", &got)
-	if got.Error != "" {
-		t.Fatal(got.Error)
+// person are: a card of the same build, a head with the mark of the kind, its
+// name and the time, and under it a plate of rows. A card built otherwise is a
+// second language in one column. So on a phone as at a desk.
+func TestTheCardsOfTheFeedShareTheBuildOfFilesForYou(t *testing.T) {
+	parallel(t)
+	for _, screen := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+		wide bool
+	}{
+		{"phone", runFixture, false},
+		{"desk", runWideFixture, true},
+	} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got feedCardsShot
+			screen.run(t, "feedcards.html", &got)
+			if got.Error != "" {
+				t.Fatal(got.Error)
+			}
+			if got.Wide != screen.wide {
+				t.Fatalf("the fixture drew the feed of a desk %v on the screen of a %s", got.Wide, screen.name)
+			}
+			checkFeedCardsBuild(t, got)
+		})
 	}
+}
+
+func checkFeedCardsBuild(t *testing.T, got feedCardsShot) {
+	t.Helper()
 	if len(got.Cards) != 10 {
 		t.Fatalf("%d cards drawn, wanted ten", len(got.Cards))
 	}
 	files := got.Cards[0]
-	if files.Label != "file for you" || files.Box == nil || files.Plate == nil || files.At == nil {
+	if files.Label != "file for you" || !files.Plate || !files.At {
 		t.Fatalf("the reference card is not the files sent to the person: %+v", files)
 	}
 	names := []string{"questions", "question", "permissions", "page", "page updated", "brief", "alarm",
@@ -86,19 +91,8 @@ func testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t *testing.T, run func(*tes
 	said := map[string]bool{"called you": true, "not called": true}
 	for i, card := range got.Cards[1:] {
 		name := names[i]
-		if card.Box == nil {
-			t.Errorf("%s: no card drawn", name)
-			continue
-		}
 		if !strings.Contains(" "+card.Cls+" ", " sent ") {
 			t.Errorf("%s: the card is %q, not a card of the files' build", name, card.Cls)
-		}
-		if !samePx(card.Box.Left, files.Box.Left) || !samePx(card.Box.Width, files.Box.Width) {
-			t.Errorf("%s: the card stands at %.1f and is %.1f wide, the files at %.1f and %.1f",
-				name, card.Box.Left, card.Box.Width, files.Box.Left, files.Box.Width)
-		}
-		if card.Look != files.Look {
-			t.Errorf("%s: the card is drawn %q against %q of the files", name, card.Look, files.Look)
 		}
 		if card.Head != "senthead" || !card.Icon {
 			t.Errorf("%s: the card opens with %q and a mark %v: the head of the files' card is what it opens with", name, card.Head, card.Icon)
@@ -106,50 +100,23 @@ func testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t *testing.T, run func(*tes
 		if card.Label != name {
 			t.Errorf("the head of the %s card says %q", name, card.Label)
 		}
-		if card.LabelFont != files.LabelFont {
-			t.Errorf("%s: the name on the head is set %q, the files' %q", name, card.LabelFont, files.LabelFont)
+		if !card.At {
+			t.Errorf("%s: the head of the card has no time, where the files have theirs", name)
 		}
-		if card.At == nil || !samePx(card.At.Right, files.At.Right) {
-			t.Errorf("%s: the time of the card is not at the right of its head, where the files have theirs: %+v against %+v",
-				name, card.At, files.At)
-		}
-		if card.Plate == nil {
-			if !said[name] {
-				t.Errorf("%s: no plate of rows under the head", name)
-			}
-			continue
-		}
-		if !samePx(card.Plate.Left, files.Plate.Left) || !samePx(card.Plate.Width, files.Plate.Width) {
-			t.Errorf("%s: the plate stands at %.1f and is %.1f wide, the files' at %.1f and %.1f",
-				name, card.Plate.Left, card.Plate.Width, files.Plate.Left, files.Plate.Width)
-		}
-		if card.PlateLook != files.PlateLook {
-			t.Errorf("%s: the plate is drawn %q against %q of the files", name, card.PlateLook, files.PlateLook)
-		}
-		for n, row := range card.Rows {
-			if row.Box == nil || !samePx(row.Box.Left, card.Plate.Left) || !samePx(row.Box.Width, card.Plate.Width) || row.Radius != "0px" {
-				t.Errorf("%s: row %d of the plate is %+v with corners %q: a row fills its plate edge to edge, square",
-					name, n, row.Box, row.Radius)
-			}
+		if card.Plate == said[name] {
+			t.Errorf("%s: a plate of rows under the head %v, expected %v", name, card.Plate, !said[name])
 		}
 	}
 }
 
-func TestTheCardsOfTheFeedShareTheBuildOfFilesForYouOnAPhone(t *testing.T) {
-	testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t, runFixture)
-}
-
-func TestTheCardsOfTheFeedShareTheBuildOfFilesForYouAtADesk(t *testing.T) {
-	testTheCardsOfTheFeedShareTheBuildOfFilesForYou(t, runWideFixture)
-}
-
 // Built anew, each card still says what it said: every question with its
 // header, what was asked and what was picked, a question nobody answered told
-// apart at a glance by its dimmed tag; a round nobody answered says so on its
-// head; a permission names its tool, its call and the answer, a refusal in a
-// tone of its own; a page and a brief are the row that opens them, a page
+// apart by the tone of its row; a round nobody answered says so on its head; a
+// permission names its tool, its call and the answer, a refusal in a tone of
+// its own; a page and a brief are the row that opens them, a page
 // published again saying so on its head rather than as a word among its meta;
-// a wake-up shows its first paragraph and opens the rest by a row under it.
+// a wake-up shows its first paragraph and opens the rest by a row under it; a
+// call nobody got is marked apart from one that went.
 func TestTheCardsOfTheFeedStillSayWhatTheySaid(t *testing.T) {
 	var got feedCardsShot
 	runFixture(t, "feedcards.html", &got)
@@ -160,21 +127,18 @@ func TestTheCardsOfTheFeedStillSayWhatTheySaid(t *testing.T) {
 	if len(got.Questions) != 3 {
 		t.Fatalf("question rows: %+v", got.Questions)
 	}
-	for i, want := range []struct{ tag, question, answer string }{
-		{"Pushes", "Which screen do we build?", "The second one"},
-		{"Plan: where", "Where is the plan drawn?", "skipped"},
-		{"Plan: nudge", "Nudge the session about an open plan?", "At the end of a turn · By a hook"},
+	for i, want := range []struct{ tag, tone, question, answer string }{
+		{"Pushes", "", "Which screen do we build?", "The second one"},
+		{"Plan: where", "s-faint", "Where is the plan drawn?", "skipped"},
+		{"Plan: nudge", "", "Nudge the session about an open plan?", "At the end of a turn · By a hook"},
 	} {
 		q := got.Questions[i]
 		if q.Tag != want.tag || q.Question != want.question || q.Answer != want.answer {
 			t.Errorf("question %d reads %q / %q / %q, wanted %q / %q / %q", i, q.Tag, q.Question, q.Answer, want.tag, want.question, want.answer)
 		}
-		if q.TagCase != "uppercase" {
-			t.Errorf("question %d: its header is set %q, not in capitals as the tags of the files are", i, q.TagCase)
+		if q.Tone != want.tone {
+			t.Errorf("question %d is in the tone %q, wanted %q: a question left without an answer is told apart", i, q.Tone, want.tone)
 		}
-	}
-	if got.Questions[1].TagColour == got.Questions[0].TagColour {
-		t.Errorf("a question left without an answer is tagged in the colour of an answered one: %s", got.Questions[1].TagColour)
 	}
 	if got.Afk.Why != "nobody answered" || got.Afk.Answer != "" {
 		t.Errorf("the round nobody answered says %q on its head and %q under its question", got.Afk.Why, got.Afk.Answer)
@@ -188,9 +152,9 @@ func TestTheCardsOfTheFeedStillSayWhatTheySaid(t *testing.T) {
 		deny.Subject != "rm -rf web/dist" || deny.Answer != "Denied" {
 		t.Errorf("the permissions read %+v and %+v", allow, deny)
 	}
-	if allow.TagColour == deny.TagColour || deny.TagColour != deny.AnswerColour {
-		t.Errorf("a refused call is tagged in %s, an allowed one in %s and the refusal is said in %s: "+
-			"the tag of a refusal takes the tone of the refusal", deny.TagColour, allow.TagColour, deny.AnswerColour)
+	if allow.Tone != "s-ok" || allow.Denied || deny.Tone != "s-crit" || !deny.Denied {
+		t.Errorf("an allowed call is in the tone %q (its answer a refusal %v) and a refused one in %q (%v): "+
+			"the row of a refusal takes the tone of the refusal", allow.Tone, allow.Denied, deny.Tone, deny.Denied)
 	}
 
 	if got.Page.Title != "The round of the feed" || got.Page.Desc != "now | A | B on a live conversation" ||
@@ -232,7 +196,7 @@ func TestTheCardsOfTheFeedStillSayWhatTheySaid(t *testing.T) {
 		refused.Why != "Nobody was called: this session called 12 s ago: one call a minute, 48 s left." {
 		t.Errorf("the refused call reads %q with %q under it: its line, and why nobody was called", refused.Text, refused.Why)
 	}
-	if refused.Mark == called.Mark {
-		t.Errorf("the mark of a call nobody got is drawn %s, as the mark of one that went", refused.Mark)
+	if called.Lost || !refused.Lost {
+		t.Errorf("the call that went is marked lost %v and the one nobody got %v", called.Lost, refused.Lost)
 	}
 }

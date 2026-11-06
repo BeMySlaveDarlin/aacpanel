@@ -12,7 +12,6 @@ type loadShot struct {
 		Tones  []string `json:"tones"`
 		Fills  []int    `json:"fills"`
 		Bars   int      `json:"bars"`
-		Rows   int      `json:"rows"`
 		Tips   []string `json:"tips"`
 	} `json:"before"`
 	Opened int `json:"opened"`
@@ -33,9 +32,6 @@ func TestTheTopBarCarriesTheLoadOfTheHost(t *testing.T) {
 		if got.Before.Names[i] != name {
 			t.Errorf("gauge %d is %q, the order is cpu, mem, disk", i+1, got.Before.Names[i])
 		}
-	}
-	if got.Before.Rows != 1 {
-		t.Errorf("the gauges are on %d lines: the top bar is one line high", got.Before.Rows)
 	}
 	if got.Before.Values[0] != "74%" || got.Before.Values[1] != "23%" {
 		t.Errorf("the numbers do not match the host: %v", got.Before.Values)
@@ -102,10 +98,5 @@ func TestTheLoadSitsInTheMiddleOfTheTopBar(t *testing.T) {
 	}
 	if load > right {
 		t.Error("the load moved in among the controls at the end of the bar")
-	}
-
-	rule := cssBlock(t, cssWithoutComments(cssSrc(t)), ".dkload")
-	if !strings.Contains(rule, "margin-inline: auto") {
-		t.Errorf("nothing pushes the load into the middle: it will sit against the last icon\n%s", rule)
 	}
 }

@@ -77,43 +77,57 @@ jobs:
       - name: front
         run: make front
 
-      # A runner has four cores: the frontend fixtures go four at a time.
+      # The frontend fixtures run in a job of their own, beside this one.
       - name: tests
         run: |
           set -o pipefail
-          make test GOTEST_PARALLEL=4 GOTEST_FLAGS="-v -count=1" 2>&1 | tee /tmp/go-test.log
+          make test-go GOTEST_FLAGS="-v" 2>&1 | tee /tmp/go-test.log
 
-      # A green run says nothing until it is known what it skipped. The tests that
-      # need a live host skip themselves; the ones that need the database must not.
       - name: what ran and what was skipped
         if: always()
         run: |
-          test -s /tmp/go-test.log || { echo "the tests left no log"; exit 1; }
-          echo "passed:  $(grep -c '^--- PASS' /tmp/go-test.log || true)"
-          echo "skipped: $(grep -c '^--- SKIP' /tmp/go-test.log || true)"
+          deploy/ci/test-summary.sh /tmp/go-test.log --database
           echo
-          # What the run costs is read off the run: a package that grew shows
-          # here before the whole job is felt to be slow.
-          echo "the slowest packages:"
-          grep -E '^(ok|FAIL)[[:space:]]' /tmp/go-test.log | sort -t$'\t' -k3 -rn | head -n 5 || true
-          echo
-          echo "why the skipped ones were skipped:"
-          grep -B1 '^--- SKIP' /tmp/go-test.log \
-            | grep -oE '[a-z_]+\.go:[0-9]+: .*' \
-            | sed -E 's/^[a-z_]+\.go:[0-9]+: //' \
-            | sort | uniq -c | sort -rn
-          echo
-          if grep -q 'AACP_TEST_DSN is not set' /tmp/go-test.log; then
-            echo "!! the tests with a database did not run: the service was not reached"
-            exit 1
-          fi
-          echo "the tests with a database ran: the database was reachable"
-          echo
-          echo "not in this log at all: agent-confined, which needs a user systemd"
-          echo "manager, and the install from scratch onto a foreign machine."
+          echo "not in this log at all: the frontend fixtures, which run in the job web;"
+          echo "agent-confined, which needs a user systemd manager; and the install from"
+          echo "scratch onto a foreign machine."
 
       - name: govulncheck
         run: make vuln
+
+  # The frontend fixtures are the longest part of the tests and need neither
+  # the database nor the rest of the packages: a runner of their own takes them
+  # off the length of the job go.
+  web:
+    name: web
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: which go the module asks for
+        id: goline
+        run: echo "spec=$(sed -n 's/^go \([0-9]\+\.[0-9]\+\).*/\1/p' go.mod).x" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.goline.outputs.spec }}
+          check-latest: true
+          cache: true
+
+      # The fixtures read the bundle.
+      - name: front
+        run: make front
+
+      # A runner has four cores, and a fixture keeps about one busy.
+      - name: tests
+        run: |
+          set -o pipefail
+          make test-web GOTEST_PARALLEL=4 GOTEST_FLAGS="-v" 2>&1 | tee /tmp/web-test.log
+
+      - name: what ran and what was skipped
+        if: always()
+        run: deploy/ci/test-summary.sh /tmp/web-test.log --chrome
 
   scripts:
     name: scripts

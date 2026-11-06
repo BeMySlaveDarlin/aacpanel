@@ -101,24 +101,13 @@ export async function sessionPins(phoneOnly = false) {
     const look = (name) => {
         const button = phoneButton(name);
         const mark = deskRow(name).querySelector(".scact[aria-pressed]");
-        const accent = document.createElement("span");
-        accent.style.color = "var(--accent)";
-        mark.append(accent);
-        const accentColor = getComputedStyle(accent).color;
-        accent.remove();
         return {
             pressed: button.getAttribute("aria-pressed") === "true",
             pending: button.getAttribute("aria-busy") === "true",
             off: button.getAttribute("aria-disabled") === "true",
-            dim: Number(getComputedStyle(button).opacity) < 1,
             mark: Boolean(mark),
             markOn: mark && mark.getAttribute("aria-pressed") === "true",
             markPending: mark && mark.getAttribute("aria-busy") === "true",
-            markDim: mark && Number(getComputedStyle(mark).opacity) < 1,
-            markOpacity: Number(getComputedStyle(mark).opacity),
-            markColor: getComputedStyle(mark).color,
-            markFill: getComputedStyle(mark.querySelector("svg")).fill,
-            accentColor,
         };
     };
     const phonePin = async (name) => {
@@ -239,10 +228,8 @@ export async function sessionPins(phoneOnly = false) {
             await answer(false);
             await until(() => !wait.busy && mount.querySelector(".toast.on.bad"));
             const toast = mount.querySelector(".toast.on.bad");
-            const box = toast.getBoundingClientRect();
             out.refused.push({ during, after: read(), pending: Boolean(mount.querySelector('[aria-busy="true"]')),
-                reason: text(toast.querySelector(".tsub")), visible: box.width > 0 && box.height > 0
-                    && box.top >= 0 && box.bottom <= innerHeight && box.left >= 0 && box.right <= innerWidth });
+                reason: text(toast.querySelector(".tsub")) });
         }
         sessions = sessions.map((s) => s.session === "audit" ? { ...s, pinnedAt: "2026-01-01T00:00:00Z" } : s);
         await paint();

@@ -29,11 +29,10 @@ window.done = (async () => {
     show("Project \"aacpanel\" deleted", undefined, false, { label: "Undo", run: () => { ran++; } });
     await quiet();
     const button = document.querySelector(".toast .tact");
+    out.button = button ? { label: button.textContent.trim(), pointer: getComputedStyle(button).pointerEvents } : null;
+    // A press in the middle of the button lands on the button.
     const b = button ? button.getBoundingClientRect() : null;
-    out.button = b ? { width: Math.round(b.width), height: Math.round(b.height), label: button.textContent.trim(),
-                       pointer: getComputedStyle(button).pointerEvents } : null;
-    const hit = b ? document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) : null;
-    out.hitsButton = hit === button;
+    out.hitsButton = Boolean(b) && document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === button;
     if (button) button.click();
     await quiet();
     out.ran = ran;

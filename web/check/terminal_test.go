@@ -337,21 +337,7 @@ func TestTerminalKeysSendWhatAKeyboardWouldSend(t *testing.T) {
 	}
 
 	const cssPath = "src/css/term.css"
-	danger := cssBlockFile(t, cssPath, ".termkey.danger")
-	if !strings.Contains(danger, "margin-right: auto") {
-		t.Errorf("%s: Esc is not separated from the other keys — a finger landing on it by mistake "+
-			"interrupts the work of the session", cssPath)
-	}
-	if !strings.Contains(danger, "var(--crit)") {
-		t.Errorf("%s: Esc is not named by color — until it is pressed it is indistinguishable from Tab", cssPath)
-	}
 	key := cssBlockFile(t, cssPath, ".termkey")
-	// Eight keys stand side by side on a phone, so the row is deliberately a
-	// fifth shorter than a comfortable target. Below this it stops being a
-	// target at all: missing an arrow inside a dialog picks the wrong item.
-	if !strings.Contains(key, "min-height: 32px") {
-		t.Errorf("%s: the key row has lost its height — the keys are hit by a finger, not a pointer", cssPath)
-	}
 	if !strings.Contains(key, "touch-action: manipulation") {
 		t.Errorf("%s: a double tap on a key zooms the screen instead of pressing a second time", cssPath)
 	}

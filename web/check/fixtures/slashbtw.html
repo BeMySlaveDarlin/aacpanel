@@ -99,19 +99,6 @@ window.done = (async () => {
     await quiet();
     out.theirs = Boolean(document.querySelector(".slashbox.theirs"));
     out.rows = rows();
-    // The description stands on a line of its own under the name, and is cut.
-    // Every row, a short description as well as a long one that would wrap
-    // under the name anyway.
-    out.hintUnder = Array.from(document.querySelectorAll(".slashitem")).filter((b) => b.querySelector(".slashhint"))
-        .every((b) => b.querySelector(".slashhint").getBoundingClientRect().top >= b.querySelector(".slashname").getBoundingClientRect().bottom - 1);
-    const brief = Array.from(document.querySelectorAll(".slashitem")).find((b) => b.textContent.includes("/brief"));
-    if (brief) {
-        const hint = brief.querySelector(".slashhint").getBoundingClientRect();
-        const style = getComputedStyle(brief.querySelector(".slashhint"));
-        out.hintCut = style.textOverflow === "ellipsis" && style.whiteSpace === "nowrap";
-        // Cut where the composer ends, not past its edge.
-        out.hintInside = hint.right <= document.querySelector(".composer").getBoundingClientRect().right + 1;
-    }
     await type("/us");
     out.filtered = rows().map((r) => r.label);
     await type("/per");

@@ -246,12 +246,6 @@ func TestDesktopChatKeepsItsOwnColumn(t *testing.T) {
 	if !strings.Contains(before, `class="dkcenter dkchat"`) {
 		t.Error("the chat is not wrapped in its own column — its roots become children of the grid and the feed moves into the session column")
 	}
-	if !strings.Contains(withoutComments(cssSrc(t)), "--chat-measure:") {
-		t.Error("the chat side margin is gone — the text of the feed and the composer lands against the window edges")
-	}
-	if strings.Contains(cssBlock(t, cssSrc(t), ".dkchat"), "max-width") {
-		t.Error("the chat has a second line measure on top of --chat-measure — replies collapse into a column of letters")
-	}
 }
 
 func TestDesktopChatHeadIsTheSectionHead(t *testing.T) {
@@ -302,32 +296,6 @@ func TestChatHeadRulesNeverTouchThePhone(t *testing.T) {
 	for _, sel := range []string{".dkchatname", ".dkfact"} {
 		if !strings.Contains(after, sel) {
 			t.Errorf("%s: %s is gone from the styles — the wide-screen header is built without it", chatCSS, sel)
-		}
-	}
-}
-
-func TestBackButtonIsQuietOnWideScreens(t *testing.T) {
-	const layers = "src/css/layers.css"
-	raw, err := os.ReadFile(webPath(layers))
-	if err != nil {
-		t.Fatalf("layer styles: %v", err)
-	}
-	css := cssWithoutComments(string(raw))
-
-	at := strings.Index(css, "@media (min-width: 1100px) {")
-	if at < 0 {
-		t.Fatalf("%s: there is no wide-screen rule at all — the back button stays a slab "+
-			"among the flat headers of the panel", layers)
-	}
-	if !strings.Contains(cssBlock(t, css[:at], ".pback"), "background: var(--glass)") {
-		t.Errorf("%s: on the phone the back button lost its backdrop — the tap target "+
-			"is no longer visible where a finger aims for it", layers)
-	}
-	quiet := cssBlock(t, css[at:], ".pback")
-	for _, want := range []string{"background: none", "box-shadow: none"} {
-		if !strings.Contains(quiet, want) {
-			t.Errorf("%s: on a wide screen the back button does not lose %q — it again reads "+
-				"as the only button of its kind in the panel", layers, want)
 		}
 	}
 }

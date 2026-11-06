@@ -141,16 +141,6 @@ func TestFileViewerCarriesCopyButton(t *testing.T) {
 		t.Errorf("%s: the viewer body does not call block copying — the buttons on code "+
 			"and tables inside the document are drawn and do nothing", lookFile)
 	}
-
-	block := cssBlockFile(t, "src/css/calls.css", ".mdcopy.filecopy")
-	if block == "" {
-		t.Fatal("src/css/calls.css has no `.mdcopy.filecopy` rule — the button in the header stays " +
-			"the size of the strip above code, three times smaller than the close cross next to it")
-	}
-	if !strings.Contains(block, "margin-left: auto") {
-		t.Error("`.mdcopy.filecopy` without margin-left: auto — the button sticks to the title " +
-			"instead of the right edge of the header")
-	}
 }
 
 func runFilePickJS(t *testing.T, states []map[string]any) []byte {

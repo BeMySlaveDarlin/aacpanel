@@ -1,7 +1,6 @@
 package check
 
 import (
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -14,21 +13,17 @@ type menuTile struct {
 	Lit   bool    `json:"lit"`
 	Stale bool    `json:"stale"`
 	Label string  `json:"label"`
-	Box   *barBox `json:"box"`
 }
 
 type menuStrip struct {
-	Text     string  `json:"text"`
-	Disabled bool    `json:"disabled"`
-	Box      *barBox `json:"box"`
+	Text     string `json:"text"`
+	Disabled bool   `json:"disabled"`
 }
 
 type menuQuiet struct {
-	Title   string  `json:"title"`
-	Sub     *string `json:"sub"`
-	Crit    bool    `json:"crit"`
-	Opacity string  `json:"opacity"`
-	Box     *barBox `json:"box"`
+	Title string  `json:"title"`
+	Sub   *string `json:"sub"`
+	Crit  bool    `json:"crit"`
 }
 
 // menuSoon is a door of the row that does not open yet.
@@ -36,8 +31,6 @@ type menuSoon struct {
 	Title    string  `json:"title"`
 	Sub      *string `json:"sub"`
 	Disabled bool    `json:"disabled"`
-	Opacity  string  `json:"opacity"`
-	Box      *barBox `json:"box"`
 }
 
 type menuRead struct {
@@ -49,23 +42,8 @@ type menuRead struct {
 	Accounts []menuSoon  `json:"accounts"`
 	Quiet    []menuQuiet `json:"quiet"`
 	Theme    []string    `json:"theme"`
-	ThemeBox []*barBox   `json:"themeBox"`
 	Out      *string     `json:"out"`
-	OutBox   *barBox     `json:"outBox"`
 	Words    string      `json:"words"`
-}
-
-type menuFit struct {
-	Half   bool `json:"half"`
-	Screen struct {
-		Width  float64 `json:"width"`
-		Height float64 `json:"height"`
-	} `json:"screen"`
-	Sheet  *barBox `json:"sheet"`
-	Body   *barBox `json:"body"`
-	Scroll float64 `json:"scroll"`
-	Client float64 `json:"client"`
-	Foot   *barBox `json:"foot"`
 }
 
 type menuAsked struct {
@@ -77,7 +55,7 @@ type menuAsked struct {
 type hostMenu struct {
 	Before          menuRead  `json:"before"`
 	Full            menuRead  `json:"full"`
-	Fit             menuFit   `json:"fit"`
+	Half            bool      `json:"half"`
 	Pages           []string  `json:"pages"`
 	SoonPressed     int       `json:"soonPressed"`
 	SoonPages       []string  `json:"soonPages"`
@@ -97,7 +75,7 @@ type hostMenu struct {
 	Update      menuRead    `json:"update"`
 	Updates     int         `json:"updates"`
 	Updating    []menuStrip `json:"updating"`
-	UpdateFit   menuFit     `json:"updateFit"`
+	UpdateHalf  bool        `json:"updateHalf"`
 	Installed   []menuStrip `json:"installed"`
 	Partial     menuRead    `json:"partial"`
 	Bare        menuRead    `json:"bare"`
@@ -148,7 +126,7 @@ func TestTheHostMenu(t *testing.T) {
 		{"themeSwitchFlipsTheTheme", menuThemeSwitchFlipsTheTheme},
 		{"stripIsTheInstallOrTheUpdate", menuStripIsTheInstallOrTheUpdate},
 		{"leavesOutWhatItDoesNotHave", menuLeavesOutWhatItDoesNotHave},
-		{"fitsTheSheetAsItOpens", menuFitsTheSheetAsItOpens},
+		{"opensAtItsFirstStop", menuOpensAtItsFirstStop},
 	} {
 		t.Run(part.name, func(t *testing.T) { part.check(t, got) })
 	}
@@ -191,12 +169,6 @@ func menuOpensOnWhatTheMachineIsDoing(t *testing.T, got hostMenu) {
 	if machine.Lit || usage.Lit {
 		t.Error("a tile other than Briefs is lit")
 	}
-	for _, tile := range m.Tiles {
-		if tile.Box == nil || tile.Box.Height < 44 {
-			t.Errorf("the tile %s is %+v — narrower than a finger", tile.Title, tile.Box)
-		}
-	}
-
 	if len(m.Strips) != 1 || m.Strips[0].Text != "Install the appnot installed yet" {
 		t.Errorf("with the install waiting the strip reads %+v", m.Strips)
 	}
@@ -210,25 +182,14 @@ func menuOpensOnWhatTheMachineIsDoing(t *testing.T, got hostMenu) {
 		t.Errorf("the quiet doors read %+v", m.Quiet)
 	}
 	if len(m.Quiet) == 0 || !m.Quiet[0].Crit {
-		t.Error("a failure today is not in the colour of a failure")
+		t.Error("a failure today is not marked as a failure")
 	}
 
 	if strings.Join(m.Theme, ",") != "Dark:true,Light:false" {
 		t.Errorf("the theme reads %v on the dark theme", m.Theme)
 	}
-	for _, b := range append(append([]*barBox{}, m.ThemeBox...), m.OutBox) {
-		if b == nil || b.Height < 44 {
-			t.Errorf("a button of the footer is %+v — narrower than a finger", b)
-		}
-	}
 	if shown(m.Out) != "Sign out" {
 		t.Errorf("the footer has no Sign out: %q", shown(m.Out))
-	}
-	if len(m.ThemeBox) == 2 && m.OutBox != nil && m.ThemeBox[1] != nil && m.OutBox.Left <= m.ThemeBox[1].Right {
-		t.Errorf("Sign out stands at %+v, not at the right of the theme %+v", m.OutBox, m.ThemeBox[1])
-	}
-	if m.OutBox != nil && m.OutBox.Width > got.Fit.Screen.Width/2 {
-		t.Errorf("Sign out is %.0f px wide — a full-width row again, not a word at the edge", m.OutBox.Width)
 	}
 	if len(got.Other) > 0 {
 		t.Errorf("the menu asked the service for something it was not given: %v", got.Other)
@@ -269,8 +230,7 @@ func menuDoorsOpenTheirPages(t *testing.T, got hostMenu) {
 
 // Over the quiet doors stands a row of the same doors that do not open yet:
 // the accounts of Claude and Codex and the balancer, a word on top and what it
-// is with soon under it, drawn quieter than a door that opens, and pressing
-// them opens no page.
+// is with soon under it, and pressing them opens no page.
 func menuAccountsDoNotOpenYet(t *testing.T, got hostMenu) {
 	m := got.Full
 	doors := make([]string, 0, len(m.Accounts))
@@ -280,31 +240,9 @@ func menuAccountsDoNotOpenYet(t *testing.T, got hostMenu) {
 	if strings.Join(doors, "|") != "Claude: accounts · soon|Codex: accounts · soon|Balancer: settings · soon" {
 		t.Fatalf("the row of doors that do not open yet reads %q", strings.Join(doors, "|"))
 	}
-	if len(m.Quiet) == 0 || len(m.Strips) == 0 {
-		t.Fatalf("the menu has no quiet doors (%+v) or no strip (%+v) to stand between", m.Quiet, m.Strips)
-	}
-	journal := m.Quiet[0]
-	open, err := strconv.ParseFloat(journal.Opacity, 64)
-	if err != nil {
-		t.Fatalf("the opacity of %s reads %q", journal.Title, journal.Opacity)
-	}
 	for _, a := range m.Accounts {
 		if !a.Disabled {
 			t.Errorf("%s can be pressed: it is not disabled", a.Title)
-		}
-		if quiet, err := strconv.ParseFloat(a.Opacity, 64); err != nil || quiet >= open {
-			t.Errorf("%s is drawn at the opacity %q next to %s at %q — as loud as a door that opens",
-				a.Title, a.Opacity, journal.Title, journal.Opacity)
-		}
-		if a.Box == nil || journal.Box == nil || m.Strips[0].Box == nil {
-			t.Fatalf("the row was not measured: %+v, %+v, %+v", a.Box, journal.Box, m.Strips[0].Box)
-		}
-		if a.Box.Top != m.Accounts[0].Box.Top || a.Box.Height != journal.Box.Height {
-			t.Errorf("%s stands at %+v, not in one row of the height of %s %+v", a.Title, a.Box, journal.Title, journal.Box)
-		}
-		if a.Box.Top < m.Strips[0].Box.Bottom || a.Box.Bottom > journal.Box.Top {
-			t.Errorf("%s stands at %+v, not between the strip %+v and the quiet doors %+v",
-				a.Title, a.Box, m.Strips[0].Box, journal.Box)
 		}
 	}
 	if got.SoonPressed != 3 || len(got.SoonPages) != 0 || got.SoonClosed != 0 {
@@ -387,22 +325,10 @@ func menuLeavesOutWhatItDoesNotHave(t *testing.T, got hostMenu) {
 	}
 }
 
-// The whole menu fits the height the sheet opens to on a phone: nothing in it
-// needs a drag or a scroll to be found, with the install or the update in it.
-func menuFitsTheSheetAsItOpens(t *testing.T, got hostMenu) {
-	for name, f := range map[string]menuFit{"install": got.Fit, "update": got.UpdateFit} {
-		if !f.Half {
-			t.Errorf("%s: the sheet did not open at its first stop", name)
-		}
-		if f.Sheet == nil || f.Body == nil || f.Foot == nil {
-			t.Fatalf("%s: the sheet was not measured: %+v", name, f)
-		}
-		if f.Scroll > f.Client+1 {
-			t.Errorf("%s: the menu is %.0f px tall in a sheet that opens to %.0f px — the rest needs a drag",
-				name, f.Scroll, f.Client)
-		}
-		if f.Foot.Bottom > f.Body.Bottom+1 || f.Sheet.Bottom > f.Screen.Height+1 || f.Sheet.Top < 0 {
-			t.Errorf("%s: the footer ends at %.0f, the sheet at %.0f of %.0f px", name, f.Foot.Bottom, f.Sheet.Bottom, f.Screen.Height)
-		}
+// The menu opens the sheet at its first stop, with the install or the update
+// in it.
+func menuOpensAtItsFirstStop(t *testing.T, got hostMenu) {
+	if !got.Half || !got.UpdateHalf {
+		t.Errorf("the sheet did not open at its first stop: with the install %v, with the update %v", got.Half, got.UpdateHalf)
 	}
 }

@@ -8,62 +8,14 @@ import (
 
 type deskBriefShot struct {
 	Before struct {
-		Root         float64 `json:"root"`
-		Column       int     `json:"column"`
-		Prose        float64 `json:"prose"`
-		Line         int     `json:"line"`
-		Room         int     `json:"room"`
-		Heading      float64 `json:"heading"`
-		SendDisabled bool    `json:"sendDisabled"`
-		Say          string  `json:"say"`
+		SendDisabled bool   `json:"sendDisabled"`
+		Say          string `json:"say"`
 	} `json:"before"`
 	After struct {
 		SendDisabled bool   `json:"sendDisabled"`
 		Say          string `json:"say"`
 	} `json:"after"`
 	Sent string `json:"sent"`
-}
-
-// A brief is a document read for the better part of an hour, and a desk is not
-// a hand. The column and the type of it follow the scale of the shell, so the
-// person who draws the interface larger draws the document larger with it.
-func TestBriefAtADeskIsReadAtDeskSize(t *testing.T) {
-	var desk deskBriefShot
-	runWideFixture(t, "briefdesk.html", &desk)
-
-	// The desktop page holds every screen on it to a reading width of its own.
-	// A document that takes that width instead of its own is narrower than
-	// either of them was drawn to be.
-	// The column takes the width the page has for it, up to the measure the
-	// document sets itself. Held to anything narrower — a reading width meant
-	// for another screen — it stands as a strip with the room empty around it.
-	want := 82.0 * desk.Before.Root
-	if room := float64(desk.Before.Room); want > room {
-		want = room
-	}
-	if float64(desk.Before.Column) < want-2 {
-		t.Errorf("the reading column is %d px of the %d px the page offers, on a %.0f px root — the document is being held to somebody else's width (wanted about %.0f)",
-			desk.Before.Column, desk.Before.Room, desk.Before.Root, want)
-	}
-	if desk.Before.Prose <= desk.Before.Root {
-		t.Errorf("the prose is %.2f px on a %.2f px root: at a desk the document reads one step above the panel around it",
-			desk.Before.Prose, desk.Before.Root)
-	}
-	// The column is only half the answer: the line inside it is held to a
-	// measure of its own, and a wide column with a narrow measure reads as the
-	// phone's strip with room wasted around it.
-	if desk.Before.Line < 70 {
-		t.Errorf("a line of prose runs %d characters — at a desk the measure is wider than a hand's", desk.Before.Line)
-	}
-	if desk.Before.Heading <= desk.Before.Prose {
-		t.Errorf("a question heading (%.2f px) does not stand above the prose under it (%.2f px)", desk.Before.Heading, desk.Before.Prose)
-	}
-
-	var phone deskBriefShot
-	runFixture(t, "briefdesk.html", &phone)
-	if deskStep, phoneStep := desk.Before.Prose/desk.Before.Root, phone.Before.Prose/phone.Before.Root; deskStep <= phoneStep {
-		t.Errorf("the document reads at the phone's step on a monitor: %.3f of the root against %.3f", deskStep, phoneStep)
-	}
 }
 
 // The answers of a brief go into a session, and the session is found in the

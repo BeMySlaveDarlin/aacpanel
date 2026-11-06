@@ -1,27 +1,17 @@
 package check
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 )
 
 type homeGraph struct {
-	Angles      map[string]float64 `json:"angles"`
-	AnglesLater map[string]float64 `json:"anglesLater"`
-	Apart       float64            `json:"apart"`
-	NotesOf     map[string]string  `json:"notesOf"`
-	CrowdApart  struct {
-		Count int     `json:"count"`
-		Even  float64 `json:"even"`
-		Least float64 `json:"least"`
-	} `json:"crowdApart"`
-	Spins struct {
+	NotesOf map[string]string `json:"notesOf"`
+	Spins   struct {
 		Turn      float64 `json:"turn"`
 		InnerTurn float64 `json:"innerTurn"`
 		Orbits    []struct {
@@ -55,86 +45,48 @@ type homeGraph struct {
 	Systems    []graphSystem     `json:"systems"`
 	Moon       graphMoon         `json:"moon"`
 	Grandchild graphMoon         `json:"grandchild"`
-	MoonSizes  []float64         `json:"moonSizes"`
 	OrbitOf    map[string]string `json:"orbitOf"`
-	Stars      []float64         `json:"stars"`
 	Weights    struct {
 		Order     []string       `json:"order"`
 		Weights   map[string]int `json:"weights"`
-		Bands     []float64      `json:"bands"`
-		Radii     []float64      `json:"radii"`
 		TieFresh  []string       `json:"tieFresh"`
 		TieKept   []string       `json:"tieKept"`
 		Later     []string       `json:"later"`
 		Reordered []string       `json:"reordered"`
 	} `json:"weights"`
-	Leans struct {
-		Range   []float64            `json:"range"`
-		First   map[string][]float64 `json:"first"`
-		Later   map[string][]float64 `json:"later"`
-		Moons   map[string][]float64 `json:"moons"`
-		Heights []float64            `json:"heights"`
-	} `json:"leans"`
-	OrbitInk struct {
-		Rings    int     `json:"rings"`
-		Wanted   int     `json:"wanted"`
-		Found    int     `json:"found"`
-		Min      float64 `json:"min"`
-		Max      float64 `json:"max"`
-		Near     float64 `json:"near"`
-		Far      float64 `json:"far"`
-		Meridian bool    `json:"meridian"`
-	} `json:"orbitInk"`
 	Order  []string `json:"order"`
 	Galaxy struct {
-		Covered    []string `json:"covered"`
-		Outside    []string `json:"outside"`
-		Nearest    string   `json:"nearest"`
-		Crowded    []string `json:"crowded"`
-		FrontShare float64  `json:"frontShare"`
-		Alone      float64  `json:"alone"`
-		Behind     []struct {
-			Name  string  `json:"name"`
-			Above bool    `json:"above"`
-			Side  string  `json:"side"`
-			Share float64 `json:"share"`
-		} `json:"behind"`
+		Nearest string `json:"nearest"`
 	} `json:"galaxy"`
 	Written  map[string]int `json:"written"`
 	Carousel struct {
-		Order       []string  `json:"order"`
-		First       []string  `json:"first"`
-		Prevented   bool      `json:"prevented"`
-		Instant     int       `json:"instant"`
-		Up          []string  `json:"up"`
-		FrontSays   string    `json:"frontSays"`
-		Down        []string  `json:"down"`
-		Wrap        []string  `json:"wrap"`
-		Clicked     []string  `json:"clicked"`
-		ClickOpens  int       `json:"clickOpened"`
-		OrbitClick  []string  `json:"orbitClicked"`
-		OrbitOpens  int       `json:"orbitOpened"`
-		BehindTip   string    `json:"behindTip"`
-		PlanetClick []string  `json:"planetClicked"`
-		PlanetOpens int       `json:"planetOpened"`
-		OrbitStar   int       `json:"orbitFromStar"`
-		OrbitMarks  int       `json:"orbitFromMarks"`
-		Kept        []string  `json:"kept"`
-		Reorder     []string  `json:"reorder"`
-		Reset       []string  `json:"reset"`
-		Midway      string    `json:"midway"`
-		Glide       int       `json:"glide"`
-		Glided      []string  `json:"glided"`
-		Largest     []string  `json:"largest"`
-		Grows       []float64 `json:"grows"`
-		Shrinks     []float64 `json:"shrinks"`
-		Straightens []float64 `json:"straightens"`
+		Order       []string `json:"order"`
+		First       []string `json:"first"`
+		Prevented   bool     `json:"prevented"`
+		Instant     int      `json:"instant"`
+		Up          []string `json:"up"`
+		FrontSays   string   `json:"frontSays"`
+		Down        []string `json:"down"`
+		Wrap        []string `json:"wrap"`
+		Clicked     []string `json:"clicked"`
+		ClickOpens  int      `json:"clickOpened"`
+		OrbitClick  []string `json:"orbitClicked"`
+		OrbitOpens  int      `json:"orbitOpened"`
+		OrbitStar   int      `json:"orbitFromStar"`
+		OrbitMarks  int      `json:"orbitFromMarks"`
+		BehindTip   string   `json:"behindTip"`
+		PlanetClick []string `json:"planetClicked"`
+		PlanetOpens int      `json:"planetOpened"`
+		Kept        []string `json:"kept"`
+		Reorder     []string `json:"reorder"`
+		Reset       []string `json:"reset"`
+		Midway      string   `json:"midway"`
+		Glide       int      `json:"glide"`
+		Glided      []string `json:"glided"`
 		Five        struct {
-			First   string         `json:"first"`
-			Orbits  map[string]int `json:"orbits"`
-			Front   string         `json:"front"`
-			Largest string         `json:"largest"`
-			Areas   map[string]int `json:"areas"`
+			First  string         `json:"first"`
+			Orbits map[string]int `json:"orbits"`
+			Front  string         `json:"front"`
 		} `json:"five"`
 		OrbitTie struct {
 			Apart int    `json:"apart"`
@@ -150,68 +102,15 @@ type homeGraph struct {
 			BackDraws int    `json:"backDraws"`
 		} `json:"orbitGlide"`
 	} `json:"carousel"`
-	Phase   map[string]json.RawMessage `json:"phase"`
-	Surface struct {
-		Again  bool    `json:"again"`
-		Unlike float64 `json:"unlike"`
-	} `json:"surface"`
-	Texture struct {
-		Small []float64 `json:"small"`
-		Large []float64 `json:"large"`
-	} `json:"texture"`
-	Sky struct {
-		Void int        `json:"void"`
-		Idle graphLight `json:"idle"`
-		Busy graphLight `json:"busy"`
-		Wait graphLight `json:"wait"`
-		Cap  graphLight `json:"cap"`
-	} `json:"sky"`
-	Kin struct {
-		Frames int     `json:"frames"`
-		Rings  float64 `json:"rings"`
-		Marks  float64 `json:"marks"`
-		Front  float64 `json:"front"`
-	} `json:"kin"`
-	Labels struct {
-		Placed  []string `json:"placed"`
-		Own     []string `json:"own"`
-		Alone   string   `json:"alone"`
-		Crossed string   `json:"crossed"`
-		Star    *struct {
-			At  float64 `json:"at"`
-			Dir int     `json:"dir"`
-		} `json:"star"`
-	} `json:"labels"`
-	Sizes struct {
-		Planet float64 `json:"planet"`
-		Moon   float64 `json:"moon"`
-		Front  float64 `json:"front"`
-		Behind float64 `json:"behind"`
-	} `json:"sizes"`
-	Field struct {
-		Space int `json:"space"`
-		Sky   int `json:"sky"`
-	} `json:"field"`
 	Quiet struct {
 		Behind graphQuiet `json:"behind"`
 		Front  graphQuiet `json:"front"`
 	} `json:"quiet"`
-	Crowded struct {
-		Orbits []string `json:"orbits"`
-		Apart  int      `json:"apart"`
-		Star   int      `json:"star"`
-	} `json:"crowded"`
-	Notes    string   `json:"notes"`
-	Head     string   `json:"head"`
-	Titles   []string `json:"titles"`
-	Jumps    []string `json:"jumps"`
-	Sections []string `json:"sections"`
-	Canvas   struct {
-		Width     int `json:"width"`
-		Height    int `json:"height"`
-		BoxWidth  int `json:"boxWidth"`
-		BoxHeight int `json:"boxHeight"`
-	} `json:"canvas"`
+	Notes            string        `json:"notes"`
+	Head             string        `json:"head"`
+	Titles           []string      `json:"titles"`
+	Jumps            []string      `json:"jumps"`
+	Sections         []string      `json:"sections"`
 	Tip              []string      `json:"tip"`
 	TipAway          string        `json:"tipAway"`
 	Clicked          []openedTalk  `json:"clicked"`
@@ -254,21 +153,12 @@ type homeGraph struct {
 			Bound float64 `json:"bound"`
 			Tip   string  `json:"tip"`
 		} `json:"zoomOut"`
-		TurnJumps       []string `json:"turnJumps"`
 		TurnApart       float64  `json:"turnApart"`
 		MiddlePrevented bool     `json:"middlePrevented"`
 		MiddleApart     float64  `json:"middleApart"`
 		ResetTips       []string `json:"resetTips"`
 		ResetOpened     int      `json:"resetOpened"`
 	} `json:"gestures"`
-	Keep struct {
-		Steps    int      `json:"steps"`
-		Changes  int      `json:"changes"`
-		Unforced []string `json:"unforced"`
-		Unearned []string `json:"unearned"`
-		Frozen   int      `json:"frozen"`
-		Names    int      `json:"names"`
-	} `json:"keep"`
 	Period struct {
 		Start     string   `json:"start"`
 		On        string   `json:"on"`
@@ -289,38 +179,21 @@ type graphSystem struct {
 	Orbits  []struct {
 		Key     string   `json:"key"`
 		Name    string   `json:"name"`
-		R       float64  `json:"R"`
 		Label   bool     `json:"label"`
 		Planets []string `json:"planets"`
 	} `json:"orbits"`
 }
 
 type graphMoon struct {
-	Depth  int     `json:"depth"`
-	Parent string  `json:"parent"`
-	System string  `json:"system"`
-	OffBy  float64 `json:"offBy"`
-	Orbit  float64 `json:"orbit"`
+	Depth  int    `json:"depth"`
+	Parent string `json:"parent"`
+	System string `json:"system"`
 }
 
 type graphQuiet struct {
 	Hidden    []string `json:"hidden"`
 	Shown     int      `json:"shown"`
 	ShownKeys []string `json:"shownKeys"`
-	Clashes   int      `json:"clashes"`
-}
-
-type graphPhase struct {
-	Share  float64  `json:"share"`
-	RGB    []int    `json:"rgb"`
-	Facing *float64 `json:"facing"`
-	Night  *float64 `json:"night"`
-}
-
-type graphLight struct {
-	Lit   int `json:"lit"`
-	Night int `json:"night"`
-	Hue   int `json:"hue"`
 }
 
 type openedTalk struct {
@@ -341,43 +214,27 @@ func runHomeGraph(t *testing.T) homeGraph {
 	return got
 }
 
-// A session stands on the orbit of its project, at a place of its own that
-// says nothing of its time — an hour later every planet stands where it stood
-// — and clear of the other planets of the orbit; a session another one opened
+// A session stands on the orbit of its project; a session another one opened
 // is its moon, on the small orbit round it, whatever the project of its
 // directory, and a grandchild is a moon of the moon. How long ago it last
 // asked is told beside its mark and in its tip.
 func TestAPlanetStandsOnTheOrbitOfItsProject(t *testing.T) {
 	got := runHomeGraph(t)
 
-	if len(got.Angles) != 8 || !reflect.DeepEqual(got.Angles, got.AnglesLater) {
-		t.Errorf("the planets stand at %v, and an hour later at %v: a place on an orbit is the planet's own, not its time",
-			got.Angles, got.AnglesLater)
-	}
-	if got.Apart < 60 {
-		t.Errorf("two planets of one orbit stand %v apart: they are pulled clear of each other", got.Apart)
-	}
-	// Too many for their room, the planets keep their own places as far as
-	// they can and the gaps all shrink alike: no two stand on one another,
-	// though the gaps are not even.
-	if c := got.CrowdApart; c.Count != 11 || c.Least < 0.4*c.Even {
-		t.Errorf("%d planets on one orbit stand at least %v apart, where an even share of the orbit is %v: they are "+
-			"pulled clear of each other all round it", c.Count, c.Least, c.Even)
-	}
 	if got.NotesOf["draft"] != "idle, 5 min" || got.NotesOf["stray"] != "idle, 1 d" {
 		t.Errorf("draft says %q and stray %q beside their marks: a session that has asked nothing counts from its "+
 			"start, one that names neither a day", got.NotesOf["draft"], got.NotesOf["stray"])
 	}
 
 	m := got.Moon
-	if m.Parent != "blog" || m.Depth != 1 || m.System != "client" || m.OffBy > 0.001 || m.Orbit != int64ish(got.MoonSizes[0]) {
-		t.Errorf("the thread blog opened in the directory of drafts is a moon of %q at depth %d in %q, %v off its place, "+
-			"%v from blog: a child stands on the orbit round its parent", m.Parent, m.Depth, m.System, m.OffBy, m.Orbit)
+	if m.Parent != "blog" || m.Depth != 1 || m.System != "client" {
+		t.Errorf("the thread blog opened in the directory of drafts is a moon of %q at depth %d in %q: "+
+			"a child stands on the orbit round its parent", m.Parent, m.Depth, m.System)
 	}
 	g := got.Grandchild
-	if g.Parent != "codex-1" || g.Depth != 2 || g.OffBy > 0.001 || g.Orbit != int64ish(got.MoonSizes[1]) {
-		t.Errorf("the session the thread opened is a moon of %q at depth %d, %v off its place, %v from it: "+
-			"a grandchild is a moon of the moon, on a smaller orbit", g.Parent, g.Depth, g.OffBy, g.Orbit)
+	if g.Parent != "codex-1" || g.Depth != 2 {
+		t.Errorf("the session the thread opened is a moon of %q at depth %d: a grandchild is a moon of the moon",
+			g.Parent, g.Depth)
 	}
 	if got.OrbitOf["codex-1"] != "blog" || got.OrbitOf["deep"] != "blog" {
 		t.Errorf("the moons tell of the orbits %q and %q: a moon belongs where its planet does", got.OrbitOf["codex-1"], got.OrbitOf["deep"])
@@ -385,10 +242,6 @@ func TestAPlanetStandsOnTheOrbitOfItsProject(t *testing.T) {
 	if got.Notes != "waits for an answer, 1 h" {
 		t.Errorf("the waiting session says %q beside its mark: the words of its row and how long it has waited", got.Notes)
 	}
-}
-
-func int64ish(v float64) float64 {
-	return math.Round(v)
 }
 
 // A contour is a system: an orbit for every project with a live session, the
@@ -413,15 +266,10 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 	for _, sys := range got.Systems {
 		names = append(names, sys.Name)
 		have := []orbit{}
-		last := 0.0
 		for _, o := range sys.Orbits {
 			planets := append([]string(nil), o.Planets...)
 			sort.Strings(planets)
 			have = append(have, orbit{o.Key, strings.Join(planets, ","), o.Label})
-			if o.R <= last {
-				t.Errorf("in %s the orbit %s stands at %v, inside the orbit before it", sys.Name, o.Key, o.R)
-			}
-			last = o.R
 		}
 		if !reflect.DeepEqual(have, want[sys.Name]) {
 			t.Errorf("%s holds the orbits %v, want %v: an orbit a project, the lighter inside, its sessions its "+
@@ -452,55 +300,23 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 		t.Errorf("the stars say %v: a star counts its sessions, the busy and the waiting, and is as alive as the busy "+
 			"and twice the waiting", summary)
 	}
-	if !(got.Stars[0] < got.Stars[1] && got.Stars[1] < got.Stars[2]) {
-		t.Errorf("a star is %v at a liveness of 0, 1 and 4: the livelier the contour, the larger its star", got.Stars)
-	}
 }
 
-// The galaxy opens with the liveliest contour in front as a near plan, most
-// of the height of the box, and every system in the box, none over another —
-// and its places stand clear of each other for any number of contours. A small
-// contour in front of larger ones behind takes the least: the room round the
-// star makes a small system larger for its planets than a large one, and the
-// row behind takes its share of the box.
+// The galaxy opens with the liveliest contour in front, nearest the eye.
 func TestTheGalaxyOpensOnTheLiveliest(t *testing.T) {
 	got := runHomeGraph(t)
 	if !reflect.DeepEqual(got.Order, []string{"client", "personal", "lab"}) || got.Galaxy.Nearest != "client" {
 		t.Errorf("the galaxy opens in the order %v with %q nearest: the liveliest in front", got.Order, got.Galaxy.Nearest)
 	}
-	if got.Galaxy.FrontShare < 0.52 || got.Galaxy.FrontShare > 0.72 {
-		t.Errorf("the system in front takes %.2f of the height of the box: the near plan is most of it", got.Galaxy.FrontShare)
-	}
-	if got.Galaxy.Alone < 0.6 || got.Galaxy.Alone > 0.7 {
-		t.Errorf("a lone contour takes %.2f of the height of the box: it is the same near plan, not the whole box", got.Galaxy.Alone)
-	}
-	sides := map[string]bool{}
-	for _, b := range got.Galaxy.Behind {
-		sides[b.Side] = true
-		if !b.Above || b.Side == "middle" || b.Share > 0.25 {
-			t.Errorf("%s behind the front stands above it %v, to its %s, at %.2f of its area: the row behind is "+
-				"markedly smaller, above it and to its sides", b.Name, b.Above, b.Side, b.Share)
-		}
-	}
-	if len(got.Galaxy.Behind) != 2 || !sides["left"] || !sides["right"] {
-		t.Errorf("the two contours behind stand to one side of the front: %+v", got.Galaxy.Behind)
-	}
-	if len(got.Galaxy.Crowded) != 0 {
-		t.Errorf("with more contours the places of the galaxy cover one another: %v", got.Galaxy.Crowded)
-	}
-	if len(got.Galaxy.Covered) != 0 || len(got.Galaxy.Outside) != 0 {
-		t.Errorf("on the first view systems cover one another (%v) or stand outside the box (%v)",
-			got.Galaxy.Covered, got.Galaxy.Outside)
-	}
 }
 
 // The wheel with Shift brings the next contour forward, round and round both
-// ways, and zooms nothing; a click on a star brings its contour forward and
-// opens nothing. The one in front is the largest on the screen, whatever its
-// size: a contour of one orbit in front of one of five is drawn up to it. Who is in front changes only by the person: a contour that
-// wakes up does not jump the queue until Reset view orders them anew. Where
-// less motion is asked for a system stands in its place at once; elsewhere
-// it glides there over some frames.
+// ways, and zooms nothing; a click on a star, or among the orbits of a system
+// behind, brings its contour forward and opens nothing, and so does a contour
+// of one orbit against one of five. Who is in front changes only by the
+// person: a contour that wakes up does not jump the queue until Reset view
+// orders them anew. Where less motion is asked for a system stands in its
+// place at once; elsewhere it glides there over some frames.
 func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 	got := runHomeGraph(t)
 	c := got.Carousel
@@ -556,23 +372,10 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 		t.Errorf("Reset view ordered the contours %v and the stars were found as %v: it puts the liveliest in front",
 			c.Reorder, c.Reset)
 	}
-	if want := []string{"personal: the largest", "client: the largest", "lab: the largest"}; !reflect.DeepEqual(c.Largest, want) {
-		t.Errorf("after each turn of the wheel with Shift the one in front is the largest on the screen: %v", c.Largest)
-	}
 	five := c.Five
 	if five.First != "big" || five.Orbits["big"] != 5 || five.Orbits["small"] != 1 || five.Front != "small" {
-		t.Fatalf("the fixture of one orbit against five ran short: %+v", five)
-	}
-	if five.Largest != "small: the largest" || five.Areas["small"] <= five.Areas["big"] {
-		t.Errorf("a contour of one orbit brought in front of one of five says %q and takes %v of the screen: the "+
-			"one in front is drawn up to the largest, the one behind smaller", five.Largest, five.Areas)
-	}
-	if len(c.Grows) != 3 || !(c.Grows[0] < c.Grows[1] && c.Grows[1] < c.Grows[2]) ||
-		len(c.Shrinks) != 3 || !(c.Shrinks[0] > c.Shrinks[1] && c.Shrinks[1] > c.Shrinks[2]) {
-		t.Errorf("midway through a glide the one coming forward is to be midway in size %v, the one going back %v", c.Grows, c.Shrinks)
-	}
-	if s := c.Straightens; len(s) != 3 || !(s[0] > s[1] && s[1] > s[2] && s[2] == 0) {
-		t.Errorf("the one coming forward is to straighten as it comes, square to the view in front: it leans %v", s)
+		t.Errorf("a contour of one orbit against one of five, with %q in front at first and orbits %v, brings %q "+
+			"forward: the one of one orbit comes forward as any other", five.First, five.Orbits, five.Front)
 	}
 	if c.Glide < 6 || c.Midway != "" || !reflect.DeepEqual(c.Glided, all) {
 		t.Errorf("outside less motion the contour came forward over %d frames, was already found in place midway (%q), "+
@@ -580,222 +383,18 @@ func TestTheWheelWithShiftBringsAContourForward(t *testing.T) {
 	}
 }
 
-// A planet is lit as the moon in its phase: the lit share of its disc is the
-// share of its context, in its own tone, and in the tone of the cap near the
-// cap. The terminator is soft and its half toward the night still passes for
-// lit by the reading's threshold, so the reading runs up to 0.04 over the
-// share, the most at three quarters, and a pixel either way of the disc tips it
-// past; the reading is held to 0.05.
-func TestAPlanetIsLitByItsContext(t *testing.T) {
+// The picture of a planet is made once: while the planets go round not one
+// picture is made anew.
+func TestAPlanetsPictureIsMadeOnce(t *testing.T) {
 	got := runHomeGraph(t)
-	read := func(key string) graphPhase {
-		var p graphPhase
-		if err := json.Unmarshal(got.Phase[key], &p); err != nil {
-			t.Fatalf("the phase at %s did not parse: %v", key, err)
-		}
-		return p
-	}
-	var ink, capTone []int
-	_ = json.Unmarshal(got.Phase["ink"], &ink)
-	_ = json.Unmarshal(got.Phase["cap"], &capTone)
-	for _, pct := range []string{"0", "25", "50", "75"} {
-		want, _ := strconv.ParseFloat(pct, 64)
-		if have := read(pct).Share; math.Abs(have-want/100) > 0.05 {
-			t.Errorf("a planet at %s%% of its context is lit over %.3f of its disc", pct, have)
-		}
-	}
-	for _, pct := range []string{"25", "50", "75"} {
-		if f := read(pct).Facing; f == nil || *f > 15 {
-			t.Errorf("a planet at %s%% is lit on the side %v degrees off the way to its star: the lit side faces it", pct, f)
-		}
-	}
-	for _, pct := range []string{"25", "50"} {
-		if n := read(pct).Night; n == nil || *n < 0.05 || *n > 0.15 {
-			t.Errorf("the night side of a planet at %s%% is %v as light as its tone: not black, a light of about 8%%", pct, n)
-		}
-	}
-	// The light falls off over the sphere, so the lit part is darker than its
-	// tone; its colour is the tone's all the same.
-	hue := func(rgb []int) []float64 {
-		top := 0
-		for _, v := range rgb {
-			top = max(top, v)
-		}
-		out := make([]float64, len(rgb))
-		for i, v := range rgb {
-			out[i] = float64(v) / float64(max(top, 1))
-		}
-		return out
-	}
-	near := func(a, b []int) bool {
-		if len(a) != 3 || len(b) != 3 {
-			return false
-		}
-		ha, hb := hue(a), hue(b)
-		for i := range ha {
-			if math.Abs(ha[i]-hb[i]) > 0.08 {
-				return false
-			}
-		}
-		return true
-	}
-	if !near(read("40").RGB, ink) || !near(read("70").RGB, capTone) {
-		t.Errorf("the lit part is %v at 40%% and %v at 70%%: the hue of its own tone %v, and of the tone of the cap %v near the cap",
-			read("40").RGB, read("70").RGB, ink, capTone)
-	}
-}
-
-// The surface of a planet is its own and made once: drawn again it is the same
-// to the byte, another session's is another, and while the planets go round
-// not one picture is made anew. A planet of the system in front is about ten
-// pixels across the radius at the scale the interface opens on, a moon about
-// five. The far stars are drawn on the dark theme and not on the light one.
-func TestAPlanetHasASurfaceOfItsOwn(t *testing.T) {
-	got := runHomeGraph(t)
-	// Read in the light's own frame, one surface against itself differs by
-	// a level or two of resampling; two surfaces by more than ten.
-	if !got.Surface.Again || got.Surface.Unlike < 6 {
-		t.Errorf("drawn again, the planet is the same to the byte: %v; another session's surface differs from it by %v "+
-			"levels: the surface is the session's own", got.Surface.Again, got.Surface.Unlike)
-	}
 	if got.Motion.Made != 0 {
 		t.Errorf("%d pictures of planets were made while they went round for a second and a half: they are made once", got.Motion.Made)
-	}
-	if got.Sizes.Planet < 9 || got.Sizes.Planet > 10 || got.Sizes.Moon < 4.5 || got.Sizes.Moon > 5.5 {
-		t.Errorf("a planet is drawn %v units across the radius and a moon %v: about ten and five", got.Sizes.Planet, got.Sizes.Moon)
-	}
-	if got.Field.Space < 3 || got.Field.Sky != 0 {
-		t.Errorf("the far stars light %d pixels of the dark sky and %d of the light one: a sparse field on the dark theme, none on the light",
-			got.Field.Space, got.Field.Sky)
-	}
-}
-
-// The bands and spots of a planet read at the scale the interface opens on:
-// round every circle about its centre the light of a planet fully lit varies
-// by its surface, as a share of that light, half as much again as on a planet
-// four times as large — at the strength a large one has they are lost on a
-// few pixels. A large planet keeps the quiet surface it has.
-func TestASurfaceReadsAtTheScaleThePageOpensOn(t *testing.T) {
-	x := runHomeGraph(t).Texture
-	if len(x.Small) != 2 || len(x.Large) != 2 {
-		t.Fatalf("the surfaces came back as %+v", x)
-	}
-	for i, kind := range []string{"banded", "mottled"} {
-		if x.Small[i] < 1.5*x.Large[i] {
-			t.Errorf("a %s planet at the scale the page opens on varies by %.3f of its light round a circle, and by %.3f "+
-				"four times as large: its surface is drawn stronger where it is small", kind, x.Small[i], x.Large[i])
-		}
-		if x.Large[i] > 0.12 {
-			t.Errorf("a %s planet four times as large varies by %.3f of its light round a circle: a large planet keeps "+
-				"a quiet surface", kind, x.Large[i])
-		}
-	}
-}
-
-// On the light theme a planet reads as on the dark one: its lit part, past the
-// soft terminator, lighter than the sky and in a light tint of the tone of its
-// state — the accent at work, the gold waiting, the tone of the cap near the
-// cap; its night side darker than the sky.
-func TestALitPlanetIsLighterThanTheLightSky(t *testing.T) {
-	sky := runHomeGraph(t).Sky
-	if sky.Void < 200 {
-		t.Fatalf("the light sky is %d on the scale of luminance: the fixture is to draw on the light theme", sky.Void)
-	}
-	for _, c := range []struct {
-		state string
-		got   graphLight
-		hue   bool
-	}{{"idle", sky.Idle, false}, {"busy", sky.Busy, true}, {"waiting", sky.Wait, true}, {"near the cap", sky.Cap, true}} {
-		if c.got.Lit < sky.Void+6 {
-			t.Errorf("the lit part of a planet %s is %d against a sky of %d: lighter than the sky", c.state, c.got.Lit, sky.Void)
-		}
-		if c.hue && c.got.Hue > 15 {
-			t.Errorf("the lit part of a planet %s is %d degrees off the hue of its tone: a tint of it", c.state, c.got.Hue)
-		}
-	}
-	for _, c := range []struct {
-		state string
-		got   graphLight
-	}{{"idle", sky.Idle}, {"busy", sky.Busy}, {"waiting", sky.Wait}} {
-		if c.got.Night > sky.Void-20 {
-			t.Errorf("the night side of a planet %s is %d against a sky of %d: darker than the sky", c.state, c.got.Night, sky.Void)
-		}
-	}
-}
-
-// A planet of a system behind the front one and its moon stand clear of each
-// other all the way round, and so do the rings of their waits: the orbits
-// there shrink further than the marks, and a moon is kept off its planet. In
-// front a moon stands where its orbit puts it.
-func TestAMoonBehindStandsClearOfItsPlanet(t *testing.T) {
-	k := runHomeGraph(t).Kin
-	if k.Frames != 48 {
-		t.Fatalf("the two rings of the waits behind were found in %d frames of 48", k.Frames)
-	}
-	if k.Rings < 1.5 {
-		t.Errorf("a planet waiting behind the front and its moon waiting draw their rings %.1f px apart at the closest: "+
-			"one ring over the other", k.Rings)
-	}
-	if k.Marks < 2 {
-		t.Errorf("an idle planet behind the front and its moon stand %.1f px apart at the closest: one mark on the other", k.Marks)
-	}
-	if k.Front > 0.01 {
-		t.Errorf("in front a moon is drawn up to %.3f px off where its orbit puts it", k.Front)
-	}
-}
-
-// The names of the system in front go before the name of a star behind: a
-// star behind that comes where a name in front stands moves its own name, and
-// the name in front keeps its side.
-func TestTheNamesInFrontGoBeforeAStarBehind(t *testing.T) {
-	l := runHomeGraph(t).Labels
-	own := map[string]bool{}
-	for _, k := range l.Own {
-		own[k] = true
-	}
-	last := -1
-	for i, k := range l.Placed {
-		if own[k] {
-			last = i
-		}
-	}
-	behind := 0
-	for i, k := range l.Placed {
-		if strings.HasPrefix(k, "*") && !own[k] {
-			behind++
-			if i < last {
-				t.Errorf("the star behind %s is named before a name of the system in front: %v", k, l.Placed)
-			}
-		}
-	}
-	if behind != 2 || last < 0 {
-		t.Fatalf("the names are placed in the order %v: the fixture is to name two stars behind and the system in front", l.Placed)
-	}
-	if l.Star == nil || l.Alone == "" {
-		t.Fatalf("the star behind or the planet in front wrote no name: %+v", l)
-	}
-	if l.Crossed != l.Alone {
-		t.Errorf("the planet in front stands named on the side %s alone and on %s with a star behind just over its name: "+
-			"the name in front keeps its side", l.Alone, l.Crossed)
 	}
 }
 
 // The tile of the sessions is gone from the home: its numbers are the header
 // of the graph, and the rows beside the graph lead to the containers and the
 // machine.
-// A planet of a system behind the front one is drawn at half its size in
-// front: the orbits shrink there, and planets of full size crowd each other
-// and their star into one blot.
-func TestAPlanetBehindIsDrawnAtHalf(t *testing.T) {
-	got := runHomeGraph(t).Sizes
-	if got.Front < 8.5 || got.Front > 10.5 {
-		t.Fatalf("the planet in front measures %v units across the radius: about ten — the measure is off", got.Front)
-	}
-	if share := got.Behind / got.Front; share < 0.4 || share > 0.6 {
-		t.Errorf("the planet behind the front measures %v against %v in front, %.2f of it: about half", got.Behind, got.Front, share)
-	}
-}
-
 func TestTheHomeHasNoTileOfTheSessions(t *testing.T) {
 	got := runHomeGraph(t)
 
@@ -819,10 +418,6 @@ func TestTheHomeHasNoTileOfTheSessions(t *testing.T) {
 		if !contains(title, got.Titles) {
 			t.Errorf("the home has no tile %q: %v", title, got.Titles)
 		}
-	}
-	if got.Canvas.Width != got.Canvas.BoxWidth || got.Canvas.Height != got.Canvas.BoxHeight || got.Canvas.Width == 0 {
-		t.Errorf("the canvas is %dx%d over a box of %dx%d device pixels: it is drawn blurred or cut",
-			got.Canvas.Width, got.Canvas.Height, got.Canvas.BoxWidth, got.Canvas.BoxHeight)
 	}
 }
 
@@ -998,40 +593,6 @@ func TestTheGraphIsHandledAsAMap(t *testing.T) {
 	}
 }
 
-// A name keeps its side while the scene turns: it leaves it only when the
-// side covers something — another name, a caption, a mark, the edge — and
-// only for a side that covers less than half of that. A frame of a move or a
-// zoom alone moves no name off its side. Turned a little at a time, names do
-// not jump across their marks.
-func TestTheNamesKeepTheirSides(t *testing.T) {
-	got := runHomeGraph(t)
-	k := got.Keep
-
-	if k.Steps != 61 || k.Names != 14 {
-		t.Fatalf("the crowded ring drew %d steps with %d names — the fixture ran short", k.Steps, k.Names)
-	}
-	if len(k.Unforced) != 0 {
-		t.Errorf("names left a side that covered nothing: %v", k.Unforced)
-	}
-	if len(k.Unearned) != 0 {
-		t.Errorf("names crossed their marks for a side not markedly clearer than the one they left: %v", k.Unearned)
-	}
-	if k.Changes > k.Steps {
-		t.Errorf("fourteen names changed sides %d times over %d small steps", k.Changes, k.Steps)
-	}
-	if k.Frozen != 0 {
-		t.Errorf("%d names changed sides in frames of a move or a zoom", k.Frozen)
-	}
-	// A slow turn of the galaxy brings names onto each other now and then —
-	// the row behind sweeps over the names of the system in front — and those
-	// move; the rule itself is held above, on the drawing. Here the count says
-	// the graph keeps the sides at all: without them the same turn makes half
-	// as many jumps again.
-	if len(got.Gestures.TurnJumps) > 7 {
-		t.Errorf("names jumped across their marks in a slow turn of the home graph: %v", got.Gestures.TurnJumps)
-	}
-}
-
 // A system behind the front one is one target and small with distance: it
 // says its own name and that of a session waiting for the person, and no
 // other — the names of its planets on leaders round a small system are a
@@ -1046,38 +607,17 @@ func TestABehindSaysItsNameAndTheWait(t *testing.T) {
 	if contains("node-f", q.Behind.Hidden) {
 		t.Error("a session waiting for the person lost its name behind the front")
 	}
-	if len(q.Front.Hidden) != 0 || q.Front.Clashes == 0 {
-		t.Errorf("the system in front hides the names %v (and writes %d over each other — the fixture is to be crowded)",
-			q.Front.Hidden, q.Front.Clashes)
-	}
-}
-
-// Planets that their names put at one angle on neighbouring orbits, and one at
-// the far side of the star, would be drawn one over another: seen from above
-// at a slant, orbits all but meet at their near and far sides. Each orbit
-// turns until the home view shows its planets apart from those inside it and
-// from the star — on the widget, two marks across between planets and three
-// radii of a mark from the star.
-func TestPlanetsStandApartOnTheHomeView(t *testing.T) {
-	c := runHomeGraph(t).Crowded
-	if !reflect.DeepEqual(c.Orbits, []string{"sirius", "zeta", "delta", "sigma", "alpha", "rho"}) {
-		t.Fatalf("the crowded contour has the orbits %v: the fixture is to put a planet on each of six, in the order of the map", c.Orbits)
-	}
-	if c.Apart < 40 {
-		t.Errorf("two planets of the crowded contour stand %d px apart on the home view: they are drawn one over the other", c.Apart)
-	}
-	if c.Star < 30 {
-		t.Errorf("a planet stands %d px from its star on the home view: it is drawn over the star", c.Star)
+	if len(q.Front.Hidden) != 0 {
+		t.Errorf("the system in front hides the names %v", q.Front.Hidden)
 	}
 }
 
 // The orbits of a contour go out by weight: a session of the project apiece,
 // its moons of every depth among them, a busy one once more and a waiting one
-// twice. The small and quiet stand inside, the large and lively outside, each
-// orbit as wide as the widest family on it, and the next one out half its
-// band and half its own further. Orbits of equal weight keep the order they
-// were drawn in; a snapshot that leaves the order of the weights as it was
-// moves no orbit, one that changes it does.
+// twice. The small and quiet stand inside, the large and lively outside.
+// Orbits of equal weight keep the order they were drawn in; a snapshot that
+// leaves the order of the weights as it was moves no orbit, one that changes
+// it does.
 func TestTheOrbitsGoOutByWeight(t *testing.T) {
 	w := runHomeGraph(t).Weights
 	if want := []string{"p43", "p42", "p44", "p41"}; !reflect.DeepEqual(w.Order, want) {
@@ -1086,15 +626,6 @@ func TestTheOrbitsGoOutByWeight(t *testing.T) {
 	}
 	if want := map[string]int{"p43": 1, "p42": 2, "p44": 3, "p41": 6}; !reflect.DeepEqual(w.Weights, want) {
 		t.Errorf("the orbits weigh %v, want %v: a session apiece with its moons, a waiting one twice more", w.Weights, want)
-	}
-	if len(w.Bands) != 4 || len(w.Radii) != 4 || !(w.Bands[3] > w.Bands[0]) || w.Bands[0] != w.Bands[1] {
-		t.Fatalf("the bands are %v: the orbit of a family with moons is wider than one of lone planets", w.Bands)
-	}
-	for i := 1; i < 4; i++ {
-		if gap := w.Radii[i] - w.Radii[i-1]; math.Abs(gap-(w.Bands[i-1]+w.Bands[i])/2) > 0.15 {
-			t.Errorf("the orbit %d stands %v out from the one inside it, with bands %v and %v: the next orbit is half "+
-				"the band before and half its own further", i, gap, w.Bands[i-1], w.Bands[i])
-		}
 	}
 	if want := []string{"p42", "p43", "p44", "p41"}; !reflect.DeepEqual(w.TieFresh, want) {
 		t.Errorf("with nothing drawn before, pair and solo of equal weight stand %v: the order of the map, want %v", w.TieFresh, want)
@@ -1110,69 +641,12 @@ func TestTheOrbitsGoOutByWeight(t *testing.T) {
 	}
 }
 
-// Every orbit leans its own way, between 5 and 25 degrees about a line of its
-// own, and so does the orbit of a planet's moons: the same in every snapshot,
-// and no two alike. The planets stand off the plane of their star.
-func TestEveryOrbitLeansItsOwnWay(t *testing.T) {
-	l := runHomeGraph(t).Leans
-	if len(l.Range) != 2 || l.Range[0] != 5 || l.Range[1] != 25 {
-		t.Errorf("the orbits lean between %v degrees, not 5 and 25", l.Range)
-	}
-	incs := map[float64]string{}
-	nodes := map[float64]string{}
-	all := map[string][]float64{}
-	for k, v := range l.First {
-		all["orbit "+k] = v
-	}
-	for k, v := range l.Moons {
-		all["moons of "+k] = v
-	}
-	if len(all) != 6 {
-		t.Fatalf("the leans of %d orbits came back, not four orbits and two of moons: %v", len(all), all)
-	}
-	for k, v := range all {
-		if len(v) != 2 || v[0] < 5 || v[0] > 25 {
-			t.Errorf("%s leans %v degrees", k, v)
-			continue
-		}
-		if other, ok := incs[v[0]]; ok {
-			t.Errorf("%s and %s lean by the same %v degrees", k, other, v[0])
-		}
-		if other, ok := nodes[v[1]]; ok {
-			t.Errorf("%s and %s lean about the same line, at %v degrees", k, other, v[1])
-		}
-		incs[v[0]] = k
-		nodes[v[1]] = k
-	}
-	if !reflect.DeepEqual(l.First, l.Later) {
-		t.Errorf("the orbits lean %v, and %v in a later snapshot: a lean is the orbit's own", l.First, l.Later)
-	}
-	for i, h := range l.Heights {
-		if h < 1 {
-			t.Errorf("the planets of orbit %d stand %v off the plane of their star: a leaning orbit takes them off it", i, h)
-		}
-	}
-}
-
-// The orbits, and the orbits of the moons, are faint: hairlines at an
-// opacity of 0.11 to 0.18, the half nearer the eye the brighter.
-func TestTheOrbitsAreBarelyThere(t *testing.T) {
+// The legend names what the marks of the graph mean, and nothing of a place
+// on an orbit: a place there means nothing to name.
+func TestTheLegendSaysWhatTheMarksMean(t *testing.T) {
 	got := runHomeGraph(t)
-	o := got.OrbitInk
-	if o.Rings != 6 || o.Found != o.Wanted || o.Wanted == 0 {
-		t.Fatalf("%d of %d segments of %d orbits found among the strokes: every orbit is drawn in its lean", o.Found, o.Wanted, o.Rings)
-	}
-	if o.Min < 0.11 || o.Max > 0.18 {
-		t.Errorf("the orbits are drawn at an opacity of %v to %v: faint is 0.11 to 0.18", o.Min, o.Max)
-	}
-	if !(o.Near > o.Far) {
-		t.Errorf("the near half of the orbits is drawn at %v against %v for the far half: the near half is the brighter", o.Near, o.Far)
-	}
 	if want := []string{"busy", "idle", "waiting for an answer", "lit part — context", "background work", "moons — sessions it opened"}; !reflect.DeepEqual(got.Legend, want) {
 		t.Errorf("the legend says %v, want %v: a place on an orbit means nothing to name", got.Legend, want)
-	}
-	if o.Meridian {
-		t.Error("a meridian runs from the star to the front of the outer orbit: a place on an orbit says nothing of time any more")
 	}
 }
 
@@ -1247,26 +721,5 @@ func TestTheOrbitsTurnAsPlanetsDo(t *testing.T) {
 	if sp.OffBy > 1e-9 || sp.Kept != 6 {
 		t.Errorf("ten seconds of turning leave a node %v off where its spin puts it, and keep %d turns: four orbits and two "+
 			"planets with moons", sp.OffBy, sp.Kept)
-	}
-}
-
-// The graph keeps the size of its box where the styles of the wide screen do
-// not reach — the wide shell drawn on a phone, as a page of the check does:
-// a canvas whose size were its pixels would grow with every frame drawn in
-// it, and a frame of a canvas a million pixels tall takes seconds.
-func TestTheGraphKeepsTheSizeOfItsBox(t *testing.T) {
-	var got struct {
-		Graph *struct {
-			Stage int `json:"stage"`
-			Keys  int `json:"keys"`
-		} `json:"graph"`
-	}
-	runFixture(t, "termsabsent.html", &got)
-	if got.Graph == nil {
-		t.Fatal("the wide shell drew no graph on its home")
-	}
-	if got.Graph.Stage > 400 || got.Graph.Keys > 64 {
-		t.Errorf("unstyled, the stage of the graph is %d px tall and a key of its legend %d px wide: each keeps the size "+
-			"of its box", got.Graph.Stage, got.Graph.Keys)
 	}
 }

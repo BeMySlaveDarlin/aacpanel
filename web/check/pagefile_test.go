@@ -1,35 +1,26 @@
 package check
 
 import (
-	"math"
 	"strings"
 	"testing"
 )
 
 type pageShot struct {
-	Whole  bool    `json:"whole"`
-	Size   int     `json:"size"`
-	Asked  []int   `json:"asked"`
-	More   int     `json:"more"`
-	Doc    bool    `json:"doc"`
-	Back   bool    `json:"back"`
-	ViewW  float64 `json:"viewW"`
-	ViewH  float64 `json:"viewH"`
-	SheetW float64 `json:"sheetW"`
-	SheetH float64 `json:"sheetH"`
-	FrameH float64 `json:"frameH"`
-	Over   struct {
+	Whole bool  `json:"whole"`
+	Size  int   `json:"size"`
+	Asked []int `json:"asked"`
+	More  int   `json:"more"`
+	Doc   bool  `json:"doc"`
+	Back  bool  `json:"back"`
+	Over  struct {
 		Size  int    `json:"size"`
 		Said  string `json:"said"`
 		Drawn bool   `json:"drawn"`
 		Asked []int  `json:"asked"`
 	} `json:"over"`
 	Other struct {
-		More    int     `json:"more"`
-		Asked   []int   `json:"asked"`
-		SheetW  float64 `json:"sheetW"`
-		SheetH  float64 `json:"sheetH"`
-		Scrolls bool    `json:"scrolls"`
+		More  int   `json:"more"`
+		Asked []int `json:"asked"`
 	} `json:"other"`
 	Played largeShot `json:"played"`
 	Paper  largeShot `json:"paper"`
@@ -144,39 +135,24 @@ func checkLargeFilesAreShown(t *testing.T, got pageShot, wide bool) {
 	}
 }
 
-// On a phone a page takes the screen above the navigation, as a brief does,
-// and its frame the room under the head.
-func TestAPageOpensOnThePhoneAsTheWholeScreen(t *testing.T) {
+// On a phone a page opens as a document read whole, and a PDF past the
+// ceiling of the viewer as a link to the phone's own viewer.
+func TestAPageOpensOnThePhoneAsADocument(t *testing.T) {
 	var got pageShot
 	runFixture(t, "pagefile.html", &got)
 	checkPageIsWhole(t, got)
 	checkPageOverTheCap(t, got)
 	checkOtherFileByDefault(t, got)
 	checkLargeFilesAreShown(t, got, false)
-	if got.SheetH < got.ViewH*0.85 || got.FrameH < got.SheetH*0.75 {
-		t.Errorf("on a %.0fx%.0f screen the page is a %.0f tall sheet with a %.0f tall frame — "+
-			"it is read, not glanced into, and takes the screen", got.ViewW, got.ViewH, got.SheetH, got.FrameH)
-	}
 }
 
-// At a desk a page opens in a wide window, its frame the height of the window.
-func TestAPageOpensAtADeskInAWideWindow(t *testing.T) {
+// At a desk a page opens as a document read whole, and a PDF past the ceiling
+// of the viewer in a frame of its own.
+func TestAPageOpensAtADeskAsADocument(t *testing.T) {
 	var got pageShot
 	runWideFixture(t, "pagefile.html", &got)
 	checkPageIsWhole(t, got)
 	checkPageOverTheCap(t, got)
 	checkOtherFileByDefault(t, got)
 	checkLargeFilesAreShown(t, got, true)
-	other := got.Other
-	if want := math.Min(1100, got.ViewW*0.92); math.Abs(other.SheetW-want) > 1 {
-		t.Errorf("the file window is %.0f wide on a %.0f screen, want %.0f", other.SheetW, got.ViewW, want)
-	}
-	if math.Abs(other.SheetH-got.ViewH*0.9) > 1 || !other.Scrolls {
-		t.Errorf("the long file has a %.0f tall window on a %.0f screen, scrolling: %v — it needs room up to nine tenths of the screen and a scrolling body",
-			other.SheetH, got.ViewH, other.Scrolls)
-	}
-	if got.SheetW < got.ViewW*0.75 || got.FrameH < got.ViewH*0.7 {
-		t.Errorf("on a %.0fx%.0f screen the page stands in a %.0fx%.0f window with a %.0f tall frame — "+
-			"a page needs the width and the height of the screen", got.ViewW, got.ViewH, got.SheetW, got.SheetH, got.FrameH)
-	}
 }

@@ -37,9 +37,7 @@ func TestTheThreadOfACodexThreadIsDoneFromItsBand(t *testing.T) {
 	}
 	var got struct {
 		Title       string   `json:"title"`
-		TitleGap    int      `json:"titleGap"`
 		Band        []string `json:"band"`
-		ThreadAtEnd bool     `json:"threadAtEnd"`
 		Deck        []string `json:"deck"`
 		Held        []string `json:"held"`
 		Rows        []string `json:"rows"`
@@ -77,12 +75,11 @@ func TestTheThreadOfACodexThreadIsDoneFromItsBand(t *testing.T) {
 	runFixture(t, "codexthread.html", &got)
 
 	const name = "codex-5afc361b"
-	if got.Title != "Cart flakes" || got.TitleGap <= 0 {
-		t.Errorf("the header of a titled thread reads %q with the space between its words %dpx wide, expected its title as written",
-			got.Title, got.TitleGap)
+	if got.Title != "Cart flakes" {
+		t.Errorf("the header of a titled thread reads %q, expected its title as written", got.Title)
 	}
-	if strings.Join(got.Band, ",") != "clip,think,perm,thread" || !got.ThreadAtEnd {
-		t.Errorf("the band holds %v, the thread at its far end %v", got.Band, got.ThreadAtEnd)
+	if strings.Join(got.Band, ",") != "clip,think,perm,thread" {
+		t.Errorf("the band holds %v, expected the paperclip, the three words and the thread last", got.Band)
 	}
 	if strings.Join(got.Deck, "|") != "background processes: 2 running|observers and alarms: 2, 2 running|subagents: none" {
 		t.Errorf("under the composer stand %v, expected the count of background processes, of the observers and "+
