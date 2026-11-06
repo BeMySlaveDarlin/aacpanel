@@ -1,56 +1,19 @@
 package install
 
 import (
-	"cmp"
 	"fmt"
-	"regexp"
-	"strconv"
+
+	"aacpanel/internal/release"
 )
 
-// Release is a release of the panel, the tag vP.M.m: Paradigm, Major, Minor.
-// A paradigm is a change of approach, so an update never crosses one unless
-// asked to; a major brings features and migrations; a minor brings fixes.
-type Release struct {
-	Paradigm, Major, Minor int
-}
+// Release is a release of the panel; the service compares its own with the
+// latest one by the same rule, so the rule lives in one place.
+type Release = release.Release
 
-// releaseTag is the form make release and install.sh accept too.
-var releaseTag = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-
-// ParseRelease reads a tag as a release. Only vP.M.m made of plain numbers
-// is one: v1.2.3-rc1, 1.2.3 and v01.2.3 are tags of something else, and an
-// update passes them by.
+// ParseRelease reads a tag as a release; what is no release an update passes
+// by.
 func ParseRelease(tag string) (Release, bool) {
-	m := releaseTag.FindStringSubmatch(tag)
-	if m == nil {
-		return Release{}, false
-	}
-	var n [3]int
-	for i, p := range m[1:] {
-		v, err := strconv.Atoi(p)
-		if err != nil {
-			return Release{}, false // too long a number to be a release
-		}
-		n[i] = v
-	}
-	return Release{n[0], n[1], n[2]}, true
-}
-
-// String is the tag of the release.
-func (r Release) String() string {
-	return fmt.Sprintf("v%d.%d.%d", r.Paradigm, r.Major, r.Minor)
-}
-
-// Compare orders releases the way they come out: -1 when r is older than o,
-// 1 when newer, 0 when it is the same release.
-func (r Release) Compare(o Release) int {
-	if c := cmp.Compare(r.Paradigm, o.Paradigm); c != 0 {
-		return c
-	}
-	if c := cmp.Compare(r.Major, o.Major); c != 0 {
-		return c
-	}
-	return cmp.Compare(r.Minor, o.Minor)
+	return release.Parse(tag)
 }
 
 // NewestRelease is the newest release among tags, whatever else they hold;

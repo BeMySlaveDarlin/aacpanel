@@ -264,6 +264,7 @@ func (w *watcher) look(ctx context.Context) notify.World {
 	w.readDocker(ctx, &cur)
 	w.readBriefs(ctx, &cur)
 	w.readStore(ctx, &cur)
+	w.readRelease(&cur)
 	cur.PanelDid = w.panelDid(now)
 	return cur
 }

@@ -1,7 +1,7 @@
 GOVULNCHECK_VERSION ?= v1.7.0
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: check fmt vet test test-go test-web vuln build image front agent-import agent-test agent-confined usage-replay stream-contract codex-contract shellcheck release
+.PHONY: check fmt vet test test-go test-web vuln build image front agent-import agent-test agent-confined usage-replay stream-contract codex-contract shellcheck release release-notes
 
 # check — everything that runs before a commit. front is here as a check, not for
 # the bundle: an error in the screen markup is caught by no test. It goes first,
@@ -183,6 +183,12 @@ image:
 
 # A release is the tag vP.M.m of a clean tree that passed check, with the
 # release written into install.sh. The tag stays here without PUSH=1: once
-# pushed it is public, so the push is asked for and never implied.
+# pushed it is public, so the push is asked for and never implied. PUSH=1
+# also creates its GitHub release, marked the latest.
 release:
 	@deploy/release.sh '$(VERSION)' '$(PUSH)'
+
+# The notes the GitHub release of VERSION gets, to read before make release
+# PUSH=1 publishes them; a release not made yet is read off HEAD.
+release-notes:
+	@deploy/release-notes.sh 'v$(VERSION)'

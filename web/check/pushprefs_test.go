@@ -56,11 +56,12 @@ type prefsShot struct {
 	StackPicked      []string `json:"stackPicked"`
 	StackChipsPicked []string `json:"stackChipsPicked"`
 
-	LimitOff   []string `json:"limitOff"`
-	LimitChips []string `json:"limitChips"`
-	LimitKind  []string `json:"limitKind"`
-	CodexKind  []string `json:"codexKind"`
-	IdleAfter  []string `json:"idleAfter"`
+	LimitOff    []string `json:"limitOff"`
+	LimitChips  []string `json:"limitChips"`
+	LimitKind   []string `json:"limitKind"`
+	CodexKind   []string `json:"codexKind"`
+	ReleaseKind []string `json:"releaseKind"`
+	IdleAfter   []string `json:"idleAfter"`
 
 	Rules         []prefsRow `json:"rules"`
 	ScrimCovers   bool       `json:"scrimCovers"`
@@ -156,6 +157,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		{Title: "Probes stop answering", Sub: "3 · API Anthropic, API Google, API Telegram", Role: "switch", On: "true"},
 		{Title: "A claude limit past 80%", Role: "switch", On: "true"},
 		{Title: "Codex updated itself", Sub: "past the release its protocol was checked against", Role: "switch", On: "true"},
+		{Title: "A new release of the panel", Sub: "once a release, from GitHub", Role: "switch", On: "true"},
 		{Title: "The panel went blind", Sub: "otherwise a failure passes in silence", Role: "switch", On: "true", Disabled: true, Lock: "always"},
 	}
 	if !got.CheckDefault || !got.CheckOff || !got.CheckOn {
@@ -230,6 +232,9 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 	}
 	if !slices.Contains(got.CodexKind, "codex") {
 		t.Errorf("turning the updates of codex off sent off %v", got.CodexKind)
+	}
+	if !slices.Contains(got.ReleaseKind, "release") {
+		t.Errorf("turning the releases of the panel off sent off %v", got.ReleaseKind)
 	}
 
 	if !got.ScrimCovers {

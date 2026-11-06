@@ -147,7 +147,8 @@ function Device() {
             <p class="setval">Hold the send button in a conversation and talk; let go and the words land in the field, to read over before they go.</p>
             <p class="hint warn">
                 The recognition is the browser's own: it sends the recording to Google and needs the
-                network. Nothing else in the panel leaves the machine.
+                network. Nothing else of what you say or do in the panel leaves the machine; the panel
+                itself asks GitHub once a day for its latest release, unless that is turned off.
             </p>
             ${heard
                 ? html`

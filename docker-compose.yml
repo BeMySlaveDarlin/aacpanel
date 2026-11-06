@@ -138,6 +138,10 @@ services:
       # the confirmation gate. When on, it goes through the same passkey door as
       # the rest of the API and journals the fact of a connection, never bytes.
       AACP_TERM_PUBLIC: ${AACP_TERM_PUBLIC:-0}
+      # The check for newer releases of the panel: shortly after the start and
+      # then once a day, a request for the latest release goes to
+      # api.github.com, with no token. 0 turns it off, and nothing goes out.
+      AACP_UPDATE_CHECK: ${AACP_UPDATE_CHECK:-1}
     # The owner's user rather than nonroot from the image: the executor socket is
     # 0600, so the service itself runs under the uid that may reach it. It writes
     # only its optional voice socket to disk. The default 1000 is the first user

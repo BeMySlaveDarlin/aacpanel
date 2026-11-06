@@ -33,8 +33,12 @@ ARG SKIP_VULNCHECK=0
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
     if [ "$SKIP_VULNCHECK" = "1" ]; then         echo "!!!! govulncheck SKIPPED via SKIP_VULNCHECK=1 - the image is built with no dependency check";     else         govulncheck ./...;     fi
 
+# The service names the release it is built from by the RELEASE= line of
+# install.sh: the context has no .git, and the line changes only in the commit
+# a release tags. Copied this late, it does not rebuild what comes before.
+COPY install.sh ./
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/aacpanel ./cmd/aacpanel
+    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$(sed -n 's/^RELEASE=//p' install.sh)" -o /out/aacpanel ./cmd/aacpanel
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/aacpanel /aacpanel

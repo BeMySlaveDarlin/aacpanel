@@ -262,6 +262,19 @@ func TestEveryEventLooksLikeThis(t *testing.T) {
 			severity:   Warning,
 			goneSilent: true,
 		},
+		{
+			name: "a newer release of the panel is out",
+			cur: world(snapshotWorld(), func(w *World) {
+				w.ReleaseSeen = true
+				w.Release = &PanelRelease{Running: "v1.2.0", Latest: "v1.3.0", Update: "./install.sh update"}
+			}),
+			key: "release:v1.3.0",
+
+			title:      "aacpanel v1.3.0 is out",
+			body:       "This panel runs v1.2.0: ./install.sh update in its clone takes it there.",
+			severity:   Info,
+			goneSilent: true,
+		},
 	}
 
 	for _, c := range cases {

@@ -23,8 +23,28 @@ func TestTheMachineTableAtADeskKeepsBothKinds(t *testing.T) {
 		Warning     bool   `json:"warning"`
 		Programs    string `json:"programs"`
 		Order       []int  `json:"order"`
+
+		// Release is the card of the panel drawn with each panel the
+		// fixture gives it.
+		Release map[string]panelShot `json:"release"`
 	}
 	runWideFixture(t, "topdesk.html", &got)
+	checkPanelRelease(t, got.Release["newer"].Text, got.Release["newer"].Link, "v1.2.0")
+	for name, want := range map[string][]string{
+		"level":   {"v1.3.0", "Updated by ./install.sh update in its clone"},
+		"off":     {"v1.2.0", "Not asking GitHub for newer releases: AACP_UPDATE_CHECK=0"},
+		"unknown": {"version unknown", "Built without a release: told of none"},
+	} {
+		r := got.Release[name]
+		for _, w := range want {
+			if !strings.Contains(r.Text, w) {
+				t.Errorf("the card of the panel %s reads %q, want %q in it", name, r.Text, w)
+			}
+		}
+		if strings.Contains(r.Text, "is out") || r.Link != "" {
+			t.Errorf("the card of the panel %s tells of a release with %q and the link %q", name, r.Text, r.Link)
+		}
+	}
 	if len(got.Order) != 3 || got.Order[0] >= got.Order[1] || got.Order[1] >= got.Order[2] {
 		t.Errorf("metrics must precede agents and the certificate: %v", got.Order)
 	}
@@ -67,5 +87,27 @@ func TestTheMachineTableAtADeskKeepsBothKinds(t *testing.T) {
 	}
 	if !strings.Contains(got.Note, "right now") {
 		t.Errorf("the table explains itself as %q: nothing says which half of it is not history", got.Note)
+	}
+}
+
+// panelShot is the card of the panel as a fixture read it: its words and the
+// link of the news.
+type panelShot struct {
+	Text string `json:"text"`
+	Link string `json:"link"`
+}
+
+// checkPanelRelease holds the card of the panel with a newer release out: the
+// release it runs, the release out with the link to its page, and the command
+// that gets there.
+func checkPanelRelease(t *testing.T, text, link, running string) {
+	t.Helper()
+	for _, want := range []string{"Panel", running, "v1.3.0 is out — ./install.sh update"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the card of the panel omits %q: %q", want, text)
+		}
+	}
+	if link != "https://github.com/BeMySlaveDarlin/aacpanel/releases/tag/v1.3.0" {
+		t.Errorf("the news of the release links to %q, not to its page", link)
 	}
 }

@@ -169,17 +169,20 @@
     }
     .mgrid .metrics { display: contents; }
     .mgrid .card[data-open="1"] { grid-column: 1 / -1; }
-    .mgrid > .programs, .mgrid > .lancert { grid-column: 1 / -1; }
+    .mgrid > .programs, .mgrid > .panelrel, .mgrid > .lancert { grid-column: 1 / -1; }
 
     .mgrid > .trouble,
     .mgrid > .stale-note { grid-column: 1 / -1; }
 }
 
-.programs { margin-bottom: 16px; padding: 16px; }
-.programs h3 { margin: 0 0 8px; }
-.program-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
-.program-row .hint { margin: 5px 0 0; }
+.programs, .panelrel { margin-bottom: 16px; padding: 16px; }
+.programs h3, .panelrel h3 { margin: 0 0 8px; }
+.panelnew { margin: 0 0 4px; }
+.panelnew a { color: var(--accent); }
+.panelnew code { font-family: var(--code); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.program-row, .panelrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+.program-row .hint, .panelrow .hint { margin: 5px 0 0; }
 .program-row .btn { flex-shrink: 0; }
-.program-version { margin-left: 12px; font-variant-numeric: tabular-nums; }
+.program-version, .panelversion { margin-left: 12px; font-variant-numeric: tabular-nums; }
 .program-verdict { margin-bottom: 8px; }
 .program-verdict pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--t-sm); }

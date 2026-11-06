@@ -92,11 +92,13 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 			Kept    string `json:"kept"`
 		} `json:"unframed"`
 		UnframedBack hostReturn `json:"unframedBack"`
+		Release      panelShot  `json:"release"`
 	}
 	runFixture(t, "hosttab.html", &got)
 	if !strings.Contains(got.Certificate, "panel.example.org") || !strings.Contains(got.Certificate, "13 days left") {
 		t.Errorf("phone loses certificate expiry: %q", got.Certificate)
 	}
+	checkPanelRelease(t, got.Release.Text, got.Release.Link, "v1.2.0")
 	if len(got.Order) != 5 {
 		t.Fatalf("machine blocks are missing: %v", got.Order)
 	}

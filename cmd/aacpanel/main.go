@@ -25,6 +25,7 @@ import (
 	"aacpanel/internal/hub"
 	"aacpanel/internal/notify"
 	"aacpanel/internal/probes"
+	"aacpanel/internal/release"
 	"aacpanel/internal/repo"
 	"aacpanel/internal/rules"
 	"aacpanel/internal/store"
@@ -65,6 +66,8 @@ type Server struct {
 	// guard of every place; nil where there is no map.
 	guards       chan struct{}
 	briefGuideMu sync.Mutex
+	// releases asks GitHub whether a newer release of the panel is out.
+	releases *release.Check
 }
 
 const execTimeout = 2 * time.Minute
@@ -311,6 +314,7 @@ func run() error {
 		termPublic: termPublic,
 		home:       ownerHome(),
 		endpoints:  eps,
+		releases:   releaseCheck(version),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -356,6 +360,7 @@ func run() error {
 
 	go srv.hub.Run(ctx)
 	go srv.usage.RunDaily(ctx)
+	go srv.releases.Run(ctx)
 
 	mux := srv.handler(srv.publicGate())
 

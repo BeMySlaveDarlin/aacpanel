@@ -26,7 +26,7 @@ the project.
 | **Sessions** | live sessions by contour and project — who waits for you, who works, who is quiet — a counter of open requests, unseen calls, unanswered briefs and unfilled secrets opens their queue over the composer; a queue item finds its card in the feed, where a request is answered Done or Can't with a note — with the model, how full the context is and what each one does; the conversation as a feed — messages, thinking, tool calls, letters from other sessions and subagents, attachments — with the timeline of its work beside it, and a search through the whole of it that jumps to the place; the composer, typed or dictated, with files, a queue and a command after `!`; the question sheet — an option, several, your own words, a note, or dismiss it; the permission dock; stopping the turn, a piece of background work or a subagent, and the feeds of subagents and workflows; the checklist the session keeps, its own first and restart messages, and its role in the project, which tells it from the other sessions of its repository; its briefs and published pages; the notepad of a secret it asks for, saved to a file on the host and never into the conversation; slash commands and the screens of `/mcp`, `/status`, `/hooks` and the like; the model, the effort and the mode picked from a list; Remote Control switched on and off; the observers and alarms a session asked the panel for, with a stop and a cancel; the session terminal; a window on the host desktop; a restart and a close; session groups pinned first in their contour on every device; an archive of closed conversations, with resume. A session lives in tmux or on the stream (`claude -p` under a holder) and moves between them; one in tmux is watched as a feed or as its terminal. A thread of codex, OpenAI's agent for the terminal, stands beside them, held by the app-server daemon of its codex home and answered from the same feed |
 | **Terminals** | the panel's own shells on the host, opened at home or in a project of the map, and every other live tmux session of the user, to attach to or close |
 | **Containers** | the "stack → containers" tree with processor, memory and size on disk; logs, starting and stopping a container, bringing a whole stack up and down |
-| **Machine** | processor, memory, disks, network, top processes, checks on ports and external services; history with rollups by minute and by hour, charts from half an hour to a month; the versions of claude and codex, each with an update |
+| **Machine** | processor, memory, disks, network, top processes, checks on ports and external services; history with rollups by minute and by hour, charts from half an hour to a month; the versions of claude and codex, each with an update, and the release of the panel with a newer one when it is out |
 | **Profile map** | "contour → group → project": where sessions may be opened, with what parameters, in which claude account. Each has a settings page drawn from a schema of the launch parameters, with the command the next launch runs; every change goes into a journal of the map that can take a deleted project back |
 | **Repository** | the code of a project, read from the conversation that writes it: the run of what the branch changed, the tree of the working tree, a file in windows, the diff of one file with the two layers told apart — what is in a commit and what is not — who wrote each line and in which conversation, and notes on lines handed to the session |
 | **Briefs** | long pieces a session publishes with questions in them, read and answered at whatever length it takes; the answers go back to the session as a message |
@@ -57,9 +57,11 @@ over before it goes; with words in it the button sends, and only a press held
 talks. The recognition is the browser's own, which in Chrome means the recording
 goes to Google: it is the one thing a page of the panel sends out of the
 machine, and the switch says so before it is flipped. The panel reaches out on
-its own for three things: notifications through the push service, each account's
-model catalogue from the Anthropic API with that account's token, and the probes
-of external services it watches — liveness checks without a login.
+its own for four things: notifications through the push service, each account's
+model catalogue from the Anthropic API with that account's token, the probes
+of external services it watches — liveness checks without a login — and, once a
+day, the latest release of the panel from the GitHub API, which the Machine
+screen names when it is newer (`AACP_UPDATE_CHECK=0` turns that off).
 
 ## How it works
 
@@ -170,6 +172,7 @@ transcripts, writes a snapshot that the container mounts read-only.
 | `cmd/webbuild/` | the front-end build |
 | `cmd/aacpanel-install/` | the installer behind `./install.sh`: its commands and flags |
 | `internal/install/` | the installer's engine: the check of the machine, the questions, the steps with their manifest and undo; `view/` and `ui/` draw it |
+| `internal/release/` | a release of the panel: the order of releases, and the daily question to GitHub about the latest |
 | `internal/action/` | the protocol between the service and the executor: the closed list of actions |
 | `internal/executor/` | the actions themselves: containers, stacks, sessions, windows |
 | `internal/launcher/` | starting a claude session: environment, tmux, window, the panel's MCP server |

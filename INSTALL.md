@@ -1049,6 +1049,14 @@ the token is accepted, 200 comes back, and an empty sign-in screen returns — t
 browser dropped the cookie silently. `AACP_TOKEN` is the second door next to the
 passkey; empty, there is no such door, and on a domain that is how it should be.
 
+`AACP_UPDATE_CHECK=0` turns off the check for newer releases. With it on — the
+default — the service asks `api.github.com` for the latest release of the panel
+a minute after its start and then once a day, with no token, and when one is
+newer than the release it was built from, the Machine screen names it with
+`./install.sh update` and one push says so. Nothing else goes with the request;
+off, no request goes out at all. A machine without the network loses nothing
+but the notice.
+
 The local listener on `127.0.0.1:8777` is on unless `.env` says
 `AACP_LOCAL_ADDR=` (empty). It lets in any process of the machine without a
 sign-in, and the sessions rely on it: their restart, their letters to one

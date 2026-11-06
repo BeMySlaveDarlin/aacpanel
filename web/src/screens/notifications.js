@@ -288,6 +288,8 @@ function Choice({ prefs, sources, change }) {
                         />
                         <${Kind} title="Codex updated itself" sub="past the release its protocol was checked against"
                                  on=${heard("codex")} onFlip=${kind("codex")} />
+                        <${Kind} title="A new release of the panel" sub="once a release, from GitHub"
+                                 on=${heard("release")} onFlip=${kind("release")} />
                         <${Always} title="The panel went blind" sub="otherwise a failure passes in silence" />
                     </section>
                 </div>

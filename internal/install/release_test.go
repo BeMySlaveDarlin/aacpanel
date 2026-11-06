@@ -66,6 +66,8 @@ func run(t *testing.T, dir string, env []string, stdin string, name string, args
 // with an origin of its own.
 type releaseRepo struct {
 	work, origin, home, checkLog string
+	// bin holds the fake gh; ghLog and ghNotes are what it noted.
+	bin, ghLog, ghNotes string
 }
 
 func (r *releaseRepo) git(t *testing.T, args ...string) string {
@@ -87,8 +89,9 @@ func (r *releaseRepo) originGit(t *testing.T, args ...string) string {
 	return strings.TrimSpace(out.stdout)
 }
 
-// releaseRule is the rule of the Makefile that makes a release, as it is.
-func releaseRule(t *testing.T) string {
+// makeRule is a rule of the Makefile, as it is: release makes a release,
+// release-notes prints the notes of one.
+func makeRule(t *testing.T, name string) string {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join("..", "..", "Makefile"))
 	if err != nil {
@@ -97,7 +100,7 @@ func releaseRule(t *testing.T) string {
 	var rule []string
 	for _, line := range strings.Split(string(body), "\n") {
 		switch {
-		case line == "release:":
+		case line == name+":":
 			rule = append(rule, line)
 		case len(rule) > 0 && strings.HasPrefix(line, "\t"):
 			rule = append(rule, line)
@@ -106,10 +109,27 @@ func releaseRule(t *testing.T) string {
 		}
 	}
 	if len(rule) == 0 {
-		t.Fatal("the Makefile has no release rule")
+		t.Fatalf("the Makefile has no %s rule", name)
 	}
 	return strings.Join(rule, "\n") + "\n"
 }
+
+// fakeGH stands for gh: it notes every call, and the notes a release is
+// created with, and whether its tag was in the origin by then. GH_SIGNED_OUT
+// fails its auth status, GH_RED the creation of a release.
+const fakeGH = `#!/bin/sh
+printf '%s\n' "$*" >>"$GH_LOG"
+case "$1" in
+auth) test -z "$GH_SIGNED_OUT" ;;
+release)
+	cat >"$GH_NOTES"
+	if git -C "$GH_ORIGIN" rev-parse -q --verify "refs/tags/$3" >/dev/null; then
+		echo "the tag is in the origin" >>"$GH_LOG"
+	fi
+	test -z "$GH_RED" ;;
+*) exit 2 ;;
+esac
+`
 
 // stubCheck stands for make check: it notes each run, fails with CHECK_RED
 // and leaves a file behind with CHECK_WRITES.
@@ -122,7 +142,8 @@ func newReleaseRepo(t *testing.T) *releaseRepo {
 	t.Helper()
 	base := t.TempDir()
 	r := &releaseRepo{work: filepath.Join(base, "work"), origin: filepath.Join(base, "origin.git"),
-		home: filepath.Join(base, "home"), checkLog: filepath.Join(base, "check.log")}
+		home: filepath.Join(base, "home"), checkLog: filepath.Join(base, "check.log"),
+		bin: filepath.Join(base, "bin"), ghLog: filepath.Join(base, "gh.log"), ghNotes: filepath.Join(base, "gh.notes")}
 	for _, d := range []string{r.work, r.origin, r.home} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
@@ -139,9 +160,11 @@ func newReleaseRepo(t *testing.T) *releaseRepo {
 	// install.sh names.
 	write(t, filepath.Join(r.work, "install.sh"), withRelease(t, real("install.sh"), ""), 0o755)
 	write(t, filepath.Join(r.work, "deploy", "release.sh"), real(filepath.Join("deploy", "release.sh")), 0o755)
+	write(t, filepath.Join(r.work, "deploy", "release-notes.sh"), real(filepath.Join("deploy", "release-notes.sh")), 0o755)
+	write(t, filepath.Join(r.bin, "gh"), fakeGH, 0o755)
 	write(t, filepath.Join(r.work, "deploy", "install", "root.sh"), "", 0o644)
 	write(t, filepath.Join(r.work, "go.mod"), "module aacpanel\n\ngo 1.26.0\n", 0o644)
-	write(t, filepath.Join(r.work, "Makefile"), stubCheck+releaseRule(t), 0o644)
+	write(t, filepath.Join(r.work, "Makefile"), stubCheck+makeRule(t, "release")+"\n"+makeRule(t, "release-notes"), 0o644)
 	write(t, filepath.Join(r.work, "README.md"), "aacpanel\n", 0o644)
 
 	r.originGit(t, "init", "--quiet", "--bare")
@@ -163,11 +186,45 @@ func write(t *testing.T, path, body string, mode os.FileMode) {
 }
 
 // release runs make release with the given variables; the database the
-// check needs is named unless the test takes it away.
+// check needs is named unless the test takes it away, and gh is the fake one.
 func (r *releaseRepo) release(t *testing.T, env []string, vars ...string) scriptRun {
 	t.Helper()
-	env = append(isolated(r.home, "CHECK_LOG="+r.checkLog, "AACP_TEST_DSN=postgres://test"), env...)
-	return run(t, r.work, env, "", "make", append([]string{"--no-print-directory", "release"}, vars...)...)
+	return run(t, r.work, r.env(env...), "", "make", append([]string{"--no-print-directory", "release"}, vars...)...)
+}
+
+// env is the environment a release runs in: GH names the fake gh, so no
+// test reaches GitHub, and the fake is the gh of the PATH too.
+func (r *releaseRepo) env(extra ...string) []string {
+	env := isolated(r.home, "CHECK_LOG="+r.checkLog, "AACP_TEST_DSN=postgres://test",
+		"GH="+filepath.Join(r.bin, "gh"), "GH_LOG="+r.ghLog, "GH_NOTES="+r.ghNotes, "GH_ORIGIN="+r.origin)
+	env[0] = "PATH=" + r.bin + string(os.PathListSeparator) + os.Getenv("PATH")
+	return append(env, extra...)
+}
+
+// gh is what the fake gh was asked, a call a line.
+func (r *releaseRepo) gh(t *testing.T) string {
+	t.Helper()
+	body, err := os.ReadFile(r.ghLog)
+	if os.IsNotExist(err) {
+		return ""
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
+}
+
+// notes runs the notes script of the repository with args.
+func (r *releaseRepo) notes(t *testing.T, args ...string) scriptRun {
+	t.Helper()
+	return run(t, r.work, r.env(), "", filepath.Join(r.work, "deploy", "release-notes.sh"), args...)
+}
+
+// commit makes a commit of the subject, with a change of its own.
+func (r *releaseRepo) commit(t *testing.T, subject string) {
+	t.Helper()
+	write(t, filepath.Join(r.work, "README.md"), subject+"\n", 0o644)
+	r.git(t, "commit", "--quiet", "-am", subject)
 }
 
 func (r *releaseRepo) checks(t *testing.T) int {
@@ -204,8 +261,12 @@ func TestReleaseTagsACleanTreeThatPassedCheck(t *testing.T) {
 	if out.status != 0 {
 		t.Fatalf("make release ended with %d:\n%s%s", out.status, out.stdout, out.stderr)
 	}
-	if want := "v1.2.3 is tagged here and not pushed. Publish it with: git push --atomic origin HEAD refs/tags/v1.2.3\n"; out.stdout != want {
+	if want := "v1.2.3 is tagged here and not pushed. Publish it with: git push --atomic origin HEAD refs/tags/v1.2.3 && " +
+		"deploy/release-notes.sh v1.2.3 | gh release create v1.2.3 --title 'aacpanel v1.2.3' --latest --verify-tag --notes-file -\n"; out.stdout != want {
 		t.Errorf("make release said %q, want %q", out.stdout, want)
+	}
+	if asked := r.gh(t); asked != "" {
+		t.Errorf("a release without PUSH=1 asked gh:\n%s", asked)
 	}
 	if n := r.checks(t); n != 1 {
 		t.Errorf("make check ran %d times, want once", n)
@@ -252,8 +313,19 @@ func TestReleaseMadeAgainAfterItsTagWasDroppedTagsTheSameCommit(t *testing.T) {
 func TestReleaseWithPushPublishesTheTagAndTheBranch(t *testing.T) {
 	r := newReleaseRepo(t)
 	out := r.release(t, nil, "VERSION=0.1.0", "PUSH=1")
-	if out.status != 0 || out.stdout != "v0.1.0 is released and pushed.\n" {
+	if out.status != 0 || out.stdout != "v0.1.0 is released, pushed and published on GitHub.\n" {
 		t.Fatalf("make release ended with %d:\n%s%s", out.status, out.stdout, out.stderr)
+	}
+	// gh is asked whether it is signed in before anything, and the release
+	// is created once the tag is out, marked the latest, with the notes.
+	want := "auth status\n" +
+		"release create v0.1.0 --title aacpanel v0.1.0 --latest --verify-tag --notes-file -\n" +
+		"the tag is in the origin\n"
+	if asked := r.gh(t); asked != want {
+		t.Errorf("gh was asked:\n%s\nwant:\n%s", asked, want)
+	}
+	if notes, err := os.ReadFile(r.ghNotes); err != nil || string(notes) != r.notes(t, "v0.1.0").stdout {
+		t.Errorf("the release was created with the notes:\n%s(%v)\nwant those of deploy/release-notes.sh v0.1.0", notes, err)
 	}
 	head := r.git(t, "rev-parse", "HEAD")
 	if got := r.originGit(t, "rev-parse", "refs/heads/main", "v0.1.0^{commit}"); got != head+"\n"+head {
@@ -261,6 +333,35 @@ func TestReleaseWithPushPublishesTheTagAndTheBranch(t *testing.T) {
 	}
 	if got := r.originGit(t, "cat-file", "-t", "v0.1.0"); got != "tag" {
 		t.Errorf("the origin has v0.1.0 as a %s", got)
+	}
+}
+
+// A GitHub release that failed after the push cannot be taken back with the
+// tag, which is out for good: the stop names the command that creates it,
+// and that command run as it is creates it.
+func TestAGitHubReleaseThatFailedIsCreatedByTheCommandTheStopNames(t *testing.T) {
+	r := newReleaseRepo(t)
+	out := r.release(t, []string{"GH_RED=1"}, "VERSION=0.1.0", "PUSH=1")
+	const prefix = "stop: v0.1.0 is pushed, and its GitHub release was not created: the output above says why. Create it with: "
+	const again = "deploy/release-notes.sh v0.1.0 | gh release create v0.1.0 --title 'aacpanel v0.1.0' --latest --verify-tag --notes-file -"
+	if out.status == 0 || !slices.Contains(strings.Split(out.stderr, "\n"), prefix+again) {
+		t.Fatalf("make release ended with %d; stderr:\n%s\nwant the line:\n%s", out.status, out.stderr, prefix+again)
+	}
+	if got := r.originGit(t, "cat-file", "-t", "v0.1.0"); got != "tag" {
+		t.Errorf("the origin has v0.1.0 as a %s", got)
+	}
+
+	if err := os.Remove(r.ghLog); err != nil {
+		t.Fatal(err)
+	}
+	if rerun := run(t, r.work, r.env(), "", "bash", "-c", again); rerun.status != 0 {
+		t.Fatalf("the command the stop names ended with %d:\n%s%s", rerun.status, rerun.stdout, rerun.stderr)
+	}
+	if asked, want := r.gh(t), "release create v0.1.0 --title aacpanel v0.1.0 --latest --verify-tag --notes-file -\nthe tag is in the origin\n"; asked != want {
+		t.Errorf("the command asked gh:\n%s\nwant:\n%s", asked, want)
+	}
+	if notes, err := os.ReadFile(r.ghNotes); err != nil || !strings.HasPrefix(string(notes), "The first release of the panel.\n") {
+		t.Errorf("the command created the release with the notes:\n%s(%v)", notes, err)
 	}
 }
 
@@ -294,6 +395,10 @@ func TestReleaseRefusesWhatIsNotReady(t *testing.T) {
 		}, nil, "1.2.3", "stop: v1.2.3 is there already: a release is never made twice. Take the next number.", 0},
 		{"no test database", nil, []string{"AACP_TEST_DSN="}, "1.2.3",
 			"stop: AACP_TEST_DSN is not set, and make check would skip the tests with a database. Point it at the test database, then run again.", 0},
+		{"no gh to publish with", nil, []string{"PUSH=1", "GH=gh-nowhere"}, "1.2.3",
+			"stop: there is no gh here, and with PUSH=1 the release is published on GitHub with it. Install it (https://cli.github.com), sign in with gh auth login, then run again.", 0},
+		{"gh signed out", nil, []string{"PUSH=1", "GH_SIGNED_OUT=1"}, "1.2.3",
+			"stop: gh is not signed in to GitHub, and with PUSH=1 the release is published there with it. Sign in with gh auth login, then run again.", 0},
 		{"a red check", nil, []string{"CHECK_RED=1"}, "1.2.3", "stop: make check is red: a release is made of a tree that passes it.", 1},
 		{"a check that writes", nil, []string{"CHECK_WRITES=1"}, "1.2.3",
 			"stop: make check changed the tree: what it made is not in the commits. Commit it, then run again.", 1},
@@ -320,6 +425,9 @@ func TestReleaseRefusesWhatIsNotReady(t *testing.T) {
 			}
 			if diff := r.git(t, "diff", "HEAD", "--", "install.sh"); diff != "" {
 				t.Errorf("a refused release wrote into install.sh:\n%s", diff)
+			}
+			if refs := r.originGit(t, "for-each-ref"); refs != "" {
+				t.Errorf("a refused release reached the origin:\n%s", refs)
 			}
 		})
 	}

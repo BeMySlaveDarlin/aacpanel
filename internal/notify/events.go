@@ -22,6 +22,7 @@ const (
 	DomainVision    = "vision"
 	domainLimit     = "limit"
 	domainCodex     = "codex"
+	domainRelease   = "release"
 )
 
 // Event is a reason to notify, with the wording for both raising and clearing it.
@@ -68,6 +69,11 @@ type World struct {
 	// CodexSeen says the snapshot carried them.
 	Codex     []Codex
 	CodexSeen bool
+	// Release is a release of the panel newer than the one the service was
+	// built from; ReleaseSeen says GitHub answered since the start, so that
+	// no release means none is out rather than nobody asked yet.
+	Release     *PanelRelease
+	ReleaseSeen bool
 
 	Containers []Container
 	Stacks     []Stack
@@ -230,6 +236,15 @@ type Codex struct {
 	Detail    string
 }
 
+// PanelRelease is a release of the panel out on GitHub, newer than the one
+// the service runs.
+type PanelRelease struct {
+	Running string
+	Latest  string
+	// Update is the command that moves the install to it.
+	Update string
+}
+
 // Report is what Look saw on this pass.
 type Report struct {
 	Raise []Event
@@ -267,6 +282,10 @@ func Look(prev, cur World) Report {
 	if !agentBlind && cur.CodexSeen {
 		r.Seen = append(r.Seen, domainCodex)
 		codexReleases(&r, cur)
+	}
+	if cur.ReleaseSeen {
+		r.Seen = append(r.Seen, domainRelease)
+		panelReleases(&r, cur)
 	}
 	if cur.BriefsSeen {
 		briefs(&r, prev, cur)
@@ -870,6 +889,25 @@ func updated(c Codex) Event {
 			" — run make codex-contract.",
 		Severity: Warning,
 	}
+}
+
+// panelReleases says once a release of the panel newer than the one it runs.
+// The reason is held while that release is the latest and the panel is not
+// on it, so the looks after it and a restart of the service say nothing; a
+// release further on is a reason of its own, and an update onto it is
+// forgotten without a word.
+func panelReleases(r *Report, cur World) {
+	p := cur.Release
+	if p == nil || p.Latest == "" {
+		return
+	}
+	r.raise(Event{
+		Key:      domainRelease + ":" + p.Latest,
+		Domain:   domainRelease,
+		Title:    "aacpanel " + p.Latest + " is out",
+		Body:     "This panel runs " + p.Running + ": " + p.Update + " in its clone takes it there.",
+		Severity: Info,
+	})
 }
 
 func windowText(window string) string {

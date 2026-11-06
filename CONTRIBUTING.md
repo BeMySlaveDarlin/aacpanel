@@ -429,6 +429,18 @@ and the checksum of the original, and it is updated by hand and with a diff.
 
 ---
 
+## Releases
+
+A release is made when it is asked for: `make release VERSION=P.M.m` checks the
+tree, runs `make check` and tags the release here; `PUSH=1` pushes the tag with
+the branch and creates its GitHub release with `gh`, which has to be there and
+signed in before anything runs. The notes of that release come from
+`deploy/release-notes.sh`, and `make release-notes VERSION=P.M.m` prints them to
+be read first. A GitHub release that failed after the push is not a lost
+release: the stop names the command that creates it.
+
+---
+
 ## Commits and pull requests
 
 The message explains what changed and why, it does not retell the diff. The

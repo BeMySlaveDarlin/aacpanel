@@ -86,6 +86,7 @@ const tree = { running: 6, total: 8, stacks: [
 ] };
 const snapshot = {
     lanCertificate: { name: "panel.example.org", expiresAt: 1800000000, daysLeft: 13 },
+    panel: { version: "v1.2.0", check: true, newer: { tag: "v1.3.0", page: "https://github.com/BeMySlaveDarlin/aacpanel/releases/tag/v1.3.0", update: "./install.sh update" } },
     programs: {
         codex: { version: "0.163.0", checkedVersion: "0.163.0", verdict: "passed", detail: "The protocol contract passed.", restartPending: { work: "restart pending: 2 turns running" } },
         claude: { version: "2.1.283" },
@@ -248,6 +249,7 @@ window.done = (async () => {
         out.machine = look("Machine");
         out.pulled = await pull();
         out.certificate = pageAt(1).querySelector(".lancert")?.textContent;
+        out.release = { text: text(pageAt(1).querySelector(".panelrel")), link: pageAt(1).querySelector(".panelnew a")?.getAttribute("href") || "" };
         const machine = pageAt(1);
         const traffic = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector("h2")?.textContent === "Traffic over the period");
         const probes = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector(".tname")?.textContent === "Probes");

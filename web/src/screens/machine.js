@@ -8,6 +8,7 @@ import { level, uptime } from "../format.js";
 import { useProbes } from "../alerts.js";
 import { Certificate } from "./certificate.js";
 import { Programs } from "./programs.js";
+import { PanelRelease } from "./release.js";
 import { Resources } from "./resources.js";
 import { Probes, probeState } from "./probes.js";
 
@@ -61,6 +62,7 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], ex
                 history=${history} faults=${faults} />
 
             <${Programs} programs=${snapshot && snapshot.programs} exec=${exec} onDone=${onDone} />
+            <${PanelRelease} panel=${snapshot && snapshot.panel} />
             <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
 
             <${Block} title="Probes" icon=${Icon.probes()}

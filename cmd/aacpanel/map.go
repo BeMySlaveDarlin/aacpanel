@@ -76,6 +76,9 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 			return nil, err
 		}
 	}
+	if payload, err = spliceField(payload, "panel", s.panelRelease()); err != nil {
+		return nil, err
+	}
 	var list []store.Profile
 	if s.db != nil {
 		got, err := s.db.Profiles(ctx)

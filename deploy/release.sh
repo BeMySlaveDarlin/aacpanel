@@ -10,6 +10,12 @@
 # commit of its own, so the script taken from the tag clones that very tag,
 # and the tag goes on that commit. It stays here: a pushed tag is public and
 # out for good, so it leaves only with PUSH=1, together with the branch.
+#
+# With PUSH=1 the tag also gets its GitHub release, marked the latest, with
+# the notes of deploy/release-notes.sh: that release is what a watcher of the
+# repository is told of, and what a running panel compares itself with. gh
+# makes it, so whether gh is there and signed in is asked before make check
+# runs, not after the tag is out.
 
 set -euo pipefail
 
@@ -34,11 +40,25 @@ main() {
 	fi
 	[ -n "${AACP_TEST_DSN:-}" ] ||
 		stop "AACP_TEST_DSN is not set, and make check would skip the tests with a database. Point it at the test database, then run again."
+	local gh=${GH:-gh}
+	if [ "$push" = 1 ]; then
+		command -v "$gh" >/dev/null 2>&1 ||
+			stop "there is no gh here, and with PUSH=1 the release is published on GitHub with it. Install it (https://cli.github.com), sign in with gh auth login, then run again."
+		"$gh" auth status >/dev/null 2>&1 ||
+			stop "gh is not signed in to GitHub, and with PUSH=1 the release is published there with it. Sign in with gh auth login, then run again."
+	fi
 
 	"${MAKE:-make}" check || stop "make check is red: a release is made of a tree that passes it."
 	if [ -n "$(git status --porcelain)" ]; then
 		git status --short >&2
 		stop "make check changed the tree: what it made is not in the commits. Commit it, then run again."
+	fi
+
+	# The notes are made before anything changes: a release that cannot say
+	# what is in it goes nowhere.
+	local notes=""
+	if [ "$push" = 1 ]; then
+		notes=$(deploy/release-notes.sh "$tag") || stop "the notes of $tag did not come out: the output above says why."
 	fi
 
 	sed -i "s/^RELEASE=.*/RELEASE=$tag/" install.sh
@@ -51,12 +71,15 @@ main() {
 	fi
 	git tag -a "$tag" -m "aacpanel $tag"
 
+	local publish="deploy/release-notes.sh $tag | gh release create $tag --title 'aacpanel $tag' --latest --verify-tag --notes-file -"
 	if [ "$push" = 1 ]; then
 		git push --atomic origin HEAD "refs/tags/$tag"
-		printf '%s is released and pushed.\n' "$tag"
+		printf '%s\n' "$notes" | "$gh" release create "$tag" --title "aacpanel $tag" --latest --verify-tag --notes-file - ||
+			stop "$tag is pushed, and its GitHub release was not created: the output above says why. Create it with: $publish"
+		printf '%s is released, pushed and published on GitHub.\n' "$tag"
 		return
 	fi
-	printf '%s is tagged here and not pushed. Publish it with: git push --atomic origin HEAD refs/tags/%s\n' "$tag" "$tag"
+	printf '%s is tagged here and not pushed. Publish it with: git push --atomic origin HEAD refs/tags/%s && %s\n' "$tag" "$tag" "$publish"
 }
 
 main "$@"

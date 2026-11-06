@@ -101,6 +101,8 @@ var specs = map[string]spec{
 		"the node name in the tailnet; the passkey domain is built from it"},
 	"AACP_TERM_PUBLIC": {groupAccess, CostRecreate, false,
 		"the session terminal for whoever signs in from outside: input bypasses the confirmation gate"},
+	"AACP_UPDATE_CHECK": {groupAccess, CostRecreate, false,
+		"0 stops the daily question to api.github.com about a newer release of the panel"},
 
 	"AACP_SESSION_IDLE": {groupSession, CostRecreate, false, "how long an idle session is kept"},
 	"AACP_SESSION_MAX":  {groupSession, CostRecreate, false, "the hard lifetime of a session"},

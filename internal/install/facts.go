@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"aacpanel/internal/hostcfg"
+	"aacpanel/internal/release"
 )
 
 // MinCompose is the oldest docker compose the stack of the panel comes up on,
@@ -24,7 +25,7 @@ import (
 const MinCompose = "2.18.0"
 
 // Repository is where the panel is cloned from.
-const Repository = "https://github.com/BeMySlaveDarlin/aacpanel"
+const Repository = release.Repository
 
 // The fixed ports of the panel, and the range the home-network listener
 // moves into when 8443 is somebody else's.

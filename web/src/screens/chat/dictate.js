@@ -1,8 +1,9 @@
 // Dictation into the composer: the browser listens, the words land in the field.
 //
 // The recognition is the browser's own, and in Chrome that means the recording
-// goes to Google. Nothing else in the panel leaves the machine, so this is off
-// until the person turns it on, and the switch says so in as many words.
+// goes to Google. Nothing else the person says or does in the panel leaves the
+// machine, so this is off until the person turns it on, and the switch says so
+// in as many words.
 
 const KEY = "aacpanel.dictation";
 

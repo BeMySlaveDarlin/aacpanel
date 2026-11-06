@@ -2629,7 +2629,8 @@ that ended, a session gone without the panel closing it, a stack down whole, a
 container down or unhealthy while the rest of its stack runs, a rule tripped, a
 probe that stopped answering, a subscription limit past 80%, a codex daemon
 that runs another release than the one its protocol was checked against
-(Codex sessions above), and a panel gone blind — the collector silent or the
+(Codex sessions above), a release of the panel newer than its own (Releases
+below), and a panel gone blind — the collector silent or the
 database out of reach. A reason is pushed
 when it appears and, where it has one, once more when it is gone; nothing
 reminds in between, and the push service collapses repeats under the reason's
@@ -2730,8 +2731,9 @@ Google. It is off until the person turns it on for that device, the switch says
 where the sound goes before they do, and nothing else a page sends crosses the
 machine. The panel's own traffic out is the push service carrying notifications,
 the model catalogue of each account, read from the Anthropic API with that
-account's token, and the probes of the external services it watches — liveness
-checks that ask without a login (`internal/watchcfg/config.yaml`). The
+account's token, the probes of the external services it watches — liveness
+checks that ask without a login (`internal/watchcfg/config.yaml`) — and the
+daily question about the latest release of the panel (Releases below). The
 recognition is not done here because doing it here is a model on the host, and
 that is a different feature with a different price.
 
@@ -2883,6 +2885,36 @@ first. If it answered with its own panel, it is alive, one request fell, and it
 stays the base.
 
 ---
+
+## Releases
+
+**A release is a tag and its GitHub release.** `make release VERSION=P.M.m`
+writes the tag `vP.M.m` into the `RELEASE=` line of `install.sh` in a commit of
+its own and tags that commit; with `PUSH=1` it pushes both and creates the
+GitHub release of the tag with `gh`, marked the latest, with the notes of
+`deploy/release-notes.sh` — the kind of the release by its numbers, the
+subjects of the commits since the release before, and how to update. That
+release is what a watcher of the repository hears of, and what a running panel
+compares itself with.
+
+**The service knows the release it was built from.** The image build writes the
+`RELEASE=` line into the binary (`-X main.version`): the build context has no
+`.git`, and the line changes only in the commit a release tags, so a build of
+the branch between releases names the last one and is never told of what it
+already holds. A plain `go build` names none; such a service says its version is
+unknown and asks nothing.
+
+**It asks GitHub whether a newer one is out** (`internal/release`): a minute
+after the start and then once a day, one `GET` of
+`api.github.com/repos/BeMySlaveDarlin/aacpanel/releases/latest`, with no token
+and nothing of the machine but its address and the release in the user agent.
+Only a latest release strictly newer by P.M.m is news; it stands on the Machine
+screen with its page and the command that takes the install there —
+`./install.sh update --to P` for a later paradigm — and is one push, a kind of
+its own on the choice of pushes, held while that release is the latest and the
+panel is not on it. A failure is passed over and the release known stays known:
+a machine off the network is a fine place for the panel. `AACP_UPDATE_CHECK=0`
+in `.env` turns the check off, and then no request goes out at all.
 
 ## What the panel does not have, and why
 
