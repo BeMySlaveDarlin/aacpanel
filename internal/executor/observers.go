@@ -14,6 +14,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/observer"
 	"aacpanel/internal/stream"
 )
@@ -233,12 +234,10 @@ func observerArgs(env []string, bin, unit, dir string, spec observer.Spec, cores
 		"--unit=" + unit,
 		"--description=aacpanel observer " + spec.Name,
 		"--nice=" + fmt.Sprint(observer.Nice),
-		"--slice=" + AgentsSlice,
-		"--property=MemoryMax=" + observer.MemoryMax,
-		"--property=MemorySwapMax=0",
 		"--property=CPUQuota=" + observer.CPUQuota,
 		"--property=TimeoutStopSec=" + observerStopWait,
 	}
+	args = append(args, inSlice(hostcfg.Ceilings{Max: observer.MemoryMax, Swap: "0"})...)
 	args = append(args, affinity(cores)...)
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {

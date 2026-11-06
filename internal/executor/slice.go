@@ -20,9 +20,16 @@ const sliceWait = 15 * time.Second
 
 // inSlice are the properties that put a unit in the agents' slice and hold it
 // to ceilings of its own; a ceiling that is not set is not passed, and the
-// unit is held only by the slice there.
+// unit is held only by the slice there. At a MemoryMax the kernel kills the
+// biggest process of the cgroup, and while the main process of the unit runs
+// — an observer, the feed check, a launcher still starting what it starts —
+// systemd would stop the whole unit after it. OOMPolicy=continue leaves the
+// rest running, and whoever started the killed command sees it killed; a
+// unit whose main process is the one killed ends by itself. A unit whose main
+// process has already ended, as the launcher's does once the session runs, is
+// not stopped either way.
 func inSlice(held hostcfg.Ceilings) []string {
-	args := []string{"--slice=" + AgentsSlice}
+	args := []string{"--slice=" + AgentsSlice, "--property=OOMPolicy=continue"}
 	for _, p := range []struct{ name, value string }{
 		{"MemoryHigh", held.High}, {"MemoryMax", held.Max}, {"MemorySwapMax", held.Swap},
 	} {

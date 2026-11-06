@@ -1708,14 +1708,43 @@ slice. Unset, a ceiling is a share of the machine's memory from
 and stopped at 55, a session at a tenth and a sixth; empty or 0 is no ceiling, and a size systemd would refuse is logged once and the share stands
 in for it. `MemoryHigh` slows the cgroup and reclaims its pages; it never
 kills, and only `MemoryMax` brings the kernel's OOM killer into the cgroup,
-onto its biggest process. The price is a stall: a cgroup that goes on taking
-memory past `MemoryHigh` with no swap left to push into is held a little above
-it, slowed nearly to a stop, and may never reach `MemoryMax` to be killed —
-it shows as memory pressure, not as an OOM kill. The memory of docker containers is not in this
+onto its biggest process. Every unit in the slice gets `OOMPolicy=continue`:
+by default systemd stops the whole unit after such a kill while its main
+process runs, and an observer would go with the command it watches, the feed
+check with its claude. With it only the killed process ends, whoever started
+it sees it killed, and a unit whose main process is the one killed ends by
+itself. The unit of a session or of a tmux server is not stopped either way:
+its main process, the launcher, has ended once the session runs. systemd-oomd
+is not turned on for the slice: it kills a unit whole, and the unit of a tmux
+server is every session in tmux at once. The memory of docker containers is not in this
 budget: a container's processes live in the container's cgroup however they
 are started, `docker exec` from a session included, and are held by the
 container's own limits. The values are read once, at the executor's start; a
 running session keeps the unit and the ceilings it started with.
+
+**A cgroup that stands stuck at its `MemoryHigh` is let go to its
+`MemoryMax`.** A cgroup that goes on taking memory past `MemoryHigh` with no
+swap left to push into is held a little above it, slowed to a megabyte or so
+a second, and may never reach `MemoryMax` to be killed: everything in it
+stands, claude included, and it shows as memory pressure, not as an OOM kill.
+The executor reads the slice and every unit directly in it that has a
+`MemoryHigh` of its own — in practice the sessions on the stream — from their
+cgroup files every five seconds. A cgroup above its High, or within a
+hundredth of it and no less than 32 MiB under it, whose `memory.pressure`
+gives `full avg10` of 50 or more four reads in a row, gets
+`MemoryHigh=infinity` through `systemctl --user --runtime set-property`; from
+there `MemoryMax` decides, and the cgroup either fits and goes on or loses its
+biggest process at the Max. One the brake slows while it still pushes pages
+out to swap waits on memory a small share of the time and is left alone. Once
+the cgroup is under nine tenths of the High it was held to, the executor sets
+that High back: the slice's from `AACP_AGENTS_MEMORY_HIGH`, a unit's as it
+read it before the lift. Each lift and each return is a line in the executor's
+log, and a refused `set-property` is logged once for as long as it is refused.
+The executor sets back only what it lifted itself. Restarted while a cgroup is
+lifted, it sets the slice up again from the description at its start, but the
+unit of a session lives out its run without a High, under the Max it started
+with: the executor does not put a High on a unit it does not know it lifted,
+and a running session keeps what it was started with.
 
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives

@@ -29,11 +29,12 @@ func memoryProps(args []string) []string {
 	return props
 }
 
-// Every unit the executor starts for the agents lives in their slice. A
-// session on the stream is the one thing its unit keeps, and it alone is held
-// to the ceilings of a session; a unit that may keep a server of many — the
-// tmux server of the sessions or of the terminals, a codex daemon — gets the
-// slice alone, and an observer keeps ceilings of its own.
+// Every unit the executor starts for the agents lives in their slice, and
+// goes on when the kernel kills a process in it. A session on the stream is
+// the one thing its unit keeps, and it alone is held to the ceilings of a
+// session; a unit that may keep a server of many — the tmux server of the
+// sessions or of the terminals, a codex daemon — gets the slice alone, and an
+// observer keeps ceilings of its own.
 func TestEveryUnitForTheAgentsLivesInTheirSlice(t *testing.T) {
 	ctx := context.Background()
 	session := []string{"MemoryHigh=6G", "MemoryMax=10G", "MemorySwapMax=1G"}
@@ -88,6 +89,9 @@ func TestEveryUnitForTheAgentsLivesInTheirSlice(t *testing.T) {
 		if !slices.Contains(args, "--slice="+AgentsSlice) {
 			t.Errorf("%s is started outside the slice of the agents: %q", u.what, args)
 		}
+		if !slices.Contains(args, "--property=OOMPolicy=continue") {
+			t.Errorf("%s is stopped whole when the kernel kills a process in it: %q", u.what, args)
+		}
 		if got := memoryProps(args); !slices.Equal(got, u.held) {
 			t.Errorf("%s is held to %q, want %q", u.what, got, u.held)
 		}
@@ -98,7 +102,7 @@ func TestEveryUnitForTheAgentsLivesInTheirSlice(t *testing.T) {
 // with the bounds of a check after them.
 func TestTheFeedCheckIsHeldAsASession(t *testing.T) {
 	args := checkArgs([]string{"PATH=/usr/bin"}, "/opt/bin/aacpanel-exec", "8-23", testBudget.Session)
-	if !slices.Contains(args, "--slice="+AgentsSlice) {
+	if !slices.Contains(args, "--slice="+AgentsSlice) || !slices.Contains(args, "--property=OOMPolicy=continue") {
 		t.Errorf("the check is started outside the slice of the agents: %q", args)
 	}
 	if got := memoryProps(args); !slices.Equal(got, []string{"MemoryHigh=6G", "MemoryMax=10G", "MemorySwapMax=1G"}) {

@@ -386,6 +386,7 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 	if err := executor.SetUpAgentsSlice(ctx, memory.Agents); err != nil {
 		log.Printf("%v; sessions start all the same, and the slice keeps whatever ceilings it had", err)
 	}
+	go executor.WatchStalls(ctx, memory.Agents.High)
 	go keepLimits(ctx)
 	exec.StartCodex(ctx)
 	go exec.KeepPrograms(ctx)
