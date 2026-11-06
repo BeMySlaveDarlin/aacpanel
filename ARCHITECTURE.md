@@ -1686,6 +1686,37 @@ executor starts without affinity. A description carried from another machine
 must not take the panel down, at the cost of leaving core placement to the
 system until the setting is corrected and the executor restarted.
 
+**The agents share one memory budget, and a session on the stream has its
+own inside it.** Every unit the executor starts for them — a session with its
+window, a terminal of the panel, a codex daemon, an observer, the feed check
+of claude — lives in `aacp-agents.slice` of the user's manager. At its start
+the executor sets the slice's `MemoryHigh`, `MemoryMax` and `MemorySwapMax`
+with `systemctl --user --runtime set-property`, from `AACP_AGENTS_MEMORY_HIGH`,
+`AACP_AGENTS_MEMORY_MAX` and `AACP_AGENTS_SWAP_MAX`; the runtime drop-in goes
+with the manager, so each start writes it again and a ceiling turned off is
+lifted. A manager that does not answer is a line in the log, and sessions
+start all the same. The unit of a session on the stream keeps its holder and
+nothing else, so it gets `AACP_SESSION_MEMORY_HIGH`, `AACP_SESSION_MEMORY_MAX`
+and `AACP_SESSION_SWAP_MAX` as its own ceilings. A unit that may keep a server of many gets the slice
+alone: the launch that finds no tmux server starts it in its unit, and every
+session in tmux after it lands in that unit, the panel's terminals share one
+server the same way, and one codex daemon runs every thread of its home. A
+ceiling of one session there would be the ceiling of all of them; a tmux
+server started outside the executor, by hand, keeps its sessions outside the
+slice. Unset, a ceiling is a share of the machine's memory from
+`/proc/meminfo` (`hostcfg.DefaultMemory`): the slice is slowed at 45 per cent
+and stopped at 55, a session at a tenth and a sixth; empty or 0 is no ceiling, and a size systemd would refuse is logged once and the share stands
+in for it. `MemoryHigh` slows the cgroup and reclaims its pages; it never
+kills, and only `MemoryMax` brings the kernel's OOM killer into the cgroup,
+onto its biggest process. The price is a stall: a cgroup that goes on taking
+memory past `MemoryHigh` with no swap left to push into is held a little above
+it, slowed nearly to a stop, and may never reach `MemoryMax` to be killed —
+it shows as memory pressure, not as an OOM kill. The memory of docker containers is not in this
+budget: a container's processes live in the container's cgroup however they
+are started, `docker exec` from a session included, and are held by the
+container's own limits. The values are read once, at the executor's start; a
+running session keeps the unit and the ceilings it started with.
+
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no

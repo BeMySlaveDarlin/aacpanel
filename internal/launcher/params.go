@@ -64,6 +64,13 @@ type Params struct {
 	chrome bool
 }
 
+// OnStream says whether a launch with these parameters keeps its session on
+// the stream, as Run decides it.
+func OnStream(launch json.RawMessage) bool {
+	params, _ := parseParams(launch)
+	return params.Transport == TransportStream
+}
+
 func parseParams(raw json.RawMessage) (Params, []string) {
 	var p Params
 	if len(raw) == 0 {

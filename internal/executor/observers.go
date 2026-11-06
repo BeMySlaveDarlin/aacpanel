@@ -223,16 +223,17 @@ func (u observerUnits) Start(ctx context.Context, unit, dir string, spec observe
 	return nil
 }
 
-// observerArgs start the observer of dir in a unit of its own, held to the
-// ceilings of an observer, and return once it has started. The unit is
-// collected when it ends, failed or not: how the command ended is in the
-// directory of the observer, not in the unit.
+// observerArgs start the observer of dir in a unit of its own in the agents'
+// slice, held to the ceilings of an observer, and return once it has started.
+// The unit is collected when it ends, failed or not: how the command ended is
+// in the directory of the observer, not in the unit.
 func observerArgs(env []string, bin, unit, dir string, spec observer.Spec, cores string) []string {
 	args := []string{
 		"--user", "--quiet", "--collect",
 		"--unit=" + unit,
 		"--description=aacpanel observer " + spec.Name,
 		"--nice=" + fmt.Sprint(observer.Nice),
+		"--slice=" + AgentsSlice,
 		"--property=MemoryMax=" + observer.MemoryMax,
 		"--property=MemorySwapMax=0",
 		"--property=CPUQuota=" + observer.CPUQuota,

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 )
 
@@ -27,7 +28,16 @@ func (e *Executor) runLauncher(ctx context.Context, p project, resume string) (l
 	if name == "" {
 		name = p.Session
 	}
-	return e.runInUnit(ctx, bin, launchFlag, "starting the session", launcher.Spec{
+	// The holder of a session on the stream is all its unit keeps, and the
+	// unit is held to the ceilings of one session. The unit of a session in
+	// tmux keeps the tmux server when this launch starts it, and with it every
+	// session started on that server later: the ceilings of one would be those
+	// of them all, so it gets the slice alone.
+	var held hostcfg.Ceilings
+	if launcher.OnStream(p.Launch) {
+		held = e.memory.Session
+	}
+	return e.runInUnit(ctx, bin, launchFlag, "starting the session", held, launcher.Spec{
 		Dir: p.Path, Session: name, Resume: resume, Launch: p.Launch,
 		ClaudeBin: p.ClaudeBin, ConfigDir: p.ConfigDir, Parent: p.Parent, Role: p.Role, IntentKey: p.IntentKey,
 	})
@@ -38,27 +48,30 @@ func (e *Executor) runWindowOpener(ctx context.Context, srv tmuxServer, dir, ses
 	if err != nil {
 		return launcher.Report{}, err
 	}
-	return e.runInUnit(ctx, bin, windowFlag, "opening the window",
+	return e.runInUnit(ctx, bin, windowFlag, "opening the window", hostcfg.Ceilings{},
 		launcher.WindowSpec{Dir: dir, Session: session, Socket: string(srv)})
 }
 
+// runTermStarter starts a terminal of the panel. The first one starts the
+// tmux server of them all in its unit, so the unit gets the slice alone, as a
+// session in tmux does.
 func (e *Executor) runTermStarter(ctx context.Context, dir, id string) (launcher.Report, error) {
 	bin, err := launcherPath()
 	if err != nil {
 		return launcher.Report{}, err
 	}
-	return e.runInUnit(ctx, bin, termFlag, "starting the terminal",
+	return e.runInUnit(ctx, bin, termFlag, "starting the terminal", hostcfg.Ceilings{},
 		launcher.TermSpec{Dir: dir, Session: id, Socket: string(panelTmux)})
 }
 
-func (e *Executor) runInUnit(ctx context.Context, bin, mode, what string, spec any) (launcher.Report, error) {
+func (e *Executor) runInUnit(ctx context.Context, bin, mode, what string, held hostcfg.Ceilings, spec any) (launcher.Report, error) {
 	body, err := json.Marshal(spec)
 	if err != nil {
 		return launcher.Report{}, fmt.Errorf("the task for the launcher was not built: %w", err)
 	}
 
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), launchArgs(env, bin, mode, e.cores)...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), launchArgs(env, bin, mode, e.cores, held)...)
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(body)
 	var out, errs bytes.Buffer
@@ -100,10 +113,12 @@ func unitEnv(kv string) bool {
 	return false
 }
 
-// launchArgs start the launcher in a unit of its own and wait for its
-// report. What it starts stays in the unit — the tmux server or the holder
-// of a session, a window — and inherits the cores the unit is held to.
-func launchArgs(env []string, bin, mode, cores string) []string {
+// launchArgs start the launcher in a unit of its own in the agents' slice
+// and wait for its report. What it starts stays in the unit — the holder of a
+// session on the stream, a window, the tmux server when this launch is the
+// one that starts it — and inherits the cores and the ceilings the unit is
+// held to.
+func launchArgs(env []string, bin, mode, cores string, held hostcfg.Ceilings) []string {
 	args := []string{
 		"--user",
 		"--quiet",
@@ -112,6 +127,7 @@ func launchArgs(env []string, bin, mode, cores string) []string {
 		"--collect",
 		"--property=KillMode=process",
 	}
+	args = append(args, inSlice(held)...)
 	args = append(args, affinity(cores)...)
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {

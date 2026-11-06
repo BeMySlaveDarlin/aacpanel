@@ -34,3 +34,16 @@ func described(name string) string {
 	}
 	return parseEnvFile(path())[name]
 }
+
+// lookup is described, telling a name set to nothing from a name not set at
+// all: for a setting with a default of its own, the first turns it off.
+func lookup(name string) (string, bool) {
+	env, inEnv := os.LookupEnv(name)
+	if env != "" {
+		return env, true
+	}
+	if v, inFile := parseEnvFile(path())[name]; inFile {
+		return v, true
+	}
+	return "", inEnv
+}

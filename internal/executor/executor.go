@@ -13,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/observer"
 )
@@ -49,6 +50,10 @@ type Executor struct {
 	// hostcfg.Cores gives them; empty, the system puts the units where it
 	// will.
 	cores string
+
+	// memory is the budget of the agents: the ceilings of the slice every
+	// unit for them lives in, and those of one session on the stream.
+	memory hostcfg.Memory
 }
 
 // busy is a set of names something is under way for.
@@ -87,6 +92,14 @@ func New(docker *Docker, self string) *Executor {
 // form hostcfg.Cores gives them; empty leaves the units to the system.
 func (e *Executor) HoldTo(cores string) *Executor {
 	e.cores = cores
+	return e
+}
+
+// HoldMemory has every unit the executor starts for the agents live in their
+// slice, and a session on the stream under the ceilings of one; the ceilings
+// of the slice itself are SetUpAgentsSlice's.
+func (e *Executor) HoldMemory(m hostcfg.Memory) *Executor {
+	e.memory = m
 	return e
 }
 

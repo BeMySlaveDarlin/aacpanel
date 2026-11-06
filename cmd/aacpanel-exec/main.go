@@ -361,8 +361,9 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 		return errors.New("running as root is not allowed: the executor gets by with the rights of the session owner")
 	}
 	cores := executionCores(readCores())
+	memory := executionMemory(hostcfg.ReadMemory())
 
-	exec := executor.New(executor.NewDocker(dockerHost), self).HoldTo(cores)
+	exec := executor.New(executor.NewDocker(dockerHost), self).HoldTo(cores).HoldMemory(memory)
 	srv := action.NewServer(socket, audited{next: exec}, actionTimeout)
 	ln, err := srv.Listen()
 	if err != nil {
@@ -382,6 +383,9 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 		log.Printf("session terminal: %s", termSocket)
 	}
 
+	if err := executor.SetUpAgentsSlice(ctx, memory.Agents); err != nil {
+		log.Printf("%v; sessions start all the same, and the slice keeps whatever ceilings it had", err)
+	}
 	go keepLimits(ctx)
 	exec.StartCodex(ctx)
 	go exec.KeepPrograms(ctx)
@@ -400,6 +404,8 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 	} else {
 		log.Print("sessions, terminals and observers run where the system puts them")
 	}
+	log.Printf("sessions, terminals and observers live in %s under %s; a session on the stream under %s",
+		executor.AgentsSlice, ceilings(memory.Agents), ceilings(memory.Session))
 	log.Print("sessions are started by the launcher in tmux; the main host session and one-off runs are not closed")
 
 	if err := srv.Run(ctx, ln); err != nil {
@@ -407,6 +413,26 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 	}
 	log.Print("stopped")
 	return nil
+}
+
+// A ceiling systemd would refuse would fail every unit it is passed to. The
+// description's error names it once, at startup, and the machine's share
+// already stands in its place.
+func executionMemory(m hostcfg.Memory, err error) hostcfg.Memory {
+	if err != nil {
+		log.Print(err)
+	}
+	return m
+}
+
+func ceilings(c hostcfg.Ceilings) string {
+	none := func(v string) string {
+		if v == "" {
+			return "none"
+		}
+		return v
+	}
+	return "MemoryHigh=" + none(c.High) + " MemoryMax=" + none(c.Max) + " MemorySwapMax=" + none(c.Swap)
 }
 
 // A description carried from another machine must not take the panel down.
