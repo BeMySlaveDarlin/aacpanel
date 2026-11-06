@@ -515,7 +515,12 @@ span.pjname { cursor: default; }
    each line of a card is a layer of its own. */
 .pjblock:has(.sheet), .sc:has(.sheet), .sc > :has(.sheet) { position: relative; z-index: 30; }
 .sc .scacts, .sc .scact, .sc .scresume { pointer-events: auto; }
-.sc.scwait { background: linear-gradient(100deg, color-mix(in srgb, var(--wait) 17%, transparent), color-mix(in srgb, var(--wait) 7%, transparent) 70%); }
+/* A session that waits on the person stands out of the list: a fuller fill
+   and a bar of the colour of waiting down its edge. */
+.sc.scwait {
+    background: linear-gradient(100deg, color-mix(in srgb, var(--wait) 28%, transparent), color-mix(in srgb, var(--wait) 12%, transparent) 75%);
+    box-shadow: inset 3px 0 0 var(--wait);
+}
 .sc.sccur { background: var(--accent-bg); }
 /* A session another opened stands a step in, on a hairline down from it. */
 .sc.sckid::before {
@@ -587,16 +592,17 @@ span.pjname { cursor: default; }
 .scheadacts { flex: none; margin-left: auto; display: inline-flex; align-items: center; }
 
 /* Line two: the state in a word, in its colour; the subject of a wait in the
-   ink, a command in mono, each wrapped rather than cut. Right after the word,
-   what runs now: the subagents, the commands, the observers — only what
-   runs. The note of the collector closes the line. */
-.scl2 { display: flex; flex-wrap: wrap; align-items: center; column-gap: .67rem; min-height: 1.27rem; font-size: var(--t-md); }
-/* The glyph leads the words of the state and wraps with them, never left
-   alone on a line of its own. */
+   ink, a command in mono. Right after the words, what runs now: the
+   subagents, the commands, the observers — only what runs. The note of the
+   collector closes the line. It stays one line: the words of the state give
+   way at their end, cut, and the glyph before them and the counts after them
+   keep their place. */
+.scl2 { display: flex; align-items: center; column-gap: .67rem; min-height: 1.27rem; font-size: var(--t-md); }
+/* The glyph leads the words of the state. */
 .scsay > .scglyph { margin-inline-end: .37rem; vertical-align: -.2em; }
-.scsay { min-width: 0; color: var(--ink-faint); overflow-wrap: anywhere; }
+.scsay { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); }
 .sc[data-tone="busy"] .scword, .sc[data-tone="bg"] .scword { color: var(--accent); }
-.sc[data-tone="wait"] .scword { color: color-mix(in srgb, var(--wait) 80%, var(--ink-faint)); }
+.sc[data-tone="wait"] .scword { color: var(--wait); font-weight: 600; }
 .sc[data-tone="held"] .scword { color: color-mix(in srgb, var(--wait) 60%, var(--ink-faint)); }
 .sc[data-tone="limit"] .scword { color: var(--warn); }
 .sc[data-kind="done"] .scword, .sc[data-tone="idle"]:has(.scglyph[data-unseen]) .scsay { color: var(--ok); }
