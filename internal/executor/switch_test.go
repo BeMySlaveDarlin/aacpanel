@@ -325,7 +325,7 @@ func panelTermStand(t *testing.T, clients []string) (dir, log string) {
 	procFS(t,
 		fakeProc{pid: 1004, comm: "claude", ppid: 700, cwd: dir, start: "1000", args: []string{"claude", "-n", "demo"}},
 		fakeProc{pid: 700, comm: "bash", args: []string{"bash"}, ppid: 1},
-		fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: os.Getpid()},
+		fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: fakeSelf},
 		fakeProc{pid: 4321, comm: "tmux", args: []string{"tmux", "attach"}, ppid: 1},
 	)
 	log = twoServersTmux(t,

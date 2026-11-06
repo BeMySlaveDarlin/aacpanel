@@ -59,7 +59,7 @@ func windowStage(t *testing.T, clients []string) string {
 		fakeProc{pid: 900, comm: "konsole", args: []string{"konsole"}, ppid: 1},
 		fakeProc{pid: 901, comm: "claude", args: []string{"claude"}, ppid: 4242, start: "77"},
 		fakeProc{pid: 940, comm: "tmux", args: []string{"tmux", "attach"}, ppid: 900},
-		fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: os.Getpid()},
+		fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: fakeSelf},
 	)
 	sessionFiles(t, fakeSession{pid: 901, name: "aacpanel", start: "77", status: "idle"})
 	return fakeWindowTmux(t, []string{"901 aacpanel:0.0"}, clients, "/srv/proj")
@@ -123,7 +123,7 @@ func TestWindowOfASessionInATerminalOfThePanel(t *testing.T) {
 			fakeProc{pid: 901, comm: "claude", args: []string{"claude"}, ppid: 700, start: "77"},
 			fakeProc{pid: 700, comm: "bash", args: []string{"bash"}, ppid: 1},
 			fakeProc{pid: 940, comm: "tmux", args: []string{"tmux", "attach"}, ppid: 1},
-			fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: os.Getpid()},
+			fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: fakeSelf},
 		)
 		sessionFiles(t, fakeSession{pid: 901, name: "aacpanel", start: "77", status: "idle"})
 		return twoServersTmux(t,

@@ -12,8 +12,14 @@ import (
 	"aacpanel/internal/stream"
 )
 
+// ownPID is the process the executor is, as it finds itself among the
+// processes. A test that makes up its /proc gives the executor a place in it
+// of its own: its real pid is not in that /proc, and may be one a made-up
+// process has.
+var ownPID = os.Getpid
+
 func isAncestor(pid int) bool {
-	cur := os.Getpid()
+	cur := ownPID()
 	for range 32 {
 		if cur == pid {
 			return true

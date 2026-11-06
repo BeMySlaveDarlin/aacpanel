@@ -1018,7 +1018,15 @@ func procFS(t *testing.T, procs ...fakeProc) {
 		}
 	}
 	t.Setenv(procEnv, root)
+	was := ownPID
+	ownPID = func() int { return fakeSelf }
+	t.Cleanup(func() { ownPID = was })
 }
+
+// fakeSelf is the pid the executor has in a made-up /proc: above the largest
+// pid_max Linux allows, so no process of the machine the test runs on, the
+// test itself among them, ever has it.
+const fakeSelf = 5_000_000
 
 type fakeSession struct {
 	pid    int
@@ -1432,16 +1440,11 @@ func TestSessionKill(t *testing.T) {
 }
 
 func TestSessionRefusesOwnBranch(t *testing.T) {
-	self := os.Getpid()
-	parent, ok := procParentReal(self)
-	if !ok {
-		t.Skip("the parent of our own process could not be read")
-	}
-
+	const parent = 4100
 	procFS(t,
 		fakeProc{pid: parent, comm: "claude", args: []string{"claude", "-n", "our-own"}, ppid: 1,
 			cwd: "/srv/proj/Beta/service/aacpanel"},
-		fakeProc{pid: self, comm: "aacpanel-exec", args: []string{"aacpanel-exec"}, ppid: parent},
+		fakeProc{pid: fakeSelf, comm: "aacpanel-exec", args: []string{"aacpanel-exec"}, ppid: parent},
 	)
 	e, _ := newTest(t, "")
 	log := withSignals(t, e, map[int]bool{parent: true}, nil)
@@ -1454,24 +1457,6 @@ func TestSessionRefusesOwnBranch(t *testing.T) {
 	if len(log.sent) != 0 {
 		t.Errorf("signals were sent before the refusal: %v", log.sent)
 	}
-}
-
-func procParentReal(pid int) (int, bool) {
-	raw, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
-	if err != nil {
-		return 0, false
-	}
-	line := string(raw)
-	i := strings.LastIndex(line, ")")
-	if i < 0 {
-		return 0, false
-	}
-	fields := strings.Fields(line[i+1:])
-	if len(fields) < 2 {
-		return 0, false
-	}
-	ppid, err := strconv.Atoi(fields[1])
-	return ppid, err == nil
 }
 
 func TestNoLeftoverMutations(t *testing.T) {

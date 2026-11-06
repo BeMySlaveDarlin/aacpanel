@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -164,7 +163,7 @@ func foreignClients(ctx context.Context, srv tmuxServer, session string) ([]tmux
 		return nil, fmt.Errorf("tmux did not tell about the clients of session %s: %w", session, err)
 	}
 
-	self := os.Getpid()
+	self := ownPID()
 	var clients []tmuxClient
 	for _, line := range strings.Split(out, "\n") {
 		tty, raw, ok := strings.Cut(strings.TrimSpace(line), " ")
