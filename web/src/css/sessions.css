@@ -782,3 +782,11 @@ button.scstub { cursor: pointer; }
 }
 .pjlink .chev { margin-left: auto; }
 .pjempty { margin: 0; padding: .6rem .75rem; border-top: var(--hair) solid var(--line); font-size: var(--t-sm); color: var(--ink-faint); }
+
+/* The quick choices of a pause: a row of chips beside each word of when, the
+   words in a column of their own so the chips of every row start together. */
+.pausepresets { display: grid; grid-template-columns: max-content 1fr; gap: .45rem .7rem; align-items: baseline; }
+.pausepreset { display: contents; }
+.pauselabel { font-size: var(--t-xs); color: var(--ink-faint); }
+.pausechips { display: flex; flex-wrap: wrap; gap: .3rem; }
+.pausechips .chip { padding: .25rem .6rem; font-size: var(--t-xs); }

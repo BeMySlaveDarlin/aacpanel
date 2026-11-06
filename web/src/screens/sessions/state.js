@@ -18,6 +18,10 @@ import { seenAt as seenHere } from "../../viewing.js";
 import { shown } from "../chat/answered.js";
 import { checklistOf } from "../chat/checklist.js";
 
+// PAUSE_NO_END is the alarm a session keeps through a pause with no end: it
+// repeats only to keep the mark of the pause, and its ring is not the end.
+export const PAUSE_NO_END = "pause-no-end";
+
 // The word each kind of outstanding work opens its line with.
 const OUTSTANDING = { question: "asks", request: "request", brief: "brief", secret: "secret", call: "called you" };
 
@@ -175,6 +179,7 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     if (runs.watchers > 0) return make("bg", "inside", "watching");
     if (s.noRequests) return make("idle", "fresh", "no replies yet");
     if (s.pauseAlarm) {
+        if (s.pauseAlarm.name === PAUSE_NO_END) return make("paused", "paused", "paused", { subject: "with no end" });
         const until = Date.parse(s.pauseAlarm.next || "") || 0;
         return make("paused", "paused", "paused", { subject: until ? `until ${pauseAt(until)}` : "" });
     }

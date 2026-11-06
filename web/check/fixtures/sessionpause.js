@@ -1,6 +1,8 @@
 // Pause and restart controls share the pages that already exercise sessions:
 // the pause of a project from the heading over its cards, the pause and the
-// continue of one session from its card, and the restart choices.
+// continue of one session from its card, and the restart choices. lab-docs
+// had the panel open a helper in the other project, which its pause reaches
+// too; the quick choices are pressed on a clock set by the fixture.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { ProjectBlock } from "/src/screens/sessions/blocks.js";
@@ -39,6 +41,7 @@ export async function sessionPause() {
         { session: "thread", sessionId: "thread-id", project: peer, agent: "codex", contour: 50, status: "idle", pct: 10, transport: "stream" },
         { session: "quiet", sessionId: "quiet-id", project: peer, contour: 50, status: "idle", pct: 5, transport: "stream" },
         { session: "outside", sessionId: "outside-id", project, contour: 50, outside: true, status: "idle", pct: 5 },
+        { session: "helper", sessionId: "helper-id", project: peer, parent: { session: "lab-docs" }, contour: 50, status: "idle", pct: 3, transport: "stream" },
     ];
     const snapshot = { at: Date.now()/1000, sessions, profileMap: [profile] };
     const exec = { available: true, kinds: ["project.pause", "session.open", "session.close", "session.restart", "session.pin", "session.send"] };
@@ -57,6 +60,7 @@ export async function sessionPause() {
         { role:"mail", source:"panel", from:"pause", until:next, text:"Words without a date.", pos:1 },
         { role:"mail", source:"panel", from:"pause over", text:"Lifted.", pos:2 },
         { role:"mail", source:"alarm", from:"pause", text:"Rang.", pos:3 },
+        { role:"mail", source:"panel", from:"pause with no end", text:"Words without an end.", pos:4 },
     ];
     render(html`<${ToastHost}><${GateHost}><${MenuHost}>
         ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
@@ -70,6 +74,18 @@ export async function sessionPause() {
         <div class="chatfeed pausefeed">${messages.map((item) => html`<${Row} key=${item.pos} item=${item} />`)}</div>
     <//><//><//>`, mount);
     const text = (el) => el?.textContent.replace(/\s+/g," ").trim() || "";
+    // The page's clock at a time of today, and what the field of a moment
+    // reads, built apart from the sheet's own arithmetic.
+    const clock = Date.now;
+    const today = new Date();
+    const at = (day, h, m = 0) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + day, h, m);
+    const local = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    const field = () => sheet().querySelector(".pauseuntil");
+    const choose = async (name) => {
+        [...sheet().querySelectorAll(".pausechips .chip")].find((b) => text(b) === name).click();
+        await quiet();
+        return { value: field().value, pressed: [...sheet().querySelectorAll('.pausechips .chip[aria-pressed="true"]')].map(text) };
+    };
     const pauseButton = () => mount.querySelector('[aria-label="pause sessions in project lab"]');
     const sheet = () => mount.querySelector('.sheet.on[aria-label="pause sessions"]');
     const gate = () => mount.querySelector('.sheet.on[aria-label="action confirmation"]');
@@ -88,6 +104,8 @@ export async function sessionPause() {
                 { ...sessions[0], work:{agents:1} }, { ...sessions[0], pauseAlarm:undefined },
                 { ...sessions[0], restarting:true },
             ].map((s) => [listState(s).tone, headState(s).tone]),
+            expect: { nineToday: local(at(0, 9)), nineTomorrow: local(at(1, 9)), twoHours: local(at(0, 11, 30)),
+                nineTodayAt: at(0, 9).toISOString(), nineTomorrowAt: at(1, 9).toISOString() },
         };
         pauseButton().click();
         await until(() => sheet(), "pause sheet");
@@ -96,11 +114,18 @@ export async function sessionPause() {
         sheet().querySelector(".pausescope").dispatchEvent(new Event("change",{bubbles:true}));
         await quiet();
         out.groupRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
-        sheet().querySelector(".pausepresets button").click();
-        await quiet();
-        out.chosen = sheet().querySelector(".pauseuntil").value;
-        sheet().querySelector(".pauseapply").click();
-        await until(() => sent.length===1 && !sheet(), "pause request");
+        out.opened = { value: field().value, pressed: [...sheet().querySelectorAll('.pausechips .chip[aria-pressed="true"]')].map(text),
+            ahead: (new Date(field().value).getTime() - Date.now()) / 60000 };
+        out.choices = [...sheet().querySelectorAll(".pausepreset")].map((row) => [...row.querySelectorAll(".pauselabel, .chip")].map(text));
+        // Half past eight: until 9 is nine today.
+        Date.now = () => at(0, 8, 30).getTime();
+        try {
+            out.beforeNine = await choose("9:00");
+            sheet().querySelector(".pauseapply").click();
+            await until(() => sent.length===1 && !sheet(), "pause request");
+        } finally {
+            Date.now = clock;
+        }
         pauseButton().click();
         await until(() => sheet(), "resume sheet");
         sheet().querySelector(".pauseresume").click();
@@ -127,8 +152,22 @@ export async function sessionPause() {
         await until(() => sheet(), "pause sheet of one session");
         out.sessionScope = sheet().querySelector(".pausescope").value;
         out.sessionRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
+        // Half past nine: two hours is half past eleven, and until 9 is nine
+        // tomorrow.
+        Date.now = () => at(0, 9, 30).getTime();
+        try {
+            out.forTwo = await choose("2 h");
+            out.afterNine = await choose("9:00");
+            sheet().querySelector(".pauseapply").click();
+            await until(() => sent.length===7 && !sheet(), "pause request of one session");
+        } finally {
+            Date.now = clock;
+        }
+        mount.querySelector('[aria-label="pause session lab-docs"]').click();
+        await until(() => sheet(), "pause sheet with no end");
+        out.noEnd = { ...(await choose("No end")), off: field().disabled, note: text(sheet().querySelector(".pausenoend")) };
         sheet().querySelector(".pauseapply").click();
-        await until(() => sent.length===7 && !sheet(), "pause request of one session");
+        await until(() => sent.length===8 && !sheet(), "pause request with no end");
         out.oneSent = sent.slice(5);
         if (wide) {
             mount.querySelector(".dkproj").dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:50,clientY:100}));

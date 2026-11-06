@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"aacpanel/internal/action"
 )
 
 // testClock is the keeper's clock in a test, moved by hand: an alarm rings
@@ -278,5 +280,15 @@ func TestAMomentIsTheNextOfItsTimeOfTheDay(t *testing.T) {
 	if first, every, err := (AlarmAsk{Name: "a", Every: "1h30m"}).schedule(now); err != nil ||
 		!first.Equal(now.Add(90*time.Minute)) || spanWords(every) != "1h30m" {
 		t.Errorf("every alone rings first at %v every %v (%v)", first, every, err)
+	}
+}
+
+// The pause with no end asks a session for the alarm that marks it, and the
+// keeper takes that alarm: refused, the session would wait with no mark of
+// its pause, and nothing could lift it.
+func TestThePauseWithNoEndAsksForAnAlarmTheKeeperTakes(t *testing.T) {
+	ask := AlarmAsk{Name: action.PauseNoEndAlarm, Every: action.PauseNoEndEvery, Note: "The pause has no end"}
+	if _, _, err := ask.schedule(time.Now()); err != nil {
+		t.Errorf("the alarm of a pause with no end is refused: %v", err)
 	}
 }

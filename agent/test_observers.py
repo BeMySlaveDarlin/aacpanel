@@ -171,6 +171,14 @@ class Held(OnDisk):
         self.assertNotIn("pauseAlarm", row)
         self.assertEqual(row["work"]["alarms"], 1)
 
+    def test_the_repeat_of_a_pause_with_no_end_is_the_pause_of_the_row(self):
+        self.ring(alarm(WOKE, "pause-no-end", next="2026-10-18T20:00:00+03:00", every=168 * 3600 * observers.NS))
+        self.ring(alarm(WAITS, "review", next="2026-10-11T22:30:00+05:00"))
+        with patch.object(live.ctx, "sessions", return_value={"sessions": [{"session": "lab", "sessionId": SESSION}]}):
+            row = live.sessions()["sessions"][0]
+        self.assertEqual(row["pauseAlarm"], {"id": WOKE, "name": "pause-no-end", "next": "2026-10-18T20:00:00+03:00"})
+        self.assertEqual(row["nextAlarm"]["id"], WAITS)
+
     def test_held_work_is_counted_apart_from_the_tasks_a_restart_waits_for(self):
         busy = {"tasks": [{"id": "b1", "kind": "bash"}], "agents": []}
         work = live.work_of(busy, {"observers": 2, "alarms": 1})

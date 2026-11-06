@@ -231,6 +231,7 @@ func TestEveryWaitMakesTheCardWait(t *testing.T) {
 		{"seen since", "idle", "idle", "idle", row("statusUpdatedAt", seen, "seenAt", ended)},
 		{"no seen mark", "idle", "idle", "idle", row("statusUpdatedAt", ended)},
 		{"paused", "paused", "paused", "paused until ", row("pauseAlarm", map[string]any{"id": "p", "next": soon})},
+		{"paused with no end", "paused", "paused", "paused with no end", row("pauseAlarm", map[string]any{"id": "p", "name": "pause-no-end", "next": soon})},
 	}
 	calls := make([][]any, len(cases))
 	for i, c := range cases {
@@ -239,7 +240,8 @@ func TestEveryWaitMakesTheCardWait(t *testing.T) {
 	got := runModuleJS(t, "src/screens/sessions/blocks.js", "stateOf", calls)
 	for i, c := range cases {
 		st := got[i].(map[string]any)
-		// A pause says when it ends beside its word, at the local time of day.
+		// A pause says when it ends beside its word, at the local time of day,
+		// and a pause with no end says it has none.
 		text, _ := st["text"].(string)
 		said := text == c.text || (c.kind == "paused" && strings.HasPrefix(text, c.text))
 		if st["tone"] != c.tone || st["kind"] != c.kind || !said {

@@ -69,7 +69,7 @@ export function Row({ item, question, onQuestionAnswer, session, id, onFile, onB
         `;
     }
     if (item.role === "mail") {
-        if ((item.source === "panel" && ["pause", "pause over"].includes(item.from)) ||
+        if ((item.source === "panel" && ["pause", "pause with no end", "pause over"].includes(item.from)) ||
             (item.source === "alarm" && item.from === "pause")) return html`<${PauseCard} item=${item} />`;
         return html`<${Letter} item=${item} />`;
     }
@@ -310,8 +310,12 @@ const MAIL_WORD = {
 // gives claude's reason once opened. A letter copied by its head is copied by
 // its menu as well.
 function PauseCard({ item }) {
-    const paused = item.source === "panel" && item.from === "pause";
-    const title = paused ? `Pause${item.until ? ` until ${alarmTime(item.until, true)}` : " requested"}`
+    // A pause with no end has no moment for its envelope, and its sender says
+    // what it is.
+    const open = item.source === "panel" && item.from === "pause with no end";
+    const paused = open || (item.source === "panel" && item.from === "pause");
+    const title = open ? "Pause with no end"
+        : paused ? `Pause${item.until ? ` until ${alarmTime(item.until, true)}` : " requested"}`
         : item.source === "alarm" ? "Pause over" : "Pause lifted";
     return html`<div class="sent pausecard">
         <div class="senthead"><span class="sentico">${paused ? Icon.pause() : Icon.play()}</span>

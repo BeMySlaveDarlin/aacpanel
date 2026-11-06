@@ -220,9 +220,12 @@ it, and marks its live row as restarting until the cycle finishes. A repeated
 request preserves readiness and the cycle's deadlines.
 
 **A project pause is a message to its sessions, not a host timer.** The
-`project.pause` service action resolves a project or its map group and sends
-one panel instruction to each live session it can reach. The session finishes
-its current step, sets its own `pause` alarm and ends its turn. One journal
+`project.pause` service action resolves a project, its map group or one of its
+sessions and sends one panel instruction to each live session it can reach.
+The pause goes one step down from that scope: a session the panel opened for a
+session of it, wherever it runs, is paused and resumed with it, and the
+sessions that one opened are not. The session finishes its current step, sets
+its own `pause` alarm and ends its turn. One journal
 entry records the scope action and its delivery failures. Resume selects only
 sessions with that alarm, cancels it by its snapshot id through `alarm.cancel`,
 and sends the instruction to continue; a failed cancellation is reported and
@@ -232,6 +235,17 @@ The snapshot keeps the numeric alarm count and adds `nextAlarm` and
 means paused: delivery alone cannot prove the model set it. Work and questions
 still take precedence. The pause instruction carries its time and UTC offset
 as envelope metadata, so the feed's pause card does not parse prose.
+
+**A pause with no end is marked by a repeat.** An alarm rings at most a week
+ahead, so a pause lifted only by the person has no moment to ring at. Its
+instruction carries no time, comes from `pause with no end` so the feed's card
+says so, and asks for a `pause-no-end` alarm repeating
+every week instead, whose ring only tells the session to keep waiting; the
+collector reads it as `pauseAlarm` as it reads `pause`, the screen says the
+pause has no end by its name, and the resume cancels it by id like the other.
+Each instruction clears the alarm of the other kind first: a session holding
+both stays paused in the snapshot after a resume that cancels one. The price
+is a short turn of the session's model a week for as long as the pause lasts.
 
 A Claude row carries `limitHit` with the timestamp and the window (`5h`, `7d`,
 or unknown) while its last assistant record is a usage-limit error. The

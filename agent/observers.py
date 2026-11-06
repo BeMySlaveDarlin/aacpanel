@@ -38,6 +38,11 @@ END = "exit.json"
 # while that holds fewer.
 TAIL = 24 * 1024
 
+# The alarms a paused session keeps, as the service's instruction names them:
+# one rings at the end of the pause, the other repeats while a pause with no
+# end lasts. Either is the mark of the pause the screen and the resume read.
+PAUSE_ALARMS = ("pause", "pause-no-end")
+
 
 def _state():
     return os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "aacpanel")
@@ -221,7 +226,7 @@ def held_by_conversation():
         counts["alarms"] = counts.get("alarms", 0) + 1
         alarm = {key: view[key] for key in ("id", "name", "next")}
         counts.setdefault("nextAlarm", alarm)
-        if view["name"] == "pause":
+        if view["name"] in PAUSE_ALARMS:
             counts.setdefault("pauseAlarm", alarm)
     return out
 

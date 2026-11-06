@@ -7,6 +7,7 @@ import { useToast } from "../../ui/toasts.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { shownName } from "../../agent.js";
+import { openedBy } from "./kin.js";
 import { sessionsOf } from "./of.js";
 
 function groupOf(project, profile) {
@@ -14,11 +15,15 @@ function groupOf(project, profile) {
 }
 
 // pauseRows lists the live sessions a pause reaches: those of the project,
-// of its whole group, or the one session it is given.
+// of its whole group, or the one session it is given, and one step down the
+// sessions any of them had the panel open, wherever those run, as the
+// service takes them.
 export function pauseRows(project, profile, sessions = [], group = false, only = null) {
-    if (only) return [only].filter((s) => !s.outside && s.sessionId);
+    const reached = (s) => !s.outside && s.sessionId;
     const projects = group ? groupOf(project, profile)?.projects || [project] : [project];
-    return sessions.filter((s) => !s.outside && s.sessionId && projects.some((p) => sessionsOf(p, [s]).length));
+    const scope = only ? [only].filter(reached) : sessions.filter((s) => reached(s) && projects.some((p) => sessionsOf(p, [s]).length));
+    const names = new Set(scope.map((s) => s.session));
+    return [...scope, ...sessions.filter((s) => reached(s) && !names.has(s.session) && names.has(openedBy(s)))];
 }
 
 export function pauseWhy(project, profile, sessions, exec) {
@@ -40,8 +45,29 @@ export function pauseUntil(value) {
     return `${localInput(date)}:00${offset < 0 ? "-" : "+"}${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 }
 
+// nextHour is the next o'clock of hour on the person's clock after now:
+// today while it is still ahead, tomorrow once it has come.
+export function nextHour(hour, now) {
+    const at = new Date(now);
+    at.setHours(hour, 0, 0, 0);
+    if (at.getTime() <= now) at.setDate(at.getDate() + 1);
+    return at;
+}
+
+// The quick choices of the end of a pause, under the word they stand by: a
+// span from now, the next of a time of the day, or no end at all. A choice
+// puts its moment into the field, and the field is what the request carries.
+const NO_END = "No end";
+const CHOICES = [
+    ["For", [1, 2, 4, 6, 12].map((h) => [`${h} h`, (now) => new Date(now + h * 3600000)])],
+    ...[["Until the morning", [8, 9, 10]], ["Until lunch", [12, 13, 14]], ["Until the evening", [17, 18, 19]]]
+        .map(([word, hours]) => [word, hours.map((h) => [`${h}:00`, (now) => nextHour(h, now)])]),
+    ["Until lifted", [[NO_END, null]]],
+];
+
 // PauseSheet pauses the live sessions of a project or of its group, or the
-// one session it is opened from, until a time the person picks.
+// one session it is opened from, until a time the person picks or with no
+// end, until they lift it.
 export function PauseSheet({ project, profile, sessions = [], session = null, exec, onDone }) {
     const run = useAction();
     const toast = useToast();
@@ -50,18 +76,20 @@ export function PauseSheet({ project, profile, sessions = [], session = null, ex
         : !pauseRows(project, profile, sessions).length && group ? "group" : "project");
     const whole = scope === "group";
     const [value, setValue] = useState(() => localInput(new Date(Date.now() + 3600000)));
+    const [chosen, setChosen] = useState("1 h");
+    const noEnd = chosen === NO_END;
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
     const rows = pauseRows(project, profile, sessions, whole, scope === "session" ? session : null);
     const paused = rows.filter((s) => s.pauseAlarm);
     const why = whyNot(exec, "project.pause");
     const at = new Date(value).getTime();
-    const valid = Number.isFinite(at) && at > Date.now() && at <= Date.now() + 7 * 86400000;
+    const valid = noEnd || (Number.isFinite(at) && at > Date.now() && at <= Date.now() + 7 * 86400000);
     const send = async (resume) => {
         setBusy(true);
         const reply = await run("project.pause", project.session || project.name, {
             project: project.id, ...(scope === "session" ? { session: session.session } : { group: whole }),
-            ...(resume ? { resume: true } : { until: pauseUntil(value) }),
+            ...(resume ? { resume: true } : noEnd ? { noEnd: true } : { until: pauseUntil(value) }),
         });
         setBusy(false);
         if (!reply.ok) return;
@@ -82,13 +110,21 @@ export function PauseSheet({ project, profile, sessions = [], session = null, ex
                 </select>
             </label>
             <div class="pausepresets">
-                ${[[30, "+30 min"], [60, "+1 h"], [120, "+2 h"], [240, "+4 h"]].map(([minutes, label]) => html`
-                    <button type="button" class="btn" onClick=${() => setValue(localInput(new Date(Date.now() + minutes * 60000)))}>${label}</button>`)}
+                ${CHOICES.map(([word, choices]) => html`
+                    <div class="pausepreset" key=${word}>
+                        <span class="pauselabel">${word}</span>
+                        <div class="pausechips">${choices.map(([name, at]) => html`
+                            <button key=${name} type="button" class="chip" aria-pressed=${chosen === name ? "true" : "false"}
+                                    onClick=${() => { setChosen(name); setValue(at ? localInput(at(Date.now())) : ""); }}>${name}</button>`)}
+                        </div>
+                    </div>`)}
             </div>
             <label class="cmdnote">Until (your local time)
-                <input class="rnname cxfield pauseuntil" type="datetime-local" value=${value} onInput=${(e) => setValue(e.currentTarget.value)} />
+                <input class="rnname cxfield pauseuntil" type="datetime-local" value=${value} disabled=${noEnd}
+                       onInput=${(e) => { setChosen(""); setValue(e.currentTarget.value); }} />
             </label>
-            ${!valid && html`<p class="hint warn">Choose a time in the next seven days.</p>`}
+            ${noEnd ? html`<p class="cmdnote pausenoend">No end: the sessions wait until the pause is lifted.</p>`
+                : !valid && html`<p class="hint warn">Choose a time in the next seven days.</p>`}
             <p class="cmdnote">${rows.length} live ${rows.length === 1 ? "session will" : "sessions will"} receive the pause request:</p>
             <ul class="pauserecipients">${rows.map((s) => html`<li key=${s.sessionId}>${shownName(s)}${s.pauseAlarm ? " · paused" : ""}</li>`)}</ul>
             ${why && html`<p class="hint warn">${why}</p>`}

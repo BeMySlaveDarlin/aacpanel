@@ -17,8 +17,9 @@ import (
 // pauseServer is a service over a map of two projects in one group, and a
 // snapshot with a session of the first project, a session of its worktree that
 // keeps a pause alarm, a codex thread of the second project, and two sessions
-// the map does not hold.
-func pauseServer(t *testing.T) (*Server, *fakeExec, store.ProfileProject, time.Time) {
+// the map does not hold; more adds the rows a test needs, given the directory
+// of the second project.
+func pauseServer(t *testing.T, more func(other string) []map[string]any) (*Server, *fakeExec, store.ProfileProject, time.Time) {
 	t.Helper()
 	srv, fake, dir := switchServer(t, "stream", "stream")
 	profiles, err := srv.db.Profiles(t.Context())
@@ -41,6 +42,9 @@ func pauseServer(t *testing.T) (*Server, *fakeExec, store.ProfileProject, time.T
 		{"session": "thread", "sessionId": "66666666-6666-4666-8666-666666666666", "cwd": path, "agent": "codex"},
 		{"session": "outside", "sessionId": "55555555-5555-4555-8555-555555555555", "cwd": dir, "outside": true},
 		{"session": "unmapped", "sessionId": "44444444-4444-4444-8444-444444444444", "cwd": "/srv/unmapped"},
+	}
+	if more != nil {
+		rows = append(rows, more(path)...)
 	}
 	raw, err := json.Marshal(map[string]any{"sessions": rows})
 	if err != nil {
@@ -83,10 +87,20 @@ func pauseInstruction(t *testing.T, req action.Request, until time.Time) {
 	}
 }
 
-func resumeOf(t *testing.T, fake *fakeExec, target string) {
+// noEndInstruction is the instruction of a pause with no end: a sender of its
+// own and no moment in its envelope, and a repeat of the alarm that marks it.
+func noEndInstruction(t *testing.T, req action.Request) {
+	t.Helper()
+	if req.Kind != action.SessionSend || !strings.Contains(req.Text, `<panel-message from="pause with no end">`) ||
+		!strings.Contains(req.Text, `name: "pause-no-end"`) || !strings.Contains(req.Text, `every: "168h"`) {
+		t.Fatalf("the instruction of a pause with no end: %+v", req)
+	}
+}
+
+func resumeOf(t *testing.T, fake *fakeExec, target, alarm string) {
 	t.Helper()
 	cancel, message := <-fake.got, <-fake.got
-	if cancel.Kind != action.AlarmCancel || cancel.Target != target || cancel.Work == nil || cancel.Work.ID != "0123456789abcdef" {
+	if cancel.Kind != action.AlarmCancel || cancel.Target != target || cancel.Work == nil || cancel.Work.ID != alarm {
 		t.Fatalf("resume cancels the wrong alarm: %+v", cancel)
 	}
 	if message.Kind != action.SessionSend || message.Target != target || !strings.Contains(message.Text, `from="pause over"`) {
@@ -126,7 +140,7 @@ func pauseJournal(t *testing.T, srv *Server) []string {
 }
 
 func TestProjectPauseUsesTheMapAndResumesItsAlarmsPG(t *testing.T) {
-	srv, fake, anchor, until := pauseServer(t)
+	srv, fake, anchor, until := pauseServer(t, nil)
 	before := len(pauseJournal(t, srv))
 	for _, scope := range []bool{false, true} {
 		want := 2
@@ -145,7 +159,7 @@ func TestProjectPauseUsesTheMapAndResumesItsAlarmsPG(t *testing.T) {
 		}
 	}
 	sendPause(t, srv, action.Pause{Project: anchor.ID, Group: true, Resume: true}, 1)
-	resumeOf(t, fake, "child")
+	resumeOf(t, fake, "child", "0123456789abcdef")
 	nothingMore(t, fake)
 	if n := len(pauseJournal(t, srv)) - before; n != 3 {
 		t.Fatalf("three scope actions wrote %d journal rows", n)
@@ -161,7 +175,7 @@ func TestProjectPauseUsesTheMapAndResumesItsAlarmsPG(t *testing.T) {
 // the project, and nothing reaches its neighbours; a session the screen put
 // in the wrong project is refused before anything is sent.
 func TestProjectPauseOfOneSessionPG(t *testing.T) {
-	srv, fake, anchor, until := pauseServer(t)
+	srv, fake, anchor, until := pauseServer(t, nil)
 	before := len(pauseJournal(t, srv))
 	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Until: until.Format(time.RFC3339)}, 1)
 	req := <-fake.got
@@ -172,7 +186,7 @@ func TestProjectPauseOfOneSessionPG(t *testing.T) {
 	nothingMore(t, fake)
 
 	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Resume: true}, 1)
-	resumeOf(t, fake, "child")
+	resumeOf(t, fake, "child", "0123456789abcdef")
 	nothingMore(t, fake)
 
 	if code, body := postPause(t, srv, action.Pause{Project: anchor.ID, Session: "lead", Resume: true}); code != http.StatusConflict {
@@ -194,4 +208,51 @@ func TestProjectPauseOfOneSessionPG(t *testing.T) {
 	if got := strings.Join(pauseJournal(t, srv)[before:], ","); got != "child,child" {
 		t.Fatalf("the journal names %q, want the session twice", got)
 	}
+}
+
+// A pause goes one step down from its scope: to the sessions a session of it
+// had the panel open, wherever they run, and it is lifted from them the same
+// way. A session one of those opened, and a session nobody opened, are left
+// alone. The worktree session opened a helper in the second project, and the
+// helper opened one more.
+func TestProjectPauseGoesOneStepDownPG(t *testing.T) {
+	srv, fake, anchor, until := pauseServer(t, func(other string) []map[string]any {
+		alarm := func(id, name string) pauseAlarm {
+			return pauseAlarm{ID: id, Name: name, Next: time.Now().Add(time.Hour).Format(time.RFC3339)}
+		}
+		return []map[string]any{
+			{"session": "helper", "sessionId": "33333333-3333-4333-8333-333333333333", "cwd": other,
+				"parent": host.SessionRef{Session: "child"}, "pauseAlarm": alarm("1111111111111111", action.PauseNoEndAlarm)},
+			{"session": "grandchild", "sessionId": "22222222-2222-4222-8222-222222222222", "cwd": other,
+				"parent": host.SessionRef{Session: "helper"}, "pauseAlarm": alarm("2222222222222222", action.PauseAlarm)},
+			{"session": "stranger", "sessionId": "11111111-1111-4111-8111-111111111111", "cwd": other,
+				"pauseAlarm": alarm("3333333333333333", action.PauseAlarm)},
+		}
+	})
+	recipients := func(n int, instruction func(action.Request)) string {
+		var names []string
+		for range n {
+			req := <-fake.got
+			instruction(req)
+			names = append(names, req.Target)
+		}
+		nothingMore(t, fake)
+		return strings.Join(names, ",")
+	}
+	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Until: until.Format(time.RFC3339)}, 2)
+	if got := recipients(2, func(req action.Request) { pauseInstruction(t, req, until) }); got != "child,helper" {
+		t.Fatalf("the pause of a session reached %s", got)
+	}
+	sendPause(t, srv, action.Pause{Project: anchor.ID, NoEnd: true}, 3)
+	if got := recipients(3, func(req action.Request) { noEndInstruction(t, req) }); got != "lead,child,helper" {
+		t.Fatalf("the pause of a project reached %s", got)
+	}
+	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Resume: true}, 2)
+	resumeOf(t, fake, "child", "0123456789abcdef")
+	resumeOf(t, fake, "helper", "1111111111111111")
+	nothingMore(t, fake)
+	if code, body := postPause(t, srv, action.Pause{Project: anchor.ID, NoEnd: true, Until: until.Format(time.RFC3339)}); code != http.StatusBadRequest {
+		t.Fatalf("a pause with no end and an end: %d %s", code, body)
+	}
+	nothingMore(t, fake)
 }

@@ -29,7 +29,10 @@ type pauseSession struct {
 // group, or one session of the project by its name; worktrees belong to the
 // same project as on the sessions screen. A session named that runs in
 // another project is refused rather than paused: the screen it was pressed on
-// put it in the wrong place.
+// put it in the wrong place. The pause goes one step down from the scope: a
+// session the panel opened for a session of it works for that session and
+// waits with it, wherever it runs, and is lifted with it; the sessions that
+// one opened in turn are not its parent's to stop.
 func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSession, string, error) {
 	list, err := s.db.Profiles(ctx)
 	if err != nil {
@@ -56,10 +59,11 @@ func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSessi
 	if err := json.Unmarshal(raw, &snapshot); err != nil {
 		return nil, "", err
 	}
+	reached := func(row pauseSession) bool { return !row.Outside && row.Name != "" && row.SessionID != "" }
 	trees := s.worktrees()
-	targets := make([]pauseSession, 0)
+	scope := make(map[string]bool)
 	for _, row := range snapshot.Sessions {
-		if row.Outside || row.Name == "" || row.SessionID == "" || (p.Session != "" && row.Name != p.Session) {
+		if !reached(row) || (p.Session != "" && row.Name != p.Session) {
 			continue
 		}
 		found, ok := projectAt(list, row.CWD, trees, s.db.ProjectRoots())
@@ -67,12 +71,16 @@ func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSessi
 		if p.Session != "" && !inProject {
 			return nil, "", fmt.Errorf("session %s does not run in project %s", p.Session, anchor.project.Name)
 		}
-		if !ok || (p.Resume && row.Pause == nil) {
+		if ok && (inProject || (p.Group && found.project.GroupID == anchor.project.GroupID)) {
+			scope[row.Name] = true
+		}
+	}
+	targets := make([]pauseSession, 0)
+	for _, row := range snapshot.Sessions {
+		if !reached(row) || !(scope[row.Name] || scope[row.OpenedBy()]) || (p.Resume && row.Pause == nil) {
 			continue
 		}
-		if inProject || (p.Group && found.project.GroupID == anchor.project.GroupID) {
-			targets = append(targets, row)
-		}
+		targets = append(targets, row)
 	}
 	return targets, label, nil
 }
