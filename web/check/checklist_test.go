@@ -256,8 +256,8 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 // A card of the sessions list says where a session is in its checklist: the
 // step in hand, whole in its tip, and n/N, with a segment a step, done and at
 // work told apart. A list with every step behind it is done and its bar
-// whole, and a session with no checklist says so over an empty bar. A thread
-// of codex says it the same way.
+// whole, and a session with no checklist draws neither the line nor the bar.
+// A thread of codex says it the same way.
 func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 	type card struct {
 		State   string `json:"state"`
@@ -266,7 +266,7 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 		N       string `json:"n"`
 		Segs    string `json:"segs"`
 		Over    bool   `json:"over"`
-		Empty   bool   `json:"empty"`
+		Bar     bool   `json:"bar"`
 	}
 	var got struct {
 		Busy  card `json:"busy"`
@@ -294,7 +294,7 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 			t.Errorf("%s: the state reads %q, expected %q", name, c.State, c.state)
 		}
 	}
-	if got.Plain.Step != "no checklist" || !got.Plain.Empty || got.Plain.N != "" || got.Plain.State != "idle" {
-		t.Errorf("a session with no checklist says %+v", got.Plain)
+	if got.Plain.Step != "" || got.Plain.Bar || got.Plain.N != "" || got.Plain.State != "idle" {
+		t.Errorf("a session with no checklist draws a checklist in its card: %+v", got.Plain)
 	}
 }

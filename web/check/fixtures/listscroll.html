@@ -64,12 +64,10 @@ async function trip(snapshot, by) {
     scroller.scrollTop = by;
     await frames(6);
     const box = scroller.getBoundingClientRect();
-    // The card that stands across the middle of the screen.
+    // The card nearest the middle of the screen.
     const middle = box.top + box.height / 2;
-    const card = [...list().querySelectorAll(".sc .scopen")].find((b) => {
-        const r = b.getBoundingClientRect();
-        return r.top <= middle && r.bottom >= middle;
-    });
+    const away = (b) => { const r = b.getBoundingClientRect(); return Math.abs((r.top + r.bottom) / 2 - middle); };
+    const card = [...list().querySelectorAll(".sc .scopen")].sort((a, b) => away(a) - away(b))[0];
     const label = card.getAttribute("aria-label");
     const left = { scroller: scroller.className, scrollTop: Math.round(scroller.scrollTop), card: offset(card),
         tucked: Boolean(document.querySelector(".pflimits.tucked")) };

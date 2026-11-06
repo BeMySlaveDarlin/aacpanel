@@ -488,8 +488,9 @@ span.pjname { cursor: default; }
 /* The card of a session, five lines in two columns: the glyph of the state
    beside the first line, the lines in the second. Every state keeps every
    line, so a card does not change its height when the session moves from
-   working to waiting; the lines stand close, and the leading alone keeps
-   them apart. The context bar runs along the bottom edge. */
+   working to waiting; only a session with no checklist has no line of it.
+   The lines stand close, and the leading alone keeps them apart. The
+   context bar runs along the bottom edge. */
 .sc {
     --depth: 0;
     --step: 1.2rem;
@@ -624,7 +625,6 @@ span.pjname { cursor: default; }
    the colour of the state, those ahead dark. */
 .scl3 { display: flex; align-items: baseline; gap: .67rem; min-height: 1.21rem; font-size: var(--t-md); }
 .scstep { flex: 1 1 auto; min-width: 0; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scstep.scnone { color: var(--ink-faint); opacity: .7; }
 .scn { flex: none; margin-left: auto; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .scn b { font-weight: 600; color: var(--ink-dim); }
 .scn.scover b { color: var(--ok); }
@@ -637,7 +637,6 @@ span.pjname { cursor: default; }
 .sc[data-tone="limit"] .scsegs i.sca { background: var(--warn); }
 .sc[data-tone="idle"] .scsegs i.sca, .sc[data-tone="paused"] .scsegs i.sca { background: var(--ink-faint); }
 .scsegs.scover i { background: color-mix(in srgb, var(--ok) 70%, transparent); }
-.scsegs.scempty i { background: rgba(var(--tint), .06); }
 
 /* Line four: who runs it, on which model at which effort; what queued and
    compacted, in words; how long the state has lasted, or an arrow and when

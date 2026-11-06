@@ -56,7 +56,9 @@ type sessionCardsRun struct {
 
 // The six states a card has to hold — working, quiet, done and not seen,
 // waiting, paused, archived — on one skeleton: every line in every state, so
-// the list does not change its shape when a session starts to wait. A live
+// the list does not change its shape when a session starts to wait; only a
+// session with no checklist, the quiet one here, has neither the line of its
+// step nor its bar. A live
 // card carries its controls and an archived one its resume; what runs is
 // counted on the state's line, and a card with nothing running counts nothing.
 func checkSessionCards(t *testing.T, got sessionCardsRun) {
@@ -68,9 +70,13 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 			t.Errorf("%s: the card of the state is not on the page", state)
 			continue
 		}
+		want := []int{1, 1, 1, 1, 1, 1}
+		if state == "quiet" {
+			want = []int{1, 1, 0, 0, 1, 1}
+		}
 		for i, n := range c.Lines {
-			if n != 1 {
-				t.Errorf("%s (%s): line %d of the skeleton appears %d times, want once — lines %v", state, c.Name, i+1, n, c.Lines)
+			if i < len(want) && n != want[i] {
+				t.Errorf("%s (%s): line %d of the skeleton appears %d times, want %d — lines %v", state, c.Name, i+1, n, want[i], c.Lines)
 			}
 		}
 		if state == "archived" {
@@ -125,8 +131,8 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	if c := got.Six["paused"]; c != nil && (!strings.HasPrefix(c.Line2, "paused until ") || strings.Contains(c.Line4, "→")) {
 		t.Errorf("the paused card says %q / %q, want paused and when the pause ends", c.Line2, c.Line4)
 	}
-	if c := got.Six["quiet"]; c != nil && (!strings.HasPrefix(c.Line3, "no checklist") || !strings.Contains(c.Line5, "no cap")) {
-		t.Errorf("the quiet card reads %q / %q, want no checklist and no cap said", c.Line3, c.Line5)
+	if c := got.Six["quiet"]; c != nil && (c.Line3 != "" || !strings.Contains(c.Line5, "no cap")) {
+		t.Errorf("the quiet card reads %q / %q, want no line of a checklist and no cap said", c.Line3, c.Line5)
 	}
 	// The share of the window past the cap is set apart; a session with no
 	// cap has no such share.

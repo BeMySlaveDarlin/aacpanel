@@ -29,10 +29,10 @@ func TestThePhoneCardSaysItsStateAndItsPlace(t *testing.T) {
 	}{
 		"aacpanel":       {"working", "stream", "78%", "the owner takes the codex screen and the sheet of a thread, both on the phone", true},
 		"atlas":          {"commands running", "stream", "64%", "fetch the rest and check that Jellyfin sees it", true},
-		"blog":           {"commands running", "tmux", "9%", "no checklist", false},
-		long:             {"idle", "stream", "22%", "no checklist", false},
-		"shop":           {"idle", "stream", "31%", "no checklist", false},
-		"codex-5afc361b": {"idle", "daemon", "15%", "no checklist", false},
+		"blog":           {"commands running", "tmux", "9%", "", false},
+		long:             {"idle", "stream", "22%", "", false},
+		"shop":           {"idle", "stream", "31%", "", false},
+		"codex-5afc361b": {"idle", "daemon", "15%", "", false},
 	}
 	if len(got.Cards) != len(want) {
 		t.Fatalf("%d cards, wanted %d: %+v", len(got.Cards), len(want), got.Cards)
@@ -55,7 +55,7 @@ func TestThePhoneCardSaysItsStateAndItsPlace(t *testing.T) {
 		if c.Mark != w.mark || c.Pct != w.pct {
 			t.Errorf("%s: it lives %q and is %q full, expected %q and %q", name, c.Mark, c.Pct, w.mark, w.pct)
 		}
-		if c.Step != w.step || (w.step != "no checklist" && c.StepTip != w.step) {
+		if c.Step != w.step || c.StepTip != w.step {
 			t.Errorf("%s: the step reads %q (tip %q), expected %q, whole in its tip", name, c.Step, c.StepTip, w.step)
 		}
 	}

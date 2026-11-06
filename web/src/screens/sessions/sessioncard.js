@@ -123,16 +123,11 @@ function wakeOf(s) {
 // Steps is the checklist: the step in hand, wrapped rather than cut, and
 // n/N; under it a segment a step over the whole width — done in grey, the
 // one at work in the colour of the state, those ahead dark. A list with
-// every step behind it is done, and its bar is whole. With no checklist the
-// line says so, or what stands in for it — what an archived conversation was
-// about — over an empty bar.
+// every step behind it is done, and its bar is whole. A session with no
+// checklist draws neither line; an archived conversation with none says on
+// the line of the step what it was about, with no bar under it.
 function Steps({ step = "", n, total, segs, over }) {
-    if (!total) {
-        return html`
-            <div class="scl3"><span class=${`scstep${step ? "" : " scnone"}`}>${step || "no checklist"}</span></div>
-            <div class="scsegs scempty" aria-hidden="true"><i></i></div>
-        `;
-    }
+    if (!total) return step ? html`<div class="scl3"><span class="scstep">${step}</span></div>` : null;
     return html`
         <div class="scl3"><span class="scstep" title=${step}>${step}</span><span class=${`scn${over ? " scover" : ""}`}><b>${n}</b>/${total}</span></div>
         <div class=${`scsegs${over ? " scover" : ""}`} aria-hidden="true">${segs.map((cls, i) => html`<i key=${i} class=${cls}></i>`)}</div>

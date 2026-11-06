@@ -49,7 +49,7 @@ func TestTheChecklistTakesTheRowAndTheRoleStaysInTheTools(t *testing.T) {
 		want := map[string]string{
 			"shop":             "1/1 · Review the branch and the changes to all the migrations before handing the work to the next session",
 			"shop-db-split":    "2/2 · Run migrations",
-			"shop-queue-watch": "no checklist",
+			"shop-queue-watch": "",
 		}[r.Name]
 		if r.Checklist != want {
 			t.Errorf("desktop: %s shows checklist %q, want %q", r.Name, r.Checklist, want)

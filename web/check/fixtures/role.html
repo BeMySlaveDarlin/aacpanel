@@ -72,7 +72,7 @@ const rows = (root) => [...root.querySelectorAll(".sc")].map((r) => {
         name: r.dataset.name,
         role: role && text(r).includes(role) ? role : null,
         checklist: [text(r.querySelector(".scn")), text(step)].filter(Boolean).join(" · "),
-        tip: step.getAttribute("title") || "",
+        tip: (step && step.getAttribute("title")) || "",
     };
 });
 const sheet = () => document.querySelector(".sheet.on .rolefield")?.closest(".cmdsheet");

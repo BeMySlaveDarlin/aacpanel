@@ -57,11 +57,11 @@ window.done = (async () => {
         out[card.dataset.name] = {
             state: text(card.querySelector(".scsay")),
             step: text(step),
-            stepTip: step.getAttribute("title") || "",
+            stepTip: (step && step.getAttribute("title")) || "",
             n: text(card.querySelector(".scn")),
             segs: segs.map((i) => i.className === "scd" ? "d" : i.className === "sca" ? "a" : "-").join(""),
             over: Boolean(card.querySelector(".scsegs.scover")),
-            empty: Boolean(card.querySelector(".scsegs.scempty")),
+            bar: Boolean(card.querySelector(".scsegs")),
         };
     }
     return out;

@@ -76,7 +76,7 @@ window.done = (async () => {
             mark: text(badges[1]),
             pct: text(card.querySelector(".scctx")),
             step: text(step),
-            stepTip: step.getAttribute("title") || "",
+            stepTip: (step && step.getAttribute("title")) || "",
         };
     }
     return { cards };
