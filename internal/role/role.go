@@ -78,13 +78,13 @@ func Dir() string {
 	return sessionfile.Dir("roles")
 }
 
-// Repo is the repository a directory works in, as the key of a role names
-// it: the common git directory of the checkout the directory lies in, which a
-// worktree shares with its main checkout, or the directory itself where no
-// checkout holds it or its git files do not read. It is read from the files
-// git leaves — the .git of the checkout and, for a worktree, the gitdir it
-// points to and the commondir there — without running git; the collector
-// reads it the same way. A .git directory with no HEAD in it is no
+// Repo is the repository a directory works in, as the keys of a role and of a
+// checklist name it: the common git directory of the checkout the directory
+// lies in, which a worktree shares with its main checkout, or the directory
+// itself where no checkout holds it or its git files do not read. It is read
+// from the files git leaves — the .git of the checkout and, for a worktree,
+// the gitdir it points to and the commondir there — without running git; the
+// collector reads it the same way. A .git directory with no HEAD in it is no
 // repository, as git takes it, and the walk goes on above it.
 func Repo(dir string) string {
 	dir = filepath.Clean(dir)

@@ -11,8 +11,12 @@ import asked  # noqa: E402
 import chat  # noqa: E402
 import checklists  # noqa: E402
 import notes  # noqa: E402
+import roles  # noqa: E402
+import sessionfile  # noqa: E402
 import sesstate  # noqa: E402
 from collect import live  # noqa: E402
+from test_repo import git  # noqa: E402
+from test_roles import Layout  # noqa: E402
 
 SESSION = "abcd1234-0000-4000-8000-000000000000"
 RESTARTED = "ef015678-1111-4111-8111-111111111111"
@@ -21,10 +25,11 @@ BESIDE = "0123cdef-2222-4222-8222-222222222222"
 CONFIG = "/srv/claude"
 LAB = "/srv/proj/lab"
 
-# The checklist the session lab keeps; PLACED is one a server that keeps one
-# checklist a place wrote, with no name in it.
+# The checklist the session lab keeps — LAB is a directory no checkout holds,
+# a repository of its own; PLACED is one a server that keeps one checklist a
+# place wrote, with no name in it.
 CHECKLIST = {
-    "configDir": CONFIG, "dir": LAB, "name": "lab",
+    "configDir": CONFIG, "repo": LAB, "dir": LAB, "name": "lab",
     "sessionId": SESSION, "pid": 4242, "at": "2026-09-28T10:25:00Z", "note": "waits on the test base",
     "items": [
         {"text": "read the code", "status": "done", "since": "2026-09-28T10:10:00Z"},
@@ -138,7 +143,7 @@ class Of(ChecklistOnDisk):
         self.assertNotIn("note", checklists.of(CONFIG, LAB, "lab"))
 
     def test_only_the_file_of_this_session_is_its_checklist(self):
-        self.put({**CHECKLIST, "dir": "/srv/proj/other"})
+        self.put({**CHECKLIST, "repo": "/srv/proj/other", "dir": "/srv/proj/other"})
         self.assertIsNone(checklists.of(CONFIG, LAB, "lab"), "a file naming another place was read")
         self.put({**CHECKLIST, "configDir": "/srv/claude-work"})
         self.assertIsNone(checklists.of(CONFIG, LAB, "lab"), "a file of another account was read")
@@ -203,7 +208,7 @@ class OfConversation(ChecklistOnDisk):
         self.assertIsNone(checklists.of_conversation(CONFIG, LAB, SESSION))
 
     def test_a_file_of_another_place_or_lying_under_another_name_is_not_read(self):
-        self.put({**CHECKLIST, "dir": "/srv/proj/other"})
+        self.put({**CHECKLIST, "repo": "/srv/proj/other", "dir": "/srv/proj/other"})
         self.assertIsNone(checklists.of_conversation(CONFIG, LAB, SESSION))
         self.put(CHECKLIST, name="lab-review")
         self.assertIsNone(checklists.of_conversation(CONFIG, LAB, SESSION),
@@ -365,6 +370,101 @@ class ChecklistInTheConversation(ChecklistOnDisk):
     def test_a_window_of_the_feed_alone_reads_no_checklist(self):
         self.put(CHECKLIST)
         self.assertNotIn("state", chat.answer({"session": SESSION, "limit": 20}))
+
+
+class SharedLayout(Layout):
+    """The checklist lies under the repository the executor finds for the shared layout of checkouts."""
+
+    def test_the_checklist_lies_under_the_repository_of_its_directory(self):
+        self.assertTrue(self.cases["repos"], "the shared cases are empty: the test checks nothing")
+        for path, repo in self.cases["repos"]:
+            self.assertEqual(checklists.name_of(CONFIG, self.at(path), "lab"),
+                             sessionfile.file_name(CONFIG, self.at(repo), "lab"), path)
+
+
+class Checkouts(ChecklistOnDisk):
+    """A checkout and a worktree of it, made by git."""
+
+    def setUp(self):
+        super().setUp()
+        root = os.path.realpath(self.dir.name)
+        self.main, self.worktree = os.path.join(root, "lab"), os.path.join(root, "lab-fix")
+        os.makedirs(self.main)
+        git(self.main, "init", "-q", "-b", "main")
+        git(self.main, "config", "user.email", "t@example.org")
+        git(self.main, "config", "user.name", "Test")
+        git(self.main, "commit", "-q", "--allow-empty", "-m", "first")
+        git(self.main, "worktree", "add", "-q", "-b", "fix", self.worktree)
+        self.repo = os.path.join(self.main, ".git")
+
+    def sent(self, cwd, **over):
+        """Returns the checklist of lab as the executor writes it when the session sends it from cwd."""
+        return {**CHECKLIST, "repo": self.repo, "dir": cwd, **over}
+
+
+class Repository(Checkouts):
+    """A checklist is kept by the repository: the checkout and its worktree share the file of a session."""
+
+    def test_the_name_is_the_key_of_the_role(self):
+        lab = sessionfile.file_name(CONFIG, self.repo, "lab")
+        self.assertEqual(checklists.name_of(CONFIG, self.main, "lab"), lab)
+        self.assertEqual(checklists.name_of(CONFIG, self.worktree, "lab"), lab, "the worktree keeps a file of its own")
+        self.assertEqual(lab, roles.file_name(CONFIG, self.main, "lab"))
+        plain = os.path.join(self.main, "..", "plain")
+        self.assertEqual(checklists.name_of(CONFIG, plain, "lab"),
+                         sessionfile.file_name(CONFIG, os.path.normpath(plain), "lab"),
+                         "a directory no checkout holds does not keep the checklist by itself")
+
+    def test_a_session_reads_in_the_worktree_what_it_sent_in_the_checkout_and_back(self):
+        self.put(self.sent(self.main), cwd=self.main)
+        self.assertEqual(checklists.of(CONFIG, self.worktree, "lab", sid=RESTARTED), SHAPE)
+        self.put(self.sent(self.worktree, note=""), cwd=self.worktree)
+        self.assertNotIn("note", checklists.of(CONFIG, self.main, "lab"), "the checkout did not read the worktree's")
+        for cwd in (self.main, self.worktree):
+            self.assertIsNone(checklists.of(CONFIG, cwd, "lab-review", sid=BESIDE), cwd)
+        self.assertIsNone(checklists.of(CONFIG, LAB, "lab"), "another repository read the checklist")
+
+    def test_a_session_without_a_name_keeps_the_checklist_of_the_repository(self):
+        self.put({**PLACED, "repo": self.repo, "dir": self.main}, cwd=self.main, name=None)
+        self.assertEqual(checklists.of(CONFIG, self.worktree), SHAPE)
+
+    def test_a_conversation_that_is_over_shows_its_checklist_from_any_checkout(self):
+        self.put(self.sent(self.worktree), cwd=self.worktree)
+        self.assertEqual(checklists.of_conversation(CONFIG, self.main, SESSION), SHAPE)
+        self.assertIsNone(checklists.of_conversation(CONFIG, LAB, SESSION))
+
+
+class ByDirectory(Checkouts):
+    """A checklist kept by the directory — the file the server a live session was started with writes — is read while none is kept under the repository."""
+
+    def put_by_dir(self, data, cwd, name="lab"):
+        root = os.path.join(self.dir.name, "aacpanel", "checklists")
+        os.makedirs(root, exist_ok=True)
+        with open(os.path.join(root, sessionfile.file_name(CONFIG, cwd, name)), "w", encoding="utf-8") as f:
+            f.write(json.dumps(data))
+
+    def kept(self, cwd, **over):
+        """Returns the checklist of lab as a server keying checklists by the directory writes it: no repository in it."""
+        return {**{k: v for k, v in CHECKLIST.items() if k != "repo"}, "dir": cwd, **over}
+
+    def test_the_checklist_kept_by_the_directory_is_read_while_none_is_kept_under_the_repository(self):
+        self.put_by_dir(self.kept(self.worktree), self.worktree)
+        self.assertEqual(checklists.of(CONFIG, self.worktree, "lab", sid=SESSION), SHAPE)
+        self.assertEqual(checklists.of_conversation(CONFIG, self.worktree, SESSION), SHAPE)
+        self.assertIsNone(checklists.of(CONFIG, self.main, "lab"), "a file kept by another directory was read")
+        self.put(self.sent(self.main, note=""), cwd=self.main)
+        self.assertNotIn("note", checklists.of(CONFIG, self.worktree, "lab"),
+                         "the file by the directory was read before the one under the repository")
+
+    def test_a_file_by_the_directory_is_the_session_only_while_it_names_the_directory(self):
+        self.put_by_dir(self.kept(self.main), self.worktree)
+        self.assertIsNone(checklists.of(CONFIG, self.worktree, "lab"))
+        self.assertIsNone(checklists.of_conversation(CONFIG, self.worktree, SESSION))
+
+    def test_a_named_session_reads_the_one_kept_without_a_name_by_the_directory_only_while_it_sent_it(self):
+        self.put_by_dir({k: v for k, v in self.kept(self.worktree).items() if k != "name"}, self.worktree, name=None)
+        self.assertEqual(checklists.of(CONFIG, self.worktree, "lab", sid=SESSION), SHAPE)
+        self.assertIsNone(checklists.of(CONFIG, self.worktree, "lab-review", sid=BESIDE))
 
 
 if __name__ == "__main__":

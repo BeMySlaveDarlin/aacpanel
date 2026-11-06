@@ -23,15 +23,15 @@ import (
 //
 // The checklist is the model's own list of steps, kept through the panel's
 // checklist tool and shown to the person. It belongs to the session: the
-// place it works in — the config directory of the account and the directory
-// claude runs in — and its name, so a session started again under its name,
-// afresh or going on with its conversation, finds it, and another session of
-// the directory has its own; a session without a name is told by its place
-// alone. A turn that did work — called tools — and left the checklist as it
-// was may have left it behind: the end of that turn is held once, and the
-// model is told to update the checklist if it changed, to clear it if it no
-// longer applies, and otherwise to end the turn. The turn after the hold is
-// never held again.
+// config directory of the account, the repository claude runs in and the
+// session's name, so a session started again under its name, afresh or going
+// on with its conversation, in the main checkout or in a worktree of it,
+// finds it, and another session of the repository has its own; a session
+// without a name is told by its account and its repository alone. A turn
+// that did work — called tools — and left the checklist as it was may have
+// left it behind: the end of that turn is held once, and the model is told to
+// update the checklist if it changed, to clear it if it no longer applies,
+// and otherwise to end the turn. The turn after the hold is never held again.
 //
 // A checklist with nothing left to do asks nothing, and neither does a
 // session that has no checklist tool: a claude started by hand in the same
@@ -344,43 +344,43 @@ func sessionName(pid int, session map[string]any) string {
 
 // ---- the checklist ----
 
-// readPlaced is the checklist of a place and a name, empty for a place
-// alone, and when its file was written, in seconds of the Unix clock as
-// python's stat gives them. A file of another place, or that does not read,
-// is none.
+// readPlaced is the checklist of a session — its account, its repository and
+// its name, empty for none — and when its file was written, in seconds of the
+// Unix clock as python's stat gives them. It is looked for under the keys the
+// executor keeps it by, its repository first and then its directory: a file
+// of another place, or that does not read, is none.
 func readPlaced(configDir string, cwd any, name string) (map[string]any, float64, bool) {
 	dir, ok := cwd.(string)
 	if !ok {
 		return nil, 0, false
 	}
 	place := mcp.Place{ConfigDir: configDir, Dir: dir}
-	file := checklist.File(place, name)
-	if file == "" {
-		return nil, 0, false
-	}
-	path := filepath.Join(checklist.Dir(), file)
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, 0, false
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, 0, false
-	}
-	found, ok := loadNumbers(raw).(map[string]any)
 	where, _ := place.Clean()
-	own, _ := found["name"].(string)
-	if !ok || found["configDir"] != where.ConfigDir || found["dir"] != where.Dir || own != name {
-		return nil, 0, false
+	for _, k := range checklist.Keys(place, name) {
+		path := filepath.Join(checklist.Dir(), k.File)
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		found, ok := loadNumbers(raw).(map[string]any)
+		own, _ := found["name"].(string)
+		if !ok || found["configDir"] != where.ConfigDir || found[k.Field] != k.Where || own != name {
+			continue
+		}
+		mtime := info.ModTime()
+		return found, float64(mtime.Unix()) + float64(mtime.Nanosecond())*1e-9, true
 	}
-	mtime := info.ModTime()
-	return found, float64(mtime.Unix()) + float64(mtime.Nanosecond())*1e-9, true
+	return nil, 0, false
 }
 
 // readChecklist is the checklist of a session and when its file was written.
-// A named session without a file of its own has the checklist of its place —
-// the one a server that does not tell the sessions of a place apart keeps
-// writing — only while its conversation sent it last.
+// A named session without a file of its own has the checklist kept without a
+// name — the one a server that does not tell the sessions of a place apart
+// keeps writing — only while its conversation sent it last.
 func readChecklist(configDir string, cwd any, name string, id any) (map[string]any, float64, bool) {
 	found, written, ok := readPlaced(configDir, cwd, name)
 	if !ok && name != "" {

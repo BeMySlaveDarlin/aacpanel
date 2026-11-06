@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/role"
+	"aacpanel/internal/sessionfile"
 )
 
 const sid = "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d"
@@ -153,9 +156,11 @@ func TestASessionWithoutANameKeepsTheChecklistOfItsPlace(t *testing.T) {
 	}
 }
 
-// The name of the file is a hash of the place and the name of the session, or
-// of the place alone for a session without a name: the collector and the
-// hook compute it too, from the same paths and name, so it is pinned here.
+// The name of the file is a hash of the account, the repository and the name
+// of the session, or of the first two alone for a session without a name —
+// for lab, which no checkout holds, the repository is its directory: the
+// collector and the hook compute it too, from the same paths and name, so it
+// is pinned here.
 func TestTheNameOfTheChecklistIsTheHashOfTheSession(t *testing.T) {
 	if got := File(lab, "lab"); got != "f7138acc90830a36ac4a7481c26dfb18.json" {
 		t.Errorf("the checklist of the session lab in %+v is named %q", lab, got)
@@ -188,6 +193,8 @@ func TestAFileOfAnotherSessionIsNotTheChecklist(t *testing.T) {
 		{File(lab, ""), Checklist{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab", Name: "lab"}},
 		{File(lab, "lab"), Checklist{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab", Name: "lab-review"}},
 		{File(lab, "lab"), Checklist{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab"}},
+		{File(lab, "lab"), Checklist{ConfigDir: "/srv/claude", Repo: "/srv/proj/other", Dir: "/srv/proj/other", Name: "lab"}},
+		{File(lab, "lab"), Checklist{ConfigDir: "/srv/claude-work", Repo: "/srv/proj/lab", Dir: "/srv/proj/lab", Name: "lab"}},
 	} {
 		c.on.At, c.on.Items = t0.Format(Stamp), []Item{{Text: "x", Status: Active}}
 		body, _ := json.Marshal(c.on)
@@ -563,5 +570,199 @@ func TestAThreadReadsOnlyItsOwnFile(t *testing.T) {
 	}
 	if Read(dir, placed, "") == nil {
 		t.Error("the checklist of the place is gone")
+	}
+}
+
+// gitIn runs git in dir for a test, as a person of its own and with nothing
+// of the machine's configuration.
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.org"},
+		args...)...)
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %q: %v\n%s", args, err, out)
+	}
+}
+
+// checkout is a repository with one commit and a worktree of it made by git
+// itself, under a fresh directory with its links resolved, as git writes the
+// paths into the worktree.
+func checkout(t *testing.T) (main, worktree string) {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	main, worktree = filepath.Join(root, "lab"), filepath.Join(root, "lab-fix")
+	if err := os.Mkdir(main, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, main, "init", "--quiet")
+	gitIn(t, main, "commit", "--quiet", "--allow-empty", "-m", "first")
+	gitIn(t, main, "worktree", "add", "--quiet", "-b", "fix", worktree)
+	return main, worktree
+}
+
+// The checklist of a session is kept by its repository, under the key of its
+// role: the session that sent it in the main checkout reads it in a worktree
+// of it and goes on with it there, the times of its steps kept, and the main
+// checkout reads what the worktree sent. A session of another name reads none
+// in either; a session without a name keeps the one of the repository. A
+// directory no checkout holds is a repository of its own.
+func TestTheChecklistIsKeptByTheRepository(t *testing.T) {
+	main, worktree := checkout(t)
+	dir := t.TempDir()
+	at := func(d string) mcp.Place { return mcp.Place{ConfigDir: "/srv/claude", Dir: d} }
+	in := func(d, name, id string, pid int) mcp.Binding {
+		return mcp.Binding{Place: at(d), Name: name, SessionID: id, PID: pid}
+	}
+	const restarted = "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e"
+
+	key := sessionfile.Name("/srv/claude", filepath.Join(main, ".git"), "lab")
+	if File(at(main), "lab") != key || File(at(worktree), "lab") != key || File(at(main), "lab") != role.File(at(main), "lab") {
+		t.Errorf("the checklist of lab is %q in the checkout and %q in the worktree, meant %q, the key of its role",
+			File(at(main), "lab"), File(at(worktree), "lab"), key)
+	}
+
+	if _, err := Keep(dir, in(main, "lab", sid, 4242), []Item{{Text: "read the code", Status: Active}}, "", t0); err != nil {
+		t.Fatal(err)
+	}
+	on := Adopt(dir, in(worktree, "lab", restarted, 5151))
+	if on == nil || on.SessionID != sid || on.Repo != filepath.Join(main, ".git") || on.Dir != main {
+		t.Fatalf("the session in the worktree found %+v", on)
+	}
+	if _, err := Keep(dir, in(worktree, "lab", restarted, 5151), []Item{{Text: "read the code", Status: Active},
+		{Text: "write the tests", Status: Pending}}, "", t0.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if on := Read(dir, at(main), "lab"); on == nil || on.SessionID != restarted || on.Dir != worktree ||
+		len(on.Items) != 2 || on.Items[0].Since != t0.Format(Stamp) {
+		t.Errorf("the checkout reads what the worktree sent as %+v", on)
+	}
+
+	for _, d := range []string{main, worktree} {
+		if on := Read(dir, at(d), "lab-review"); on != nil {
+			t.Errorf("another session in %s read the checklist of lab: %+v", d, on)
+		}
+	}
+	if on := Adopt(dir, in(worktree, "lab-review", "7c2e9f3a-4d5b-4c6d-8e7f-9a0b1c2d3e4f", 6262)); on != nil {
+		t.Errorf("another session in the worktree took over %+v", on)
+	}
+
+	if _, err := Keep(dir, in(worktree, "", restarted, 5151), []Item{{Text: "nameless", Status: Active}}, "", t0); err != nil {
+		t.Fatal(err)
+	}
+	if on := Read(dir, at(main), ""); on == nil || on.Items[0].Text != "nameless" {
+		t.Errorf("a session without a name in the checkout reads %+v", on)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 2 {
+		t.Errorf("two sessions of one repository keep %v", entries)
+	}
+
+	plain, other := t.TempDir(), t.TempDir()
+	if File(at(plain), "lab") != sessionfile.Name("/srv/claude", plain, "lab") {
+		t.Errorf("a directory no checkout holds keeps the checklist as %q", File(at(plain), "lab"))
+	}
+	if _, err := Keep(dir, in(plain, "lab", sid, 4242), []Item{{Text: "plain", Status: Active}}, "", t0); err != nil {
+		t.Fatal(err)
+	}
+	if on := Read(dir, at(plain), "lab"); on == nil || on.Repo != plain || on.Items[0].Text != "plain" {
+		t.Errorf("the directory no checkout holds reads %+v", on)
+	}
+	if on := Read(dir, at(other), "lab"); on != nil {
+		t.Errorf("another directory read the checklist of a plain one: %+v", on)
+	}
+}
+
+// byDir writes a checklist the way a server keying checklists by the
+// directory does: under the account, the directory and the name, with no
+// repository in it.
+func byDir(t *testing.T, dir string, b mcp.Binding, items ...Item) string {
+	t.Helper()
+	path := filepath.Join(dir, Keys(b.Place, b.Name)[1].File)
+	body, _ := json.Marshal(map[string]any{"configDir": b.Place.ConfigDir, "dir": b.Place.Dir, "name": b.Name,
+		"sessionId": b.SessionID, "pid": b.PID, "at": t0.Format(Stamp), "items": items})
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// A checklist kept by the directory — the file the server a live session was
+// started with writes until the session starts again — is the session's
+// while it keeps none under its repository, and only from that directory. The
+// session's next write lands under the repository, with the times of its
+// steps, and the file by the directory goes; the server's first read takes it
+// over the same way; a cleared checklist leaves neither, so the old one does
+// not come back. A checklist under the repository is read before one by the
+// directory.
+func TestAChecklistKeptByTheDirectoryIsReadUntilTheSessionWritesAgain(t *testing.T) {
+	main, worktree := checkout(t)
+	dir := t.TempDir()
+	at := func(d string) mcp.Place { return mcp.Place{ConfigDir: "/srv/claude", Dir: d} }
+	session := mcp.Binding{Place: at(worktree), Name: "lab", SessionID: sid, PID: 4242}
+	gone := func(path string) bool { _, err := os.Stat(path); return errors.Is(err, os.ErrNotExist) }
+
+	old := byDir(t, dir, session, Item{Text: "read the code", Status: Active, Since: "2026-09-28T09:00:00Z"})
+	if old == filepath.Join(dir, File(session.Place, "lab")) {
+		t.Fatal("the file by the directory is the file under the repository: the test checks nothing")
+	}
+	if on := Read(dir, at(worktree), "lab"); on == nil || on.Items[0].Text != "read the code" || on.Repo != "" {
+		t.Fatalf("the checklist kept by the directory reads %+v", on)
+	}
+	if on := Read(dir, at(main), "lab"); on != nil {
+		t.Errorf("the checkout read the checklist the worktree keeps by its directory: %+v", on)
+	}
+
+	got, err := Keep(dir, session, []Item{{Text: "read the code", Status: Active}, {Text: "write the tests", Status: Pending}},
+		"", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Items[0].Since != "2026-09-28T09:00:00Z" || got.Repo != filepath.Join(main, ".git") {
+		t.Errorf("the write after the file by the directory is %+v", got)
+	}
+	if !gone(old) {
+		t.Error("the file by the directory stayed after the session wrote under its repository")
+	}
+	if on := Read(dir, at(main), "lab"); on == nil || len(on.Items) != 2 {
+		t.Errorf("the checkout does not read what the session wrote: %+v", on)
+	}
+
+	byDir(t, dir, session, Item{Text: "an older list", Status: Active})
+	if on := Read(dir, at(worktree), "lab"); on == nil || len(on.Items) != 2 {
+		t.Errorf("the file by the directory was read before the one under the repository: %+v", on)
+	}
+
+	review := mcp.Binding{Place: at(worktree), Name: "lab-review", SessionID: sid, PID: 4343}
+	reviewOld := byDir(t, dir, review, Item{Text: "review", Status: Active})
+	if on := Adopt(dir, review); on == nil || on.Items[0].Text != "review" || on.Repo != filepath.Join(main, ".git") {
+		t.Fatalf("the server took over %+v", on)
+	}
+	if !gone(reviewOld) || Read(dir, at(main), "lab-review") == nil {
+		t.Error("the checklist taken over is not under the repository alone")
+	}
+
+	if _, err := Keep(dir, session, nil, "", t0); err != nil {
+		t.Fatal(err)
+	}
+	if on := Read(dir, at(worktree), "lab"); on != nil {
+		t.Errorf("a cleared checklist came back from the file by the directory: %+v", on)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 || entries[0].Name() != File(review.Place, "lab-review") {
+		t.Errorf("the checklists left %v", entries)
+	}
+
+	plain := mcp.Binding{Place: at(t.TempDir()), Name: "lab", SessionID: sid, PID: 4242}
+	path := byDir(t, dir, plain, Item{Text: "plain", Status: Active})
+	if on := Adopt(dir, plain); on == nil || on.Repo != plain.Place.Dir {
+		t.Errorf("a directory no checkout holds took over %+v", on)
+	}
+	if on := Read(dir, plain.Place, "lab"); gone(path) || on == nil || on.Repo != plain.Place.Dir {
+		t.Errorf("the one file of a directory no checkout holds is %+v", on)
 	}
 }

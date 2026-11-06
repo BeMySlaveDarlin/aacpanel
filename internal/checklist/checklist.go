@@ -1,11 +1,12 @@
 // Package checklist keeps the checklist a session makes of its work: the list
 // of steps the model sends through the panel's checklist tool, one file a
-// session. A session is told by its place — the account it runs in and the
-// directory it works in — and by its name, so the sessions of one directory
-// keep checklists of their own, and a session started again under its name,
-// afresh or going on with its conversation, finds its checklist where it was
-// left. A session without a name is told by its place alone: nothing else
-// tells it from another session there. A thread of codex is told by its
+// session. A session is told as its role is: by the account it runs in, by
+// the repository it works in and by its name, so the sessions of one
+// repository keep checklists of their own, and a session started again under
+// its name — afresh or going on with its conversation, in the main checkout
+// or in a worktree of it — finds its checklist where it was left. A session
+// without a name is told by its account and its repository alone: nothing
+// else tells it from another session there. A thread of codex is told by its
 // thread. The collector reads the file into the row of the session and into
 // the state of its conversation; nothing else writes it.
 package checklist
@@ -23,6 +24,7 @@ import (
 	"unicode/utf8"
 
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/role"
 	"aacpanel/internal/sessionfile"
 )
 
@@ -60,17 +62,57 @@ type Item struct {
 	Since string `json:"since,omitempty"`
 }
 
-// File is the file of the checklist of a session — its place and its name,
-// or its place alone for a session without a name — or empty for a place that
-// is not one. A checklist is kept by the directory the session works in; the
-// collector and the reminder hook compute the same name, the file holds the
-// two paths and the name, and a reader takes it only for the session it names.
+// File is the file of the checklist of a session — its account, its
+// repository and its name, or the first two alone for a session without a
+// name — or empty for a place that is not one. The repository is the one the
+// key of a role names, so a session moving between the main checkout and a
+// worktree of it keeps its checklist, and sessions of one name in two
+// worktrees of a repository share one; the collector and the reminder hook
+// compute the same name, the file holds what it is made of, and a reader
+// takes it only for the session it names.
 func File(p mcp.Place, name string) string {
 	where, ok := p.Clean()
 	if !ok {
 		return ""
 	}
-	return sessionfile.Name(where.ConfigDir, where.Dir, name)
+	return sessionfile.Name(where.ConfigDir, role.Repo(where.Dir), name)
+}
+
+// Key is a file the checklist of a session is looked for in, with what of the
+// file tells it is the session's beside the account and the name: the field
+// that names where the checklist is kept, and what it holds there.
+type Key struct {
+	File  string
+	Field string
+	Where string
+}
+
+// Keys are the files the checklist of a session is looked for in, in order:
+// the one it is kept in, under its repository, and then the one of its
+// account, its directory and its name. A server that keys checklists by the
+// directory writes the second until its session starts again; a session with
+// no checklist under its repository reads that one, and its next write — or
+// the server's first read of it — moves it under the repository. The price:
+// a file kept by the directory is found only from that directory, and one no
+// session moves goes with the sweep. For a directory no checkout holds the two
+// are one file. None for a place that is not one.
+func Keys(p mcp.Place, name string) []Key {
+	where, ok := p.Clean()
+	if !ok {
+		return nil
+	}
+	return []Key{
+		{File: File(where, name), Field: "repo", Where: role.Repo(where.Dir)},
+		{File: sessionfile.Name(where.ConfigDir, where.Dir, name), Field: "dir", Where: where.Dir},
+	}
+}
+
+// holds tells whether a checklist names the place the key looks for it by.
+func (k Key) holds(p *Checklist) bool {
+	if k.Field == "repo" {
+		return p.Repo == k.Where
+	}
+	return p.Dir == k.Where
 }
 
 // ThreadFile is the file of the checklist of a codex thread, or empty for what
@@ -94,7 +136,7 @@ const threadPrefix = "codex-"
 var threadID = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$`)
 
 // fileOf is the file of the checklist of the session bound: its thread for a
-// thread of codex, its place and its name for a claude.
+// thread of codex, its account, its repository and its name for a claude.
 func fileOf(where mcp.Place, b mcp.Binding) (string, error) {
 	if !b.Codex {
 		return File(where, b.Name), nil
@@ -105,11 +147,15 @@ func fileOf(where mcp.Place, b mcp.Binding) (string, error) {
 	return "", fmt.Errorf("%q is not the id of a codex thread", b.SessionID)
 }
 
-// Checklist is what lies on disk for one session. A thread of codex keeps the
-// home of its codex for the config directory, its thread for the
-// conversation and the codex that holds it for the process.
+// Checklist is what lies on disk for one session. Repo is what the key of a
+// claude session is made of, beside the account and the name; Dir is the
+// directory it sent the checklist from last, and tells a file kept by the
+// directory. A thread of codex keeps the home of its codex for the config
+// directory, its thread for the conversation and the codex that holds it for
+// the process, and no repository.
 type Checklist struct {
 	ConfigDir string `json:"configDir"`
+	Repo      string `json:"repo,omitempty"`
 	Dir       string `json:"dir"`
 	// Name is the name of the session, empty for a session without one.
 	Name string `json:"name,omitempty"`
@@ -197,9 +243,15 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 		return nil, err
 	}
 	path := filepath.Join(dir, file)
+	byDir := byDirOf(dir, where, b)
 	if len(items) == 0 {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("the checklist was not cleared: %w", err)
+		for _, gone := range []string{path, byDir} {
+			if gone == "" {
+				continue
+			}
+			if err := os.Remove(gone); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("the checklist was not cleared: %w", err)
+			}
 		}
 		return nil, nil
 	}
@@ -217,10 +269,31 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 	}
 	p := &Checklist{ConfigDir: where.ConfigDir, Dir: where.Dir, Name: b.Name, SessionID: b.SessionID, PID: b.PID,
 		At: stamp, Note: note, Items: items}
+	if !b.Codex {
+		p.Repo = role.Repo(where.Dir)
+	}
 	if err := write(dir, path, p); err != nil {
 		return nil, err
 	}
+	if byDir != "" {
+		os.Remove(byDir)
+	}
 	return p, nil
+}
+
+// byDirOf is the file a server keying checklists by the directory keeps the
+// checklist of the session bound in, no longer read once the session writes
+// under its repository; empty for a thread of codex, and for a directory no
+// checkout holds, where the two are one file.
+func byDirOf(dir string, where mcp.Place, b mcp.Binding) string {
+	if b.Codex {
+		return ""
+	}
+	keys := Keys(where, b.Name)
+	if keys[1].File == keys[0].File {
+		return ""
+	}
+	return filepath.Join(dir, keys[1].File)
 }
 
 func sinceOf(p *Checklist) map[string]string {
@@ -263,26 +336,31 @@ func write(dir, path string, p *Checklist) error {
 	return nil
 }
 
-// Read returns the checklist of a session, told by its place and its name,
-// or nil when there is none.
+// Read returns the checklist of a session, told by its account, its
+// repository and its name, or nil when there is none. A session with no
+// checklist under its repository reads the one kept by its directory.
 func Read(dir string, place mcp.Place, name string) *Checklist {
-	where, ok := place.Clean()
-	if !ok {
-		return nil
-	}
-	return readFile(filepath.Join(dir, File(where, name)), where, name)
+	p, _, _ := find(dir, place, name)
+	return p
 }
 
-func readFile(path string, where mcp.Place, name string) *Checklist {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil
+// find returns the checklist of a session, the key it was found under and its
+// file: the first of its keys whose file is the session's.
+func find(dir string, place mcp.Place, name string) (*Checklist, int, string) {
+	where, _ := place.Clean()
+	for i, k := range Keys(where, name) {
+		path := filepath.Join(dir, k.File)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var p Checklist
+		if json.Unmarshal(raw, &p) != nil || p.ConfigDir != where.ConfigDir || p.Name != name || !k.holds(&p) {
+			continue
+		}
+		return &p, i, path
 	}
-	var p Checklist
-	if json.Unmarshal(raw, &p) != nil || p.ConfigDir != where.ConfigDir || p.Dir != where.Dir || p.Name != name {
-		return nil
-	}
-	return &p
+	return nil, -1, ""
 }
 
 // ReadThread returns the checklist of a codex thread, or nil when there is
@@ -317,6 +395,10 @@ func readBound(dir string, where mcp.Place, b mcp.Binding) *Checklist {
 // session was started with writes the file it knows until the session starts
 // again.
 //
+// A server that keys checklists by the directory keeps the checklist of the
+// session under its account, its directory and its name; a session with no
+// checklist under its repository takes that one over.
+//
 // A server that does not tell the sessions of a place apart keeps one
 // checklist a place, whichever session sent it. A named session with no
 // checklist of its own takes that one over only while its conversation is
@@ -329,23 +411,28 @@ func readBound(dir string, where mcp.Place, b mcp.Binding) *Checklist {
 // session without a name takes over the newest of them, a named session only
 // the one of its own conversation.
 //
-// A session that already has a checklist takes over nothing, and neither
-// does a thread of codex: no server ever kept its checklist under another
-// key. What is taken over is written as the session's and the files it came
-// from go; a file nobody took over goes with the sweep.
+// A session that already has a checklist under its repository takes over
+// nothing, and neither does a thread of codex: no server ever kept its
+// checklist under another key. What is taken over is written as the session's
+// and the files it came from go; a file nobody took over goes with the sweep.
 func Adopt(dir string, b mcp.Binding) *Checklist {
 	where, ok := b.Place.Clean()
 	if !ok {
 		return nil
 	}
-	if p := readBound(dir, where, b); p != nil || b.Codex {
-		return p
+	if b.Codex {
+		return ReadThread(dir, b.SessionID)
 	}
-	var newest *Checklist
+	newest, at, from := find(dir, where, b.Name)
+	if at == 0 {
+		return newest
+	}
 	var taken []string
-	if b.Name != "" && b.SessionID != "" {
-		placed := filepath.Join(dir, File(where, ""))
-		if p := readFile(placed, where, ""); p != nil && p.SessionID == b.SessionID {
+	if newest != nil {
+		taken = []string{from}
+	}
+	if newest == nil && b.Name != "" && b.SessionID != "" {
+		if p, _, placed := find(dir, where, ""); p != nil && p.SessionID == b.SessionID {
 			newest, taken = p, []string{placed}
 		}
 	}
@@ -355,12 +442,15 @@ func Adopt(dir string, b mcp.Binding) *Checklist {
 	if newest == nil {
 		return nil
 	}
-	newest.ConfigDir, newest.Dir, newest.Name = where.ConfigDir, where.Dir, b.Name
-	if write(dir, filepath.Join(dir, File(where, b.Name)), newest) != nil {
+	newest.ConfigDir, newest.Repo, newest.Dir, newest.Name = where.ConfigDir, role.Repo(where.Dir), where.Dir, b.Name
+	own := filepath.Join(dir, File(where, b.Name))
+	if write(dir, own, newest) != nil {
 		return nil
 	}
 	for _, path := range taken {
-		os.Remove(path)
+		if path != own {
+			os.Remove(path)
+		}
 	}
 	return newest
 }

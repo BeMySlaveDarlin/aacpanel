@@ -4,8 +4,8 @@ A session is told by the account it runs in â€” the config directory of claude â
 by where it works and by its name. The name of the file is a hash of the two
 paths and the name of the session, or of the paths alone for a session without
 a name: the one the executor computes in internal/sessionfile. What "where" is
-belongs to the file: a checklist is kept by the directory, a role by the
-repository.
+belongs to the file: a checklist and a role are kept by the repository, and a
+checklist kept by the directory is read until its session writes it again.
 """
 import hashlib
 import os

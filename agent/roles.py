@@ -20,7 +20,7 @@ def roles_dir():
 
 
 def repo(cwd):
-    """Returns the repository a directory works in, as the key of a role names it, or None for a path that is not one.
+    """Returns the repository a directory works in, as the keys of a role and of a checklist name it, or None for a path that is not one.
 
     It is the common git directory of the checkout the directory lies in —
     which a worktree shares with its main checkout — or the directory itself

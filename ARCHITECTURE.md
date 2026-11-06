@@ -2332,12 +2332,13 @@ never waits on a person. The model keeps a checklist for work with several steps
 sends the whole list before starting and as steps change, and reconciles it before
 reporting; a question or a one-step task needs none. The checklist belongs to
 the session, not to its conversation: the config directory of the account, the
-directory claude runs in and the name the session runs under. A session
-started again under its name — afresh, or going on with its conversation under
-an id old or new, as the restart past the context cap does — finds the
+repository claude runs in — the one the key of a role names — and the name the
+session runs under. A session started again under its name — afresh, or going
+on with its conversation under an id old or new, as the restart past the
+context cap does, in the main checkout or in a worktree of it — finds the
 checklist where it was left, is told at the handshake how far it got and the
 step it stands at, reads it whole with a call that sends no list, and keeps it
-or clears it; another session of the directory, under another name, starts
+or clears it; another session of the repository, under another name, starts
 with none and keeps its own. The server finds the session through its parent:
 claude keeps a file of itself under `sessions/<pid>.json` of its config
 directory, which names the conversation, the directory and the session, read
@@ -2345,20 +2346,26 @@ on every call, since `/clear` starts another conversation in the same process;
 before claude has written the file, the process's own environment, working
 directory and `-n`/`--name` argument place it. The checklist is one file a
 session under `aacpanel/checklists/` in the owner's state, named by a hash of
-the two paths and the name and holding them, replaced whole, with the
-conversation and the process that sent it last; the collector carries it in
-the row of the session and in the state of its conversation — the steps with
-their statuses, since when a step at work or done holds its status, and when
-the list was last sent — and the feed of a conversation that is over shows the
-checklist it sent last, and only while no later conversation sent it. A
-session without a name is told by its place alone and keeps the checklist of
-the place, named by the two paths; a server that does not tell the sessions of
-a place apart writes that file too, and a named session takes it over as its
-own only while its conversation is the one that sent it last — whose it is
-otherwise is not to be told. The price is that the name is the key: a session
-renamed starts with no checklist, and sessions without a name in one directory
-under one account share one. A thread of codex keeps its checklist by its
-thread alone, in `codex-<thread>.json`: codex keeps the id for the life of the
+the config directory, the repository and the name and holding them, replaced
+whole, with the directory, the conversation and the process that sent it
+last; the collector carries it in the row of the session and in the state of
+its conversation — the steps with their statuses, since when a step at work
+or done holds its status, and when the list was last sent — and the feed of a
+conversation that is over shows the checklist it sent last, and only while no
+later conversation sent it. A session without a name is told by its account
+and its repository alone and keeps the checklist named by those two; a server
+that does not tell the sessions of a place apart writes such a file too, and
+a named session takes it over as its own only while its conversation is the
+one that sent it last — whose it is otherwise is not to be told. The price is that the name is the
+key: a session renamed starts with no checklist, and sessions of one name, or
+without one, in the checkouts of one repository under one account share one.
+A server that keys checklists by the directory writes the file of the account,
+the directory and the name until its session starts again: the session reads
+that file while it has none under its repository, and its next write, or the
+first read of the server it starts with, moves it there. Such a file is found
+only from its own directory, and one nobody moves goes with the sweep. A
+thread of codex keeps its checklist by its thread alone, in
+`codex-<thread>.json`: codex keeps the id for the life of the
 thread, resumed or joined by another client, while the place of a thread is
 named by two paths that need not agree — the server finds the home by the lock
 the kernel names, the collector by the home the executor was given. The row

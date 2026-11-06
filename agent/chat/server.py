@@ -436,14 +436,14 @@ def read_in_place(reader, want, path, **window):
 def conversation_checklist(session, path, place=None):
     """Returns the checklist the feed of a conversation shows, or None.
 
-    A checklist is kept by the session: its place and its name. A live
-    conversation shows the checklist of its session whoever sent it — a
-    session started again under its name goes on with it. A conversation that
-    is over is placed by its transcript, which lies under the config directory
-    of its account and names the directory it ran in, and shows the checklist
-    of its place it sent last, whatever the name, only while no later
-    conversation sent it. The place of a live session is looked up when it
-    is not given.
+    A checklist is kept by the session: its account, its repository and its
+    name. A live conversation shows the checklist of its session whoever sent
+    it — a session started again under its name goes on with it. A
+    conversation that is over is placed by its transcript, which lies under
+    the config directory of its account and names the directory it ran in, and
+    shows the checklist of that account and repository it sent last, whatever
+    the name, only while no later conversation sent it. The place of a live
+    session is looked up when it is not given.
     """
     if place is None:
         place = live_place(session)

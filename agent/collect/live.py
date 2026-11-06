@@ -137,9 +137,10 @@ def live_session_places():
     """Maps the sessionId of a live session to its place and its name.
 
     The place is the config directory of its account and its directory. The
-    checklist of a session is kept by its place and its name, and the executor
-    finds them in this same file: the directory the file lies under, the
-    directory it names and the name of the session.
+    checklist of a session is kept by its account, the repository of its
+    directory and its name, and the executor finds them in this same file: the
+    directory the file lies under, the directory it names and the name of the
+    session.
     """
     out = {}
     for _, config_dir, data in session_files():
@@ -320,8 +321,9 @@ def sessions():
                 if config_dir:
                     s["configDir"] = config_dir
         # The checklist is the session's: a session started again under its
-        # name shows the one it left at once, under a conversation of its own,
-        # and another session of the directory shows its own or none.
+        # name shows the one it left at once, under a conversation of its own
+        # and in any checkout of its repository, and another session of the
+        # repository shows its own or none.
         place = places.get(sid) if sid else None
         checklist = checklists.of(*place, sid=sid) if place else None
         if checklist:

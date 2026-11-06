@@ -1,5 +1,5 @@
 {
-  "about": "The repository a directory works in, as the key of a role names it. The layout is made under a fresh directory and every path is relative to it; {root} in a file stands for that directory. The executor (internal/role) and the collector (agent/roles.py) must both find the repo given for each directory.",
+  "about": "The repository a directory works in, as the key of a role and of a checklist names it. The layout is made under a fresh directory and every path is relative to it; {root} in a file stands for that directory. The executor (internal/role) and the collector (agent/roles.py) must both find the repo given for each directory, and the collector names the checklist of a session by it (agent/checklists.py).",
   "dirs": [
     "lab/.git/worktrees/lab-fix",
     "lab/src/deep",

@@ -14,6 +14,7 @@ import (
 
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/role"
 )
 
 // checklistCases holds the fixture of checklist reminders.
@@ -276,6 +277,53 @@ func TestTheSharedCasesOfTheChecklistReminder(t *testing.T) {
 	}
 }
 
+// The reminder reads the checklist the executor keeps under the repository: a
+// session in a directory of a checkout is asked about the checklist sent from
+// the top of it, and about the one a server keying checklists by the
+// directory left for its own directory while none is kept under the
+// repository; the one under the repository is read first, and one another
+// directory keeps by the directory is not the session's.
+func TestTheReminderReadsTheChecklistOfTheRepository(t *testing.T) {
+	c := readChecklistCases(t)
+	root := t.TempDir()
+	top, deep := filepath.Join(root, "lab"), filepath.Join(root, "lab", "src")
+	for _, d := range []string{filepath.Join(top, ".git"), deep} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile(t, filepath.Join(top, ".git", "HEAD"), "ref: refs/heads/main\n")
+	active, done := []any{checklist.Active}, []any{checklist.Done}
+	for _, cs := range []struct {
+		what  string
+		lists []map[string]any
+		holds bool
+	}{
+		{"sent from the top of the checkout", []map[string]any{{"cwd": top, "statuses": active}}, true},
+		{"kept by the directory of the session", []map[string]any{{"cwd": deep, "statuses": active, "byDir": true}}, true},
+		{"kept by another directory of the checkout", []map[string]any{{"cwd": top, "statuses": active, "byDir": true}}, false},
+		{"under the repository and by the directory", []map[string]any{{"cwd": deep, "statuses": active, "byDir": true},
+			{"cwd": top, "statuses": done}}, false},
+	} {
+		t.Run(cs.what, func(t *testing.T) {
+			dir, proc, config := inPlace(t)
+			fakeProcess(t, proc, c.Shell.PID, c.Claude.PID, c.Shell.Start, c.Shell.Args)
+			parentPID = func() int { return c.Shell.PID }
+			placeClaude(t, c, proc, config, map[string]any{"over": map[string]any{"cwd": deep}})
+			for _, cl := range cs.lists {
+				writeChecklist(t, c, config, cl)
+			}
+			transcript := filepath.Join(dir, "transcript.jsonl")
+			writeFile(t, transcript, strings.Join(c.Transcripts["worked"], "\n")+"\n")
+			payload, _ := json.Marshal(map[string]any{"hook_event_name": "Stop", "session_id": c.Session,
+				"transcript_path": transcript, "stop_hook_active": false})
+			if reply := remindChecklist("Stop", payload, time.Now()); (reply.Block != "") != cs.holds {
+				t.Errorf("held %v, meant %v", reply.Block != "", cs.holds)
+			}
+		})
+	}
+}
+
 // placeClaude puts the claude running the hook in place: its process and the
 // file it keeps of itself, the case's fields laid over both.
 func placeClaude(t *testing.T, c checklistCases, proc, config string, over map[string]any) {
@@ -304,8 +352,10 @@ func placeClaude(t *testing.T, c checklistCases, proc, config string, over map[s
 	writeJSON(t, filepath.Join(config, "sessions", strconv.Itoa(c.Claude.PID)+".json"), laid(file, over["over"]))
 }
 
-// writeChecklist writes the checklist of a session of the place; without a
-// name, the one of the place.
+// writeChecklist writes the checklist of a session of the place as the
+// executor keeps it, under its repository, or with byDir as a server keying
+// checklists by the directory does, with no repository in it; without a name,
+// the one kept without a name.
 func writeChecklist(t *testing.T, c checklistCases, config string, cl map[string]any) {
 	t.Helper()
 	cwd, name := c.Place, any(c.Name)
@@ -316,13 +366,18 @@ func writeChecklist(t *testing.T, c checklistCases, config string, cl map[string
 		name = v
 	}
 	own, _ := name.(string)
-	path := filepath.Join(checklist.Dir(), checklist.File(mcp.Place{ConfigDir: config, Dir: cwd}, own))
+	place := mcp.Place{ConfigDir: config, Dir: cwd}
+	path := filepath.Join(checklist.Dir(), checklist.File(place, own))
 	var items []any
 	for i, s := range cl["statuses"].([]any) {
 		items = append(items, map[string]any{"text": "step " + strconv.Itoa(i), "status": s})
 	}
-	file := map[string]any{"configDir": config, "dir": cwd, "sessionId": c.Session, "pid": c.Claude.PID,
-		"at": "2026-09-28T09:59:00Z", "items": items}
+	file := map[string]any{"configDir": config, "repo": role.Repo(cwd), "dir": cwd, "sessionId": c.Session,
+		"pid": c.Claude.PID, "at": "2026-09-28T09:59:00Z", "items": items}
+	if truthy(cl["byDir"]) {
+		path = filepath.Join(checklist.Dir(), checklist.Keys(place, own)[1].File)
+		delete(file, "repo")
+	}
 	if v, ok := cl["session"]; ok {
 		file["sessionId"] = v
 	}

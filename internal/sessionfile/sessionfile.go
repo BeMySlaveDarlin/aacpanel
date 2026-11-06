@@ -4,8 +4,9 @@
 // directory of claude — by where it works and by its name, so the sessions of
 // one place keep files of their own, and a session started again under its
 // name finds what it left. What "where" is belongs to the file: a checklist
-// is kept by the directory, a role by the repository. The collector computes
-// the same names in agent/sessionfile.py.
+// and a role are kept by the repository, and a checklist kept by the
+// directory is read until its session writes it again. The collector
+// computes the same names in agent/sessionfile.py.
 package sessionfile
 
 import (
