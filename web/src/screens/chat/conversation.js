@@ -54,7 +54,7 @@ import { DeskHead } from "./deskhead.js";
 import { MoveScreen } from "./switch.js";
 import { outsideNote } from "../sessions/kin.js";
 import { TakeBack } from "./takeback.js";
-import { usePathMenu } from "./feedmenu.js";
+import { usePieceMenu } from "./feedmenu.js";
 import { Term } from "./term.js";
 import { TermJump } from "../terms/jump.js";
 import { useViewing } from "../../viewing.js";
@@ -284,7 +284,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         return queue && html`<${TakeBack} row=${row} ...${queue} />`;
     };
     const openPath = (path) => setLook({ kind: "file", path });
-    const pathMenu = usePathMenu(openPath);
+    const pieceMenu = usePieceMenu(openPath);
 
     // A row just sent grows the feed the way a new item does, and a feed at
     // its end follows it the same way — or the message stands under the edge
@@ -509,7 +509,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 const hit = event.target.closest && event.target.closest(".path");
                 if (hit) openPath(hit.dataset.path);
             }}
-            onContextMenuCapture=${pathMenu}
+            onContextMenuCapture=${pieceMenu}
             onScroll=${onScroll}
         >
             ${state.kind === "loading" && html`<p class="hint">Reading the conversation…</p>`}

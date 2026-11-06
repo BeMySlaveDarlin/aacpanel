@@ -1,5 +1,5 @@
-// The menus of the feed at a desk: of a message, a letter, a path in the
-// words of a message, a file and a picture. The rows are drawn on the phone
+// The menus of the feed at a desk: of a message, a letter, a path or a link
+// in the words of a message, a file and a picture. The rows are drawn on the phone
 // as well, where nothing asks for a menu and a right click stays the
 // browser's. An item does what the row's own button does, through the same
 // code: a message has what a person does with words — copy them, quote them,
@@ -66,16 +66,33 @@ function PathMenu({ path, onOpen }) {
     ]]} />`;
 }
 
-// usePathMenu is how a feed opens the menu of a path in the words of a
-// message. A path is not a component of its own but a piece of the words, so
-// the feed finds it under the click, and does so on the way down, before the
-// message it stands in: the menu of the message would take the click
-// otherwise. onOpen opens a path as a press on it does.
-export function usePathMenu(onOpen) {
+// LinkMenu opens a link in the words of a message as a press on it does, in
+// a tab of its own, and copies the address it goes to.
+function LinkMenu({ href }) {
+    const toast = useToast();
+    return html`<${MenuList} groups=${[[
+        html`<${MenuItem} key="open" label="Open the link" onPick=${() => window.open(href, "_blank", "noopener,noreferrer")} />`,
+        html`<${MenuItem} key="copy" label="Copy the link" onPick=${() => copyText(href, toast)} />`,
+    ]]} />`;
+}
+
+// usePieceMenu is how a feed opens the menu of a path or a link in the words
+// of a message. Neither is a component of its own but a piece of the words,
+// so the feed finds it under the click, and does so on the way down, before
+// the message it stands in: the menu of the message would take the click
+// otherwise, and copy the whole message for the address under the pointer.
+// onOpen opens a path as a press on it does.
+export function usePieceMenu(onOpen) {
     const menu = useMenu();
     if (!menu) return undefined;
     return (event) => {
-        const hit = event.target instanceof Element ? event.target.closest(".path") : null;
+        if (!(event.target instanceof Element)) return;
+        const link = event.target.closest("a[href]");
+        if (link) {
+            menu(LinkMenu, { href: link.href }, `link ${link.href}`)(event, link);
+            return;
+        }
+        const hit = event.target.closest(".path");
         if (!hit) return;
         const path = hit.dataset.path;
         menu(PathMenu, { path, onOpen: () => onOpen(path) }, `path ${path}`)(event, hit);

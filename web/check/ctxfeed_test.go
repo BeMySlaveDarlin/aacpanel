@@ -49,6 +49,9 @@ type ctxFeed struct {
 	Path             ctxOpened `json:"path"`
 	PathCopied       string    `json:"pathCopied"`
 	PathOpened       string    `json:"pathOpened"`
+	Link             ctxOpened `json:"link"`
+	LinkCopied       string    `json:"linkCopied"`
+	LinkOpened       string    `json:"linkOpened"`
 	Selection        ctxNative `json:"selection"`
 	File             ctxOpened `json:"file"`
 	FileSaved        *ctxSaved `json:"fileSaved"`
@@ -112,7 +115,7 @@ func TestAMessageHasTheMenuOfItsWords(t *testing.T) {
 	if got.Answer.Label != "the answer" || menuOf(got.Answer) != "Copy · Quote in the composer" {
 		t.Errorf("the menu of an answer is %q: %q", got.Answer.Label, menuOf(got.Answer))
 	}
-	const answer = "The fix is in `web/src/x.js`.\nSecond line of the answer.\nThird line."
+	const answer = "The fix is in `web/src/x.js`.\nSecond line of the answer.\nThird line, [the build](https://ci.example.com/build/42)."
 	if got.AnswerCopied != answer {
 		t.Errorf("Copy put %q into the clipboard, expected the answer as markdown %q", got.AnswerCopied, answer)
 	}
@@ -188,7 +191,9 @@ func TestALetterCopiesAsItsHeadDoes(t *testing.T) {
 
 // A path inside the words of an answer takes the click before the answer: its
 // menu opens, not the answer's. It opens the path as a press does and copies
-// it. A selection inside a message leaves the browser's menu.
+// it. A link does the same: it is opened in a tab of its own and its address
+// copied, not the answer. A selection inside a message leaves the browser's
+// menu.
 func TestAPathInsideAMessageTakesTheClickFirst(t *testing.T) {
 	got := ctxFeedPage(t)
 	if got.Path.Label != "path web/src/x.js" {
@@ -199,6 +204,12 @@ func TestAPathInsideAMessageTakesTheClickFirst(t *testing.T) {
 	}
 	if got.PathCopied != "web/src/x.js" || got.PathOpened != "web/src/x.js" {
 		t.Errorf("the path was copied as %q and opened as %q", got.PathCopied, got.PathOpened)
+	}
+	if got.Link.Label != "link https://ci.example.com/build/42" || menuOf(got.Link) != "Open the link · Copy the link" {
+		t.Errorf("a right click on a link in an answer opened %q with %q — the answer took the click its link should have", got.Link.Label, menuOf(got.Link))
+	}
+	if got.LinkCopied != "https://ci.example.com/build/42" || got.LinkOpened != "https://ci.example.com/build/42 _blank noopener,noreferrer" {
+		t.Errorf("the link was copied as %q and opened as %q", got.LinkCopied, got.LinkOpened)
 	}
 	if got.Selection.Prevented || got.Selection.Menu {
 		t.Errorf("a right click over a selection inside a message was taken (%+v): copy is what it is for", got.Selection)

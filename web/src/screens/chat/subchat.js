@@ -8,7 +8,7 @@ import { Sheet } from "../../ui/sheet.js";
 import { rows, runCalls, turnCalls, weld } from "./feed.js";
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { Row } from "./rows.js";
-import { usePathMenu } from "./feedmenu.js";
+import { usePieceMenu } from "./feedmenu.js";
 import { callsOf, FeedGrid } from "./timeline.js";
 import { useWide } from "../../ui/wide.js";
 import { Calls } from "./calls.js";
@@ -54,7 +54,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
 
     useBackClose(true, onBack);
     const openPath = (path) => setLook({ kind: "file", path });
-    const pathMenu = usePathMenu(openPath);
+    const pieceMenu = usePieceMenu(openPath);
 
     if (sub) {
         return html`<${SubChat} session=${session} id=${sub.feedId} agent=${sub} live=${live}
@@ -94,7 +94,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
                 const hit = event.target.closest && event.target.closest(".path");
                 if (hit) openPath(hit.dataset.path);
             }}
-            onContextMenuCapture=${pathMenu}
+            onContextMenuCapture=${pieceMenu}
             onScroll=${onScroll}
         >
             ${state.kind === "loading" && html`<p class="hint">Reading the agent feed…</p>`}

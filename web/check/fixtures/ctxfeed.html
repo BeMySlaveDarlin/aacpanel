@@ -41,7 +41,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 // A picture of one dot: what the tile of a picture fetches.
 const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="), (c) => c.charCodeAt(0));
 
-const answer = "The fix is in `web/src/x.js`.\nSecond line of the answer.\nThird line.";
+const answer = "The fix is in `web/src/x.js`.\nSecond line of the answer.\nThird line, [the build](https://ci.example.com/build/42).";
 const items = [
     { role: "ai", pos: 10, at: at(1), text: answer, files: [{ path: "/srv/proj/notes.txt", name: "notes.txt", size: 12 }] },
     { role: "me", pos: 20, at: at(2), text: "please **check** it" },
@@ -64,6 +64,9 @@ let terms = [
 
 const sent = [];
 const copied = [];
+// The addresses a link of the feed was opened at, in a tab of its own.
+const tabs = [];
+window.open = (url, target, features) => { tabs.push([url, target, features].join(" ")); return null; };
 const saved = [];
 // The paths the file viewer asked the host for, in order.
 const asked = [];
@@ -306,6 +309,15 @@ window.done = (async () => {
     await until(() => document.querySelector('.sheet.on[aria-label="project file"]'));
     press1(document.querySelector(".sheet.on .sheetclose"));
     await until(() => !document.querySelector(".sheet.on"));
+    // A link in the words of the answer: its menu too, not the answer's.
+    const link = ai.querySelector("a[href]");
+    out.link = await open(link);
+    await choose("Copy the link");
+    out.linkCopied = copied.at(-1);
+    await open(link);
+    await choose("Open the link");
+    out.linkOpened = tabs.at(-1);
+
     // A selection inside the message keeps the browser's menu.
     document.getSelection().selectAllChildren(ai.querySelector("p") || ai);
     let ev = rightClick(ai);
