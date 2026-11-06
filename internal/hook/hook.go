@@ -51,12 +51,15 @@ func HeldEvent(name string) string {
 	return ""
 }
 
-// Reply is what a hook answers: nothing, the event held with a reason, or
-// words for the model beside the event.
+// Reply is what a hook answers: nothing, the event held with a reason, a
+// tool call refused, or words for the model beside the event.
 type Reply struct {
 	// Block holds the event: a Stop goes on for a round with the reason as
 	// its prompt, a tool call is refused with it.
 	Block string
+	// Deny refuses a tool call with the reason, said to the model, as the
+	// permission decision of a PreToolUse: the form codex takes as well.
+	Deny string
 	// Context is said to the model as additional context of the event, which
 	// holds nothing.
 	Context string
@@ -86,6 +89,7 @@ var handlers = map[string]handler{
 	"background-reminder": {Event: "Stop", Answer: remindBackground},
 	"checklist-reminder":  {Event: "Stop", Answer: remindChecklist},
 	"context-guard":       {Event: "Stop", Answer: guardContext},
+	"heavy-gate":          {Event: "PreToolUse", Answer: gateHeavy},
 	"prompt-stamp":        {Event: "UserPromptSubmit", Answer: stampPrompt},
 }
 
@@ -152,6 +156,9 @@ func answer(out io.Writer, event string, r Reply) error {
 	switch {
 	case r.Block != "":
 		v = map[string]any{"decision": "block", "reason": r.Block}
+	case r.Deny != "":
+		v = map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": event,
+			"permissionDecision": "deny", "permissionDecisionReason": r.Deny}}
 	case r.Context != "":
 		v = map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": event, "additionalContext": r.Context}}
 	default:

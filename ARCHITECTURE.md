@@ -348,6 +348,29 @@ The report names the server used, and neither path starts or stops the shared
 daemon. Recomputing the
 installer's hash alone would miss a change to codex's trust formula.
 
+**The heavy gate.** On a machine of many sessions their tests at once take
+more memory than it has, and the ceilings of memory kill a run without putting
+runs in order; the host's queue, `aacpanel-exec -heavy`, does. The kit's part
+Heavy-run queue puts `aacpanel-exec hook heavy-gate` on `PreToolUse` of `Bash`.
+It reads the line the way the shell splits it — quotes, comments,
+here-documents and substitutions honoured, each simple command at its command
+word past assignments and the commands that only run the next one (`env`,
+`nice`, `ionice`, `timeout`, `flock`, `time`, `taskset`, `npx`, `php`), one
+level into `bash -c`, into the command of `docker exec` and `docker compose
+run|exec` — and refuses a line that runs a test runner or a build of its table
+outside the queue; a simple command already under `aacpanel-exec -heavy` is let
+through. The reason gives the whole line back as `<executor> -heavy -- bash -c
+'<line>'`, the executor being the binary that answered the hook, and asks for
+`run_in_background` for a run that may wait. A refusal and not a rewrite of
+the input: `updatedInput` comes with an allow, which would pass the question
+of permission by, while a refusal reads the same to every version of claude.
+codex calls the hook before a command of its shell with the same payload —
+`tool_name` `Bash`, the command a string, `turn_id` besides — and takes the
+same `permissionDecision: deny`, so the part goes into codex homes as well.
+What the gate does not see — a heavy command inside a script of its own such as
+`./run.sh`, a build under `npm run build`, a run nested deeper than one shell —
+goes past the queue on purpose and is held by the ceilings of memory alone.
+
 **The question socket.** The claude hook reports a session's question through
 `ask.sock`, and that one lives in the collector's separate runtime directory,
 not in the state directory: the latter is mounted into the service, and "a

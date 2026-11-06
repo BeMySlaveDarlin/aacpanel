@@ -293,6 +293,31 @@ func TestCodexStopRemindersFollowTheKitAndKeepTheirTrust(t *testing.T) {
 	}
 }
 
+// codex calls PreToolUse before a command of its shell with tool_name Bash and
+// takes a refusal from it, so the heavy gate goes into its home as into
+// claude's settings: a group of its own on Bash beside the relay, the
+// executor's command with no home before it — the gate reads no state —
+// trusted where it stands, and out with its trust once unchecked.
+func TestCodexGetsTheHeavyGateOnBash(t *testing.T) {
+	w := Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "heavy"}}
+	hooks, config, _ := wireCodex(t, "", "", w)
+	want := []string{executor + " hook ask-hook", executor + " hook heavy-gate"}
+	if got := commandsOf(t, hooks, "PreToolUse"); !slices.Equal(got, want) {
+		t.Fatalf("PreToolUse commands %q, want %q", got, want)
+	}
+	if !strings.Contains(hooks, `"matcher": "Bash"`) || timeoutOf(t, hooks, "PreToolUse", want[1]) != "5" {
+		t.Fatalf("the gate is not on Bash with its timeout:\n%s", hooks)
+	}
+	if trustOf(config, "pre_tool_use:1:0") != hashAt(t, hooks, "pre_tool_use:1:0") {
+		t.Fatalf("the gate is not trusted:\n%s", config)
+	}
+	w.Kit = []string{"relay"}
+	hooks, config, _ = wireCodex(t, hooks, config, w)
+	if got := commandsOf(t, hooks, "PreToolUse"); !slices.Equal(got, want[:1]) || trustOf(config, "pre_tool_use:1:0") != "" {
+		t.Fatalf("the unchecked gate or its trust stayed:\n%s\n%s", hooks, config)
+	}
+}
+
 // A home with neither file gets both: the hooks and the trust of each.
 func TestAFreshHomeGetsTheHooksAndTheirTrust(t *testing.T) {
 	w := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "stamp")}

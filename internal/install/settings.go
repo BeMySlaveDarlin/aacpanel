@@ -243,6 +243,7 @@ var kitHooks = []kitHook{
 	{Part: "nudge", Event: "Stop", Hook: "checklist-reminder", Script: "deploy/claude/checklist-reminder.py", Timeout: 5, Codex: true},
 	{Part: "stamp", Event: "UserPromptSubmit", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
 	{Part: "background", Event: "Stop", Hook: "background-reminder", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true, Codex: true},
+	{Part: "heavy", Event: "PreToolUse", Matcher: "Bash", Hook: "heavy-gate", Timeout: 5, Codex: true},
 }
 
 // retiredHooks are the hooks the kit must not wire. No part of the kit puts
@@ -258,9 +259,10 @@ var retiredHooks = []kitHook{
 }
 
 // owns tells whether the command of an entry is the hook's: it runs the
-// executor's hook of the name, or the script, in any of their forms.
+// executor's hook of the name, or the script, in any of their forms. A hook
+// born in the executor has no script to be told by.
 func (h kitHook) owns(command string) bool {
-	return runs(command, h.Script) || (h.Hook != "" && runsHook(command, h.Hook))
+	return (h.Script != "" && runs(command, h.Script)) || (h.Hook != "" && runsHook(command, h.Hook))
 }
 
 // askHook is the hook of the question relay: the one hook every account
@@ -301,6 +303,19 @@ func AllowRules(has func(part string) bool) int {
 	}
 	if has("restart") {
 		n++
+	}
+	return n
+}
+
+// Hooks is how many hooks the kit wires into claude for an account with the
+// parts has says are checked: the question relay and every hook part. The
+// plan and the demo count by it.
+func Hooks(has func(part string) bool) int {
+	n := 1
+	for _, p := range hookParts {
+		if has(p) {
+			n++
+		}
 	}
 	return n
 }

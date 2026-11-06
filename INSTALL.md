@@ -206,6 +206,7 @@ the quiet group is checked for you, the rest waits to be asked for:
    [✔] Prompt stamp       time, context, limits, load; the role after a restart
    On request
    [ ] Background work    reminds a session of work left running over an hour
+   [ ] Heavy-run queue    tests and builds of sessions wait their turn
    [ ] Docker cleanup     weekly prune of unused images — of the whole machine
    Ways in besides this machine
    [ ] Tailscale          your phone from anywhere, through your tailnet
@@ -786,6 +787,7 @@ A no stops the run with the command that installs it by hand.
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | yes | the `UserPromptSubmit` hook, `aacpanel-exec hook prompt-stamp`, and the marks of the role it told `<state>/role-*.state`, swept on each prompt once untouched for seven days. After a restart, a resume or a reopen the session's role reaches the model only through the stamp: claude keeps the word of the server a conversation started with |
 | Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
+| Heavy-run queue | no | the `PreToolUse` hook on `Bash`, `aacpanel-exec hook heavy-gate`: a test or a build run outside the host's queue is refused, with the same line through `aacpanel-exec -heavy` to run instead; in every codex home as well (S12a) |
 | Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
 | Test database | no | S10a |
@@ -1418,6 +1420,7 @@ the matcher where there is one. Every hook the kit writes runs
 | Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 5 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
+| Heavy-run queue | `PreToolUse` | `Bash` | `<home>/bin/aacpanel-exec hook heavy-gate` | 5 |
 
 On the stream the holder serves the prompt stamp, checklist nudge and
 background reminder through callbacks; their settings entries stay for tmux
@@ -1545,6 +1548,7 @@ out, the rest of the file as it was:
 |---|---|---|---|---|
 | Question relay | `PreToolUse` | `AskUserQuestion` | `<home>/bin/aacpanel-exec hook ask-hook` | 5 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
+| Heavy-run queue | `PreToolUse` | `Bash` | `<home>/bin/aacpanel-exec hook heavy-gate` | 5 |
 
 **The trust.** codex runs a hook of the person's own only once it is trusted,
 and passes over a hook new or changed since without a word. The trust lives in

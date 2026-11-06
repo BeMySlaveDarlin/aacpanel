@@ -205,6 +205,14 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 			"python3 /opt/elsewhere/deploy/claude/checklist-reminder.py":                                       true,
 			"/home/u/bin/aacpanel-exec hook background-reminder":                                               false,
 		},
+		// The gate was born in the executor: no script tells it, and a word
+		// of the person's that ends in a slash is not an empty script's.
+		"heavy": {
+			"/home/u/bin/aacpanel-exec hook heavy-gate": true,
+			"aacpanel-exec hook heavy-gate":             true,
+			"cd /srv/repo/ && ./guard.sh":               false,
+			"/home/u/bin/aacpanel-exec hook ask-hook":   false,
+		},
 		"stamp": {
 			"AACP_STATE_DIR=/x /opt/other/aacpanel-exec hook prompt-stamp PostToolBatch":                         true,
 			"test -f /a/deploy/claude/prompt-stamp.py && python3 /a/deploy/claude/prompt-stamp.py PostToolBatch": true,

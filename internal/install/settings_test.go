@@ -435,6 +435,31 @@ func TestAStateDirectoryOfItsOwnIsNamedToTheHooksThatReadIt(t *testing.T) {
 	}
 }
 
+// The heavy gate stands on PreToolUse under Bash, in a group of its own: a
+// Bash hook of the person's is neither taken for it nor joined, and stays
+// when the gate comes off.
+func TestTheHeavyGateIsWiredOnBash(t *testing.T) {
+	raw := `{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "cd /srv/repo/ && ./guard.sh"}]}]}}`
+	w := Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "heavy"}}
+	out, changed := wire(t, raw, w)
+	gate := executor + " hook heavy-gate"
+	if got := commandsOf(t, out, "PreToolUse"); !changed || !slices.Equal(got, []string{"cd /srv/repo/ && ./guard.sh", executor + " hook ask-hook", gate}) {
+		t.Fatalf("PreToolUse commands %q:\n%s", got, out)
+	}
+	if groupsOf(t, out, "PreToolUse") != 3 || timeoutOf(t, out, "PreToolUse", gate) != "5" ||
+		!strings.Contains(out, "\"matcher\": \"Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \""+gate+"\"") {
+		t.Errorf("the gate is not a group of its own on Bash:\n%s", out)
+	}
+	if again, changed := wire(t, out, w); changed || again != out {
+		t.Errorf("a second wiring changed the file:\n%s", again)
+	}
+	w.Kit = []string{"relay"}
+	off, _ := wire(t, out, w)
+	if got := commandsOf(t, off, "PreToolUse"); !slices.Equal(got, []string{"cd /srv/repo/ && ./guard.sh", executor + " hook ask-hook"}) {
+		t.Errorf("with the gate unchecked PreToolUse holds %q", got)
+	}
+}
+
 // TestThePlanCountsEveryHookPart: the parts the plan counts as hooks are the
 // parts with a hook in the wiring, the question relay aside; a part wired but
 // not counted would put in a hook the plan never mentioned.

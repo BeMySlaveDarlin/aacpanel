@@ -26,16 +26,10 @@ func welcome(t ui.Theme, mc machine, width int) string {
 	}}, width)
 }
 
-// hooks is how many hooks the kit wires into claude: the question relay and
-// every hook part that is checked.
+// hooks is how many hooks the kit wires into claude, counted as the real
+// install counts them: the question relay and every hook part that is checked.
 func (a answers) hooks() int {
-	n := 1
-	for _, part := range []string{"copies", "nudge", "stamp", "background"} {
-		if a.has(part) {
-			n++
-		}
-	}
-	return n
+	return install.Hooks(a.has)
 }
 
 // allows is how many allow rules go into permissions, counted as the real

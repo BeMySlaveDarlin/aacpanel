@@ -24,6 +24,8 @@
    On request
    [ ] Background work    reminds a session of work left
                           running over an hour
+   [ ] Heavy-run queue    tests and builds of sessions wait
+                          their turn
    [ ] Docker cleanup     weekly prune of unused images — of
                           the whole machine
    Ways in besides this machine

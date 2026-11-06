@@ -92,6 +92,7 @@ var Kit = []Part{
 	{"restart", "Self-restart", "a session may restart itself without asking you", GroupQuiet, "mcp__aacpanel__session_restart"},
 	{"stamp", "Prompt stamp", "time, context, limits, load; the role after a restart", GroupQuiet, "deploy/claude/prompt-stamp.py"},
 	{"background", "Background work", "reminds a session of work left running over an hour", GroupAsk, "deploy/claude/background-reminder.py"},
+	{"heavy", "Heavy-run queue", "tests and builds of sessions wait their turn", GroupAsk, ""},
 	{"gc", "Docker cleanup", "weekly prune of unused images — of the whole machine", GroupAsk, ""},
 	{"tailscale", "Tailscale", "your phone from anywhere, through your tailnet", GroupLegs, ""},
 	{"lan", "Home network, TLS", "straight at home, with a TLS certificate", GroupLegs, ""},
@@ -104,7 +105,7 @@ var Kit = []Part{
 var Legs = []string{"tailscale", "lan", "domain"}
 
 // hookParts are the parts that wire a hook into claude, besides the relay.
-var hookParts = []string{"copies", "nudge", "stamp", "background"}
+var hookParts = []string{"copies", "nudge", "stamp", "background", "heavy"}
 
 const (
 	typeOwn  = "Type something."
