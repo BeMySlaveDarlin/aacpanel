@@ -90,11 +90,11 @@ const WHEEL_DONE = 250;
 // How long a system takes to come forward.
 const GLIDE = 450;
 
-// The scale of the type against the root size of the interface: the names a
-// step under the body text, read from across the desk without leaning in, the
-// names of the stars in the same size and heavier. The marks are drawn for a
+// The scale of the type against the root size of the interface: the names
+// well under the body text, so that a system of many sessions stays in sight
+// between them, the names of the stars in the same size and heavier. The marks are drawn for a
 // root of UNIT_PX — the size the interface opens on — and grow with it.
-const TAG_REM = 0.86;
+const TAG_REM = 0.66;
 const UNIT_PX = 18;
 
 const REDUCE = "(prefers-reduced-motion: reduce)";

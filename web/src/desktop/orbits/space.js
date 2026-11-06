@@ -503,10 +503,11 @@ export function lensFor(slots, W, H, pad) {
     };
 }
 
-// ZOOM bounds the scale the wheel sets: out to where the whole scene is a
-// little smaller than its box, in to where a cluster of moons reads mark by
-// mark. Past either the scene is a speck or a single mark.
-export const ZOOM = [0.6, 4];
+// ZOOM bounds the scale the wheel sets: out to where the whole scene is well
+// inside its box, in far enough that a crowded system of a dozen moons and
+// their names comes apart mark by mark — the marks and the names keep their
+// size as the picture grows, so going in is how a crowd is read.
+export const ZOOM = [0.4, 12];
 
 // zoomAt is the zoom and the pan that scale the picture by `by` round the
 // point m of the canvas, so what stood under m stays under it, the zoom held

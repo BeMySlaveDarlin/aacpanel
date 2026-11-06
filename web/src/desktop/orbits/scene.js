@@ -18,8 +18,8 @@ const NEAR = 62;
 // Sizes in units of the scene: a unit is a pixel at the scale the interface
 // opens on, and grows with it as the type does. The orbits stay hairlines at
 // any scale.
-const NODE_R = 9.5;
-const MOON_R = 5;
+const NODE_R = 14;
+const MOON_R = 7.5;
 const BUSY_GLOW = 13;
 const WAIT_RING = 12;
 const BEADS = 9;
@@ -762,11 +762,21 @@ function markOf(s, R) {
     return clamp(Math.round(((k * s.R) / R) * 20) / 20, BEHIND, 1);
 }
 
+// NOTE_MAX is how much of what a session asks stands under its name: the
+// start of it, cut, so the words of one session do not run across the
+// system; the whole of it is in the conversation.
+const NOTE_MAX = 48;
+
 // linesOf is what the frame says beside a node: its label, and under it what
 // the session asks the person while it waits.
 function linesOf(n, pal, type) {
     const colour = n.tone === "wait" ? pal.wait : n.tone === "limit" ? pal.limit : n.tone === "busy" ? pal.busy : rgba(pal.ink, 0.62);
     const lines = [{ t: n.label, f: type.tag, c: colour }];
-    if (n.tone === "wait") lines.push({ t: n.note, f: type.tag, c: rgba(pal.wait, 0.9) });
+    if (n.tone === "wait") lines.push({ t: noteOf(n.note), f: type.tag, c: rgba(pal.wait, 0.9) });
     return lines;
+}
+
+function noteOf(note) {
+    const chars = [...String(note || "")];
+    return chars.length > NOTE_MAX ? `${chars.slice(0, NOTE_MAX - 1).join("").trimEnd()}…` : chars.join("");
 }
