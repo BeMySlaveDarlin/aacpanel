@@ -548,6 +548,14 @@ span.pjname { cursor: default; }
 .scglyph[data-unseen] { color: var(--ok); }
 .scglyph .spin { width: var(--i-sm); height: var(--i-sm); }
 
+/* On a phone the words of a card read a fifth smaller than the rest of the
+   panel: the cards are the densest screen, and at the panel's size a name and
+   its state took the width. The buttons of a card keep their size. */
+@media (max-width: 1099.98px) {
+    .sc { --t-k: .8; }
+    .sc :is(button, a) { --t-k: 1; }
+}
+
 /* Line one: the name, the part a heading over it says already dropped and
    the project a lone card stands for as a quiet prefix; the controls at the
    right, always there. The name wraps rather than gives up its tail: the
