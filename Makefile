@@ -106,9 +106,11 @@ test-go:
 	@$(testhome) \
 	go test -count=1 -p $(GOTEST_PACKAGES) $(GOTEST_FLAGS) $(SLOW_PACKAGES) $$(go list ./... | grep -v '/web/check$$')
 
+# GOTEST_RUN, from the environment, narrows test-web to the tests it matches:
+# a CI that splits the fixtures between runners names each runner's share.
 test-web:
 	@$(testhome) \
-	go test -count=1 -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) ./web/check/
+	go test -count=1 -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) $${GOTEST_RUN:+-run "$$GOTEST_RUN"} ./web/check/
 
 # The agent is deployed from the working tree, so a restart is a release: a name
 # undefined at module level keeps the service from starting at all, and tests do
