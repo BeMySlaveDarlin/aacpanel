@@ -5,7 +5,7 @@
 // and what it is watched with, what the composer reads in the words, the band
 // under the field, the sheets of its settings, and the sections of its tools.
 
-import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { list as requestList } from "../../data/requests.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
@@ -26,7 +26,8 @@ import { FindBar, useFeedFind } from "./find.js";
 import { agentFeedId, SubChat } from "./subchat.js";
 import { RepoView } from "../repo/view.js";
 import { onShelf, sealed, signal } from "../repo/notes.js";
-import { FeedWrites, Row } from "./rows.js";
+import { FeedRow, FeedWrites } from "./rows.js";
+import { useSteady } from "../../ui/pure.js";
 import { callsOf, FeedGrid } from "./timeline.js";
 import { CommandSheet } from "./command.js";
 import { blockCommand, canRunShell, sendShell, ShellBar, shellNow, ShellSheet } from "./shell.js";
@@ -333,6 +334,38 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         setSub({ ...agent, feedId });
     };
 
+    // What the rows of the feed are handed, and what the feed lends them,
+    // keeps one identity across renders, each hand running what the latest
+    // render made of it: a handler made anew by every render would draw every
+    // row again (see FeedRow). The two made further down are reached by late.
+    const late = useRef({});
+    const onPage = useCallback((card) => setLook({ kind: "artifact", card }), []);
+    const onFile = useCallback((file) => setLook({ kind: "file", ...file }), []);
+    const onCommand = useCallback((row) => setLook({ kind: "command", item: row }), []);
+    const onShell = useCallback((row) => setLook({ kind: "shell", item: row }), []);
+    const onAgent = useSteady(openAgent);
+    const onTask = useSteady((task) => (task.agent
+        ? openAgent({ id: task.id, name: task.name, kind: "background" })
+        : setLook({ kind: "task", id: task.id, text: task.name })));
+    const steadyAnswerRequest = useSteady(answerRequest);
+    const steadyAnswerQuestion = useSteady((value, note) => late.current.answerQuestion(value, note));
+    const steadyQuote = useSteady(takeQuote);
+    const steadyEdit = useSteady(putBack);
+    const steadyQueueOf = useSteady(queueOf);
+    const steadyRun = useSteady((text, lang) => late.current.onRun(text, lang));
+    const ctx = { wide, view, feedShown, feedRef, work: state.work, setLook, setInsert };
+    const composer = parts.composer(ctx);
+    // The feed lends these to its rows alone: a file or a brief opened beside
+    // it cannot acquire the session's command buttons. What a row asks of
+    // queueOf turns on whether the session takes messages back, so that is
+    // what the lent things are made again on, with what decides their set.
+    const writable = Boolean(live && !live.outside);
+    const runs = writable && canRunShell(exec, live.transport === "stream", composer.shell);
+    const takes = Boolean(live && parts.takesBack);
+    const lent = useMemo(() => (writable
+        ? { quote: steadyQuote, edit: steadyEdit, queueOf: steadyQueueOf, exec, onRun: runs ? steadyRun : null }
+        : { queueOf: steadyQueueOf, exec }), [writable, runs, takes, exec]);
+
     if (sub) {
         const fresh = ((state.work && state.work.agents) || []).find((a) => a.id === sub.id);
         return html`<${SubChat} session=${name} id=${sub.feedId} agent=${fresh ? { ...sub, ...fresh } : sub}
@@ -381,9 +414,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // desk a block at the top of the timeline column, where the room is.
     const checklist = (state.work && state.work.checklist) || null;
 
-    const ctx = { wide, view, feedShown, feedRef, work: state.work, setLook, setInsert };
     const own = look ? parts.look(look, ctx) : null;
-    const composer = parts.composer(ctx);
     const onLocal = (row) => setLocal((was) => [...was, { ...row, after: lastPos(state.items) }]);
     const onLocalDone = (key, patch) => setLocal((was) => was.map((l) => (l.key === key ? { ...l, ...patch } : l)));
     // A message the session took answers what it asked in text: the mark goes
@@ -402,12 +433,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         const result = await deliver(run, name, { text, messageId });
         onSent(key, outcome(result));
     };
-    const onRun = live && !live.outside && canRunShell(exec, live.transport === "stream", composer.shell)
-        ? (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
-                                               onLocal, onLocalDone, confirm: true }) : null;
-    // The feed lends these to its rows alone: a file or a brief opened beside
-    // it cannot acquire the session's command buttons.
-    const lent = live && !live.outside ? { quote: takeQuote, edit: putBack, queueOf, exec, onRun } : { queueOf, exec };
+    late.current = {
+        answerQuestion,
+        onRun: (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
+                                                     onLocal, onLocalDone, confirm: true }),
+    };
 
     // What stands in the place of the composer: a question of the agent, and
     // a permission it waits on. A question codex asked without waiting holds
@@ -420,8 +450,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const goesOn = Boolean(ask && ask.async);
     const asksTurn = Boolean(ask && !closed(state.items, ask.toolUseId) && !hidesAsk(answer, ask.toolUseId)
         && !(goesOn && (permits || pending.some((row) => row.asked === ask.toolUseId))));
-    const onRequestAnswer = live && !live.outside && !asksTurn && !permits && knows(exec, "session.send") ? answerRequest : null;
-    const onQuestionAnswer = onRequestAnswer && !isCodex(live) ? answerQuestion : null;
+    const onRequestAnswer = live && !live.outside && !asksTurn && !permits && knows(exec, "session.send") ? steadyAnswerRequest : null;
+    const onQuestionAnswer = onRequestAnswer && !isCodex(live) ? steadyAnswerQuestion : null;
     const requestUnavailable = asksTurn || permits ? REQUEST_HELD : "This session cannot receive an answer.";
     // An answer to it goes as a message of the person, and stands as one on
     // its way: the card of the round answered (see panelsaid.js).
@@ -536,15 +566,15 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         && !(live.transport === "stream" && live.compacting))}
                     checklist=${checklist}
                     onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
-                    row=${(item, n) => html`<${Row}
+                    row=${(item, n) => html`<${FeedRow}
                         key=${`${item.pos}-${n}`}
                         item=${item}
                         question=${item.role === "ai" && waitingItems.find((q) => q.kind === "question" && q.pos === item.pos && (q.nth || 0) === (item.nth || 0))}
                         session=${name}
                         id=${id}
                         copies=${copies}
-                        onPage=${(card) => setLook({ kind: "artifact", card })}
-                        onFile=${(file) => setLook({ kind: "file", ...file })}
+                        onPage=${onPage}
+                        onFile=${onFile}
                         onBrief=${openBrief}
                         briefs=${briefs}
                         requests=${requests}
@@ -554,15 +584,13 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         requestUnavailable=${requestUnavailable}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}
-                        onCommand=${(row) => setLook({ kind: "command", item: row })}
-                        onShell=${(row) => setLook({ kind: "shell", item: row })}
-                        onTask=${(task) => (task.agent
-                            ? openAgent({ id: task.id, name: task.name, kind: "background" })
-                            : setLook({ kind: "task", id: task.id, text: task.name }))}
-                        onAgent=${openAgent}
+                        onCommand=${onCommand}
+                        onShell=${onShell}
+                        onTask=${onTask}
+                        onAgent=${onAgent}
                     />${queueTools(item)}`}
                     tail=${away ? [] : waiting.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
-                        <${Row} item=${row} />
+                        <${FeedRow} item=${row} />
                         ${queueTools(row)}
                     ` }))}
                 />
@@ -676,7 +704,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 : look.kind === "request"
                 ? html`<div onClick=${(event) => codecopy.fromClick(event, toast)}>
                     <${RequestCard} key=${look.id} item=${look.item} record=${requests[look.id]} error=${requestError}
-                                    onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${onRun} />
+                                    onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${lent.onRun} />
                 </div>`
                 : look.kind === "secret"
                 ? (live ? html`<${SecretPad} key=${look.item.use || look.item.name} item=${look.item} session=${name}

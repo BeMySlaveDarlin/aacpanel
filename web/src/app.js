@@ -69,6 +69,11 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
     const [hostHistory, setHostHistory] = useState([]);
     const [ageSec, setAgeSec] = useState(null);
     const [conn, setConn] = useState({ kind: "loading" });
+    // When the screens last had the tree: the time a link that drops says its
+    // data is from. A live link keeps it here rather than in conn: conn is
+    // handed to the header and the sheet of the route, and a new one on every
+    // frame of the stream is a change for both with nothing in it changed.
+    const lastTree = useRef(null);
     const faults = useFaults();
 
     const routed = useRef(false);
@@ -103,6 +108,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
         if (treeResult.status === "fulfilled") {
             setTree(treeResult.value.tree);
             setTreeError(null);
+            lastTree.current = treeResult.value.at;
             setConn({ kind: treeResult.value.stale ? "stale" : "live", at: treeResult.value.at });
             if (!routed.current) {
                 routed.current = true;
@@ -115,7 +121,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
                 return;
             }
             setTreeError(err ? err.message : "the tree is unavailable");
-            setConn((prev) => ({ ...prev, kind: "offline" }));
+            setConn((prev) => ({ ...prev, kind: "offline", at: lastTree.current || prev.at }));
             if (!routed.current && err && !err.status) {
                 routed.current = true;
                 repick().then((changed) => changed && refresh());
@@ -184,9 +190,10 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
     }, [refresh]);
 
     const onTree = useCallback((fresh) => {
+        lastTree.current = new Date();
         setTree(fresh);
         setTreeError(null);
-        setConn({ kind: "live", at: new Date() });
+        setConn((prev) => (prev.kind === "live" ? prev : { kind: "live", at: lastTree.current }));
     }, []);
     useTreeStream(onTree);
 

@@ -1,16 +1,17 @@
 // The feed of a subagent, a teammate or a background agent — as a conversation.
 
-import { useState } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
 import { rows, runCalls, turnCalls, weld } from "./feed.js";
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
-import { Row } from "./rows.js";
+import { FeedRow } from "./rows.js";
 import { usePieceMenu } from "./feedmenu.js";
 import { callsOf, FeedGrid } from "./timeline.js";
 import { useWide } from "../../ui/wide.js";
+import { useSteady } from "../../ui/pure.js";
 import { Calls } from "./calls.js";
 import { Look, LOOK_NAMES, pageLook, WORK_LISTS } from "./look.js";
 import { Marquee } from "./head.js";
@@ -55,15 +56,18 @@ export function SubChat({ session, id, agent, live, onBack }) {
     useBackClose(true, onBack);
     const openPath = (path) => setLook({ kind: "file", path });
     const pieceMenu = usePieceMenu(openPath);
+    // What the rows are handed keeps one identity across renders: a handler
+    // made anew would draw every row again (see FeedRow).
+    const openFile = useCallback((file) => setLook({ kind: "file", ...file }), []);
+    const openAgent = useSteady((next) => {
+        const feedId = agentFeedId(session, next);
+        if (feedId) setSub({ ...next, feedId });
+    });
 
     if (sub) {
         return html`<${SubChat} session=${session} id=${sub.feedId} agent=${sub} live=${live}
                                 onBack=${() => setSub(null)} />`;
     }
-    const openAgent = (next) => {
-        const feedId = agentFeedId(session, next);
-        if (feedId) setSub({ ...next, feedId });
-    };
 
     const feed = weld(state.items);
     const kind = KIND_NAMES[agent.kind] || "agent";
@@ -113,12 +117,12 @@ export function SubChat({ session, id, agent, live, onBack }) {
                 rows=${rows(feed)}
                 wide=${wide}
                 onOpen=${(g, badge) => setCalls(callsOf(g, feed, runCalls, turnCalls, badge))}
-                row=${(item, n) => html`<${Row}
+                row=${(item, n) => html`<${FeedRow}
                     key=${`${item.pos}-${n}`}
                     item=${item}
                     session=${session}
                     id=${id}
-                    onFile=${(file) => setLook({ kind: "file", ...file })}
+                    onFile=${openFile}
                     onAgent=${openAgent}
                 />`}
             />

@@ -7,10 +7,14 @@
 <script type="module">
 // The chat screen the panel ships, over a fake host: the feed comes from a
 // canned answer, the stream is a stub the page feeds by hand, and a send is
-// answered after a moment.
-import { h, render } from "preact";
+// answered after a moment. Preact is watched as it draws: a row of the feed
+// and the feed itself are counted.
+import { h, options, render } from "preact";
+import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
 import { SubChat } from "/src/screens/chat/subchat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -48,9 +52,24 @@ const arrive = (text) => {
     stream.emit("chat", { items: [{ role: "me", pos, text, at: new Date().toISOString() }], total: items.length + 1 });
 };
 
+const draws = { row: 0, feed: 0 };
+const drawing = options.__r;
+options.__r = (vnode) => {
+    if (vnode.type === Row) draws.row += 1;
+    if (vnode.type === FeedGrid) draws.feed += 1;
+    if (drawing) drawing(vnode);
+};
+
 const exec = { available: true };
 const live = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, tokensIn: 124000, tokensOut: 8000, lastRequestAt: new Date(Date.now() - 120000).toISOString() };
-function Page() { return html`<${Chat} name="acme" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`; }
+// snap is a snapshot of the host as the application takes one: the session
+// comes as a new object saying the same.
+let snap = null;
+function Page() {
+    const [now, setNow] = useState(live);
+    snap = () => setNow((was) => ({ ...was }));
+    return html`<${Chat} name="acme" id="s1" live=${now} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
+}
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -78,13 +97,29 @@ window.done = (async () => {
     const before = state();
     const text = "hello there, run the checks again";
     const area = document.querySelector(".composer textarea");
+
+    // A snapshot of the host and a new state of the work draw the screen again
+    // with nothing in the feed changed: the feed is drawn, no row of it is, and
+    // the field of the composer is not fitted to its words again.
+    const fits = [];
+    new MutationObserver((list) => fits.push(...list)).observe(area, { attributes: true, attributeFilter: ["style"] });
+    const was = { ...draws };
+    snap();
+    await quiet();
+    stream.emit("state", null);
+    await quiet();
+    const still = { feed: draws.feed - was.feed, rows: draws.row - was.row, fitted: fits.length };
+
     area.value = text;
     area.dispatchEvent(new Event("input", { bubbles: true }));
     await until(() => !document.querySelector(".composer .iconbtn.accent").disabled);
     const button = document.querySelector(".composer .iconbtn.accent");
     const debug = { areaDisabled: area.disabled, areaValue: area.value, button: Boolean(button), buttonDisabled: button && button.disabled, title: button && button.title };
+    // The send clears the field, and the field is fitted to its empty words.
+    fits.length = 0;
     button.click();
     await quiet();
+    const cleared = { value: area.value, fitted: fits.length };
     const queued = state();
     debug.sent = sent;
     const frames = [];
@@ -96,6 +131,17 @@ window.done = (async () => {
     await quiet();
     recording = false;
     const settled = state();
+
+    // The stream brings an answer again with more written in it: its row is
+    // drawn with what came, and it is the one row drawn.
+    const answer = items[items.length - 1];
+    const more = "And the deploy went out.";
+    const said = () => (document.querySelector(`.chatfeed .feedrow[data-pos="${answer.pos}"] .msg`) || {}).textContent || "";
+    const drew = draws.row;
+    stream.emit("chat", { items: [{ ...answer, text: `${answer.text} ${more}` }], total: items.length + 1 });
+    await until(() => said().includes(more));
+    await quiet();
+    const rewritten = { said: said().trim(), rows: draws.row - drew };
     const copyButton = Array.from(document.querySelectorAll(".chatfeed .msg.me .msgcopy")).at(-1);
     if (copyButton) {
         copyButton.click();
@@ -169,6 +215,6 @@ window.done = (async () => {
     await until(() => document.querySelectorAll(".feedrow").length === items.length);
     await quiet();
     const subGrown = await growth();
-    return { before, queued, frames, settled, debug, quote, copy, grown, subGrown };
+    return { before, still, cleared, queued, frames, settled, rewritten, debug, quote, copy, grown, subGrown };
 })();
 </script>

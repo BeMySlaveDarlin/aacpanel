@@ -26,6 +26,7 @@ import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
 import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
+import { pure } from "../../ui/pure.js";
 
 // FeedWrites is what the screen of a feed lends its messages for their
 // menus: quote(text) and edit(text) put words into the composer, where
@@ -209,6 +210,11 @@ export function Row({ item, question, onQuestionAnswer, session, id, onFile, onB
         ${mine && (wait || item.at) && html`<div class="mstamp">${wait || stampText(item.at)}</div>`}
     `;
 }
+
+// FeedRow is Row as a feed draws it: again only when what it is handed
+// changes. The screen of a feed renders whenever the host reports, and a long
+// conversation is hundreds of rows.
+export const FeedRow = pure(Row);
 
 // messageMenu is the handler that opens the menu of a bubble, md being the
 // message as markdown: copied whole and, where a composer stands under the

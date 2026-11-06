@@ -1,5 +1,10 @@
 /* Confirmation gate: scrim, sheet, its gesture, buttons and toast. */
 
+/* A closed scrim, sheet or toast stays in the page, and a transparent one is
+   still drawn: its frosted glass is blurred again on every frame anything
+   under it moves, a pulse or a chart. Closed, each is hidden, once its fade
+   is over, so the glass stays while the fade shows it; open, it is drawn at
+   once, so what opens in it can take the focus in the same moment. */
 .scrim {
     position: fixed;
     inset: 0;
@@ -8,11 +13,12 @@
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
-    transition: opacity .2s ease;
+    transition: opacity .2s ease, visibility 0s linear .2s;
 }
 
-.scrim.on { opacity: 1; pointer-events: auto; }
+.scrim.on { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
 
 .sheetclose {
     position: absolute;
@@ -49,7 +55,8 @@
     box-shadow: var(--gloss);
     padding: .6rem .9rem calc(1.4rem + env(safe-area-inset-bottom));
     transform: translateY(100%);
-    transition: transform .28s cubic-bezier(.22, 1, .36, 1);
+    visibility: hidden;
+    transition: transform .28s cubic-bezier(.22, 1, .36, 1), visibility 0s linear .28s;
     display: flex;
     flex-direction: column;
     max-height: 88dvh;
@@ -143,7 +150,7 @@
 
 .sheethead h2 { margin: 0; font-size: var(--t-lg); font-weight: 800; letter-spacing: -.01em; }
 
-.sheet.on { transform: translateY(0); }
+.sheet.on { transform: translateY(0); visibility: visible; transition-delay: 0s; }
 
 .grip {
     width: 36px;
@@ -250,12 +257,13 @@
     padding: .6rem .85rem;
     font-size: var(--t-sm);
     opacity: 0;
+    visibility: hidden;
     transform: translateY(-8px);
     pointer-events: none;
-    transition: opacity .2s ease, transform .2s ease;
+    transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s;
 }
 
-.toast.on { opacity: 1; transform: translateY(0); }
+.toast.on { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
 .toast.bad { border-color: rgba(255, 111, 92, .45); }
 .tsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
 /* The one way back the note offers: the toast lets touches through to the
@@ -284,8 +292,11 @@
         border-radius: var(--r-card);
         box-shadow: var(--drop);
         transform: none;
-        transition: opacity .16s ease, transform .16s ease;
+        transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
     }
+
+    .sheet.win.on,
+    .shell.no-nav .sheet.win.inner.on { transition-delay: 0s; }
 
     .sheet.win:not(.on) {
         opacity: 0;

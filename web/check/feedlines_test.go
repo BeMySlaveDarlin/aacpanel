@@ -8,6 +8,10 @@ import (
 )
 
 type feedLinesShot struct {
+	Folded struct {
+		Again   bool `json:"again"`
+		Changed bool `json:"changed"`
+	} `json:"folded"`
 	Marks []string `json:"marks"`
 	Cards []struct {
 		Rows int    `json:"rows"`
@@ -233,5 +237,22 @@ process.stdout.write(JSON.stringify(rows(items).filter((r) => r.role === "turn")
 	if got := string(out); got != "[2,1,0]" {
 		t.Errorf("the ends of three turns count %s calls, expected [2,1,0]: a thought is no call, "+
 			"and a turn counts from the end of the one before it", got)
+	}
+}
+
+// Every render folds the feed again — runs wrapped into rows, their calls
+// marked with the tasks they started, the end of a turn counting its calls —
+// and a row folded again around the same items is the same row: the feed is
+// not split, laid out and measured anew, nor its rows drawn again, for a
+// snapshot that changed nothing in it. A call that says something else is a
+// change.
+func TestAFeedFoldedAgainIsTheSameFeed(t *testing.T) {
+	var got feedLinesShot
+	runFixture(t, "feedlines.html", &got)
+	if !got.Folded.Again {
+		t.Error("the same items folded twice are not the same rows — every snapshot lays the feed out anew")
+	}
+	if got.Folded.Changed {
+		t.Error("rows folded from a call that says something else are taken for the same — the change is never drawn")
 	}
 }

@@ -243,6 +243,12 @@ const openOn = async (el, settle = false) => {
     if (settle) await quiet();
 };
 const confirmSel = ".sheet.on .btnrow .btn.primary, .sheet.on .btnrow .btn.danger";
+// How the layers over the screen are drawn: every scrim, sheet and toast of
+// the page, by what its computed visibility says.
+const drawn = (el) => (el ? getComputedStyle(el).visibility : "absent");
+const layers = (sels = [".scrim", ".sheet", ".toast"]) => Object.fromEntries(
+    sels.map((sel) => [sel.slice(1), Array.from(document.querySelectorAll(sel)).map(drawn)]));
+const shutDown = () => Object.values(layers([".scrim", ".sheet"])).flat().every((v) => v === "hidden");
 const shut = async () => {
     if (anyMenu()) key("Escape");
     await until(() => !anyMenu());
@@ -265,6 +271,7 @@ window.done = (async () => {
     await until(() => document.querySelector(".dkshelf .sc.scpast") && document.querySelector(".dkarch") && rowOf("aacpanel"));
     await quiet();
     const out = {};
+    out.layers = { closed: layers() };
     const aac = rowOf("aacpanel");
     const helios = rowOf("helios");
     // The head of the stack: its facts, each a value and what it is.
@@ -451,9 +458,13 @@ window.done = (async () => {
     itemOf("Detach from parent").click();
     const detachSheet = await until(() => document.querySelector(confirmSel) && document.querySelector(".sheet.on"), 1500);
     out.detachTitle = text(detachSheet && detachSheet.querySelector(".stitle"));
+    if (detachSheet) out.layers.open = { sheet: drawn(detachSheet), scrim: drawn(detachSheet.previousElementSibling) };
     const detachYes = document.querySelector(confirmSel);
     if (detachYes) detachYes.click();
     await until(() => sent.length > detachedBefore && !document.querySelector(".sheet.on"), 1500);
+    out.layers.toast = drawn(document.querySelector(".toast.on"));
+    await until(shutDown, 1500);
+    out.layers.shut = layers([".scrim", ".sheet"]);
     out.detached = sent.length > detachedBefore ? sent[sent.length - 1] : null;
     await openOn(document.querySelector(".dkshelf .sc.scpast"));
     out.lists.closed = read();

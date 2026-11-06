@@ -11,6 +11,7 @@ import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
 import { rows, runCalls, turnCalls, weld } from "/src/screens/chat/feed.js";
 import { callsOf, FeedGrid } from "/src/screens/chat/timeline.js";
+import { same } from "/src/ui/pure.js";
 
 const at = "2026-09-26T10:28:00Z";
 const items = [
@@ -47,7 +48,11 @@ const until = async (ok, ms = 3000) => {
     const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
     const col = document.querySelector(".feedcol");
     const turn = document.querySelector(".railbadge.k-turn");
+    // The feed folded again around the same items, the way every render folds
+    // it, is the same feed; a call that says something else is not.
+    const other = items.map((it) => (it.pos === 2 ? { ...it, calls: [{ ...it.calls[0], arg: "make test" }] } : it));
     window.done = {
+        folded: { again: same(rows(weld(items)), rows(weld(items))), changed: same(rows(weld(items)), rows(weld(other))) },
         marks: Array.from(document.querySelectorAll(".railbadge:not(.k-turn)")).map((b) => b.getAttribute("aria-label")),
         cards: Array.from(document.querySelectorAll(".mtasks")).map((el) => ({
             rows: el.querySelectorAll(".mtask").length,

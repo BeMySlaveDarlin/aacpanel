@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
@@ -248,7 +248,6 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             const el = area.current;
             if (!el) return;
             el.focus();
-            grow(el);
             el.setSelectionRange(el.value.length, el.value.length);
         });
     }, [insert && insert.key]);
@@ -314,6 +313,27 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const cantSend = !ready || sending
         || (side ? false : bang ? !bang.command : cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
     const stopping = busy && !text.trim() && !pack.length;
+    const hint = placeholder(ready, why, name, pack, busy ? waits : "");
+
+    // The field fits its words whichever way they changed — typed, cleared by
+    // a send, dictated, put back from the queue, picked from the list, the
+    // draft of another conversation — and the hint an empty field shows.
+    // Fitting reads the layout of the whole page, so it runs when these change
+    // and when the field changes its width, not on every render of the screen.
+    useLayoutEffect(() => grow(area.current), [text, hint]);
+    useEffect(() => {
+        const el = area.current;
+        if (!el || typeof ResizeObserver === "undefined") return undefined;
+        let width = el.clientWidth;
+        const refit = () => {
+            if (el.clientWidth === width) return;
+            width = el.clientWidth;
+            grow(el);
+        };
+        const eye = new ResizeObserver(refit);
+        eye.observe(el);
+        return () => eye.disconnect();
+    }, []);
 
     const stop = async () => {
         if (sending || taken.current) return;
@@ -328,9 +348,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
         const value = item.value;
         setText(value);
         const el = area.current;
-        if (!el) return;
-        el.focus();
-        grow(el);
+        if (el) el.focus();
     };
 
     const sendCommand = async () => {
@@ -458,11 +476,11 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             `}
             <textarea
                 rows="1"
-                ref=${(el) => { area.current = el; grow(el); }}
-                placeholder=${placeholder(ready, why, name, pack, busy ? waits : "")}
+                ref=${area}
+                placeholder=${hint}
                 disabled=${!ready || sending}
                 value=${text}
-                onInput=${(e) => { setText(e.target.value); grow(e.target); }}
+                onInput=${(e) => setText(e.target.value)}
                 onPaste=${paste}
                 onKeyDown=${keys}
             ></textarea>

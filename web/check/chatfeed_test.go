@@ -400,3 +400,47 @@ func TestChatTaskParamIsNotConversationID(t *testing.T) {
 		t.Errorf("apiChatTask reads id itself — the same parameter sessionUUID uses for the chat uuid")
 	}
 }
+
+// The screen of a conversation is drawn again on every snapshot of the host
+// and every state of the work, and a long conversation is hundreds of rows: a
+// row is drawn again only when what it shows has changed. A snapshot and a
+// state that change nothing in the feed draw no row and leave the field of the
+// composer as it was fitted; an answer the stream brings again with more in it
+// is drawn with what came, and it is the one row drawn; the field a send
+// cleared is fitted to its empty words.
+func TestARowIsDrawnAgainOnlyWhenItChanges(t *testing.T) {
+	var got struct {
+		Still struct {
+			Feed, Rows, Fitted int
+		} `json:"still"`
+		Cleared struct {
+			Value  string
+			Fitted int
+		} `json:"cleared"`
+		Rewritten struct {
+			Said string
+			Rows int
+		} `json:"rewritten"`
+	}
+	runFixture(t, "feed.html", &got)
+	if got.Still.Feed < 2 {
+		t.Fatalf("the snapshot and the state drew the feed %d times — the case proves nothing", got.Still.Feed)
+	}
+	if got.Still.Rows != 0 {
+		t.Errorf("a snapshot and a state that change nothing in the feed drew %d rows — "+
+			"a long conversation is drawn whole on every snapshot of the host", got.Still.Rows)
+	}
+	if got.Still.Fitted != 0 {
+		t.Errorf("a snapshot fitted the composer to its words %d times — a layout of the page for words that did not change", got.Still.Fitted)
+	}
+	if !strings.HasSuffix(got.Rewritten.Said, "And the deploy went out.") {
+		t.Errorf("an answer the stream brought again with more in it reads %q — the row did not take what came", got.Rewritten.Said)
+	}
+	if got.Rewritten.Rows != 1 {
+		t.Errorf("an answer brought again drew %d rows, want the one that changed", got.Rewritten.Rows)
+	}
+	if got.Cleared.Value != "" || got.Cleared.Fitted == 0 {
+		t.Errorf("after a send the field holds %q and was fitted %d times — the cleared field keeps the height of what was sent",
+			got.Cleared.Value, got.Cleared.Fitted)
+	}
+}

@@ -111,3 +111,54 @@ func TestTheApplicationTellsTheCloseWhomItCloses(t *testing.T) {
 		t.Errorf("the close of the claude session reads %+v", got.Claude)
 	}
 }
+
+// layersSeen is how a page drew its scrims, sheets and toasts: every one of
+// them while all were closed, the sheet that came up and its scrim, the toast
+// that followed, and every scrim and sheet once the sheet was shut again.
+type layersSeen struct {
+	Closed map[string][]string `json:"closed"`
+	Open   map[string]string   `json:"open"`
+	Toast  string              `json:"toast"`
+	Shut   map[string][]string `json:"shut"`
+}
+
+// A scrim, a sheet and a toast stay in the page while closed, and a closed one
+// is not drawn at all: a transparent layer of frosted glass is still blurred
+// again on every frame anything under it moves, a pulse of the work or a chart
+// of the home. An open one is drawn, on a phone and at a desk alike.
+func TestAClosedLayerIsNotDrawn(t *testing.T) {
+	var phone struct {
+		Layers layersSeen `json:"layers"`
+	}
+	runFixture(t, "closesheet.html", &phone)
+	desk := ctxMenuPage(t)
+	for _, c := range []struct {
+		where string
+		seen  layersSeen
+	}{{"on a phone", phone.Layers}, {"at a desk", desk.Layers}} {
+		for _, kind := range []string{"scrim", "sheet", "toast"} {
+			drawn := c.seen.Closed[kind]
+			if len(drawn) == 0 {
+				t.Errorf("%s the page has no %s at all — the case proves nothing", c.where, kind)
+			}
+			for n, v := range drawn {
+				if v != "hidden" {
+					t.Errorf("%s %s %d of %d is %q while closed — its glass is blurred again on every frame", c.where, kind, n+1, len(drawn), v)
+				}
+			}
+		}
+		if c.seen.Open["sheet"] != "visible" || c.seen.Open["scrim"] != "visible" {
+			t.Errorf("%s the open sheet and its scrim are drawn as %+v — a sheet that came up is not seen", c.where, c.seen.Open)
+		}
+		if c.seen.Toast != "visible" {
+			t.Errorf("%s the toast that came up is %q — the note of the action is not seen", c.where, c.seen.Toast)
+		}
+		for _, kind := range []string{"scrim", "sheet"} {
+			for n, v := range c.seen.Shut[kind] {
+				if v != "hidden" {
+					t.Errorf("%s %s %d is %q once the sheet was shut — it is drawn again after its fade", c.where, kind, n+1, v)
+				}
+			}
+		}
+	}
+}

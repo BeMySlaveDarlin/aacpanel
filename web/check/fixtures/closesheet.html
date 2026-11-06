@@ -46,6 +46,13 @@ const root = document.getElementById("root");
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const gate = () => root.querySelector('.sheet.on[aria-label="action confirmation"]');
 
+// How the layers over the screen are drawn: every scrim, sheet and toast of
+// the page, by what its computed visibility says.
+const drawn = (el) => (el ? getComputedStyle(el).visibility : "absent");
+const layers = (sels = [".scrim", ".sheet", ".toast"]) => Object.fromEntries(
+    sels.map((sel) => [sel.slice(1), Array.from(root.querySelectorAll(sel)).map(drawn)]));
+const shutDown = () => Object.values(layers([".scrim", ".sheet"])).flat().every((v) => v === "hidden");
+
 // read says what the open sheet asks: its title, what follows, its own button
 // and the harsher actions under it.
 const read = () => ({
@@ -66,17 +73,22 @@ const open = async (target) => {
 
 window.done = (async () => {
     const out = {};
+    out.layers = { closed: layers() };
 
     // The codex thread: read, then pressed.
     const codex = await open("codex-5afc361b");
     out.codex = codex.sheet;
     if (!out.codex.trouble) {
+        out.layers.open = { sheet: drawn(gate()), scrim: drawn(gate().previousElementSibling) };
         const before = sent.length;
         gate().querySelector(".btnrow .btn:last-child").click();
         const result = await codex.answer;
         out.codex.answered = Boolean(result && result.ok);
         out.codex.sent = sent.slice(before);
         await until(() => !gate());
+        out.layers.toast = drawn(root.querySelector(".toast.on"));
+        await until(shutDown);
+        out.layers.shut = layers([".scrim", ".sheet"]);
     }
 
     // The claude session: read, taken to its kill, read again, let go.

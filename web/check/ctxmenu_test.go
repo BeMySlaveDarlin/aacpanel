@@ -40,6 +40,7 @@ type ctxNative struct {
 }
 
 type ctxMenu struct {
+	Layers  layersSeen `json:"layers"`
 	AtPoint struct {
 		Prevented bool   `json:"prevented"`
 		Label     string `json:"label"`

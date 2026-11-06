@@ -19,6 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
+import { same as alike } from "../../ui/pure.js";
 import { stopwatch } from "../../format.js";
 import { callWord, countCalls, KIND_NAMES, kindIcon, stampText, turnLeft, turnTook } from "./labels.js";
 import { ChecklistBlock } from "./checklist.js";
@@ -422,10 +423,23 @@ function DeskEntry({ g, y, onOpen, entryRef }) {
 function DeskColumn({ groups, checklist, onOpen }) {
     const refs = useRef([]);
     const [heights, setHeights] = useState([]);
-    useLayoutEffect(() => {
+    // The heights of the entries are read when the entries change and when
+    // one of them changes its size — a font come in, the column narrowed.
+    // Reading them right after a render is a layout of the whole page, and
+    // the screen renders on every snapshot of the host, far more often than
+    // either happens. The observer is told once the page is laid out, so its
+    // reading costs no layout of its own.
+    const measure = () => {
         const hs = groups.map((_, n) => (refs.current[n] ? refs.current[n].offsetHeight : 0));
         setHeights((was) => (same(was, hs) ? was : hs));
-    });
+    };
+    useLayoutEffect(measure, [groups]);
+    useEffect(() => {
+        if (typeof ResizeObserver === "undefined") return undefined;
+        const eye = new ResizeObserver(measure);
+        for (const el of refs.current) if (el) eye.observe(el);
+        return () => eye.disconnect();
+    }, [groups]);
     const ys = stack(groups.map((g) => g.y), heights);
     return html`
         <div class="tline" aria-label="timeline of the work">
@@ -438,6 +452,19 @@ function DeskColumn({ groups, checklist, onOpen }) {
     `;
 }
 
+// useKept returns the rows of the render before while every row in its place
+// is alike (see ui/pure.js): the screen folds its rows again on every render,
+// and rows that only look new would be split, laid out and measured anew, and
+// every row on screen drawn again, with nothing in them changed.
+function useKept(rows) {
+    const kept = useRef(rows);
+    const was = kept.current;
+    if (was !== rows && !(was.length === rows.length && rows.every((r, n) => alike(r, was[n])))) {
+        kept.current = rows;
+    }
+    return kept.current;
+}
+
 // FeedGrid draws the column and its timeline in one scroll box. row draws a
 // row of the column; tail is what follows the rows — the messages on their
 // way, as { key, role, node } — set as rows are, so a message keeps its place
@@ -447,7 +474,8 @@ function DeskColumn({ groups, checklist, onOpen }) {
 // rows of one role its record gave: the search names a match by them, and
 // finds its row on screen by them.
 export function FeedGrid({ rows, wide, busy, row, tail, checklist, onOpen }) {
-    const { prose, marks } = useMemo(() => book(rows), [rows]);
+    const kept = useKept(rows);
+    const { prose, marks } = useMemo(() => book(kept), [kept]);
     const col = useRef(null);
     const geo = useGeometry(col, prose.length);
     // The bar above the composer carries the unfinished run until it has a

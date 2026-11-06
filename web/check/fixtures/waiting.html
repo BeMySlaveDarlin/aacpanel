@@ -193,15 +193,24 @@ window.done = (async () => {
     out.questionFullText = document.querySelector(".mquestionwhat")?.parentElement.textContent.includes("The checks passed.");
     const quick = () => document.querySelector(".mquestionanswers");
     const choices = candidates.find(item => item.kind === "question");
-    const offered = choices.answers;
     out.quickButtons = [...quick().querySelectorAll("button")].map(b => b.textContent).join("|") === "Publish|Wait";
-    delete choices.answers;
+    // The host says the question again without its replies, then with none:
+    // each snapshot brings the session and what waits in it anew.
+    const asked = session;
+    const offer = (answers) => {
+        const { answers: _, ...bare } = choices;
+        const next = answers ? { ...bare, answers } : bare;
+        session = { ...asked, waiting: asked.waiting.map((item) => (item === choices ? next : item)) };
+        snapshot.sessions = [session];
+    };
+    offer(undefined);
     redraw(); await quiet();
     out.quickMissing = !quick();
-    choices.answers = [];
+    offer([]);
     redraw(); await quiet();
     out.quickEmpty = !quick();
-    choices.answers = offered;
+    session = asked;
+    snapshot.sessions = [session];
     const kinds = exec.kinds;
     exec.kinds = [];
     redraw(); await quiet();

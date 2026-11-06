@@ -63,15 +63,17 @@ export function sizeOf(text) {
     return n >= 1000 ? `${(n / 1000).toFixed(1)}k chars` : `${n} chars`;
 }
 
+// The formats of a stamp are made once: a format asked for by name on every
+// row of every render is built anew each time, and a long feed asks hundreds.
+const STAMP_DAY = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" });
+const STAMP_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
 // stampText renders when a message was written, the day in numbers as the
 // charts write it: a month name would come in the language of the locale.
 export function stampText(iso) {
     const ms = Date.parse(iso);
     if (!Number.isFinite(ms)) return "";
-    const at = new Date(ms);
-    const day = at.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
-    const time = at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-    return `${day} · ${time}`;
+    return `${STAMP_DAY.format(ms)} · ${STAMP_TIME.format(ms)}`;
 }
 
 // turnTook says how long a turn took, the way the terminal says it.

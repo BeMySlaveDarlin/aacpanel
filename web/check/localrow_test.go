@@ -77,7 +77,7 @@ func TestUnarrivedRowsAreTheOnesTheFeedHasNotEchoed(t *testing.T) {
 			"the feed draws the rows straight from the state — a row the transcript echoed stays on screen for a frame, " +
 				"twice — or under a key of another kind, or not set as a row of the feed at all; or it draws them under " +
 				"a window away from the end, where they do not belong"},
-		{"<${Row} item=${row} />", "a pending row is not drawn as a row of the feed"},
+		{"<${FeedRow} item=${row} />", "a pending row is not drawn as a row of the feed"},
 		{"setLocal((was) => unarrived(queuedLocal(was, queue), state.items));", "the echoed rows never leave the state"},
 	} {
 		if !strings.Contains(screen, want.code) {
