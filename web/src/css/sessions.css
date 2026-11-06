@@ -615,8 +615,7 @@ span.pjname { cursor: default; }
 .scalarm { flex: none; display: inline-flex; align-items: center; gap: .27rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .scalarm svg { width: 1.07em; height: 1.07em; }
 .sccollector { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .92em; color: var(--warn); }
-.scbusy { display: inline-flex; align-items: center; gap: .4rem; color: var(--ink-dim); }
-.scbusy .spin { width: var(--i-sm); height: var(--i-sm); }
+.scbusy { color: var(--ink-dim); }
 
 /* Line three: the step in hand, wrapped rather than cut, and n/N; under it a
    segment a step over the whole width — done in grey, the step at work in

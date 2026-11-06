@@ -32,7 +32,13 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 			Off bool
 			Why string
 		} `json:"unavailable"`
-		Busy bool `json:"busy"`
+		Busy      bool `json:"busy"`
+		BusyMarks []struct {
+			Kind        string `json:"kind"`
+			Glyphs      int    `json:"glyphs"`
+			Spins       int    `json:"spins"`
+			SpinIsGlyph bool   `json:"spinIsGlyph"`
+		} `json:"busyMarks"`
 	}
 	runFixture(t, "sessionstops.html", &got)
 
@@ -106,6 +112,15 @@ func TestThePhoneCardsOfferRestartAndCloseThroughTheGate(t *testing.T) {
 	}
 	if len(got.Unavailable) != 3 || !got.Busy {
 		t.Errorf("unavailable actions %+v, busy disabled %v", got.Unavailable, got.Busy)
+	}
+	if len(got.BusyMarks) != 2 {
+		t.Errorf("the lines of a restart and a close on their way are missing: %+v", got.BusyMarks)
+	}
+	for _, m := range got.BusyMarks {
+		if m.Glyphs != 1 || m.Spins != 1 || !m.SpinIsGlyph {
+			t.Errorf("the line of a %s on its way holds %d glyphs and %d spinners, the spinner the glyph %v: one mark is wanted",
+				m.Kind, m.Glyphs, m.Spins, m.SpinIsGlyph)
+		}
 	}
 	for _, b := range got.Unavailable {
 		if !b.Off || !strings.Contains(b.Why, "the host does not know") {

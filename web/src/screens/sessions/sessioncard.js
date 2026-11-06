@@ -82,13 +82,18 @@ function Name({ full, own, tag = "", address = full }) {
 
 // Line is the state's line: its glyph, the word in the colour of the state, the subject
 // of a wait in the ink, a command in mono; then what runs now, only what
-// runs, the wake the session has ahead, and the note of the collector.
+// runs, the wake the session has ahead, and the note of the collector. A
+// close or restart on its way (busy) stands in place of the state: a spinner
+// is its glyph, one mark on the line, as on the card of a session being raised.
 function Line({ state, runs, alarm = null, notes, busy }) {
     return html`
         <div class="scl2">
             <span class="scsay">
-                <${Glyph} state=${state} />
-                ${busy ? html`<span class="scbusy" role="status"><span class="spin"></span>${busy}</span>` : html`
+                ${busy ? html`
+                    <span class="scglyph" data-tone="busy" data-kind="ghost" aria-hidden="true"><span class="spin"></span></span>
+                    <span class="scbusy" role="status">${busy}</span>
+                ` : html`
+                    <${Glyph} state=${state} />
                     <span class="scword">${state.word}</span>
                     ${state.subject && html` <b class="scsubj">${state.subject}</b>`}
                     ${state.mono && html` <code class="scmono">${state.mono}</code>`}

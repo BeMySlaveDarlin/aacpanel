@@ -147,6 +147,13 @@ window.done = (async () => {
         mount(exec, { of: (act, name) => name === "lab" && act === kind ? { since: 1 } : null, opening: () => [] });
         await until(() => text(row("lab").querySelector(".scbusy")) === (kind === "restart" ? "restarting" : "closing"));
         out.busy = out.busy && acts(row("lab")).every(off);
+        // The line of a press on its way holds one mark: the spinner in the
+        // place of the glyph, not beside the glyph of the state.
+        const say = row("lab").querySelector(".scsay");
+        out.busyMarks = [...(out.busyMarks || []), {
+            kind, glyphs: say.querySelectorAll(".scglyph").length, spins: say.querySelectorAll(".spin").length,
+            spinIsGlyph: Boolean(say.querySelector(".scglyph .spin")),
+        }];
     }
     render(null, phone);
     mount();
