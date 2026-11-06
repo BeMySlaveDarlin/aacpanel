@@ -1,6 +1,6 @@
 // The calls sheet: the run of one badge as a list, and one call in full.
 
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
@@ -29,7 +29,9 @@ export function Calls({ session, id, calls, turn, onFile, to, first }) {
         return n >= 0 ? n : null;
     };
     const [pick, setPick] = useState(firstAt);
-    useEffect(() => setPick(firstAt()), [calls, first]);
+    // A new list or a new first call picks again, in the same pass as the
+    // drawing: an effect after the frame would undo a row pressed before it.
+    useLayoutEffect(() => setPick(firstAt()), [calls, first]);
     const real = calls.filter((call) => !call.still);
     const place = (n) => real.indexOf(calls[n]) + 1;
 

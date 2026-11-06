@@ -9,12 +9,16 @@
 // read of the same run is back: the bar above the composer and the calls
 // sheet of a session on the stream, of one in the console, and of one on a
 // host whose executor does not know the move.
-import { render } from "preact";
+import { render, options } from "preact";
 import { html } from "/src/html.js";
 import { WorkStatus } from "/src/screens/chat/work.js";
 import { Calls } from "/src/screens/chat/calls.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+
+// Effects come late, as on a slow phone: a row pressed before they run still
+// opens its call.
+options.requestAnimationFrame = (cb) => setTimeout(cb, 1500);
 
 const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
 const bash = { name: "Bash", arg: "sleep 30 && echo woke", pos: 7, index: 0, at: ago(12), open: true, use: "toolu_01Fg" };
