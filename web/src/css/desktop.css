@@ -1691,10 +1691,13 @@
 
     .dkcatbar.dkcrit i { background: var(--crit); }
 
+    /* The Machine section scrolls as one page: the cards of the agents, the
+       panel and the certificate keep their height, so a body in a box of its
+       own would get only what they leave and cut its plot and facts. */
+    .dkmachine { overflow-y: auto; }
+
     .dkmbody {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
+        flex: none;
         display: flex;
         flex-direction: column;
         gap: .7rem;

@@ -283,7 +283,7 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
     };
 
     return html`
-        <section class="dkcenter">
+        <section class="dkcenter dkmachine">
             <div class="dkhead">
                 <div class="dkheadtop">
                     <span class="dkheadname">${title}</span>
