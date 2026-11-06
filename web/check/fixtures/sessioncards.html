@@ -12,11 +12,12 @@ html,body{margin:0}
 <div id="desk"><div class="deskshell"><div class="dkbody withpanel"><div id="col" style="display:contents"></div><section class="dkcenter"></section><aside class="dkright"></aside></div></div></div>
 <script type="module">
 // The card of a session on its five lines, the list of a contour on the phone
-// and the column of the desk drawn from one scenario: a project of two
-// sessions under its heading, projects of one session said by their cards,
-// a session with two it opened, and the six states the skeleton has to hold
-// — working, quiet, done and not seen, waiting, paused and archived. On a
-// screen as wide as a desk the column is drawn; otherwise the phone's list.
+// and the column of the desk drawn from one scenario: every project under its
+// heading, of two sessions and of one alike, a session no project holds with
+// no heading over it, a session with two it opened, and the six states the
+// skeleton has to hold — working, quiet, done and not seen, waiting, paused
+// and archived. On a screen as wide as a desk the column is drawn; otherwise
+// the phone's list.
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
@@ -75,6 +76,8 @@ const sessions = [
     // A project whose every session is paused: its heading continues them all.
     S(pj.nightly, { session: "nightly-eval", pauseAlarm: { id: "p2", next: ahead(300) }, pct: 12 }),
     S(pj.nightly, { session: "nightly-index", pauseAlarm: { id: "p3", next: ahead(300) }, pct: 7 }),
+    // A session no project of the map holds: no heading, its name whole.
+    { ...S(pj.aacpanel, { session: "scratch-probe", pct: 4 }), project: null, cwd: "/srv/scratch" },
 ];
 const archive = [
     { name: "notes-bot", sessionId: "past-notes", profile: "personal", contour: 1, project: { id: 7, name: "notes-bot", group: "Combine" },
@@ -147,9 +150,23 @@ window.done = (async () => {
     }
     const heads = [...document.querySelectorAll(desk ? ".dkproj" : ".pjhead")].map((head) => ({
         name: text(head.querySelector(desk ? ".dkprojname" : ".pjname")),
+        group: text(head.querySelector(desk ? ".dkprojgroup" : ".pjgroup")),
         acts: [...head.querySelectorAll(".scheadacts > button")].map((b) => b.getAttribute("aria-label")),
     }));
-    const solo = card("person-ingest");
+    // A card read as its block stands: the heading over it, none where the
+    // block has none, and the name the card reads under it.
+    const lone = (name) => {
+        const el = card(name);
+        if (!el) return null;
+        const block = el.closest(desk ? ".dkblock" : ".pjblock");
+        const head = block && block.querySelector(desk ? ".dkproj" : ".pjhead");
+        return {
+            head: head ? text(head.querySelector(desk ? ".dkprojname" : ".pjname")) : "",
+            name: text(el.querySelector(".scname")),
+            acts: [...el.querySelectorAll(".scacts > button")].map((b) => b.getAttribute("aria-label")),
+        };
+    };
+    const lones = Object.fromEntries(["person-ingest", "tg-ai-shadow", "scratch-probe"].map((name) => [name, lone(name)]));
     const foot = [...document.querySelectorAll(".scfootlink")].map(text);
     // A picture of the list is taken before anything is pressed.
     if (new URLSearchParams(location.search).has("screenshot")) return { desk };
@@ -193,10 +210,7 @@ window.done = (async () => {
         six,
         bareArchive: text(card("old-shelf") && card("old-shelf").querySelector(".scl5")),
         heads,
-        solo: solo && {
-            pre: text(solo.querySelector(".scpre")), own: text(solo.querySelector(".scown")),
-            acts: [...solo.querySelectorAll(".scacts > button")].map((b) => b.getAttribute("aria-label")),
-        },
+        lones,
         kid: card("kkam-cameras-onvif") && { own: text(card("kkam-cameras-onvif").querySelector(".scown")) },
         fold: text(document.querySelector(".scfold")),
         foot,

@@ -3,8 +3,8 @@
 // closed conversations of all of them on a shelf of their own below.
 //
 // Live and closed stand apart. A contour holds its live sessions only, in
-// blocks of their projects as the phone has them — a heading over a project
-// of two cards or more, a card a session, the card the phone draws — in an
+// blocks of their projects as the phone has them — a heading over every
+// project, a card a session, the card the phone draws — in an
 // order that does not follow their state: a place that moved whenever a
 // session started or stopped working could not be learned, and the eye and
 // the arrow keys go down the column by those places. What waits for the
@@ -25,7 +25,7 @@ import { kinOf, layoutOf } from "../screens/sessions/kin.js";
 import { comparePins, pinAt } from "../screens/sessions/pin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { spoke } from "../agent.js";
-import { LiveLines, aboutOf, headed, liveBlocksOf, splitNotes, stateOf, useAnswers } from "../screens/sessions/blocks.js";
+import { LiveLines, aboutOf, headed, knownOf, liveBlocksOf, splitNotes, stateOf, useAnswers } from "../screens/sessions/blocks.js";
 import { GhostCard, HeadActs, PastCard } from "../screens/sessions/sessioncard.js";
 import { homeProject, homeSession } from "../ui/home.js";
 import { useSessionsArchive } from "../history.js";
@@ -265,12 +265,11 @@ function NewSession({ name, entry, snapshot, exec }) {
     `;
 }
 
-// ProjectHead names the project of two cards or more: its name, the group of
-// the map it stands in, and its controls — a new session in it, its pause and
-// a restart of all of it (see HeadActs). A project of one card has no heading:
-// its card says the project. The heading opens the menu of the project on a
-// right click: its pause, a new session, its terminal, its page in the
-// settings of the map (onSettings, with where the page stands).
+// ProjectHead names the project of a block (see headed): its name, the group
+// of the map it stands in, and its controls — a new session in it, its pause
+// and a restart of all of it (see HeadActs). The heading opens the menu of
+// the project on a right click: its pause, a new session, its terminal, its
+// page in the settings of the map (onSettings, with where the page stands).
 function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings }) {
     const run = useAction();
     const menu = useMenu();
@@ -291,18 +290,16 @@ function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings })
 
 // ContourSection is one contour in the column: its heading with how many of
 // its sessions wait for the person, the way to a new one and the limit; then
-// its projects, a heading over those of two cards or more, with the cards of
-// their live sessions, the sessions those opened and the runs they started
-// under them, and the sessions being raised in them. blocks holds the
-// projects as the column lays them out.
+// its projects, each under its heading, with the cards of their live
+// sessions, the sessions those opened and the runs they started under them,
+// and the sessions being raised in them. blocks holds the projects as the
+// column lays them out.
 function ContourSection({ name, entry, list, blocks, archive, folds, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
     const menu = useMenu();
     const waits = list.filter((s) => stateOf(s, snapshot && snapshot.limits).tone === "wait").length;
     const open = (session, id) => onPick({ name: session, id });
-    // The menu of a card that stands for its project alone carries the
-    // settings of the project, which a heading would have carried.
-    const menuOf = (settings) => (s) => menu && menu(...liveMenuOf(s, {
-        exec, snapshot, wait, onOpen: () => open(s.session, s.sessionId), onTerm, onSettings: settings,
+    const menuOf = (s) => menu && menu(...liveMenuOf(s, {
+        exec, snapshot, wait, onOpen: () => open(s.session, s.sessionId), onTerm,
     }));
     const notes = splitNotes((snapshot && snapshot.sessionNotes) || [], (snapshot && snapshot.sessions) || []).own;
     return html`
@@ -318,20 +315,16 @@ function ContourSection({ name, entry, list, blocks, archive, folds, limits, map
                 <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
             </div>
             ${blocks.map((block) => {
-                const head = headed(block);
-                const solo = head ? null : block.project || { name: block.name, session: block.name };
-                const known = head && block.project ? block.project.session || block.project.name : "";
-                const settings = !head && block.project && entry && onSettings
-                    ? () => onSettings({ contour: entry.id, project: block.project.id }) : null;
+                const known = knownOf(block);
                 return html`
                     <div class="dkblock" key=${block.key}>
-                        ${head && html`<${ProjectHead} block=${block} entry=${entry} snapshot=${snapshot} exec=${exec} wait=${wait}
-                                                       onTerm=${onTerm} onSettings=${onSettings} />`}
+                        ${headed(block) && html`<${ProjectHead} block=${block} entry=${entry} snapshot=${snapshot} exec=${exec} wait=${wait}
+                                                                onTerm=${onTerm} onSettings=${onSettings} />`}
                         <${LiveLines} list=${block.live} live=${snapshot?.sessions || []} past=${archive} limits=${limits} wait=${wait} notes=${notes}
-                                      exec=${exec} profile=${entry} solo=${block.live.length ? solo : null} known=${known}
-                                      folds=${folds} desk current=${current} menuOf=${menuOf(settings)} onOpen=${open}
+                                      exec=${exec} profile=${entry} known=${known}
+                                      folds=${folds} desk current=${current} menuOf=${menuOf} onOpen=${open}
                                       onStub=${(row) => onPick({ name: row.name, id: row.sessionId, archived: true, row })} />
-                        ${block.ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} solo=${solo} known=${known} />`)}
+                        ${block.ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} known=${known} />`)}
                     </div>
                 `;
             })}

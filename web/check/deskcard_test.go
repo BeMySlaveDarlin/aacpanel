@@ -113,11 +113,12 @@ func runDeskCard(t *testing.T) deskCard {
 }
 
 // The live sessions of a contour keep their places whatever they do: they
-// stand in blocks of their projects in the order of the project map — a
-// project of one session said by its card alone, with no heading over it —
-// the sessions no project holds after them, and the arrow keys go down the
-// column in that order. A session being raised stands in the block of its
-// project, at the place the project has in the map. The collector lists the
+// stand in blocks of their projects in the order of the project map, each
+// under the heading of its project, a project of one session as well; the
+// sessions no project holds after them with no heading, and the arrow keys
+// go down the column in that order. A session being raised stands in the
+// block of its project, under its heading, at the place the project has in
+// the map. The collector lists the
 // sessions by how full they are, which changes by the minute; a place that
 // followed it would move every time the person looked, and the eye and the
 // arrow keys would lose the session they were on.
@@ -125,8 +126,8 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	got := runDeskCard(t)
 
 	want := []deskCardSection{
-		{Name: "personal", Rows: []string{"aacpanel", "person", "helios", "scratch"}},
-		{Name: "Globex Group", Rows: []string{"shop", "api", "acme-fingerprint-rotation-review"}},
+		{Name: "personal", Rows: []string{"# aacpanel · Side", "aacpanel", "# person · Side", "person", "# helios · Host", "helios", "scratch"}},
+		{Name: "Globex Group", Rows: []string{"# shop · SHOP", "shop", "# shop-admin · SHOP", "# api · Platform", "api", "acme-fingerprint-rotation-review"}},
 	}
 	check := func(when string, sections []deskCardSection) {
 		if len(sections) != len(want) {
@@ -218,10 +219,10 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	}
 }
 
-// A card offers its controls — a new session in its project where the card
-// stands for the project alone, pause, restart, pin and close; the home
-// session has no close and no plus. One the panel did not start has no
-// controls, which the fixture of such sessions holds.
+// A card offers its controls — pause, restart, pin and close — whether it is
+// the one session of its project or not: a new session in a project is the
+// plus of its heading. The home session has no close. One the panel did not
+// start has no controls, which the fixture of such sessions holds.
 func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -229,12 +230,9 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 		t.Fatalf("the column shows %d live cards: %+v", len(got.Rows), got.Rows)
 	}
 	for _, row := range got.Rows {
-		want := 5
-		switch row.Name {
-		case "helios":
+		want := 4
+		if row.Name == "helios" {
 			want = 3
-		case "scratch", "acme-fingerprint-rotation-review":
-			want = 4
 		}
 		if row.Icons != want {
 			t.Errorf("%s has %d controls, expected %d", row.Name, row.Icons, want)
@@ -249,8 +247,8 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 // its map: the projects drop from it grouped as the map groups them, the home
 // project left out while the home session lives, and a press sends the same
 // action the projects panel does, addressed by the id of the map entry. The
-// plus of a card that stands for its project alone sends the same action for
-// its own project.
+// plus in the heading of a project of one session sends the same action for
+// that project.
 func TestDeskContourHeadingStartsASession(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -267,7 +265,7 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 		t.Fatalf("a press on the plus of person sent %+v, expected one session.open", got.ProjectOpened)
 	}
 	if id, ok := got.ProjectOpened[0].Params["project"].(float64); !ok || int(id) != 12 {
-		t.Errorf("the session of the project's card is addressed as %+v, expected project 12 by its id", got.ProjectOpened[0].Params)
+		t.Errorf("the session of the project's heading is addressed as %+v, expected project 12 by its id", got.ProjectOpened[0].Params)
 	}
 }
 

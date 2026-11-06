@@ -486,13 +486,15 @@ window.done = (async () => {
     itemOf("Settings of the project").click();
     await until(() => settings.length > 0);
     out.settings = settings[settings.length - 1] || null;
-    // A project of one session has no heading: the menu of its card opens
-    // the settings of the project.
+    // A project of one session has its heading too, and the menu of the
+    // heading opens the settings of the project.
     const settingsBefore = settings.length;
-    await openOn(rowOf("helios"), true);
-    if (itemOf("Settings of the project")) itemOf("Settings of the project").click();
-    await until(() => settings.length > settingsBefore);
-    out.soloSettings = settings.length > settingsBefore ? settings[settings.length - 1] : null;
+    if (headOf("helios")) {
+        await openOn(headOf("helios"));
+        if (itemOf("Settings of the project")) itemOf("Settings of the project").click();
+        await until(() => settings.length > settingsBefore);
+    }
+    out.loneSettings = settings.length > settingsBefore ? settings[settings.length - 1] : null;
     // The settings of the map open on the page of the project it names.
     out.settingsStart = startOf([{ id: 3, name: "personal", groups: [
         { id: 7, name: "Side", projects: [{ id: 11 }, { id: 13 }] },

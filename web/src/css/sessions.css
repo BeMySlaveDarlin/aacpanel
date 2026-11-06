@@ -432,9 +432,9 @@
 
 }
 
-/* The sessions of a contour as blocks of their projects. A project of two
-   cards or more stands under a heading of its name, its group and its
-   controls; a project of one card is said by the card. */
+/* The sessions of a contour as blocks of their projects. Every project
+   stands under a heading of its name, its group and its controls, a lone
+   card included; a session no project holds stands alone. */
 .grouphead.pjsection { display: flex; align-items: center; gap: .5rem; margin: .4rem 0 0; }
 .grouphead.pjwaits { color: var(--wait); }
 .pjcount { color: var(--ink-dim); letter-spacing: 0; }
@@ -554,13 +554,11 @@ span.pjname { cursor: default; }
 .scglyph[data-unseen] { color: var(--ok); }
 .scglyph .spin { width: var(--i-sm); height: var(--i-sm); }
 
-/* Line one: the name, the part a heading over it says already dropped and
-   the project a lone card stands for as a quiet prefix; the controls at the
-   right, always there. The name wraps rather than gives up its tail: the
-   tail is what tells two sessions apart. */
+/* Line one: the name, the part a heading over it says already dropped; the
+   controls at the right, always there. The name wraps rather than gives up
+   its tail: the tail is what tells two sessions apart. */
 .scl1 { display: flex; align-items: center; gap: .5rem; min-height: 1.27rem; }
 .scname { flex: 0 1 auto; min-width: 0; font-size: var(--t-base); font-weight: 600; line-height: 1.33; color: var(--ink); overflow-wrap: anywhere; }
-.scpre { font-weight: 500; color: var(--ink-faint); }
 .sctag { margin-left: .4rem; font-size: var(--t-xs); font-weight: 500; color: var(--ink-faint); }
 .scacts { flex: none; margin-left: auto; display: inline-flex; align-items: center; margin-block: -.4rem; }
 .scact {

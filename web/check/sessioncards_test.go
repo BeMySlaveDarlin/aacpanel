@@ -2,6 +2,7 @@ package check
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -26,14 +27,15 @@ type sessionCardsRun struct {
 	Six         map[string]*sessionCardSeen `json:"six"`
 	BareArchive string                      `json:"bareArchive"`
 	Heads       []struct {
+		Name  string   `json:"name"`
+		Group string   `json:"group"`
+		Acts  []string `json:"acts"`
+	} `json:"heads"`
+	Lones map[string]*struct {
+		Head string   `json:"head"`
 		Name string   `json:"name"`
 		Acts []string `json:"acts"`
-	} `json:"heads"`
-	Solo *struct {
-		Pre  string   `json:"pre"`
-		Own  string   `json:"own"`
-		Acts []string `json:"acts"`
-	} `json:"solo"`
+	} `json:"lones"`
 	Kid *struct {
 		Own string `json:"own"`
 	} `json:"kid"`
@@ -151,12 +153,35 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 		t.Errorf("the archived card reads %q / %q / %q, want closed, its last step and its peak", c.Line2, c.Line3, c.Line5)
 	}
 
-	if len(got.Heads) != 3 || got.Heads[0].Name != "aacpanel" || got.Heads[1].Name != "kkam-smart-home" || got.Heads[2].Name != "nightly" {
-		t.Fatalf("the headings are %+v, want only the three projects of two sessions or more", got.Heads)
+	// Every project stands under its heading — its name, its group and its
+	// controls — one of a lone session as one of three, and on the phone one
+	// with nothing live over its last conversation; a session no project
+	// holds has none.
+	wantHeads := []string{"aacpanel", "kkam-smart-home", "llm-ops", "nightly", "person", "tg-ai-shadow", "watchdog"}
+	if !got.Desk {
+		wantHeads = append(wantHeads, "notes-bot", "old-shelf")
+		slices.Sort(wantHeads)
+	}
+	var heads []string
+	for _, head := range got.Heads {
+		heads = append(heads, head.Name)
+	}
+	slices.Sort(heads)
+	if !slices.Equal(heads, wantHeads) {
+		t.Errorf("the headings are %v, want one over every project: %v", heads, wantHeads)
 	}
 	for _, head := range got.Heads {
+		group := "Combine"
+		if head.Name == "aacpanel" {
+			group = "Infra"
+		}
+		if head.Group != group {
+			t.Errorf("the heading of %s names the group %q, want %q", head.Name, head.Group, group)
+		}
+		// The heading of a project whose every live session is paused, one
+		// or two, continues them.
 		pause := "pause sessions in project " + head.Name
-		if head.Name == "nightly" {
+		if head.Name == "nightly" || head.Name == "llm-ops" {
 			pause = "continue sessions in project " + head.Name
 		}
 		want := []string{"new session in project " + head.Name, pause, "restart the sessions of " + head.Name}
@@ -164,9 +189,28 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 			t.Errorf("the heading of %s has %v, want %v", head.Name, head.Acts, want)
 		}
 	}
-	if got.Solo == nil || got.Solo.Pre != "person-" || got.Solo.Own != "ingest" ||
-		len(got.Solo.Acts) == 0 || got.Solo.Acts[0] != "new session in project person" {
-		t.Errorf("the card of a project of one session reads %+v, want the project as a prefix and its plus first", got.Solo)
+	// Under the heading the card of a lone session is the session alone: no
+	// prefix of the project and no plus of its own, the plus is the
+	// heading's. A session no project holds stands with no heading over it
+	// and reads by its whole name.
+	for name, want := range map[string]struct{ head, name string }{
+		"person-ingest": {"person", "ingest"},
+		"tg-ai-shadow":  {"tg-ai-shadow", "tg-ai-shadow"},
+		"scratch-probe": {"", "scratch-probe"},
+	} {
+		c := got.Lones[name]
+		if c == nil {
+			t.Errorf("%s: the card is not on the page", name)
+			continue
+		}
+		if c.Head != want.head || c.Name != want.name {
+			t.Errorf("the card of %s stands under the heading %q and reads %q, want %q and %q", name, c.Head, c.Name, want.head, want.name)
+		}
+		for _, act := range c.Acts {
+			if strings.HasPrefix(act, "new session") {
+				t.Errorf("the card of %s has a plus of its own, %q: the plus of a project is in its heading", name, act)
+			}
+		}
 	}
 	if got.Kid == nil || got.Kid.Own != "onvif" {
 		t.Errorf("a session another opened reads %+v, want its name without the part its parent says", got.Kid)

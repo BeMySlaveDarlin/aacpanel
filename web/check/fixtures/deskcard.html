@@ -21,7 +21,7 @@ html,body{margin:0}
 <script type="module">
 // The card of a session in the desktop column, with the right panel open:
 // live and closed apart. The live sessions of a contour stand in blocks of
-// their projects, a project of one session said by its card, and keep their
+// their projects, each under its heading, and keep their
 // places whatever they do; a card says the state in the words of the phone,
 // who runs it on what, its settings and the share of its context; its
 // controls stand on every card in its corner; the heading counts who waits
@@ -153,8 +153,8 @@ const root = () => document.getElementById("root");
 const live = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf) .sc:not(.scghost)"));
 const rowOf = (name) => live().find((r) => r.dataset.name === name);
 // lay reads every contour of the column: its name, how many wait, and its
-// cards in order — the heading of a project of two cards or more as
-// "# name · group", and a card by the name of its session.
+// cards in order — the heading of a project as "# name · group", and a card
+// by the name of its session.
 const lay = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => ({
     name: text(sec.querySelector(".dkcontourname")),
     waits: text(sec.querySelector(".dkwaitn")),
@@ -235,12 +235,13 @@ window.done = (async () => {
     await quiet();
     out.opened = sent.slice();
 
-    // The plus of a project's card — the project of one session has no
-    // heading, its card stands for it — starts a session in that project.
-    // The gate asks first, as it does for the plus of the contour: what is
-    // read is what went to the host once the person said yes.
+    // The plus in the heading of a project of one session starts a session
+    // in that project. The gate asks first, as it does for the plus of the
+    // contour: what is read is what went to the host once the person said
+    // yes.
     sent.length = 0;
-    const own = rowOf("person") && rowOf("person").querySelector('.scact[aria-label="new session in project person"]');
+    const headOf = (name) => Array.from(root().querySelectorAll(".dkproj")).find((r) => text(r.querySelector(".dkprojname")) === name);
+    const own = headOf("person") && headOf("person").querySelector('.scact[aria-label="new session in project person"]');
     if (own) {
         own.click();
         for (let i = 0; i < 100 && !document.querySelector(".btnrow .btn.primary"); i++) await sleep(10);

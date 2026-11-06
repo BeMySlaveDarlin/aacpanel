@@ -56,34 +56,25 @@ export function Glyph({ state }) {
     `;
 }
 
-// nameOf parts the name of a card into what the line around it already says
-// and what is its own. A card under the heading of its project, or under the
-// session that opened it, drops what it shares with them; a card that stands
-// for a project of the map alone shows the project as a quiet prefix to its
-// own part — a session no project holds is its name alone.
-export function nameOf(name, { known = "", project = null } = {}) {
-    const sep = (root) => (root && name.length > root.length && name.startsWith(root)
-        && /[-_.]/.test(name[root.length]) ? root.length + 1 : 0);
-    if (project && project.id) {
-        const root = project.session || project.name || "";
-        const at = sep(root);
-        if (at) return { pre: name.slice(0, at), own: name.slice(at) };
-        if (name === root || name === project.name) return { pre: "", own: name };
-        return { pre: `${project.name} · `, own: name };
-    }
-    const at = sep(known);
-    return { pre: "", own: at ? name.slice(at) : name };
+// nameOf is the part of a card's name that is its own: a card under the
+// heading of its project, or under the session that opened it, drops what it
+// shares with the name that line says already (known); a card with nothing
+// over it reads by its whole name.
+export function nameOf(name, known = "") {
+    const at = known && name.length > known.length && name.startsWith(known)
+        && /[-_.]/.test(name[known.length]) ? known.length + 1 : 0;
+    return at ? name.slice(at) : name;
 }
 
-// Name is the name of a card in its two parts, whole for a reader, with the
-// address of the session in its tip where the name read is another — a
-// thread of codex reads by its title; tag is a quiet word after it — who
-// opened a session that stands away from its parent, the contour of a closed
-// one on a shelf of several.
-function Name({ full, part, tag = "", address = full }) {
+// Name is the name of a card, its own part on the screen and whole for a
+// reader, with the address of the session in its tip where the name read is
+// another — a thread of codex reads by its title; tag is a quiet word after
+// it — who opened a session that stands away from its parent, the contour of
+// a closed one on a shelf of several.
+function Name({ full, own, tag = "", address = full }) {
     return html`
         <span class="scname" title=${address !== full ? address : undefined} aria-label=${full}>
-            ${part.pre && html`<span class="scpre" aria-hidden="true">${part.pre}</span>`}<span class="scown" aria-hidden="true">${part.own}</span>
+            <span class="scown" aria-hidden="true">${own}</span>
             ${tag && html`<span class="sctag">${tag}</span>`}
         </span>
     `;
@@ -259,11 +250,11 @@ function Pause({ s, project, profile, sessions, exec }) {
     `;
 }
 
-// Controls are the controls of a live card: a new session in its project on
-// a card that stands for the project alone, pause, restart, pin and close.
-// A session the panel did not start is only read; the home session is never
-// closed; a codex in tmux restarts from its terminal.
-function Controls({ s, solo, project, profile, sessions, exec, pin, busy }) {
+// Controls are the controls of a live card: pause, restart, pin and close; a
+// new session in its project is the plus of the project's heading. A session
+// the panel did not start is only read; the home session is never closed; a
+// codex in tmux restarts from its terminal.
+function Controls({ s, project, profile, sessions, exec, pin, busy }) {
     const run = useAction();
     if (s.outside) return null;
     const codex = isCodex(s);
@@ -273,15 +264,9 @@ function Controls({ s, solo, project, profile, sessions, exec, pin, busy }) {
         : knows(exec, "session.close") ? "" : whyNot(exec, "session.close");
     const lost = stopsOf(s);
     const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
-    const canNew = solo && project && !s.home;
-    const newWhy = knows(exec, "session.open") ? "" : whyNot(exec, "session.open");
     const pinWhy = pin.why || (knows(exec, "session.pin") ? "" : whyNot(exec, "session.pin"));
     return html`
         <span class="scacts">
-            ${canNew && html`
-                <${Act} label=${`new session in project ${project.name}`} tip=${newWhy || `A new session in ${project.name}`} off=${newWhy}
-                        onPress=${() => run("session.open", project.session || project.name, { project: project.id })}>${Icon.plus()}<//>
-            `}
             <${Pause} s=${s} project=${project} profile=${profile} sessions=${sessions} exec=${exec} />
             <${Act} label=${`restart session ${s.session}`} off=${restartWhy}
                     tip=${restartWhy || (codex ? CODEX_RESTART : ends("a new session with an empty context; this one stays in the archive"))}
@@ -298,23 +283,21 @@ function Controls({ s, solo, project, profile, sessions, exec, pin, busy }) {
     `;
 }
 
-// SessionCard is a live session. solo is the project the card stands for
-// alone, with no heading of its own over it; known is the name a heading or
-// the opening session above it says already. depth is how many steps in the
-// card stands under the sessions that opened it; from names a parent that
-// stands elsewhere. A press anywhere on the card opens the conversation;
-// onMenu is the menu of a right click, where there is one; current marks
-// the conversation open beside the list.
-export function SessionCard({ s, limits, wait, exec, sessions = [], profile = null, notes = null, solo = null, known = "",
+// SessionCard is a live session. known is the name a heading or the opening
+// session above it says already. depth is how many steps in the card stands
+// under the sessions that opened it; from names a parent that stands
+// elsewhere. A press anywhere on the card opens the conversation; onMenu is
+// the menu of a right click, where there is one; current marks the
+// conversation open beside the list.
+export function SessionCard({ s, limits, wait, exec, sessions = [], profile = null, notes = null, known = "",
     depth = 0, from = "", current = false, desk = false, onOpen, onMenu }) {
     const closing = wait ? wait.of("close", s.session) : null;
     const restarting = wait ? wait.of("restart", s.session) : null;
     const busy = closing ? "closing" : restarting ? "restarting" : "";
     const state = stateOf(s, limits, { viewed: current });
     const steps = stepsOf(s.checklist);
-    const project = solo && solo.id ? solo : s.project && s.project.id ? s.project : null;
+    const project = s.project && s.project.id ? s.project : null;
     const name = shownName(s);
-    const part = nameOf(name, solo ? { project: solo } : { known });
     const pin = pinOf(s, sessions.length ? sessions : [s], wait);
     const time = timeOf(state);
     const timeTone = state.tone === "wait" ? "wait" : state.unseen ? "unseen" : ["idle", "paused"].includes(state.tone) ? "quiet" : "";
@@ -325,8 +308,8 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
             <button class="scopen" type="button" aria-label=${`open conversation ${s.session}`}
                     onClick=${() => onOpen && onOpen(s)}></button>
             <div class="scl1">
-                <${Name} full=${name} address=${s.session} part=${part} tag=${from ? `opened by ${from}` : ""} />
-                <${Controls} s=${s} solo=${Boolean(solo)} project=${project} profile=${profile} sessions=${sessions}
+                <${Name} full=${name} address=${s.session} own=${nameOf(name, known)} tag=${from ? `opened by ${from}` : ""} />
+                <${Controls} s=${s} project=${project} profile=${profile} sessions=${sessions}
                              exec=${exec} pin=${pin} busy=${Boolean(busy || s.restarting)} />
             </div>
             <${Line} state=${state} runs=${runsOf(s.work)} alarm=${wakeOf(s)} notes=${notes} busy=${busy} />
@@ -346,14 +329,13 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
 // a thread of codex keeps no share of its context, and says what it spent;
 // Resume where the live card has its controls. contour names the contour of
 // a card on a shelf of several.
-export function PastCard({ row, about = "", exec, solo = null, known = "", contour = "", current = false, desk = false, onOpen, onMenu }) {
+export function PastCard({ row, about = "", exec, known = "", contour = "", current = false, desk = false, onOpen, onMenu }) {
     const run = useAction();
     const last = row.last || {};
     const who = { agent: last.agent || row.agent };
     const steps = pastSteps(row.last, about ? `«${about}»` : "");
     const ready = knows(exec, "session.resume");
     const lastAt = stamp(row.lastAt);
-    const part = nameOf(row.name, solo ? { project: solo } : { known });
     const codex = isCodex(who);
     const place = last.transport || (codex ? "daemon" : row.transport || "");
     return html`
@@ -362,7 +344,7 @@ export function PastCard({ row, about = "", exec, solo = null, known = "", conto
             <button class="scopen" type="button" aria-label=${`open conversation ${row.name}`}
                     onClick=${() => onOpen && onOpen(row)}></button>
             <div class="scl1">
-                <${Name} full=${row.name} part=${part} tag=${contour} />
+                <${Name} full=${row.name} own=${nameOf(row.name, known)} tag=${contour} />
                 ${row.sessionId && html`
                     <span class="scacts">
                         <button class="scresume" type="button" aria-label=${`resume conversation of ${row.name}`}
@@ -386,14 +368,13 @@ export function PastCard({ row, about = "", exec, solo = null, known = "", conto
 
 // GhostCard holds the place of a session being raised: none of its lines is
 // known yet, so it is one line, in the columns of the card.
-export function GhostCard({ task, solo = null, known = "" }) {
+export function GhostCard({ task, known = "" }) {
     const sec = Math.max(0, Math.round((Date.now() - task.since) / 1000));
-    const part = nameOf(task.target, solo ? { project: solo } : { known });
     return html`
         <div class="sc scghost" data-name=${task.target} role="status">
             <div class="scl1">
                 <span class="scglyph" data-tone="busy" data-kind="ghost" aria-hidden="true"><span class="spin"></span></span>
-                <${Name} full=${task.target} part=${part} />
+                <${Name} full=${task.target} own=${nameOf(task.target, known)} />
                 <span class="scword">starting</span>
                 <span class="sctime">${sec}s</span>
             </div>

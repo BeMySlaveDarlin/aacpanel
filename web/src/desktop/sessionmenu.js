@@ -36,14 +36,13 @@ export const UNDER_WAY = { close: "The session is already closing", restart: "Th
 // session is drawn — its row in the column, its node in the graph of the
 // home: the body of the menu, its props and its label, as useMenu's handler
 // takes them. What the session's close or restart is doing it asks the
-// waits of the panel (wait), what they would stop the snapshot. onSettings
-// opens the settings of the session's project, for a session that stands for
-// its project alone, with no heading of the project to open them from.
-export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm, onSettings = null }) {
+// waits of the panel (wait), what they would stop the snapshot. The settings
+// of the session's project are in the menu of the project's heading.
+export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm }) {
     const closing = wait ? wait.of("close", s.session) : null;
     const restarting = wait ? wait.of("restart", s.session) : null;
     return [SessionMenu, {
-        s, exec, snapshot, wait, onOpen, onTerm, onSettings, lost: stopsOf(s),
+        s, exec, snapshot, wait, onOpen, onTerm, lost: stopsOf(s),
         closing: closing ? UNDER_WAY.close : "", restarting: restarting || s.restarting ? UNDER_WAY.restart : "",
     }, `session ${shownName(s)}`];
 }
@@ -113,12 +112,7 @@ function endsOf(exec, closing, restarting) {
     };
 }
 
-// settingsItem opens the settings of the project a session stands for alone.
-function settingsItem(onSettings) {
-    return onSettings && html`<${MenuItem} key="settings" label="Settings of the project" onPick=${onSettings} />`;
-}
-
-function ThreadMenu({ s, exec, snapshot, wait, onOpen, onSettings, closing, restarting }) {
+function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting }) {
     const run = useAction();
     const sheet = useMenuSheet();
     const toast = useToast();
@@ -144,11 +138,10 @@ function ThreadMenu({ s, exec, snapshot, wait, onOpen, onSettings, closing, rest
             html`<${MenuItem} key="close" label="Close the session" off=${closeWhy} tip=${CODEX_CLOSE}
                               onPick=${() => run("session.close", s.session, {})} />`,
         ],
-        [settingsItem(onSettings)],
     ]} />`;
 }
 
-function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, onSettings, closing, restarting, lost }) {
+function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarting, lost }) {
     const run = useAction();
     const { closeWhy, restartWhy } = endsOf(exec, closing, restarting);
     const toast = useToast();
@@ -210,7 +203,6 @@ function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, onSettings, closi
             !s.home && html`<${MenuItem} key="close" label="Close the session" note=${stops} off=${closeWhy}
                                          onPick=${() => run("session.close", s.session, {})} />`,
         ],
-        [settingsItem(onSettings)],
     ]} />`;
 }
 

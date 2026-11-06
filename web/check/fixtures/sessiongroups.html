@@ -122,7 +122,7 @@ const rowOf = (row) => row.classList.contains("scfold") ? foldOf(row)
     : row.classList.contains("scstub") ? `stub: ${text(row)}` : cardOf(row);
 const ROWS = ".scfold, .scstub, .sc:not(.scpast):not(.scghost)";
 // phoneOf reads a page of the phone block by block: the name of its heading —
-// none for a project of one card — and its rows in order.
+// none for a block no project holds — and its rows in order.
 const phoneOf = (root) => Array.from(root.querySelectorAll(".pjblock")).map((block) => ({
     name: text(block.querySelector(".pjname")),
     rows: Array.from(block.querySelectorAll(ROWS)).map(rowOf),

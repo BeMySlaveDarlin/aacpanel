@@ -112,8 +112,9 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 
 // The sessions a session had the panel open stand under it in both lists.
 //
-// On the phone a child stands in the block of its parent whatever its own
-// project: person, of a project of its own, is under lead and nowhere else,
+// On the phone every project stands under its heading, and a child stands in
+// the block of its parent whatever its own project: person, of a project of
+// its own, is under lead and nowhere else,
 // and the block of lead stands first, where its waiting child puts it. The
 // fold over the children is open, says how many there are and who of them
 // waits; the children stand a step in, in the order they were opened. The child of a parent that closed
@@ -161,22 +162,22 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 
 	phone := []groupBlock{
 		{"lead", []string{"lead", "fold: 2 opened · person", "› person", "› review the protocol"}},
-		{"", []string{"stub: docsclosed 40 min ago", "› wiki"}},
-		{"", []string{"shop"}},
+		{"wiki", []string{"stub: docsclosed 40 min ago", "› wiki"}},
+		{"shop", []string{"shop"}},
 	}
 	if !reflect.DeepEqual(got.Phone, phone) {
 		t.Errorf("the phone lays the contour out as\n%v\nexpected\n%v", got.Phone, phone)
 	}
-	if algo := []groupBlock{{"", []string{"rotation"}}, {"", []string{"quotes (opened by lead)"}}}; !reflect.DeepEqual(got.PhoneAlgo, algo) {
+	if algo := []groupBlock{{"rotation", []string{"rotation"}}, {"quotes", []string{"quotes (opened by lead)"}}}; !reflect.DeepEqual(got.PhoneAlgo, algo) {
 		t.Errorf("the page of the other contour reads %v, expected the child of lead on its own, naming lead", got.PhoneAlgo)
 	}
 
 	desk := []string{
 		"head: lead · work +", "lead", "fold: 2 opened · person", "› person", "› review the protocol",
-		"stub: docsclosed 40 min ago", "› wiki",
-		"shop",
-		"rotation",
-		"quotes (opened by lead)",
+		"head: wiki · work +", "stub: docsclosed 40 min ago", "› wiki",
+		"head: shop · side +", "shop",
+		"head: rotation · trading +", "rotation",
+		"head: quotes · trading +", "quotes (opened by lead)",
 	}
 	if !reflect.DeepEqual(got.Desk, desk) {
 		t.Errorf("the desktop column reads\n%v\nexpected\n%v", got.Desk, desk)
@@ -211,7 +212,8 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 			got.PhoneFolded)
 	}
 	deskFolded := []string{"head: lead · work +", "lead", "fold: 2 opened · person",
-		"stub: docsclosed 40 min ago", "› wiki", "shop", "rotation", "quotes (opened by lead)"}
+		"head: wiki · work +", "stub: docsclosed 40 min ago", "› wiki", "head: shop · side +", "shop",
+		"head: rotation · trading +", "rotation", "head: quotes · trading +", "quotes (opened by lead)"}
 	if !reflect.DeepEqual(got.DeskFolded, deskFolded) {
 		t.Errorf("the column with the fold closed reads\n%v\nexpected\n%v", got.DeskFolded, deskFolded)
 	}
@@ -222,8 +224,8 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		t.Errorf("the closed fold is kept as %v, expected by the name of its parent", got.Kept)
 	}
 
-	plain := []groupBlock{{"", []string{"person"}}, {"lead", []string{"review the protocol", "lead"}},
-		{"", []string{"wiki"}}, {"", []string{"shop"}}}
+	plain := []groupBlock{{"person", []string{"person"}}, {"lead", []string{"review the protocol", "lead"}},
+		{"wiki", []string{"wiki"}}, {"shop", []string{"shop"}}}
 	if !reflect.DeepEqual(got.Plain, plain) || got.PlainMarks != 0 {
 		t.Errorf("a list where nobody opened anybody reads %v with %d marks of a group", got.Plain, got.PlainMarks)
 	}

@@ -221,25 +221,33 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [], wa
     return [...out.values()].sort((a, b) => comparePins(a.pinnedAt, b.pinnedAt) || attention(a) - attention(b));
 }
 
-// headed says whether a block stands under a heading of its own: a project
-// with two cards or more. A project with one card is said by its card, which
-// carries the project as a quiet prefix to its name and its plus.
+// headed says whether a block stands under a heading of its own: every
+// project of the map, a lone card or a quiet one included, and a group of
+// two cards or more that no project holds. The heading says the project and
+// carries its plus, so a card under it is the session alone; a lone session
+// no project holds has no heading and reads by its whole name. Without the
+// heading a card named as its project reads as a session outside the map.
 export function headed(block) {
-    return block.live.length + block.ghosts.length > 1;
+    return Boolean(block.project) || block.live.length + block.ghosts.length > 1;
+}
+
+// knownOf is what the heading of a block says of the names of its cards
+// already: the session of its project, which they drop. A heading over cards
+// no project holds says nothing of their names.
+export function knownOf(block) {
+    return block.project ? block.project.session || block.project.name : "";
 }
 
 // ProjectBlock is one project: a heading with its name, its group and its
-// controls over two cards or more; its live sessions, those being raised and,
-// with none, its last conversation.
+// controls (see headed); its live sessions, those being raised and, with
+// none, its last conversation.
 export function ProjectBlock({ block, profile, exec, wait, notes, live, past, onOpen, onProject, limits }) {
     const project = block.project;
-    const head = headed(block);
-    const solo = head ? null : project || { name: block.name, session: block.name };
-    const known = head && project ? project.session || project.name : "";
+    const known = knownOf(block);
     const sessions = live || block.live;
     return html`
-        <section class=${`pjblock${head ? "" : " pjsolo"}${block.live.length === 0 && block.ghosts.length === 0 ? " pjquiet" : ""}`}>
-            ${head && html`
+        <section class=${`pjblock${block.live.length === 0 && block.ghosts.length === 0 ? " pjquiet" : ""}`}>
+            ${headed(block) && html`
                 <div class="pjhead">
                     ${project && onProject
                         ? html`<button class="pjname" type="button" aria-label=${`project ${block.name}`}
@@ -250,10 +258,9 @@ export function ProjectBlock({ block, profile, exec, wait, notes, live, past, on
                 </div>
             `}
             <${LiveLines} limits=${limits} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
-                          onOpen=${onOpen} exec=${exec} profile=${profile} solo=${block.live.length ? solo : null} known=${known} />
-            ${block.ghosts.map((task) => html`<${GhostCard} key=${task.target} task=${task} solo=${solo} known=${known} />`)}
-            ${block.past && html`<${PastCard} row=${block.past} about=${aboutOf(block.past, project)} exec=${exec}
-                                            solo=${project || { name: block.name, session: block.name }}
+                          onOpen=${onOpen} exec=${exec} profile=${profile} known=${known} />
+            ${block.ghosts.map((task) => html`<${GhostCard} key=${task.target} task=${task} known=${known} />`)}
+            ${block.past && html`<${PastCard} row=${block.past} about=${aboutOf(block.past, project)} exec=${exec} known=${known}
                                             onOpen=${(row) => onOpen && onOpen(row.name, row.sessionId)} />`}
         </section>
     `;
@@ -265,13 +272,12 @@ export function ProjectBlock({ block, profile, exec, wait, notes, live, past, on
 // started inside its work fold under it, closed; the sessions of a parent
 // that closed stand under what is left of it. live is every live session the
 // screen knows of, and past the closed conversations it has read: they tell a
-// parent alive elsewhere from one that closed, and when it closed. solo is
-// the project a lone card stands for; known is what the heading over the
-// cards says of their names already. A desk hands its own folds — its arrow
-// keys go down the same rows — the conversation open beside the column
-// (current), the menu of a card (menuOf) and how a closed parent opens
-// (onStub).
-export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits, profile = null, solo = null, known = "",
+// parent alive elsewhere from one that closed, and when it closed. known is
+// what the heading over the cards says of their names already. A desk hands
+// its own folds — its arrow keys go down the same rows — the conversation
+// open beside the column (current), the menu of a card (menuOf) and how a
+// closed parent opens (onStub).
+export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits, profile = null, known = "",
     folds = null, desk = false, current = "", menuOf = null, onStub = null }) {
     const own = useFolds();
     const [folded, fold] = folds || own;
@@ -279,7 +285,7 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
     const card = (s, depth = 0, from = "", parent = "") => html`
         <${SessionCard} key=${s.session} s=${s} depth=${depth} from=${from} limits=${limits} wait=${wait} exec=${exec}
                         sessions=${everyone} profile=${profile} notes=${notes && notes.get(s.session)}
-                        solo=${depth === 0 && list.length === 1 ? solo : null} known=${parent || known}
+                        known=${parent || known}
                         desk=${desk} current=${current === s.session} onMenu=${menuOf ? menuOf(s) : null}
                         onOpen=${(row) => onOpen && onOpen(row.session, row.sessionId)} />
     `;
@@ -310,7 +316,7 @@ export function waitsOf(kids, limits = null) {
     if (waiting.length === 0) return null;
     if (waiting.length > 1) return { count: waiting.length, name: "", state: waiting[0].state };
     const s = waiting[0].s;
-    return { count: 1, name: nameOf(shownName(s), { known: s.parent ? s.parent.session : "" }).own, state: waiting[0].state };
+    return { count: 1, name: nameOf(shownName(s), s.parent ? s.parent.session : ""), state: waiting[0].state };
 }
 
 // Waits is what waitsOf found, in the colour of waiting: a closed fold does
