@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -913,6 +914,27 @@ addEventListener("load", async () => {
 			case <-ctx.Done():
 				t.Fatal("the page did not finish its loads")
 			}
+			details := []string{
+				"readyState=complete", "window.done=" + c.doneType, "url=" + server.URL + "/waiting",
+				"[Log error] " + server.URL + "/missing-module.js", "404",
+				"[Network] " + server.URL + "/failed-load: net::ERR_EMPTY_RESPONSE",
+				"[console error] fixture console error 17 Error: fixture console detail",
+				"[console warning] fixture console warning",
+			}
+			// The events of the page come to the harness on a way of their
+			// own, and /ready at the server says nothing of when: the window
+			// of the timeout opens once the harness holds all of them, so what
+			// is checked is that the timeout keeps what the browser told.
+			for told := ""; ; time.Sleep(10 * time.Millisecond) {
+				told = b.pageTimeout(session, errors.New("")).Error()
+				missing := slices.IndexFunc(details, func(d string) bool { return !strings.Contains(told, d) })
+				if missing < 0 {
+					break
+				}
+				if ctx.Err() != nil {
+					t.Fatalf("the page never told %q: %s", details[missing], told)
+				}
+			}
 			within, stop := context.WithTimeout(ctx, 250*time.Millisecond)
 			defer stop()
 			_, err = b.wait(within, session, url)
@@ -920,13 +942,7 @@ addEventListener("load", async () => {
 				t.Fatalf("a page without an answer returned %v", err)
 			}
 			said := err.Error()
-			for _, detail := range []string{
-				"readyState=complete", "window.done=" + c.doneType, "url=" + server.URL + "/waiting",
-				"[Log error] " + server.URL + "/missing-module.js", "404",
-				"[Network] " + server.URL + "/failed-load: net::ERR_EMPTY_RESPONSE",
-				"[console error] fixture console error 17 Error: fixture console detail",
-				"[console warning] fixture console warning",
-			} {
+			for _, detail := range details {
 				if !strings.Contains(said, detail) {
 					t.Errorf("the timeout lost %q: %s", detail, said)
 				}
