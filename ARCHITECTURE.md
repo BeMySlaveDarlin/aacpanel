@@ -1757,6 +1757,75 @@ unit of a session lives out its run without a High, under the Max it started
 with: the executor does not put a High on a unit it does not know it lifted,
 and a running session keeps what it was started with.
 
+**Heavy runs wait their turn at the executor.** The ceilings stop a
+runaway, but they do not order the runs: sessions that start their tests at
+once still fight for one memory, and the run the kernel kills is the one that
+crosses its line first, not the one that came last. `aacpanel-exec -heavy
+[-mem SIZE] [-name TEXT] -- COMMAND` puts the command in a queue the executor
+keeps on `heavy.sock`, next to its own socket. The client holds the
+connection while it waits, and a client that goes away — killed, or its
+command timed out — takes its place with it. It is told its place at once,
+then every fifteen seconds how many are ahead and what the head waits for, and
+then that it is admitted: on stderr alone, every line beginning with
+`aacpanel-exec -heavy:`, so the output stays the command's.
+
+The queue is strictly in order: only the head is admitted, even while a run
+behind it would fit. The price is a small run waiting behind a big one; the
+other way, a stream of small runs would hold a big one for ever. The head is
+weighed every two seconds and whenever a run joins or leaves, against all of
+these at once: fewer than `AACP_HEAVY_SLOTS` runs going (3); the machine's
+`MemAvailable`, less what the runs going are still to grow by and less the ask,
+at least `AACP_HEAVY_RESERVE` (a fifth of the machine); what the slice holds,
+with that growth and the ask, within the `MemoryHigh` the description gives
+it; and full `avg10` of `/proc/pressure/memory` under 10 and of
+`/proc/pressure/io` under 30. What a run is still to grow by is its ask less
+what it holds: a run admitted a moment ago holds nothing yet, and three runs
+admitted together, counted by what they hold, would each find the memory of the
+others still free. The slice and a run are counted, as `MemAvailable` counts
+the machine, by what they hold besides the cache of files: `memory.current`
+less the file pages of `memory.stat`, shared memory excepted. The cache of
+the files the sessions read fills the slice up to its `MemoryHigh` and stays
+there, and the kernel gives it up to a run that grows before it slows
+anything; counted whole, the slice would stand at its High for good and no
+run would be admitted again. The pressure lines are far above what work that goes on
+makes — a full check of this repository beside working sessions keeps memory
+at nought and io under 15 — and under what a machine thrashing in swap shows. A
+run that names no `-mem` asks for `AACP_HEAVY_MEM` (a tenth of the machine). A
+run that asks for more than the slice's `MemoryHigh`, or than the machine less
+its reserve, would wait for ever, and is refused at once with exit 125. One
+that asks for less, but for more than the slice can give beside what the
+sessions in it hold, waits until they hold less.
+
+An admitted run lives in a scope of its own, `aacp-heavy-<n>.scope` in the
+agents' slice. The executor asks the user's manager for it with
+`StartTransientUnit`, naming the client's pid as the kernel gives it for the
+connection, with `MemoryMax` at the ask, `MemorySwapMax` at an eighth of it,
+`CPUQuota` at `AACP_HEAVY_CPUS` cores (4) and `OOMPolicy=continue`. The
+quota has a price: a full check of this repository, held to four cores, is
+throttled in a quarter of its periods and runs a tenth longer. Only the
+manager moves a process between cgroups: the executor's view of them is
+read-only. Once the pid is in the scope, the client closes the connection and
+becomes the command with `exec`, so its input, output, directory, environment
+with the session bus, signals and exit are the command's own; the run is
+killed at its ceiling, not its neighbours, and the scope ends with its last
+process. A process the run leaves behind keeps the scope, and the slot, until
+it ends. A slot is taken while a scope is: the executor counts the runs going
+by the scopes in the slice and reads their asks back from `memory.max`, so its
+restart loses the runs waiting, never the runs going, and the clients of the
+waiting join the next queue at its end with a line. A run started inside a
+heavy run is held already and does not queue: it would wait for the slot the
+run around it holds.
+
+The queue never stops a command from running. With no executor to reach, or
+a scope the manager would not start, the command runs at once without the
+queue's ceilings, said in one line. A command that goes into a container
+through `docker exec` gets the queue's order and nothing more: its memory lives
+in the container's cgroup and is held by the container's limits. The queue
+answers `{"op":"view"}` on its socket with the runs going — scope, name,
+directory, ask, what it holds, since when — and the runs waiting in their
+order, with what the head waits for; a run the executor admitted before its
+last start is known by its scope alone.
+
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -122,6 +123,26 @@ func share(total, num, den uint64) string {
 
 // machineMemory is the memory of the machine in bytes, as the kernel tells it.
 func machineMemory() (uint64, error) {
+	kb, err := meminfo("MemTotal")
+	if err == nil && kb == 0 {
+		err = fmt.Errorf("%s gives MemTotal as 0", meminfoFile)
+	}
+	return kb << 10, err
+}
+
+// MachineMemory is the memory of the machine in bytes, as the kernel tells it.
+func MachineMemory() (uint64, error) { return machineMemory() }
+
+// AvailableMemory is how many bytes the kernel counts it could give a new
+// load now without swapping: MemAvailable, the free memory and the cache it
+// can take back.
+func AvailableMemory() (uint64, error) {
+	kb, err := meminfo("MemAvailable")
+	return kb << 10, err
+}
+
+// meminfo is one line of the kernel's account of memory, in kB.
+func meminfo(field string) (uint64, error) {
 	f, err := os.Open(meminfoFile)
 	if err != nil {
 		return 0, err
@@ -130,22 +151,26 @@ func machineMemory() (uint64, error) {
 	lines := bufio.NewScanner(f)
 	for lines.Scan() {
 		f := strings.Fields(lines.Text())
-		if len(f) == 3 && f[0] == "MemTotal:" && f[2] == "kB" {
+		if len(f) == 3 && f[0] == field+":" && f[2] == "kB" {
 			kb, err := strconv.ParseUint(f[1], 10, 64)
-			if err != nil || kb == 0 {
-				return 0, fmt.Errorf("%s gives MemTotal as %q", meminfoFile, f[1])
+			if err != nil {
+				return 0, fmt.Errorf("%s gives %s as %q", meminfoFile, field, f[1])
 			}
-			return kb << 10, nil
+			return kb, nil
 		}
 	}
 	if err := lines.Err(); err != nil {
 		return 0, err
 	}
-	return 0, fmt.Errorf("%s names no MemTotal in kB", meminfoFile)
+	return 0, fmt.Errorf("%s names no %s in kB", meminfoFile, field)
 }
 
 // ceiling is one ceiling of the description, or share where it names none.
-func ceiling(name, share string) (string, error) {
+func ceiling(name, share string) (string, error) { return sized(name, share, "ceiling") }
+
+// sized is one size of the description, or share where it names none; what
+// names the size in the error, a ceiling or a reserve.
+func sized(name, share, what string) (string, error) {
 	raw, named := lookup(name)
 	if !named {
 		return share, nil
@@ -160,10 +185,26 @@ func ceiling(name, share string) (string, error) {
 	}
 	if !ok {
 		return share, fmt.Errorf("%s=%s is not a size systemd takes: it is a whole number of bytes, or of K, M, G "+
-			"or T, like 6G or 768M; empty or 0 is no ceiling. The ceiling is %s, the machine's share, until it is "+
-			"corrected", name, raw, orNone(share))
+			"or T, like 6G or 768M; empty or 0 is no %s. The %s is %s, the machine's share, until it is "+
+			"corrected", name, raw, what, what, orNone(share))
 	}
 	return v, nil
+}
+
+// SizeBytes is a size in the form systemd takes it, like 6G or 768M, in
+// bytes; ok is false for a value systemd would refuse.
+func SizeBytes(v string) (n uint64, ok bool) {
+	v = strings.TrimSpace(v)
+	if _, ok := sizeForm(v); !ok {
+		return 0, false
+	}
+	digits := strings.TrimRight(v, "KMGT")
+	n, _ = strconv.ParseUint(digits, 10, 64)
+	shift := map[string]uint{"": 0, "K": 10, "M": 20, "G": 30, "T": 40}[v[len(digits):]]
+	if n > math.MaxUint64>>shift {
+		return 0, false
+	}
+	return n << shift, true
 }
 
 // sizeForm says whether v is a whole number with one of the suffixes systemd

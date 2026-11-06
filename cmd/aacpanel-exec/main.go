@@ -20,6 +20,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/executor"
+	"aacpanel/internal/heavy"
 	"aacpanel/internal/hook"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
@@ -47,6 +48,11 @@ func main() {
 	// flag that does not parse, which would hold the session it serves.
 	if len(os.Args) > 1 && os.Args[1] == hook.Command {
 		os.Exit(hook.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+	// A heavy run takes the rest of the line as its own, its flags and the
+	// command after them: the executor's flags would read the command's.
+	if len(os.Args) > 1 && os.Args[1] == heavy.Flag {
+		os.Exit(heavy.Run(os.Args[2:], defaultSocket(), os.Stderr))
 	}
 
 	updateCodex := flag.Bool("update-codex", false, "ask the running executor to update Codex and check its protocol")
@@ -383,6 +389,14 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 		log.Printf("session terminal: %s", termSocket)
 	}
 
+	heavySocket := heavy.Socket(socket)
+	if heavyLn, err := startHeavy(ctx, heavySocket, memory); err != nil {
+		log.Printf("the queue of heavy runs is unavailable (%s): %v; such runs go at once, without it", heavySocket, err)
+	} else {
+		defer os.Remove(heavySocket)
+		defer heavyLn.Close()
+	}
+
 	if err := executor.SetUpAgentsSlice(ctx, memory.Agents); err != nil {
 		log.Printf("%v; sessions start all the same, and the slice keeps whatever ceilings it had", err)
 	}
@@ -700,6 +714,27 @@ func startObservers(ctx context.Context, e *executor.Executor) {
 	}
 	go keeper.Serve(ctx, ln)
 	log.Printf("observers and alarms: %s", path)
+}
+
+// startHeavy keeps the queue of heavy runs on its socket. A size of the
+// description the queue cannot use is named once, and its default stands in.
+func startHeavy(ctx context.Context, socket string, memory hostcfg.Memory) (net.Listener, error) {
+	h, err := hostcfg.ReadHeavy()
+	if err != nil {
+		log.Print(err)
+	}
+	limits, err := heavy.LimitsOf(h, memory)
+	if err != nil {
+		log.Print(err)
+	}
+	ln, err := heavy.Listen(socket)
+	if err != nil {
+		return nil, err
+	}
+	go heavy.NewQueue(executor.NewHeavyHost(), limits).Serve(ctx, ln)
+	log.Printf("heavy runs: %s, %d at once, %s kept free, %s asked by a run that names none, %d cores a run",
+		socket, limits.Slots, heavy.Size(limits.Reserve), heavy.Size(limits.Ask), limits.CPUs)
+	return ln, nil
 }
 
 func startTerminals(ctx context.Context, socket string) (net.Listener, error) {

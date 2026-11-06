@@ -246,11 +246,7 @@ func busctl(ctx context.Context, bus string, args ...string) (string, error) {
 	callCtx, cancel := context.WithTimeout(ctx, konsoleTimeout)
 	defer cancel()
 
-	bin := os.Getenv(busctlEnv)
-	if bin == "" {
-		bin = defaultBusctl
-	}
-	cmd := exec.CommandContext(callCtx, bin, append([]string{"--user"}, args...)...)
+	cmd := exec.CommandContext(callCtx, busctlBin(), append([]string{"--user"}, args...)...)
 	if bus != "" {
 		cmd.Env = withBus(os.Environ(), bus)
 	}
@@ -262,6 +258,13 @@ func busctl(ctx context.Context, bus string, args ...string) (string, error) {
 		return "", errWithStderr(err)
 	}
 	return string(out), nil
+}
+
+func busctlBin() string {
+	if bin := os.Getenv(busctlEnv); bin != "" {
+		return bin
+	}
+	return defaultBusctl
 }
 
 func busVerb(args []string) string {
