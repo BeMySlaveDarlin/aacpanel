@@ -24,7 +24,7 @@ import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { useHold } from "../../ui/pie.js";
 import { Sheet } from "../../ui/sheet.js";
-import { alarmTime, fill, tokens } from "../../format.js";
+import { alarmTime, bytes, fill, pct, tokens } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { CODEX_NOTE, agentKey, agentName, codexRestartWhy, codexResume, isCodex, shownName } from "../../agent.js";
@@ -82,6 +82,18 @@ function Name({ full, own, tag = "", address = full }) {
         <span class="scname" title=${address !== full ? address : undefined} aria-label=${full}>
             <span class="scown" aria-hidden="true">${own}</span>
             ${tag && html`<span class="sctag">${tag}</span>`}
+        </span>
+    `;
+}
+
+function Resources({ res }) {
+    if (!res) return null;
+    const mem = bytes(res.mem).replace(" ", "").replace(/([KMGT])B$/, "$1");
+    const cpu = res.cpu === undefined ? "—" : pct(res.cpu);
+    return html`
+        <span class="scres">
+            <span class="scmeter" title="Session memory" aria-label=${`Session memory: ${mem}`}>${Icon.memory()}${mem}</span>
+            <span class="scmeter" title="Session CPU · one core" aria-label=${`Session CPU: ${cpu}`}>${Icon.cpu()}${cpu}</span>
         </span>
     `;
 }
@@ -315,6 +327,7 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
                     onClick=${() => onOpen && onOpen(s)}></button>
             <div class="scl1">
                 <${Name} full=${name} address=${s.session} own=${nameOf(name, known)} tag=${from ? `opened by ${from}` : ""} />
+                <${Resources} res=${s.res} />
                 ${desk && html`<${Controls} s=${s} project=${project} profile=${profile} sessions=${sessions}
                                             exec=${exec} pin=${pin} busy=${Boolean(busy || s.restarting)} />`}
             </div>

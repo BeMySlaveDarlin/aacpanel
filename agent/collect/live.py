@@ -19,6 +19,7 @@ import agent
 from chat.tools import tool_label
 from sesstate import calls
 from sesstate.wake import ALARMS
+from . import resources
 
 
 def home_session_name():
@@ -301,8 +302,10 @@ def sessions():
     remotes = live_session_remote()
     versions = live_session_version()
     places = live_session_places()
+    live_files = live_session_files()
     opened_keys = {s["sessionId"]: f"process-{s['pid']}-{ctx.proc_start(s['pid'])}"
-                   for s in live_session_files() if s.get("sessionId")}
+                   for s in live_files if s.get("sessionId")}
+    readings = resources.of_sessions(live_files)
     held_by = observers.held_by_conversation()
     seen_transcripts = set()
     for s in data.get("sessions", []):
@@ -314,6 +317,8 @@ def sessions():
         sid = s.get("sessionId") or ""
         if sid in opened_keys:
             s["openedKey"] = opened_keys[sid]
+        if sid in readings and s.get("agent") != "codex":
+            s["res"] = readings[sid]
         if sid:
             found = profiles.get(sid)
             if found:

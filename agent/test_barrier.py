@@ -137,6 +137,14 @@ class Confinement(unittest.TestCase):
                          "an ordinary one: the confinement of the unit never "
                          "reached it")
 
+    def test_process_cgroups_and_their_resource_counters_are_readable(self):
+        raw = pathlib.Path(f"/proc/{os.getpid()}/cgroup").read_text(encoding="utf-8")
+        group = next(line[3:] for line in raw.splitlines() if line.startswith("0::"))
+        root = pathlib.Path("/sys/fs/cgroup") / group.lstrip("/")
+        self.assertGreaterEqual(int((root / "memory.current").read_text(encoding="utf-8")), 0)
+        stat = dict(line.split() for line in (root / "cpu.stat").read_text(encoding="utf-8").splitlines())
+        self.assertGreaterEqual(int(stat["usage_usec"]), 0)
+
 
 class Coverage(unittest.TestCase):
     PICK_THE_PLACE = ("TemporaryDirectory", "NamedTemporaryFile",

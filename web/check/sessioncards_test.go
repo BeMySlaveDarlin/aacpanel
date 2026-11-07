@@ -15,6 +15,7 @@ type sessionCardSeen struct {
 	Line4     string   `json:"line4"`
 	Line5     string   `json:"line5"`
 	Name1     string   `json:"name1"`
+	Resources []string `json:"resources"`
 	Controls  []string `json:"controls"`
 	Runs      []string `json:"runs"`
 	Alarm     string   `json:"alarm"`
@@ -67,11 +68,20 @@ type sessionCardsRun struct {
 func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	t.Helper()
 	order := []string{"working", "quiet", "unseen", "waiting", "paused", "archived"}
+	resources := map[string][]string{
+		"working": {"512M", "3%"},
+		"waiting": {"1.2G", "104%"},
+		"unseen":  {"0B", "0%"},
+		"paused":  {"64M", "—"},
+	}
 	for _, state := range order {
 		c := got.Six[state]
 		if c == nil {
 			t.Errorf("%s: the card of the state is not on the page", state)
 			continue
+		}
+		if !slices.Equal(c.Resources, resources[state]) {
+			t.Errorf("%s (%s) has resource badges %v, want %v", state, c.Name, c.Resources, resources[state])
 		}
 		if state == "working" {
 			if !strings.Contains(c.Line5, "queued 2") {
