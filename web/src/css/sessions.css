@@ -196,13 +196,13 @@
 .pflimits.tucked { position: sticky; top: 0; z-index: 3; padding: 2px 0 3px; }
 .pflimits.tucked .limits-note.calm { display: none; }
 .pflimitrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.limit-group { flex: none; min-inline-size: 0; margin: 0; padding: 1px 6px 6px; border: var(--hair) solid var(--edge); border-radius: 13px; background: var(--glass); }
+.limit-group { flex: none; min-inline-size: 0; margin: 0; padding: 1px 5px 5px; border: var(--hair) solid var(--edge); border-radius: 10px; background: var(--glass); }
 .limit-group legend { margin-left: 3px; padding: 0 4px; font-size: var(--t-xs); line-height: 1; }
-.limit-windows { display: flex; gap: 6px; }
+.limit-windows { display: flex; gap: 5px; }
 .limit-reading { position: relative; flex: none; color: var(--ok); }
 .limit-reading.warn { color: var(--warn); }
 .limit-reading.crit { color: var(--crit); }
-.limit-ring { display: grid; place-items: center; width: 52px; height: 52px; }
+.limit-ring { display: grid; place-items: center; width: 42px; height: 42px; }
 .limit-gauge { position: absolute; inset: 0; border-radius: 50%; }
 .limit-gauge::before {
     content: "";
@@ -210,12 +210,12 @@
     inset: 0;
     border-radius: inherit;
     background: conic-gradient(currentColor calc(var(--share) * 1%), var(--line) 0);
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.6px), #000 calc(100% - 3.2px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 3.6px), #000 calc(100% - 3.2px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.9px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.9px), #000 calc(100% - 2.5px));
 }
 .limit-reading.crit .limit-gauge, .limit-reading.crit .limit-minitrack { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--crit) 75%, transparent)); }
-.limit-dial { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; line-height: 1; }
-.limit-percent { font-size: var(--t-base); font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.limit-dial { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1; }
+.limit-percent { font-size: var(--t-sm); font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .limit-percent small { margin-left: 1px; font-size: .62em; font-weight: 600; color: var(--ink-faint); }
 .limit-reading.crit .limit-percent { color: var(--crit); }
 .limit-reading.crit .limit-percent small { color: inherit; opacity: .7; }
