@@ -67,6 +67,10 @@ type Server struct {
 	guards       chan struct{}
 	briefGuideMu sync.Mutex
 	taskImportMu sync.Mutex
+	pauseMu      sync.Mutex
+	raiseMu      sync.Mutex
+	sleepConfig  reviveConfig
+	sleeper      *reviver
 	// releases asks GitHub whether a newer release of the panel is out.
 	releases *release.Check
 }
@@ -334,6 +338,8 @@ func run() error {
 			return err
 		}
 		go srv.runLiving(ctx)
+		srv.sleepConfig = revive
+		go srv.runPauses(ctx)
 		go srv.runRevival(ctx, revive)
 		go db.Run(ctx)
 		go srv.runBriefGuideImport(ctx)

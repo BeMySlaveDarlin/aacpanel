@@ -55,6 +55,7 @@ func newReviveScene(t *testing.T) *reviveScene {
 		}
 		return &action.Headroom{BootID: "new", High: 1000, Measure: heavy.Measure{Available: 1000}}, nil
 	}
+	s.srv.sleeper = &reviver{srv: srv, config: s.r.config, read: s.r.read, measure: s.r.measure, sleep: true}
 	s.publish()
 	return s
 }
@@ -77,9 +78,12 @@ func (s *reviveScene) drain() {
 	for {
 		select {
 		case req := <-s.exec.got:
+			if req.Ask != "" {
+				continue
+			}
 			s.requests = append(s.requests, req)
 			if req.Kind == action.SessionResume {
-				if !req.Silent || req.Text != "" {
+				if (req.Device == "reboot recovery" || req.Device == "session wake") && (!req.Silent || req.Text != "") {
 					s.t.Errorf("recovery sent an opening message: %+v", req)
 				}
 				row := store.LivingSession{Conversation: req.Resume, Session: req.Target, CWD: s.dir}
@@ -87,6 +91,15 @@ func (s *reviveScene) drain() {
 				if !s.hold {
 					s.snap.Sessions = append(s.snap.Sessions, livingRow{LiveSession: host.LiveSession{Name: req.Target, SessionID: req.Resume, CWD: s.dir}})
 				}
+			}
+			if req.Kind == action.SessionClose {
+				live := s.snap.Sessions[:0]
+				for _, row := range s.snap.Sessions {
+					if row.SessionID != req.Conversation {
+						live = append(live, row)
+					}
+				}
+				s.snap.Sessions = live
 			}
 			if req.Kind == action.SessionSend && !s.refusePause {
 				for i := range s.snap.Sessions {
@@ -320,7 +333,7 @@ func TestRecoveryStopsWhenHostPressureDoesNotFallPG(t *testing.T) {
 }
 
 func TestRecoveryRestoresEveryKindOfPausePG(t *testing.T) {
-	for _, kind := range []string{"future", "expired", "no end", "not confirmed"} {
+	for _, kind := range []string{"future", "expired", "no end", "no process alarm"} {
 		t.Run(kind, func(t *testing.T) {
 			s := newReviveScene(t)
 			row := s.row(1)
@@ -330,30 +343,14 @@ func TestRecoveryRestoresEveryKindOfPausePG(t *testing.T) {
 				alarm.Next = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
 			case "no end":
 				alarm.Name = action.PauseNoEndAlarm
-			case "not confirmed":
+			case "no process alarm":
 				s.refusePause = true
 			}
 			row.Pause, _ = json.Marshal(alarm)
-			if kind == "not confirmed" {
-				read := s.r.read
-				s.r.read = func(now time.Time) (livingSnapshot, error) {
-					snap, err := read(now)
-					for i := range snap.Sessions {
-						snap.Sessions[i].Pause = &alarm
-					}
-					s.snap = snap
-					s.publish()
-					return snap, err
-				}
-			}
+
 			s.remember([]store.LivingSession{row})
 			total, raised, failed := s.r.recover(t.Context(), []store.LivingSession{row})
-			if kind == "not confirmed" {
-				if raised != 0 || len(failed) != 1 || !strings.Contains(failed[0], "pause") {
-					t.Fatalf("unconfirmed pause: %d %v", raised, failed)
-				}
-				return
-			}
+			s.drain()
 			if total != 1 || raised != 1 || len(failed) != 0 {
 				t.Fatalf("pause recovery: %d %d %v", total, raised, failed)
 			}

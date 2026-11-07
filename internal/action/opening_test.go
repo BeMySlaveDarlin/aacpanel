@@ -51,3 +51,27 @@ func TestTheOpeningQueryUsesTheExecutorsOwnershipSource(t *testing.T) {
 		t.Fatalf("the opening was not passed on: %+v", response)
 	}
 }
+
+func TestHelperReportLettersBindTheThreadAndRecipientWithoutAnotherSender(t *testing.T) {
+	const child = "11111111-1111-4111-8111-111111111111"
+	const parent = "22222222-2222-4222-8222-222222222222"
+	base := Request{ID: "report", Kind: SessionLetter, Target: "parent", Conversation: parent, Text: "A complete report", Report: &HelperReport{Thread: child, Parent: parent}}
+	if err := base.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []func(*Request){
+		func(r *Request) { r.Kind = SessionSend },
+		func(r *Request) { r.Report = &HelperReport{Thread: "invalid", Parent: parent} },
+		func(r *Request) { r.Conversation = child },
+		func(r *Request) { r.From = child },
+		func(r *Request) { r.FromCodex = &CodexSender{Home: "/srv/home", Dir: "/srv/proj"} },
+		func(r *Request) { r.ParentQuestion = child },
+		func(r *Request) { r.Caller = child },
+	} {
+		bad := base
+		change(&bad)
+		if err := bad.Validate(); err == nil {
+			t.Fatalf("an unbound report was accepted: %+v", bad)
+		}
+	}
+}

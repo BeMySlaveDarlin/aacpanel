@@ -17,9 +17,14 @@ const livingFresh = 30 * time.Second
 
 type livingRow struct {
 	host.LiveSession
-	Profile   string      `json:"profile"`
-	ConfigDir string      `json:"configDir"`
-	Pause     *pauseAlarm `json:"pauseAlarm"`
+	Profile       string          `json:"profile"`
+	ConfigDir     string          `json:"configDir"`
+	Pause         *pauseAlarm     `json:"pauseAlarm"`
+	Status        string          `json:"status,omitempty"`
+	StatusAt      int64           `json:"statusUpdatedAt,omitempty"`
+	LastRequestAt string          `json:"lastRequestAt,omitempty"`
+	TurnOver      bool            `json:"turnOver,omitempty"`
+	Work          json.RawMessage `json:"work,omitempty"`
 }
 
 type livingSnapshot struct {
@@ -121,6 +126,12 @@ func (s *Server) archivedParent(ctx context.Context, conversation string) (strin
 		return "", "", err
 	}
 	row, err := s.db.LivingConversation(ctx, hostID, conversation)
+	pauses, pauseErr := s.sessionPauses(ctx)
+	if pauseErr != nil {
+		return "", "", pauseErr
+	} else if p, ok := pauseConversation(pauses, conversation); ok {
+		row = &p.LivingSession
+	}
 	if err != nil || row == nil || row.Parent == "" {
 		return "", "", err
 	}
@@ -129,6 +140,11 @@ func (s *Server) archivedParent(ctx context.Context, conversation string) (strin
 		parent, live = s.host.LiveSessionOf(row.ParentConversation)
 	}
 	if !live || parent.Outside {
+		for _, p := range pauses {
+			if p.Sleeping && ((row.ParentConversation != "" && p.Conversation == row.ParentConversation) || (row.ParentConversation == "" && p.Session == row.Parent)) {
+				return p.Session, "", nil
+			}
+		}
 		return "", "parent " + row.Parent + " is not live; resumed without a parent", nil
 	}
 	return parent.Name, "", nil

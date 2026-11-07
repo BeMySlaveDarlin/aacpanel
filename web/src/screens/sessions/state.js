@@ -121,6 +121,10 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
         return state;
     };
 
+    if (s.sleeping) {
+        const until = Date.parse(s.pauseAlarm?.next || "") || 0;
+        return make("paused", "paused", "sleeping", { subject: until ? `until ${pauseAt(until)}` : "" });
+    }
     const phase = s.restartPhase;
     if (phase && phase.phase === "saving") {
         return make("busy", "saving", "saving for restart", { until: Date.parse(phase.forceAt || "") || 0 });

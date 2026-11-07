@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/session"
 	"aacpanel/internal/stream"
 )
 
@@ -45,25 +47,53 @@ func (e *Executor) reportCodexTurn(ctx context.Context, r codex.TurnReport) erro
 		return err
 	}
 	from := codex.SessionName(r.Thread)
-	if th, ok := e.codex.Thread(r.Owner.Conversation); ok {
+	if _, held := e.codex.Thread(r.Owner.Conversation); !held {
+		if _, err := liveSessionOf(r.Owner.Conversation); err != nil {
+			h := session.Host{Panel: session.PanelURL()}
+			return h.Report(ctx, action.HelperReport{Thread: r.Thread, Parent: r.Owner.Conversation}, body)
+		}
+	}
+	return e.deliverCodexReport(ctx, r.Owner.Conversation, "", from, body)
+}
+
+func (e *Executor) helperReportLetter(ctx context.Context, req action.Request) (string, error) {
+	owner := stream.OwnerOf(req.Report.Thread)
+	if owner.Conversation == "" || owner.Conversation != req.Report.Parent {
+		return "", fmt.Errorf("the helper's opening does not name this report recipient")
+	}
+	err := e.deliverCodexReport(ctx, owner.Conversation, req.Target, codex.SessionName(req.Report.Thread), req.Text)
+	return "the helper's report was delivered to " + req.Target, err
+}
+
+func (e *Executor) deliverCodexReport(ctx context.Context, parent, target, from, body string) error {
+	if th, ok := e.codex.Thread(parent); ok {
+		if target != "" && th.Name != target {
+			return fmt.Errorf("the report's recipient now has another name")
+		}
 		_, err := th.Link.Send(ctx, th.ID, codex.Message{Text: "A turn report from your Codex helper, opened by you.\n\n" +
 			letterEnvelope("", from, body)})
 		return err
 	}
-	s, err := liveSessionOf(r.Owner.Conversation)
+	s, err := liveSessionOf(parent)
 	if err != nil {
 		return err
 	}
-	if !onStream(s) {
-		return fmt.Errorf("parent %s is in tmux and receives no automatic reports", r.Owner.Name)
+	if target != "" && s.Name != target {
+		return fmt.Errorf("the report's recipient now has another name")
 	}
-	st, err := streamState(ctx, s)
-	if err != nil {
-		return err
+	// A report returned by the panel follows the wake's letter path, so a
+	// restored tmux parent can receive it through its native message socket.
+	if !onStream(s) && target == "" {
+		return fmt.Errorf("parent %s is in tmux and receives no automatic reports", s.Name)
 	}
-	if st.Protocol < stream.LettersSince {
-		return fmt.Errorf("the holder of parent %s cannot take letters; restart the session", s.Name)
+	if onStream(s) {
+		st, err := streamState(ctx, s)
+		if err != nil {
+			return err
+		}
+		if st.Protocol < stream.LettersSince {
+			return fmt.Errorf("the holder of parent %s cannot take letters; restart the session", s.Name)
+		}
 	}
-	_, err = streamAsk(ctx, s, stream.Request{Op: stream.OpLetter, Text: letterEnvelope("", from, body)})
-	return err
+	return peerLetter(ctx, s, from, body)
 }

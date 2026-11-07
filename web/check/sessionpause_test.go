@@ -21,6 +21,17 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			}
 			var got struct {
 				Pause struct {
+					Sleep struct {
+						States         []string
+						Controls, Menu []struct {
+							Key, Label, Why string
+							Off             bool
+						}
+						Continue, Close struct {
+							Kind, Target string
+							Params       map[string]any
+						}
+					}
 					State, Ends, Header, SessionScope                                    string
 					Feed, ProjectRecipients, GroupRecipients, Options, SessionRecipients []string
 					Letters                                                              int
@@ -45,6 +56,32 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			}
 			screen.run(t, screen.file, &got)
 			p := got.Pause
+			if len(p.Sleep.States) != 2 || !strings.HasPrefix(p.Sleep.States[0], "sleeping until ") || p.Sleep.States[1] != "sleeping" {
+				t.Errorf("sleeping states: %v", p.Sleep.States)
+			}
+			for _, control := range p.Sleep.Controls {
+				allowed := control.Key == "pause" || control.Key == "close" || strings.HasPrefix(control.Label, "continue session ") || strings.HasPrefix(control.Label, "close session ")
+				if allowed && control.Off || !allowed && (!control.Off || control.Why != "sleeping") {
+					t.Errorf("sleeping control: %+v", control)
+				}
+			}
+			if screen.name == "desk" {
+				if len(p.Sleep.Menu) == 0 {
+					t.Error("sleeping menu is absent")
+				}
+				for _, item := range p.Sleep.Menu {
+					allowed := item.Label == "Continue now" || item.Label == "Close the session"
+					if allowed && item.Off || !allowed && (!item.Off || item.Why != "sleeping") {
+						t.Errorf("sleeping menu item: %+v", item)
+					}
+				}
+			}
+			if c := p.Sleep.Continue; c.Kind != "project.pause" || c.Target != "lab" || c.Params["session"] != "lab" || c.Params["project"] != float64(501) || c.Params["resume"] != true {
+				t.Errorf("sleeping Continue: %+v", c)
+			}
+			if c := p.Sleep.Close; c.Kind != "session.close" || c.Target != "lab" {
+				t.Errorf("sleeping Close: %+v", c)
+			}
 			// The card says paused and when the pause ends beside it; the head
 			// of the conversation says both too.
 			if !strings.HasPrefix(p.State, "paused until ") || strings.HasPrefix(p.Ends, "→") || !strings.Contains(p.Header, "paused until ") {

@@ -44,30 +44,36 @@ type Host struct {
 // Here is the host this process runs on: the state directory of its
 // description and the listener its environment names.
 func Here() Host {
+	return Host{
+		State: filepath.Join(hostcfg.Load().StateDir, "state.json"),
+		Panel: PanelURL(),
+		Now:   time.Now,
+		Sleep: time.Sleep,
+	}
+}
+
+func PanelURL() string {
 	panel := os.Getenv(PanelEnv)
 	if panel == "" {
 		panel = defaultPanel
 	}
-	return Host{
-		State: filepath.Join(hostcfg.Load().StateDir, "state.json"),
-		Panel: panel,
-		Now:   time.Now,
-		Sleep: time.Sleep,
-	}
+	return panel
 }
 
 // row is a live session as the snapshot has it. Agent is "codex" for a codex
 // thread, which Outside marks as running on its own, out of the panel's
 // reach, and Title names as the panel does.
 type row struct {
-	Name      string
-	SessionID string
-	Profile   string
-	CWD       string
-	Work      json.RawMessage
-	Agent     string
-	Outside   bool
-	Title     string
+	Name       string
+	SessionID  string
+	Profile    string
+	CWD        string
+	Work       json.RawMessage
+	Agent      string
+	Outside    bool
+	Title      string
+	Sleeping   bool
+	PauseUntil string
 }
 
 // snapshot is what the tools read of the collector's snapshot: the live
@@ -87,12 +93,16 @@ func (h Host) read() (snapshot, error) {
 	if err != nil {
 		return snapshot{}, err
 	}
+	return readSnapshot(raw, h.State)
+}
+
+func readSnapshot(raw []byte, source string) (snapshot, error) {
 	var file struct {
 		Sessions   []json.RawMessage `json:"sessions"`
 		SessionsAt json.RawMessage   `json:"sessionsAt"`
 	}
 	if err := json.Unmarshal(raw, &file); err != nil {
-		return snapshot{}, fmt.Errorf("the snapshot %s is not read: %w", h.State, err)
+		return snapshot{}, fmt.Errorf("the snapshot %s is not read: %w", source, err)
 	}
 	var out snapshot
 	for _, one := range file.Sessions {
@@ -100,11 +110,16 @@ func (h Host) read() (snapshot, error) {
 		if json.Unmarshal(one, &fields) != nil || fields == nil {
 			continue
 		}
+		var pause struct {
+			Next string `json:"next"`
+		}
+		_ = json.Unmarshal(fields["pauseAlarm"], &pause)
 		out.Sessions = append(out.Sessions, row{
 			Name: text(fields["session"]), SessionID: text(fields["sessionId"]),
 			Profile: text(fields["profile"]), CWD: text(fields["cwd"]), Work: fields["work"],
 			Agent: text(fields["agent"]), Outside: string(bytes.TrimSpace(fields["outside"])) == "true",
-			Title: text(fields["title"]),
+			Title:    text(fields["title"]),
+			Sleeping: string(bytes.TrimSpace(fields["sleeping"])) == "true", PauseUntil: pause.Next,
 		})
 	}
 	if json.Unmarshal(file.SessionsAt, &out.At) == nil && string(bytes.TrimSpace(file.SessionsAt)) != "null" {

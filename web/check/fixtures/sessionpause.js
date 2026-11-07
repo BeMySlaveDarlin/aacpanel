@@ -18,7 +18,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
-import { openPie, sector, settled, underPies } from "/check/fixtures/pie.js";
+import { openPie, ring, sector, settled, underPies } from "/check/fixtures/pie.js";
 
 const until = async (ready, what) => {
     const end = performance.now() + 4000;
@@ -194,6 +194,45 @@ export async function sessionPause() {
             await until(() => sheet(), "pause from the menu");
             sheet().querySelector(".sheetclose").click();
         }
+        await quiet();
+        const sleepers = [{ ...sessions[0], sleeping: true },
+            { ...sessions[1], sleeping: true, pauseAlarm: { id: "panel:docs-id", name: "pause-no-end", next: "" } }];
+        const sleeping = { ...snapshot, sessions: sleepers };
+        setLiveSessions(sleepers);
+        render(html`<${ToastHost}><${GateHost}><${MenuHost}>
+            ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
+                <${SessionColumn} snapshot=${sleeping} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
+            </div></div>` : html`<${CardPieHost} snapshot=${sleeping} exec=${exec} wait=${null}><div class="page">
+                <${ProjectBlock} block=${block(project,sleepers)} profile=${profile} live=${sleepers} exec=${exec} />
+            </div><//>`}
+        <//><//><//>`, mount);
+        await quiet();
+        underPies();
+        const sleepingCard = mount.querySelector('.sc[data-name="lab"]');
+        out.sleep = { states: [...mount.querySelectorAll(".sc .scsay")].map(text) };
+        if (wide) {
+            out.sleep.controls = [...sleepingCard.querySelectorAll(".scact")].map((el) => ({
+                label: el.getAttribute("aria-label"), off: el.getAttribute("aria-disabled") === "true", why: el.getAttribute("data-tip") || "",
+            }));
+            sleepingCard.dispatchEvent(new MouseEvent("contextmenu", { bubbles:true, cancelable:true, clientX:50, clientY:100 }));
+            await until(() => mount.querySelector(".pkrow"), "sleeping menu");
+            out.sleep.menu = [...mount.querySelectorAll(".pkrow")].map((el) => ({
+                label: text(el.querySelector(".pkname")), off: el.getAttribute("aria-disabled") === "true", why: el.getAttribute("data-tip") || "",
+            }));
+            [...mount.querySelectorAll(".pkrow")].find((el) => text(el.querySelector(".pkname")) === "Continue now").click();
+        } else {
+            await openPie(sleepingCard);
+            out.sleep.controls = ring();
+            sector("pause").click();
+        }
+        await until(() => sent.length === 9, "sleeping Continue");
+        out.sleep.continue = sent.at(-1);
+        if (!wide) await settled();
+        await press("close", "lab");
+        await until(() => gate(), "sleeping Close confirmation");
+        gate().querySelector(".btnrow .btn:last-child").click();
+        await until(() => sent.length === 10 && !gate(), "sleeping Close");
+        out.sleep.close = sent.at(-1);
         if (!wide) await settled();
         return out;
     } finally {

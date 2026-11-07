@@ -152,6 +152,9 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	if req.ParentQuestion != "" {
 		return e.parentQuestionLetter(ctx, req)
 	}
+	if req.Report != nil {
+		return e.helperReportLetter(ctx, req)
+	}
 	// A resume of codex names a thread by its id, and the session it brings
 	// up is not there yet to be found by the target.
 	if req.Kind == action.SessionResume && req.Agent == action.ResumeCodex {

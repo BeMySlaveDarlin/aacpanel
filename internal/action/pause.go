@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// The alarms a paused session keeps for its pause. PauseAlarm rings at the end
+// The alarms a paused Codex session keeps for its pause. PauseAlarm rings at the end
 // of a pause until a moment. A pause with no end has no moment to ring at, and
 // an alarm rings at most AheadDays ahead, so PauseNoEndAlarm repeats at that
 // longest span and only reminds the session it is still paused: the snapshot
@@ -18,7 +18,7 @@ const (
 )
 
 // Pause names a place on the map, never a client-supplied list of sessions.
-// Session narrows the project to one of its live sessions, by name; the
+// Session narrows the project to one of its sessions, by name; the
 // service checks that the session runs in that project. NoEnd is a pause with
 // no end time: it lasts until the person lifts it.
 type Pause struct {
@@ -77,4 +77,15 @@ func PauseMessage(until time.Time) string {
 		"and note: \"The pause is over — continue your work\". End the turn and wait for that alarm.",
 		until.Format("15:04, 2 Jan 2006 (UTC-07:00)"), PauseAlarm, PauseNoEndAlarm, PauseAlarm, until.Format(time.RFC3339))
 	return panelMessage("pause", text, until.Format(time.RFC3339))
+}
+
+// SleepMessage leaves the deadline with the panel: an alarm inside the
+// process cannot wake a conversation whose process has been closed.
+func SleepMessage(until time.Time) string {
+	text := "Finish the current step at a clean stopping point; start no new work and end the turn. " +
+		"The panel will put this session to sleep and wake it with a message when the pause ends. Do not set a pause alarm."
+	if until.IsZero() {
+		return panelMessage("pause with no end", "Pause with no end, until the person lifts it. "+text, "")
+	}
+	return panelMessage("pause", "Pause until "+until.Format("15:04, 2 Jan 2006 (UTC-07:00)")+". "+text, until.Format(time.RFC3339))
 }

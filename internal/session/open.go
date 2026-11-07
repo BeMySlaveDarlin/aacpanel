@@ -45,8 +45,8 @@ const openDescription = "Opens only on the person's request: another session spe
 	"with workspace-write. For an existing session use send_to_session, for an internal subagent use the " +
 	"client's agent tools. Tell the person the returned name and account, then send the task: immediately " +
 	"for Codex, after Claude appears in send_to_session's list. If the outcome is unknown, check that list " +
-	"before retrying. Continue independent work or end the turn for the report. Reports reach a live stream " +
-	"or daemon parent; tmux or gone parents get none. Long reports arrive as file paths."
+	"before retrying. Continue independent work or end the turn for the report. Reports reach stream or daemon " +
+	"parents and wake sleeping parents. Live tmux or closed parents get none. Long reports arrive as file paths."
 
 // openWait bounds the wait for the panel's answer. The panel answers once the
 // claude of the new session is up: the launcher waits a quarter of a minute

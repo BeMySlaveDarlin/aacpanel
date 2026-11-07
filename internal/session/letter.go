@@ -3,9 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -20,18 +18,19 @@ const LetterName = "send_to_session"
 
 // LetterInstructions is the tool's line in the server's word to every session
 // that has it.
-const LetterInstructions = "Use send_to_session for another live session on this host " +
+const LetterInstructions = "Use send_to_session for another live or sleeping session on this host " +
 	"(«напиши в соседнюю сессию», «передай сессии»), including across accounts or when SendMessage cannot reach it."
 
 // codexLetterInstructions is the same line to a thread of codex, which has
 // no SendMessage to turn to it from.
-const codexLetterInstructions = "Use send_to_session for another live Claude or Codex session on this host, " +
+const codexLetterInstructions = "Use send_to_session for another Claude or Codex session on this host, including a sleeping Claude, " +
 	"across accounts too («напиши в соседнюю сессию», «передай сессии»)."
 
 // LetterDescription is the tool's own word to the model.
-const LetterDescription = "Lists or writes to live Claude and Codex sessions on this host, across accounts. " +
-	"Call without to or text to list names, accounts and directories. Send to exactly a listed name with text, " +
-	"at most 50000 characters. The recipient sees an agent's letter with its sender, not the person's words; " +
+const LetterDescription = "Lists or writes to Claude and Codex sessions on this host, across accounts, including sleeping Claude sessions. " +
+	"Call without to or text to list names, accounts and directories. Send to exactly a listed name, with text " +
+	"at most 50000 characters. A letter wakes a sleeping recipient and lifts its pause. " +
+	"The recipient sees an agent's letter with its sender, not the person's words; " +
 	"a Codex helper treats its opener's letter as its parent's task. A busy Claude reads it after its turn, " +
 	"a busy Codex at the next step. Claude without permission prompts and without crossSessionInbound holds " +
 	"the letter for the person to allow. Self, ambiguous names, Claude without a message socket and Codex " +
@@ -99,7 +98,7 @@ func letter(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (st
 		if bound == nil {
 			self = b.SessionID
 		}
-		return listing(h, self)
+		return listing(ctx, h, self)
 	}
 	if bound != nil {
 		return "Nothing was sent: " + bound.Error(), true
@@ -133,14 +132,14 @@ func letter(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (st
 	return "Sent: " + got.Said + ".", false
 }
 
-// listing is the live sessions of the machine besides self, as the
-// collector's snapshot has them.
-func listing(h Host, self string) (string, bool) {
-	s, err := h.read()
-	if errors.Is(err, os.ErrNotExist) {
-		return "The sessions are not listed: the collector has written no snapshot of the machine at " + h.State +
-			" — is the panel's collector running?", true
+// The panel adds sleeping conversations to the census; a process snapshot
+// alone would make them disappear from the addresses an agent can choose.
+func listing(ctx context.Context, h Host, self string) (string, bool) {
+	var raw json.RawMessage
+	if err := h.crewRead(ctx, "/api/host", &raw); err != nil {
+		return "The sessions are not listed: " + err.Error(), true
 	}
+	s, err := readSnapshot(raw, "of the panel")
 	if err != nil {
 		return "The sessions are not listed: " + err.Error(), true
 	}
@@ -160,15 +159,22 @@ func listing(h Host, self string) (string, bool) {
 			name += " (Codex, " + orUnknown(codexTitle(r)) + ")"
 		}
 		line := fmt.Sprintf("- %s — %s — %s", name, orUnknown(r.Profile), orUnknown(r.CWD))
+		if r.Sleeping {
+			state := "sleeping"
+			if r.PauseUntil != "" {
+				state += " until " + r.PauseUntil
+			}
+			line += " (" + state + ")"
+		}
 		if named[r.Name] > 1 {
-			line += " (two live sessions answer to this name, so a letter to it is refused)"
+			line += " (two sessions answer to this name, so a letter to it is refused)"
 		}
 		lines = append(lines, line)
 	}
 	if len(lines) == 0 {
-		return "There is no other live session on this machine.", false
+		return "There is no other session on this machine.", false
 	}
-	return "The live sessions of this machine besides this one — the name, the account, the directory:\n" +
+	return "The sessions of this machine besides this one — the name, the account, the directory. A letter wakes a sleeping recipient and lifts its pause:\n" +
 		strings.Join(lines, "\n"), false
 }
 

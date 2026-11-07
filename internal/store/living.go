@@ -16,6 +16,7 @@ type LivingSession struct {
 	ProjectID                                          int
 	Project, Contour, ConfigDir, CWD, Transport, Agent string
 	Parent, ParentConversation                         string
+	OpenedBy                                           string
 	Outside                                            bool
 	Pause                                              json.RawMessage
 	BootID                                             string

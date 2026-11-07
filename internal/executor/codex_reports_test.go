@@ -3,6 +3,8 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/session"
 	"aacpanel/internal/stream"
 )
 
@@ -172,6 +175,9 @@ func TestACodexParentReceivesItsChildsReportThroughTheSameDaemon(t *testing.T) {
 }
 
 func TestAReportDoesNotReachATmuxOrGoneParent(t *testing.T) {
+	panel := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(panel.Close)
+	t.Setenv(session.PanelEnv, panel.URL)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	procFS(t, fakeProc{pid: 5002, comm: "claude", ppid: 1, cwd: "/opt/x", start: "5556", args: []string{"claude"}})
 	sessionFiles(t, fakeSession{pid: 5002, name: "console", start: "5556", sid: senderSID})
@@ -184,6 +190,65 @@ func TestAReportDoesNotReachATmuxOrGoneParent(t *testing.T) {
 	procFS(t)
 	if err := e.reportCodexTurn(context.Background(), r); err == nil {
 		t.Fatal("a gone parent received a report")
+	}
+}
+
+func TestACodexReportForAnAbsentParentUsesThePanelsLetterPath(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	procFS(t)
+	sessionFiles(t)
+	var got struct {
+		Kind, Target string
+		Params       struct {
+			Text   string
+			Report action.HelperReport
+		}
+	}
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/actions" {
+			t.Errorf("report asked %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Error(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true,"logged":true}`))
+	}))
+	t.Cleanup(panel.Close)
+	t.Setenv(session.PanelEnv, panel.URL)
+	r := codex.TurnReport{Thread: codexThread, Turn: "finished-turn", Status: "completed", Text: "The complete answer", Owner: stream.SessionOwner{Name: "parent", Conversation: streamSID}}
+	if err := New(nil, "").reportCodexTurn(t.Context(), r); err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind != "session.letter" || got.Target != "" || got.Params.Report.Thread != codexThread || got.Params.Report.Parent != streamSID || !strings.Contains(got.Params.Text, "The complete answer") || !strings.Contains(got.Params.Text, "finished-turn") {
+		t.Fatalf("the absent parent's report did not reach the panel: %+v", got)
+	}
+}
+
+func TestAPanelsHelperReportUsesThePersistentOpeningProof(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	f := onTheStream(t, true)
+	e := New(nil, "")
+	if err := stream.KeepOwner(codexThread, stream.SessionOwner{Name: "demo", Conversation: streamSID}); err != nil {
+		t.Fatal(err)
+	}
+	req := action.Request{ID: "report", Kind: action.SessionLetter, Target: "demo", Conversation: streamSID, Text: "The helper's final report", Report: &action.HelperReport{Thread: codexThread, Parent: streamSID}}
+	if _, err := e.Execute(t.Context(), req); err != nil {
+		t.Fatal(err)
+	}
+	if got := only(t, f); got.Op != stream.OpLetter || !strings.Contains(got.Text, "The helper's final report") || !strings.Contains(got.Text, codex.SessionName(codexThread)) {
+		t.Fatalf("the report lost its peer-letter framing: %+v", got)
+	}
+	req.Report = &action.HelperReport{Thread: codexThread, Parent: senderSID}
+	req.Conversation = senderSID
+	if _, err := e.Execute(t.Context(), req); err == nil || !strings.Contains(err.Error(), "opening") {
+		t.Fatalf("a report went to another conversation: %v", err)
+	}
+	if len(f.asked()) != 1 {
+		t.Fatalf("an unowned report reached the recipient: %+v", f.asked())
 	}
 }
 
@@ -219,5 +284,24 @@ func TestACodexHelperCanStartReadOnlyAndRefusesUnknownLaunchValues(t *testing.T)
 	if err != nil || len(records) != 1 || records[0].Session != "codex-beef0001" ||
 		records[0].SessionID != "019a2000-0000-7000-8000-0000beef0001" || records[0].Agent != "codex" {
 		t.Fatalf("the opening record lost its child: %+v, %v", records, err)
+	}
+}
+
+func TestAPanelsHelperReportReachesTheRestoredTmuxParentsMessageSocket(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	socket, mail := listenFake(t)
+	procFS(t, fakeProc{pid: 5002, comm: "claude", ppid: 1, cwd: "/opt/x", start: "5556", args: []string{"claude", "-n", "console"}})
+	sessionFiles(t, fakeSession{pid: 5002, name: "console", start: "5556", sid: senderSID, socket: socket})
+	if err := stream.KeepOwner(codexThread, stream.SessionOwner{Name: "console", Conversation: senderSID}); err != nil {
+		t.Fatal(err)
+	}
+	r := action.Request{ID: "report", Kind: action.SessionLetter, Target: "console", Conversation: senderSID, Text: "The resumed parent's report", Report: &action.HelperReport{Thread: codexThread, Parent: senderSID}}
+	if _, err := New(nil, "").Execute(t.Context(), r); err != nil {
+		t.Fatal(err)
+	}
+	line := received(t, mail)
+	from, name, body := claudeReads(t, line.Message.Content)
+	if from != "" || name != codex.SessionName(codexThread) || body != r.Text || line.From != "" {
+		t.Fatalf("the restored tmux parent received another sender: %+v", line)
 	}
 }

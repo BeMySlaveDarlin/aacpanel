@@ -25,9 +25,9 @@ export function endsOf({ s, exec, pin, busy }) {
     const under = busy ? "the session is already closing or restarting" : "";
     return {
         lost,
-        restartWhy: under || (codex ? codexRestartWhy(s) : "") || (knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart")),
+        restartWhy: s.sleeping ? "sleeping" : under || (codex ? codexRestartWhy(s) : "") || (knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart")),
         closeWhy: under || (knows(exec, "session.close") ? "" : whyNot(exec, "session.close")),
-        pinWhy: pin.why || (knows(exec, "session.pin") ? "" : whyNot(exec, "session.pin")),
+        pinWhy: s.sleeping ? "sleeping" : pin.why || (knows(exec, "session.pin") ? "" : whyNot(exec, "session.pin")),
         restartNote: codex ? CODEX_RESTART : ends("a new session with an empty context; this one stays in the archive"),
         closeNote: codex ? CODEX_CLOSE : ends("the conversation stays in the archive"),
     };

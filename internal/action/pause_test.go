@@ -62,3 +62,20 @@ func TestPauseMessagesSetTheAlarmOfTheirKind(t *testing.T) {
 		t.Errorf("the pause with no end names a moment:\n%s", open)
 	}
 }
+
+func TestSleepMessagesLeaveTheDeadlineWithThePanel(t *testing.T) {
+	until := time.Date(2026, 10, 26, 9, 0, 0, 0, time.FixedZone("local", 7*3600))
+	for _, at := range []time.Time{until, {}} {
+		text := SleepMessage(at)
+		if strings.Contains(text, "alarm_set") || !strings.Contains(text, "end the turn") || !strings.Contains(text, "wake it with a message") {
+			t.Errorf("sleep instruction: %s", text)
+		}
+		if at.IsZero() {
+			if !strings.Contains(text, `from="pause with no end"`) || strings.Contains(text, "until=") {
+				t.Errorf("indefinite sleep: %s", text)
+			}
+		} else if !strings.Contains(text, `until="2026-10-26T09:00:00+07:00"`) || !strings.Contains(text, "09:00, 26 Oct 2026") {
+			t.Errorf("timed sleep: %s", text)
+		}
+	}
+}

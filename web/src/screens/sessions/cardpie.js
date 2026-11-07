@@ -229,6 +229,8 @@ function CardPie({ s, profile, card, press, snapshot, exec, wait, onTerm, onClos
         },
     ];
 
-    return html`<${Pie} label=${`session ${shownName(s)}`} name=${shownName(s)} items=${first} lift=${card} press=${press}
+    const items = s.sleeping ? first.map((item) => item && !["close", "pause"].includes(item.key)
+        ? { ...item, off: "sleeping", items: item.items?.map((sub) => ({ ...sub, off: "sleeping" })) } : item) : first;
+    return html`<${Pie} label=${`session ${shownName(s)}`} name=${shownName(s)} items=${items} lift=${card} press=${press}
                         onClose=${onClose} />`;
 }

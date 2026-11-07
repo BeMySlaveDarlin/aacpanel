@@ -115,10 +115,22 @@ func sendPause(t *testing.T, srv *Server, p action.Pause, want int) {
 	}
 }
 
+func pauseMessageRequest(t *testing.T, fake *fakeExec) action.Request {
+	t.Helper()
+	req := <-fake.got
+	if req.Kind == action.AlarmCancel {
+		if req.Work == nil || req.Work.ID == "" {
+			t.Fatalf("legacy pause cancellation: %+v", req)
+		}
+		req = <-fake.got
+	}
+	return req
+}
+
 func pauseInstruction(t *testing.T, req action.Request, until time.Time) {
 	t.Helper()
 	if req.Kind != action.SessionSend || !strings.Contains(req.Text, `from="pause" until="`+until.Format(time.RFC3339)+`"`) ||
-		!strings.Contains(req.Text, until.Format("15:04, 2 Jan 2006")) || !strings.Contains(req.Text, `name: "pause"`) || !strings.Contains(req.Text, "alarm_set") {
+		!strings.Contains(req.Text, until.Format("15:04, 2 Jan 2006")) || !(strings.Contains(req.Text, "put this session to sleep") || (req.Target == "thread" && strings.Contains(req.Text, "alarm_set"))) {
 		t.Fatalf("pause instruction: %+v", req)
 	}
 }
@@ -128,16 +140,19 @@ func pauseInstruction(t *testing.T, req action.Request, until time.Time) {
 func noEndInstruction(t *testing.T, req action.Request) {
 	t.Helper()
 	if req.Kind != action.SessionSend || !strings.Contains(req.Text, `<panel-message from="pause with no end">`) ||
-		!strings.Contains(req.Text, `name: "pause-no-end"`) || !strings.Contains(req.Text, `every: "168h"`) {
+		!strings.Contains(req.Text, "put this session to sleep") || strings.Contains(req.Text, "alarm_set") {
 		t.Fatalf("the instruction of a pause with no end: %+v", req)
 	}
 }
 
 func resumeOf(t *testing.T, fake *fakeExec, target, alarm string) {
 	t.Helper()
-	cancel, message := <-fake.got, <-fake.got
-	if cancel.Kind != action.AlarmCancel || cancel.Target != target || cancel.Work == nil || cancel.Work.ID != alarm {
-		t.Fatalf("resume cancels the wrong alarm: %+v", cancel)
+	message := <-fake.got
+	if message.Kind == action.AlarmCancel {
+		if message.Target != target || message.Work == nil || message.Work.ID != alarm {
+			t.Fatalf("resume cancels the wrong alarm: %+v", message)
+		}
+		message = <-fake.got
 	}
 	if message.Kind != action.SessionSend || message.Target != target || !strings.Contains(message.Text, `from="pause over"`) {
 		t.Fatalf("resume message: %+v", message)
@@ -186,7 +201,7 @@ func TestProjectPauseUsesTheMapAndResumesItsAlarmsPG(t *testing.T) {
 		sendPause(t, srv, action.Pause{Project: anchor.ID, Group: scope, Until: until.Format(time.RFC3339)}, want)
 		var targets []string
 		for range want {
-			req := <-fake.got
+			req := pauseMessageRequest(t, fake)
 			targets = append(targets, req.Target)
 			pauseInstruction(t, req, until)
 		}
@@ -194,7 +209,8 @@ func TestProjectPauseUsesTheMapAndResumesItsAlarmsPG(t *testing.T) {
 			t.Fatalf("scope recipients: %s", got)
 		}
 	}
-	sendPause(t, srv, action.Pause{Project: anchor.ID, Group: true, Resume: true}, 1)
+	sendPause(t, srv, action.Pause{Project: anchor.ID, Group: true, Resume: true}, 2)
+	resumeOf(t, fake, "lead", "")
 	resumeOf(t, fake, "child", "0123456789abcdef")
 	nothingMore(t, fake)
 	if n := len(pauseJournal(t, srv)) - before; n != 3 {
@@ -214,7 +230,7 @@ func TestProjectPauseOfOneSessionPG(t *testing.T) {
 	srv, fake, anchor, until := pauseServer(t, nil)
 	before := len(pauseJournal(t, srv))
 	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Until: until.Format(time.RFC3339)}, 1)
-	req := <-fake.got
+	req := pauseMessageRequest(t, fake)
 	if req.Target != "child" {
 		t.Fatalf("the pause of one session reached %s", req.Target)
 	}
@@ -268,7 +284,7 @@ func TestProjectPauseGoesOneStepDownPG(t *testing.T) {
 	recipients := func(n int, instruction func(action.Request)) string {
 		var names []string
 		for range n {
-			req := <-fake.got
+			req := pauseMessageRequest(t, fake)
 			instruction(req)
 			names = append(names, req.Target)
 		}

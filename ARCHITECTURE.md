@@ -230,33 +230,52 @@ the same idle and readiness conditions, tells the session the person requested
 it, and marks its live row as restarting until the cycle finishes. A repeated
 request preserves readiness and the cycle's deadlines.
 
-**A project pause is a message to its sessions, not a host timer.** The
-`project.pause` service action resolves a project, its map group or one of its
-sessions and sends one panel instruction to each live session it can reach.
-The pause goes one step down from that scope: a session the panel opened for a
-session of it, wherever it runs, is paused and resumed with it, and the
-sessions that one opened are not. The session finishes its current step, sets
-its own `pause` alarm and ends its turn. One journal
-entry records the scope action and its delivery failures. Resume selects only
-sessions with that alarm, cancels it by its snapshot id through `alarm.cancel`,
-and sends the instruction to continue; a failed cancellation is reported and
-that session gets no resume instruction. No new executor action is admitted.
-The snapshot keeps the numeric alarm count and adds `nextAlarm` and
-`pauseAlarm`, each with its id, name and next ring. Only the alarm's presence
-means paused: delivery alone cannot prove the model set it. Work and questions
-still take precedence. The pause instruction carries its time and UTC offset
-as envelope metadata, so the feed's pause card does not parse prose.
+**A project pause belongs to the panel.** The `project.pause` service action
+resolves a project, its map group or one session, including the sessions those
+sessions had the panel open one step down, wherever they run. The journal
+records the scope and delivery failures. Claude receives an instruction to
+finish at a clean stopping point, start no new work and end its turn. The
+panel keeps the conversation, name, project, contour, directory, transport,
+parent conversation and deadline in `session_pauses`; a null deadline never
+wakes on its own. A fresh census must show a completed turn
+after that instruction, no pending question or permission, and no agents,
+workflows, background commands or observers running. Alarms and wake-ups run
+nothing and do not hold sleep. The panel then uses `session.close` with the
+conversation check. The database marks sleep before closing so a reboot does
+not revive it as work that was running.
 
-**A pause with no end is marked by a repeat.** An alarm rings at most a week
-ahead, so a pause lifted only by the person has no moment to ring at. Its
-instruction carries no time, comes from `pause with no end` so the feed's card
-says so, and asks for a `pause-no-end` alarm repeating
-every week instead, whose ring only tells the session to keep waiting; the
-collector reads it as `pauseAlarm` as it reads `pause`, the screen says the
-pause has no end by its name, and the resume cancels it by id like the other.
-Each instruction clears the alarm of the other kind first: a session holding
-both stays paused in the snapshot after a resume that cancels one. The price
-is a short turn of the session's model a week for as long as the pause lasts.
+Sleeping cards remain in the sessions list, supplied by the service beside
+the host census, with `sleeping until` and the person's local clock, or
+`sleeping` for a pause with no end. Continue wakes the conversation and removes
+its pause; Close removes the sleep permanently. Other card actions are
+unavailable while sleeping. A deadline that passed during a service or host
+restart wakes from the database after startup. Wake-up shares reboot recovery's
+silent resume, batches of at most five, host memory admission and fresh census
+confirmation. Parents precede their children when both wake in the same batch
+sequence. A child woken alone keeps its sleeping parent by name through the
+manual resume path, without waking it or lifting its pause. Its report reaches
+the parent as a letter, which wakes the parent and lifts that pause before
+delivery. Name, conversation, contour and transport remain those saved for
+sleep. A deadline or Continue sends the instruction to continue after wake-up.
+
+A `session.letter` from another session wakes the recipient and lifts its
+pause, delivering the letter after the conversation is live. A person's
+`session.send` wakes it for one answer and retains the deadline: a fresh census
+after that message must show its turn and background work over before it sleeps
+again. The `send_to_session` address list reads the panel's enriched snapshot,
+marks sleeping recipients and names their deadlines; its letter wakes them.
+Native Claude `SendMessage` delivery cannot reach a closed process; that
+is the price of releasing its memory. A process crash between recording sleep
+and closing is reconciled from the next fresh census. Context-cap restarts wait
+while the conversation is paused.
+
+Codex keeps its pause inside its process. Its instruction sets `pause`, or a
+weekly `pause-no-end` alarm for a pause with no end, and ends its turn. Continue
+cancels that alarm before sending the continuation; a failed cancellation sends
+nothing. Its `pauseAlarm` remains the collector's proof of a pause. Claude's
+`pauseAlarm` in the service response is derived from the database. Both carry
+the deadline in the message envelope so the feed does not parse prose. Codex's
+indefinite pause costs one short model turn per week.
 
 A Claude row carries `limitHit` with the timestamp and the window (`5h`, `7d`,
 or unknown) while its last assistant record is a usage-limit error. The
@@ -988,9 +1007,13 @@ archive clears it. `turn/completed` queues one delivery attempt per thread and
 turn in the connected executor, including failure and interruption. A separate
 worker reads the last agent message with `thread/items/list`: it cannot call
 back into the daemon from the connection's reader. The parent receives it
-through the stream holder's peer `OpLetter` or a Codex `Link.Send`. A tmux or
-gone parent receives none. Delivery failures are logged; this channel has no
-persistent report queue or replay of completions missed while disconnected.
+through the stream holder's peer `OpLetter` or a Codex `Link.Send`. A live tmux or
+closed parent receives none; a sleeping parent is woken through the panel's
+`session.letter` action. The report binds its helper and parent conversations,
+and the executor checks the persistent opening record before delivery. A
+restored tmux parent uses its native message socket. Delivery failures are
+logged; this channel has no persistent report queue or replay of completions
+missed while disconnected.
 Reports over 32 KiB are saved whole in an owner-readable file under the
 executor's state directory and the letter names its path; files remain there
 for the parent to read. Claude children have no automatic turn reports.
@@ -2009,14 +2032,15 @@ a headroom wait to 5m, `AACP_REVIVE_ALIVE_WAIT` bounds a census confirmation to
 2m, and `AACP_REVIVE_POLL` is 2s. A timeout stops further batches and reports
 the remaining conversations with the reason.
 
-A pause comes from the preceding boot's saved census: its alarm can disappear
-before the collector observes the new boot. After the conversation becomes
-live, recovery uses the same `project.pause` delivery and journal as the
-person's button: the same future deadline, no end for a `pause-no-end` alarm,
-or Continue when the deadline passed. Continue sends its ordinary message;
-the recovered process has no old alarm to cancel. A requested pause is counted
-successful only after its alarm appears in a fresh census. No service timer
-is introduced. A failed pause restoration is named in the recovery report.
+A paused Claude conversation still awake at shutdown is recovered as live work;
+its pause and deadline remain in the panel's database. Recovery leaves that
+record in place, and the sleeper closes it once its turn and background work
+end. A sleeping conversation is excluded even if the last host census still
+showed its process: only the panel's deadline timer or an explicit wake-up
+selects it. A saved process alarm without a panel record is restored through
+`project.pause`, becoming a service pause for Claude; an expired one receives
+Continue. The ordinary pause action and journal cover these deliveries.
+
 
 One push reports the revived count and the conversations left behind after
 recovery finishes. Its `reboot` kind follows `push_prefs` and can be disabled

@@ -88,6 +88,10 @@ type Request struct {
 	// conversation; Conversation binds the recipient found before the send.
 	ParentQuestion string `json:"parentQuestion,omitempty"`
 
+	// Report delivers a Codex helper's turn to its opener. The persistent
+	// opening record still binds the recipient after the helper has closed.
+	Report *HelperReport `json:"report,omitempty"`
+
 	// Setting is what session.set changes.
 	Setting *Setting `json:"setting,omitempty"`
 
@@ -149,6 +153,12 @@ type Request struct {
 }
 
 const OriginVoice = "voice"
+
+// HelperReport identifies conversations so a reused name receives no old report.
+type HelperReport struct {
+	Thread string `json:"thread"`
+	Parent string `json:"parent"`
+}
 
 // ProjectMoveSpec is filled from the map, never from paths on the phone.
 // Finish is empty to move, commit to discard the undo, or rollback to use it.

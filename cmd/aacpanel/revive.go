@@ -69,6 +69,7 @@ type reviver struct {
 	read    func(time.Time) (livingSnapshot, error)
 	measure func(context.Context) (*action.Headroom, error)
 	boot    string
+	sleep   bool
 }
 
 func (r *reviver) wait(ctx context.Context) error {
@@ -132,7 +133,9 @@ func (s *Server) runRevival(ctx context.Context, c reviveConfig) {
 			log.Printf("reboot recovery: container boot identity matches the host: %t", strings.TrimSpace(string(local)) == snap.BootID)
 		}
 		r.boot = snap.BootID
+		s.pauseMu.Lock()
 		total, raised, failed := r.recover(ctx, rows)
+		s.pauseMu.Unlock()
 		message := notify.RevivalMessage(snap.BootID, total, raised, failed)
 		log.Printf("reboot recovery: %s", message.Body)
 		if s.pushPrefs(ctx).Allows(message) {
@@ -169,7 +172,14 @@ func (r *reviver) candidates(ctx context.Context, rows []store.LivingSession) ([
 		return nil, err
 	}
 	out := []store.LivingSession{}
+	pauses, err := r.srv.sessionPauses(ctx)
+	if err != nil {
+		return nil, err
+	}
 	for _, row := range rows {
+		if p, ok := pauseConversation(pauses, row.Conversation); ok && p.Sleeping {
+			continue
+		}
 		if row.Parent != "" || row.Outside {
 			continue
 		}
@@ -277,6 +287,17 @@ func (r *reviver) recover(ctx context.Context, rows []store.LivingSession) (tota
 		claude = append(claude, row)
 	}
 	pending = claude
+	total, raised, more := r.raise(ctx, pending, total, r.restorePause)
+	return total, raised, append(failed, more...)
+}
+
+// Sleep and reboot recovery share admission and census confirmation. A group
+// wakes parents first; a child waking alone can leave its parent asleep.
+func (r *reviver) raise(ctx context.Context, pending []store.LivingSession, total int, after func(context.Context, store.LivingSession, livingRow) error) (int, int, []string) {
+	r.srv.raiseMu.Lock()
+	defer r.srv.raiseMu.Unlock()
+	raised := 0
+	var failed []string
 	for len(pending) > 0 {
 		n, err := r.capacity(ctx, len(pending))
 		if err != nil {
@@ -286,16 +307,45 @@ func (r *reviver) recover(ctx context.Context, rows []store.LivingSession) (tota
 			break
 		}
 		batch := []store.LivingSession{}
-		for _, row := range pending[:n] {
+		next := []store.LivingSession{}
+		for _, row := range pending {
 			snap, err := r.census()
+			if err == nil && row.ParentConversation != "" {
+				if _, alive := liveConversation(snap, row.ParentConversation); !alive {
+					waiting := false
+					for _, parent := range pending {
+						if parent.Conversation == row.ParentConversation {
+							waiting = true
+							break
+						}
+					}
+					if waiting {
+						next = append(next, row)
+						continue
+					}
+				}
+			}
+			if len(batch) >= n {
+				next = append(next, row)
+				continue
+			}
 			if err == nil {
-				if _, alive := liveConversation(snap, row.Conversation); alive {
-					total--
+				if current, alive := liveConversation(snap, row.Conversation); alive {
+					if err := after(ctx, row, current); err != nil {
+						failed = append(failed, row.Session+": "+err.Error())
+					} else {
+						raised++
+					}
 					continue
 				}
 			}
 			if err == nil {
-				err = r.srv.automaticAction(ctx, string(action.SessionResume), row.Session, map[string]any{"session": row.Conversation})
+				resumeCtx := ctx
+				if r.sleep {
+					resumeCtx = context.WithValue(ctx, sleepResumeKey{}, row)
+					resumeCtx = context.WithValue(resumeCtx, automaticActionKey{}, "session wake")
+				}
+				err = r.srv.automaticAction(resumeCtx, string(action.SessionResume), row.Session, map[string]any{"session": row.Conversation, "name": row.Session})
 			}
 			if err != nil {
 				failed = append(failed, row.Session+": "+err.Error())
@@ -303,7 +353,13 @@ func (r *reviver) recover(ctx context.Context, rows []store.LivingSession) (tota
 			}
 			batch = append(batch, row)
 		}
-		pending = pending[n:]
+		if len(next) == len(pending) {
+			for _, row := range next {
+				failed = append(failed, row.Session+": parent did not become live")
+			}
+			break
+		}
+		pending = next
 		live, aliveErr := r.waitAlive(ctx, batch)
 		for _, row := range batch {
 			current, ok := live[row.Conversation]
@@ -311,7 +367,7 @@ func (r *reviver) recover(ctx context.Context, rows []store.LivingSession) (tota
 				failed = append(failed, row.Session+": did not become live")
 				continue
 			}
-			if err := r.restorePause(ctx, row, current); err != nil {
+			if err := after(ctx, row, current); err != nil {
 				failed = append(failed, row.Session+": pause: "+err.Error())
 				continue
 			}
@@ -328,6 +384,21 @@ func (r *reviver) recover(ctx context.Context, rows []store.LivingSession) (tota
 }
 
 func (r *reviver) restorePause(ctx context.Context, row store.LivingSession, current livingRow) error {
+	if pauses, err := r.srv.sessionPauses(ctx); err != nil {
+		return err
+	} else if p, ok := pauseConversation(pauses, row.Conversation); ok {
+		if p.Until == nil || p.Until.After(time.Now()) {
+			return nil
+		}
+		result, err := r.srv.applyPause(automaticRequest(ctx), action.Pause{Project: row.ProjectID, Resume: true}, []pauseSession{{LiveSession: current.LiveSession}}, row.Session, map[string]any{"resume": true}, time.Time{})
+		if err != nil {
+			return err
+		}
+		if len(result.Failed) > 0 {
+			return fmt.Errorf("%s", result.Failed[0]["error"])
+		}
+		return nil
+	}
 	if len(row.Pause) == 0 || string(row.Pause) == "null" {
 		return nil
 	}
@@ -371,25 +442,5 @@ func (r *reviver) restorePause(ctx context.Context, row store.LivingSession, cur
 	if len(result.Failed) > 0 {
 		return fmt.Errorf("%s", result.Failed[0]["error"])
 	}
-	wait, cancel := context.WithTimeout(ctx, r.config.Alive)
-	defer cancel()
-	for {
-		snap, err := r.census()
-		if err == nil {
-			found, live := liveConversation(snap, row.Conversation)
-			if live && p.Resume && found.Pause == nil {
-				return nil
-			}
-			if live && found.Pause != nil && found.Pause.ID != alarm.ID {
-				next, parseErr := time.Parse(time.RFC3339, found.Pause.Next)
-				if (p.NoEnd && found.Pause.Name == action.PauseNoEndAlarm) ||
-					(!p.NoEnd && !p.Resume && parseErr == nil && found.Pause.Name == action.PauseAlarm && next.Equal(until)) {
-					return nil
-				}
-			}
-		}
-		if r.wait(wait) != nil {
-			return fmt.Errorf("the restored pause was not confirmed by a fresh census")
-		}
-	}
+	return nil
 }

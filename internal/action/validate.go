@@ -60,6 +60,9 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Report != nil && (r.Kind != SessionLetter || !safeUUID(r.Report.Thread) || !safeUUID(r.Report.Parent) || r.Conversation != r.Report.Parent || r.From != "" || r.FromCodex != nil || r.Caller != "" || r.ParentQuestion != "") {
+		return badRequest("a helper report needs its child and recipient conversations and has no other sender")
+	}
 	if r.Silent && (r.Kind != SessionResume || r.Agent == ResumeCodex || r.Text != "") {
 		return badRequest("a silent resume takes a Claude conversation and no message")
 	}
@@ -508,7 +511,7 @@ func (r Request) Validate() error {
 		}
 	}
 	if r.Kind == SessionLetter {
-		if r.From == "" && r.ParentQuestion == "" {
+		if r.From == "" && r.ParentQuestion == "" && r.Report == nil {
 			return badRequest("a letter without the conversation it comes from: it would have no sender")
 		}
 		if r.From != "" && !safeUUID(r.From) {

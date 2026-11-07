@@ -6,7 +6,6 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
-	"aacpanel/internal/stream"
 )
 
 // Parent letters are panel events, not words attributed to either the
@@ -39,11 +38,6 @@ func (e *Executor) parentQuestionLetter(ctx context.Context, req action.Request)
 	if err != nil {
 		return "", err
 	}
-	if onStream(s) {
-		_, err = streamAsk(ctx, s, stream.Request{Op: stream.OpLetter, Text: letterEnvelope("", sender, req.Text)})
-	} else {
-		err = writeLine(ctx, s.Socket, map[string]any{"type": "user", "message": map[string]any{
-			"role": "user", "content": letterEnvelope("", sender, req.Text)}})
-	}
+	err = peerLetter(ctx, s, sender, req.Text)
 	return "the panel sent its child's question to " + opening.Name, err
 }

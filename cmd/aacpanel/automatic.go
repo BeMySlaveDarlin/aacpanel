@@ -15,7 +15,10 @@ type automaticActionKey struct{}
 // An automatic action enters the same handler as a press on the panel. The
 // request stays in process; no local listener or host capability is needed.
 func automaticRequest(ctx context.Context) *http.Request {
-	r, _ := http.NewRequestWithContext(context.WithValue(ctx, automaticActionKey{}, "reboot recovery"), http.MethodPost, "http://panel/api/actions", nil)
+	if source, _ := ctx.Value(automaticActionKey{}).(string); source == "" {
+		ctx = context.WithValue(ctx, automaticActionKey{}, "reboot recovery")
+	}
+	r, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://panel/api/actions", nil)
 	return r
 }
 

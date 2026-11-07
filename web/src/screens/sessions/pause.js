@@ -14,7 +14,7 @@ function groupOf(project, profile) {
     return (profile?.groups || []).find((g) => (g.projects || []).some((p) => p.id === project.id));
 }
 
-// pauseRows lists the live sessions a pause reaches: those of the project,
+// pauseRows lists the sessions a pause reaches: those of the project,
 // of its whole group, or the one session it is given, and one step down the
 // sessions any of them had the panel open, wherever those run, as the
 // service takes them.
@@ -27,7 +27,7 @@ export function pauseRows(project, profile, sessions = [], group = false, only =
 }
 
 export function pauseWhy(project, profile, sessions, exec) {
-    return (knows(exec, "project.pause") ? "" : whyNot(exec, "project.pause")) || (pauseRows(project, profile, sessions, true).length ? "" : "No live sessions in this project or group");
+    return (knows(exec, "project.pause") ? "" : whyNot(exec, "project.pause")) || (pauseRows(project, profile, sessions, true).length ? "" : "No sessions in this project or group");
 }
 
 // sessionPauseWhy says why one session cannot be paused or continued now: a
@@ -119,7 +119,7 @@ export function PauseSheet({ project, profile, sessions = [], session = null, ex
     return html`
         <div class="cmdsheet pausesheet">
             <div class="shead cmdtitle"><span class="cmdhead">Pause sessions</span></div>
-            <p class="cmdnote">Sessions finish their current step, set their own wake-up alarm and wait. A busy session reads the request when its turn allows it.</p>
+            <p class="cmdnote">Claude sessions finish their turn and background work, then sleep until the panel wakes them. Codex sessions keep their own wake-up alarm. A busy session reads the request when its turn allows it.</p>
             <label class="cmdnote">Scope
                 <select class="rnname cxfield pausescope" value=${scope} onChange=${(e) => { setScope(e.currentTarget.value); setResult(null); }}>
                     ${session && html`<option value="session">This session · ${shownName(session)}</option>`}
@@ -143,7 +143,7 @@ export function PauseSheet({ project, profile, sessions = [], session = null, ex
             </label>
             ${noEnd ? html`<p class="cmdnote pausenoend">No end: the sessions wait until the pause is lifted.</p>`
                 : !valid && html`<p class="hint warn">Choose a time in the next seven days.</p>`}
-            <p class="cmdnote">${rows.length} live ${rows.length === 1 ? "session will" : "sessions will"} receive the pause request:</p>
+            <p class="cmdnote">${rows.length} ${rows.length === 1 ? "session" : "sessions"} in this scope:</p>
             <ul class="pauserecipients">${rows.map((s) => html`<li key=${s.sessionId}>${shownName(s)}${s.pauseAlarm ? " · paused" : ""}</li>`)}</ul>
             ${why && html`<p class="hint warn">${why}</p>`}
             ${result && html`<div class="pauseresult"><p>${result.detail}</p><ul>${result.failed.map((f) => html`<li>${f.session}: ${f.error}</li>`)}</ul></div>`}

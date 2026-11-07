@@ -24,7 +24,7 @@ import { useWindow, windowOf } from "../screens/chat/window.js";
 import { useTermJump } from "../screens/terms/jump.js";
 import { projectOf, resume, startIn } from "../screens/sessions/actions.js";
 import { stopsOf } from "../screens/sessions/blocks.js";
-import { PauseSheet, pauseWhy } from "../screens/sessions/pause.js";
+import { PauseSheet, pauseWhy, continueSession, sessionPauseWhy } from "../screens/sessions/pause.js";
 import { pinOf } from "../screens/sessions/pin.js";
 import { openedBy } from "../screens/sessions/kin.js";
 
@@ -54,9 +54,22 @@ export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm }) {
 // panel did not start is only read: it is opened and found again, nothing
 // more. A thread of codex takes what codex takes.
 export function SessionMenu(props) {
+    if (props.s.sleeping) return html`<${SleepingMenu} ...${props} />`;
     if (props.s.outside) return html`<${OutsideMenu} ...${props} />`;
     if (isCodex(props.s)) return html`<${ThreadMenu} ...${props} />`;
     return html`<${ClaudeMenu} ...${props} />`;
+}
+
+function SleepingMenu({ s, exec }) {
+    const run = useAction();
+    return html`<${MenuList} groups=${[
+        [html`<${MenuItem} key="pause" label="Continue now" off=${sessionPauseWhy(s, s.project, exec)}
+            onPick=${() => continueSession(run, s.project, s)} />`],
+        ["Rename…", "Role…", "Session messages…", "Stop the turn", "Move", "Remote Control", "Detach from parent", "Stand under", "Pin", "Restart the session"]
+            .map((label) => html`<${MenuItem} key=${label} label=${label} off="sleeping" />`),
+        [html`<${MenuItem} key="close" label="Close the session" off=${whyNot(exec, "session.close")}
+            onPick=${() => run("session.close", s.session, {})} />`],
+    ]} />`;
 }
 
 // copies are the two ways to find a session again: its id and the command

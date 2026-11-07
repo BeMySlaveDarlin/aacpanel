@@ -72,9 +72,18 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		http.Error(w, "the request without a file is longer than allowed", http.StatusRequestEntityTooLarge)
 		return
 	}
+	if body.Kind == string(action.SessionLetter) {
+		if _, report := body.Params["report"]; report {
+			s.helperReport(w, r, body.Params)
+			return
+		}
+	}
 
 	if body.Kind == string(action.ProjectPause) {
 		s.pauseProject(w, r, body.Params)
+		return
+	}
+	if s.pausedAction(w, r, term, body.Kind, body.Target, body.Params) {
 		return
 	}
 	if body.Kind == string(action.SessionRestart) && body.Params["prepare"] != nil {
@@ -278,6 +287,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		from, _ := body.Params["from"].(string)
 		req.Text, req.From = text, from
 		params = map[string]any{"chars": len([]rune(text)), "from": from}
+		if report, ok := r.Context().Value(helperReportKey{}).(action.HelperReport); ok {
+			req.Report, req.Conversation = &report, report.Parent
+			params = map[string]any{"chars": len([]rune(text)), "report": report}
+		}
 		if sender, ok := body.Params["fromCodex"].(map[string]any); ok {
 			home, _ := sender["home"].(string)
 			dir, _ := sender["dir"].(string)
@@ -627,6 +640,25 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	}
 
 	deviceName := s.deviceName(r)
+	if saved, ok := r.Context().Value(sleepResumeKey{}).(store.LivingSession); ok && req.Kind == action.SessionResume && req.Project != nil {
+		launch := map[string]any{}
+		if err := json.Unmarshal(req.Project.Launch, &launch); err != nil {
+			historyError(w, err)
+			return
+		}
+		transport := saved.Transport
+		if transport == "" {
+			transport = schema.TransportTmux
+		}
+		launch["transport"], launch["agent"] = transport, schema.AgentClaude
+		raw, err := json.Marshal(launch)
+		if err != nil {
+			historyError(w, err)
+			return
+		}
+		req.Project.Launch = raw
+		req.Project.Path, req.Project.ConfigDir = saved.CWD, saved.ConfigDir
+	}
 	if automatic, _ := r.Context().Value(automaticActionKey{}).(string); automatic != "" && req.Kind == action.SessionResume {
 		req.Silent = true
 		if params == nil {
@@ -1390,6 +1422,11 @@ func (s *Server) resumeTarget(r *http.Request, name string, params map[string]an
 		row, readErr := s.db.LivingConversation(r.Context(), hostID, id)
 		if readErr != nil {
 			return "", "", "", readErr
+		}
+		if pauses, pauseErr := s.sessionPauses(r.Context()); pauseErr != nil {
+			return "", "", "", pauseErr
+		} else if p, ok := pauseConversation(pauses, id); ok {
+			row = &p.LivingSession
 		}
 		if row != nil {
 			return id, row.CWD, row.Session, nil

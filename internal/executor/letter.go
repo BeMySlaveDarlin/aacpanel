@@ -69,6 +69,20 @@ func (e *Executor) sessionLetter(ctx context.Context, target, from string, fromC
 		sender.Name, s.Name, sessionWhere(s), utf8.RuneCountInString(text)), nil
 }
 
+// Ownership-checked panel events use the holder's peer input on the stream
+// and the native message socket in tmux. Neither path types a user prompt.
+func peerLetter(ctx context.Context, s liveSession, sender, body string) error {
+	text := letterEnvelope("", sender, body)
+	if onStream(s) {
+		_, err := streamAsk(ctx, s, stream.Request{Op: stream.OpLetter, Text: text})
+		return err
+	}
+	if s.Socket == "" {
+		return fmt.Errorf("session %s takes no letters: its claude publishes no message socket", s.Name)
+	}
+	return writeLine(ctx, s.Socket, map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": text}})
+}
+
 // letterSender is who a letter comes from, as its recipient reads it.
 type letterSender struct {
 	// Name is the name the sender is written to by: a claude session's own,

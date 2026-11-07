@@ -283,13 +283,13 @@ const machine = `{"sessionsAt":1,"sessions":[` +
 // besides the one calling: the name, the account and the directory, and a
 // name two of them answer to is marked, since a letter to it is refused.
 func TestALetterWithoutARecipientListsTheSessions(t *testing.T) {
-	p, url := startPanel(t, http.StatusOK, `{"ok":true}`)
-	said, failed := call(t, Letter(hostWith(t, machine, url)), bound(mine), map[string]any{})
+	h := letterListHost(t, machine)
+	said, failed := call(t, Letter(h), bound(mine), map[string]any{})
 	if failed {
 		t.Fatalf("the list answered %q", said)
 	}
 	for _, want := range []string{"- shop — work — /srv/work/shop", "- docs — personal — /srv/proj/docs",
-		"- docs — work — /srv/work/docs (two live sessions answer to this name"} {
+		"- docs — work — /srv/work/docs (two sessions answer to this name"} {
 		if !strings.Contains(said, want) {
 			t.Errorf("the list does not say %q:\n%s", want, said)
 		}
@@ -297,12 +297,10 @@ func TestALetterWithoutARecipientListsTheSessions(t *testing.T) {
 	if strings.Contains(said, "/srv/proj/lab") || strings.Contains(said, "nameless") {
 		t.Errorf("the list names the calling session or one with no name:\n%s", said)
 	}
-	if len(p.calls()) != 0 {
-		t.Errorf("listing asked the panel %v", p.calls())
-	}
+	_, url := startPanel(t, http.StatusOK, `{"ok":true}`)
 
 	if said, failed := call(t, Letter(hostWith(t, "", url)), bound(mine), map[string]any{}); !failed ||
-		!strings.Contains(said, "no snapshot") {
+		!strings.Contains(said, "404") {
 		t.Errorf("a machine with no snapshot listed %q", said)
 	}
 }
@@ -328,8 +326,8 @@ func codexBound() (mcp.Binding, error) {
 // on its own takes no letters and is left out. A codex thread calling is not
 // in its own list.
 func TestTheListOfSessionsNamesTheCodexThreads(t *testing.T) {
-	_, url := startPanel(t, http.StatusOK, `{"ok":true}`)
-	said, failed := call(t, Letter(hostWith(t, withCodex, url)), bound(mine), map[string]any{})
+	h := letterListHost(t, withCodex)
+	said, failed := call(t, Letter(h), bound(mine), map[string]any{})
 	if failed {
 		t.Fatalf("the list answered %q", said)
 	}
@@ -343,7 +341,7 @@ func TestTheListOfSessionsNamesTheCodexThreads(t *testing.T) {
 		t.Errorf("the list names a codex out of the panel's reach:\n%s", said)
 	}
 
-	said, failed = call(t, Letter(hostWith(t, withCodex, url)), codexBound, map[string]any{})
+	said, failed = call(t, Letter(h), codexBound, map[string]any{})
 	if failed || strings.Contains(said, "codex-0000abcd") || !strings.Contains(said, "- lab — personal — /srv/proj/lab") {
 		t.Errorf("the list for the codex thread calling is %q", said)
 	}

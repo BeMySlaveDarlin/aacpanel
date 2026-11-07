@@ -156,6 +156,8 @@ func (s *Server) runRestarts(ctx context.Context) {
 }
 
 func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
+	s.pauseMu.Lock()
+	defer s.pauseMu.Unlock()
 	if s.host == nil || s.db == nil || s.exec == nil {
 		return nil
 	}
@@ -190,10 +192,17 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 		return err
 	}
 	byID := make(map[string]store.RestartCycle, len(cycles))
+	pauses, err := s.sessionPauses(ctx)
+	if err != nil {
+		return err
+	}
 	for _, c := range cycles {
 		byID[c.Conversation] = c
 	}
 	for _, row := range snap.Sessions {
+		if _, paused := pauseConversation(pauses, row.SessionID); paused {
+			continue
+		}
 		if row.Agent == schema.AgentCodex || row.Outside || row.SessionID == "" {
 			continue
 		}
