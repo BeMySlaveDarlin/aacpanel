@@ -193,7 +193,7 @@
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: inset 0 calc(-1 * var(--hair)) 0 var(--line);
 }
-.pflimits.tucked { position: sticky; top: 0; padding: 2px 0 3px; }
+.pflimits.tucked { position: sticky; top: 0; padding: 4px 0; }
 .pflimits.tucked .limits-note.calm { display: none; }
 .pflimitrow { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .limit-group { flex: none; min-inline-size: 0; margin: 0; padding: 1px 5px 5px; border: var(--hair) solid var(--edge); border-radius: 10px; background: var(--glass); }
@@ -251,8 +251,9 @@
 }
 .limit-old { position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; background: var(--deep); color: var(--ink-dim); box-shadow: 0 0 0 1px var(--line); }
 .limit-old svg { width: var(--i-sm); height: var(--i-sm); }
-.limit-group.compact { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; border-radius: 0; background: none; }
-.limit-group.compact + .limit-group.compact { padding-left: 10px; border-left: var(--hair) solid var(--line); }
+/* Folded, a vendor's readings and each action are tiles of one height and one
+   glass, so the line reads as one strip a third of the open row. */
+.limit-group.compact { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 9px; border: var(--hair) solid var(--edge); border-radius: 10px; background: var(--glass); box-shadow: var(--gloss), var(--hairline); }
 .limit-mini { display: flex; flex-direction: column; gap: 3px; min-width: 33px; }
 .limit-mini .limit-percent { font-size: var(--t-sm); line-height: 1; }
 .limit-minitrack { display: block; height: 3px; border-radius: 2px; background: linear-gradient(90deg, currentColor calc(var(--share) * 1%), var(--line) 0); }
@@ -268,6 +269,8 @@
    has no frames, and the tiles keep their own size. */
 .pfactions { display: flex; flex: none; align-self: stretch; gap: 4px; margin-left: auto; padding-top: calc(var(--t-xs) / 2); }
 .pflimits.tucked .pfactions { align-self: center; padding-top: 0; }
+.pflimits.tucked .pfaction { width: 36px; min-height: 0; height: 32px; padding: 6px; border-radius: 10px; }
+.pflimits.tucked .pfaction svg { width: var(--i-sm); height: var(--i-sm); }
 .pfaction { display: grid; flex: none; place-items: center; width: 48px; min-height: 44px; padding: 8px; border: var(--hair) solid var(--edge); border-radius: var(--r-card); background: var(--glass); box-shadow: var(--gloss), var(--hairline); color: var(--ink-dim); }
 .pfaction svg { width: var(--i-md); height: var(--i-md); }
 .pfaction:active { background: var(--accent-bg); color: var(--accent); }
