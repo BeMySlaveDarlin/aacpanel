@@ -42,16 +42,32 @@ push({ role: "note", text: "codex goes on with its goal" });
 push({ role: "goal", text: "Make CI green on main", cut: false, status: "budgetLimited", tokensUsed: 203300, tokenBudget: 200000, timeUsedSeconds: 754 });
 
 const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url) => {
+let feed = null, releaseShell = null, shellFail = false;
+const sent = [];
+window.fetch = async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: pos, total: pos, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
-    if (u === "/api/actions") return json({ logged: true, ok: true });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        await new Promise((resolve) => { releaseShell = resolve; });
+        return shellFail ? new Response(JSON.stringify({ error: "the daemon refused the shell command" }), { status: 500 })
+            : json({ logged: true });
+    }
     return new Response("", { status: 404 });
 };
-window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+window.EventSource = class {
+    constructor() { this.readyState = 1; this.listeners = {}; feed = this; }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    close() { this.readyState = 2; }
+};
+const bring = (more) => {
+    const fresh = more.map((item) => ({ ...item, pos: ++pos, at: at(pos) }));
+    items.push(...fresh);
+    for (const fn of feed.listeners.chat || []) fn({ data: JSON.stringify({ items: fresh }) });
+};
 
-const exec = { available: true, kinds: ["session.send", "session.stop", "session.close"] };
+const exec = { available: true, kinds: ["session.send", "session.stop", "session.close", "session.shell"] };
 const thread = {
     session: "shop-checkout", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", profile: "acme", agent: "codex",
     transport: "stream", status: "idle", model: "gpt-6-astra", tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/shop",
@@ -71,6 +87,57 @@ const until = async (ok) => {
 const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const all = (sel) => Array.from(root.querySelectorAll(sel));
+const wait = async (ok) => { if (!await until(ok)) throw new Error(`did not arrive: ${ok}`); };
+const card = () => all(".chatfeed .mshell").at(-1);
+const bar = () => text(root.querySelector(".composerbox .nowshell"));
+const openRun = async () => {
+    all(".chatfeed .mdrun").at(-1).click();
+    await wait(() => root.querySelector(".sheet.on .gtpreview"));
+};
+const shellState = () => ({ command: text(card()?.querySelector(".mshellcmd")),
+    state: text(card()?.querySelector(".mshellat")), bar: bar(), cards: all(".chatfeed .mshell").length });
+
+async function runCode() {
+    const command = "printf '%s\\n' 'a b' | cat";
+    bring([{ role: "ai", text: `Run this:\n\n\`\`\`sh\n${command}\n\`\`\`` }]);
+    await wait(() => all(".chatfeed .mdrun").length === 1);
+    const draft = root.querySelector(".composer textarea");
+    draft.value = "keep the codex draft";
+    draft.dispatchEvent(new Event("input", { bubbles: true }));
+    const result = { runs: [] };
+    await openRun();
+    all(".sheet.on .btn").find((b) => text(b) === "Cancel").click();
+    await wait(() => !root.querySelector(".sheet.on"));
+    result.cancelled = { sends: sent.length, cards: all(".chatfeed .mshell").length };
+    for (const code of [0, 7]) {
+        const before = sent.length;
+        await openRun();
+        const run = { preview: text(root.querySelector(".sheet.on .gtpreview")),
+            title: text(root.querySelector(".sheet.on .stitle")),
+            before: sent.length - before };
+        root.querySelector(".sheet.on .btn.primary").click();
+        await wait(() => releaseShell && card()?.querySelector(".mshellat")?.textContent === "starting");
+        run.starting = shellState();
+        releaseShell(); releaseShell = null;
+        await wait(() => text(card()?.querySelector(".mshellat")).startsWith("running") && bar().includes("running"));
+        run.running = shellState();
+        run.sent = sent.at(-1);
+        bring([{ role: "shell", text: command, code }, { role: "shellout", command, text: `shell output ${code}`, code }]);
+        await wait(() => text(card()?.querySelector(".mshellat")) === `exit ${code}` && bar().includes(`exit ${code}`));
+        run.ended = shellState();
+        run.output = text(all(".chatfeed .mshellout").at(-1));
+        result.runs.push(run);
+    }
+    shellFail = true;
+    await openRun();
+    root.querySelector(".sheet.on .btn.primary").click();
+    await wait(() => releaseShell && all(".chatfeed .mshell").length === 3);
+    releaseShell(); releaseShell = null;
+    await wait(() => card()?.classList.contains("failed"));
+    result.failed = text(all(".chatfeed .mwait.crit").at(-1));
+    result.draft = draft.value;
+    return result;
+}
 
 window.done = (async () => {
     await document.fonts.ready;
@@ -127,6 +194,7 @@ window.done = (async () => {
         await until(() => copied.length === 1 && text(root.querySelector(".toast.on .tmain")) === "Copied");
     }
     out.copy = { button: Boolean(copy), text: copied[0], toast: text(root.querySelector(".toast.on .tmain")) };
+    out.shell = await runCode();
     return out;
 })();
 </script>

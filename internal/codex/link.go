@@ -1280,6 +1280,17 @@ func (l *Link) Interrupt(ctx context.Context, threadID string) (bool, error) {
 	return turn != "", err
 }
 
+// ShellCommand runs the person's command through the thread's shell. The
+// daemon acknowledges it before it ends and writes its result to the thread;
+// the executor never runs the command or reads its output itself.
+func (l *Link) ShellCommand(ctx context.Context, threadID, command string) error {
+	c, err := l.client()
+	if err != nil {
+		return err
+	}
+	return within(ctx, c, "thread/shellCommand", map[string]any{"threadId": threadID, "command": command}, nil)
+}
+
 // InterruptAgent stops the turn an agent of a thread runs, in the agent's own
 // thread: the turn is interrupted as a stop interrupts the thread's, the
 // thread that started the agent hears nothing of it, and the agent waits for

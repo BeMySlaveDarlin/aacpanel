@@ -360,7 +360,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // queueOf turns on whether the session takes messages back, so that is
     // what the lent things are made again on, with what decides their set.
     const writable = Boolean(live && !live.outside);
-    const runs = writable && canRunShell(exec, live.transport === "stream", composer.shell);
+    const runs = writable && canRunShell(exec, live.transport === "stream" || isCodex(live), composer.shell || isCodex(live));
     const takes = Boolean(live && parts.takesBack);
     const lent = useMemo(() => (writable
         ? { quote: steadyQuote, edit: steadyEdit, queueOf: steadyQueueOf, exec, onRun: runs ? steadyRun : null }

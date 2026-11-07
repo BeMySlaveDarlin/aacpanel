@@ -476,8 +476,11 @@ export const ACTIONS = {
         title: (target) => `Run in ${target}?`,
         preview: (params) => params.text,
         ok: "Run",
-        effect: "The session's shell runs the command in its directory beside the conversation; "
-            + "what it printed goes into the conversation when it ends, and the model answers it.",
+        effect: (params, target) => (codexTarget(target)
+            ? "The thread's shell runs the command in its directory with full host access beside the conversation; "
+                + "what it printed is kept in the thread when it ends."
+            : "The session's shell runs the command in its directory beside the conversation; "
+                + "what it printed goes into the conversation when it ends, and the model answers it."),
         done: (target) => `Running in ${target}`,
     },
     "session.answer": {

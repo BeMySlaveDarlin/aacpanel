@@ -21,6 +21,32 @@ const (
 	codexName   = "codex-0000abcd"
 )
 
+func TestCodexShellActionReachesTheDaemonAndReturnsItsError(t *testing.T) {
+	srv, e := onCodex(t, nil)
+	command := "printf '%s\\n' 'a b' | cat"
+	req := action.Request{Kind: action.SessionShell, Target: codexName, Text: command, MessageID: "run-from-feed"}
+	detail, err := e.Execute(context.Background(), req)
+	if err != nil || !strings.Contains(detail, "the command runs in "+codexName) {
+		t.Fatalf("shell action = %q, %v", detail, err)
+	}
+	calls := srv.Calls("thread/shellCommand")
+	if len(calls) != 1 {
+		t.Fatalf("shell requests = %q", calls)
+	}
+	var got struct{ ThreadID, Command string }
+	if err := json.Unmarshal(calls[0], &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.ThreadID != codexThread || got.Command != command || len(srv.Calls("turn/start")) != 0 {
+		t.Errorf("the shell action sent %s and %d model turns", calls[0], len(srv.Calls("turn/start")))
+	}
+	srv.Refuse("thread/shellCommand")
+	detail, err = e.Execute(context.Background(), req)
+	if err == nil || !strings.Contains(err.Error(), "thread/shellCommand") || detail != "" {
+		t.Errorf("refused shell action = %q, %v", detail, err)
+	}
+}
+
 // onCodex starts a fake codex daemon set up by setup and an executor linked
 // to it, with no claude session alive. The daemon is set up before the link
 // comes: the link reads its threads at once on connecting, and a request that
@@ -404,7 +430,7 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	ctx := context.Background()
 	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionLetter: true, action.SessionStop: true, action.SessionEscape: true,
 		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
-		action.SessionFile: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
+		action.SessionFile: true, action.SessionShell: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
 		action.SessionRename: true, action.SessionParent: true, action.SessionDetach: true, action.TaskStop: true, action.AgentStop: true, action.SecretPut: true,
 		action.SessionRestart: true, action.SessionMcp: true, action.ObserverStop: true, action.AlarmCancel: true, action.SessionPin: true, action.SessionRole: true, action.SessionIntent: true}
 	for _, k := range action.Kinds {

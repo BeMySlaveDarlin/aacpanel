@@ -6,6 +6,59 @@ import (
 	"testing"
 )
 
+func TestCodexCodeBlocksRunThroughTheGateAndSettleTheShellCard(t *testing.T) {
+	var got struct {
+		Shell struct {
+			Runs []struct {
+				Preview, Title, Output   string
+				Before                   int
+				Starting, Running, Ended struct {
+					Command, State, Bar string
+					Cards               int
+				}
+				Sent struct {
+					Kind, Target string
+					Params       struct{ Text, MessageID string }
+				}
+			}
+			Cancelled     struct{ Sends, Cards int }
+			Failed, Draft string
+		}
+	}
+	runFixture(t, "codexfeed.html", &got)
+	s := got.Shell
+	if s.Cancelled.Sends != 0 || s.Cancelled.Cards != 0 || s.Draft != "keep the codex draft" {
+		t.Errorf("cancel or draft changed: %+v", s)
+	}
+	if len(s.Runs) != 2 {
+		t.Fatalf("codex shell runs = %+v", s.Runs)
+	}
+	command := "printf '%s\\n' 'a b' | cat"
+	for i, r := range s.Runs {
+		if r.Preview != command || r.Title != "Run in shop-checkout?" || r.Before != 0 {
+			t.Errorf("codex shell gate = %+v", r)
+		}
+		if r.Sent.Kind != "session.shell" || r.Sent.Target != "shop-checkout" || r.Sent.Params.Text != command || !uuidShape.MatchString(r.Sent.Params.MessageID) {
+			t.Errorf("codex shell action = %+v", r.Sent)
+		}
+		ended := []string{"exit 0", "exit 7"}[i]
+		if r.Starting.State != "starting" || !strings.HasPrefix(r.Running.State, "running") || r.Ended.State != ended || r.Output != []string{"shell output 0", "shell output 7"}[i] {
+			t.Errorf("codex shell states = %+v", r)
+		}
+		for _, state := range []struct {
+			Command, State, Bar string
+			Cards               int
+		}{r.Starting, r.Running, r.Ended} {
+			if state.Command != command || !strings.HasPrefix(state.Bar, "!"+command) || !strings.Contains(state.Bar, state.State) || state.Cards != i+1 {
+				t.Errorf("codex shell card and bar disagree: %+v", state)
+			}
+		}
+	}
+	if !strings.Contains(s.Failed, "the daemon refused the shell command") {
+		t.Errorf("codex shell refusal = %q", s.Failed)
+	}
+}
+
 func TestACodexMessageCopiesThroughTheFeed(t *testing.T) {
 	var got struct {
 		Copy struct {

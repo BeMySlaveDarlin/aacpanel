@@ -941,6 +941,17 @@ that wait for a person. The executor keeps one connection per home, WebSocket
 over the daemon's control socket, and dials again ten seconds after the socket
 appears or the connection drops — at once when an action waits for it.
 
+**Run on a code block uses the thread's shell through `thread/shellCommand`.**
+The existing `session.shell` gate confirms the exact command before the daemon
+runs it with full host access, independently of the model's sandbox. Shell
+syntax reaches the daemon unchanged. The page shows the command starting and
+running until the rollout supplies its completed `CommandExecution` item with
+`source: user_shell`, aggregated output and exit code. These become the same
+shell card and composer bar as Claude's; commands with any other source remain
+model tool calls. The daemon keeps the command and its output in the thread;
+an idle thread runs no model turn to answer it. A thread served in tmux uses
+the same daemon path.
+
 **A session can open a Codex helper through `session_open`, send its task with
 `send_to_session`, receive a report after each turn, continue by letter and
 close the child by name with `session_close`.** The helper is held in the

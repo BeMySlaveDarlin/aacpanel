@@ -353,6 +353,43 @@ class Rows(Runtime):
 
 
 class Feed(Runtime):
+    def test_a_user_shell_item_is_a_shell_card_with_output_and_exit_code(self):
+        command = "printf '%s\\n' 'a b' | cat"
+        item = {"type": "CommandExecution", "id": "user-shell", "source": "user_shell",
+                "command": ["/bin/bash", "-lc", command], "cwd": "/srv/proj",
+                "status": "failed", "aggregated_output": "a b\n<error>\n", "exit_code": 7}
+        record = {"type": "event_msg", "timestamp": "2026-10-09T12:02:00Z",
+                  "payload": {"type": "item_completed", "thread_id": THREAD, "turn_id": "shell-turn", "item": item}}
+        rows = chat.parse(record, 7)
+        self.assertEqual([(r["role"], r.get("text"), r.get("code")) for r in rows],
+                         [("shell", command, 7), ("shellout", "a b\n<error>\n", 7)])
+        self.assertEqual(rows[1]["command"], command)
+        with open(self.rollout, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+        reply = chat.answer({"session": THREAD, "limit": 50})
+        self.assertEqual([(r["role"], r.get("code")) for r in reply["items"][-2:]],
+                         [("shell", 7), ("shellout", 7)])
+        for code in (0, -1, None):
+            with self.subTest(code=code):
+                item["exit_code"] = code
+                item["aggregated_output"] = ""
+                changed = chat.parse(record, 7)
+                self.assertEqual([r.get("code") for r in changed], [code, code])
+        for source in (None, "agent", "unified_exec_startup", "unified_exec_interaction"):
+            with self.subTest(source=source):
+                item["source"] = source
+                self.assertEqual([r["role"] for r in chat.parse(record, 7)], ["tool", "result"])
+
+    def test_user_shell_output_is_bounded_and_its_cut_is_visible(self):
+        from chat.limits import MAX_TEXT
+        record = {"type": "event_msg", "payload": {"type": "item_completed", "item": {
+            "type": "CommandExecution", "id": "long-shell", "source": "user_shell",
+            "command": "cat log", "aggregated_output": "x" * (MAX_TEXT + 1), "exit_code": 0}}}
+        rows = chat.parse(record, 7)
+        self.assertEqual([r["role"] for r in rows], ["shell", "shellout"])
+        self.assertTrue(rows[1]["cut"])
+        self.assertLessEqual(len(rows[1]["text"]), MAX_TEXT)
+
     def items(self):
         out = []
         for pos, record in records_at():

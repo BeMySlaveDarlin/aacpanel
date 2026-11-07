@@ -29,6 +29,7 @@ type codeRunShot struct {
 	BarTakesDown        bool
 	BarGoneAfterMessage bool
 	Absent              map[string]int
+	Codex               map[string][]bool
 }
 
 func TestCodeBlocksRunThroughTheSessionGate(t *testing.T) {
@@ -51,7 +52,15 @@ func checkCodeRun(t *testing.T, got codeRunShot) {
 	if !reflect.DeepEqual(got.Buttons, want) {
 		t.Errorf("runnable fences = %v, want %v", got.Buttons, want)
 	}
-	if got.Outside != 0 || len(got.Absent) != 6 {
+	if len(got.Codex) != 2 {
+		t.Errorf("codex transports checked = %v", got.Codex)
+	}
+	for transport, buttons := range got.Codex {
+		if !reflect.DeepEqual(buttons, want) {
+			t.Errorf("codex %s runnable fences = %v, expected %v", transport, buttons, want)
+		}
+	}
+	if got.Outside != 0 || len(got.Absent) != 5 {
 		t.Errorf("buttons outside the feed = %d; unavailable sessions checked = %v", got.Outside, got.Absent)
 	}
 	for name, count := range got.Absent {

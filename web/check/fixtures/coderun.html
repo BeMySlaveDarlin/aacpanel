@@ -161,12 +161,16 @@ window.done = (async () => {
             ["console", { ...live, transport: "console" }, exec],
             ["unknown", live, { available: true, kinds: ["session.send"] }],
             ["offline", live, { available: false }],
-            ["codex", { ...live, agent: "codex" }, exec],
             ["outsideSession", { ...live, outside: true }, exec],
             ["archive", null, exec],
         ]) {
             await mount(session, executor);
             out.absent[key] = all(".chatfeed .mdrun").length;
+        }
+        out.codex = {};
+        for (const transport of ["stream", "tmux"]) {
+            await mount({ ...live, agent: "codex", transport });
+            out.codex[transport] = codeBlocks().map((block) => Boolean(block.querySelector(".mdrun")));
         }
         return out;
     } finally {

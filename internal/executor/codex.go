@@ -140,6 +140,11 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return e.codexLetterTo(ctx, th, req.From, req.FromCodex, req.Text)
 	case action.SessionFile:
 		return codexFile(ctx, th, req.Text, req.Files)
+	case action.SessionShell:
+		if err := th.Link.ShellCommand(ctx, th.ID, req.Text); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("the command runs in %s beside the conversation; its output goes into the thread when it ends", th.Name), nil
 	case action.SessionUnqueue:
 		return codexUnqueue(th, req.MessageID)
 	case action.SessionSet:

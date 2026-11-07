@@ -1253,6 +1253,19 @@ def rows(record, pos, state=None, shelf=None):
             if isinstance(summary, list) else []
         return _said("mind", "\n\n".join(parts), at, pos)
     if kind == "CommandExecution":
+        if item.get("source") == "user_shell":
+            # Imported here because the transcript parser calls this module.
+            from .records import command_item
+            command = command_line(item.get("command"))
+            ran = command_item(command, at, pos)
+            text = item.get("aggregated_output")
+            output, trimmed = cut(text if isinstance(text, str) else "", MAX_TEXT)
+            out = {"role": "shellout", "command": ran["text"], "text": output,
+                   "cut": trimmed, "at": at, "pos": pos}
+            code = item.get("exit_code")
+            if isinstance(code, int) and not isinstance(code, bool):
+                ran["code"] = out["code"] = code
+            return [ran, out]
         return _call(BASH, one_line(command_line(item.get("command"))), use, 0,
                      _failed(item), at, pos)
     if kind == "FileChange":

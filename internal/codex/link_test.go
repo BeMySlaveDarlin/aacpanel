@@ -3,6 +3,7 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,110 @@ func TestMain(m *testing.M) {
 	redialEvery = 50 * time.Millisecond
 	callWait = 3 * time.Second
 	os.Exit(m.Run())
+}
+
+func TestShellCommandUsesTheThreadsShellAndReturnsDaemonErrors(t *testing.T) {
+	srv, l := linked(t, idle(threadA))
+	until(t, "the thread", written(t, threadA))
+	command := "printf '%s\\n' 'a b' | cat > result.txt"
+	if err := l.ShellCommand(context.Background(), threadA, command); err != nil {
+		t.Fatal(err)
+	}
+	calls := srv.Calls("thread/shellCommand")
+	if len(calls) != 1 {
+		t.Fatalf("shell requests = %q", calls)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(calls[0], &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got["threadId"] != threadA || got["command"] != command {
+		t.Errorf("shell request = %s", calls[0])
+	}
+	srv.Refuse("thread/shellCommand")
+	if err := l.ShellCommand(context.Background(), threadA, command); err == nil || !strings.Contains(err.Error(), "thread/shellCommand") {
+		t.Errorf("daemon refusal = %v", err)
+	}
+}
+
+func TestShellDaemonEmitsUserShellItemsAndKeepsTheirHistory(t *testing.T) {
+	for _, busy := range []bool{false, true} {
+		t.Run(fmt.Sprint(busy), func(t *testing.T) {
+			srv := codextest.New(t)
+			srv.Add(idle(threadA))
+			srv.ShellResult("ready\n", 7)
+			if busy {
+				srv.Running(threadA, "model-turn")
+			}
+			notes := make(chan message, 8)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			c, err := dial(ctx, srv.Socket(), func(m message) { notes <- m })
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.disconnect()
+			var ack map[string]any
+			if err := c.call(ctx, "thread/shellCommand", map[string]any{"threadId": threadA, "command": "printf ready"}, &ack); err != nil {
+				t.Fatal(err)
+			}
+			if ack == nil || len(ack) != 0 {
+				t.Errorf("shell acknowledgement = %v", ack)
+			}
+			var turnID, itemID string
+			for _, method := range []string{"item/started", "item/commandExecution/outputDelta", "item/completed"} {
+				var m message
+				select {
+				case m = <-notes:
+				case <-ctx.Done():
+					t.Fatal("the shell item lifecycle did not arrive")
+				}
+				var p struct {
+					ThreadID, TurnID, ItemID, Delta string
+					Item                            struct {
+						ID, Type, Source, Status, Command, CWD, AggregatedOutput string
+						ExitCode                                                 *int
+					}
+				}
+				if err := json.Unmarshal(m.Params, &p); err != nil {
+					t.Fatal(err)
+				}
+				if m.Method != method || p.ThreadID != threadA || p.TurnID == "" {
+					t.Fatalf("shell notification = %s %s, expected %s", m.Method, m.Params, method)
+				}
+				if method == "item/commandExecution/outputDelta" {
+					if p.ItemID != itemID || p.Delta != "ready\n" || p.TurnID != turnID {
+						t.Errorf("shell output = %s", m.Params)
+					}
+					continue
+				}
+				it := p.Item
+				if it.Type != "commandExecution" || it.Source != "userShell" || it.Command != "printf ready" || it.CWD != "/srv/proj" {
+					t.Errorf("shell item = %s", m.Params)
+				}
+				if method == "item/started" {
+					itemID, turnID = it.ID, p.TurnID
+					if itemID == "" || it.Status != "inProgress" || it.ExitCode != nil {
+						t.Errorf("shell start = %s", m.Params)
+					}
+				} else if it.ID != itemID || p.TurnID != turnID || it.Status != "failed" || it.AggregatedOutput != "ready\n" || it.ExitCode == nil || *it.ExitCode != 7 {
+					t.Errorf("shell end = %s", m.Params)
+				}
+			}
+			var history struct {
+				Data []struct{ Item map[string]any }
+			}
+			if err := c.call(ctx, "thread/items/list", map[string]any{"threadId": threadA, "turnId": turnID}, &history); err != nil {
+				t.Fatal(err)
+			}
+			if len(history.Data) != 1 || history.Data[0].Item["source"] != "userShell" || history.Data[0].Item["exitCode"] != float64(7) {
+				t.Errorf("shell history = %+v", history)
+			}
+			if busy && turnID != "model-turn" {
+				t.Errorf("an auxiliary shell started turn %s", turnID)
+			}
+		})
+	}
 }
 
 const (

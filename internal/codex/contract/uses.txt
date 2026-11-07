@@ -84,6 +84,10 @@ call thread/resume
 call thread/unsubscribe
   send threadId
 
+call thread/shellCommand
+  send threadId
+  send command
+
 call thread/turns/list
   send threadId
   send limit

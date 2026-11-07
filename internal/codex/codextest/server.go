@@ -174,6 +174,9 @@ type Server struct {
 	onLoad []map[string]any
 	// stalls are the requests answered late, by method and thread, each once.
 	stalls map[string]time.Duration
+	// Shell commands use a supplied result without executing on the host.
+	shellOutput string
+	shellCode   int
 }
 
 // New starts a daemon in a home of its own. The home is short on purpose: a
@@ -573,6 +576,54 @@ func (s *Server) Item(threadID, turnID string, item map[string]any) {
 	t.items[turnID] = append(t.items[turnID], item)
 }
 
+// ShellResult sets what a command the person runs prints and exits with.
+func (s *Server) ShellResult(output string, code int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.shellOutput, s.shellCode = output, code
+}
+
+// shellCommand acknowledges the request before its item lifecycle, as the
+// daemon does. An auxiliary shell leaves an active model turn running.
+func (s *Server) shellCommand(c *client, t *thread, raw json.RawMessage) (any, []map[string]any, string) {
+	var p struct {
+		Command string `json:"command"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	t.subs[c] = true
+	standalone := t.last() == nil || t.last().status != "inProgress"
+	if standalone {
+		s.turnN++
+		t.turns = append(t.turns, turn{id: fmt.Sprintf("shell-turn-%d", s.turnN), status: "inProgress"})
+	}
+	turn := t.last()
+	s.nextID++
+	started := map[string]any{"id": fmt.Sprintf("shell-%d", s.nextID), "type": "commandExecution",
+		"command": p.Command, "cwd": t.CWD, "commandActions": []any{}, "source": "userShell",
+		"status": "inProgress", "aggregatedOutput": nil, "exitCode": nil, "durationMs": nil, "processId": nil}
+	note := func(method string, fields map[string]any) map[string]any {
+		fields["threadId"], fields["turnId"] = t.ID, turn.id
+		return map[string]any{"method": method, "params": fields, "to": clientsOf(t)}
+	}
+	after := []map[string]any{note("item/started", map[string]any{"item": started, "startedAtMs": 1000})}
+	if s.shellOutput != "" {
+		after = append(after, note("item/commandExecution/outputDelta", map[string]any{"itemId": started["id"], "delta": s.shellOutput}))
+	}
+	ended := maps.Clone(started)
+	ended["status"], ended["aggregatedOutput"], ended["exitCode"], ended["durationMs"] = "completed", s.shellOutput, s.shellCode, 10
+	if s.shellCode != 0 {
+		ended["status"] = "failed"
+	}
+	t.items[turn.id] = append(t.items[turn.id], ended)
+	after = append(after, note("item/completed", map[string]any{"item": ended, "startedAtMs": 1000, "completedAtMs": 1010}))
+	if standalone {
+		turn.status = "completed"
+		after = append(after, note("turn/completed", map[string]any{"turn": map[string]any{
+			"id": turn.id, "status": turn.status, "items": []any{}, "error": nil}}))
+	}
+	return map[string]any{}, after, ""
+}
+
 // Complete ends the current turn and sends the terminal notification,
 // whose items may be unloaded: clients read them with thread/items/list.
 func (s *Server) Complete(id, status, failure string) string {
@@ -886,6 +937,8 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 	switch method {
 	case "thread/read":
 		return map[string]any{"thread": t.json()}, nil, ""
+	case "thread/shellCommand":
+		return s.shellCommand(c, t, raw)
 	case "thread/resume":
 		if t.Status == "notLoaded" {
 			// A load starts the servers of the thread anew, and the sandbox
