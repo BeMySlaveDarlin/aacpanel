@@ -47,6 +47,22 @@ type contourTaskScene struct {
 		Vendor       string
 		Full, Folded limitToolbarState
 	}
+	Details struct {
+		ExpectedResetAt, ExpectedResetLocal                    string
+		Full, Week, Other, Folded, Stale, Codex, NoReset       limitPopoverState
+		ToggledClosed, OutsideClosed, EscapeClosed, InsideKept bool
+		FoldClosed, UnfoldClosed                               bool
+	}
+}
+
+type limitPopoverState struct {
+	Count                                   int
+	Words, Label, Role, ResetAt, ResetLocal string
+	Compact                                 bool
+	Readings                                []struct {
+		Label, Tag, Type, Popup, Expanded string
+		Focusable                         bool
+	}
 }
 
 type limitToolbarState struct {
@@ -98,6 +114,72 @@ func TestContourToolbarShowsLimitWindowsAndStartsMappedSessions(t *testing.T) {
 	}
 	if got.BeforeConfirm != 0 || len(got.Sent) != 1 || got.Sent[0].Kind != "session.open" || got.Sent[0].Target != "shop" || got.Sent[0].Params.Project != 7 {
 		t.Errorf("session open bypassed the gate or lost its project: %+v", got.Sent)
+	}
+}
+
+func TestLimitReadingsOpenDetailsAndSwitchBetweenWindows(t *testing.T) {
+	var got contourTaskScene
+	runFixture(t, "limitsfold.html", &got)
+	details := got.Details
+	for i, pop := range []limitPopoverState{details.Full, details.Week, details.Other, details.Folded} {
+		name := []string{"Claude, 5 hours", "Claude, 7 days", "Codex, 7 days", "Claude, 5 hours"}[i]
+		if pop.Count != 1 || pop.Label != name || pop.Role != "dialog" {
+			t.Errorf("details %d: %+v", i, pop)
+		}
+		for _, want := range []string{name, []string{"99.5% used", "88% used", "44% used", "99.5% used"}[i], "resets in ", "Updated 1 min ago"} {
+			if !strings.Contains(pop.Words, want) {
+				t.Errorf("details %d lost %q: %s", i, want, pop.Words)
+			}
+		}
+		if len(pop.Readings) != 3 {
+			t.Fatalf("details %d lost a reading: %+v", i, pop.Readings)
+		}
+		for _, button := range pop.Readings {
+			expanded := "false"
+			if strings.HasPrefix(button.Label, name+",") {
+				expanded = "true"
+			}
+			if button.Tag != "BUTTON" || button.Type != "button" || button.Popup != "dialog" || !button.Focusable || button.Expanded != expanded {
+				t.Errorf("details %d control: %+v, want expanded=%s", i, button, expanded)
+			}
+		}
+	}
+	if details.Full.ResetAt != details.ExpectedResetAt || details.Full.ResetLocal == "" || !strings.Contains(details.Full.ResetLocal, details.ExpectedResetLocal) || !strings.Contains(details.Full.Words, "resets in 1 h") {
+		t.Errorf("local reset and countdown: %+v", details.Full)
+	}
+	if strings.Contains(details.Full.Words, "last known numbers") || strings.Contains(details.Other.Words, "limit is reached") {
+		t.Errorf("fresh limits gained stale or reached notices: %s; %s", details.Full.Words, details.Other.Words)
+	}
+	if !details.Folded.Compact {
+		t.Errorf("folded reading did not open its details: %+v", details.Folded)
+	}
+}
+
+func TestLimitDetailsCloseOnToggleOutsideEscapeAndFolding(t *testing.T) {
+	var got contourTaskScene
+	runFixture(t, "limitsfold.html", &got)
+	details := got.Details
+	if !details.ToggledClosed || !details.OutsideClosed || !details.EscapeClosed || !details.FoldClosed || !details.UnfoldClosed || !details.InsideKept {
+		t.Errorf("details dismissal: toggle=%v outside=%v escape=%v fold=%v unfold=%v inside=%v", details.ToggledClosed, details.OutsideClosed, details.EscapeClosed, details.FoldClosed, details.UnfoldClosed, details.InsideKept)
+	}
+}
+
+func TestLimitDetailsShowStaleAgesReachedAndUnknownResets(t *testing.T) {
+	var got contourTaskScene
+	runFixture(t, "limitsfold.html", &got)
+	details := got.Details
+	for i, pop := range []limitPopoverState{details.Stale, details.Codex, details.NoReset} {
+		for _, want := range []string{[]string{"Claude, 5 hours", "Codex, 7 days", "Claude, 7 days"}[i], []string{"45.5% used", "100% used", "12.3% used"}[i], []string{"Updated 2 h ago", "Updated 3 h ago", "Updated 2 h ago"}[i], "last known numbers"} {
+			if pop.Count != 1 || !strings.Contains(pop.Words, want) {
+				t.Errorf("stale details %d lost %q: %+v", i, want, pop)
+			}
+		}
+	}
+	if !strings.Contains(details.Codex.Words, "codex says the limit is reached") {
+		t.Errorf("reached codex limit: %s", details.Codex.Words)
+	}
+	if details.NoReset.ResetAt != "" || details.NoReset.ResetLocal != "" || strings.Contains(details.NoReset.Words, "resets") {
+		t.Errorf("unknown reset invented a time: %+v", details.NoReset)
 	}
 }
 

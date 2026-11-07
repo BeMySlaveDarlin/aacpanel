@@ -116,6 +116,7 @@ export async function contourScene(root, hash) {
     out.rings = [...document.querySelectorAll(".limit-ring")].map((r) => ({ vendor: r.dataset.agent, window: text(r.querySelector(".limit-window")), percent: text(r.querySelector(".limit-percent")), label: r.getAttribute("aria-label"), tone: r.className }));
     out.actions = [...document.querySelector(".pflimitrow").querySelectorAll(".pfaction")].map((b) => b.getAttribute("aria-label"));
     out.full = readToolbar();
+    out.details = await limitDetailsScene(root, mount);
     out.folding = await scrollScene(root);
     mount();
     await until(() => document.querySelectorAll(".limit-ring").length === 3);
@@ -206,6 +207,79 @@ export async function contourScene(root, hash) {
 
 const pageOfRow = () => document.querySelector(".pfpage") || document.querySelector(".body");
 const rowBox = () => pageOfRow()?.querySelector(".pflimits");
+
+async function limitDetailsScene(root, mount) {
+    const reading = (name) => `.limit-reading[aria-label^="${name}"]`;
+    const tap = async (selector) => {
+        const target = document.querySelector(selector);
+        if (!target) throw new Error(`missing tap target: ${selector}`);
+        const pointer = { bubbles: true, pointerId: 1, pointerType: "touch", isPrimary: true };
+        target.dispatchEvent(new PointerEvent("pointerdown", pointer));
+        target.dispatchEvent(new PointerEvent("pointerup", pointer));
+        target.click();
+        await quiet();
+    };
+    const closed = () => !document.querySelector(".limit-popover") && !document.querySelector('.limit-reading[aria-expanded="true"]');
+    const details = () => {
+        const pop = document.querySelector(".limit-popover");
+        const time = pop?.querySelector("time");
+        return {
+            count: document.querySelectorAll(".limit-popover").length,
+            words: text(pop), label: pop?.getAttribute("aria-label") || "", role: pop?.getAttribute("role") || "",
+            resetAt: time?.dateTime || "", resetLocal: text(time),
+            compact: Boolean(document.querySelector('.limit-mini[aria-expanded="true"]')),
+            readings: [...rowBox().querySelectorAll(".limit-reading")].map((button) => ({
+                label: button.getAttribute("aria-label"), tag: button.tagName, type: button.type,
+                popup: button.getAttribute("aria-haspopup"), expanded: button.getAttribute("aria-expanded"), focusable: button.tabIndex >= 0,
+            })),
+        };
+    };
+    const at = new Date(limits.contours[0].fiveHour.resetsAt * 1000);
+    const out = { expectedResetAt: at.toISOString(), expectedResetLocal: at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) };
+    await tap(reading("Claude, 5 hours"));
+    out.full = details();
+    await tap(reading("Claude, 5 hours"));
+    out.toggledClosed = closed();
+    await tap(reading("Claude, 5 hours"));
+    await tap(reading("Claude, 7 days"));
+    out.week = details();
+    await tap(reading("Codex, 7 days"));
+    out.other = details();
+    await tap(".limit-popover strong");
+    out.insideKept = details().count === 1;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await quiet();
+    out.escapeClosed = closed();
+    await tap(reading("Claude, 5 hours"));
+    await tap(".pflimitrow");
+    out.outsideClosed = closed();
+    await tap(reading("Claude, 5 hours"));
+    await tuckToolbar();
+    out.foldClosed = closed();
+    await tap(reading("Claude, 5 hours"));
+    out.folded = details();
+    await moveToolbar(0);
+    out.unfoldClosed = closed();
+
+    const own = { contours: [{ profile: "details", contour: 72, ageSec: 5400, fiveHour: windowOf(45.5, 1), sevenDay: { pct: 12.25, resetsAt: 0 },
+        codex: { ageSec: 10800, reached: true, sevenDay: windowOf(100, 3) } }] };
+    render(h(ToastHost, null, h(GateHost, null, html`<main class="body">
+        <${ProfileLimits} key="details" profile="details" contour=${72} limits=${own} stale=${false}
+            entry=${profiles[0]} snapshot=${snapshot} exec=${exec} onTasks=${() => {}} onSettings=${() => {}} />
+    </main>`)), root);
+    await quiet();
+    await moveToolbar(0);
+    await tap(reading("Claude, 5 hours"));
+    out.stale = details();
+    await tap(reading("Codex, 7 days"));
+    out.codex = details();
+    await tap(reading("Claude, 7 days"));
+    out.noReset = details();
+    mount();
+    await quiet();
+    await moveToolbar(0);
+    return out;
+}
 
 function readToolbar() {
     const box = rowBox();

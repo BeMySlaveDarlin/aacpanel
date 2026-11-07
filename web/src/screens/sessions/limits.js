@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { share } from "../../format.js";
+import { alarmTime, share } from "../../format.js";
 import { pageNames, pickedPage } from "./pages.js";
 import { contourOf } from "../../contour.js";
 import { Icon } from "../../ui/icons.js";
+import { Popover } from "../../ui/popover.js";
 import { Sheet } from "../../ui/sheet.js";
 import { NewSessionList } from "./new.js";
 
@@ -74,8 +75,17 @@ export function openLimits(snapshot) {
 // available without taking the list's room for the full rings.
 export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot, exec, onTasks, onSettings }) {
     const [newSession, setNewSession] = useState(false);
+    const [opened, setOpened] = useState(null);
     const box = useRef(null);
     const { tucked, stuck } = useTucked(box, profile);
+    // Folding replaces the controls, so a bubble cannot keep its old anchor.
+    useEffect(() => setOpened(null), [tucked, profile]);
+    const toggleLimit = (key, event) => {
+        const reading = event.currentTarget.getBoundingClientRect();
+        const row = event.currentTarget.closest(".pflimitrow").getBoundingClientRect();
+        setOpened((current) => current && current.key === key ? null : { key, x: reading.left + reading.width / 2 - row.left });
+    };
+    const closeLimit = () => setOpened(null);
     const c = contourOf(limits, profile, contour);
     const codex = c && c.codex;
     const claudeOld = Boolean(c) && staleLimits(c);
@@ -84,18 +94,19 @@ export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot
         c && (c.fiveHour || c.sevenDay) && claudeOld && `claude's numbers are from ${agoText(c.ageSec)}: they are renewed when a claude session of the contour answers`,
         codexOld && `codex's numbers are from ${agoText(codex.ageSec)}: they are renewed every five minutes while the codex daemon of the contour runs`,
     ].filter(Boolean);
-    const group = (agent, old, windows) => ({ agent, old, windows: windows.filter((window) => window.data) });
+    const group = (agent, old, source, windows) => ({ agent, old, ageSec: source.ageSec, reached: source.reached, windows: windows.filter((window) => window.data) });
     const groups = [
-        c && group("claude", stale || claudeOld, [
+        c && group("claude", stale || claudeOld, c, [
             { span: "5h", full: "Claude, 5 hours", data: c.fiveHour },
             { span: "7d", full: "Claude, 7 days", data: c.sevenDay },
         ]),
-        codex && group("codex", stale || codexOld, [{ span: "7d", full: "Codex, 7 days", data: codex.sevenDay }]),
+        codex && group("codex", stale || codexOld, codex, [{ span: "7d", full: "Codex, 7 days", data: codex.sevenDay }]),
     ].filter((group) => group && group.windows.length > 0);
     return html`
         <div class=${`pflimits${tucked ? " tucked" : ""}${stuck ? " stuck" : ""}`} ref=${box}>
             <div class="pflimitrow" role="group" aria-label="Contour limits and actions">
-                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group} tucked=${tucked} />`)}
+                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group} tucked=${tucked}
+                    opened=${opened} onToggle=${toggleLimit} onClose=${closeLimit} />`)}
                 <div class="pfactions" role="group" aria-label=${`${profile} actions`}>
                     <button class="pfaction" type="button" aria-label="Tasks" title="Tasks" disabled=${!contour}
                             onClick=${onTasks}>${Icon.checklist()}</button>
@@ -127,8 +138,13 @@ function ringLeft(resetsAt) {
     return `${Math.max(1, Math.round(left / 60000))}m`;
 }
 
-function LimitGroup({ group, tucked }) {
-    const windows = group.windows.map((window) => html`<${LimitWindow} ...${window} key=${window.span} agent=${group.agent} old=${group.old} tucked=${tucked} />`);
+function LimitGroup({ group, tucked, opened, onToggle, onClose }) {
+    const windows = group.windows.map((window) => {
+        const key = `${group.agent}:${window.span}`;
+        return html`<${LimitWindow} ...${window} key=${window.span} agent=${group.agent} old=${group.old}
+            ageSec=${group.ageSec} reached=${group.reached} tucked=${tucked} opened=${opened && opened.key === key ? opened : null}
+            onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
+    });
     if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent}>${windows}</div>`;
     return html`<fieldset class="limit-group" data-agent=${group.agent}>
         <legend><span class="agentword" data-agent=${group.agent}>${group.agent}</span></legend>
@@ -136,26 +152,38 @@ function LimitGroup({ group, tucked }) {
     </fieldset>`;
 }
 
-function LimitWindow({ agent, span, full, data, old, tucked }) {
+function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, opened, onToggle, onClose }) {
     const value = Math.max(0, Number(data.pct) || 0);
     const pct = Math.min(100, value);
     const whole = value < 100 ? Math.min(99, Math.round(value)) : Math.round(value);
-    const label = [full, share(data.pct), resetText(data.resetsAt), old && "last known numbers"].filter(Boolean).join(", ");
+    const known = old && "last known numbers";
+    const label = [full, share(data.pct), resetText(data.resetsAt), known].filter(Boolean).join(", ");
     const reading = html`<span class="limit-percent">${whole}<small>%</small></span>`;
-    return html`<div class=${`limit-reading ${tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old ? " old" : ""}`}
-                    data-agent=${agent} role="img" aria-label=${label} title=${label} style=${`--share:${pct}`}>
-        ${tucked ? html`
-            ${reading}
-            <span class="limit-minitrack" aria-hidden="true"></span>
-        ` : html`
-            <span class="limit-gauge" aria-hidden="true"></span>
-            <span class="limit-dial">
+    return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
+        <button class=${`limit-reading ${tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old ? " old" : ""}`}
+                    data-agent=${agent} type="button" aria-label=${label} title=${label} style=${`--share:${pct}`}
+                    aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
+            ${tucked ? html`
                 ${reading}
-                <span class="limit-window">${ringLeft(data.resetsAt)}${data.resetsAt ? "/" : ""}${span}</span>
-            </span>
-        `}
-        ${old && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
-    </div>`;
+                <span class="limit-minitrack" aria-hidden="true"></span>
+            ` : html`
+                <span class="limit-gauge" aria-hidden="true"></span>
+                <span class="limit-dial">
+                    ${reading}
+                    <span class="limit-window">${ringLeft(data.resetsAt)}${data.resetsAt ? "/" : ""}${span}</span>
+                </span>
+            `}
+            ${old && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
+        </button>
+        <${Popover} open=${Boolean(opened)} onClose=${onClose} label=${full} className="limit-popover">
+            <strong>${full}</strong>
+            <span>${share(data.pct)} used</span>
+            ${Boolean(data.resetsAt) && html`<span><time dateTime=${new Date(data.resetsAt * 1000).toISOString()}>${alarmTime(data.resetsAt * 1000, true)}</time> · ${resetText(data.resetsAt)}</span>`}
+            <span>Updated ${agoText(ageSec)}</span>
+            ${known && html`<span>${known}</span>`}
+            ${agent === "codex" && reached && html`<span>${CODEX_REACHED}</span>`}
+        <//>
+    </span>`;
 }
 
 const folded = new Map();

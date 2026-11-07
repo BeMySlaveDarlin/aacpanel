@@ -1,4 +1,4 @@
-// A panel that drops from the control that opened it, on the wide screen.
+// A panel that drops from the control that opened it.
 // It closes on a press anywhere outside that control and on Escape; the
 // control itself toggles it, so the press that opened it does not count as
 // one outside.
@@ -7,7 +7,7 @@ import { useEffect, useRef } from "preact/hooks";
 
 import { html } from "../html.js";
 
-export function Popover({ open, onClose, label, children }) {
+export function Popover({ open, onClose, label, className = "dkpop", children }) {
     const box = useRef(null);
 
     useEffect(() => {
@@ -28,5 +28,5 @@ export function Popover({ open, onClose, label, children }) {
     }, [open, onClose]);
 
     if (!open) return null;
-    return html`<div class="dkpop" role="dialog" aria-label=${label} ref=${box}>${children}</div>`;
+    return html`<div class=${className} role="dialog" aria-label=${label} ref=${box}>${children}</div>`;
 }
