@@ -86,14 +86,17 @@ function Name({ full, own, tag = "", address = full }) {
     `;
 }
 
-function Resources({ res }) {
-    if (!res) return null;
-    const mem = bytes(res.mem).replace(" ", "").replace(/([KMGT])B$/, "$1");
-    const cpu = res.cpu === undefined ? "—" : pct(res.cpu);
+function Resources({ res, account }) {
+    if (!res && !account) return null;
+    const mem = res && bytes(res.mem).replace(" ", "").replace(/([KMGT])B$/, "$1");
+    const cpu = res?.cpu === undefined ? "—" : pct(res.cpu);
     return html`
         <span class="scres">
-            <span class="scmeter" title="Session memory" aria-label=${`Session memory: ${mem}`}>${Icon.memory()}${mem}</span>
-            <span class="scmeter" title="Session CPU · one core" aria-label=${`Session CPU: ${cpu}`}>${Icon.cpu()}${cpu}</span>
+            ${account && html`<span class="scmeter scaccount" title="Subscription account" aria-label=${`Subscription account: ${account}`}>${Icon.badge()}${account}</span>`}
+            ${res && html`
+                <span class="scmeter" title="Session memory" aria-label=${`Session memory: ${mem}`}>${Icon.memory()}${mem}</span>
+                <span class="scmeter" title="Session CPU · one core" aria-label=${`Session CPU: ${cpu}`}>${Icon.cpu()}${cpu}</span>
+            `}
         </span>
     `;
 }
@@ -317,6 +320,9 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
     const steps = stepsOf(s.checklist);
     const project = s.project && s.project.id ? s.project : null;
     const name = shownName(s);
+    // An unassigned session can stand on the default contour's page, so the
+    // page's label names its account only when the contour matches.
+    const account = isCodex(s) ? "" : (s.contour && profile?.id === s.contour && profile.profile) || s.profile || "";
     const pin = pinOf(s, sessions.length ? sessions : [s], wait);
     const time = timeOf(state);
     const timeTone = state.tone === "wait" ? "wait" : state.unseen ? "unseen" : ["idle", "paused"].includes(state.tone) ? "quiet" : "";
@@ -334,7 +340,7 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
                     onClick=${() => onOpen && onOpen(s)}></button>
             <div class="scl1">
                 <${Name} full=${name} address=${s.session} own=${nameOf(name, known)} tag=${from ? `opened by ${from}` : ""} />
-                <${Resources} res=${s.res} />
+                <${Resources} res=${s.res} account=${account} />
                 ${desk && html`<${Controls} s=${s} project=${project} profile=${profile} sessions=${sessions}
                                             exec=${exec} pin=${pin} busy=${Boolean(busy || s.restarting)} />`}
             </div>

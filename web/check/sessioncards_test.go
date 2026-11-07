@@ -26,6 +26,7 @@ type sessionCardSeen struct {
 type sessionCardsRun struct {
 	Desk        bool                        `json:"desk"`
 	Six         map[string]*sessionCardSeen `json:"six"`
+	Accounts    map[string][]string         `json:"accounts"`
 	BareArchive string                      `json:"bareArchive"`
 	Heads       []struct {
 		Name  string   `json:"name"`
@@ -67,6 +68,20 @@ type sessionCardsRun struct {
 // card with nothing running counts nothing.
 func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	t.Helper()
+	for name, want := range map[string][]string{
+		"mapped":            {"Client account", "512M", "3%"},
+		"without-resources": {"Client account"},
+		"unmapped":          {"external", "512M", "3%"},
+		"another-page":      {"external", "512M", "3%"},
+		"without-account":   {"512M", "3%"},
+		"without-data":      {},
+		"codex":             {"512M", "3%"},
+	} {
+		badges, ok := got.Accounts[name]
+		if !ok || !slices.Equal(badges, want) {
+			t.Errorf("%s has account and resource badges %v (present %v), want %v in that order", name, badges, ok, want)
+		}
+	}
 	order := []string{"working", "quiet", "unseen", "waiting", "paused", "archived"}
 	resources := map[string][]string{
 		"working": {"512M", "3%"},

@@ -110,6 +110,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
     if (project) {
         return html`<${Project}
             project=${project}
+            profile=${profiles.find((p) => p.id === project.contour) || null}
             limits=${limits}
             sessions=${sessionsNow}
             notes=${splitNotes((snapshot && snapshot.sessionNotes) || [], sessionsNow).own}

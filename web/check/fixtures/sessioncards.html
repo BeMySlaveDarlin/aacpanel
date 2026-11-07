@@ -21,6 +21,7 @@ html,body{margin:0}
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
+import { SessionCard } from "/src/screens/sessions/sessioncard.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -143,7 +144,7 @@ window.done = (async () => {
             line4: text(el.querySelector(".scl4")),
             line5: text(el.querySelector(".scl5")),
             name1: text(el.querySelector(".scname")),
-            resources: [...el.querySelectorAll(".scl1 .scmeter")].map(text),
+            resources: [...el.querySelectorAll(".scl1 .scmeter:not(.scaccount)")].map(text),
             controls: [...el.querySelectorAll(".scacts > button")].map((b) => b.getAttribute("aria-label")),
             runs: runs.map(text),
             alarm: text(el.querySelector(".scl2 .scalarm")),
@@ -206,9 +207,31 @@ window.done = (async () => {
     if (continueAll) continueAll.click();
     await wait(() => sent.length > beforeContinue);
     const continued = sent.slice(beforeContinue);
+    // The map's label can differ from the collector's name. A missing
+    // account cannot inherit the page it happens to stand on, and a codex
+    // home says where a thread runs rather than whose subscription pays.
+    const accountCases = [
+        ["mapped", { profile: "claude-work", contour: 2 }, { id: 2, profile: "Client account" }],
+        ["without-resources", { profile: "claude-work", contour: 2, res: null }, { id: 2, profile: "Client account" }],
+        ["unmapped", { profile: "external", contour: 0 }, null],
+        ["another-page", { profile: "external", contour: 3 }, profileMap[0]],
+        ["without-account", { profile: "", contour: 0 }, profileMap[0]],
+        ["without-data", { profile: "", contour: 0, res: null }, profileMap[0]],
+        ["codex", { agent: "codex", profile: "personal", contour: 1, codexHome: "/home/u/.codex" }, profileMap[0]],
+    ];
+    const accountHost = document.createElement("div");
+    document.body.append(accountHost);
+    render(wrap(h("div", null, accountCases.map(([name, fields, profile]) => h(SessionCard, {
+        key: name, s: { ...sessions[0], session: `account-${name}`, ...fields }, profile, desk, exec,
+    })))), accountHost);
+    await quiet();
+    const accounts = Object.fromEntries(accountCases.map(([name]) => [name,
+        [...accountHost.querySelectorAll(`.sc[data-name="account-${name}"] .scl1 .scres > .scmeter`)].map(text),
+    ]));
     return {
         restartAll: { asked, restarted, cancelled },
         continued,
+        accounts,
         desk,
         six,
         bareArchive: text(card("old-shelf") && card("old-shelf").querySelector(".scl5")),
