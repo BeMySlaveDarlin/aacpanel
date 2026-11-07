@@ -103,7 +103,7 @@ function Resources({ res }) {
 // runs, the wake the session has ahead, and the note of the collector. A
 // close or restart on its way (busy) stands in place of the state: a spinner
 // is its glyph, one mark on the line, as on the card of a session being raised.
-function Line({ state, runs, alarm = null, notes, busy }) {
+function Line({ state, runs, alarm = null, notes, busy, time = null, tone = "" }) {
     return html`
         <div class="scl2">
             <span class="scsay">
@@ -123,6 +123,7 @@ function Line({ state, runs, alarm = null, notes, busy }) {
             ${runs && runs.watchers > 0 && html`<span class="scrun" title=${`${runs.watchers} observers watching`}>${Icon.eye()}<b>${runs.watchers}</b></span>`}
             ${alarm && html`<span class="scalarm" title=${`${alarm.name} · ${alarmTime(alarm.next, true)}`}>${Icon.clock()}${alarmTime(alarm.next)}</span>`}
             ${notes && notes.length > 0 && html`<span class="sccollector" title=${notes.join("\n")}>${notes.join(" · ")}</span>`}
+            ${time && html`<${When} time=${time} tone=${tone} />`}
         </div>
     `;
 }
@@ -178,8 +179,9 @@ function pastSteps(last, about) {
 
 // Agent is who runs the session, in the hue of its agent, on which model at
 // which effort; then what waits in its queue and how often it was compacted,
-// in words — for a closed thread of codex, what it spent; and the time of
-// its state at the right.
+// in words — for a closed thread of codex, what it spent; an archived
+// conversation keeps the time of its state at the right, a live one says it
+// on the line of its state.
 function Agent({ who, model, effort, queued = 0, compacts = 0, spent = "", time, tone }) {
     return html`
         <div class="scl4">
@@ -187,9 +189,14 @@ function Agent({ who, model, effort, queued = 0, compacts = 0, spent = "", time,
             ${spent && html`<span class="scmore">${spent}</span>`}
             ${queued > 0 && html`<span class="scmore">${queued} queued</span>`}
             ${compacts > 0 && html`<span class="scmore">${compacts} ${compacts === 1 ? "compaction" : "compactions"}</span>`}
-            <span class="sctime" data-tone=${tone}>${time.until && html`<i class="scarrow">→</i>`}${time.text}</span>
+            ${time && html`<${When} time=${time} tone=${tone} />`}
         </div>
     `;
+}
+
+// When is how long the state has lasted, or an arrow and the moment it ends.
+function When({ time, tone }) {
+    return html`<span class="sctime" data-tone=${tone}>${time.until && html`<i class="scarrow">→</i>`}${time.text}</span>`;
 }
 
 function modelOf(id) {
@@ -331,10 +338,10 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
                 ${desk && html`<${Controls} s=${s} project=${project} profile=${profile} sessions=${sessions}
                                             exec=${exec} pin=${pin} busy=${Boolean(busy || s.restarting)} />`}
             </div>
-            <${Line} state=${state} runs=${runsOf(s.work)} alarm=${wakeOf(s)} notes=${notes} busy=${busy} />
+            <${Line} state=${state} runs=${runsOf(s.work)} alarm=${wakeOf(s)} notes=${notes} busy=${busy} time=${time} tone=${timeTone} />
             <${Steps} ...${steps} />
             <${Agent} who=${s} model=${modelOf(s.model)} effort=${s.effort ? effortName(s.effort) : ""}
-                      queued=${s.queued || 0} compacts=${s.compacts || 0} time=${time} tone=${timeTone} />
+                      queued=${s.queued || 0} compacts=${s.compacts || 0} />
             <${Badges} mode=${s.mode || ""} place=${placeOf(s)} cap=${s.cap} auto=${s.autoRestart} remote=${Boolean(s.remote)}
                        worktree=${s.checkout || ""} heavyPlace=${s.heavyPlace || 0} ctx=${s.noRequests ? "—" : `${Math.round(s.pct || 0)}%`} />
             <${Edge} pct=${s.noRequests ? null : s.pct || 0} cap=${s.cap} auto=${s.autoRestart} />

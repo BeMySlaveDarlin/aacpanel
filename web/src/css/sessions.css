@@ -94,7 +94,7 @@
    scroll and is caught only over their box, so the empty room under a short
    list has to be theirs rather than the body's. The room the body keeps under
    its content moves into the page, where the list scrolls. */
-.body:has(> .pfpager) { padding-bottom: 0; }
+.body:has(> .pfpager) { padding-top: 0; padding-bottom: 0; }
 .body > .pfpager { flex: 1 1 auto; }
 
 .pfpager {
@@ -111,7 +111,7 @@
     flex: none;
     display: flex;
     gap: 2px;
-    margin: 0 0 .4rem;
+    margin: 0 0 .2rem;
     padding: 2px;
     border-radius: var(--r-small);
     background: rgba(var(--tint), .04);
@@ -186,7 +186,7 @@
 }
 
 /* The full row scrolls away before its compact readings take over. */
-.pflimits { position: relative; z-index: 3; display: flex; flex-direction: column; gap: .3rem; padding: .3rem 0 .55rem; background: none; }
+.pflimits { position: relative; z-index: 3; display: flex; flex-direction: column; gap: .3rem; padding: 0 0 .55rem; background: none; }
 .pflimits.stuck {
     background: linear-gradient(180deg, color-mix(in srgb, var(--void) 80%, transparent), color-mix(in srgb, var(--void) 60%, transparent));
     backdrop-filter: blur(20px) saturate(140%);
@@ -473,7 +473,8 @@
 }
 .pjblock.pjquiet { background: none; box-shadow: none; border-style: dashed; }
 
-.pjhead { display: flex; align-items: center; gap: .5rem; min-height: 2.65rem; padding: 0 .27rem 0 .93rem; }
+.pjhead { display: flex; align-items: center; gap: .5rem; min-height: 1.33rem; padding: 0 .27rem 0 .47rem; }
+.pjhead .scact { height: 1.33rem; }
 .pjname {
     min-width: 0;
     padding: 0;
@@ -524,7 +525,7 @@ span.pjname { cursor: default; }
     column-gap: .67rem;
     row-gap: .16rem;
     align-items: center;
-    padding: .58rem .27rem .74rem calc(.93rem + var(--depth) * var(--step));
+    padding: .58rem .27rem .74rem calc(.47rem + var(--depth) * var(--step));
     line-height: 1.27;
 }
 /* A hairline parts the cards of a block, and a fold from the cards. */
@@ -556,7 +557,7 @@ span.pjname { cursor: default; }
     position: absolute;
     top: 0;
     bottom: 0;
-    left: calc(.93rem + (var(--depth) - 1) * var(--step) + .4rem);
+    left: calc(.47rem + (var(--depth) - 1) * var(--step) + .4rem);
     border-left: 1.5px solid color-mix(in srgb, var(--ink-faint) 45%, transparent);
 }
 
@@ -677,6 +678,8 @@ span.pjname { cursor: default; }
 .sctime[data-tone="wait"] { color: var(--wait); }
 .sctime[data-tone="unseen"] { color: var(--ok); }
 .sctime[data-tone="quiet"] { font-weight: 500; color: var(--ink-faint); }
+/* The time of the state closes the line of the state at its right. */
+.scl2 .sctime { margin-left: auto; font-size: var(--t-sm); }
 .scarrow { margin-right: .13rem; font-style: normal; font-weight: 400; color: var(--ink-faint); }
 
 /* Line five: the settings, each in a place of its own on every card, an off
@@ -720,7 +723,7 @@ span.pjname { cursor: default; }
    on it — in the accent where the session restarts at it. */
 .scedge { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(var(--tint), .07); pointer-events: none; }
 /* The bar of a session another opened begins at the hairline it stands on. */
-.sc.sckid > .scedge { left: calc(.93rem + (var(--depth) - 1) * var(--step) + .4rem); }
+.sc.sckid > .scedge { left: calc(.47rem + (var(--depth) - 1) * var(--step) + .4rem); }
 .scedge i { display: block; height: 100%; background: var(--ctx-1); }
 .scedge.s2 i { background: var(--ctx-2); }
 .scedge.s3 i { background: var(--ctx-3); }
@@ -747,8 +750,8 @@ span.pjname { cursor: default; }
     align-items: center;
     gap: .45rem;
     width: 100%;
-    min-height: 2rem;
-    padding: 0 .93rem 0 calc(.93rem + var(--depth) * var(--step) + .2rem);
+    min-height: 1rem;
+    padding: 0 .47rem 0 calc(.47rem + var(--depth) * var(--step) + .2rem);
     border: 0;
     background: none;
     font: inherit;

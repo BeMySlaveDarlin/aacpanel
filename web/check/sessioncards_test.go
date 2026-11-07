@@ -147,8 +147,8 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 		}
 	}
 	// The status time comes as milliseconds of the epoch, as the collector gives it.
-	if c := got.Six["working"]; c != nil && !strings.Contains(c.Line4, "34m") {
-		t.Errorf("the working card reads %q on its agent line, want how long it has worked, 34m", c.Line4)
+	if c := got.Six["working"]; c != nil && (!strings.HasSuffix(c.Line2, "34m") || strings.Contains(c.Line4, "34m")) {
+		t.Errorf("the working card reads %q on its state line and %q on its agent line, want how long it has worked, 34m, closing the state line", c.Line2, c.Line4)
 	}
 	if c := got.Six["unseen"]; c != nil && !strings.HasPrefix(c.Line2, "done · not seen") {
 		t.Errorf("a session whose last turn ended after the person looked says %q, want done · not seen", c.Line2)
