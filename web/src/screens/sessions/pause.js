@@ -30,6 +30,24 @@ export function pauseWhy(project, profile, sessions, exec) {
     return (knows(exec, "project.pause") ? "" : whyNot(exec, "project.pause")) || (pauseRows(project, profile, sessions, true).length ? "" : "No live sessions in this project or group");
 }
 
+// sessionPauseWhy says why one session cannot be paused or continued now: a
+// pause is addressed through the project of the map that holds it, and
+// reaches a conversation, not a process.
+export function sessionPauseWhy(s, project, exec) {
+    if (!project) return "No project of the map holds this session";
+    return (knows(exec, "project.pause") ? "" : whyNot(exec, "project.pause")) || (s.sessionId ? "" : "The session has no conversation yet");
+}
+
+// continueSession lifts the pause of one session now, before its end.
+export function continueSession(run, project, s) {
+    return run("project.pause", project.session || project.name, { project: project.id, session: s.session, resume: true });
+}
+
+// continueProject lifts the pause of every session of a project now.
+export function continueProject(run, project) {
+    return run("project.pause", project.session || project.name, { project: project.id, group: false, resume: true });
+}
+
 function localInput(date) {
     const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     return local.toISOString().slice(0, 16);

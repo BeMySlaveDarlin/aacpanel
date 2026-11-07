@@ -1,11 +1,13 @@
 // Pause and restart controls share the pages that already exercise sessions:
 // the pause of a project from the heading over its cards, the pause and the
-// continue of one session from its card, and the restart choices. lab-docs
+// continue of one session from its card — its buttons at a desk, its pie on
+// the phone — and the restart choices. lab-docs
 // had the panel open a helper in the other project, which its pause reaches
 // too; the quick choices are pressed on a clock set by the fixture.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { ProjectBlock } from "/src/screens/sessions/blocks.js";
+import { CardPieHost } from "/src/screens/sessions/cardpie.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { Chat } from "/src/screens/chat.js";
 import { Row } from "/src/screens/chat/rows.js";
@@ -16,6 +18,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { openPie, sector, settled, underPies } from "/check/fixtures/pie.js";
 
 const until = async (ready, what) => {
     const end = performance.now() + 4000;
@@ -65,9 +68,9 @@ export async function sessionPause() {
     render(html`<${ToastHost}><${GateHost}><${MenuHost}>
         ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
             <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
-        </div></div>` : html`<div class="page">
+        </div></div>` : html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="page">
             <${ProjectBlock} block=${block(project,[sessions[0], sessions[1]])} profile=${profile} live=${sessions} exec=${exec} />
-        </div>`}
+        </div><//>`}
         <div class="pausechat" style="height:500px;display:flex;flex-direction:column">
             <${Chat} name="lab" id="lab-id" live=${sessions[0]} snapshot=${snapshot} exec=${exec} onBack=${() => {}} />
         </div>
@@ -89,9 +92,22 @@ export async function sessionPause() {
     const pauseButton = () => mount.querySelector('[aria-label="pause sessions in project lab"]');
     const sheet = () => mount.querySelector('.sheet.on[aria-label="pause sessions"]');
     const gate = () => mount.querySelector('.sheet.on[aria-label="action confirmation"]');
+    // A control of a card: its button at a desk, the sector of its pie on the
+    // phone, Continue in the place of Pause on a paused card.
+    const press = async (kind, name) => {
+        if (wide) {
+            mount.querySelector(`[aria-label="${kind} session ${name}"]`).click();
+            return;
+        }
+        await openPie(mount.querySelector(`.sc[data-name="${name}"]`));
+        sector(kind === "continue" ? "pause" : kind).click();
+    };
     try {
         await until(() => pauseButton() && mount.querySelector(".pausechat .talkword, .pausechat .dkword"), "session controls");
         await quiet();
+        // The conversation beside the list is a layer of its own under the
+        // pies of the cards.
+        underPies();
         const card = mount.querySelector('.sc[data-name="lab"]');
         const out = {
             state: text(card.querySelector(".scsay")),
@@ -134,7 +150,7 @@ export async function sessionPause() {
         out.noConfirmation = !gate();
         out.restart = [];
         for (let i=0;i<3;i++) {
-            mount.querySelector('[aria-label="restart session lab"]').click();
+            await press("restart", "lab");
             await until(() => gate(), "restart choices");
             const options = [...gate().querySelectorAll('[role="radio"]')];
             if (i===0) out.options=options.map(text);
@@ -146,9 +162,9 @@ export async function sessionPause() {
         }
         // One session: the paused card continues it at once, the pause of
         // another opens the sheet with that session as its scope.
-        mount.querySelector('[aria-label="continue session lab"]').click();
+        await press("continue", "lab");
         await until(() => sent.length===6, "continue request");
-        mount.querySelector('[aria-label="pause session lab-docs"]').click();
+        await press("pause", "lab-docs");
         await until(() => sheet(), "pause sheet of one session");
         out.sessionScope = sheet().querySelector(".pausescope").value;
         out.sessionRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
@@ -163,7 +179,7 @@ export async function sessionPause() {
         } finally {
             Date.now = clock;
         }
-        mount.querySelector('[aria-label="pause session lab-docs"]').click();
+        await press("pause", "lab-docs");
         await until(() => sheet(), "pause sheet with no end");
         out.noEnd = { ...(await choose("No end")), off: field().disabled, note: text(sheet().querySelector(".pausenoend")) };
         sheet().querySelector(".pauseapply").click();
@@ -178,6 +194,7 @@ export async function sessionPause() {
             await until(() => sheet(), "pause from the menu");
             sheet().querySelector(".sheetclose").click();
         }
+        if (!wide) await settled();
         return out;
     } finally {
         render(null,mount); mount.remove(); window.fetch=fetch;

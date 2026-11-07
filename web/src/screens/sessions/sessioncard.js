@@ -2,7 +2,8 @@
 // both the phone and the desk, an archived conversation included: a card
 // that changed its height with its state would move the list under the eye.
 //
-//   1  the glyph of the state, the name, and the controls at the right;
+//   1  the glyph of the state, the name, and at a desk the controls at the
+//      right;
 //   2  the state in a word or the subject of the wait, what runs now right
 //      after it, and the collector's note;
 //   3  the step of the checklist in hand and n/N, over a bar a segment a step;
@@ -11,26 +12,31 @@
 //   5  its settings, each in a place of its own whether on or off, and how
 //      full its context is; the context bar runs along the bottom edge.
 //
-// The controls are quiet icons that are always there: no hover shows them,
-// a phone has none and the desk would hide them from the eye that looks for
-// them.
+// At a desk the controls are quiet icons that are always there: no hover
+// shows them, and the desk would hide them from the eye that looks for them.
+// On a phone the card has none, and its name takes the line: a long press on
+// the card opens the same controls as its pie (cardpie.js), in the reach of
+// the thumb rather than at the far edge of a narrow line.
 
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
+import { useHold } from "../../ui/pie.js";
 import { Sheet } from "../../ui/sheet.js";
 import { alarmTime, fill, tokens } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
-import { CODEX_CLOSE, CODEX_NOTE, CODEX_RESTART, agentKey, agentName, codexRestartWhy, codexResume, isCodex, shownName } from "../../agent.js";
+import { CODEX_NOTE, agentKey, agentName, codexRestartWhy, codexResume, isCodex, shownName } from "../../agent.js";
 import { checklistOf } from "../chat/checklist.js";
-import { modelTitle, stopsOf } from "../chat/head.js";
+import { modelTitle } from "../chat/head.js";
 import { effortName } from "../chat/picker.js";
+import { useCardPie } from "./cardpie.js";
+import { busyOf, closeSession, endsOf, pinGroup, restartSession } from "./controls.js";
 import { placeOf } from "./kin.js";
 import { stamp } from "./card.js";
 import { pinOf } from "./pin.js";
-import { PauseSheet, pauseWhy } from "./pause.js";
+import { PauseSheet, continueProject, continueSession, pauseWhy, sessionPauseWhy } from "./pause.js";
 import { runsOf, shortText, stateOf, timeOf } from "./state.js";
 
 // The glyph of each kind of state; a kind with none draws a shape of its own
@@ -237,12 +243,11 @@ function Act({ label, tip, off, on = false, pressed, busy = false, onPress, chil
 function Pause({ s, project, profile, sessions, exec }) {
     const run = useAction();
     const [open, setOpen] = useState(false);
-    const why = !project ? "No project of the map holds this session"
-        : (knows(exec, "project.pause") ? "" : whyNot(exec, "project.pause")) || (s.sessionId ? "" : "The session has no conversation yet");
+    const why = sessionPauseWhy(s, project, exec);
     if (s.pauseAlarm) {
         return html`
             <${Act} label=${`continue session ${s.session}`} tip=${why || "Continue now"} off=${why} on
-                    onPress=${() => run("project.pause", project.session || project.name, { project: project.id, session: s.session, resume: true })}>
+                    onPress=${() => continueSession(run, project, s)}>
                 ${Icon.play()}
             <//>
         `;
@@ -255,34 +260,25 @@ function Pause({ s, project, profile, sessions, exec }) {
     `;
 }
 
-// Controls are the controls of a live card: pause, restart, pin and close; a
-// new session in its project is the plus of the project's heading. A session
-// the panel did not start is only read; the home session is never closed; a
-// codex in tmux restarts from its terminal.
+// Controls are the controls of a live card at a desk: pause, restart, pin and
+// close; a new session in its project is the plus of the project's heading. A
+// session the panel did not start is only read; the home session is never
+// closed; a codex in tmux restarts from its terminal.
 function Controls({ s, project, profile, sessions, exec, pin, busy }) {
     const run = useAction();
     if (s.outside) return null;
-    const codex = isCodex(s);
-    const restartWhy = busy ? "the session is already closing or restarting"
-        : (codex ? codexRestartWhy(s) : "") || (knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart"));
-    const closeWhy = busy ? "the session is already closing or restarting"
-        : knows(exec, "session.close") ? "" : whyNot(exec, "session.close");
-    const lost = stopsOf(s);
-    const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
-    const pinWhy = pin.why || (knows(exec, "session.pin") ? "" : whyNot(exec, "session.pin"));
+    const { restartWhy, closeWhy, pinWhy, restartNote, closeNote } = endsOf({ s, exec, pin, busy });
     return html`
         <span class="scacts">
             <${Pause} s=${s} project=${project} profile=${profile} sessions=${sessions} exec=${exec} />
-            <${Act} label=${`restart session ${s.session}`} off=${restartWhy}
-                    tip=${restartWhy || (codex ? CODEX_RESTART : ends("a new session with an empty context; this one stays in the archive"))}
-                    onPress=${() => run("session.restart", s.session, {})}>${Icon.refresh()}<//>
+            <${Act} label=${`restart session ${s.session}`} off=${restartWhy} tip=${restartWhy || restartNote}
+                    onPress=${() => restartSession(run, s)}>${Icon.refresh()}<//>
             <${Act} label=${`${pin.on ? "unpin" : "pin"} session group ${pin.root.session}`} off=${pinWhy}
                     tip=${pinWhy || pin.tip} on=${pin.on} pressed=${pin.on} busy=${pin.pending}
-                    onPress=${() => run("session.pin", pin.root.session, { on: !pin.on })}>${Icon.thumbtack()}<//>
+                    onPress=${() => pinGroup(run, pin)}>${Icon.thumbtack()}<//>
             ${!s.home && html`
-                <${Act} label=${`close session ${s.session}`} off=${closeWhy}
-                        tip=${closeWhy || (codex ? CODEX_CLOSE : ends("the conversation stays in the archive"))}
-                        onPress=${() => run("session.close", s.session, {})}>${Icon.close()}<//>
+                <${Act} label=${`close session ${s.session}`} off=${closeWhy} tip=${closeWhy || closeNote}
+                        onPress=${() => closeSession(run, s)}>${Icon.close()}<//>
             `}
         </span>
     `;
@@ -291,14 +287,12 @@ function Controls({ s, project, profile, sessions, exec, pin, busy }) {
 // SessionCard is a live session. known is the name a heading or the opening
 // session above it says already. depth is how many steps in the card stands
 // under the sessions that opened it; from names a parent that stands
-// elsewhere. A press anywhere on the card opens the conversation; onMenu is
-// the menu of a right click, where there is one; current marks the
-// conversation open beside the list.
+// elsewhere. A press anywhere on the card opens the conversation, a long one
+// on a phone its pie; onMenu is the menu of a right click, where there is
+// one; current marks the conversation open beside the list.
 export function SessionCard({ s, limits, wait, exec, sessions = [], profile = null, notes = null, known = "",
     depth = 0, from = "", current = false, desk = false, onOpen, onMenu }) {
-    const closing = wait ? wait.of("close", s.session) : null;
-    const restarting = wait ? wait.of("restart", s.session) : null;
-    const busy = closing ? "closing" : restarting ? "restarting" : "";
+    const busy = busyOf(s, wait);
     const state = stateOf(s, limits, { viewed: current });
     const steps = stepsOf(s.checklist);
     const project = s.project && s.project.id ? s.project : null;
@@ -306,16 +300,22 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
     const pin = pinOf(s, sessions.length ? sessions : [s], wait);
     const time = timeOf(state);
     const timeTone = state.tone === "wait" ? "wait" : state.unseen ? "unseen" : ["idle", "paused"].includes(state.tone) ? "quiet" : "";
+    // On a phone the controls are the card's pie, opened by a long press on
+    // the card; a session the panel only reads has none either way.
+    const pie = useCardPie();
+    const card = useRef(null);
+    const pies = !desk && Boolean(pie) && !s.outside;
+    const hold = useHold(card, pies ? (press) => pie.open({ name: s.session, profile, card: card.current, press }) : null);
     return html`
-        <div class=${`sc${state.tone === "wait" ? " scwait" : ""}${depth ? " sckid" : ""}${current ? " sccur" : ""}${desk ? " scdesk" : ""}`}
+        <div class=${`sc${state.tone === "wait" ? " scwait" : ""}${depth ? " sckid" : ""}${current ? " sccur" : ""}${desk ? " scdesk" : ""}${pies ? " scpie" : ""}`}
              data-name=${s.session} data-tone=${state.tone} data-kind=${state.kind} style=${depth ? `--depth:${depth}` : undefined}
-             onContextMenu=${menuOn(onMenu)}>
+             ref=${card} onContextMenu=${menuOn(onMenu)} ...${hold}>
             <button class="scopen" type="button" aria-label=${`open conversation ${s.session}`}
                     onClick=${() => onOpen && onOpen(s)}></button>
             <div class="scl1">
                 <${Name} full=${name} address=${s.session} own=${nameOf(name, known)} tag=${from ? `opened by ${from}` : ""} />
-                <${Controls} s=${s} project=${project} profile=${profile} sessions=${sessions}
-                             exec=${exec} pin=${pin} busy=${Boolean(busy || s.restarting)} />
+                ${desk && html`<${Controls} s=${s} project=${project} profile=${profile} sessions=${sessions}
+                                            exec=${exec} pin=${pin} busy=${Boolean(busy || s.restarting)} />`}
             </div>
             <${Line} state=${state} runs=${runsOf(s.work)} alarm=${wakeOf(s)} notes=${notes} busy=${busy} />
             <${Steps} ...${steps} />
@@ -438,7 +438,7 @@ function GroupPause({ project, profile, sessions, rows, exec }) {
     if (reached.length > 0 && reached.every((s) => s.pauseAlarm)) {
         return html`
             <${Act} label=${`continue sessions in project ${project.name}`} tip=${why || "Continue them all now"} off=${why} on
-                    onPress=${() => run("project.pause", project.session || project.name, { project: project.id, group: false, resume: true })}>
+                    onPress=${() => continueProject(run, project)}>
                 ${Icon.play()}
             <//>
         `;

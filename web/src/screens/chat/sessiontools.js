@@ -18,6 +18,7 @@ import { useAction } from "../../actions/gate.js";
 import { hostLabel } from "../../actions/registry.js";
 import { knows, whyNot } from "../../exec.js";
 import { share, tokens } from "../../format.js";
+import { isCodex } from "../../agent.js";
 import { copyText } from "./copy.js";
 import { shortPath } from "./head.js";
 import { useRemote } from "./remote.js";
@@ -137,7 +138,8 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
             <section class="toolsec">
                 <div class="cmdsechead"><span>Session</span></div>
                 <ul class="mcplist toollist">
-                    <${SessionLines} name=${name} live=${live} exec=${exec} cwd=${cwd} onDone=${onDone} onLook=${onLook} />
+                    <${SessionLines} name=${name} live=${live} exec=${exec} snapshot=${snapshot} cwd=${cwd}
+                                     onDone=${onDone} onLook=${onLook} />
                 </ul>
             </section>
         `;
@@ -162,9 +164,8 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
         <section class="toolsec">
             <div class="cmdsechead"><span>Session</span></div>
             <ul class="mcplist toollist">
-                <${SessionLines} name=${name} live=${live} exec=${exec} cwd=${cwd} onDone=${onDone} onLook=${onLook} />
-                <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
-                <${ParentLine} live=${live} exec=${exec} snapshot=${snapshot} onDone=${onDone} onLook=${onLook} />
+                <${SessionLines} name=${name} live=${live} exec=${exec} snapshot=${snapshot} cwd=${cwd}
+                                 onDone=${onDone} onLook=${onLook} />
             </ul>
         </section>
         <section class="toolsec toolend">
@@ -324,50 +325,58 @@ export function detachWhy(exec) {
     return knows(exec, "session.detach") ? "" : whyNot(exec, "session.detach");
 }
 
-// DetachLine takes the session from under the session it stands under; a
-// session standing on its own has no line.
-export function DetachLine({ name, live, exec, run, onDone }) {
-    const parent = openedBy(live);
-    if (!parent) return null;
-    return html`<${ToolRow} icon=${Icon.flow} label="Detach from parent" note=${`under ${parent} · ${DETACH}`}
-                            off=${detachWhy(exec)} onPress=${() => { onDone(); detach(run, name); }} />`;
-}
-
-export function ParentLine({ live, exec, snapshot, onDone, onLook }) {
-    return html`<${ToolRow} icon=${Icon.flow} label=${PARENT_LABEL} note=${PARENT_NOTE} more
-                            off=${parentWhy(exec, live, snapshot)}
-                            onPress=${() => { onDone(); onLook("parent"); }} />`;
-}
-
-// IdLine copies the id a session is found again by.
-export function IdLine({ id }) {
-    const toast = useToast();
-    if (!id) return null;
-    return html`<${ToolRow} icon=${Icon.copy} label="Copy the session ID" aside=${id.slice(0, 8)}
-                            onPress=${() => copyId(id, toast)} />`;
-}
-
 // ROLE_NONE is what the line of the role says while the session has none.
 export const ROLE_NONE = "none: a sentence that tells this session from the others of its repository";
 
-// SessionLines names the session, gives it its role and says how to find it
-// again.
-function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
-    const toast = useToast();
+// sessionItems lists what is done to a live session itself — its name, its
+// role and messages, what it reports of itself, how it is found again and
+// whom it stands under — for the lines of its tools and the items of its pie
+// alike. An item opens a sheet of its own (look), does what it does at once
+// (act) or copies (copy); one that cannot be done now says why (off). A
+// thread of codex is named from the thread and reports nothing of claude's;
+// a session the panel did not start stands under nobody.
+export function sessionItems({ name, live, exec, snapshot, cwd = "", run, toast }) {
+    const codex = isCodex(live);
     const id = live.sessionId || "";
-    const resume = resumeOf(id, cwd);
-    return html`
-        <${ToolRow} icon=${Icon.pencil} label="Rename…" off=${renameWhy(live, exec)} onPress=${() => { onDone(); onLook("rename"); }} />
-        <${ToolRow} icon=${Icon.badge} label="Role…" note=${live.role || ROLE_NONE} clamp off=${roleWhy(exec)}
-                    onPress=${() => { onDone(); onLook("role"); }} />
-        <${ToolRow} icon=${Icon.pencil} label="Session messages…" note="the first message and the message after a restart"
-                    off=${intentWhy(exec)} onPress=${() => { onDone(); onLook("intent"); }} />
-        <${ToolRow} icon=${Icon.info} label="Session info" note="the model, the context, the tokens in and out"
-                    aside="/status" onPress=${() => { onDone(); onLook("status"); }} />
-        <${IdLine} id=${id} />
-        ${resume && html`<${ToolRow} icon=${Icon.copy} label="Copy the resume command" note=${`claude --resume ${id.slice(0, 8)}…`}
-                                     onPress=${() => copyResume(resume, toast)} />`}
-    `;
+    const resume = codex ? codexResumeOf(live, snapshot) : resumeOf(id, cwd);
+    const parent = openedBy(live);
+    return [
+        !codex && { key: "rename", icon: Icon.pencil, label: "Rename…", off: renameWhy(live, exec), look: "rename" },
+        { key: "role", icon: Icon.badge, label: "Role…", note: live.role || ROLE_NONE, clamp: true, off: roleWhy(exec), look: "role" },
+        { key: "intent", icon: Icon.pencil, label: "Session messages…", note: "the first message and the message after a restart",
+          off: intentWhy(exec), look: "intent" },
+        !codex && { key: "status", icon: Icon.info, label: "Session info", note: "the model, the context, the tokens in and out",
+                    aside: "/status", look: "status" },
+        id && { key: "id", icon: Icon.copy, label: "Copy the session ID", aside: id.slice(0, 8), copy: () => copyId(id, toast) },
+        resume && { key: "resume", icon: Icon.copy, label: "Copy the resume command",
+                    note: codex ? resume : `claude --resume ${id.slice(0, 8)}…`, copy: () => copyResume(resume, toast) },
+        parent && { key: "detach", icon: Icon.flow, label: "Detach from parent", note: `under ${parent} · ${DETACH}`,
+                    off: detachWhy(exec), act: () => detach(run, name) },
+        !live.outside && { key: "parent", icon: Icon.flow, label: PARENT_LABEL, note: PARENT_NOTE, more: true,
+                           off: parentWhy(exec, live, snapshot), look: "parent" },
+    ].filter(Boolean);
+}
+
+// SessionLines are the lines of what sessionItems lists, those of keep where
+// it is given. A line that opens a sheet or acts puts the tools down first; a
+// copy leaves them open.
+export function SessionLines({ name, live, exec, snapshot, cwd, keep = null, onDone, onLook }) {
+    const run = useAction();
+    const toast = useToast();
+    const press = (it) => {
+        if (it.copy) {
+            it.copy();
+            return;
+        }
+        onDone();
+        if (it.look) onLook(it.look);
+        else it.act();
+    };
+    return sessionItems({ name, live, exec, snapshot, cwd, run, toast })
+        .filter((it) => !keep || keep.includes(it.key))
+        .map((it) => html`<${ToolRow} key=${it.key} icon=${it.icon} label=${it.label} note=${it.note || ""} aside=${it.aside || ""}
+                                      off=${it.off || ""} clamp=${Boolean(it.clamp)} more=${Boolean(it.more)}
+                                      onPress=${() => press(it)} />`);
 }
 
 // EndLine ends the session: a session of its own home starts over, any other

@@ -9,8 +9,12 @@ import (
 // The home session of the host is the one the panel itself lives next to: the
 // panel does not close it, just as it does not stop its own container. The
 // card — the one card of the phone and the desk — leaves the action out
-// entirely, rather than disabling it.
-const cardFile = "src/screens/sessions/sessioncard.js"
+// entirely, rather than disabling it. What its controls do and whether they
+// can be pressed lives beside it, for its buttons and its pie alike.
+const (
+	cardFile     = "src/screens/sessions/sessioncard.js"
+	controlsFile = "src/screens/sessions/controls.js"
+)
 
 func TestDesktopHidesCloseForTheHomeSession(t *testing.T) {
 	files := srcFiles(t)
@@ -19,7 +23,7 @@ func TestDesktopHidesCloseForTheHomeSession(t *testing.T) {
 		t.Fatalf("%s not found — the test looks in the wrong place", cardFile)
 	}
 	acts := funcBody(t, src, "function Controls(")
-	if !strings.Contains(acts, `"session.close"`) {
+	if !strings.Contains(acts, "closeSession(") || !strings.Contains(files[controlsFile], `run("session.close"`) {
 		t.Fatalf("%s: the controls of a card hold no close action — the test guards the wrong place", cardFile)
 	}
 	gate := regexp.MustCompile(`!s\.home\s*&&`).FindStringIndex(acts)
@@ -51,16 +55,21 @@ func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 		t.Fatalf("%s: the restart of a card is not one control with its icon", cardFile)
 	}
 	home := acts[start : restart+end+len("Icon.refresh()")]
-	for _, want := range []string{`"session.restart"`, "Icon.refresh"} {
+	for _, want := range []string{"restartSession(", "Icon.refresh"} {
 		if !strings.Contains(home, want) {
 			t.Errorf("%s: the restart of a card has no %s", cardFile, want)
 		}
 	}
-	if strings.Contains(home, `"session.close"`) {
+	if strings.Contains(home, "closeSession(") {
 		t.Errorf("%s: the restart of a card closes the session inside its own block", cardFile)
 	}
-	if !strings.Contains(acts, `knows(exec, "session.restart")`) {
+	controls := stripComments(files[controlsFile])
+	if !strings.Contains(acts, "endsOf(") ||
+		!strings.Contains(funcBody(t, controls, "function endsOf("), `knows(exec, "session.restart")`) {
 		t.Errorf("%s: the restart control does not ask whether the host can do it", cardFile)
+	}
+	if !strings.Contains(controls, `restartSession = (run, s) => run("session.restart"`) {
+		t.Errorf("%s: the restart of a card does not restart", controlsFile)
 	}
 
 	block := after(files[registryFile], `"session.restart":`)

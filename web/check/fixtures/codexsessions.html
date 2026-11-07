@@ -9,8 +9,8 @@
 <script type="module">
 // A codex thread beside a claude session: named Codex, in a hue of its own, at
 // the head of the line of its model on both lists and in the header of its
-// conversation, living on the daemon, offered on the phone's card only what
-// the host does for it, and in its conversation a composer with codex's own
+// conversation, living on the daemon, offered in the pie of the phone's card
+// only what the host does for it, and in its conversation a composer with codex's own
 // band — the paperclip, how it thinks and what it may do — and nothing of
 // claude's around it: no commands, no shell, no terminal, no move, no window,
 // no Remote Control. A file goes as a file, and a message to the busy thread
@@ -24,6 +24,7 @@ import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { LiveLines } from "/src/screens/sessions/blocks.js";
+import { CardPieHost } from "/src/screens/sessions/cardpie.js";
 import { CodexSections } from "/src/screens/chat/codex.js";
 import { useCatchUp } from "/src/catchup.js";
 import { Chat } from "/src/screens/chat.js";
@@ -31,6 +32,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { closePie, item, openPie, ring, said, sector, settled, underPies } from "/check/fixtures/pie.js";
 
 // The screen keeps clocks of its own — the seconds a restart has waited, the
 // length of the turn, the life of a toast — and moves on them: it redraws the
@@ -101,8 +103,10 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
-    <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
-                                           onOpen=${() => {}} exec=${exec} /></section>
+    <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}>
+        <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
+                                               onOpen=${() => {}} exec=${exec} /></section>
+    <//>
 `)), document.getElementById("phone"));
 render(h(ToastHost, null, h(GateHost, null, h(Chat, {
     name: codex.session, id: codex.sessionId, live: working, exec, snapshot, onBack() {}, onUsage() {},
@@ -168,7 +172,9 @@ function Lifecycle({ initial, executor = exec }) {
         <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}}
                           picks=${[]} setPicks=${() => {}} onNames=${() => {}} onOrder=${() => {}}
                           exec=${executor} wait=${wait} />
-        <section class="pjblock"><${LiveLines} list=${snapshot.sessions} wait=${wait} exec=${executor} onOpen=${() => {}} /></section>
+        <${CardPieHost} snapshot=${snapshot} exec=${executor} wait=${wait}>
+            <section class="pjblock"><${LiveLines} list=${snapshot.sessions} wait=${wait} exec=${executor} onOpen=${() => {}} /></section>
+        <//>
         <div class="probe-tools"><${CodexSections} name=${snapshot.sessions[0].session} live=${snapshot.sessions[0]}
             snapshot=${snapshot} exec=${executor} onDone=${() => {}} onLook=${() => {}} /></div>
     `;
@@ -200,8 +206,13 @@ window.done = (async () => {
     out.phoneState = text(phoneRow.querySelector(".scsay"));
     out.phoneSince = text(phoneRow.querySelector(".scagent"));
     out.phoneAgents = phoneRows.map((r) => agentOf(r.querySelector(".scagent")));
-    out.phoneActions = Array.from(phoneRow.querySelectorAll(".scact"))
-        .map((b) => ({ text: text(b), label: b.getAttribute("aria-label"), note: b.title, off: b.getAttribute("aria-disabled") === "true" }));
+    out.phoneButtons = phoneRow.querySelectorAll(".scact").length;
+    await quiet();
+    underPies();
+    await openPie(phoneRow);
+    out.phoneActions = ring();
+    out.phoneClose = await said("close");
+    await closePie();
 
     await until(() => chat.querySelector(".composer textarea"), "the composer");
     out.headMarks = names(chat, ".dkheadtop .dkmark");
@@ -301,22 +312,18 @@ window.done = (async () => {
         deskClose.click();
         out.deskCloseSheet = await closeSheet(desk);
     }
-    const phoneClose = phoneRow.querySelector('[aria-label^="close session"]');
-    if (phoneClose) {
-        phoneClose.click();
-        out.phoneCloseSheet = await closeSheet(phone);
-    }
+    await openPie(phoneRow);
+    sector("close").click();
+    out.phoneCloseSheet = await closeSheet(phone);
+    await settled();
 
     out.restarts = {};
-    for (const [where, root, button] of [
-        ["desktop row", desk, deskRow.querySelector('[aria-label^="restart session"]')],
-        ["phone row", phone, phoneRow.querySelector('[aria-label^="restart session"]')],
-    ]) {
-        if (button) {
-            button.click();
-            out.restarts[where] = await closeSheet(root);
-        }
-    }
+    deskRow.querySelector('[aria-label^="restart session"]').click();
+    out.restarts["desktop row"] = await closeSheet(desk);
+    await openPie(phoneRow);
+    sector("restart").click();
+    out.restarts["phone row"] = await closeSheet(phone);
+    await settled();
     chat.querySelector(".dkplace").click();
     await until(() => document.querySelector(".dkpanel .toollabel"));
     const tools = () => Array.from(document.querySelectorAll(".dkpanel .toolrow"));
@@ -343,10 +350,12 @@ window.done = (async () => {
         await until(() => lifecycle && lifecycle.ready.current, "the action subscription");
     };
     await mount(original);
-    const phoneRestart = () => probe.querySelector(`.pjblock .scact[aria-label="restart session ${original.session}"]`);
-    await until(phoneRestart);
-    phoneRestart().click();
+    const phoneCard = (name) => probe.querySelector(`.pjblock .sc[data-name="${name}"]`);
+    await until(() => phoneCard(original.session));
+    await openPie(phoneCard(original.session));
+    sector("restart").click();
     out.restarts["waiting row"] = await closeSheet(probe);
+    await settled();
     await until(() => lifecycle.wait.of("restart", original.session) && probe.querySelector(".pjblock .scbusy"), "the rendered restart wait");
     const pending = () => Boolean(lifecycle.wait.of("restart", original.session));
     out.waiting = { started: pending(), busy: Boolean(probe.querySelector(".pjblock .scbusy")),
@@ -379,12 +388,20 @@ window.done = (async () => {
         await mount(live, executor);
         await until(() => probe.querySelector(".probe-tools .toollabel"));
         const deskAct = probe.querySelector(`.dkleft .scact[aria-label="restart session ${live.session}"]`);
-        const phoneAct = probe.querySelector(`.pjblock .scact[aria-label="restart session ${live.session}"]`);
         const toolAct = Array.from(probe.querySelectorAll(".probe-tools .toolrow"))
             .find((b) => text(b.querySelector(".toollabel")) === "Restart the session");
         const before = sent.length;
         deskAct?.click();
-        phoneAct?.click();
+        // A session the panel did not start has no pie: its contextmenu is
+        // the browser's.
+        let phoneSays = null;
+        if (!live.outside) {
+            await openPie(phoneCard(live.session));
+            phoneSays = item(sector("restart"));
+            sector("restart").click();
+            await quiet();
+            await closePie();
+        }
         toolAct?.click();
         rowOf(probe, live.session)?.dispatchEvent(new MouseEvent("contextmenu", {
             bubbles: true, cancelable: true, button: 2, clientX: 20, clientY: 20,
@@ -396,7 +413,7 @@ window.done = (async () => {
         if (!await quiet()) throw new Error(`The ${why} actions did not settle`);
         out.unavailable.push({ why,
             desk: deskAct ? { off: deskAct.getAttribute("aria-disabled") === "true", note: deskAct.dataset.tip } : null,
-            phone: phoneAct ? { off: phoneAct.getAttribute("aria-disabled") === "true", note: phoneAct.title } : null,
+            phone: phoneSays ? { off: phoneSays.off, note: phoneSays.why } : null,
             tool: toolAct ? { off: toolAct.disabled, note: text(toolAct.querySelector(".toolnote")) } : null,
             menu: menuAct ? { off: menuAct.getAttribute("aria-disabled") === "true", note: menuAct.dataset.tip } : null,
             sent: sent.length - before, gate: Boolean(probe.querySelector('.sheet.on[aria-label="action confirmation"]')),

@@ -14,18 +14,17 @@ import { html } from "../../html.js";
 import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
-import { useToast } from "../../ui/toasts.js";
-import { CODEX_CLOSE, CODEX_NOTE, CODEX_RESTART, codexRestartWhy, noTurn } from "../../agent.js";
+import { CODEX_CLOSE, CODEX_NOTE, CODEX_RESTART, CODEX_STOP, codexRestartWhy, noTurn } from "../../agent.js";
 import { Conversation } from "./conversation.js";
 import { CodexSheets, CodexStrip, useCatalog, useCodexPick } from "./codexpick.js";
 import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
 import { LOOK_NAMES } from "./look.js";
 import { AgentsChip, HeldChip } from "./work.js";
 import { McpSheet } from "./mcp.js";
-import { RoleSheet, roleWhy } from "./role.js";
-import { IntentSheet, intentWhy } from "./intent.js";
+import { RoleSheet } from "./role.js";
+import { IntentSheet } from "./intent.js";
 import { SetupSheet } from "./setup.js";
-import { codexResumeOf, copyResume, DetachLine, IdLine, ParentLine, PlaceLine, ROLE_NONE, ToolRow } from "./sessiontools.js";
+import { PlaceLine, SessionLines, ToolRow } from "./sessiontools.js";
 import { outsideNote } from "../sessions/kin.js";
 import { useTermAvailable } from "./term.js";
 
@@ -126,10 +125,8 @@ function CodexWork({ work, processes, onOpen }) {
 // its own has where it lives and how to resume it: the panel asks it nothing.
 export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
     const run = useAction();
-    const toast = useToast();
-    const resume = codexResumeOf(live, snapshot);
-    const resumeLine = resume && html`<${ToolRow} icon=${Icon.copy} label="Copy the resume command" note=${resume}
-                                              onPress=${() => copyResume(resume, toast)} />`;
+    const lines = (keep = null) => html`<${SessionLines} name=${name} live=${live} exec=${exec} snapshot=${snapshot}
+                                                        keep=${keep} onDone=${onDone} onLook=${onLook} />`;
     if (live.outside) {
         return html`
             <section class="toolsec">
@@ -138,7 +135,7 @@ export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
             </section>
             <section class="toolsec">
                 <div class="cmdsechead"><span>Session</span></div>
-                <ul class="mcplist toollist"><${IdLine} id=${live.sessionId || ""} />${resumeLine}</ul>
+                <ul class="mcplist toollist">${lines(["id", "resume"])}</ul>
             </section>
         `;
     }
@@ -162,21 +159,12 @@ export function CodexSections({ name, live, exec, snapshot, onDone, onLook }) {
         </section>
         <section class="toolsec">
             <div class="cmdsechead"><span>Session</span></div>
-            <ul class="mcplist toollist">
-                <${ToolRow} icon=${Icon.badge} label="Role…" note=${live.role || ROLE_NONE} clamp off=${roleWhy(exec)}
-                            onPress=${() => { onDone(); onLook("role"); }} />
-                <${ToolRow} icon=${Icon.pencil} label="Session messages…" note="the first message and the message after a restart"
-                            off=${intentWhy(exec)} onPress=${() => { onDone(); onLook("intent"); }} />
-                <${IdLine} id=${live.sessionId || ""} />
-                ${resumeLine}
-                <${DetachLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
-                <${ParentLine} live=${live} exec=${exec} snapshot=${snapshot} onDone=${onDone} onLook=${onLook} />
-            </ul>
+            <ul class="mcplist toollist">${lines()}</ul>
         </section>
         <section class="toolsec toolend">
             <ul class="mcplist toollist">
                 <${ToolRow} icon=${Icon.stopsquare} stop label="Stop the turn" off=${stopWhy}
-                            note="codex breaks off the turn it is running; the thread stays"
+                            note=${CODEX_STOP}
                             onPress=${() => { onDone(); run("session.stop", name, {}); }} />
                 <${ToolRow} icon=${Icon.refresh} stop label="Restart the session" off=${restartWhy} note=${CODEX_RESTART}
                             onPress=${() => { onDone(); run("session.restart", name, {}); }} />

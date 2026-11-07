@@ -23,7 +23,7 @@ type agentWord struct {
 // asks, a restart and a close. Everything claude's — its pickers, the commands, the
 // shell, the terminal, the move, the window, Remote Control — is not there,
 // and the screen does not ask the host about any of it. The close says what it
-// does to codex wherever it is offered: the desktop row, the phone's card and
+// does to codex wherever it is offered: the desktop row, the pie of the phone's card and
 // the session panel, and the sheet of the gate behind each of them, which has
 // no kill under it — the host does not kill codex.
 func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
@@ -31,40 +31,37 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	var got struct {
-		DeskMarks    []string    `json:"deskMarks"`
-		DeskFacts    []string    `json:"deskFacts"`
-		DeskAgent    agentWord   `json:"deskAgent"`
-		DeskActs     []rowAct    `json:"deskActs"`
-		DeskSay      string      `json:"deskSay"`
-		ClaudeMarks  []string    `json:"claudeMarks"`
-		ClaudeAgent  agentWord   `json:"claudeAgent"`
-		ClaudeActs   int         `json:"claudeActs"`
-		PhoneTags    []string    `json:"phoneTags"`
-		PhoneState   string      `json:"phoneState"`
-		PhoneSince   string      `json:"phoneSince"`
-		PhoneAgents  []agentWord `json:"phoneAgents"`
-		PhoneActions []struct {
-			Text  string `json:"text"`
-			Label string `json:"label"`
-			Note  string `json:"note"`
-			Off   bool   `json:"off"`
-		} `json:"phoneActions"`
-		HeadMarks   []string        `json:"headMarks"`
-		HeadSub     string          `json:"headSub"`
-		HeadAgent   agentWord       `json:"headAgent"`
-		Tabs        []string        `json:"tabs"`
-		Place       string          `json:"place"`
-		ClaudeTools map[string]bool `json:"claudeTools"`
-		StopLabel   string          `json:"stopLabel"`
-		StopOff     *bool           `json:"stopOff"`
-		SlashList   bool            `json:"slashList"`
-		SlashLabel  string          `json:"slashLabel"`
-		BangLabel   string          `json:"bangLabel"`
-		PasteToast  string          `json:"pasteToast"`
-		Clipped     bool            `json:"clipped"`
-		Band        []string        `json:"band"`
-		Placeholder string          `json:"placeholder"`
-		FileSent    []struct {
+		DeskMarks    []string        `json:"deskMarks"`
+		DeskFacts    []string        `json:"deskFacts"`
+		DeskAgent    agentWord       `json:"deskAgent"`
+		DeskActs     []rowAct        `json:"deskActs"`
+		DeskSay      string          `json:"deskSay"`
+		ClaudeMarks  []string        `json:"claudeMarks"`
+		ClaudeAgent  agentWord       `json:"claudeAgent"`
+		ClaudeActs   int             `json:"claudeActs"`
+		PhoneTags    []string        `json:"phoneTags"`
+		PhoneState   string          `json:"phoneState"`
+		PhoneSince   string          `json:"phoneSince"`
+		PhoneAgents  []agentWord     `json:"phoneAgents"`
+		PhoneButtons int             `json:"phoneButtons"`
+		PhoneActions []pieItem       `json:"phoneActions"`
+		PhoneClose   string          `json:"phoneClose"`
+		HeadMarks    []string        `json:"headMarks"`
+		HeadSub      string          `json:"headSub"`
+		HeadAgent    agentWord       `json:"headAgent"`
+		Tabs         []string        `json:"tabs"`
+		Place        string          `json:"place"`
+		ClaudeTools  map[string]bool `json:"claudeTools"`
+		StopLabel    string          `json:"stopLabel"`
+		StopOff      *bool           `json:"stopOff"`
+		SlashList    bool            `json:"slashList"`
+		SlashLabel   string          `json:"slashLabel"`
+		BangLabel    string          `json:"bangLabel"`
+		PasteToast   string          `json:"pasteToast"`
+		Clipped      bool            `json:"clipped"`
+		Band         []string        `json:"band"`
+		Placeholder  string          `json:"placeholder"`
+		FileSent     []struct {
 			Target string   `json:"target"`
 			Text   string   `json:"text"`
 			Files  []string `json:"files"`
@@ -156,13 +153,16 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the header of the conversation carries the marks %v beside the name", got.HeadMarks)
 	}
 
-	if len(got.PhoneActions) != 4 || got.PhoneActions[0].Label != "pause session "+name || !got.PhoneActions[0].Off ||
-		got.PhoneActions[1].Label != "restart session "+name || got.PhoneActions[1].Off ||
-		got.PhoneActions[2].Label != "pin session group "+name || !got.PhoneActions[2].Off ||
-		got.PhoneActions[3].Text != "" || got.PhoneActions[3].Label != "close session "+name || got.PhoneActions[3].Off {
-		t.Errorf("the phone's card offers %+v, expected a pause and a pin unknown to this host, Restart and Close", got.PhoneActions)
+	offs := map[string]bool{}
+	for _, it := range got.PhoneActions {
+		offs[it.Key] = it.Off
+	}
+	if got.PhoneButtons != 0 || strings.Join(pieKeys(got.PhoneActions), ",") != "close,restart,pause,pin,more,stop" ||
+		!offs["pause"] || !offs["pin"] || offs["restart"] || offs["close"] || offs["stop"] {
+		t.Errorf("the pie of the phone's card offers %+v beside %d buttons, expected a pause and a pin unknown to this host, "+
+			"Restart, Close and the stop of the turn it waits in", got.PhoneActions, got.PhoneButtons)
 	} else {
-		saysCodexClose(t, "the close on the phone's card", got.PhoneActions[3].Note)
+		saysCodexClose(t, "the close in the pie of the phone's card", got.PhoneClose)
 	}
 
 	// The conversation: the feed and its files, no terminal, no move.

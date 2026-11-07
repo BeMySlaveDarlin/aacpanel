@@ -12,6 +12,7 @@ import { useSessionsArchive } from "../history.js";
 import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
 import { blocksOf, ProjectBlock, RANK, splitNotes, stateOf, useAnswers } from "./sessions/blocks.js";
+import { CardPieHost } from "./sessions/cardpie.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
@@ -27,8 +28,17 @@ export function sessionChips() {
 // nothing are dropped, so the page asks the archive for more than it shows.
 const RECENT_ASK = 20;
 
-// Sessions renders the sessions tab.
-export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage, onTerm }) {
+// Sessions renders the sessions tab, under the host of the pies of its cards.
+export function Sessions(props) {
+    const { snapshot, exec, wait, onTerm } = props;
+    return html`
+        <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${wait} onTerm=${onTerm}>
+            <${SessionsTab} ...${props} />
+        <//>
+    `;
+}
+
+function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage, onTerm }) {
     const [project, setProject] = useState(null);
     useAnswers();
 

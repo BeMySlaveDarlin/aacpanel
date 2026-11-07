@@ -1,5 +1,7 @@
 // Pin scenarios share the session groups page and its browser. Both screens
 // take the same snapshots, as two devices do after the collector reads a pin.
+// The pin of a card is its button at a desk and a sector of its pie on the
+// phone.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn, orderOf } from "/src/desktop/sessions.js";
@@ -9,6 +11,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { MenuHost } from "/src/desktop/menu.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { closePie, item, openPie, sector, settled, underPies } from "/check/fixtures/pie.js";
 
 export async function sessionPins(phoneOnly = false) {
     const mount = document.createElement("div");
@@ -96,27 +99,33 @@ export async function sessionPins(phoneOnly = false) {
         keys: order.slice(),
         ordered: orderOf(snapshot.sessions, profileMap, wait).map((s) => s.session),
     });
-    const phoneButton = (name) => mount.querySelector(`.phone .sc[data-name="${name}"] .scact[aria-pressed]`);
+    // phonePinOf opens the pie of a phone card and gives its pin.
+    const phonePinOf = async (name) => {
+        await settled();
+        await openPie(mount.querySelector(`.phone .sc[data-name="${name}"]`));
+        return sector("pin");
+    };
     const deskRow = (name) => mount.querySelector(`.dkbody .sc[data-name="${name}"]`);
-    const look = (name) => {
-        const button = phoneButton(name);
+    const look = async (name) => {
+        const pin = item(await phonePinOf(name));
+        await closePie();
         const mark = deskRow(name).querySelector(".scact[aria-pressed]");
         return {
-            pressed: button.getAttribute("aria-pressed") === "true",
-            pending: button.getAttribute("aria-busy") === "true",
-            off: button.getAttribute("aria-disabled") === "true",
+            pressed: pin.on,
+            pending: /^(Pinning|Unpinning) the group$/.test(pin.why),
+            off: pin.off,
             mark: Boolean(mark),
             markOn: mark && mark.getAttribute("aria-pressed") === "true",
             markPending: mark && mark.getAttribute("aria-busy") === "true",
         };
     };
     const phonePin = async (name) => {
-        const button = phoneButton(name);
-        if (!button || button.getAttribute("aria-disabled") === "true") throw new Error(`no pin button for ${name}`);
+        const pin = await phonePinOf(name);
+        if (!pin || pin.getAttribute("aria-disabled") === "true") throw new Error(`no pin in the pie of ${name}`);
         const before = sent.length;
-        button.click();
+        pin.click();
         await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
-        await until(() => phoneButton(name).getAttribute("aria-busy") === "true");
+        await settled();
         await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
     };
     const deskPin = async (name) => {
@@ -137,23 +146,22 @@ export async function sessionPins(phoneOnly = false) {
         const row = deskRow(name);
         row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 100, clientY: 100 }));
         await until(() => mount.querySelector(".pkrow"));
-        const item = [...mount.querySelectorAll(".pkrow")].find((r) => text(r.querySelector(".pkname")) === label);
-        if (!item) throw new Error(`no menu item ${label}`);
-        return item;
+        const entry = [...mount.querySelectorAll(".pkrow")].find((r) => text(r.querySelector(".pkname")) === label);
+        if (!entry) throw new Error(`no menu item ${label}`);
+        return entry;
     };
     const menuPin = async (name, label) => {
-        const item = await menuItem(name, label);
-        if (!item || item.getAttribute("aria-disabled") === "true") throw new Error(`no menu item ${label}`);
+        const entry = await menuItem(name, label);
+        if (!entry || entry.getAttribute("aria-disabled") === "true") throw new Error(`no menu item ${label}`);
         const before = sent.length;
-        item.click();
+        entry.click();
         await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
-        await until(() => phoneButton(name).getAttribute("aria-busy") === "true");
         await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
     };
     const pendingMenu = async (name, label) => {
-        const item = await menuItem(name, label);
-        const out = { label: text(item.querySelector(".pkname")), off: item.getAttribute("aria-disabled") === "true",
-            note: text(item.querySelector(".pkdesc")) };
+        const entry = await menuItem(name, label);
+        const out = { label: text(entry.querySelector(".pkname")), off: entry.getAttribute("aria-disabled") === "true",
+            note: text(entry.querySelector(".pkdesc")) };
         document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
         await until(() => !mount.querySelector(".pkrow"));
         return out;
@@ -172,22 +180,27 @@ export async function sessionPins(phoneOnly = false) {
     };
     try {
         await paint();
+        underPies();
         const out = { before: read() };
         await phonePin("thread");
         out.pinning = read();
-        out.pinLook = look("review");
+        out.pinLook = await look("review");
         if (!phoneOnly) out.pinMenu = await pendingMenu("child", "Unpin the group of review");
         await answer(true);
         out.answered = read();
-        out.answerPending = look("review").pending;
+        out.answerPending = (await look("review")).pending;
         // A fresh snapshot can still precede the collector's session pass.
         await paint();
-        out.lagging = look("review").pending;
+        out.lagging = (await look("review")).pending;
         await confirm();
         out.pinned = read();
-        out.confirmedLook = look("review");
-        out.pressed = [...mount.querySelectorAll('.phone .scact[aria-pressed="true"]')]
-            .map((b) => b.getAttribute("aria-label"));
+        out.confirmedLook = await look("review");
+        out.pressed = [];
+        for (const name of cards(".phone .sc:not(.scpast)")) {
+            const pin = item(await phonePinOf(name));
+            await closePie();
+            if (pin.on) out.pressed.push(name);
+        }
         if (phoneOnly) await phonePin("audit");
         else await menuPin("audit", "Pin the group");
         out.secondPinning = read();
@@ -207,12 +220,12 @@ export async function sessionPins(phoneOnly = false) {
         if (phoneOnly) await phonePin("child");
         else await deskPin("child");
         out.unpinning = read();
-        out.unpinLook = look("review");
+        out.unpinLook = await look("review");
         if (!phoneOnly) out.unpinMenu = await pendingMenu("thread", "Pin the group of review");
         await answer(true);
         await confirm();
         out.unpinned = read();
-        out.unpinnedLook = look("review");
+        out.unpinnedLook = await look("review");
         await phonePin("audit");
         await answer(true);
         await confirm();
@@ -250,7 +263,7 @@ export async function sessionPins(phoneOnly = false) {
         await quiet();
         out.expired = read();
         out.polled = refreshed > asked;
-        out.expiredLook = look("audit");
+        out.expiredLook = await look("audit");
 
         // Working and idle share one section in map order, even when the
         // snapshot arrives in a different order and every activity changes.

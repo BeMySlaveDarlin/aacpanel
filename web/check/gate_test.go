@@ -869,7 +869,8 @@ func TestSessionActionsWaitForTheSnapshot(t *testing.T) {
 	}
 
 	if !strings.Contains(stripComments(files["src/desktop/sessions.js"]), "<${LiveLines}") ||
-		!strings.Contains(stripComments(files[cardFile]), `wait.of("close", s.session)`) {
+		!strings.Contains(stripComments(files[cardFile]), "busyOf(s, wait)") ||
+		!strings.Contains(stripComments(files[controlsFile]), `wait.of("close", s.session)`) {
 		t.Error("the card on the monitor does not ask whether it is being closed: the close stays " +
 			"unanswered until the next poll, and the person presses close a second time")
 	}

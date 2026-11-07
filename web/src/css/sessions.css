@@ -516,6 +516,9 @@ span.pjname { cursor: default; }
    each line of a card is a layer of its own. */
 .pjblock:has(.sheet), .sc:has(.sheet), .sc > :has(.sheet) { position: relative; z-index: 30; }
 .sc .scacts, .sc .scact, .sc .scresume { pointer-events: auto; }
+/* A card whose long press opens its pie: the press selects no text and opens
+   no menu of the browser's. */
+.sc.scpie { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* A session that waits on the person stands out of the list: a fuller fill
    and a bar of the colour of waiting down its edge. */
 .sc.scwait {

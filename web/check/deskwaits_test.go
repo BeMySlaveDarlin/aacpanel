@@ -99,11 +99,12 @@ func TestColumnDrawsWhatItIsWaitingFor(t *testing.T) {
 	}
 	// The column draws its sessions with the card of the phone.
 	card := stripComments(srcFiles(t)[cardFile])
-	if !strings.Contains(card, `wait.of("close", s.session)`) {
+	controls := stripComments(srcFiles(t)[controlsFile])
+	if !strings.Contains(card, "busyOf(s, wait)") || !strings.Contains(controls, `wait.of("close", s.session)`) {
 		t.Error("the card does not ask whether it is being closed: the close stays unanswered until " +
 			"the next snapshot, and the person presses close a second time")
 	}
-	if !strings.Contains(card, "closing ?") {
+	if !strings.Contains(controls, "closing ?") || !strings.Contains(card, "busy=${busy}") {
 		t.Error("the close wait changes nothing on the card — it is counted and not shown")
 	}
 	if !strings.Contains(src, "sections.length === 0 && ghosts.length === 0") {

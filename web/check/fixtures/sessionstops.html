@@ -6,16 +6,19 @@
 <div class="deskshell"><div class="dkbody" id="desk"></div></div>
 <div class="page" id="phone"></div>
 <script type="module">
-// The phone's cards expose only the actions the host can take: the home
-// session never closes, a daemon thread restarts and outside sessions are only
-// read. Every press still belongs to the gate, with its own confirmation.
+// The cards expose only the actions the host can take: the home session never
+// closes, a daemon thread restarts and outside sessions are only read. At a
+// desk they are the card's buttons, on the phone its pie, opened by a long
+// press. Every press still belongs to the gate, with its own confirmation.
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
+import { CardPieHost } from "/src/screens/sessions/cardpie.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { closePie, hub, item, middle, openPie, pie, plate, press, ring, said, sector, settled, tap } from "/check/fixtures/pie.js";
 
 const sessions = [
     { session: "helios", sessionId: "h1", contour: 0, home: true, status: "idle", pct: 40, cwd: "/home/me",
@@ -26,11 +29,14 @@ const sessions = [
     { session: "codex-5afc361b", sessionId: "c1", title: "Cart flakes", agent: "codex", contour: 0,
       status: "busy", transport: "stream", model: "gpt-6-astra", pct: 18, cwd: "/srv/codex" },
     { session: "outside", sessionId: "o1", contour: 0, outside: true, status: "idle", pct: 9, cwd: "/srv/outside" },
+    { session: "lab-kid", sessionId: "k1", contour: 0, parent: { session: "lab" }, status: "idle", pct: 5, cwd: "/srv/lab",
+      transport: "stream", model: "claude-opus-5-5" },
 ];
 setLiveSessions(sessions);
-const exec = { available: true, kinds: ["session.close", "session.restart", "session.kill"] };
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.kill", "session.detach", "session.stop"] };
 const snapshot = { at: 1, sessions, profileMap: [], limits: null };
-const sent = [], opened = [];
+const sent = [], opened = [], vibrated = [];
+Object.defineProperty(navigator, "vibrate", { configurable: true, value: (ms) => { vibrated.push(ms); return true; } });
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (url, init) => {
     if (String(url) === "/api/actions") {
@@ -41,9 +47,12 @@ window.fetch = counted(async (url, init) => {
     return new Response("", { status: 404 });
 });
 const desk = document.getElementById("desk");
-const mountDesk = (host = exec, wait = null) => render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
-    snapshot, limits: null, current: "", onPick(p) { opened.push(p); }, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec: host, wait,
-}))), desk);
+// The column stands under a host of pies too: a card of the desk keeps its
+// buttons, and its long press stays the browser's, wherever it is drawn.
+const mountDesk = (host = exec, wait = null) => render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec: host, wait },
+    h(SessionColumn, {
+        snapshot, limits: null, current: "", onPick(p) { opened.push(p); }, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec: host, wait,
+    })))), desk);
 mountDesk();
 
 const phone = document.getElementById("phone");
@@ -62,46 +71,67 @@ const off = (b) => b.getAttribute("aria-disabled") === "true";
 // A pause of a session outside the map has a reason of its own: no project
 // to address it by.
 const acts = (card) => [...card.querySelectorAll(".scact")].filter((b) => !b.getAttribute("aria-label").startsWith("pause "));
-const button = (name, kind) => phone.querySelector(`[aria-label="${kind} session ${name}"]`);
 const gate = () => phone.querySelector('.sheet.on[aria-label="action confirmation"]');
 const tip = (label) => {
     const el = document.querySelector(`#desk [aria-label="${label}"]`);
     return el ? el.getAttribute("data-tip") || "" : null;
 };
+const focused = (name) => document.activeElement === row(name).querySelector(".scopen");
+// A gate a pie opened is answered: confirmed or cancelled, and the history
+// left standing on no layer.
+const answer = async (yes) => {
+    gate().querySelector(yes ? ".btnrow .btn:last-child" : ".btnrow .btn:first-child").click();
+    await until(() => !gate());
+    await settled();
+};
 
 window.done = (async () => {
     await until(() => phone.querySelectorAll(".sc").length === sessions.length);
-    const out = { mobileActions: {}, gates: [], tips: {}, notes: {} };
+    const out = { pies: {}, gates: [], tips: {}, notes: {} };
     for (const s of sessions) {
         const card = row(s.session);
         // A press is tried where the finger finds the card: on the screen.
         card.scrollIntoView({ block: "center" });
-        const buttons = [...card.querySelectorAll(".scact")];
-        const top = card.querySelector(".scl1");
-        out.mobileActions[s.session] = buttons.map((b) => {
-            const r = b.getBoundingClientRect();
-            return { text: text(b), label: b.getAttribute("aria-label"), top: b.closest(".scl1") === top, disabled: off(b),
-                icon: Boolean(b.querySelector("svg")),
-                hit: b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)) };
-        });
-        out.notes[s.session] = buttons.map((b) => b.title).join(" | ");
+        const shot = { buttons: card.querySelectorAll(".scact").length };
+        if (s.outside) {
+            const menu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+            card.dispatchEvent(menu);
+            await quiet();
+            shot.kept = menu.defaultPrevented;
+            shot.ring = pie() ? ring() : null;
+        } else {
+            shot.kept = await openPie(card);
+            shot.menu = { role: pie().querySelector(".piemenu").getAttribute("role"), label: pie().querySelector(".piemenu").getAttribute("aria-label") };
+            // Opened without a finger, the pie gives the keyboard its first item.
+            shot.focus = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.key || "" : "";
+            shot.ring = ring();
+            const notes = [];
+            for (const key of ["restart", "close"].filter(sector)) notes.push(await said(key));
+            out.notes[s.session] = notes.join(" | ");
+            await closePie();
+            shot.back = focused(s.session);
+        }
+        out.pies[s.session] = shot;
         card.querySelector(".scopen").click();
     }
     out.opened = [...opened];
     out.more = phone.querySelectorAll(".pjmore, .pjends, .pjend").length;
     for (const [name, kind] of [["lab", "restart"], ["lab", "close"], ["helios", "restart"], ["codex-5afc361b", "close"]]) {
         const before = sent.length;
-        button(name, kind).click();
+        await openPie(row(name));
+        tap(sector(kind));
         await until(() => gate()?.querySelector(".btnrow .btn:last-child"));
         const confirm = gate().querySelector(".btnrow .btn:last-child");
         const shot = { name, kind, title: text(gate().querySelector(".stitle")), effect: text(gate().querySelector(".warnline")) + " " + text(gate().querySelector(".pkseg.on")),
             ok: text(confirm), harsher: [...gate().querySelectorAll("button.item")].map(text), before: sent.length - before,
-            opened: opened.length - out.opened.length };
+            opened: opened.length - out.opened.length, pie: Boolean(pie()) };
         confirm.click();
         await until(() => sent.length === before + 1 && !gate());
+        await settled();
         shot.sent = sent.slice(before);
         out.gates.push(shot);
     }
+    out.gestures = await gestures();
     for (const [name, kind] of [["helios", "restart"], ["lab", "close"], ["quiet", "close"]]) out.tips[name] = tip(`${kind} session ${name}`);
     out.desktopActions = Object.fromEntries(sessions.map((s) => {
         const card = desk.querySelector(`.sc[data-name="${s.session}"]`);
@@ -140,13 +170,23 @@ window.done = (async () => {
     }
     mountDesk();
     mount({ available: true, kinds: [] });
-    await until(() => off(button("lab", "close")) && off(button("lab", "restart")));
-    out.unavailable = acts(row("lab")).map((b) => ({ off: off(b), why: b.title }));
+    await quiet();
+    await openPie(row("lab"));
+    out.unavailable = ["restart", "close"].map((key) => item(sector(key)));
+    await closePie();
     out.busy = true;
     for (const kind of ["restart", "close"]) {
         mount(exec, { of: (act, name) => name === "lab" && act === kind ? { since: 1 } : null, opening: () => [] });
         await until(() => text(row("lab").querySelector(".scbusy")) === (kind === "restart" ? "restarting" : "closing"));
-        out.busy = out.busy && acts(row("lab")).every(off);
+        await openPie(row("lab"));
+        const before = sent.length;
+        for (const key of ["restart", "close"]) {
+            out.busy = out.busy && off(sector(key));
+            tap(sector(key));
+        }
+        await quiet();
+        out.busy = out.busy && sent.length === before && !gate() && Boolean(pie());
+        await closePie();
         // The line of a press on its way holds one mark: the spinner in the
         // place of the glyph, not beside the glyph of the state.
         const say = row("lab").querySelector(".scsay");
@@ -164,4 +204,151 @@ window.done = (async () => {
     out.pause = await sessionPause();
     return out;
 })();
+
+// gestures works the pie of lab with a finger: what a long press opens and
+// what a short one, a slide or a scroll keeps from opening; what lifting
+// over a sector does, what a tap does, how the pie goes, and the desk, where
+// a press opens nothing.
+async function gestures() {
+    const out = {};
+    const card = row("lab");
+    card.scrollIntoView({ block: "center" });
+    const open = card.querySelector(".scopen");
+    const list = card.closest(".pfpage, .body") || document.scrollingElement;
+    out.card = { select: getComputedStyle(card).userSelect };
+
+    // A short press opens the conversation, and no pie after it.
+    let before = opened.length;
+    press("pointerdown", open);
+    press("pointerup", open);
+    open.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+    await quiet();
+    out.short = { pie: Boolean(pie()), opened: opened.length - before };
+
+    // A press that moves or scrolls before its time is not a press.
+    const at = press("pointerdown", open);
+    press("pointermove", document.body, { x: at.x + 20, y: at.y });
+    await quiet();
+    out.slid = Boolean(pie());
+    press("pointerup", document.body, { x: at.x + 20, y: at.y });
+    press("pointerdown", open);
+    list.dispatchEvent(new Event("scroll"));
+    await quiet();
+    out.scrolled = Boolean(pie());
+    press("pointerup", open);
+
+    // A long press opens the pie, with a short buzz, and the click that ends
+    // it neither opens the conversation nor takes the pie down. The pie
+    // stands over the lower part of the screen, where the finger may have
+    // gone down: one that lifts where it went down chooses nothing.
+    await openPie(card);
+    const under = middle("pause");
+    await closePie();
+    before = opened.length;
+    let sentBefore = sent.length;
+    const buzz = vibrated.length;
+    const swiped = new Event("touchmove", { bubbles: true, cancelable: true });
+    const down = press("pointerdown", open, under);
+    card.dispatchEvent(swiped);
+    await quiet();
+    const held = new Event("touchmove", { bubbles: true, cancelable: true });
+    card.dispatchEvent(held);
+    press("pointerup", document.body, down);
+    open.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+    pie().querySelector(".piescrim").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+    await quiet();
+    out.held = {
+        pie: Boolean(pie()), buzzed: vibrated.length - buzz, opened: opened.length - before, sent: sent.length - sentBefore,
+        scrolls: !swiped.defaultPrevented, keepsFinger: held.defaultPrevented, plate: plate(),
+        layer: Boolean(history.state && history.state.overlay),
+    };
+
+    // A tap on a sector that cannot be done says why and does nothing.
+    tap(sector("pause"));
+    await quiet();
+    out.offTap = { pie: Boolean(pie()), sent: sent.length - sentBefore, plate: plate(), ...item(sector("pause")) };
+
+    // More opens the second ring, Back returns to the first, and the hub of
+    // the first takes the pie down, the focus back on the card.
+    tap(sector("more"));
+    await quiet();
+    out.more = { ring: ring(), hub: hub().getAttribute("aria-label") };
+    tap(hub());
+    await quiet();
+    out.back = { ring: ring().map((it) => it.key), hub: hub().getAttribute("aria-label") };
+    tap(hub());
+    await settled();
+    out.hub = { pie: Boolean(pie()), focus: focused("lab") };
+
+    // Sliding on to Restart and lifting there does it, through the gate.
+    press("pointerdown", open);
+    await quiet();
+    press("pointermove", document.body, middle("restart"));
+    await quiet();
+    out.slideRestart = { plate: plate() };
+    press("pointerup", document.body, middle("restart"));
+    await until(() => gate()?.querySelector(".btnrow .btn:last-child"));
+    out.slideRestart.gate = text(gate().querySelector(".stitle"));
+    out.slideRestart.pie = Boolean(pie());
+    await answer(false);
+
+    // Lifting over Close does nothing: it asks for a tap, and the tap goes
+    // where the button of a card goes.
+    sentBefore = sent.length;
+    press("pointerdown", open);
+    await quiet();
+    press("pointermove", document.body, middle("close"));
+    press("pointerup", document.body, middle("close"));
+    await quiet();
+    out.liftClose = { pie: Boolean(pie()), gate: Boolean(gate()), sent: sent.length - sentBefore, plate: plate() };
+    tap(sector("close"));
+    await until(() => gate()?.querySelector(".btnrow .btn:last-child"));
+    out.tapClose = { gate: text(gate().querySelector(".stitle")), ok: text(gate().querySelector(".btnrow .btn:last-child")), pie: Boolean(pie()) };
+    await answer(false);
+
+    // An item of the second ring does what the line of the tools does.
+    sentBefore = sent.length;
+    const kid = row("lab-kid");
+    kid.scrollIntoView({ block: "center" });
+    await openPie(kid);
+    tap(sector("more"));
+    await quiet();
+    tap(sector("detach"));
+    await until(() => gate()?.querySelector(".btnrow .btn:last-child"));
+    out.detach = { gate: text(gate().querySelector(".stitle")), pie: Boolean(pie()) };
+    await answer(true);
+    out.detach.sent = sent.slice(sentBefore);
+    card.scrollIntoView({ block: "center" });
+
+    // The scrim, the back of the phone and Escape take the pie down, and the
+    // focus goes back to the card.
+    out.closes = {};
+    for (const how of ["scrim", "back", "escape"]) {
+        await openPie(card);
+        if (how === "scrim") tap(pie().querySelector(".piescrim"));
+        else if (how === "back") history.back();
+        else document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+        await settled();
+        out.closes[how] = { pie: Boolean(pie()), focus: focused("lab") };
+    }
+
+    // Stop is a tap of its own, with no confirmation: it stops the turn the
+    // session is in.
+    sentBefore = sent.length;
+    const busy = row("codex-5afc361b");
+    busy.scrollIntoView({ block: "center" });
+    await openPie(busy);
+    tap(sector("stop"));
+    await settled();
+    out.stop = { sent: sent.slice(sentBefore), gate: Boolean(gate()) };
+    card.scrollIntoView({ block: "center" });
+
+    // At a desk the card keeps its buttons and a long press opens nothing.
+    const deskCard = desk.querySelector('.sc[data-name="lab"]');
+    press("pointerdown", deskCard.querySelector(".scopen"));
+    await quiet();
+    press("pointerup", deskCard.querySelector(".scopen"));
+    out.desk = { pie: Boolean(pie()), buttons: deskCard.querySelectorAll(".scact").length };
+    return out;
+}
 </script>

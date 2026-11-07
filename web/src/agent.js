@@ -19,6 +19,9 @@ export const CODEX_CLOSE = "the turn at work breaks off and the panel lets the t
 export const CODEX_RESTART = "a fresh thread in the same directory and under the same parent, with an empty context; "
     + "this thread closes after its turn. The first message comes from the map's restart message";
 
+// CODEX_STOP says what the stop of a turn does to a codex thread.
+export const CODEX_STOP = "codex breaks off the turn it is running; the thread stays";
+
 export function codexRestartWhy(s) {
     if (s.outside) return "the panel did not start this thread and cannot restart it";
     return s.transport !== "stream" ? "restart from the Codex terminal: this thread runs in tmux" : "";
