@@ -13,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/heavy"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/observer"
@@ -54,6 +55,7 @@ type Executor struct {
 	// memory is the budget of the agents: the ceilings of the slice every
 	// unit for them lives in, and those of one session on the stream.
 	memory hostcfg.Memory
+	heavy  *heavy.Queue
 }
 
 // busy is a set of names something is under way for.

@@ -1852,6 +1852,19 @@ directory, ask, what it holds, since when — and the runs waiting in their
 order, with what the head waits for; a run the executor admitted before its
 last start is known by its scope alone.
 
+Machine shows Heavy runs on the phone and the desktop: occupied slots, the
+running scopes and the waiting runs in order, their asks, memory held, elapsed
+time and what the first run waits for. The service reads the same queue through
+the action socket's read-only `heavy` question with each host poll; the browser
+needs no separate poll or host access. An unavailable queue is said there.
+Before moving a client into its heavy scope, the executor reads the cgroup of
+the peer pid and matches it against live session processes. Process ancestry
+distinguishes sessions sharing a tmux unit; an ambiguous or unknown unit leaves
+the session name empty. The name stays with the admitted run until its scope
+ends or the executor restarts. A session with a waiting run carries `queued`
+and its earliest place among the card's existing marks; running runs add no
+card mark. The queue has no controls on the screen.
+
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no

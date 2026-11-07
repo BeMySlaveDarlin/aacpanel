@@ -29,6 +29,12 @@ type Host interface {
 	Start(ctx context.Context, pid int, s Scope) error
 }
 
+// SessionHost identifies a run before the manager moves it out of its
+// session's cgroup. Failure to identify it never changes admission.
+type SessionHost interface {
+	Session(pid int) string
+}
+
 // Scope is the unit one run lives in and what it is held to. A ceiling of
 // nought is none, and the run is held only by the slice there.
 type Scope struct {
@@ -68,12 +74,13 @@ type Queue struct {
 }
 
 type waiter struct {
-	pid   int
-	name  string
-	dir   string
-	ask   uint64
-	since time.Time
-	said  time.Time
+	session string
+	pid     int
+	name    string
+	dir     string
+	ask     uint64
+	since   time.Time
+	said    time.Time
 	// lines are what the queue tells the run while it waits, dropped when
 	// the client reads slower than the queue says; verdict is the one reply
 	// that ends the wait, never dropped and never blocking the queue.
@@ -84,9 +91,10 @@ type waiter struct {
 // admitted is what the queue keeps of a run it let go: its scope keeps only
 // the ceiling.
 type admitted struct {
-	name  string
-	dir   string
-	since time.Time
+	session string
+	name    string
+	dir     string
+	since   time.Time
 }
 
 // NewQueue is a queue that admits by limits and reads the host through host.
@@ -220,6 +228,9 @@ func (q *Queue) run(ctx context.Context, conn net.Conn, req Request) {
 	now := time.Now()
 	w := &waiter{pid: pid, name: cleanName(req.Name), dir: req.Dir, ask: ask, since: now, said: now,
 		lines: make(chan Reply, 4), verdict: make(chan Reply, 1)}
+	if host, ok := q.host.(SessionHost); ok {
+		w.session = host.Session(pid)
+	}
 	place, ahead := q.join(w)
 	if !say(Reply{State: StateWaiting, Line: fmt.Sprintf("in the queue at place %d, %s, asking for %s",
 		place, aheadOf(ahead), sizeOrNone(ask))}) {
@@ -371,7 +382,7 @@ func (q *Queue) let(ctx context.Context, w *waiter, runs []Running, now time.Tim
 		return
 	}
 	q.mu.Lock()
-	q.known[unit] = admitted{name: w.name, dir: w.dir, since: now}
+	q.known[unit] = admitted{name: w.name, dir: w.dir, since: now, session: w.session}
 	q.mu.Unlock()
 	w.verdict <- Reply{State: StateAdmitted, Line: fmt.Sprintf("admitted after %s into %s: %s", waited(now.Sub(w.since)),
 		unit, held(s))}
@@ -458,12 +469,13 @@ func (q *Queue) View(ctx context.Context) (View, error) {
 		rv := RunningView{Unit: r.Unit, Ask: r.Ask, Taken: r.Taken}
 		if k, ok := q.known[r.Unit]; ok {
 			rv.Name, rv.Dir, rv.Since = k.name, k.dir, k.since.Unix()
+			rv.Session = k.session
 		}
 		v.Running = append(v.Running, rv)
 	}
 	for i, w := range q.waiting {
 		v.Waiting = append(v.Waiting, WaitingView{Place: i + 1, Name: w.name, Dir: w.dir, Ask: w.ask,
-			Since: w.since.Unix()})
+			Since: w.since.Unix(), Session: w.session})
 	}
 	if len(q.waiting) > 0 {
 		v.Head = q.head

@@ -22,6 +22,7 @@ import { MobileShell } from "/src/mobile/shell.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { heavyQueue, emptyHeavyQueue, readHeavy } from "/check/fixtures/heavy.js";
 
 // A frame to look at: #shot=containers stops the walk on that page.
 const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
@@ -85,6 +86,7 @@ const tree = { running: 6, total: 8, stacks: [
       containers: [box("lab-api"), box("lab-worker", "exited")] },
 ] };
 const snapshot = {
+    heavy: heavyQueue,
     lanCertificate: { name: "panel.example.org", expiresAt: 1800000000, daysLeft: 13 },
     panel: { version: "v1.2.0", check: true, newer: { tag: "v1.3.0", page: "https://github.com/BeMySlaveDarlin/aacpanel/releases/tag/v1.3.0", update: "./install.sh update" } },
     programs: {
@@ -251,6 +253,16 @@ window.done = (async () => {
         out.certificate = pageAt(1).querySelector(".lancert")?.textContent;
         out.release = { text: text(pageAt(1).querySelector(".panelrel")), link: pageAt(1).querySelector(".panelnew a")?.getAttribute("href") || "" };
         const machine = pageAt(1);
+        out.heavy = readHeavy(machine);
+        snapshot.heavy = emptyHeavyQueue;
+        props.snapshot = { ...snapshot };
+        start();
+        await quiet();
+        out.heavyEmpty = readHeavy(pageAt(1));
+        snapshot.heavy = heavyQueue;
+        props.snapshot = { ...snapshot };
+        start();
+        await quiet();
         const traffic = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector("h2")?.textContent === "Traffic over the period");
         const probes = Array.from(machine.querySelectorAll("section.card")).find((el) => el.querySelector(".tname")?.textContent === "Probes");
         out.order = [machine.querySelector(".metrics"), traffic, machine.querySelector(".programs"), machine.querySelector(".lancert"), probes].map((el) => (el ? Array.from(machine.querySelectorAll("*")).indexOf(el) : -1));

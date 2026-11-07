@@ -77,21 +77,23 @@ type View struct {
 // scope alone: its name, directory and start were kept by the executor that
 // admitted it.
 type RunningView struct {
-	Unit  string `json:"unit"`
-	Name  string `json:"name"`
-	Dir   string `json:"dir"`
-	Ask   uint64 `json:"ask"`
-	Taken uint64 `json:"taken"`
-	Since int64  `json:"since,omitempty"`
+	Session string `json:"session"`
+	Unit    string `json:"unit"`
+	Name    string `json:"name"`
+	Dir     string `json:"dir"`
+	Ask     uint64 `json:"ask"`
+	Taken   uint64 `json:"taken"`
+	Since   int64  `json:"since,omitempty"`
 }
 
 // WaitingView is one run waiting, at its place in the queue counted from one.
 type WaitingView struct {
-	Place int    `json:"place"`
-	Name  string `json:"name"`
-	Dir   string `json:"dir"`
-	Ask   uint64 `json:"ask"`
-	Since int64  `json:"since"`
+	Session string `json:"session"`
+	Place   int    `json:"place"`
+	Name    string `json:"name"`
+	Dir     string `json:"dir"`
+	Ask     uint64 `json:"ask"`
+	Since   int64  `json:"since"`
 }
 
 // How the queue keeps time. It looks at the host this often and at once

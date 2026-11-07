@@ -11,7 +11,11 @@ import (
 // rather than printing the figure of right now under the wrong heading.
 func TestTheMachineTableAtADeskKeepsBothKinds(t *testing.T) {
 	var got struct {
-		Rows []struct {
+		Heavy        heavySeen `json:"heavy"`
+		HeavyEmpty   heavySeen `json:"heavyEmpty"`
+		HeavyError   string    `json:"heavyError"`
+		HeavyMissing bool      `json:"heavyMissing"`
+		Rows         []struct {
 			Kind  string `json:"kind"`
 			Name  string `json:"name"`
 			Avg   string `json:"avg"`
@@ -29,6 +33,10 @@ func TestTheMachineTableAtADeskKeepsBothKinds(t *testing.T) {
 		Release map[string]panelShot `json:"release"`
 	}
 	runWideFixture(t, "topdesk.html", &got)
+	checkHeavyRuns(t, got.Heavy, got.HeavyEmpty)
+	if !strings.Contains(got.HeavyError, "Queue unavailable: host read failed") || got.HeavyMissing {
+		t.Errorf("the queue without a view is misreported: %q, missing %v", got.HeavyError, got.HeavyMissing)
+	}
 	checkPanelRelease(t, got.Release["newer"].Text, got.Release["newer"].Link, "v1.2.0")
 	for name, want := range map[string][]string{
 		"level":   {"v1.3.0", "Updated by ./install.sh update in its clone"},

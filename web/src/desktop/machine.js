@@ -1,6 +1,7 @@
 // The Machine section: categories on the left, the picked one in the centre.
 import { Certificate } from "../screens/certificate.js";
 import { Programs } from "../screens/programs.js";
+import { HeavyRuns } from "../screens/heavy.js";
 import { PanelRelease } from "../screens/release.js";
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
@@ -294,6 +295,7 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
             </div>
             ${cat !== "probes" && body()}
             <${Programs} programs=${snapshot && snapshot.programs} exec=${exec} onDone=${onDone} />
+            <${HeavyRuns} queue=${snapshot?.heavy} error=${snapshot?.heavyError} />
             <${PanelRelease} panel=${snapshot && snapshot.panel} />
             <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
             ${cat === "probes" && body()}

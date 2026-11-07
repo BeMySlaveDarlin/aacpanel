@@ -193,6 +193,17 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 	if req.Ask == AskKinds {
 		return Response{ID: req.ID, OK: true, Kinds: s.kinds()}
 	}
+	if req.Ask == AskHeavy {
+		asker, ok := s.exec.(HeavyAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor keeps no queue of heavy runs"), 0)
+		}
+		view, err := asker.Heavy(ctx)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Heavy: view}
+	}
 
 	if req.Ask == AskTerms {
 		asker, ok := s.exec.(TermsAsker)

@@ -6,12 +6,59 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"aacpanel/internal/heavy"
 )
+
+func TestHeavyRunFindsItsSessionThroughThePeerCgroup(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 100, comm: "claude", args: []string{"claude", "-n", "lab"}},
+		fakeProc{pid: 101, comm: "claude", args: []string{"claude", "-n", "other"}},
+		fakeProc{pid: 200, comm: "bash", ppid: 100},
+		fakeProc{pid: 201, comm: "aacpanel-exec", ppid: 200},
+		fakeProc{pid: 202, comm: "aacpanel-exec", ppid: 1})
+	sessionFiles(t)
+	root := procDir()
+	write := func(pid int, group string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(root, strconv.Itoa(pid), "cgroup"), []byte("0::/user.slice/"+group+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const unit = "run-session.service"
+	for _, pid := range []int{100, 101, 200, 201, 202} {
+		write(pid, AgentsSlice+"/"+unit+"/nested")
+	}
+	units := map[string][]heavySession{unit: {{pid: 100, name: "lab"}, {pid: 101, name: "other"}}}
+	if got := sessionOfHeavy(root, 201, units); got != "lab" {
+		t.Errorf("a peer under lab in a shared unit belongs to %q", got)
+	}
+	if got := NewHeavyHost().Session(201); got != "lab" {
+		t.Errorf("the host's live session map identifies the peer as %q", got)
+	}
+	if got := sessionOfHeavy(root, 202, units); got != "" {
+		t.Errorf("a shared unit without an ancestor names %q", got)
+	}
+	delete(units, unit)
+	if got := sessionOfHeavy(root, 201, units); got != "" {
+		t.Errorf("an unknown unit names %q", got)
+	}
+	units[unit] = []heavySession{{pid: 100, name: "lab"}}
+	if got := sessionOfHeavy(root, 202, units); got != "lab" {
+		t.Errorf("a unit of one session names %q", got)
+	}
+	write(201, "app.slice/"+unit)
+	if got := sessionOfHeavy(root, 201, units); got != "" {
+		t.Errorf("a peer outside the agents' slice names %q", got)
+	}
+	if got := sessionOfHeavy(root, 999, units); got != "" {
+		t.Errorf("a process that has gone names %q", got)
+	}
+}
 
 // heavyScene is a host for the queue of heavy runs: busctl standing in for
 // the manager's bus, and the processes and the pressure of the kernel laid

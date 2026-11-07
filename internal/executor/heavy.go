@@ -41,6 +41,83 @@ type HeavyHost struct {
 // NewHeavyHost is the host of the queue of heavy runs.
 func NewHeavyHost() *HeavyHost { return &HeavyHost{available: hostcfg.AvailableMemory} }
 
+type heavySession struct {
+	pid  int
+	name string
+}
+
+// Session reads the same live process names as session actions. A tmux
+// server may hold several sessions in one unit, so their process ancestry
+// disambiguates them; a shared unit alone is not a session identity.
+func (h *HeavyHost) Session(pid int) string {
+	units := map[string][]heavySession{}
+	pids, _ := claudePIDs()
+	for _, p := range pids {
+		name, ok := sessionName(p)
+		unit := heavySessionUnit(procDir(), p)
+		if ok && unit != "" {
+			units[unit] = append(units[unit], heavySession{pid: p, name: name})
+		}
+	}
+	return sessionOfHeavy(procDir(), pid, units)
+}
+
+func sessionOfHeavy(root string, pid int, units map[string][]heavySession) string {
+	unit := heavySessionUnit(root, pid)
+	if unit == "" {
+		return ""
+	}
+	sessions := units[unit]
+	cur := pid
+	for range 64 {
+		for _, s := range sessions {
+			if s.pid == cur {
+				return s.name
+			}
+		}
+		parent, ok := parentFrom(root, cur)
+		if !ok || parent <= 1 || parent == cur {
+			break
+		}
+		cur = parent
+	}
+	if len(sessions) == 1 {
+		return sessions[0].name
+	}
+	return ""
+}
+
+func heavySessionUnit(root string, pid int) string {
+	raw, err := os.ReadFile(filepath.Join(root, strconv.Itoa(pid), "cgroup"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		group, ok := strings.CutPrefix(line, "0::")
+		if !ok {
+			continue
+		}
+		parts := strings.Split(group, "/")
+		for i, part := range parts {
+			if part == AgentsSlice && i+1 < len(parts) {
+				return parts[i+1]
+			}
+		}
+	}
+	return ""
+}
+
+// WithHeavy shares the queue with read-only questions on the action socket.
+func (e *Executor) WithHeavy(q *heavy.Queue) { e.heavy = q }
+
+func (e *Executor) Heavy(ctx context.Context) (*heavy.View, error) {
+	if e.heavy == nil {
+		return nil, fmt.Errorf("the queue of heavy runs is unavailable")
+	}
+	v, err := e.heavy.View(ctx)
+	return &v, err
+}
+
 // Measure reads the host once. The runs going are the scopes of the queue in
 // the slice, whoever admitted them: a restart of the executor keeps them
 // counted, ceilings included, since a scope keeps its MemoryMax. The slice

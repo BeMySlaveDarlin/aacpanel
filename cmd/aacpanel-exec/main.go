@@ -390,7 +390,7 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 	}
 
 	heavySocket := heavy.Socket(socket)
-	if heavyLn, err := startHeavy(ctx, heavySocket, memory); err != nil {
+	if heavyLn, err := startHeavy(ctx, heavySocket, memory, exec); err != nil {
 		log.Printf("the queue of heavy runs is unavailable (%s): %v; such runs go at once, without it", heavySocket, err)
 	} else {
 		defer os.Remove(heavySocket)
@@ -549,6 +549,15 @@ func (a audited) Terms(ctx context.Context) ([]action.Term, error) {
 		return nil, fmt.Errorf("this executor keeps no terminals of the panel")
 	}
 	return asker.Terms(ctx)
+}
+
+// Heavy passes a read of the queue through without journalling an action.
+func (a audited) Heavy(ctx context.Context) (*heavy.View, error) {
+	asker, ok := a.next.(action.HeavyAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor keeps no queue of heavy runs")
+	}
+	return asker.Heavy(ctx)
 }
 
 // Secrets asks the wrapped executor for the secrets of the host: names, sizes
@@ -718,7 +727,7 @@ func startObservers(ctx context.Context, e *executor.Executor) {
 
 // startHeavy keeps the queue of heavy runs on its socket. A size of the
 // description the queue cannot use is named once, and its default stands in.
-func startHeavy(ctx context.Context, socket string, memory hostcfg.Memory) (net.Listener, error) {
+func startHeavy(ctx context.Context, socket string, memory hostcfg.Memory, exec *executor.Executor) (net.Listener, error) {
 	h, err := hostcfg.ReadHeavy()
 	if err != nil {
 		log.Print(err)
@@ -731,7 +740,9 @@ func startHeavy(ctx context.Context, socket string, memory hostcfg.Memory) (net.
 	if err != nil {
 		return nil, err
 	}
-	go heavy.NewQueue(executor.NewHeavyHost(), limits).Serve(ctx, ln)
+	queue := heavy.NewQueue(executor.NewHeavyHost(), limits)
+	exec.WithHeavy(queue)
+	go queue.Serve(ctx, ln)
 	log.Printf("heavy runs: %s, %d at once, %s kept free, %s asked by a run that names none, %d cores a run",
 		socket, limits.Slots, heavy.Size(limits.Reserve), heavy.Size(limits.Ask), limits.CPUs)
 	return ln, nil

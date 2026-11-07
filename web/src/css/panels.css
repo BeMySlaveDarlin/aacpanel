@@ -169,14 +169,15 @@
     }
     .mgrid .metrics { display: contents; }
     .mgrid .card[data-open="1"] { grid-column: 1 / -1; }
-    .mgrid > .programs, .mgrid > .panelrel, .mgrid > .lancert { grid-column: 1 / -1; }
+    .mgrid > .programs, .mgrid > .panelrel, .mgrid > .lancert, .mgrid > .heavy { grid-column: 1 / -1; }
 
     .mgrid > .trouble,
     .mgrid > .stale-note { grid-column: 1 / -1; }
 }
 
-.programs, .panelrel { margin-bottom: 16px; padding: 16px; }
-.programs h3, .panelrel h3 { margin: 0 0 8px; }
+.programs, .panelrel, .heavy { margin-bottom: 16px; padding: 16px; }
+.programs h3, .panelrel h3, .heavy h3 { margin: 0 0 8px; }
+.heavy .panelrow > div { min-width: 0; overflow-wrap: anywhere; }
 .panelnew { margin: 0 0 4px; }
 .panelnew a { color: var(--accent); }
 .panelnew code { font-family: var(--code); font-size: var(--t-sm); overflow-wrap: anywhere; }

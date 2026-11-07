@@ -44,7 +44,9 @@ type hostReturn struct {
 // over the screen.
 func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 	var got struct {
-		Programs struct {
+		Heavy      heavySeen `json:"heavy"`
+		HeavyEmpty heavySeen `json:"heavyEmpty"`
+		Programs   struct {
 			Before      string `json:"before"`
 			After       string `json:"after"`
 			Unavailable bool   `json:"unavailable"`
@@ -95,6 +97,7 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		Release      panelShot  `json:"release"`
 	}
 	runFixture(t, "hosttab.html", &got)
+	checkHeavyRuns(t, got.Heavy, got.HeavyEmpty)
 	if !strings.Contains(got.Certificate, "panel.example.org") || !strings.Contains(got.Certificate, "13 days left") {
 		t.Errorf("phone loses certificate expiry: %q", got.Certificate)
 	}

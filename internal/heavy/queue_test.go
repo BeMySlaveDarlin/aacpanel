@@ -50,6 +50,13 @@ type fakeHost struct {
 	m       Measure
 	started []Scope
 	refuse  error
+	session string
+}
+
+func (h *fakeHost) Session(int) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.session
 }
 
 func (h *fakeHost) Measure(context.Context) (Measure, error) {
@@ -511,6 +518,28 @@ func TestTheViewKeepsItsShape(t *testing.T) {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("the view %s does not hold %s", raw, want)
 		}
+	}
+}
+
+func TestTheViewKeepsTheSessionBeforeAndAfterAdmission(t *testing.T) {
+	s := newScene(t, Limits{Slots: 1})
+	s.host.mu.Lock()
+	s.host.session = "lab"
+	s.host.m.Runs = []Running{{Unit: UnitPrefix + "held.scope"}}
+	s.host.mu.Unlock()
+	r := s.start("-name", "check", "--", "true")
+	s.until("the named session waits", func(v View) bool { return len(v.Waiting) == 1 })
+	v, err := s.q.View(t.Context())
+	if err != nil || v.Waiting[0].Session != "lab" || v.Waiting[0].Place != 1 || v.Running[0].Session != "" {
+		t.Fatalf("the waiting view loses the session or invents one for an old scope: %+v, %v", v, err)
+	}
+	s.host.going()
+	if code := r.wait(t); code != 0 {
+		t.Fatalf("the run exits with %d: %s", code, r.stderr.String())
+	}
+	v, err = s.q.View(t.Context())
+	if err != nil || len(v.Running) != 1 || v.Running[0].Session != "lab" || len(v.Waiting) != 0 {
+		t.Fatalf("the admitted view loses the session: %+v, %v", v, err)
 	}
 }
 

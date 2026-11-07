@@ -347,12 +347,20 @@ func TestManualRestartWaitsForReadinessWithoutTheCapPG(t *testing.T) {
 	srv, fake, dir := restartServer(t)
 	nextRequest := func() action.Request {
 		t.Helper()
-		select {
-		case req := <-fake.got:
-			return req
-		case <-time.After(time.Second):
-			t.Fatal("the manual cycle sent no action")
-			return action.Request{}
+		deadline := time.After(time.Second)
+		for {
+			select {
+			case req := <-fake.got:
+				// The host snapshot also reads the queue; only the cycle's
+				// action advances the preparation checked here.
+				if req.Ask == action.AskHeavy {
+					continue
+				}
+				return req
+			case <-deadline:
+				t.Fatal("the manual cycle sent no action")
+				return action.Request{}
+			}
 		}
 	}
 	now := time.Now().Truncate(time.Second)

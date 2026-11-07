@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"aacpanel/internal/heavy"
 	"aacpanel/internal/sessionintent"
 )
 
@@ -67,7 +68,8 @@ type Response struct {
 
 	CodexModels []CodexModel `json:"codexModels,omitempty"`
 
-	Processes []Process `json:"processes,omitempty"`
+	Processes []Process   `json:"processes,omitempty"`
+	Heavy     *heavy.View `json:"heavy,omitempty"`
 }
 
 // Failed builds a refusal response.

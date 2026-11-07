@@ -12,7 +12,24 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/executor"
+	"aacpanel/internal/heavy"
 )
+
+type heavyExec struct{ muteExec }
+
+func (heavyExec) Heavy(context.Context) (*heavy.View, error) {
+	return &heavy.View{Slots: 2, Waiting: []heavy.WaitingView{{Place: 1, Session: "lab"}}}, nil
+}
+
+func TestAuditedForwardsTheHeavyQueue(t *testing.T) {
+	got, err := (audited{next: heavyExec{}}).Heavy(t.Context())
+	if err != nil || got == nil || got.Slots != 2 || got.Waiting[0].Session != "lab" {
+		t.Fatalf("the journal wrapper loses the queue: %+v, %v", got, err)
+	}
+	if _, err := (audited{next: muteExec{}}).Heavy(t.Context()); err == nil {
+		t.Error("the journal wrapper hides an unavailable queue")
+	}
+}
 
 func TestAuditedForwardsTheQuestion(t *testing.T) {
 	want := &action.Permission{Tool: "Bash command", Options: []action.PermOption{{N: 1, Text: "Yes"}}}
@@ -227,6 +244,7 @@ func TestTheWrapperPassesOnEveryQuestionOfTheExecutor(t *testing.T) {
 		"OpeningAsker":     reflect.TypeFor[action.OpeningAsker](),
 		"CommandsAsker":    reflect.TypeFor[action.CommandsAsker](),
 		"TermsAsker":       reflect.TypeFor[action.TermsAsker](),
+		"HeavyAsker":       reflect.TypeFor[action.HeavyAsker](),
 		"SecretsAsker":     reflect.TypeFor[action.SecretsAsker](),
 		"CodexModelsAsker": reflect.TypeFor[action.CodexModelsAsker](),
 		"ProcessesAsker":   reflect.TypeFor[action.ProcessesAsker](),

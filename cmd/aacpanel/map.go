@@ -90,6 +90,7 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 	payload = limitsByContour(payload, list)
 	payload = sessionsByContour(payload, list)
 	payload = sessionsGuarded(payload, list)
+	payload = s.heavySnapshot(ctx, payload)
 	payload = s.sessionsRestarting(ctx, payload)
 	payload = s.sessionsCalled(ctx, payload)
 	payload = s.sessionsSeen(ctx, payload)

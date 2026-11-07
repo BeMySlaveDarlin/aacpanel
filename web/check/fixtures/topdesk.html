@@ -14,11 +14,13 @@
 <script type="module">
 import { h, render } from "preact";
 import { quiet } from "/check/fixtures/quiet.js";
+import { heavyQueue, emptyHeavyQueue, readHeavy } from "/check/fixtures/heavy.js";
 import { MachineCenter } from "/src/desktop/machine.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const SNAPSHOT = {
+    heavy: heavyQueue,
     programs: { codex: { version: "0.163.0" }, claude: { version: "2.1.283" } },
     lanCertificate: { name: "panel.example.org", expiresAt: 1800000000, daysLeft: 13 },
     panel: { version: "v1.2.0", check: true, newer: { tag: "v1.3.0", page: "https://github.com/BeMySlaveDarlin/aacpanel/releases/tag/v1.3.0", update: "./install.sh update" } },
@@ -83,6 +85,16 @@ window.done = (async () => {
 
     const order = [".dkttr", ".programs", ".lancert"].map((selector) => [...document.querySelectorAll("*")].indexOf(document.querySelector(selector)));
     const out = { rows, note, order, programs: document.querySelector(".programs")?.textContent, certificate: document.querySelector(".lancert")?.textContent, warning: !!document.querySelector(".lancert .warn") };
+    out.heavy = readHeavy();
+    draw({ ...SNAPSHOT, heavy: emptyHeavyQueue });
+    await quiet();
+    out.heavyEmpty = readHeavy();
+    draw({ ...SNAPSHOT, heavy: null, heavyError: "host read failed" });
+    await quiet();
+    out.heavyError = readHeavy().text;
+    draw({ ...SNAPSHOT, heavy: null });
+    await quiet();
+    out.heavyMissing = !!document.querySelector('[aria-label="Heavy runs"]');
     out.release = {
         newer: await release(SNAPSHOT.panel),
         level: await release({ version: "v1.3.0", check: true }),

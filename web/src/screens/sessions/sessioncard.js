@@ -188,7 +188,7 @@ function modelOf(id) {
 // its place: the mode, where it lives, its cap of the context and whether it
 // restarts at it, Remote Control and a worktree; at the right how full the
 // context is. A card that kept no settings says nothing of its cap.
-function Badges({ mode, place, cap, auto, remote, worktree, ctx, known = true }) {
+function Badges({ mode, place, cap, auto, remote, worktree, ctx, heavyPlace = 0, known = true }) {
     const capped = cap != null && cap > 0 && cap <= 100;
     return html`
         <div class="scl5">
@@ -200,6 +200,7 @@ function Badges({ mode, place, cap, auto, remote, worktree, ctx, known = true })
                 : html`<span class="scb scoff">—</span>`}
             <span class=${`scb${remote ? " scon" : " scoff"}`} title=${remote ? "Remote Control is on: the session is open on claude.ai too" : undefined}>RC</span>
             <span class=${`scb${worktree ? " scon" : " scoff"}`} title=${worktree ? `A worktree of ${worktree}` : undefined}>worktree</span>
+            ${heavyPlace > 0 && html`<span class="scb" title="Heavy run waiting for admission">queued ${heavyPlace}</span>`}
             <span class="scctx">${ctx}</span>
         </div>
     `;
@@ -322,7 +323,7 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
             <${Agent} who=${s} model=${modelOf(s.model)} effort=${s.effort ? effortName(s.effort) : ""}
                       queued=${s.queued || 0} compacts=${s.compacts || 0} time=${time} tone=${timeTone} />
             <${Badges} mode=${s.mode || ""} place=${placeOf(s)} cap=${s.cap} auto=${s.autoRestart} remote=${Boolean(s.remote)}
-                       worktree=${s.checkout || ""} ctx=${s.noRequests ? "—" : `${Math.round(s.pct || 0)}%`} />
+                       worktree=${s.checkout || ""} heavyPlace=${s.heavyPlace || 0} ctx=${s.noRequests ? "—" : `${Math.round(s.pct || 0)}%`} />
             <${Edge} pct=${s.noRequests ? null : s.pct || 0} cap=${s.cap} auto=${s.autoRestart} />
         </div>
     `;

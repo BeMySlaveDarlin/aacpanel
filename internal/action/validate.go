@@ -92,7 +92,7 @@ func (r Request) Validate() error {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
-		case AskKinds, AskTerms, AskSecrets, AskCodexModels:
+		case AskKinds, AskTerms, AskSecrets, AskCodexModels, AskHeavy:
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}

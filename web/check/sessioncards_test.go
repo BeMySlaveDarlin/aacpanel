@@ -73,6 +73,13 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 			t.Errorf("%s: the card of the state is not on the page", state)
 			continue
 		}
+		if state == "working" {
+			if !strings.Contains(c.Line5, "queued 2") {
+				t.Errorf("the waiting heavy run has no card mark: %q", c.Line5)
+			}
+		} else if strings.Contains(c.Line5, "queued") {
+			t.Errorf("a session with no waiting heavy run has a queue mark: %q", c.Line5)
+		}
 		want := []int{1, 1, 1, 1, 1, 1}
 		if state == "quiet" {
 			want = []int{1, 1, 0, 0, 1, 1}

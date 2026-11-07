@@ -52,7 +52,7 @@ const S = (project, o) => ({
     cwd: project.path, project: { id: project.id, name: project.name, session: project.session }, status: "idle", tokens: 100000, ...o,
 });
 const sessions = [
-    S(pj.aacpanel, { session: "aacpanel", status: "busy", checklist: steps(seven, 2), work: { agents: 1, tasks: 0 }, pct: 46 }),
+    S(pj.aacpanel, { session: "aacpanel", status: "busy", checklist: steps(seven, 2), work: { agents: 1, tasks: 0 }, pct: 46, heavyPlace: 2 }),
     S(pj.aacpanel, { session: "aacpanel-cards", status: "waiting", ask: { header: "Layout", text: "Which layout?", count: 1, at: iso(12), toolUseId: "t1" },
         checklist: steps(["Read", "Sketch", "Mock", "Re-layout cards", "Test", "Shoot", "Ship", "Tell", "Close"], 3),
         work: { agents: 2, tasks: 1 }, queued: 2, pct: 66, remote: "https://claude.ai/code/session_x", checkout: "/srv/aacpanel" }),

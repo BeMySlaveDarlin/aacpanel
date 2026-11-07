@@ -10,6 +10,7 @@ import { Certificate } from "./certificate.js";
 import { Programs } from "./programs.js";
 import { PanelRelease } from "./release.js";
 import { Resources } from "./resources.js";
+import { HeavyRuns } from "./heavy.js";
 import { Probes, probeState } from "./probes.js";
 
 function Block({ title, icon, value, unit, brief, fill, kind, open, onToggle, children }) {
@@ -62,6 +63,7 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], ex
                 history=${history} faults=${faults} />
 
             <${Programs} programs=${snapshot && snapshot.programs} exec=${exec} onDone=${onDone} />
+            <${HeavyRuns} queue=${snapshot?.heavy} error=${snapshot?.heavyError} />
             <${PanelRelease} panel=${snapshot && snapshot.panel} />
             <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
 
