@@ -393,6 +393,59 @@ func fakeCodex(t *testing.T, fail bool) (string, string) {
 	return bin, log
 }
 
+func TestCodexDaemonsShareAPrivateTemporaryDirectory(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "cache", "nested")
+	t.Setenv("XDG_CACHE_HOME", cache)
+	inherited := t.TempDir()
+	started := launcherScript(t, `test -d "$TMPDIR" || exit 3
+printf '%%s\n' "$TMPDIR" > %s
+`)
+	t.Setenv("TMPDIR", inherited)
+	tmp := filepath.Join(cache, "codex-tmp")
+	for _, home := range []string{"/home/u/.codex", "/home/u/.codex-work"} {
+		if err := startDaemon(t.Context(), os.Getenv(launcherEnv), home, cache, ""); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.TrimSpace(string(readArgv(t, started))); got != tmp {
+			t.Errorf("the daemon of %s got TMPDIR=%q, want %q", home, got, tmp)
+		}
+		info, err := os.Stat(tmp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !info.IsDir() || info.Mode().Perm() != 0o700 {
+			t.Errorf("the daemon's temporary directory has mode %s, want drwx------", info.Mode())
+		}
+	}
+}
+
+func TestCodexDaemonStartsWithoutAnAvailableCache(t *testing.T) {
+	for _, tc := range []string{"no cache path", "cache cannot be created"} {
+		t.Run(tc, func(t *testing.T) {
+			dir := t.TempDir()
+			inherited := t.TempDir()
+			started := launcherScript(t, `printf '%%s\n' "$TMPDIR" > %s
+`)
+			t.Setenv("TMPDIR", inherited)
+			t.Setenv("HOME", "")
+			t.Setenv("XDG_CACHE_HOME", "")
+			if tc == "cache cannot be created" {
+				cache := filepath.Join(dir, "cache")
+				if err := os.WriteFile(cache, nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("XDG_CACHE_HOME", cache)
+			}
+			if err := startDaemon(t.Context(), os.Getenv(launcherEnv), "/home/u/.codex", dir, ""); err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.TrimSpace(string(readArgv(t, started))); got != inherited {
+				t.Errorf("the daemon got TMPDIR=%q without a cache, want %q", got, inherited)
+			}
+		})
+	}
+}
+
 // A home whose daemon does not run gets one: codex app-server daemon start in
 // a transient unit of its own, with the home named, in the project's
 // directory; the executor waits for its socket and its connection and starts
@@ -413,6 +466,8 @@ func TestNewStartsTheDaemonWhereNoneRuns(t *testing.T) {
 		{"gone with its host", (*codextest.Server).Crash, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			cache := t.TempDir()
+			t.Setenv("XDG_CACHE_HOME", cache)
 			srv, e, p := onCodexContour(t, tc.stop)
 			home := registry.CodexHomes()[0].Dir
 			if _, err := os.Stat(codex.SocketPath(home)); (err == nil) != tc.left {
@@ -440,7 +495,8 @@ func TestNewStartsTheDaemonWhereNoneRuns(t *testing.T) {
 			}
 			args := strings.Split(strings.TrimSpace(string(readArgv(t, unit))), "\n")
 			for _, want := range []string{"--user", "--wait", "--collect", "--property=KillMode=process",
-				"--working-directory=" + p.Path, "--setenv=CODEX_HOME=" + home} {
+				"--working-directory=" + p.Path, "--setenv=CODEX_HOME=" + home,
+				"--setenv=TMPDIR=" + filepath.Join(cache, "codex-tmp")} {
 				if !slices.Contains(args, want) {
 					t.Errorf("systemd-run went without %q: %q", want, args)
 				}

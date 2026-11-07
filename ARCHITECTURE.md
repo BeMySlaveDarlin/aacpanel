@@ -1252,6 +1252,13 @@ answering round alone through `stop_hook_active`.
   the standalone `~/.codex/packages/standalone/current/bin/codex` when present,
   or `codex` from the executor's `PATH`. An update waits for running turns
   before restarting their daemon.
+  New and restarted daemons get `TMPDIR` explicitly from their unit: one
+  `codex-tmp` directory in the user's cache, shared by all Codex homes and
+  created with mode `0700`. Codex puts its sandbox's protected directories in
+  writable roots, including `TMPDIR`, so inheriting the user manager's shared
+  temporary root would leave them among other sessions' files. If the cache
+  cannot be found or the directory created, the daemon keeps the inherited
+  environment and still starts.
 - **The panel owns updates of the standalone Codex installation.** The host's
   Machine page shows both installed agent versions and offers `codex.update`
   and `claude.update`, fixed host actions through the confirmation gate and

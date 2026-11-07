@@ -259,6 +259,15 @@ func daemonArgs(env []string, bin, home, dir, cores string) []string {
 			args = append(args, "--setenv="+kv)
 		}
 	}
+	// Codex puts its sandbox's protected directories inside TMPDIR. Keep
+	// them out of the manager's shared temporary root, but let a daemon
+	// start with the inherited environment when its cache is unavailable.
+	if cache, err := os.UserCacheDir(); err == nil {
+		tmp := filepath.Join(cache, "codex-tmp")
+		if err := os.MkdirAll(tmp, 0o700); err == nil {
+			args = append(args, "--setenv=TMPDIR="+tmp)
+		}
+	}
 	return append(args, "--setenv=CODEX_HOME="+home, "--", bin, "app-server", "daemon", "start")
 }
 
