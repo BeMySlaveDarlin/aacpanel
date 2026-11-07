@@ -2082,7 +2082,12 @@ own under another word, and the two stand side by side.
 reaches the executor on a socket of its own, `aacpanel-observers/sock` in the
 runtime directory, not in the directory mounted into the service's container:
 an observer runs any command, and through the action socket the service would
-run any command too. The server names the session it serves — the conversation
+run any command too. The runtime directory is `$XDG_RUNTIME_DIR`, or the
+user's own `/run/user/<uid>` when the variable is not set: codex starts its MCP
+servers with a short list of variables, without this one, and a server that
+fell back to the temporary directory would dial where the executor does not
+listen. The executor's own socket and the holders of the stream are found by
+the same rule. The server names the session it serves — the conversation
 and the process of its claude, the thread of a codex — and the executor takes
 that only for a live session it finds itself. The start is not allowed without
 asking: it runs a command on the host, and claude asks the person first as it

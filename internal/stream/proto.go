@@ -19,12 +19,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"aacpanel/internal/rundir"
 )
 
 // Protocol is the version of the socket protocol. A holder outlives the
@@ -42,10 +43,7 @@ const dirName = "aacpanel-stream"
 // container, and a holder's socket there would let the service talk to a
 // session past the closed list of actions.
 func Dir() string {
-	if base := os.Getenv("XDG_RUNTIME_DIR"); base != "" {
-		return filepath.Join(base, dirName)
-	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("%s-%d", dirName, os.Getuid()))
+	return rundir.Path(dirName)
 }
 
 // keptDir is where the files that outlive a holder lie: what the transcript

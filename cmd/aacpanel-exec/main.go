@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +25,7 @@ import (
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
+	"aacpanel/internal/rundir"
 	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/statusline"
 	"aacpanel/internal/stream"
@@ -199,10 +199,7 @@ func shortListReason(kinds []action.Kind) string {
 const terminalEnv = "AACP_TERMINAL"
 
 func defaultSocket() string {
-	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-		return filepath.Join(dir, "aacpanel-exec", "sock")
-	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("aacpanel-exec-%d", os.Getuid()), "sock")
+	return rundir.Path("aacpanel-exec", "sock")
 }
 
 // runConsole moves a session on the stream to tmux where the panel is not

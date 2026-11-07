@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"aacpanel/internal/rundir"
 )
 
 // SocketPath is where the executor takes the calls of the panel's server
@@ -19,10 +21,7 @@ import (
 // service's container, and an observer runs a command — the service would run
 // any command through it. Only a session starts an observer.
 func SocketPath() string {
-	if base := os.Getenv("XDG_RUNTIME_DIR"); base != "" {
-		return filepath.Join(base, "aacpanel-observers", "sock")
-	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("aacpanel-observers-%d", os.Getuid()), "sock")
+	return rundir.Path("aacpanel-observers", "sock")
 }
 
 // Ops of the socket.
