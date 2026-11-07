@@ -3,6 +3,8 @@ package hook
 import (
 	"os"
 	"testing"
+
+	"aacpanel/internal/hostcfg"
 )
 
 // A session under a stream holder carries HeldEnv with an empty PIDEnv, and
@@ -11,5 +13,6 @@ import (
 func TestMain(m *testing.M) {
 	os.Unsetenv(HeldEnv)
 	os.Unsetenv(PIDEnv)
+	os.Setenv(hostcfg.PanelEnv, "http://127.0.0.1:1")
 	os.Exit(m.Run())
 }

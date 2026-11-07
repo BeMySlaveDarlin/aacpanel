@@ -74,10 +74,54 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status", "session_answer",
+	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
+	}
+}
+
+func TestReadinessOfBothAgentsCarriesTheBoundConversation(t *testing.T) {
+	var conversations []string
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Kind   string `json:"kind"`
+			Params struct {
+				Conversation string `json:"conversation"`
+				Intent       string `json:"intent"`
+			} `json:"params"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/api/actions" || body.Kind != "session.ready" || body.Params.Intent != "Read the handoff" {
+			t.Errorf("unexpected readiness request: %s %s %+v", r.Method, r.URL.Path, body)
+		}
+		conversations = append(conversations, body.Params.Conversation)
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	}))
+	defer panel.Close()
+	t.Setenv("AACP_PANEL_URL", panel.URL)
+	const conversation = "567f4d24-cd5f-48fa-bdc1-04c89d203494"
+	for _, test := range []struct {
+		server     *mcp.Server
+		meta, want string
+	}{
+		{Server(func() (mcp.Binding, error) { return mcp.Binding{SessionID: conversation}, nil }), "", conversation},
+		{CodexServer(codexCaller), `{"threadId":"` + codexThread + `"}`, codexThread},
+	} {
+		replies := exchange(t, test.server, toolCall(1, "session_ready", `{"intent":"Read the handoff"}`, test.meta))
+		result, _ := replies[1]["result"].(map[string]any)
+		if result == nil || result["isError"] == true || len(conversations) == 0 || conversations[len(conversations)-1] != test.want {
+			t.Fatalf("readiness lost its caller: %v, requests %v", replies, conversations)
+		}
+	}
+	for _, meta := range []string{"", `{"threadId":"another-thread"}`} {
+		replies := exchange(t, CodexServer(codexCaller), toolCall(1, "session_ready", `{}`, meta))
+		result, _ := replies[1]["result"].(map[string]any)
+		if result == nil || result["isError"] != true || len(conversations) != 2 {
+			t.Fatalf("an unproven thread reported readiness: %v, requests %v", replies, conversations)
+		}
 	}
 }
 
@@ -301,7 +345,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close", "crew_status", "session_answer", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)

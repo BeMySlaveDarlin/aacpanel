@@ -64,6 +64,7 @@ type restartSession struct {
 	Limit         float64         `json:"limit"`
 	LimitKnown    *bool           `json:"limitKnown"`
 	Work          json.RawMessage `json:"work"`
+	Pause         *pauseAlarm     `json:"pauseAlarm"`
 }
 
 func (s restartSession) idle() bool {
@@ -76,6 +77,11 @@ type restartStep struct {
 	Kind   action.Kind
 	Text   string
 	Anyway bool
+}
+
+type restartCensus struct {
+	At       int64            `json:"sessionsAt"`
+	Sessions []restartSession `json:"sessions"`
 }
 
 // A snapshot from before readiness cannot prove the tool's turn has ended.
@@ -165,10 +171,7 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	var snap struct {
-		At       int64            `json:"sessionsAt"`
-		Sessions []restartSession `json:"sessions"`
-	}
+	var snap restartCensus
 	if err := json.Unmarshal(raw, &snap); err != nil {
 		return err
 	}
@@ -200,25 +203,13 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 		byID[c.Conversation] = c
 	}
 	for _, row := range snap.Sessions {
-		if _, paused := pauseConversation(pauses, row.SessionID); paused {
-			continue
-		}
-		if row.Agent == schema.AgentCodex || row.Outside || row.SessionID == "" {
-			continue
-		}
-		found, ok := projectAt(list, row.CWD, s.worktreesFor(ctx, list, row.CWD, s.worktrees()), s.db.ProjectRoots())
-		if !ok {
-			continue
-		}
-		launch, err := store.EffectiveLaunch(found.profile.Launch, found.project.Launch)
+		guard, ok, err := s.restartGuard(ctx, row, list, pauses)
 		if err != nil {
 			return err
 		}
-		values, ok := launchOf(launch)
-		if !ok || values["agent"] == schema.AgentCodex {
+		if !ok {
 			continue
 		}
-		guard := guardOf(found.project.Path, schema.Effective(nil, values, nil))
 		c, exists := byID[row.SessionID]
 		if !guard.Restart && !c.Manual {
 			continue
@@ -265,6 +256,87 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 		return nil
 	}
 	return nil
+}
+
+// The cycle and the prompt stamp must agree on which conversations can be
+// restarted: a false promise tells a session to stop work and wait forever.
+func (s *Server) restartGuard(ctx context.Context, row restartSession, list []store.Profile, pauses []store.SessionPause) (action.Guard, bool, error) {
+	if _, paused := pauseConversation(pauses, row.SessionID); paused {
+		return action.Guard{}, false, nil
+	}
+	if row.Outside || row.SessionID == "" || row.Pause != nil || (row.Agent == schema.AgentCodex && row.Transport == "tmux") {
+		return action.Guard{}, false, nil
+	}
+	found, ok := projectAt(list, row.CWD, s.worktreesFor(ctx, list, row.CWD, s.worktrees()), s.db.ProjectRoots())
+	if !ok {
+		return action.Guard{}, false, nil
+	}
+	launch, err := store.EffectiveLaunch(found.profile.Launch, found.project.Launch)
+	if err != nil {
+		return action.Guard{}, false, err
+	}
+	values, ok := launchOf(launch)
+	if !ok || (row.Agent != schema.AgentCodex && values["agent"] == schema.AgentCodex) {
+		return action.Guard{}, false, nil
+	}
+	return guardOf(found.project.Path, schema.Effective(nil, values, nil)), true, nil
+}
+
+func (s *Server) apiRestartPolicy(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil || s.host == nil || s.exec == nil {
+		http.Error(w, "the restart cycle is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	raw, err := s.host.JSON()
+	var snap restartCensus
+	if err == nil {
+		err = json.Unmarshal(raw, &snap)
+	}
+	if err != nil {
+		http.Error(w, "the restart snapshot is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	policy := struct {
+		Automatic bool `json:"automatic"`
+		Cap       int  `json:"cap,omitempty"`
+	}{}
+	if snap.At != 0 && time.Since(time.Unix(snap.At, 0)) <= restartSnapshotAge {
+		for _, row := range snap.Sessions {
+			if row.SessionID == "" || row.SessionID != r.URL.Query().Get("conversation") {
+				continue
+			}
+			list, err := s.db.Profiles(r.Context())
+			if err != nil {
+				historyError(w, err)
+				return
+			}
+			pauses, err := s.sessionPauses(r.Context())
+			if err != nil {
+				historyError(w, err)
+				return
+			}
+			guard, ok, err := s.restartGuard(r.Context(), row, list, pauses)
+			if err != nil {
+				historyError(w, err)
+				return
+			}
+			policy.Cap = guard.Cap
+			policy.Automatic = ok && guard.Restart && row.Pct != nil && row.Limit > 0 && (row.LimitKnown == nil || *row.LimitKnown)
+			cycles, err := s.db.RestartCycles(r.Context())
+			if err != nil {
+				historyError(w, err)
+				return
+			}
+			for _, cycle := range cycles {
+				if cycle.Conversation == row.SessionID && cycle.Done {
+					policy.Automatic = false
+					break
+				}
+			}
+			break
+		}
+	}
+	writeJSON(w, policy)
 }
 
 // The cycle uses the same executor protocol and append-only action journal
@@ -338,8 +410,8 @@ func (s *Server) sessionReady(w http.ResponseWriter, r *http.Request, target str
 		return
 	}
 	live, ok := s.host.LiveSessionOf(ready.Conversation)
-	if !ok || live.Agent == schema.AgentCodex || (target != "" && target != live.Name) {
-		http.Error(w, "readiness needs the live Claude conversation the panel asked", http.StatusConflict)
+	if !ok || (target != "" && target != live.Name) {
+		http.Error(w, "readiness needs the live conversation the panel asked", http.StatusConflict)
 		return
 	}
 	accepted, err := s.db.ReadyRestartCycle(r.Context(), ready.Conversation, ready.Intent, time.Now())

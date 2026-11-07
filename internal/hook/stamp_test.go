@@ -3,6 +3,8 @@ package hook
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"aacpanel/internal/hostcfg"
 )
 
 // stampCases holds the fixture of stamp output. The numbers of the
@@ -106,6 +110,11 @@ func layOver(t *testing.T, snapshot any, set map[string]json.RawMessage) any {
 }
 
 func TestTheSharedCasesOfTheStamp(t *testing.T) {
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"automatic":true}`))
+	}))
+	t.Cleanup(panel.Close)
+	t.Setenv(hostcfg.PanelEnv, panel.URL)
 	c := readStampCases(t)
 	zone := time.FixedZone("", c.Offset)
 	for _, cs := range c.Cases {
@@ -226,6 +235,45 @@ func TestCodexStampUsesTheThreadsAccount(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Fatalf("limits %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStampPromisesARestartOnlyAfterThePanelConfirmsIt(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		status     int
+		want       bool
+		past       bool
+	}{
+		{"confirmed", `{"automatic":true,"cap":80}`, http.StatusOK, true, true},
+		{"changed cap", `{"automatic":true,"cap":90}`, http.StatusOK, true, false},
+		{"excluded", `{"automatic":false}`, http.StatusOK, false, true},
+		{"old service", `{}`, http.StatusOK, false, true},
+		{"unavailable", `{"automatic":true}`, http.StatusServiceUnavailable, false, true},
+		{"malformed", `{`, http.StatusOK, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/api/session/restart-policy" || r.URL.Query().Get("conversation") != "thread" {
+					t.Errorf("unexpected policy request: %s %s", r.Method, r.URL)
+				}
+				w.WriteHeader(tc.status)
+				w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(panel.Close)
+			t.Setenv(hostcfg.PanelEnv, panel.URL)
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			t.Setenv("CLAUDE_PROJECT_DIR", "")
+			state := t.TempDir()
+			t.Setenv(hostcfg.StateDirEnv, state)
+			writeFile(t, filepath.Join(os.Getenv("XDG_STATE_HOME"), "aacpanel", "guards.tsv"), "/srv/proj\t80\t1\n")
+			writeFile(t, filepath.Join(state, "state.json"), `{"sessions":[{"sessionId":"thread","tokens":850000,"limit":1000000,"pct":85}]}`)
+			stamp := stampPrompt("UserPromptSubmit", []byte(`{"session_id":"thread","cwd":"/srv/proj"}`), time.Now()).Context
+			if strings.Contains(stamp, "CONTEXT past the cap") != tc.past || strings.Contains(stamp, "auto restart at") != tc.want ||
+				strings.Contains(stamp, "start no new work") != (tc.want && tc.past) || strings.Contains(stamp, "the panel asks") != (tc.want && tc.past) {
+				t.Fatalf("the stamp promised an unconfirmed restart:\n%s", stamp)
 			}
 		})
 	}

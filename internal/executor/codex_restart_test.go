@@ -183,6 +183,31 @@ func TestACodexRestartRefusesAnotherConversationAndResume(t *testing.T) {
 	}
 }
 
+func TestAForcedCodexContextRestartEndsTheOldTurn(t *testing.T) {
+	srv, e, p := onCodexContour(t)
+	newTmuxStub(t, nil, "")
+	_, name, err := open(t, e, p, `{"agent":"codex","intent":"work"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := e.codex.Find(name)[0]
+	detail, _, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name,
+		Project: p, Conversation: old.ID, AutoRestart: true, Anyway: true, Text: "Read the handoff"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stops := srv.Calls("turn/interrupt")
+	if len(stops) != 1 || paramsOf(t, stops[0])["threadId"] != old.ID || srv.Subscribed(old.ID) || heldMark(t, old.ID) ||
+		len(e.codex.Find(name)) != 0 || !strings.Contains(detail, "the old thread was closed") {
+		t.Fatalf("the forced restart left the old turn alive: %s, interrupts %s", detail, stops)
+	}
+	starts, turns := srv.Calls("thread/start"), srv.Calls("turn/start")
+	if len(starts) != 2 || len(turns) != 2 || !strings.Contains(string(turns[1]), "Read the handoff") ||
+		paramsOf(t, turns[1])["threadId"] == old.ID {
+		t.Fatalf("the forced restart did not start a fresh thread with its handoff: starts %s, turns %s", starts, turns)
+	}
+}
+
 func TestACodexRestartUsesTheMapMessageOrWaits(t *testing.T) {
 	for _, tc := range []struct {
 		name, message string

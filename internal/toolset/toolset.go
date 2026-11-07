@@ -84,6 +84,7 @@ func codexTools() []mcp.Tool {
 		collector.SecretAsk(collector.NotifySocket()),
 		request.Tool(session.Here().Panel),
 		session.CodexRestart(session.Here()),
+		session.Ready(session.Here()),
 		session.CodexClose(session.Here()),
 		session.Crew(session.Here()),
 		session.CodexAnswer(session.Here()),

@@ -26,9 +26,7 @@ import (
 
 // PanelEnv names the address of the panel's local listener, which takes the
 // actions of this machine without a login.
-const PanelEnv = "AACP_PANEL_URL"
-
-const defaultPanel = "http://127.0.0.1:8777"
+const PanelEnv = hostcfg.PanelEnv
 
 // Host is where the tools find the machine: the snapshot the collector writes
 // and the panel's local listener, with the clock the waits are measured by.
@@ -53,11 +51,7 @@ func Here() Host {
 }
 
 func PanelURL() string {
-	panel := os.Getenv(PanelEnv)
-	if panel == "" {
-		panel = defaultPanel
-	}
-	return panel
+	return hostcfg.PanelURL()
 }
 
 // row is a live session as the snapshot has it. Agent is "codex" for a codex

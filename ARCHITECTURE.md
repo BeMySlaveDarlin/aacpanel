@@ -179,7 +179,7 @@ catches up on its own, and a deploy does not leave the host unguarded while the
 database migrates.
 
 **The service coordinates restarts at the context cap.** Every five seconds it
-reads the collector's snapshot. A Claude session in a project with
+reads the collector's snapshot. A Claude session or Codex thread in a project with
 `autoRestart`, with its turn over and no question or permission pending, is
 asked to save once its context reaches the cap minus `guards.RestartMargin`. Background work
 does not delay this command: the command asks the session to update its task
@@ -190,7 +190,14 @@ commands and panel observers. The command and its reminders travel through
 receives a user prompt, and the feed draws a panel card. The session calls
 `session_ready` and ends its turn; it does not call `session_restart` or tell
 the person about the context or restart.
-Codex, sessions outside the map and projects without `autoRestart` are excluded.
+Paused sessions, sessions outside the map and projects without `autoRestart` are excluded.
+Codex receives the command through its daemon's message path, without terminal
+keystrokes, and its `session_ready` call is bound to the calling thread.
+The cycle excludes Codex in tmux, and the prompt stamp promises it no automatic restart.
+The stamp confirms restart eligibility through the service's read-only
+`/api/session/restart-policy` endpoint, which shares the cycle's map, pause and
+transport checks and waits at most 100 ms; without confirmation it only warns
+about the context cap.
 The prompt stamp names the cap itself, never the margin: a session told of the
 margin would stop short of that instead.
 
@@ -203,9 +210,10 @@ look newer just because collection ended later. Wake-ups
 and alarms run nothing and do not hold it. On the stream, the holder's
 `turnOver` also proves idleness when Claude still reports busy for a background
 agent. The service then asks for a fresh
-`session.restart`, naming the conversation; the executor's `runsConversation`
-refuses to close a replacement under the same name. The readiness intent, when
-present, is the first message and wins over the session sheet, project and
+`session.restart`, naming the conversation; the executor checks that the named
+conversation still runs. Codex starts a fresh thread in the same place in the
+tree and transfers its children and their opening records to the replacement.
+The readiness intent, when present, is the first message and wins over the session sheet, project and
 contour. Without it the usual restart message inheritance applies, ending in
 an empty composer when no level names a message.
 The opening message travels in a `panel-message` tag and the feed draws it as a panel card.
@@ -1010,9 +1018,11 @@ replacement. Once the new thread is ready, the old one is marked to close
 after its current turn: the calling model receives the tool's answer and ends
 the turn. The mark survives an executor restart. The poll checks the turn
 itself before unsubscribing, since an idle status can lag behind a turn's
-start, and sends no queued messages into a thread marked to close. The price
-is a new thread ID and lost conversation context; both threads can run until
-the old turn ends, and a turn that never ends holds the close. The old rollout
+start, and sends no queued messages into a thread marked to close. A forced
+context restart instead interrupts and closes the old thread after the
+replacement accepts its first message. The price is a new thread ID and lost
+conversation context; without force both threads can run until the old turn
+ends, and a turn that never ends holds the close. The old rollout
 remains available through `codex resume`.
 
 The opening record is separate from the visual parent and names the parent's

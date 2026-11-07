@@ -22,6 +22,8 @@ const (
 
 	// StateDirEnv is the state directory.
 	StateDirEnv = "AACP_STATE_DIR"
+	// PanelEnv names the panel's local listener for tools and hooks.
+	PanelEnv = "AACP_PANEL_URL"
 
 	// PathEnv is where to look for the description file itself.
 	PathEnv = "AACP_HOSTCFG"
@@ -34,6 +36,13 @@ const (
 
 // DefaultLang is the claude session locale when the machine description does not name one.
 const DefaultLang = "C.UTF-8"
+
+func PanelURL() string {
+	if panel := os.Getenv(PanelEnv); panel != "" {
+		return panel
+	}
+	return "http://127.0.0.1:8777"
+}
 
 // Config is what Go code needs to know about this machine.
 type Config struct {

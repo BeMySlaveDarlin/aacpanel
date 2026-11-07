@@ -46,7 +46,7 @@ func TestAResumedCodexThreadKeepsItsArchivedParent(t *testing.T) {
 // and the letter asking.
 func withTools(config map[string]any) map[string]any {
 	out := map[string]any{"mcp_servers.aacpanel.command": panelTools, "mcp_servers.aacpanel.args": []any{"-mcp"}}
-	for _, tool := range []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_close",
+	for _, tool := range []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_ready", "session_close",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel", "crew_status", "session_answer"} {
 		out["mcp_servers.aacpanel.tools."+tool+".approval_mode"] = "approve"
 	}

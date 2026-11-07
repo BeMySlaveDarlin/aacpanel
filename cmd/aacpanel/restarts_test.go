@@ -162,7 +162,12 @@ func restartSnapshot(t *testing.T, srv *Server, row restartSession, at time.Time
 
 func readyPost(t *testing.T, srv *Server, local bool, intent string) *httptest.ResponseRecorder {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"kind": action.SessionReady, "params": action.Ready{Conversation: switchSID, Intent: intent}})
+	return readyConversationPost(t, srv, local, switchSID, intent)
+}
+
+func readyConversationPost(t *testing.T, srv *Server, local bool, conversation, intent string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"kind": action.SessionReady, "params": action.Ready{Conversation: conversation, Intent: intent}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +265,6 @@ func TestRestartCycleEligibilityPG(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, edit := range []func(*restartSession){
-		func(r *restartSession) { r.Agent = "codex" },
 		func(r *restartSession) { r.CWD += "-outside" },
 		func(r *restartSession) { r.Status = "busy" },
 		func(r *restartSession) { r.Waiting = "input needed" },

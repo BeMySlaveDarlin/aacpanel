@@ -2,12 +2,15 @@ package hook
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -54,6 +57,16 @@ func stampPrompt(_ string, payload []byte, now time.Time) Reply {
 	g := capOf(fields)
 	dir := hostcfg.Load().StateDir
 	state := readState(filepath.Join(dir, "state.json"))
+	if g.Restart {
+		g.Restart = false
+		if sessionOf(state, id) != nil {
+			cap, automatic := panelRestartPolicy(id)
+			g.Restart = automatic
+			if cap > 0 {
+				g.Cap = cap
+			}
+		}
+	}
 	limits := lineLimits(state, os.Getenv("CLAUDE_CONFIG_DIR"))
 	if home, codex := codexHome(state, fields); codex {
 		limits = lineCodexLimits(state, home)
@@ -70,6 +83,35 @@ func stampPrompt(_ string, payload []byte, now time.Time) Reply {
 	}
 	sweepStamps(dir, float64(now.Unix()-stampKeep))
 	return Reply{Context: strings.Join(lines, "\n")}
+}
+
+// Directory guards cannot know a session's transport, map membership or
+// pause. Only the service can confirm its cycle will handle this conversation;
+// an unavailable service leaves a warning, never an instruction to stop work.
+func panelRestartPolicy(id string) (int, bool) {
+	if id == "" {
+		return 0, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		strings.TrimRight(hostcfg.PanelURL(), "/")+"/api/session/restart-policy?conversation="+url.QueryEscape(id), nil)
+	if err != nil {
+		return 0, false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, false
+	}
+	defer resp.Body.Close()
+	var policy struct {
+		Automatic bool `json:"automatic"`
+		Cap       int  `json:"cap"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&policy) != nil {
+		return 0, false
+	}
+	return policy.Cap, policy.Automatic
 }
 
 // lineRole is the role of the session, said once a conversation and again

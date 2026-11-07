@@ -120,10 +120,18 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	if err != nil {
 		warns = append(warns, "the children's opening records were not all transferred: "+err.Error())
 	}
-	if err := th.Link.CloseAfterTurn(th.ID); err != nil {
+	closing := "the old thread closes after this turn"
+	if req.Anyway {
+		// The context cycle has already allowed a full grace after its
+		// reminder; waiting for this turn again would leave it stuck forever.
+		if _, err := th.Link.Close(ctx, th.ID); err != nil {
+			return "", ownership, fmt.Errorf("replacement %s started, but session %s could not be closed: %w", name, th.Name, err)
+		}
+		closing = "the old thread was closed"
+	} else if err := th.Link.CloseAfterTurn(th.ID); err != nil {
 		return "", ownership, fmt.Errorf("replacement %s started, but session %s could not be scheduled to close: %w", name, th.Name, err)
 	}
-	detail := fmt.Sprintf("session %s replaced by %s in %s; the old thread closes after this turn", th.Name, name, begin.CWD)
+	detail := fmt.Sprintf("session %s replaced by %s in %s; %s", th.Name, name, begin.CWD, closing)
 	for _, w := range warns {
 		detail += "; WARNING: " + w
 	}
