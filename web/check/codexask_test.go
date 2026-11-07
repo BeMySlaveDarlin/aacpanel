@@ -21,9 +21,10 @@ type sentAction struct {
 func TestACodexRoundIsAnsweredByItsProtocolInTmux(t *testing.T) {
 	var got struct {
 		Round struct {
-			Label  string `json:"label"`
-			Own    bool   `json:"own"`
-			Drop   bool   `json:"drop"`
+			Prose  questionProseSeen `json:"prose"`
+			Label  string            `json:"label"`
+			Own    bool              `json:"own"`
+			Drop   bool              `json:"drop"`
 			Second struct {
 				Tag     string `json:"tag"`
 				Type    string `json:"type"`
@@ -38,6 +39,7 @@ func TestACodexRoundIsAnsweredByItsProtocolInTmux(t *testing.T) {
 	}
 	runFixture(t, "codexask.html", &got)
 	r := got.Round
+	checkQuestionProse(t, r.Prose)
 
 	if r.Label != "Clock · codex asks" {
 		t.Errorf("the question is headed %q: the card does not say codex asks", r.Label)
@@ -121,32 +123,34 @@ func TestACodexQuestionOffersOnlyWhatCodexTakes(t *testing.T) {
 func TestACodexFormIsFilledAndDeclined(t *testing.T) {
 	var got struct {
 		Form struct {
-			Label    string       `json:"label"`
-			Message  string       `json:"message"`
-			Notes    int          `json:"notes"`
-			Drop     bool         `json:"drop"`
-			Own      bool         `json:"own"`
-			Fields   []string     `json:"fields"`
-			Required []string     `json:"required"`
-			Inputs   []string     `json:"inputs"`
-			Select   int          `json:"select"`
-			Segments int          `json:"segments"`
-			Switches int          `json:"switches"`
-			HeldBack bool         `json:"heldBack"`
-			Held     string       `json:"held"`
-			Free     bool         `json:"free"`
-			After    string       `json:"after"`
-			Sent     []sentAction `json:"sent"`
-			Decline  []sentAction `json:"decline"`
+			Prose    questionProseSeen `json:"prose"`
+			Label    string            `json:"label"`
+			Message  string            `json:"message"`
+			Notes    int               `json:"notes"`
+			Drop     bool              `json:"drop"`
+			Own      bool              `json:"own"`
+			Fields   []string          `json:"fields"`
+			Required []string          `json:"required"`
+			Inputs   []string          `json:"inputs"`
+			Select   int               `json:"select"`
+			Segments int               `json:"segments"`
+			Switches int               `json:"switches"`
+			HeldBack bool              `json:"heldBack"`
+			Held     string            `json:"held"`
+			Free     bool              `json:"free"`
+			After    string            `json:"after"`
+			Sent     []sentAction      `json:"sent"`
+			Decline  []sentAction      `json:"decline"`
 		} `json:"form"`
 	}
 	runFixture(t, "codexask.html", &got)
 	f := got.Form
+	checkQuestionProse(t, f.Prose)
 
 	if f.Label != "linear · MCP server asks" {
 		t.Errorf("the form is headed %q: it does not name the server", f.Label)
 	}
-	if f.Message != "Create an issue for the flaky test?" {
+	if !strings.HasPrefix(f.Message, "Create an issue for the flaky test?") {
 		t.Errorf("the words of the server read %q", f.Message)
 	}
 	if f.Notes != 0 || f.Drop || f.Own {

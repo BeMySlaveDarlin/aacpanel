@@ -45,6 +45,13 @@
     font-size: var(--t-lg); font-weight: 600; line-height: 1.35; letter-spacing: -.01em;
     text-wrap: pretty;
 }
+/* Permission tools and the answer review keep their short heading style. */
+.asktext.msg {
+    font-family: inherit;
+    font-size: var(--t-base); font-weight: 400; line-height: 1.55; letter-spacing: normal;
+    color: inherit;
+}
+.asktext.msg > :last-child { margin-bottom: 0; }
 .askhint { margin: .3rem 0 0; color: var(--ink-faint); font-size: var(--t-xs); }
 
 .askopts { display: flex; flex-direction: column; gap: .35rem; margin-top: .7rem; }

@@ -11,15 +11,17 @@ import (
 // the panel together with it.
 func TestAStreamQuestionOpensWhatATerminalCannot(t *testing.T) {
 	var got struct {
-		Own  bool `json:"own"`
-		Drop bool `json:"drop"`
-		Note bool `json:"note"`
-		Sent []struct {
+		Prose questionProseSeen `json:"prose"`
+		Own   bool              `json:"own"`
+		Drop  bool              `json:"drop"`
+		Note  bool              `json:"note"`
+		Sent  []struct {
 			Kind   string         `json:"kind"`
 			Params map[string]any `json:"params"`
 		} `json:"sent"`
 	}
 	runFixture(t, "askstream.html", &got)
+	checkQuestionProse(t, got.Prose)
 
 	if !got.Own {
 		t.Error("the free answer is shut for a stream session: the limit of a terminal dialog was carried over")

@@ -771,6 +771,11 @@ permission shows the tool's whole input rather than what fits a screen. A note
 sent to a terminal session is refused with the answer: its dialog has no field
 for one, and an answer that silently lost it would say less than the person did.
 
+The question's prose uses the feed's Markdown renderer for Claude, Codex and
+MCP forms. An inline plan becomes a list only when consecutive `1)` and `2)`
+items follow a colon, period or semicolon; code and isolated numbers stay as
+written. Permission tool names and the answer review keep their short headings.
+
 **A message waiting in the queue of a stream session can be taken back**
 (`session.unqueue`). The panel names each message it sends there, the holder
 passes the name on, and taking back is claude's own request to drop a queued

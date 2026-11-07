@@ -7,6 +7,7 @@ import { knows, whyNot } from "../exec.js";
 import { Sheet } from "../ui/sheet.js";
 import { Icon } from "../ui/icons.js";
 import { asyncAnswer, asyncPutAway } from "./chat/panelsaid.js";
+import { AskText } from "./asktext.js";
 
 const OWN_MAX = 4000;
 
@@ -300,7 +301,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
                         ${!stepped && many > 1 && html`
                             <span class="asklabel">${questions[n].header || "question"}</span>
                         `}
-                        <p class="asktext">${questions[n].text}</p>
+                        <${AskText} text=${questions[n].text} />
                         ${questions[n].multi && html`<p class="askhint">several can be picked</p>`}
                         ${free(n) ? html`
                             <${Words}
@@ -650,7 +651,7 @@ function Form({ ask, name, exec, onAnswered }) {
                 <span class="asklabel">${ask.server ? `${ask.server} · MCP server asks` : "An MCP server asks"}</span>
                 ${!ready && html`<span class="askwhy">${why}</span>`}
             </div>
-            <p class="asktext">${ask.message || "Fill in the form"}</p>
+            <${AskText} text=${ask.message || "Fill in the form"} />
 
             ${fields.map((q, n) => html`
                 <${FormField}

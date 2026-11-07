@@ -20,6 +20,7 @@ import { Ask } from "/src/screens/ask.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { questionProse, readQuestion } from "/check/fixtures/asktext.js";
 
 const plan = {
     sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b",
@@ -27,7 +28,7 @@ const plan = {
     cwd: "/srv/shop",
     questions: [
         {
-            id: "clock", header: "Clock", text: "Where should the cart get the time from?", multi: false, other: true,
+            id: "clock", header: "Clock", text: `Where should the cart get the time from?\n\n${questionProse}`, multi: false, other: true,
             options: [
                 { label: "A Clock interface", description: "inject it into the cart; tests pass a fixed clock" },
                 { label: "now as an argument", description: "each request reads the clock once and passes it down" },
@@ -50,7 +51,7 @@ const form = {
     sessionId: plan.sessionId,
     toolUseId: "elicit-7",
     server: "linear",
-    message: "Create an issue for the flaky test?",
+    message: `Create an issue for the flaky test?\n\n${questionProse}`,
     questions: [
         { id: "title", header: "title", text: "Title", multi: false, options: [], other: true, required: true },
         { id: "key", header: "key", text: "API key — kept by the server", multi: false, options: [], other: true, secret: true },
@@ -120,7 +121,7 @@ async function round() {
                               onBack=${() => {}} onUsage=${() => {}} />`), root);
     if (!await until(() => sheet() && sheet().querySelector(".askopt .askpick"))) throw new Error("the round did not show");
     await settled();
-    const out = { label: text(sheet().querySelector(".askhead .asklabel")) };
+    const out = { label: text(sheet().querySelector(".askhead .asklabel")), prose: readQuestion(sheet()) };
     const own = sheet().querySelector(".askown .askpick");
     out.own = Boolean(own && !own.disabled);
     const drop = sheet().querySelector(".askdrop");
@@ -210,6 +211,7 @@ async function filled() {
     const out = {
         label: text(s.querySelector(".askhead .asklabel")),
         message: text(s.querySelector(".asktext")),
+        prose: readQuestion(s),
         notes: s.querySelectorAll(".asknote").length,
         drop: Boolean(s.querySelector(".askdrop")),
         own: Boolean(s.querySelector(".askown")),

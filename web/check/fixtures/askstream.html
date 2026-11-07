@@ -15,13 +15,16 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { questionProse, readQuestion } from "/check/fixtures/asktext.js";
+
+const preview = location.hash.slice(1);
 
 const ask = {
     sessionId: "s1",
     toolUseId: "toolu_ask_s",
     cwd: "/srv/proj",
     questions: [{
-        text: "Where does the menu go on a phone?",
+        text: preview === "short" ? "Where does the menu go on a phone?" : questionProse,
         header: "Menu",
         multi: false,
         options: [
@@ -64,7 +67,8 @@ window.done = (async () => {
     await quiet();
     const own = document.querySelector(".askown .askpick");
     const drop = document.querySelector(".askdrop");
-    const result = { own: Boolean(own && !own.disabled), drop: Boolean(drop && !drop.disabled) };
+    const result = { own: Boolean(own && !own.disabled), drop: Boolean(drop && !drop.disabled), prose: readQuestion(document) };
+    if (preview === "short" || preview === "long") return result;
     document.querySelectorAll(".askopts .askopt:not(.askown) .askpick")[1].click();
     await quiet();
     const note = document.querySelector(".asknote");
