@@ -94,6 +94,23 @@ func TestContourLimitsFollowContourNumber(t *testing.T) {
 	}
 }
 
+func TestLimitThresholdsMatchWindowUsage(t *testing.T) {
+	calls := [][]any{}
+	for _, pct := range []float64{59, 60, 84, 85} {
+		calls = append(calls, []any{map[string]any{
+			"profileMap": []any{map[string]any{"id": 4, "profile": "acme", "groups": []any{}}},
+			"limits":     map[string]any{"contours": []any{map[string]any{"profile": "acme", "contour": 4, "ageSec": 30, "fiveHour": map[string]any{"pct": pct}}}},
+		}})
+	}
+	got := runSessionsJS(t, "limits.js", "openLimits", calls)
+	for i, want := range []string{"ok", "warn", "warn", "crit"} {
+		row, _ := got[i].(map[string]any)
+		if row["tone"] != want {
+			t.Errorf("threshold %d: %v, want %s", i, got[i], want)
+		}
+	}
+}
+
 func TestNewSessionPickerUsesOneMappedListAndOmitsTheLiveHome(t *testing.T) {
 	entry := map[string]any{"groups": []any{
 		map[string]any{"name": "Services", "projects": []any{map[string]any{"id": 7, "name": "shop", "path": "/srv/shop"}}},

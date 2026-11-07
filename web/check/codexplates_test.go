@@ -7,14 +7,15 @@ import (
 
 func TestThePhoneContourPageShowsCodexsWeekBesideClaudesLimits(t *testing.T) {
 	type ring struct {
-		Agent, Word, Window, Label, Title, Tone string
-		Old                                     bool
+		Agent, Word, Window, Percent, Label, Title, Tone string
+		Old                                              bool
 	}
 	var got struct {
 		Pages []struct {
-			Name  string
-			Rings []ring
-			Notes []string
+			Name    string
+			Rings   []ring
+			Notes   []string
+			Vendors []string
 		}
 	}
 	runFixture(t, "codexplates.html", &got)
@@ -29,10 +30,16 @@ func TestThePhoneContourPageShowsCodexsWeekBesideClaudesLimits(t *testing.T) {
 		}
 	}
 	acme := got.Pages[0]
+	if strings.Join(acme.Vendors, "|") != "claude|codex" {
+		t.Errorf("vendor frames: %v", acme.Vendors)
+	}
 	if len(acme.Rings) != 3 || acme.Rings[0].Window != "3h/5h" || acme.Rings[1].Window != "4d/7d" || acme.Rings[2].Window != "2d/7d" || acme.Rings[2].Agent != "codex" || !strings.Contains(acme.Rings[2].Label, "38%") {
 		t.Fatalf("Acme rings: %+v", acme)
 	}
 	personal := got.Pages[1]
+	if strings.Join(personal.Vendors, "|") != "claude" {
+		t.Errorf("Claude-only frame: %v", personal.Vendors)
+	}
 	if len(personal.Rings) != 2 || personal.Rings[0].Window != "2h/5h" || personal.Rings[1].Word != "claude" {
 		t.Errorf("Claude-only contour: %+v", personal)
 	}

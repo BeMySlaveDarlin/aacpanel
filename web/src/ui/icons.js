@@ -43,6 +43,7 @@ export const Icon = {
 
     command: () => html`<svg ...${stroke}><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" /></svg>`,
     list: () => html`<svg ...${stroke}><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></svg>`,
+    checklist: () => html`<svg ...${stroke}><path d="m3.6 6.5 1.6 1.6 2.9-3M3.6 12.5l1.6 1.6 2.9-3M3.6 18.5l1.6 1.6 2.9-3M11.6 7h8.6M11.6 13h8.6M11.6 19h5.6" /></svg>`,
 
     // A workflow: one call that fans out into agents working side by side and
     // gathers them back into one result.

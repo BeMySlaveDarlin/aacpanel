@@ -19,6 +19,7 @@ func TestThePhoneListKeepsItsPlaceAcrossAConversation(t *testing.T) {
 		ScrollTop int    `json:"scrollTop"`
 		Card      int    `json:"card"`
 		Toolbar   bool   `json:"toolbar"`
+		Tucked    bool   `json:"tucked"`
 	}
 	type trip struct {
 		Label    string `json:"label"`
@@ -39,13 +40,13 @@ func TestThePhoneListKeepsItsPlaceAcrossAConversation(t *testing.T) {
 			t.Fatalf("%s: the conversation opened %v, the list came back %v, the history let go of the conversation %v",
 				name, r.Opened, r.Returned, r.Settled)
 		}
-		if r.Left.ScrollTop < 300 || !r.Left.Toolbar {
+		if r.Left.ScrollTop < 300 || !r.Left.Toolbar || !r.Left.Tucked {
 			t.Fatalf("%s: the list was not scrolled past its limits before the conversation: %+v", name, r.Left)
 		}
 		if r.Back.Scroller != r.Left.Scroller {
 			t.Errorf("%s: the list scrolled in %q and came back in %q", name, r.Left.Scroller, r.Back.Scroller)
 		}
-		if r.Back.ScrollTop != r.Left.ScrollTop || r.Back.Card != r.Left.Card || r.Back.Toolbar != r.Left.Toolbar {
+		if r.Back.ScrollTop != r.Left.ScrollTop || r.Back.Card != r.Left.Card || r.Back.Toolbar != r.Left.Toolbar || r.Back.Tucked != r.Left.Tucked {
 			t.Errorf("%s: %s stood %d px down the list scrolled to %d, and came back to %+v", name, r.Label, r.Left.Card, r.Left.ScrollTop, r.Back)
 		}
 	}

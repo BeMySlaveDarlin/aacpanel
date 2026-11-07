@@ -182,8 +182,8 @@
    15px, and the body reads at --t-base. Pixels: 11 · 12.5 · 14 · 15 · 17 · 19 · 23 · 30.
    --t-k shrinks the steps where a part of the screen reads smaller than the
    rest: the scale is drawn again on that part, and again on its buttons,
-   which keep the panel's size. A session card is such a part on a phone. */
-:root, .sc, .sc :is(button, a) {
+   which keep the panel's size. Session cards and reset captions use this smaller scale. */
+:root, .sc, .sc :is(button, a), .limit-window {
     --t-xs: calc(.74rem * var(--t-k, 1));
     --t-sm: calc(.84rem * var(--t-k, 1));
     --t-md: calc(.92rem * var(--t-k, 1));

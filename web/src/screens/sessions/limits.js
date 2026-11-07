@@ -1,6 +1,6 @@
 // The subscription limits on a profile page.
 
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { share } from "../../format.js";
@@ -69,10 +69,13 @@ export function openLimits(snapshot) {
     };
 }
 
-// The compact row stays at one height while the list scrolls. Folding it
-// would hide its controls or change the target under the person's finger.
+// Full groups carry their vendor on the frame. Past the row, the compact
+// readings keep that meaning in their accessible labels and leave the actions
+// available without taking the list's room for the full rings.
 export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot, exec, onTasks, onSettings }) {
     const [newSession, setNewSession] = useState(false);
+    const box = useRef(null);
+    const { tucked, stuck } = useTucked(box, profile);
     const c = contourOf(limits, profile, contour);
     const codex = c && c.codex;
     const claudeOld = Boolean(c) && staleLimits(c);
@@ -81,20 +84,24 @@ export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot
         c && (c.fiveHour || c.sevenDay) && claudeOld && `claude's numbers are from ${agoText(c.ageSec)}: they are renewed when a claude session of the contour answers`,
         codexOld && `codex's numbers are from ${agoText(codex.ageSec)}: they are renewed every five minutes while the codex daemon of the contour runs`,
     ].filter(Boolean);
+    const group = (agent, old, windows) => ({ agent, old, windows: windows.filter((window) => window.data) });
+    const groups = [
+        c && group("claude", stale || claudeOld, [
+            { span: "5h", full: "Claude, 5 hours", data: c.fiveHour },
+            { span: "7d", full: "Claude, 7 days", data: c.sevenDay },
+        ]),
+        codex && group("codex", stale || codexOld, [{ span: "7d", full: "Codex, 7 days", data: codex.sevenDay }]),
+    ].filter((group) => group && group.windows.length > 0);
     return html`
-        <div class="pflimits">
+        <div class=${`pflimits${tucked ? " tucked" : ""}${stuck ? " stuck" : ""}`} ref=${box}>
             <div class="pflimitrow" role="group" aria-label="Contour limits and actions">
-                ${c && html`
-                    <${LimitRing} agent="claude" span="5h" full="Claude, 5 hours" data=${c.fiveHour} old=${stale || claudeOld} />
-                    <${LimitRing} agent="claude" span="7d" full="Claude, 7 days" data=${c.sevenDay} old=${stale || claudeOld} />
-                    <${LimitRing} agent="codex" span="7d" full="Codex, 7 days" data=${codex && codex.sevenDay} old=${stale || codexOld} />
-                `}
-                <div class="pfactions">
-                    <button class="pfaction" type="button" aria-label="Tasks" disabled=${!contour}
-                            onClick=${onTasks}>${Icon.plan()}</button>
-                    <button class="pfaction" type="button" aria-label="Profile" disabled=${!contour}
-                            onClick=${() => onSettings(contour)}>${Icon.cube()}</button>
-                    <button class="pfaction" type="button" aria-label="New session" disabled=${!entry}
+                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group} tucked=${tucked} />`)}
+                <div class="pfactions" role="group" aria-label=${`${profile} actions`}>
+                    <button class="pfaction" type="button" aria-label="Tasks" title="Tasks" disabled=${!contour}
+                            onClick=${onTasks}>${Icon.checklist()}</button>
+                    <button class="pfaction" type="button" aria-label="Profile" title="Profile" disabled=${!contour}
+                            onClick=${() => onSettings(contour)}>${Icon.badge()}</button>
+                    <button class="pfaction" type="button" aria-label="New session" title="New session" disabled=${!entry}
                             onClick=${() => setNewSession(true)}>${Icon.plus()}</button>
                 </div>
             </div>
@@ -120,17 +127,64 @@ function ringLeft(resetsAt) {
     return `${Math.max(1, Math.round(left / 60000))}m`;
 }
 
-function LimitRing({ agent, span, full, data, old }) {
-    if (!data) return null;
+function LimitGroup({ group, tucked }) {
+    const windows = group.windows.map((window) => html`<${LimitWindow} ...${window} key=${window.span} agent=${group.agent} old=${group.old} tucked=${tucked} />`);
+    if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent}>${windows}</div>`;
+    return html`<fieldset class="limit-group" data-agent=${group.agent}>
+        <legend><span class="agentword" data-agent=${group.agent}>${group.agent}</span></legend>
+        <div class="limit-windows">${windows}</div>
+    </fieldset>`;
+}
+
+function LimitWindow({ agent, span, full, data, old, tucked }) {
+    const value = Math.max(0, Number(data.pct) || 0);
+    const pct = Math.min(100, value);
+    const whole = value < 100 ? Math.min(99, Math.round(value)) : Math.round(value);
     const label = [full, share(data.pct), resetText(data.resetsAt), old && "last known numbers"].filter(Boolean).join(", ");
-    return html`
-        <div class=${`limit-ring ${limitClass(data.pct)}${old ? " old" : ""}`} data-agent=${agent} role="img" aria-label=${label} title=${label}>
-            <span class="agentword" data-agent=${agent}>${agent}</span>
-            <span class="limit-dial" style=${`--share:${Math.max(0, Math.min(100, data.pct || 0))}`}>
-                <span>${ringLeft(data.resetsAt)}${data.resetsAt ? "/" : ""}${span}</span>
+    const reading = html`<span class="limit-percent">${whole}<small>%</small></span>`;
+    return html`<div class=${`limit-reading ${tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old ? " old" : ""}`}
+                    data-agent=${agent} role="img" aria-label=${label} title=${label} style=${`--share:${pct}`}>
+        ${tucked ? html`
+            ${reading}
+            <span class="limit-minitrack" aria-hidden="true"></span>
+        ` : html`
+            <span class="limit-gauge" aria-hidden="true"></span>
+            <span class="limit-dial">
+                ${reading}
+                <span class="limit-window">${ringLeft(data.resetsAt)}${data.resetsAt ? "/" : ""}${span}</span>
             </span>
-        </div>
-    `;
+        `}
+        ${old && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
+    </div>`;
+}
+
+const folded = new Map();
+
+// Hysteresis keeps shrinking the row from opening it again through scroll
+// anchoring. A restored list starts folded as it was left, before its first
+// paint can move the card the person came back to.
+function useTucked(ref, profile) {
+    const [state, setState] = useState(() => ({ tucked: folded.get(profile) || false, stuck: folded.get(profile) || false }));
+    useEffect(() => {
+        const el = ref.current;
+        const list = el && el.closest(".pfpage, .body");
+        if (!list) return undefined;
+        let now = folded.get(profile) || false;
+        let stuck = now;
+        const onScroll = () => {
+            const scrolled = list.scrollTop > 0;
+            const next = scrolled && (now || el.getBoundingClientRect().bottom <= list.getBoundingClientRect().top);
+            if (next === now && scrolled === stuck) return;
+            now = next;
+            stuck = scrolled;
+            folded.set(profile, next);
+            setState({ tucked: next, stuck: scrolled });
+        };
+        list.addEventListener("scroll", onScroll, { passive: true });
+        onScroll();
+        return () => list.removeEventListener("scroll", onScroll);
+    }, [profile]);
+    return state;
 }
 
 // What codex has not told, or has run into, in the same words wherever its

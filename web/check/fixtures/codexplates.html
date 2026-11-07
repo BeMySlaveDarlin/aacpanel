@@ -83,14 +83,16 @@ window.done = (async () => {
         name: profileMap[i].profile,
         rings: [...page.querySelectorAll(".limit-ring")].map((ring) => ({
             agent: ring.dataset.agent,
-            word: text(ring.querySelector(".agentword")),
-            window: text(ring.querySelector(".limit-dial")),
+            word: text(ring.closest(".limit-group").querySelector(".agentword")),
+            percent: text(ring.querySelector(".limit-percent")),
+            window: text(ring.querySelector(".limit-window")),
             label: ring.getAttribute("aria-label"),
             title: ring.title,
             tone: ring.className,
             old: ring.classList.contains("old"),
         })),
         notes: [...page.querySelectorAll(".limits-note")].map(text),
+        vendors: [...page.querySelectorAll(".limit-group legend .agentword")].map(text),
     })) };
 })();
 </script>

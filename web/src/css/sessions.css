@@ -185,48 +185,61 @@
     padding-bottom: 2.6rem;
 }
 
-/* The compact toolbar keeps its height and its touch targets while scrolling. */
-.pflimits {
-    display: flex;
-    flex-direction: column;
-    gap: .25rem;
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    padding: .2rem 0 .45rem;
-    background: var(--chips-bg);
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
+/* The full row scrolls away before its compact readings take over. */
+.pflimits { display: flex; flex-direction: column; gap: .3rem; padding: .3rem 0 .55rem; background: none; }
+.pflimits.stuck {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--void) 80%, transparent), color-mix(in srgb, var(--void) 60%, transparent));
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: inset 0 calc(-1 * var(--hair)) 0 var(--line);
 }
-.pflimitrow { display: flex; align-items: flex-end; gap: .35rem; }
-.limit-ring { display: flex; flex: none; flex-direction: column; align-items: center; gap: .15rem; color: var(--accent); }
-.limit-ring[data-agent="codex"] { color: var(--agent-codex); }
-.limit-ring.warn { color: var(--warn); }
-.limit-ring.crit { color: var(--crit); }
-.limit-ring.old { opacity: .45; }
-.limit-ring .agentword { font-size: var(--t-xs); }
-.limit-dial {
-    width: 3rem;
-    height: 3rem;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
+.pflimits.tucked { position: sticky; top: 0; z-index: 3; padding: 2px 0 3px; }
+.pflimits.tucked .limits-note.calm { display: none; }
+.pflimitrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.limit-group { flex: none; min-inline-size: 0; margin: 0; padding: 1px 6px 6px; border: var(--hair) solid var(--edge); border-radius: 13px; background: var(--glass); }
+.limit-group legend { margin-left: 3px; padding: 0 4px; font-size: var(--t-xs); line-height: 1; }
+.limit-windows { display: flex; gap: 6px; }
+.limit-reading { position: relative; flex: none; color: var(--ok); }
+.limit-reading.warn { color: var(--warn); }
+.limit-reading.crit { color: var(--crit); }
+.limit-ring { display: grid; place-items: center; width: 52px; height: 52px; }
+.limit-gauge { position: absolute; inset: 0; border-radius: 50%; }
+.limit-gauge::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
     background: conic-gradient(currentColor calc(var(--share) * 1%), var(--line) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.6px), #000 calc(100% - 3.2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3.6px), #000 calc(100% - 3.2px));
 }
-.limit-dial > span {
-    display: grid;
-    place-items: center;
-    width: calc(100% - 5px);
-    height: calc(100% - 5px);
-    border-radius: 50%;
-    background: var(--deep);
-    color: var(--ink-dim);
-    font-size: var(--t-xs);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+.limit-reading.crit .limit-gauge, .limit-reading.crit .limit-minitrack { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--crit) 75%, transparent)); }
+.limit-dial { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; line-height: 1; }
+.limit-percent { font-size: var(--t-base); font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.limit-percent small { margin-left: 1px; font-size: .62em; font-weight: 600; color: var(--ink-faint); }
+.limit-reading.crit .limit-percent { color: var(--crit); }
+.limit-reading.crit .limit-percent small { color: inherit; opacity: .7; }
+.limit-window { --t-k: .8; font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); letter-spacing: -.03em; }
+.limit-ring.old .limit-gauge, .limit-ring.old .limit-dial { opacity: .45; }
+.limit-ring.old .limit-gauge::before {
+    background: conic-gradient(currentColor calc(var(--share) * 1%), transparent 0),
+        repeating-conic-gradient(var(--line) 0 5deg, transparent 5deg 10deg);
 }
-.pfactions { display: flex; align-items: center; gap: .1rem; margin-left: auto; padding-bottom: .2rem; }
-.pfaction { display: grid; place-items: center; min-width: 40px; min-height: 40px; padding: .5rem; border: 0; background: none; color: var(--ink-dim); border-radius: var(--r-small); }
+.limit-old { position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; background: var(--deep); color: var(--ink-dim); box-shadow: 0 0 0 1px var(--line); }
+.limit-old svg { width: var(--i-sm); height: var(--i-sm); }
+.limit-group.compact { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; border-radius: 0; background: none; }
+.limit-group.compact + .limit-group.compact { padding-left: 10px; border-left: var(--hair) solid var(--line); }
+.limit-mini { display: flex; flex-direction: column; gap: 3px; min-width: 33px; }
+.limit-mini .limit-percent { font-size: var(--t-sm); line-height: 1; }
+.limit-minitrack { display: block; height: 3px; border-radius: 2px; background: linear-gradient(90deg, currentColor calc(var(--share) * 1%), var(--line) 0); }
+.limit-mini.old .limit-percent, .limit-mini.old .limit-minitrack { opacity: .45; }
+.limit-mini.old .limit-minitrack {
+    background: linear-gradient(90deg, currentColor calc(var(--share) * 1%), transparent 0),
+        repeating-linear-gradient(90deg, var(--line) 0 2px, transparent 2px 4px);
+}
+.limit-mini .limit-old { top: -7px; right: -7px; }
+.pfactions { display: flex; flex: none; align-items: center; gap: 4px; }
+.pfaction { display: grid; flex: none; place-items: center; width: 44px; height: 44px; padding: 8px; border: var(--hair) solid var(--edge); border-radius: var(--r-card); background: var(--glass); box-shadow: var(--gloss), var(--hairline); color: var(--ink-dim); }
 .pfaction svg { width: var(--i-md); height: var(--i-md); }
 .pfaction:active { background: var(--accent-bg); color: var(--accent); }
 .newgroup { padding: .65rem .2rem .35rem; font-size: var(--t-sm); font-weight: 600; color: var(--ink-faint); }

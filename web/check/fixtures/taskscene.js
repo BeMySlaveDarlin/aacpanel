@@ -2,6 +2,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sessions } from "/src/screens/sessions.js";
+import { ProfileLimits } from "/src/screens/sessions/limits.js";
 import { Nav } from "/src/ui/nav.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -98,7 +99,11 @@ export async function contourScene(root, hash) {
     mount();
     await until(() => document.querySelectorAll(".limit-ring").length === 3);
     if (hash) {
-        if (hash !== "limits") {
+        if (hash.startsWith("limits")) {
+            if (hash === "limits-stale" || hash === "limits-stale-tucked") { mount(true); await quiet(); }
+            if (hash === "limits-tucked" || hash === "limits-stale-tucked") await tuckToolbar();
+            if (hash === "limits-claude" || hash === "limits-codex") await vendorScene(root, hash.slice(7), false);
+        } else {
             await click('.pfpage .pfaction[aria-label="Tasks"]');
             await until(() => document.querySelector(".tqscreen") && !text(document.querySelector(".tqscreen")).includes("Loading tasks"));
             if (hash === "task") await click(".tqrow");
@@ -108,8 +113,12 @@ export async function contourScene(root, hash) {
         return { screenshot: hash };
     }
     const out = {};
-    out.rings = [...document.querySelectorAll(".limit-ring")].map((r) => ({ vendor: text(r.querySelector(".agentword")), window: text(r.querySelector(".limit-dial")), label: r.getAttribute("aria-label"), tone: r.className }));
+    out.rings = [...document.querySelectorAll(".limit-ring")].map((r) => ({ vendor: r.dataset.agent, window: text(r.querySelector(".limit-window")), percent: text(r.querySelector(".limit-percent")), label: r.getAttribute("aria-label"), tone: r.className }));
     out.actions = [...document.querySelector(".pflimitrow").querySelectorAll(".pfaction")].map((b) => b.getAttribute("aria-label"));
+    out.full = readToolbar();
+    out.folding = await scrollScene(root);
+    mount();
+    await until(() => document.querySelectorAll(".limit-ring").length === 3);
     await click('.pfpage .pfaction[aria-label="New session"]');
     await until(() => sheet("New session"));
     out.projects = [...sheet("New session").querySelectorAll(".newproject")].map(text);
@@ -118,7 +127,7 @@ export async function contourScene(root, hash) {
     out.beforeConfirm = sent.length;
     await click('.sheet.on[aria-label="action confirmation"] .btn.primary');
     await until(() => sent.length === 1 && !sheet("action confirmation"));
-    out.sent = sent;
+    out.sent = [...sent];
     await click('.pfpage .pfaction[aria-label="Profile"]');
     await until(() => document.querySelector(".phead h2")?.textContent === "Acme" && document.querySelector(".pzwhere .pzcard"));
     out.profile = requests.includes("/api/profiles");
@@ -182,7 +191,145 @@ export async function contourScene(root, hash) {
     out.emptyBack = Boolean(document.querySelector(".pflimitrow"));
     mount(true);
     await quiet();
+    await moveToolbar(0);
     out.staleRings = document.querySelectorAll(".limit-ring.old").length;
     out.staleNote = text(document.querySelector(".limits-note"));
+    out.staleFull = readToolbar();
+    await tuckToolbar();
+    out.staleFold = readToolbar();
+    await foldedActions(out, mount);
+    out.singleVendor = [];
+    for (const vendor of ["claude", "codex"]) out.singleVendor.push(await vendorScene(root, vendor));
     return out;
+}
+
+
+const pageOfRow = () => document.querySelector(".pfpage") || document.querySelector(".body");
+const rowBox = () => pageOfRow()?.querySelector(".pflimits");
+
+function readToolbar() {
+    const box = rowBox();
+    return {
+        tucked: box.classList.contains("tucked"),
+        stuck: box.classList.contains("stuck"),
+        words: text(box.querySelector(".pflimitrow")),
+        vendors: [...box.querySelectorAll(".agentword")].map(text),
+        frames: [...box.querySelectorAll("fieldset.limit-group")].map((frame) => ({ vendor: text(frame.querySelector("legend")), windows: frame.querySelectorAll(".limit-reading").length })),
+        readings: [...box.querySelectorAll(".limit-reading")].map((reading) => ({
+            vendor: reading.dataset.agent, percent: text(reading.querySelector(".limit-percent")),
+            label: reading.getAttribute("aria-label"), title: reading.title, tone: reading.className,
+            old: reading.classList.contains("old"), clock: Boolean(reading.querySelector(".limit-old")),
+            gauge: Boolean(reading.querySelector(".limit-gauge")), share: reading.style.getPropertyValue("--share"), bar: Boolean(reading.querySelector(".limit-minitrack")),
+        })),
+        actions: [...box.querySelectorAll(".pfaction")].map((button) => ({
+            label: button.getAttribute("aria-label"), title: button.title, words: text(button),
+            available: !button.disabled && button.getClientRects().length > 0 && getComputedStyle(button).visibility !== "hidden",
+            icon: Boolean(button.querySelector("svg")), framedByVendor: Boolean(button.closest("fieldset")),
+        })),
+    };
+}
+
+async function moveToolbar(y) {
+    pageOfRow().scrollTop = y;
+    // The fold can change scroll anchoring on the next frame. Read only once
+    // the scroll and that correction have both had their turn.
+    for (let i = 0; i < 6; i += 1) await new Promise(requestAnimationFrame);
+    await quiet();
+    return readToolbar();
+}
+
+async function tuckToolbar() {
+    const page = pageOfRow();
+    const content = page.querySelector(".pfcol") || page;
+    // A scene drawn into the same main keeps the room an earlier scene added,
+    // and preact leaves it before the new row: it goes back to the end, under
+    // the row it makes room to scroll past.
+    let room = content.querySelector("[data-limit-scroll-room]");
+    if (!room) {
+        room = document.createElement("div");
+        room.dataset.limitScrollRoom = "";
+        room.setAttribute("aria-hidden", "true");
+        room.style.cssText = "height:100vh;flex:none";
+    }
+    content.append(room);
+    await moveToolbar(0);
+    const edge = rowBox().getBoundingClientRect().bottom - page.getBoundingClientRect().top;
+    await moveToolbar(edge + 40);
+    await until(() => rowBox().classList.contains("tucked"));
+}
+
+// This census exercises the contour pager separately from registry actions.
+// Its windows and conversations also cover a reset with a fractional share.
+async function scrollScene(root) {
+    const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 + 1800 });
+    const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }, { id: 3, profile: "personal", name: "personal", groups: [] }];
+    const limits = { contours: [
+        { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(99.5, 1), sevenDay: part(88, 132),
+          codex: { at: now - 30, ageSec: 30, codexHome: "/home/u/.codex", windows: [], sevenDay: part(44, 132) } },
+        { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2), sevenDay: part(24, 100) },
+    ] };
+    const run = (session, contour) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream",
+        pct: 12, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
+    const sessions = Array.from({ length: 14 }, (_, i) => run(`shop${i}`, 4)).concat([run("notes", 3)]);
+    render(h(ToastHost, null, h(GateHost, null, html`
+        <main class="body"><${Sessions} key="scroll" snapshot=${{ at: 1, sessions, profileMap, limits }} error=${null} ageSec=${1}
+            exec=${{ available: true, kinds: ["session.send"] }} wait=${wait} faults=${[]} onLayer=${() => {}} /></main>
+        <${Nav} current="sessions" onSelect=${() => {}} home=${null} />
+    `)), root);
+    await until(() => document.querySelectorAll(".pfpage .pflimits .limit-ring").length >= 3);
+    await document.fonts.ready;
+    await moveToolbar(0);
+    const edge = Math.round(rowBox().getBoundingClientRect().bottom - pageOfRow().getBoundingClientRect().top);
+    const stops = [];
+    for (const y of [0, edge - 1, edge + 40, 1, 0]) stops.push(await moveToolbar(y));
+    return stops;
+}
+
+async function vendorScene(root, vendor, fold = true) {
+    const name = `${vendor} only`;
+    const own = vendor === "claude"
+        ? { ageSec: 30, fiveHour: windowOf(59, 1), sevenDay: windowOf(60, 100) }
+        : { codex: { ageSec: 4000, sevenDay: windowOf(85, 100) } };
+    const limits = { contours: [{ profile: name, contour: 71, ...own }] };
+    render(h(ToastHost, null, h(GateHost, null, html`<main class="body">
+        <${ProfileLimits} key=${vendor} profile=${name} contour=${71} limits=${limits} stale=${false}
+            entry=${profiles[0]} snapshot=${snapshot} exec=${exec} onTasks=${() => {}} onSettings=${() => {}} />
+    </main>`)), root);
+    await quiet();
+    await moveToolbar(0);
+    const full = readToolbar();
+    if (!fold) return { vendor, full };
+    await tuckToolbar();
+    return { vendor, full, folded: readToolbar() };
+}
+
+
+async function foldedActions(out, mount) {
+    mode = "list";
+    mount();
+    await quiet();
+    await tuckToolbar();
+    out.tuckedNew = readToolbar();
+    const before = sent.length;
+    await click('.pfpage .pfaction[aria-label="New session"]');
+    await until(() => sheet("New session"));
+    await click('.sheet.on[aria-label="New session"] .newproject');
+    await until(() => sheet("action confirmation"));
+    out.foldedBeforeConfirm = sent.length - before;
+    await click('.sheet.on[aria-label="action confirmation"] .btn.primary');
+    await until(() => sent.length === before + 1 && !sheet("action confirmation"));
+    out.foldedSent = sent.slice(before);
+    await tuckToolbar();
+    out.tuckedProfile = readToolbar();
+    await click('.pfpage .pfaction[aria-label="Profile"]');
+    await until(() => document.querySelector(".phead h2")?.textContent === "Acme" && document.querySelector(".pzwhere .pzcard"));
+    out.foldedProfile = true;
+    await click(".pback");
+    await until(() => document.querySelector(".pflimitrow"));
+    await tuckToolbar();
+    out.tuckedTasks = readToolbar();
+    await click('.pfpage .pfaction[aria-label="Tasks"]');
+    await until(() => document.querySelector(".tqrow"));
+    out.foldedTasks = Boolean(document.querySelector(".tqscreen"));
+    await back(() => !document.querySelector(".tqscreen"));
 }
