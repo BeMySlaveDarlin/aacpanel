@@ -285,3 +285,24 @@ func TestTaskQueriesAndPeriodPG(t *testing.T) {
 		t.Fatalf("handoff source lost: %v", source)
 	}
 }
+
+func TestTaskImportRefreshesDerivedIssueKeysWithoutChangingSourcePG(t *testing.T) {
+	s, root := profileStore(t)
+	_, p := taskProject(t, s, root, "derived")
+	sample := taskSample(t)
+	if _, err := s.ImportTasks(t.Context(), p.ID, p.Path, sample); err != nil {
+		t.Fatal(err)
+	}
+	pool, _ := s.Pool()
+	if _, err := pool.Exec(t.Context(), `UPDATE project_tasks SET external_refs='{}' WHERE project_id=$1 AND number=1`, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.ImportTasks(t.Context(), p.ID, p.Path, sample)
+	if err != nil || result.Changed != 1 {
+		t.Fatalf("derived refresh: %+v %v", result, err)
+	}
+	task, err := s.Task(t.Context(), p.ID, 1)
+	if err != nil || !reflect.DeepEqual(task.Task.ExternalRefs, []string{"LMS-42"}) || task.Task.LastEventAt == nil || task.Task.LastActor != "editor" {
+		t.Fatalf("derived facts: %+v %v", task, err)
+	}
+}

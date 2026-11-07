@@ -247,7 +247,7 @@ class Index:
         at = seconds(seen.get("lastAt"))
         return mtime if at is None else at
 
-    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None, under=None):
+    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None, under=None, conversations=None):
         """Returns a page of the archive for the named profiles, the freshest first.
 
         With a directory, only the conversations that ran in it or below it: the
@@ -263,6 +263,10 @@ class Index:
         limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
         offset = max(0, int(offset or 0))
         skip = set(skip or ())
+        wanted_ids = set(conversations or ())
+        def wanted_id(sid):
+            return not wanted_ids or sid in wanted_ids or any(
+                len(prefix) >= 8 and sid.startswith(prefix) for prefix in wanted_ids)
 
         wanted = [p for p in (profiles or ()) if p] or ([profile] if profile else [])
         picked = resolve_profiles(wanted)
@@ -273,6 +277,8 @@ class Index:
         # touched, its file, and the thread of codex it is, None for claude's.
         files = []
         for thread in codex_archive.threads({_named(p) for p in wanted}, under, skip):
+            if not wanted_id(thread["id"]):
+                continue
             at = thread["updatedMs"] / 1000
             files.append((at, at, thread["rollout"], 0, thread["contour"], thread))
         for contour, root in picked:
@@ -289,6 +295,8 @@ class Index:
                 if st.st_size < 2:
                     continue
                 sid = name[:-len(".jsonl")]
+                if not wanted_id(sid):
+                    continue
                 if own and not self.ran_under(path, st.st_size, st.st_mtime, contour, under, own):
                     continue
                 files.append((self.when(sid, path, st.st_size, st.st_mtime),

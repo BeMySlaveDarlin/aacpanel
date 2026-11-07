@@ -37,7 +37,9 @@ const taskJoins = ` FROM project_tasks t JOIN profile_projects p ON p.id=t.proje
 	JOIN profile_groups g ON g.id=p.group_id JOIN profiles c ON c.id=g.profile_id `
 const taskColumns = `t.project_id,p.name,c.id,c.name,t.number,t.title,t.status,t.priority,t.position,t.tags,t.blocked_by,
 	t.external,t.external_refs,t.external_url,t.created_at,t.updated_at,t.closed_at,t.created_by,t.closed_by,t.touched_by,t.session,
-	t.body,t.markdown,t.source_json,t.imported_at,t.deleted_at`
+	t.body,t.markdown,t.source_json,t.imported_at,t.deleted_at,
+	(SELECT max(e.at) FROM task_events e WHERE e.project_id=t.project_id AND e.task_number=t.number),
+	COALESCE((SELECT e.actor FROM task_events e WHERE e.project_id=t.project_id AND e.task_number=t.number ORDER BY e.at DESC,e.id DESC LIMIT 1),'')`
 
 func taskWhere(f TaskFilter) (string, []any, error) {
 	parts := []string{"true"}
@@ -92,8 +94,9 @@ func scanTask(row pgx.CollectableRow) (taskreg.Task, error) {
 	var t taskreg.Task
 	err := row.Scan(&t.ProjectID, &t.Project, &t.ContourID, &t.Contour, &t.Number, &t.Title, &t.Status, &t.Priority, &t.Order, &t.Tags, &t.BlockedBy,
 		&t.External, &t.ExternalRefs, &t.ExternalURL, &t.CreatedAt, &t.UpdatedAt, &t.ClosedAt, &t.CreatedBy, &t.ClosedBy, &t.TouchedBy, &t.Session,
-		&t.Body, &t.Markdown, &t.Source, &t.ImportedAt, &t.DeletedAt)
-	taskTimesUTC(t.CreatedAt, t.UpdatedAt, t.ClosedAt, &t.ImportedAt, t.DeletedAt)
+		&t.Body, &t.Markdown, &t.Source, &t.ImportedAt, &t.DeletedAt, &t.LastEventAt, &t.LastActor)
+	taskTimesUTC(t.CreatedAt, t.UpdatedAt, t.ClosedAt, &t.ImportedAt, t.DeletedAt, t.LastEventAt)
+	taskreg.Enrich(&t, nil, time.Now())
 	return t, err
 }
 

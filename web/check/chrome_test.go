@@ -226,7 +226,13 @@ func servePage(chrome, fixture string, page []byte, screen, pointer string, serv
 	// its storage is there for the next one.
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
+	// The launch schema is service configuration, not fixture data. Screens
+	// read its real definition unless a test supplies its own model traits.
+	handlers := schemaAnswer(map[string]any{})
 	for pattern, h := range serve {
+		handlers[pattern] = h
+	}
+	for pattern, h := range handlers {
 		mux.Handle(pattern, h)
 	}
 	mux.HandleFunc("/fixture.html", func(w http.ResponseWriter, r *http.Request) {

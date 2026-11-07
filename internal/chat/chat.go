@@ -692,6 +692,8 @@ type ArchiveReq struct {
 	// Under keeps only the conversations that ran in a directory or below it:
 	// the archive of one project.
 	Under string `json:"under,omitempty"`
+
+	Conversations []string `json:"conversations,omitempty"`
 }
 
 // ImageRef says where to find an attachment: a block of a record, a picture

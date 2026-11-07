@@ -70,7 +70,7 @@ async function trip(snapshot, by) {
     const card = [...list().querySelectorAll(".sc .scopen")].sort((a, b) => away(a) - away(b))[0];
     const label = card.getAttribute("aria-label");
     const left = { scroller: scroller.className, scrollTop: Math.round(scroller.scrollTop), card: offset(card),
-        tucked: Boolean(document.querySelector(".pflimits.tucked")) };
+        toolbar: Boolean(document.querySelector(".pflimitrow")) };
     card.click();
     const back = () => document.querySelector('.pback[aria-label="to sessions"]');
     const opened = await until(() => back() && !document.querySelector(".sc"));
@@ -87,7 +87,7 @@ async function trip(snapshot, by) {
     await frames(6);
     const again = list();
     const out = { label, left, opened, returned, settled, back: { scroller: again.className, scrollTop: Math.round(again.scrollTop),
-        card: cardOf(label) ? offset(cardOf(label)) : -1, tucked: Boolean(document.querySelector(".pflimits.tucked")) } };
+        card: cardOf(label) ? offset(cardOf(label)) : -1, toolbar: Boolean(document.querySelector(".pflimitrow")) } };
     render(null, root);
     return out;
 }

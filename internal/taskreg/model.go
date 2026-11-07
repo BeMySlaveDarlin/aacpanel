@@ -33,32 +33,37 @@ type Snapshot struct {
 }
 
 type Task struct {
-	ProjectID    int             `json:"projectId"`
-	Project      string          `json:"project"`
-	ContourID    int             `json:"contourId"`
-	Contour      string          `json:"contour"`
-	Number       int64           `json:"number"`
-	Title        string          `json:"title"`
-	Status       string          `json:"status"`
-	Priority     string          `json:"priority"`
-	Order        *float64        `json:"order"`
-	Tags         []string        `json:"tags"`
-	BlockedBy    []int64         `json:"blockedBy"`
-	External     json.RawMessage `json:"external"`
-	ExternalRefs []string        `json:"externalRefs"`
-	ExternalURL  string          `json:"externalUrl"`
-	CreatedAt    *time.Time      `json:"createdAt"`
-	UpdatedAt    *time.Time      `json:"updatedAt"`
-	ClosedAt     *time.Time      `json:"closedAt"`
-	CreatedBy    string          `json:"createdBy"`
-	ClosedBy     string          `json:"closedBy"`
-	TouchedBy    []string        `json:"touchedBy"`
-	Session      string          `json:"session"`
-	Body         json.RawMessage `json:"body"`
-	Markdown     string          `json:"markdown"`
-	Source       json.RawMessage `json:"source"`
-	ImportedAt   time.Time       `json:"importedAt"`
-	DeletedAt    *time.Time      `json:"deletedAt"`
+	ProjectID     int             `json:"projectId"`
+	Project       string          `json:"project"`
+	ContourID     int             `json:"contourId"`
+	Contour       string          `json:"contour"`
+	Number        int64           `json:"number"`
+	Title         string          `json:"title"`
+	Status        string          `json:"status"`
+	Priority      string          `json:"priority"`
+	Order         *float64        `json:"order"`
+	Tags          []string        `json:"tags"`
+	BlockedBy     []int64         `json:"blockedBy"`
+	External      json.RawMessage `json:"external"`
+	ExternalRefs  []string        `json:"externalRefs"`
+	ExternalURL   string          `json:"externalUrl"`
+	CreatedAt     *time.Time      `json:"createdAt"`
+	UpdatedAt     *time.Time      `json:"updatedAt"`
+	ClosedAt      *time.Time      `json:"closedAt"`
+	CreatedBy     string          `json:"createdBy"`
+	ClosedBy      string          `json:"closedBy"`
+	TouchedBy     []string        `json:"touchedBy"`
+	Session       string          `json:"session"`
+	Body          json.RawMessage `json:"body"`
+	Markdown      string          `json:"markdown"`
+	Source        json.RawMessage `json:"source"`
+	ImportedAt    time.Time       `json:"importedAt"`
+	DeletedAt     *time.Time      `json:"deletedAt"`
+	LastEventAt   *time.Time      `json:"lastEventAt"`
+	LastActor     string          `json:"lastActor"`
+	LastActorName string          `json:"lastActorName"`
+	InWork        bool            `json:"inWork"`
+	People        []Person        `json:"people"`
 }
 
 type Event struct {
@@ -67,6 +72,7 @@ type Event struct {
 	At        time.Time       `json:"at"`
 	Precision string          `json:"precision"`
 	Actor     string          `json:"actor"`
+	ActorName string          `json:"actorName"`
 	Origin    string          `json:"origin"`
 	Payload   json.RawMessage `json:"payload"`
 }
@@ -151,7 +157,7 @@ func ParseTask(raw string) (Task, error) {
 		Jira string `json:"jira"`
 	}
 	_ = json.Unmarshal(d.Refs, &refs)
-	t.ExternalRefs, t.ExternalURL = external(d.Title+" "+refs.Jira, t.External)
+	t.ExternalRefs, t.ExternalURL = external(strings.Join(append([]string{d.Title, refs.Jira}, d.Tags...), " "), t.External)
 	return t, nil
 }
 
@@ -172,7 +178,6 @@ func Date(s string) (*time.Time, string, error) {
 	return nil, "", fmt.Errorf("the source date is neither an ISO date nor an RFC3339 timestamp")
 }
 
-var issueRef = regexp.MustCompile(`\b[A-Z][A-Z0-9]*-[0-9]+\b`)
 var webURL = regexp.MustCompile(`https?://[^\s<>"\x60]+`)
 
 func external(title string, raw json.RawMessage) ([]string, string) {
@@ -195,10 +200,7 @@ func external(title string, raw json.RawMessage) ([]string, string) {
 			}
 		}
 	}
-	refs := issueRef.FindAllString(text, -1)
-	sort.Strings(refs)
-	refs = slices.Compact(refs)
-	return append([]string{}, refs...), strings.TrimRight(webURL.FindString(text), ".,;)")
+	return IssueNumbers(text), strings.TrimRight(webURL.FindString(text), ".,;)")
 }
 
 var sections = []string{"description", "context", "precondition", "plan", "verify", "measure", "result", "notes", "files"}

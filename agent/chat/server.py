@@ -171,6 +171,10 @@ def _answer(request):
 
     want_archive = request.get("archive")
     if isinstance(want_archive, dict):
+        conversations = want_archive.get("conversations")
+        if conversations is not None and (not isinstance(conversations, list) or len(conversations) > 2000
+                or any(not isinstance(s, str) or not s or len(s) > 128 for s in conversations)):
+            return {"ok": False, "error": "the archive accepts at most 2000 conversation ids"}
         try:
             page = archive_index().page(
                 limit=want_archive.get("limit"),
@@ -180,6 +184,7 @@ def _answer(request):
                 profiles=[p for p in (want_archive.get("profiles") or ())
                           if isinstance(p, str) and p],
                 under=want_archive.get("under") if isinstance(want_archive.get("under"), str) else None,
+                conversations=conversations,
             )
         except OSError as e:
             return {"ok": False, "error": f"the archive was not read: {e}"}

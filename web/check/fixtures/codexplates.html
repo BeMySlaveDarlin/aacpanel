@@ -53,7 +53,7 @@ const limits = { contours: [
       codex: codex(4000, { sevenDay: part(92, 102), reached: "rate_limit" }) },
     { profile: "initech", contour: 7, ageSec: 30, fiveHour: { pct: 99.5, resetsAt: now - 60 }, sevenDay: part(64, 0),
       codex: codex(30, { plan: "plus" }) },
-    { profile: "hooli", contour: 8, ageSec: 30, sevenDay: part(10, 118), codex: codex(30, { sevenDay: part(72, 85) }) },
+    { profile: "hooli", contour: 8, ageSec: 30, sevenDay: { pct: 10 }, codex: codex(30, { sevenDay: part(72, 85) }) },
 ] };
 const run = (session, contour) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream",
     pct: 12, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
@@ -78,36 +78,19 @@ const until = async (ok) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 window.done = (async () => {
-    if (!await until(() => document.querySelectorAll(".pfpage .pflimits").length === profileMap.length)) {
-        throw new Error("the contour pages did not show their limits");
-    }
-    const out = { pages: [] };
-    Array.from(document.querySelectorAll(".pfpage")).forEach((page, i) => {
-        const box = page.querySelector(".pflimits");
-        out.pages.push({
-            name: profileMap[i].profile,
-            stale: box.classList.contains("stale"),
-            plates: Array.from(box.querySelectorAll(".limit")).map((l) => {
-                const word = l.querySelector(".agentword");
-                const fill = l.querySelector(".fill");
-                const rows = l.querySelectorAll(":scope > .lrow");
-                const foot = rows.length > 1 ? rows[rows.length - 1] : null;
-                return {
-                    value: text(l.querySelector(".lval")),
-                    span: text(foot ? foot.querySelector(".lname") : null),
-                    sub: text(l.querySelector(".lsub")),
-                    agent: l.dataset.agent || "",
-                    word: text(word),
-                    wordAgent: word ? word.dataset.agent || "" : "",
-                    share: fill ? fill.style.width : "",
-                    old: l.parentElement.classList.contains("pfold"),
-                    title: l.title,
-                };
-            }),
-            notes: Array.from(box.querySelectorAll(".limits-note")).map(text),
-            none: text(box.querySelector(".limitnone")),
-        });
-    });
-    return out;
+    if (!await until(() => document.querySelectorAll(".pfpage .pflimits").length === profileMap.length)) throw new Error("the contour pages did not show their limits");
+    return { pages: [...document.querySelectorAll(".pfpage")].map((page, i) => ({
+        name: profileMap[i].profile,
+        rings: [...page.querySelectorAll(".limit-ring")].map((ring) => ({
+            agent: ring.dataset.agent,
+            word: text(ring.querySelector(".agentword")),
+            window: text(ring.querySelector(".limit-dial")),
+            label: ring.getAttribute("aria-label"),
+            title: ring.title,
+            tone: ring.className,
+            old: ring.classList.contains("old"),
+        })),
+        notes: [...page.querySelectorAll(".limits-note")].map(text),
+    })) };
 })();
 </script>

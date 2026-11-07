@@ -94,6 +94,24 @@ func TestContourLimitsFollowContourNumber(t *testing.T) {
 	}
 }
 
+func TestNewSessionPickerUsesOneMappedListAndOmitsTheLiveHome(t *testing.T) {
+	entry := map[string]any{"groups": []any{
+		map[string]any{"name": "Services", "projects": []any{map[string]any{"id": 7, "name": "shop", "path": "/srv/shop"}}},
+		map[string]any{"name": "Personal", "projects": []any{map[string]any{"id": 6, "name": "home", "path": "/home/u"}}},
+	}}
+	snapshot := map[string]any{"host": map[string]any{"home": "/home/u"}, "profileMap": []any{entry}, "sessions": []any{map[string]any{"home": true}}}
+	got := runSessionsJS(t, "new.js", "newSessionGroups", [][]any{{entry, snapshot}, {entry, map[string]any{}}})
+	live, _ := got[0].([]any)
+	idle, _ := got[1].([]any)
+	if len(live) != 1 || len(idle) != 2 {
+		t.Fatalf("home project filtering: live %v, idle %v", got[0], got[1])
+	}
+	group, _ := live[0].(map[string]any)
+	if group["name"] != "Services" {
+		t.Fatalf("the remaining mapped group: %v", group)
+	}
+}
+
 func TestSessionsStayOnTheirContourPage(t *testing.T) {
 	profiles := []any{
 		map[string]any{"id": 1, "profile": "mine", "groups": []any{}},

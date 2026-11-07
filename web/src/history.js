@@ -29,7 +29,7 @@ export function bucketText(resolution, stepSec) {
     return `${name}, step ${Math.round(stepSec / 3600)} h`;
 }
 
-function useEndpoint(url, what) {
+export function useEndpoint(url, what) {
     const [state, setState] = useState({ kind: "loading" });
 
     useEffect(() => {
@@ -52,7 +52,8 @@ function useEndpoint(url, what) {
                     setState({ kind: "failed", error: await text(response) });
                     return;
                 }
-                setState({ kind: "ready", data: await response.json() });
+                const data = await response.json();
+                if (alive) setState({ kind: "ready", data });
             })
             .catch(() => {
                 if (alive) setState({ kind: "failed", error: "the network is unavailable" });

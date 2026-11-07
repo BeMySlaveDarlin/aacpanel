@@ -17,6 +17,7 @@ import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
 import { pagesOf, Project } from "./sessions/map.js";
+import { Tasks } from "./tasks.js";
 
 // sessionChips reports that the sessions tab has no chips.
 export function sessionChips() {
@@ -51,6 +52,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
 
     const [past, setPast] = useState(false);
     const [settings, setSettings] = useState(0);
+    const [tasks, setTasks] = useState(null);
 
     const [shown, setShown] = useState([]);
 
@@ -100,6 +102,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
     }
 
     if (settings) return html`<${ContourDoor} id=${settings} onClose=${() => setSettings(0)} />`;
+    if (tasks) return html`<${Tasks} contour=${tasks.id} name=${tasks.profile} onClose=${() => setTasks(null)} />`;
 
     // A project opened from the archive comes back to the archive: the project
     // is looked at before it.
@@ -174,6 +177,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
                     stale=${stale}
                     sessions=${profiles.length > 0 ? byPage.get(name) || [] : sessions}
                     everyone=${sessions}
+                    snapshot=${snapshot}
                     opening=${profiles.length > 0 ? ghosts.get(name) || [] : wait.opening()}
                     recent=${name === profile ? recent : []}
                     notes=${notes.own}
@@ -184,6 +188,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
                     onChat=${openChat}
                     onPast=${() => setPast(true)}
                     onSettings=${setSettings}
+                    onTasks=${setTasks}
                 />
             `}
         />
@@ -233,12 +238,13 @@ function useKeptScroll(name) {
     return ref;
 }
 
-function Page({ name, profile, limits, stale, sessions, everyone, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
+function Page({ name, profile, limits, stale, sessions, everyone, snapshot, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings, onTasks }) {
     const keep = useKeptScroll(name);
     const blocks = blocksOf({ profile, sessions, recent, opening, wait, limits });
     const toProject = (project, group) => onProject({ ...project, profile: name, contour: profile ? profile.id : 0, group });
     return html`
-        <${ProfileLimits} limits=${limits} profile=${name} contour=${profile ? profile.id : 0} stale=${stale} />
+        <${ProfileLimits} limits=${limits} profile=${name} contour=${profile ? profile.id : 0} stale=${stale}
+                          entry=${profile} snapshot=${snapshot} exec=${exec} onTasks=${() => onTasks(profile)} onSettings=${onSettings} />
         ${blocks.length === 0
             ? !blind && html`<p class="empty">There are no live sessions.</p>`
             : SECTIONS.map((section) => {

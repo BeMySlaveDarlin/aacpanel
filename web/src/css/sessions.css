@@ -185,74 +185,53 @@
     padding-bottom: 2.6rem;
 }
 
+/* The compact toolbar keeps its height and its touch targets while scrolling. */
 .pflimits {
     display: flex;
     flex-direction: column;
-    gap: .3rem;
-}
-
-.pflimits.none {
-    padding: .45rem .6rem;
-    box-shadow: inset 0 0 0 var(--hair) var(--edge);
-    border-radius: var(--r-card);
-}
-
-.limitnone { font-size: var(--t-xs); color: var(--ink-faint); }
-
-/* Codex's week beside claude's two windows is the third of three equal
-   columns in their row, so its bar is read on their scale and the page gives
-   it no row of its own. Every window reads alike: the word of its agent and
-   the share over the bar, the window and the time to its reset under it,
-   which a third of the narrowest phone holds; the window carries it all in
-   its title. Codex's window alone is as wide as one of claude's, and the
-   line of an account that told no week, with no bar to compare, takes the
-   row, where it reads in one piece; beside claude's it is short and stands
-   where their last lines do. An account with no five-hour window has its
-   week beside codex's, two equal columns. */
-.pflimits .pfcodex > .limit { flex: 0 1 calc(50% - .25rem); }
-.pflimits .pfcodex > .limit.lempty { flex: 1; }
-.pflimits.pfthree, .pflimits.pftwo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .5rem; }
-.pflimits.pftwo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.pflimits.pfthree > .pfclaude { grid-column: span 2; }
-:is(.pflimits.pfthree, .pflimits.pftwo) > .limits-note { grid-column: 1 / -1; }
-:is(.pflimits.pfthree, .pflimits.pftwo) .limit { flex: 1; min-width: 0; }
-:is(.pflimits.pfthree, .pflimits.pftwo) .limit.lempty { justify-content: space-between; }
-.pflimits .pfold { opacity: .45; }
-
-/* Scrolled past, the limits fold and stay over the list on a band of their
-   own: a plate is one line, the word of its agent, the window and the share,
-   with the bar along its bottom edge. The time to the reset, the line of a
-   week not told and the notes on the age of the numbers wait for the top of
-   the list, where the plates open again; the dimmed plates say meanwhile
-   that the numbers are old. The band is opaque, so a block that is old
-   dims its plates rather than itself. */
-.pflimits.tucked {
+    gap: .25rem;
     position: sticky;
     top: 0;
     z-index: 3;
-    padding-bottom: .3rem;
+    padding: .2rem 0 .45rem;
     background: var(--chips-bg);
     backdrop-filter: blur(16px) saturate(140%);
     -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
-.pflimits.tucked.stale { opacity: 1; }
-.pflimits.tucked.stale > * { opacity: .45; }
-.pflimits.tucked .limit {
-    position: relative;
-    overflow: hidden;
+.pflimitrow { display: flex; align-items: flex-end; gap: .35rem; }
+.limit-ring { display: flex; flex: none; flex-direction: column; align-items: center; gap: .15rem; color: var(--accent); }
+.limit-ring[data-agent="codex"] { color: var(--agent-codex); }
+.limit-ring.warn { color: var(--warn); }
+.limit-ring.crit { color: var(--crit); }
+.limit-ring.old { opacity: .45; }
+.limit-ring .agentword { font-size: var(--t-xs); }
+.limit-dial {
+    width: 3rem;
+    height: 3rem;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: baseline;
-    column-gap: .25rem;
-    padding: .2rem .4rem .3rem;
+    place-items: center;
+    border-radius: 50%;
+    background: conic-gradient(currentColor calc(var(--share) * 1%), var(--line) 0);
 }
-.pflimits.tucked .lrow { display: contents; }
-.pflimits.tucked .lrow ~ .lrow > .lname { grid-area: 1 / 2; }
-.pflimits.tucked .lval { grid-area: 1 / 3; }
-.pflimits.tucked .lrow ~ .lrow > .lsub,
-.pflimits.tucked .lempty > .lsub,
-.pflimits.tucked .limits-note.calm { display: none; }
-.pflimits.tucked .track { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0; }
+.limit-dial > span {
+    display: grid;
+    place-items: center;
+    width: calc(100% - 5px);
+    height: calc(100% - 5px);
+    border-radius: 50%;
+    background: var(--deep);
+    color: var(--ink-dim);
+    font-size: var(--t-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.pfactions { display: flex; align-items: center; gap: .1rem; margin-left: auto; padding-bottom: .2rem; }
+.pfaction { display: grid; place-items: center; min-width: 40px; min-height: 40px; padding: .5rem; border: 0; background: none; color: var(--ink-dim); border-radius: var(--r-small); }
+.pfaction svg { width: var(--i-md); height: var(--i-md); }
+.pfaction:active { background: var(--accent-bg); color: var(--accent); }
+.newgroup { padding: .65rem .2rem .35rem; font-size: var(--t-sm); font-weight: 600; color: var(--ink-faint); }
+.newproject { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: 44px; padding: .65rem .5rem; border: 0; border-top: var(--hair) solid var(--line); background: none; font: inherit; text-align: left; color: var(--ink); }
+.newlive { font-size: var(--t-xs); color: var(--ink-faint); }
 
 .srow .sdot, .srow .cmark { display: none; }
 

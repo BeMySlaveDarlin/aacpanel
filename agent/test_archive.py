@@ -155,6 +155,14 @@ class Page(unittest.TestCase):
              "message": {"model": "claude-opus-5", "usage": usage(tokens)}},
         ]
 
+    def test_conversation_filter_accepts_recorded_short_ids_before_pagination(self):
+        self.put(UUID_A, self.talk(1000))
+        self.put(UUID_B, self.talk(2000))
+        out = self.index.page(conversations=[UUID_B[:8]], limit=1)
+        self.assertEqual(out["total"], 1)
+        self.assertEqual([r["sessionId"] for r in out["rows"]], [UUID_B])
+        self.assertEqual(self.index.page(conversations=["missing-id"])["rows"], [])
+
     def talk_at(self, stamp, tokens=100_000, cwd="/opt/x"):
         return [
             {"type": "user", "timestamp": stamp, "cwd": cwd, "message": {"content": "hello"}},

@@ -2232,7 +2232,7 @@ Tasks and project handoffs retain their original JSON text and parsed source,
 including unknown fields. Body sections render to Markdown in a fixed order;
 unknown sections follow in lexical order. The external source field is kept
 intact: cctm's native `{session,id}` binding is not an issue link. Issue numbers
-in the title, `refs.jira` or explicit external link fields are indexed separately, and a
+in the title, tags, `refs.jira` or explicit external link fields are indexed separately, and a
 task naming several issues appears in each issue's report group.
 
 Imported events contain only the source's creation, update and closure dates
@@ -2247,6 +2247,15 @@ tasks before grouping them by issue. Task reads and filters are under
 `/api/tasks`, details under `/api/projects/{id}/tasks/{number}`, and period
 reads under `/api/tasks/period`; explicit import is local-only. Later the
 panel's tools become the sole writer and supply new events directly.
+
+The phone's contour toolbar opens a task layer whose board carries summaries;
+documents load when a task is opened. An open task is in work after an event
+within seventy-two hours or while a fresh live conversation holds it, by its
+recorded session id or a shared issue key. Issue keys in named conversations
+use the same server rule as task fields. The archive is asked only for the
+recorded participant ids, including short prefixes, and conversations with a
+known name fold together; a name guessed from a directory is not attribution.
+Live issue sessions with no matching registry task stand in a separate block.
 
 Postgres in a container of its own, not lodged inside somebody else's: the panel
 must not fall together with a neighbouring project's database, and the other way

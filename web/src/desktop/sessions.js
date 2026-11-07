@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
-import { knows, whyNot } from "../exec.js";
+import { knows } from "../exec.js";
 import { useAction } from "../actions/gate.js";
 import { settled } from "../catchup.js";
 import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
@@ -27,7 +27,7 @@ import { useFolds } from "../screens/sessions/folds.js";
 import { spoke } from "../agent.js";
 import { LiveLines, aboutOf, headed, knownOf, liveBlocksOf, splitNotes, stateOf, useAnswers } from "../screens/sessions/blocks.js";
 import { GhostCard, HeadActs, PastCard } from "../screens/sessions/sessioncard.js";
-import { homeProject, homeSession } from "../ui/home.js";
+import { NewSessionList, newSessionGroups } from "../screens/sessions/new.js";
 import { useSessionsArchive } from "../history.js";
 import { Popover } from "../ui/popover.js";
 import { useMenu } from "../ui/menu.js";
@@ -228,16 +228,10 @@ export function ContourLimits({ limits, name, profiles }) {
 // a press starts the session the way the projects panel does. The home
 // project is left out while its session lives: the host has one.
 function NewSession({ name, entry, snapshot, exec }) {
-    const run = useAction();
     const [open, setOpen] = useState(false);
     const close = useCallback(() => setOpen(false), []);
-    const home = homeSession(snapshot) ? homeProject(snapshot) : null;
-    const groups = ((entry && entry.groups) || [])
-        .map((g) => ({ name: g.name, projects: (g.projects || []).filter((p) => !home || p.id !== home.id) }))
-        .filter((g) => g.projects.length > 0);
+    const groups = newSessionGroups(entry, snapshot);
     if (groups.length === 0) return null;
-    const ready = knows(exec, "session.open");
-    const live = new Set(((snapshot && snapshot.sessions) || []).map((s) => s.project && s.project.id).filter(Boolean));
     return html`
         <span class="dknewctl">
             <button class=${`dknew${open ? " on" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
@@ -245,20 +239,7 @@ function NewSession({ name, entry, snapshot, exec }) {
             <${Popover} open=${open} onClose=${close} label=${`a new session in contour ${name}`}>
                 <div class="dknewpop">
                     <div class="dklimpophead">A new session in ${name}</div>
-                    ${!ready && html`<p class="dklimpopnote">${whyNot(exec, "session.open")}</p>`}
-                    ${groups.map((g) => html`
-                        <div class="dknewgroup" key=${`g:${g.name}`}>${g.name}</div>
-                        ${g.projects.map((p) => html`
-                            <button class="dknewrow" type="button" key=${p.id} disabled=${!ready}
-                                    onClick=${async () => {
-                                        close();
-                                        await run("session.open", p.session || p.name, { project: p.id });
-                                    }}>
-                                <span class="dkname">${p.name}</span>
-                                ${live.has(p.id) && html`<span class="dknewlive">live</span>`}
-                            </button>
-                        `)}
-                    `)}
+                    <${NewSessionList} entry=${entry} snapshot=${snapshot} exec=${exec} onClose=${close} desktop />
                 </div>
             <//>
         </span>
@@ -275,7 +256,10 @@ function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings })
     const menu = useMenu();
     const p = block.project;
     const sessions = snapshot?.sessions || [];
-    const start = p && !block.home ? () => run("session.open", p.session || p.name, { project: p.id }) : null;
+    const start = p && !block.home ? () => {
+        if (!knows(exec, "session.open")) return;
+        return run("session.open", p.session || p.name, { project: p.id });
+    } : null;
     return html`
         <div class="dkproj" onContextMenu=${menu && p && menu(ProjectMenu, {
             project: p, profile: entry, sessions, exec, onNew: start, onTerm,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -152,6 +153,10 @@ func (s *Server) apiTasks(w http.ResponseWriter, r *http.Request) {
 		profilesError(w, err)
 		return
 	}
+	if _, err = s.enrichTaskPage(r.Context(), page.Tasks); err != nil {
+		profilesError(w, err)
+		return
+	}
 	writeJSON(w, page)
 }
 
@@ -170,6 +175,23 @@ func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) {
 		profilesError(w, err)
 		return
 	}
+	actors := []string{}
+	for _, event := range detail.Events {
+		actors = append(actors, event.Actor)
+	}
+	c, err := s.taskContext(r.Context(), detail.Task.ContourID, []taskreg.Task{detail.Task}, actors...)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	taskreg.Enrich(&detail.Task, c.sessions, time.Now())
+	for _, person := range detail.Task.People {
+		actors = append(actors, person.Conversations...)
+	}
+	detail.Task.People = taskreg.People(actors, c.sessions)
+	for i := range detail.Events {
+		detail.Events[i].ActorName = taskreg.ActorName(detail.Events[i].Actor, c.sessions)
+	}
 	writeJSON(w, detail)
 }
 
@@ -187,7 +209,70 @@ func (s *Server) apiTaskPeriod(w http.ResponseWriter, r *http.Request) {
 		profilesError(w, err)
 		return
 	}
+	flat := []taskreg.Task{}
+	actors := []string{}
+	for _, group := range period.Groups {
+		for _, activity := range group.Tasks {
+			flat = append(flat, activity.Task)
+			for _, event := range activity.Events {
+				actors = append(actors, event.Actor)
+			}
+		}
+	}
+	c, err := s.taskContext(r.Context(), f.ContourID, flat, actors...)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	groups := map[string][]store.TaskActivity{}
+	seen := map[string]bool{}
+	for _, group := range period.Groups {
+		for _, activity := range group.Tasks {
+			key := strconv.Itoa(activity.Task.ProjectID) + ":" + strconv.FormatInt(activity.Task.Number, 10)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			taskreg.Enrich(&activity.Task, c.sessions, time.Now())
+			refs := activity.Task.ExternalRefs
+			if len(refs) == 0 {
+				refs = []string{""}
+			}
+			for i := range activity.Events {
+				activity.Events[i].ActorName = taskreg.ActorName(activity.Events[i].Actor, c.sessions)
+			}
+			for _, ref := range refs {
+				groups[ref] = append(groups[ref], activity)
+			}
+		}
+	}
+	period.Groups = []store.TaskPeriodGroup{}
+	keys := []string{}
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		period.Groups = append(period.Groups, store.TaskPeriodGroup{External: key, Tasks: groups[key]})
+	}
 	writeJSON(w, period)
+}
+
+func (s *Server) apiTaskBoard(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	id, err := taskInt(r, "contour")
+	if err != nil || id == 0 {
+		http.Error(w, "a contour id is required", http.StatusBadRequest)
+		return
+	}
+	board, err := s.taskBoard(r.Context(), id)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	writeJSON(w, board)
 }
 
 func (s *Server) apiTaskImport(w http.ResponseWriter, r *http.Request) {

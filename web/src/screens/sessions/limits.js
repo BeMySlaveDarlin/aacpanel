@@ -1,11 +1,14 @@
 // The subscription limits on a profile page.
 
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { share } from "../../format.js";
 import { pageNames, pickedPage } from "./pages.js";
 import { contourOf } from "../../contour.js";
+import { Icon } from "../../ui/icons.js";
+import { Sheet } from "../../ui/sheet.js";
+import { NewSessionList } from "./new.js";
 
 const LIMITS_STALE_SEC = 900;
 
@@ -66,106 +69,68 @@ export function openLimits(snapshot) {
     };
 }
 
-// ProfileLimits renders the subscription bars of this contour and their age:
-// claude's two windows, and beside them, a third in the row, codex's week
-// where codex has spent in the contour; an account with no five-hour window
-// has its week and codex's two to the row. A contour codex alone has spent in
-// has codex's window alone. Every window is a plate of one shape, whose it
-// is over its bar and which window it is under it, so a window reads alike
-// in a row of two and in a row of three. Each agent renews its own numbers,
-// so numbers one of them has left old are dimmed apart from the other's,
-// and the whole block only once all of them are old or the agent that
-// brings them is silent. Past them down the list they fold to a line and
-// stay over it.
-export function ProfileLimits({ limits, profile, contour, stale }) {
-    const box = useRef(null);
-    const tucked = useTucked(box, profile);
+// The compact row stays at one height while the list scrolls. Folding it
+// would hide its controls or change the target under the person's finger.
+export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot, exec, onTasks, onSettings }) {
+    const [newSession, setNewSession] = useState(false);
     const c = contourOf(limits, profile, contour);
-
-    if (!c) {
-        return html`
-            <div class="pflimits none" ref=${box}>
-                <span class="limitnone">nobody has worked in this profile yet</span>
-            </div>
-        `;
-    }
-
-    const codex = c.codex || null;
-    const claude = Boolean(c.fiveHour || c.sevenDay) || !codex;
-    const claudeOld = claude && staleLimits(c);
+    const codex = c && c.codex;
+    const claudeOld = Boolean(c) && staleLimits(c);
     const codexOld = Boolean(codex) && staleLimits(codex);
-    const three = claude && Boolean(codex);
-    // An account with no five-hour window has its week alone beside codex's:
-    // a row of two.
-    const row = !three ? "" : c.fiveHour && c.sevenDay ? " pfthree" : " pftwo";
-    const allOld = stale || ((!claude || claudeOld) && (!codex || codexOld));
     const ages = stale ? [] : [
-        claudeOld && (codex
-            ? `claude's numbers are from ${agoText(c.ageSec)}: they are renewed when a claude session of the contour answers`
-            : `the numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers`),
+        c && (c.fiveHour || c.sevenDay) && claudeOld && `claude's numbers are from ${agoText(c.ageSec)}: they are renewed when a claude session of the contour answers`,
         codexOld && `codex's numbers are from ${agoText(codex.ageSec)}: they are renewed every five minutes while the codex daemon of the contour runs`,
     ].filter(Boolean);
-    const claudeWord = html`<span class="agentword" data-agent="claude">Claude</span>`;
-    const codexWord = html`<span class="agentword" data-agent="codex">Codex</span>`;
-
     return html`
-        <div class=${`pflimits${row}${allOld ? " stale" : ""}${tucked ? " tucked" : ""}`} ref=${box}>
-            ${claude && html`
-                <div class=${`limits pfclaude${claudeOld && !allOld ? " pfold" : ""}`}>
-                    <${Limit} name=${claudeWord} span="5h" full="Claude · 5 hours" data=${c.fiveHour} />
-                    <${Limit} name=${claudeWord} span="7d" full="Claude · 7 days" data=${c.sevenDay} />
+        <div class="pflimits">
+            <div class="pflimitrow" role="group" aria-label="Contour limits and actions">
+                ${c && html`
+                    <${LimitRing} agent="claude" span="5h" full="Claude, 5 hours" data=${c.fiveHour} old=${stale || claudeOld} />
+                    <${LimitRing} agent="claude" span="7d" full="Claude, 7 days" data=${c.sevenDay} old=${stale || claudeOld} />
+                    <${LimitRing} agent="codex" span="7d" full="Codex, 7 days" data=${codex && codex.sevenDay} old=${stale || codexOld} />
+                `}
+                <div class="pfactions">
+                    <button class="pfaction" type="button" aria-label="Tasks" disabled=${!contour}
+                            onClick=${onTasks}>${Icon.plan()}</button>
+                    <button class="pfaction" type="button" aria-label="Profile" disabled=${!contour}
+                            onClick=${() => onSettings(contour)}>${Icon.cube()}</button>
+                    <button class="pfaction" type="button" aria-label="New session" disabled=${!entry}
+                            onClick=${() => setNewSession(true)}>${Icon.plus()}</button>
                 </div>
-            `}
-            ${codex && html`
-                <div class=${`limits pfcodex${codexOld && !allOld ? " pfold" : ""}`}>
-                    <${CodexWeek} codex=${codex} name=${codexWord} span="7d" full="Codex · 7 days"
-                                  head=${codexWord} short=${three} />
-                </div>
-            `}
+            </div>
+            ${!c && html`<p class="limits-note calm">nobody has worked in this profile yet</p>`}
+            ${codex && !codex.sevenDay && html`<p class="limits-note calm">${CODEX_NO_WEEK}</p>`}
             ${codex && codex.reached && html`<p class="limits-note">${CODEX_REACHED}</p>`}
             ${stale && html`<p class="limits-note">the limits are the last known ones, the agent is silent</p>`}
             ${ages.map((line) => html`<p class="limits-note calm" key=${line}>${line}</p>`)}
         </div>
+        <${Sheet} open=${newSession} onClose=${() => setNewSession(false)} label="New session">
+            <div class="shead"><span class="stitle">A new session in ${profile}</span></div>
+            <${NewSessionList} entry=${entry} snapshot=${snapshot} exec=${exec} onClose=${() => setNewSession(false)} />
+        <//>
     `;
 }
 
-// Whether the limits of each contour were last left folded.
-const folded = new Map();
+function ringLeft(resetsAt) {
+    if (!resetsAt) return "";
+    const left = resetsAt * 1000 - Date.now();
+    if (left <= 0) return "0m";
+    if (left >= 86400000) return `${Math.floor(left / 86400000)}d`;
+    if (left >= 3600000) return `${Math.floor(left / 3600000)}h`;
+    return `${Math.max(1, Math.round(left / 60000))}m`;
+}
 
-// useTucked says whether the list under the limits has been scrolled past
-// them: they fold to a line then and stay over the list, and open again once
-// the list is back at its very top. They fold only after scrolling out of
-// sight and open only at the top, because folding takes their height from
-// the page and the page keeps its place by moving its scroll: with nearer
-// bounds that move would carry the list back over the bound and the limits
-// would fold and open by themselves. The list scrolls in its page of the
-// pager, or in the body where there is no pager. A list drawn again comes
-// back where it was left (see useKeptScroll), so the limits come back folded
-// as they were left, by the name of the contour: drawn open for a frame, they
-// would push the list down by the height they fold away.
-function useTucked(ref, profile) {
-    const [tucked, setTucked] = useState(() => folded.get(profile) || false);
-
-    useEffect(() => {
-        const el = ref.current;
-        const list = el && el.closest(".pfpage, .body");
-        if (!list) return undefined;
-        let now = folded.get(profile) || false;
-        const onScroll = () => {
-            const next = now
-                ? list.scrollTop > 0
-                : el.getBoundingClientRect().bottom <= list.getBoundingClientRect().top;
-            if (next === now) return;
-            now = next;
-            folded.set(profile, next);
-            setTucked(next);
-        };
-        list.addEventListener("scroll", onScroll, { passive: true });
-        onScroll();
-        return () => list.removeEventListener("scroll", onScroll);
-    }, []);
-
-    return tucked;
+function LimitRing({ agent, span, full, data, old }) {
+    if (!data) return null;
+    const label = [full, share(data.pct), resetText(data.resetsAt), old && "last known numbers"].filter(Boolean).join(", ");
+    return html`
+        <div class=${`limit-ring ${limitClass(data.pct)}${old ? " old" : ""}`} data-agent=${agent} role="img" aria-label=${label} title=${label}>
+            <span class="agentword" data-agent=${agent}>${agent}</span>
+            <span class="limit-dial" style=${`--share:${Math.max(0, Math.min(100, data.pct || 0))}`}>
+                <span>${ringLeft(data.resetsAt)}${data.resetsAt ? "/" : ""}${span}</span>
+            </span>
+        </div>
+    `;
 }
 
 // What codex has not told, or has run into, in the same words wherever its

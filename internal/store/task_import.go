@@ -159,7 +159,8 @@ func importTask(ctx context.Context, tx pgx.Tx, project int, t taskreg.Task, raw
 		external_refs=EXCLUDED.external_refs,external_url=EXCLUDED.external_url,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at,
 		closed_at=EXCLUDED.closed_at,created_by=EXCLUDED.created_by,closed_by=EXCLUDED.closed_by,touched_by=EXCLUDED.touched_by,
 		session=EXCLUDED.session,body=EXCLUDED.body,markdown=EXCLUDED.markdown,source=EXCLUDED.source,source_json=EXCLUDED.source_json,
-		imported_at=now(),deleted_at=NULL WHERE project_tasks.source IS DISTINCT FROM EXCLUDED.source OR project_tasks.deleted_at IS NOT NULL`,
+		imported_at=now(),deleted_at=NULL WHERE project_tasks.source IS DISTINCT FROM EXCLUDED.source OR project_tasks.deleted_at IS NOT NULL
+		OR project_tasks.external_refs IS DISTINCT FROM EXCLUDED.external_refs OR project_tasks.external_url IS DISTINCT FROM EXCLUDED.external_url`,
 		project, t.Number, t.Title, t.Status, t.Priority, t.Order, t.Tags, t.BlockedBy, t.External, t.ExternalRefs, t.ExternalURL,
 		t.CreatedAt, t.UpdatedAt, t.ClosedAt, t.CreatedBy, t.ClosedBy, t.TouchedBy, t.Session, t.Body, t.Markdown, raw, t.Source)
 	if err != nil {
