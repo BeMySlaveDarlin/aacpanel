@@ -112,18 +112,37 @@ func (s *Server) pauseProject(w http.ResponseWriter, r *http.Request, params map
 		http.Error(w, "there are no live sessions in this scope to pause or resume", http.StatusConflict)
 		return
 	}
-	id, err := s.logActionAttempt(r, string(action.ProjectPause), label, params)
+	result, err := s.applyPause(r, p, targets, label, params, until)
 	if err != nil {
 		historyError(w, err)
 		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "logged": true, "detail": result.Detail, "delivered": result.Delivered, "failed": result.Failed})
+}
+
+type pauseDelivery struct {
+	Detail    string
+	Delivered int
+	Failed    []map[string]string
+}
+
+// Both a tap and reboot recovery use this action, including its journal and
+// cancellation-before-message rule. A recovered process has no old alarm to
+// cancel when its pause expired while the machine was down.
+func (s *Server) applyPause(r *http.Request, p action.Pause, targets []pauseSession, label string, params map[string]any, until time.Time) (pauseDelivery, error) {
+	id, err := s.logActionAttempt(r, string(action.ProjectPause), label, params)
+	if err != nil {
+		return pauseDelivery{}, err
 	}
 	started := time.Now()
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), execTimeout)
 	defer cancel()
 	delivered := 0
 	failed := make([]map[string]string, 0)
+	calls := 0
 	call := func(req action.Request) error {
-		req.ID, req.Device = requestID(id), s.deviceName(r)
+		calls++
+		req.ID, req.Device = fmt.Sprintf("%s-%d", requestID(id), calls), s.deviceName(r)
 		if err := req.Validate(); err != nil {
 			return err
 		}
@@ -137,9 +156,12 @@ func (s *Server) pauseProject(w http.ResponseWriter, r *http.Request, params map
 		return nil
 	}
 	for _, row := range targets {
+		err = nil
 		text := action.PauseMessage(until)
 		if p.Resume {
-			err = call(action.Request{Kind: action.AlarmCancel, Target: row.Name, Work: &action.Work{ID: row.Pause.ID}})
+			if row.Pause != nil {
+				err = call(action.Request{Kind: action.AlarmCancel, Target: row.Name, Work: &action.Work{ID: row.Pause.ID}})
+			}
 			text = action.PanelMessage("pause over", "The person has lifted the pause. Continue your work.")
 		} else {
 			err = nil
@@ -165,5 +187,5 @@ func (s *Server) pauseProject(w http.ResponseWriter, r *http.Request, params map
 	if err := s.db.LogResult(context.WithoutCancel(ctx), id, outcome); err != nil {
 		log.Printf("project pause journal: %v", err)
 	}
-	writeJSON(w, map[string]any{"ok": true, "logged": true, "detail": detail, "delivered": delivered, "failed": failed})
+	return pauseDelivery{Detail: detail, Delivered: delivered, Failed: failed}, nil
 }

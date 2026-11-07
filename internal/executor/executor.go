@@ -180,7 +180,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		detail, _, err := e.sessionOpen(ctx, req.Target, req.Project)
 		return detail, err
 	case action.SessionResume:
-		return e.sessionResume(ctx, req.Target, req.Resume, req.Project)
+		return e.sessionResume(ctx, req.Target, req.Resume, req.Project, req.Silent)
 	case action.SessionClose:
 		return e.sessionClose(ctx, req.Target, req.Conversation)
 	case action.SessionRestart:

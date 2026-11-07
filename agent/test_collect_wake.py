@@ -55,7 +55,7 @@ class SnapshotWake(unittest.TestCase):
             "net_link": lambda name: {},
             "proc_sample": lambda: {},
             "proc_top": procs,
-            "read": lambda path: "0 0 0" if path == "/proc/loadavg" else "1000",
+            "read": lambda path: {"/proc/loadavg": "0 0 0", "/proc/sys/kernel/random/boot_id": "host-boot\n"}.get(path, "1000"),
             "temperatures": lambda: {},
             "mem_info": lambda: {},
             "disks": lambda: [],
@@ -73,3 +73,4 @@ class SnapshotWake(unittest.TestCase):
         self.assertEqual([s["host"]["cpuPct"] for s in states], [50.0, 25.0])
         self.assertEqual([s["host"]["net"][0]["rxRate"] for s in states], [200, 50])
         self.assertEqual(states[0]["sessions"], [{"session": "lab", "pinnedAt": "stamp"}])
+        self.assertEqual([s["bootId"] for s in states], ["host-boot", "host-boot"])

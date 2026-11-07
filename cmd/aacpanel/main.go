@@ -328,6 +328,12 @@ func run() error {
 		}
 	}
 	if db != nil {
+		revive, err := readReviveConfig()
+		if err != nil {
+			return err
+		}
+		go srv.runLiving(ctx)
+		go srv.runRevival(ctx, revive)
 		go db.Run(ctx)
 		go srv.runBriefGuideImport(ctx)
 		go writer.Run(ctx)

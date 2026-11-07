@@ -24,6 +24,8 @@ type Request struct {
 	// Resume is the conversation to go on with: the one session.resume brings
 	// back, or the one session.restart closes and starts again.
 	Resume string `json:"resume,omitempty"`
+	// Silent resumes a conversation without either saved opening message.
+	Silent bool `json:"silent,omitempty"`
 
 	// Conversation is the conversation a session.restart or a session.close is
 	// asked for by, when a session restarts or closes itself — a thread of

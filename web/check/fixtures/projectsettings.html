@@ -28,6 +28,7 @@ const codexMode = mode === "codex";
 
 const account = { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" };
 const contourEff = [
+    { key: "reviveAfterReboot", value: true, layer: "panel" },
     { key: "parentQuestions", value: true, layer: "panel" },
     { key: "parentQuestionWait", value: 5, layer: "panel" },
     codexMode ? { key: "agent", value: "codex", layer: "contour" } : { key: "agent", value: null, layer: "claude" },
@@ -194,7 +195,16 @@ const openTab = () => text(document.querySelector(".pztab[aria-selected='true']"
 const chips = (name) => Array.from((row(name) || document).querySelectorAll(".pzopt")).map(text);
 const names = () => all(".pzrow").map((r) => text(r.querySelector(".pzname")));
 
-window.done = codexMode ? (async () => {
+window.done = mode === "revive" ? (async () => {
+    await until(() => row("Revive after reboot"));
+    const out = { inherited: chip("Revive after reboot", "On").getAttribute("aria-pressed") };
+    chip("Revive after reboot", "Off").click();
+    await quiet();
+    Array.from(bar().querySelectorAll(".btn")).find((b) => text(b) === "Save").click();
+    await until(() => patches.length > 0);
+    out.patch = patches[0];
+    return out;
+})() : codexMode ? (async () => {
     const out = {};
     await until(() => all(".pzrow").length > 0 && tab("Codex"));
     out.tabs = all(".pztab").map(text);

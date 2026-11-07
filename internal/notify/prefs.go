@@ -24,6 +24,7 @@ const (
 	KindLimit     = "limit"
 	KindCodex     = "codex"
 	KindRelease   = "release"
+	KindReboot    = "reboot"
 	KindBlind     = "blind"
 	// KindBack is not a kind of event but the recovery of a container or a
 	// stack: the person turns it off apart from the fall.
@@ -47,6 +48,7 @@ var keyKinds = []struct{ prefix, kind string }{
 	{"limit:", KindLimit},
 	{"codex:", KindCodex},
 	{"release:", KindRelease},
+	{"reboot:", KindReboot},
 	{"blind:", KindBlind},
 }
 
@@ -65,7 +67,7 @@ func kindOf(key string) string {
 // fetch the person and a blind panel is a failure that would pass in silence:
 // neither is on the list, so neither is ever held back.
 var kindsOff = []string{KindQuestion, KindAsk, KindWait, KindBrief, KindDone, KindGone, KindStack, KindContainer,
-	KindBack, KindProbe, KindLimit, KindCodex, KindRelease}
+	KindBack, KindProbe, KindLimit, KindCodex, KindRelease, KindReboot}
 
 // Source is where an event comes from, as far as a push can be quieted by it.
 type Source struct {
@@ -204,6 +206,8 @@ func quietOf(kind string, s Source) *Quiet {
 		return &Quiet{What: "off", Key: KindCodex, Label: "Quiet: codex updates"}
 	case KindRelease:
 		return &Quiet{What: "off", Key: KindRelease, Label: "Quiet: panel releases"}
+	case KindReboot:
+		return &Quiet{What: "off", Key: KindReboot, Label: "Quiet: reboot recovery"}
 	case KindLimit:
 		if s.Contour == "" {
 			return nil

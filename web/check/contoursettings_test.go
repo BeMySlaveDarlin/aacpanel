@@ -41,8 +41,8 @@ func TestTheContourSettingsPage(t *testing.T) {
 	}
 	runFixtureServing(t, "contoursettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	if len(got.Rows) != 14 || got.Rows[0] != "Agent" || got.Rows[1] != "First message" || got.Rows[2] != "Questions to parent" || got.Rows[3] != "Wait for parent" || got.Rows[4] != "Model" {
-		t.Errorf("the contour's rows are %v, meant the fourteen a project has with claude's tab open", got.Rows)
+	if len(got.Rows) != 15 || got.Rows[0] != "Revive after reboot" || got.Rows[1] != "Agent" || got.Rows[2] != "First message" || got.Rows[3] != "Questions to parent" || got.Rows[4] != "Wait for parent" || got.Rows[5] != "Model" {
+		t.Errorf("the contour's rows are %v, meant the same parameters as a project with claude's tab open", got.Rows)
 	}
 	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenTab != "Claude" {
 		t.Errorf("the tabs are %v with %q open, meant Claude and Codex with Claude open", got.Tabs, got.OpenTab)

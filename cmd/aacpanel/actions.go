@@ -133,7 +133,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 
-	var cwd, ranAs string
+	var cwd, ranAs, parentNote string
 	// A thread of codex is resumed in the daemon of its home, which knows where
 	// it ran: the archive row names the thread and the contour of its home, and
 	// no project is looked for — the thread is the daemon's, not a launch of
@@ -143,6 +143,12 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Agent = action.ResumeCodex
 		req.Resume, _ = body.Params["session"].(string)
 		req.Contour, _ = body.Params["contour"].(string)
+		parent, why, err := s.archivedParent(r.Context(), req.Resume)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		req.Parent, parentNote = parent, why
 	} else if req.Kind == action.SessionResume {
 		// Any other conversation a resume goes on is claude's, whatever the
 		// project starts now: an agent named for it is refused before the
@@ -173,6 +179,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	params := body.Params
 	if codexResume {
 		params = map[string]any{"agent": req.Agent, "contour": req.Contour, "session": req.Resume}
+		if req.Parent != "" {
+			params["parent"] = req.Parent
+		}
 	}
 	if req.Kind == action.SessionAnswer {
 		answer, err := answerFromParams(body.Params)
@@ -451,6 +460,13 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if req.Kind == action.SessionResume && parent == "" {
+			parent, parentNote, err = s.archivedParent(r.Context(), req.Resume)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
 		name, err := resumeName(req.Kind, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -611,6 +627,13 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	}
 
 	deviceName := s.deviceName(r)
+	if automatic, _ := r.Context().Value(automaticActionKey{}).(string); automatic != "" && req.Kind == action.SessionResume {
+		req.Silent = true
+		if params == nil {
+			params = map[string]any{}
+		}
+		params["silent"], params["session"] = true, req.Resume
+	}
 
 	var journalID int64
 	var logged bool
@@ -618,6 +641,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		id, err := s.logActionAttempt(r, body.Kind, body.Target, params)
 		if err != nil {
 			log.Printf("action log: %v", err)
+			if automatic, _ := r.Context().Value(automaticActionKey{}).(string); automatic != "" {
+				http.Error(w, "the automatic action could not be journaled", http.StatusServiceUnavailable)
+				return
+			}
 		} else {
 			journalID, logged = id, true
 		}
@@ -630,6 +657,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	defer cancel()
 
 	resp, err := s.exec.Do(ctx, req)
+	if resp.OK && parentNote != "" {
+		resp.Detail += "; " + parentNote
+	}
 	outcome := store.ActionOutcome{
 		Result:   store.ActionOK,
 		Detail:   resp.Detail,
@@ -1357,6 +1387,13 @@ func (s *Server) resumeTarget(r *http.Request, name string, params map[string]an
 
 	if id, _ := params["session"].(string); strings.TrimSpace(id) != "" {
 		id = strings.TrimSpace(id)
+		row, readErr := s.db.LivingConversation(r.Context(), hostID, id)
+		if readErr != nil {
+			return "", "", "", readErr
+		}
+		if row != nil {
+			return id, row.CWD, row.Session, nil
+		}
 		cwd, ranAs, err = s.db.SessionResumeAt(r.Context(), hostID, id)
 		if err != nil {
 			return "", "", "", err

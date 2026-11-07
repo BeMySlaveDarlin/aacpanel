@@ -22,6 +22,8 @@ const (
 // Limits are what the queue admits by. A count of nought and a size of
 // nought are none.
 type Limits struct {
+	// MemoryPressure bounds full avg10; zero uses the queue's default.
+	MemoryPressure float64
 	// Slots bounds the runs going at once.
 	Slots int
 	// Reserve is the memory the machine keeps available past every run.
@@ -90,6 +92,10 @@ func Admit(l Limits, m Measure, asks []uint64) (goes []int, waits string) {
 // blocked is what keeps a run asking for ask from starting beside runs, or
 // empty when nothing does.
 func blocked(l Limits, m Measure, runs []Running, ask uint64) string {
+	memoryMax := l.MemoryPressure
+	if memoryMax <= 0 {
+		memoryMax = memoryPressureMax
+	}
 	var toCome uint64
 	for _, r := range runs {
 		toCome += r.toCome()
@@ -106,9 +112,9 @@ func blocked(l Limits, m Measure, runs []Running, ask uint64) string {
 		why = append(why, fmt.Sprintf("the agents' budget: %s held in their slice, %s still to come to the runs going, "+
 			"%s asked, of %s", Size(m.Slice), Size(toCome), Size(ask), Size(l.Budget)))
 	}
-	if m.MemoryFull >= memoryPressureMax || m.IOFull >= ioPressureMax {
+	if m.MemoryFull >= memoryMax || m.IOFull >= ioPressureMax {
 		why = append(why, fmt.Sprintf("the pressure to fall: full avg10 of memory %.1f%%, of io %.1f%%, "+
-			"a run starts under %.0f%% and %.0f%%", m.MemoryFull, m.IOFull, memoryPressureMax, ioPressureMax))
+			"a run starts under %.0f%% and %.0f%%", m.MemoryFull, m.IOFull, memoryMax, ioPressureMax))
 	}
 	return strings.Join(why, "; ")
 }

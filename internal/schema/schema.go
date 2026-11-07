@@ -113,9 +113,8 @@ type Param struct {
 	// Default is what the panel takes where no level says anything; null
 	// leaves it to claude, and Unset says what that is.
 	Default any `json:"default"`
-	// Host marks a parameter the launch does not pass to claude: the host
-	// reads it — the context guard hook and the prompt stamp — from what the
-	// executor keeps of the map.
+	// Host marks a parameter the launch does not pass to claude: the panel
+	// or its host reads it, independently of the agent's command line.
 	Host bool `json:"host,omitempty"`
 }
 
@@ -132,6 +131,13 @@ const ownFlag = "the panel sets it from its own parameter"
 // What New and a restart of a project start, and the keys of each agent's
 // launch: a key of one agent is passed over by the launch of the other.
 var params = []Param{
+	{
+		Key: "reviveAfterReboot", Label: "Revive after reboot", Kind: KindBool,
+		Levels: []Level{LevelContour, LevelProject}, Default: true, Host: true,
+		Help:  "resume root sessions after the host reboots, without a message; paused sessions keep their pause",
+		Unset: "On", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
+	},
 	{
 		Key: "agent", Label: "Agent", Kind: KindEnum,
 		Levels: []Level{LevelContour, LevelProject},

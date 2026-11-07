@@ -201,6 +201,7 @@ func TestTheHostOfTheQueueIsReadFromTheKernel(t *testing.T) {
 		return fmt.Sprintf("anon 1\nfile %d\nkernel 1\nshmem %d\nactive_file 1\ninactive_file 1\n", file, shmem)
 	}
 	write(filepath.Join(slice, "memory.current"), "21474836480\n")
+	write(filepath.Join(slice, "memory.high"), "32212254720\n")
 	write(filepath.Join(slice, "memory.stat"), stat(16*testGiB, 2*testGiB))
 	write(filepath.Join(slice, "aacp-heavy-1.scope", "memory.current"), "3221225472\n")
 	write(filepath.Join(slice, "aacp-heavy-1.scope", "memory.stat"), stat(2*testGiB, 0))
@@ -228,6 +229,14 @@ func TestTheHostOfTheQueueIsReadFromTheKernel(t *testing.T) {
 	if m.Available != want.Available || m.Slice != want.Slice || m.MemoryFull != want.MemoryFull ||
 		m.IOFull != want.IOFull || !slices.Equal(m.Runs, want.Runs) {
 		t.Errorf("the host reads as %+v, want %+v", m, want)
+	}
+	beforeProc := procRoot
+	procRoot = t.TempDir()
+	t.Cleanup(func() { procRoot = beforeProc })
+	write(filepath.Join(procRoot, "sys/kernel/random/boot_id"), "host-boot\n")
+	room, err := h.Headroom(t.Context())
+	if err != nil || room == nil || room.BootID != "host-boot" || room.High != 30*testGiB || room.Measure.Slice != 6*testGiB {
+		t.Fatalf("recovery headroom: %+v %v", room, err)
 	}
 
 	// A kernel that keeps no account of pressure has none to wait for.

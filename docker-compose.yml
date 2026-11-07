@@ -120,6 +120,13 @@ services:
       # harmless, the code defaults to https://<AACP_RP_ID>, but the line is
       # needed: the service has no env_file.
       AACP_PUSH_CONTACT: ${AACP_PUSH_CONTACT:-}
+      AACP_REVIVE_RESERVE: ${AACP_REVIVE_RESERVE:-2G}
+      AACP_REVIVE_SESSION_MEMORY: ${AACP_REVIVE_SESSION_MEMORY:-768M}
+      AACP_REVIVE_SLICE_PERCENT: ${AACP_REVIVE_SLICE_PERCENT:-90}
+      AACP_REVIVE_MEMORY_PSI: ${AACP_REVIVE_MEMORY_PSI:-5}
+      AACP_REVIVE_WAIT: ${AACP_REVIVE_WAIT:-5m}
+      AACP_REVIVE_ALIVE_WAIT: ${AACP_REVIVE_ALIVE_WAIT:-2m}
+      AACP_REVIVE_POLL: ${AACP_REVIVE_POLL:-2s}
       # Session deadlines, passed explicitly so the values are visible here.
       # Neither can be turned off; auth.New checks that.
       AACP_SESSION_IDLE: ${AACP_SESSION_IDLE:-24h}

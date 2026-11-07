@@ -133,7 +133,7 @@ func TestSchemaIsWellFormed(t *testing.T) {
 // screen lays them out under the tab of their agent, and the claude launcher
 // reads only the common ones and its own.
 func TestEveryParameterNamesItsAgent(t *testing.T) {
-	common := map[string]bool{"agent": true, "intent": true, "parentQuestions": true, "parentQuestionWait": true}
+	common := map[string]bool{"agent": true, "intent": true, "parentQuestions": true, "parentQuestionWait": true, "reviveAfterReboot": true}
 	for _, p := range Params() {
 		want := AgentClaude
 		switch {

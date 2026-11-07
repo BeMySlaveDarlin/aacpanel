@@ -37,6 +37,9 @@ def write_state(state):
 
 
 def main():
+    # The host supplies its boot identity; a container's proc mount may be
+    # substituted by its runtime and must not decide whether sessions died.
+    boot_id = read("/proc/sys/kernel/random/boot_id").strip()
     prev_cpu = cpu_jiffies()
     prev_net = net_counters()
     prev_procs = proc_sample()
@@ -116,6 +119,7 @@ def main():
         load1, load5, load15 = read("/proc/loadavg").split()[:3]
         stamp = time.time()
         state = {
+            "bootId": boot_id,
             "at": int(stamp),
             # A snapshot woken by an action comes within the second of the
             # one before it: the screen tells them apart by the milliseconds.

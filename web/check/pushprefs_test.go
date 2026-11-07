@@ -61,6 +61,7 @@ type prefsShot struct {
 	LimitKind   []string `json:"limitKind"`
 	CodexKind   []string `json:"codexKind"`
 	ReleaseKind []string `json:"releaseKind"`
+	RebootKind  []string `json:"rebootKind"`
 	IdleAfter   []string `json:"idleAfter"`
 
 	Rules         []prefsRow `json:"rules"`
@@ -158,6 +159,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		{Title: "A claude limit past 80%", Role: "switch", On: "true"},
 		{Title: "Codex updated itself", Sub: "past the release its protocol was checked against", Role: "switch", On: "true"},
 		{Title: "A new release of the panel", Sub: "once a release, from GitHub", Role: "switch", On: "true"},
+		{Title: "Sessions after a host reboot", Sub: "one report after automatic recovery", Role: "switch", On: "true"},
 		{Title: "The panel went blind", Sub: "otherwise a failure passes in silence", Role: "switch", On: "true", Disabled: true, Lock: "always"},
 	}
 	if !got.CheckDefault || !got.CheckOff || !got.CheckOn {
@@ -235,6 +237,9 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 	}
 	if !slices.Contains(got.ReleaseKind, "release") {
 		t.Errorf("turning the releases of the panel off sent off %v", got.ReleaseKind)
+	}
+	if !slices.Contains(got.RebootKind, "reboot") {
+		t.Errorf("turning reboot reports off sent off %v", got.RebootKind)
 	}
 
 	if !got.ScrimCovers {

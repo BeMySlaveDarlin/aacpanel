@@ -25,6 +25,21 @@ func schemaAnswer(traits map[string]any) map[string]http.Handler {
 	}
 }
 
+func TestProjectRebootRecoveryCanBeTurnedOff(t *testing.T) {
+	var got struct {
+		Inherited string `json:"inherited"`
+		Patch     struct {
+			LaunchSet map[string]any `json:"launchSet"`
+		} `json:"patch"`
+	}
+	serve := schemaAnswer(map[string]any{})
+	serve["/mode"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("revive")) })
+	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, serve, &got)
+	if got.Inherited != "true" || got.Patch.LaunchSet["reviveAfterReboot"] != false {
+		t.Fatalf("reboot recovery control: %+v", got)
+	}
+}
+
 // A model that takes no effort and no Auto strikes them out: the project's
 // own effort holds Save with the way out, the account's Auto is said to start
 // as Manual and holds nothing.
@@ -114,7 +129,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	want := []string{"Agent", "First message", "Questions to parent", "Wait for parent", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
+	want := []string{"Revive after reboot", "Agent", "First message", "Questions to parent", "Wait for parent", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
 		"Context cap", "Auto restart", "Message after a restart", "Environment", "Extra arguments"}
 	if strings.Join(got.Rows, "|") != strings.Join(want, "|") {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)
@@ -251,7 +266,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenAtStart != "Codex" {
 		t.Errorf("the tabs are %v with %q open, meant Codex open — the agent the contour starts", got.Tabs, got.OpenAtStart)
 	}
-	if want := "Agent|First message|Questions to parent|Wait for parent|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
+	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
 		t.Errorf("the rows are %v, meant %s", got.Rows, want)
 	}
 	if got.Soon != "New starts a thread in the codex daemon of the contour, with what is chosen below; "+
@@ -279,7 +294,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if got.ApprovalAfter != "what config.toml of the contour's codex home says" {
 		t.Errorf("with the stored never removed the approvals read %q", got.ApprovalAfter)
 	}
-	if len(got.ClaudeRows) != 14 || got.ClaudeRows[4] != "Model" || got.ClaudeRows[13] != "Extra arguments" {
+	if len(got.ClaudeRows) != 15 || got.ClaudeRows[5] != "Model" || got.ClaudeRows[14] != "Extra arguments" {
 		t.Errorf("the Claude tab's rows are %v", got.ClaudeRows)
 	}
 	if len(got.ClaudeDrafted) != 0 {

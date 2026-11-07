@@ -205,6 +205,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Heavy: view}
 	}
 
+	if req.Ask == AskHeadroom {
+		asker, ok := s.exec.(HeadroomAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor cannot measure the host's headroom"), 0)
+		}
+		room, err := asker.Headroom(ctx)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Headroom: room}
+	}
+
 	if req.Ask == AskTerms {
 		asker, ok := s.exec.(TermsAsker)
 		if !ok {

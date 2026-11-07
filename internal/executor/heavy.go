@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/heavy"
 	"aacpanel/internal/hostcfg"
 )
@@ -116,6 +117,48 @@ func (e *Executor) Heavy(ctx context.Context) (*heavy.View, error) {
 	}
 	v, err := e.heavy.View(ctx)
 	return &v, err
+}
+
+// Headroom uses the queue's measurements, and reads the kernel ceiling rather
+// than the description: a running slice can have a different MemoryHigh.
+func (e *Executor) Headroom(ctx context.Context) (*action.Headroom, error) {
+	h := NewHeavyHost()
+	room, err := h.Headroom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// A slice with no units has no cgroup yet. Its configured ceiling still
+	// bounds the first batch; once active, the kernel's value takes over.
+	if dir, err := h.sliceDir(ctx); err == nil && dir == "" {
+		room.High, _ = hostcfg.SizeBytes(e.memory.Agents.High)
+	}
+	return room, nil
+}
+
+func (h *HeavyHost) Headroom(ctx context.Context) (*action.Headroom, error) {
+	m, err := h.Measure(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dir, err := h.sliceDir(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var high uint64
+	if dir != "" {
+		high, err = readCgroupNumber(filepath.Join(dir, "memory.high"))
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+		if high == noHigh {
+			high = 0
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(procRoot, "sys/kernel/random/boot_id"))
+	if err != nil {
+		return nil, err
+	}
+	return &action.Headroom{BootID: strings.TrimSpace(string(raw)), High: high, Measure: m}, nil
 }
 
 // Measure reads the host once. The runs going are the scopes of the queue in

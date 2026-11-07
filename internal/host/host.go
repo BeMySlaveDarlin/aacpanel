@@ -12,6 +12,7 @@ import (
 )
 
 type state struct {
+	BootID       string          `json:"bootId"`
 	At           int64           `json:"at"`
 	Host         json.RawMessage `json:"host"`
 	Sessions     json.RawMessage `json:"sessions"`
@@ -88,6 +89,7 @@ func (h *Reader) JSON() ([]byte, error) {
 	h.raw = raw
 
 	out := map[string]any{
+		"bootId":         st.BootID,
 		"at":             st.At,
 		"ageSec":         time.Now().Unix() - st.At,
 		"host":           st.Host,

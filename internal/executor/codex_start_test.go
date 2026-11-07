@@ -16,11 +16,29 @@ import (
 	"aacpanel/internal/codex/codextest"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/stream"
 )
 
 // panelTools is the program of the panel's MCP server in the tests: the
 // executor names itself.
 const panelTools = "/opt/aacpanel/bin/aacpanel-exec"
+
+func TestAResumedCodexThreadKeepsItsArchivedParent(t *testing.T) {
+	srv, e, _ := onCodexContour(t)
+	const past = "019a2000-0000-7000-8000-00000000a1b2"
+	srv.Add(codextest.Thread{ID: past, CWD: "/srv/acme/shop", Model: "gpt-test", Status: "notLoaded"})
+	_, _, err := e.Open(t.Context(), action.Request{Kind: action.SessionResume, Agent: action.ResumeCodex, Contour: "acme", Resume: past, Parent: "lead"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(stream.ParentPath(past))
+	if err != nil || !strings.Contains(string(raw), `"session":"lead"`) {
+		t.Fatalf("the resumed thread lost its parent: %s %v", raw, err)
+	}
+	if len(srv.Calls("turn/start")) != 0 {
+		t.Fatal("restoring a parent started a turn")
+	}
+}
 
 // withTools is the configuration of a thread the panel starts: what the map
 // chose, and the panel's MCP server beside the servers of config.toml, the

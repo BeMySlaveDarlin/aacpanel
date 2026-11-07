@@ -49,6 +49,35 @@ func TestSessionMessagesAreSavedWithoutSendingThem(t *testing.T) {
 	}
 }
 
+func TestSilentResumeSuppressesBothOpeningMessages(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	_, dir := launchDir(t, "lab")
+	trustFile(t, map[string]bool{dir: true})
+	log := fakeLauncher(t, launcher.Report{Session: "lab"})
+	e, _ := newTest(t, "")
+	r := openWith(action.SessionResume, &action.Project{Path: dir, Session: "lab", Launch: json.RawMessage(`{"intent":"read the queue","model":"opus"}`)}, consoleSID)
+	r.Silent = true
+	if _, err := e.Execute(t.Context(), r); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var spec launcher.Spec
+	if err := json.Unmarshal(raw[strings.IndexByte(string(raw), '{'):strings.LastIndexByte(string(raw), '}')+1], &spec); err != nil {
+		t.Fatal(err)
+	}
+	var params map[string]any
+	if err := json.Unmarshal(spec.Launch, &params); err != nil {
+		t.Fatal(err)
+	}
+	if spec.IntentKey != "" || params["intent"] != "" || params["model"] != "opus" || spec.Resume != consoleSID {
+		t.Fatalf("silent resume inherited a message: %+v %s", spec, spec.Launch)
+	}
+}
+
 func TestRestartSelectsItsRuleUnlessTheSessionHasNextWords(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	for _, c := range []struct {

@@ -1528,9 +1528,16 @@ without the database), the claude launcher reads exactly its common keys and
 claude's, and a test holds the two lists equal. Retired keys are named with the
 reason, not silently dropped.
 
+**Revive after reboot is on unless a place turns it off.** The common
+`reviveAfterReboot` switch belongs to a contour or a project; a project's
+explicit value overrides its contour's. It governs automatic recovery of root
+sessions after the host reboots, independently of the context restart switch.
+It changes no agent flag and does not start anything when the setting is saved.
+
 **Every key is of an agent.** `agent` — Claude Code or Codex, Claude Code where
 nothing is said — is what New and a restart of a project start; it and the first
-message are common, every other key is claude's or codex's (`Param.Agent`), and
+message and reboot recovery are common; the agent-specific keys name claude
+or codex (`Param.Agent`), and
 a settings page lays each agent's keys out under a tab of its own. The codex
 keys — where codex lives, its model picked from what the codex daemon lists
 (the question `codex.models`), the effort, the approvals and the sandbox — are
@@ -1956,6 +1963,67 @@ hand. Until it is rebuilt, the button is there on the phone and the journal says
 action was added or removed.
 
 ---
+
+## Surviving a host reboot
+
+The collector carries the host's `/proc/sys/kernel/random/boot_id` in its
+snapshot, beside the timestamp of the session census. The executor reads the
+same host file for its read-only `headroom` answer. Recovery waits until both
+identify the same boot and the census is complete and fresh. The service's
+container view of proc is not an authority for the host's boot: its runtime
+can substitute files, and a stack restart must never look like a host reboot.
+
+The service keeps each complete census in `session_living`, separately for
+each host boot: the conversation, its name, project and contour, directory,
+transport, agent, parent conversation, outside flag, pause alarm and last-seen
+time. A census marks absent conversations no longer live. Only the last live
+set of the immediately preceding boot is considered, so a deliberate close
+or restart does not come back. Failed, partial and stale censuses replace
+nothing. The metric archive is not used to infer this set.
+
+Recovery claims the new boot in `session_boots` before any action. The first
+known boot only establishes the census. A restart of the service in the same
+boot does not repeat recovery, including after a partially completed attempt;
+conversations left behind remain available for a manual resume. Children,
+sessions outside the panel, places with Revive after reboot off, and
+conversations already live are excluded. A reused session name cannot stand
+in for its previous conversation. Codex threads are reported as not revived.
+
+Each Claude conversation goes through `session.resume` and the ordinary
+action journal, without an opening message from the map or a saved session
+override. At most five start together. Another batch waits until every
+successfully started member of the previous one appears live in a fresh
+census. Host admission reuses the heavy queue's measurements and calculation:
+available memory, the agents' slice excluding reclaimable file cache, its
+actual MemoryHigh, memory PSI and the allowance still reserved for running
+heavy commands. The service gets these measurements through the executor;
+it acquires no access to host cgroups or the user's manager.
+
+Recovery limits are service environment parameters, passed by compose from
+`.env`: `AACP_REVIVE_RESERVE` keeps 2G available after the new sessions,
+`AACP_REVIVE_SESSION_MEMORY` allows 768M per new session,
+`AACP_REVIVE_SLICE_PERCENT` admits up to 90 percent of the slice's MemoryHigh,
+and `AACP_REVIVE_MEMORY_PSI` requires memory full avg10 below 5 percent.
+The heavy queue's I/O pressure gate applies as well. `AACP_REVIVE_WAIT` bounds
+a headroom wait to 5m, `AACP_REVIVE_ALIVE_WAIT` bounds a census confirmation to
+2m, and `AACP_REVIVE_POLL` is 2s. A timeout stops further batches and reports
+the remaining conversations with the reason.
+
+A pause comes from the preceding boot's saved census: its alarm can disappear
+before the collector observes the new boot. After the conversation becomes
+live, recovery uses the same `project.pause` delivery and journal as the
+person's button: the same future deadline, no end for a `pause-no-end` alarm,
+or Continue when the deadline passed. Continue sends its ordinary message;
+the recovered process has no old alarm to cancel. A requested pause is counted
+successful only after its alarm appears in a fresh census. No service timer
+is introduced. A failed pause restoration is named in the recovery report.
+
+One push reports the revived count and the conversations left behind after
+recovery finishes. Its `reboot` kind follows `push_prefs` and can be disabled
+on the Notifications screen. A manual archive resume also consults the saved
+census: a child keeps its parent when that conversation is live, using the
+same parent parameter and host records as an ordinary child launch. A missing
+parent is named in the action's result and the child starts on its own.
 
 ## Observers and alarms
 

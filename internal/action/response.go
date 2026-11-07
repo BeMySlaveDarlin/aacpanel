@@ -70,6 +70,7 @@ type Response struct {
 
 	Processes []Process   `json:"processes,omitempty"`
 	Heavy     *heavy.View `json:"heavy,omitempty"`
+	Headroom  *Headroom   `json:"headroom,omitempty"`
 }
 
 // Failed builds a refusal response.

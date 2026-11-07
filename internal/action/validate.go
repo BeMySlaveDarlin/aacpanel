@@ -60,6 +60,9 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Silent && (r.Kind != SessionResume || r.Agent == ResumeCodex || r.Text != "") {
+		return badRequest("a silent resume takes a Claude conversation and no message")
+	}
 	if r.Clean && (r.Kind != SessionRestart || r.Resume != "" || r.Text != "" || r.AutoRestart) {
 		return badRequest("a clean restart starts a new conversation without a message or preparation cycle")
 	}
@@ -92,7 +95,7 @@ func (r Request) Validate() error {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
-		case AskKinds, AskTerms, AskSecrets, AskCodexModels, AskHeavy:
+		case AskKinds, AskTerms, AskSecrets, AskCodexModels, AskHeavy, AskHeadroom:
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
@@ -411,7 +414,7 @@ func (r Request) Validate() error {
 	} else if r.Role != nil {
 		return badRequest("action %s sets no role", r.Kind)
 	}
-	if r.Kind == SessionParent {
+	if r.Kind == SessionParent || (r.Kind == SessionResume && r.Agent == ResumeCodex && r.Parent != "") {
 		if r.Parent == "" {
 			return badRequest("action %s without the session to stand %s under", r.Kind, r.Target)
 		}

@@ -249,6 +249,7 @@ func TestTheWrapperPassesOnEveryQuestionOfTheExecutor(t *testing.T) {
 		"CodexModelsAsker": reflect.TypeFor[action.CodexModelsAsker](),
 		"ProcessesAsker":   reflect.TypeFor[action.ProcessesAsker](),
 		"IntentAsker":      reflect.TypeFor[action.IntentAsker](),
+		"HeadroomAsker":    reflect.TypeFor[action.HeadroomAsker](),
 	}
 	files, err := filepath.Glob("../../internal/action/*.go")
 	if err != nil || len(files) == 0 {

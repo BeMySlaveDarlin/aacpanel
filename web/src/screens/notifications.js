@@ -290,6 +290,8 @@ function Choice({ prefs, sources, change }) {
                                  on=${heard("codex")} onFlip=${kind("codex")} />
                         <${Kind} title="A new release of the panel" sub="once a release, from GitHub"
                                  on=${heard("release")} onFlip=${kind("release")} />
+                        <${Kind} title="Sessions after a host reboot" sub="one report after automatic recovery"
+                                 on=${heard("reboot")} onFlip=${kind("reboot")} />
                         <${Always} title="The panel went blind" sub="otherwise a failure passes in silence" />
                     </section>
                 </div>

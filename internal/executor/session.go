@@ -52,7 +52,19 @@ type project struct {
 // thread under the tail of its id.
 func (e *Executor) Open(ctx context.Context, req action.Request) (string, string, error) {
 	if req.Kind == action.SessionResume && req.Agent == action.ResumeCodex {
-		return e.codexResume(ctx, req.Contour, req.Resume)
+		detail, name, err := e.codexResume(ctx, req.Contour, req.Resume)
+		if err != nil || req.Parent == "" {
+			return detail, name, err
+		}
+		th, ok := e.codex.Thread(req.Resume)
+		if !ok {
+			return detail, name, fmt.Errorf("the resumed thread is no longer live")
+		}
+		parent, err := codexParent(th, req.Parent)
+		if err != nil {
+			return detail, name, err
+		}
+		return detail + "; " + parent, name, nil
 	}
 	return e.sessionOpen(ctx, req.Target, req.Project)
 }
@@ -226,7 +238,7 @@ func insideRoots(path string, roots []string) bool {
 	return false
 }
 
-func (e *Executor) sessionResume(ctx context.Context, target, resume string, want *action.Project) (string, error) {
+func (e *Executor) sessionResume(ctx context.Context, target, resume string, want *action.Project, silent bool) (string, error) {
 	e.projectMoves.Lock()
 	defer e.projectMoves.Unlock()
 	p, err := chooseProject(target, want)
@@ -247,6 +259,13 @@ func (e *Executor) sessionResume(ctx context.Context, target, resume string, wan
 		}
 	}
 	p.IntentKey = sessionintent.First
+	if silent {
+		p.IntentKey = ""
+		p.Launch, err = restartOpening(p.Launch, "", true)
+		if err != nil {
+			return "", err
+		}
+	}
 	rep, err := e.runLauncher(ctx, p, resume)
 	if err != nil {
 		return "", err

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -13,6 +14,41 @@ import (
 	"aacpanel/internal/host"
 	"aacpanel/internal/store"
 )
+
+func TestProjectPauseExecutesEveryStepThroughTheRealDeduplicatorPG(t *testing.T) {
+	srv, _, project, _ := pauseServer(t, nil)
+	socket := socketPath(t, "pause.sock")
+	seen := make(chan action.Request, 8)
+	exec := action.NewServer(socket, action.ExecutorFunc(func(_ context.Context, r action.Request) (string, error) { seen <- r; return "delivered", nil }), time.Second)
+	ln, err := exec.Listen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- exec.Run(ctx, ln) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Error(err)
+			}
+		case <-time.After(time.Second):
+			t.Error("the test executor did not stop")
+		}
+	})
+	srv.exec = action.NewClient(socket, time.Second)
+	sendPause(t, srv, action.Pause{Project: project.ID, Session: "child", Resume: true}, 1)
+	if len(seen) != 2 {
+		t.Fatalf("Continue executed %d steps; cancellation and message need distinct request IDs", len(seen))
+	}
+	first, second := <-seen, <-seen
+	if first.Kind != action.AlarmCancel || second.Kind != action.SessionSend || first.ID == second.ID {
+		t.Fatalf("Continue steps: %+v %+v", first, second)
+	}
+}
 
 // pauseServer is a service over a map of two projects in one group, and a
 // snapshot with a session of the first project, a session of its worktree that

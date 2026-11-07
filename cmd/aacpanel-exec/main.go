@@ -515,6 +515,14 @@ func (a audited) KeepGuards(ctx context.Context, guards []action.Guard) error {
 }
 
 // Permission asks the wrapped executor about a session dialog and audits the call.
+func (a audited) Headroom(ctx context.Context) (*action.Headroom, error) {
+	asker, ok := a.next.(action.HeadroomAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor cannot measure the host's headroom")
+	}
+	return asker.Headroom(ctx)
+}
+
 func (a audited) Permission(ctx context.Context, target string) (*action.Permission, error) {
 	asker, ok := a.next.(action.Asker)
 	if !ok {
