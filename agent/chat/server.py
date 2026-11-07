@@ -23,6 +23,7 @@ from .disk import MAX_FILE, MAX_RAW, mentioned, read_file, read_raw, task_output
 from .locate import subagent_path, transcript_contour, transcript_cwd, transcript_path
 from .mail import agent_mail
 from .repo import answer as repo_answer
+from .taskstore import answer as taskstore_answer
 from .search import refusal, search
 from .spots import call, image
 from .uploads import sent_as, upload, uploads_home
@@ -79,6 +80,10 @@ def _answer(request):
 
     if request.get("briefGuide") is True:
         return briefs.legacy_guide()
+
+    want_tasks = request.get("taskStore")
+    if isinstance(want_tasks, dict):
+        return taskstore_answer(want_tasks)
 
     # Briefs are read here and written nowhere near here: publishing has a
     # socket of its own, which the service cannot reach at all.

@@ -1,0 +1,209 @@
+package main
+
+import (
+	"context"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"aacpanel/internal/store"
+	"aacpanel/internal/taskreg"
+)
+
+const taskImportEvery = 5 * time.Minute
+
+type taskImportReport struct {
+	Projects []store.TaskImportResult `json:"projects"`
+	Errors   []string                 `json:"errors"`
+}
+
+func (s *Server) importTaskStores(ctx context.Context, projectID int) (taskImportReport, error) {
+	out := taskImportReport{Projects: []store.TaskImportResult{}, Errors: []string{}}
+	if s.db == nil || s.chat == nil {
+		return out, store.ErrUnavailable
+	}
+	s.taskImportMu.Lock()
+	defer s.taskImportMu.Unlock()
+	profiles, err := s.db.Profiles(ctx)
+	if err != nil {
+		return out, err
+	}
+	found := projectID == 0
+	for _, profile := range profiles {
+		for _, group := range profile.Groups {
+			for _, project := range group.Projects {
+				if projectID != 0 && project.ID != projectID {
+					continue
+				}
+				found = true
+				snapshot, e := s.chat.TaskStore(ctx, project.Path)
+				if e != nil {
+					out.Errors = append(out.Errors, project.Name+": "+e.Error())
+					continue
+				}
+				result, e := s.db.ImportTasks(ctx, project.ID, project.Path, snapshot)
+				if e != nil {
+					out.Errors = append(out.Errors, project.Name+": "+e.Error())
+					continue
+				}
+				for _, problem := range result.Errors {
+					log.Printf("task import %s: %s", project.Name, problem)
+				}
+				out.Projects = append(out.Projects, result)
+			}
+		}
+	}
+	if !found {
+		return out, store.ErrNotFound
+	}
+	for _, problem := range out.Errors {
+		log.Printf("task import: %s", problem)
+	}
+	return out, nil
+}
+
+func (s *Server) runTaskImport(ctx context.Context) {
+	for {
+		pass, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		report, err := s.importTaskStores(pass, 0)
+		cancel()
+		wait := taskImportEvery
+		if err != nil {
+			log.Printf("task import: %v", err)
+			wait = 15 * time.Second
+		} else if len(report.Errors) > 0 {
+			wait = 15 * time.Second
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func taskInt(r *http.Request, name string) (int, error) {
+	text := r.URL.Query().Get(name)
+	if text == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(text)
+	if err != nil || n < 0 {
+		return 0, &taskParamError{name: name}
+	}
+	return n, nil
+}
+
+type taskParamError struct{ name string }
+
+func (e *taskParamError) Error() string { return "invalid task parameter: " + e.name }
+
+func taskFilter(r *http.Request) (f store.TaskFilter, err error) {
+	if f.ContourID, err = taskInt(r, "contour"); err != nil {
+		return f, err
+	}
+	if f.ProjectID, err = taskInt(r, "project"); err != nil {
+		return f, err
+	}
+	if f.Limit, err = taskInt(r, "limit"); err != nil {
+		return f, err
+	}
+	if f.Offset, err = taskInt(r, "offset"); err != nil {
+		return f, err
+	}
+	q := r.URL.Query()
+	f.Tag = q.Get("tag")
+	f.Text = q.Get("q")
+	f.External = q.Get("external")
+	f.IncludeDeleted = q.Get("deleted") == "true"
+	for _, status := range q["status"] {
+		f.Statuses = append(f.Statuses, strings.Split(status, ",")...)
+	}
+	if text := q.Get("from"); text != "" {
+		f.From, _, err = taskreg.Date(text)
+		if err != nil {
+			return f, &taskParamError{name: "from"}
+		}
+	}
+	if text := q.Get("until"); text != "" {
+		f.Until, _, err = taskreg.Date(text)
+		if err != nil {
+			return f, &taskParamError{name: "until"}
+		}
+	}
+	return f, nil
+}
+
+func (s *Server) apiTasks(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	f, err := taskFilter(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	page, err := s.db.Tasks(r.Context(), f)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	writeJSON(w, page)
+}
+
+func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) {
+	project, ok := s.profileID(w, r, "project")
+	if !ok {
+		return
+	}
+	number, err := strconv.ParseInt(r.PathValue("number"), 10, 64)
+	if err != nil || number <= 0 {
+		http.Error(w, "invalid task number", http.StatusBadRequest)
+		return
+	}
+	detail, err := s.db.Task(r.Context(), project, number)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	writeJSON(w, detail)
+}
+
+func (s *Server) apiTaskPeriod(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	f, err := taskFilter(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	period, err := s.db.TasksPeriod(r.Context(), f)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	writeJSON(w, period)
+}
+
+func (s *Server) apiTaskImport(w http.ResponseWriter, r *http.Request) {
+	project, err := taskInt(r, "project")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	report, err := s.importTaskStores(r.Context(), project)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if len(report.Errors) > 0 {
+		status = http.StatusServiceUnavailable
+	}
+	writeStatusJSON(w, status, report)
+}

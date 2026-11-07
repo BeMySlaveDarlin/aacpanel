@@ -123,6 +123,12 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("POST /api/usage/scan", g.page(s.apiUsageScanStart))
 
 	mux.Handle("GET /api/profiles", g.page(s.apiProfiles))
+	mux.Handle("GET /api/tasks", g.page(s.apiTasks))
+	mux.Handle("GET /api/tasks/period", g.page(s.apiTaskPeriod))
+	mux.Handle("GET /api/projects/{id}/tasks/{number}", g.page(s.apiTask))
+	if g.local {
+		mux.HandleFunc("POST /api/tasks/import", s.apiTaskImport)
+	}
 	mux.Handle("GET /api/profiles/schema", g.page(s.apiProfilesSchema))
 	mux.Handle("GET /api/profiles/journal", g.page(s.apiProfilesJournal))
 	mux.Handle("POST /api/profiles/journal/{id}/undo", g.page(s.mapActor(s.apiUndoJournal)))

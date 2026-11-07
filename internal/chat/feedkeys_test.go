@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/taskreg"
 )
 
 // feedPlace is a place in the collector that writes keys into a dict, as
@@ -83,7 +85,8 @@ var notTheFeed = map[string]string{
 // a row of the feed, by file, and the structures the service carries them in:
 // a key with no field there is dropped on the way just the same.
 var answersOfTheirOwn = map[string][]any{
-	"search.py": {Match{}, Found{}},
+	"search.py":    {Match{}, Found{}},
+	"taskstore.py": {Reply{}, taskreg.Snapshot{}, taskreg.File{}},
 }
 
 // Keys a row carries that the collector reads and the screen never does: they

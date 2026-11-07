@@ -40,6 +40,9 @@ const defaultSelf = "aacpanel"
 const actionTimeout = 90 * time.Second
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "task" {
+		os.Exit(runTask(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == statusline.Command {
 		os.Exit(statusline.Run(os.Stdin, os.Stdout, os.Stderr))
 	}

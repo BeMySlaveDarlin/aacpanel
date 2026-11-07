@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"aacpanel/internal/taskreg"
 )
 
 // Item is one row of the feed.
@@ -576,6 +578,8 @@ type Reply struct {
 
 	BriefGuide *string `json:"briefGuide,omitempty"`
 
+	TaskStore *taskreg.Snapshot `json:"taskStore,omitempty"`
+
 	// Notes are the calls standing on the collector, and Seq the count of
 	// calls it has taken.
 	Notes []SessionNote `json:"notes,omitempty"`
@@ -654,6 +658,8 @@ type Req struct {
 	Search    *SearchReq  `json:"search,omitempty"`
 
 	BriefGuide bool `json:"briefGuide,omitempty"`
+
+	TaskStore *TaskStoreReq `json:"taskStore,omitempty"`
 }
 
 // SearchReq is a question asked of a whole conversation, and how many of its

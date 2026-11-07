@@ -66,6 +66,7 @@ type Server struct {
 	// guard of every place; nil where there is no map.
 	guards       chan struct{}
 	briefGuideMu sync.Mutex
+	taskImportMu sync.Mutex
 	// releases asks GitHub whether a newer release of the panel is out.
 	releases *release.Check
 }
@@ -336,6 +337,7 @@ func run() error {
 		go srv.runRevival(ctx, revive)
 		go db.Run(ctx)
 		go srv.runBriefGuideImport(ctx)
+		go srv.runTaskImport(ctx)
 		go writer.Run(ctx)
 		go recordHost(ctx, srv.host, writer)
 		go watchcfg.Apply(ctx, db)

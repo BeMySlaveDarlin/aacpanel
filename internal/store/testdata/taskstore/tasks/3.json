@@ -1,0 +1,1 @@
+{"id":3,"title":"Deferred work","status":"deferred","priority":"LOW","created":"2025-01-06","updated":"2025-01-06","closed":null,"refs":{"jira":"SER-12","mr":5},"body":["A legacy list",{"detail":"Keep nested values"}]}

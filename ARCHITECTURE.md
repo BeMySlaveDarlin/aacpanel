@@ -2194,6 +2194,36 @@ has something to list.
 
 ## Data
 
+**The task registry belongs to mapped projects in Postgres.** Task numbers
+are local to each project and survive import unchanged. Until the registry
+switches writers, cctm alone edits the files in `.claude/session`; the panel
+mirrors them at startup, every five minutes and on `aacpanel-exec task import`.
+The collector reads bounded pages over the existing `chat.sock`, resolving
+linked worktrees to their common repository. The service selects paths from
+the map and checks the project's current path again before importing; projects
+outside the map are never scanned. The executor's task CLI only calls the
+service's local HTTP listener and never connects to Postgres.
+
+Tasks and project handoffs retain their original JSON text and parsed source,
+including unknown fields. Body sections render to Markdown in a fixed order;
+unknown sections follow in lexical order. The external source field is kept
+intact: cctm's native `{session,id}` binding is not an issue link. Issue numbers
+in the title, `refs.jira` or explicit external link fields are indexed separately, and a
+task naming several issues appears in each issue's report group.
+
+Imported events contain only the source's creation, update and closure dates
+and their recorded session ids. Dates carry `precision: date`; no time or
+intermediate status history is invented. A status transition observed between
+imports is recorded only when the source has an update date. Source facts are
+deduplicated by source key, while panel events can have arbitrary kinds and
+payloads without a schema change. Deleted source tasks and handoffs are marked,
+and unreadable files or incomplete listings cannot mark them as deleted.
+Period reads use a half-open interval, include all event kinds and paginate
+tasks before grouping them by issue. Task reads and filters are under
+`/api/tasks`, details under `/api/projects/{id}/tasks/{number}`, and period
+reads under `/api/tasks/period`; explicit import is local-only. Later the
+panel's tools become the sole writer and supply new events directly.
+
 Postgres in a container of its own, not lodged inside somebody else's: the panel
 must not fall together with a neighbouring project's database, and the other way
 round. The port is not published outwards — only the service reaches it, and

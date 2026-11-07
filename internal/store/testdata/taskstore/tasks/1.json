@@ -1,0 +1,29 @@
+{
+  "id": 1,
+  "title": "LMS-42: read the registry",
+  "status": "open",
+  "priority": "HIGH",
+  "order": 2,
+  "created": "2025-01-02",
+  "updated": "2025-01-04",
+  "closed": null,
+  "created_by": "creator",
+  "session": "editor",
+  "touched_by": ["creator", "editor"],
+  "blockedBy": [2],
+  "tags": ["backend", "import"],
+  "external": {"session": "native-session", "id": "16"},
+  "body": {
+    "description": "Keep every source field.",
+    "context": "Read the mapped project.",
+    "precondition": "The collector is reachable.",
+    "plan": ["Read files", "Import rows"],
+    "verify": "Import twice.",
+    "measure": {"rows": 2},
+    "result": "",
+    "notes": {"Decision": "The source remains the writer."},
+    "files": ["internal/store/tasks.go"]
+  },
+  "branch": "main",
+  "extra": {"keep": true}
+}
