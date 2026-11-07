@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"aacpanel/internal/action"
 )
 
 // SessionOwner records who opened a helper. A name alone would give a later,
@@ -34,6 +36,17 @@ func OpenedPath(id string) string {
 func KeepOwner(id string, owner SessionOwner) error {
 	record := openedSession(id)
 	record.SessionOwner = owner
+	return KeepOpened(id, record)
+}
+
+// A terminal can start before its conversation is known. Bind it before
+// its process goes away, so resuming an owned child needs no live opener.
+func KeepOpenedConversation(id, conversation string) error {
+	record := openedSession(id)
+	if record.Conversation == "" || record.SessionID == conversation {
+		return nil
+	}
+	record.SessionID = conversation
 	return KeepOpened(id, record)
 }
 
@@ -96,13 +109,13 @@ func OwnerOf(id string) SessionOwner {
 // session restarted anew runs a new conversation, and the sessions it opened
 // before stay its children: the right to close them and their reports go on
 // with it rather than with a conversation that no longer runs.
-func PassOwners(from string, owner SessionOwner) error {
+func PassOwners(from string, owner SessionOwner) (*action.OwnerTransfer, error) {
 	if from == "" || owner.Conversation == "" || owner.Conversation == from {
-		return nil
+		return nil, nil
 	}
 	paths, err := filepath.Glob(filepath.Join(keptDir(), "opened", "*.json"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, path := range paths {
 		id := strings.TrimSuffix(filepath.Base(path), ".json")
@@ -110,8 +123,8 @@ func PassOwners(from string, owner SessionOwner) error {
 			continue
 		}
 		if err := KeepOwner(id, owner); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return &action.OwnerTransfer{From: from, Name: owner.Name, Conversation: owner.Conversation}, nil
 }

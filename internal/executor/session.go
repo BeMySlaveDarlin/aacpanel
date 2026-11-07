@@ -248,7 +248,7 @@ func (e *Executor) sessionResume(ctx context.Context, target, resume string, wan
 	if err := historymove.Pending(registry.ConfigDirs(), p.Path); err != nil {
 		return "", err
 	}
-	owner, err := e.openingSession(p.OpenedBy)
+	owner, err := e.resumedOpening(resume, p.OpenedBy)
 	if err != nil {
 		return "", err
 	}

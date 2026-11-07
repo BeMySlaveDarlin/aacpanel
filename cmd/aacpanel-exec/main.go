@@ -660,6 +660,21 @@ func (a audited) Open(ctx context.Context, req action.Request) (string, string, 
 	return a.audit(req, func() (string, string, error) { return opener.Open(ctx, req) })
 }
 
+func (a audited) Restart(ctx context.Context, req action.Request) (string, *action.OwnerTransfer, error) {
+	restarter, ok := a.next.(action.Restarter)
+	if !ok {
+		detail, err := a.Execute(ctx, req)
+		return detail, nil, err
+	}
+	var ownership *action.OwnerTransfer
+	detail, _, err := a.audit(req, func() (string, string, error) {
+		detail, passed, err := restarter.Restart(ctx, req)
+		ownership = passed
+		return detail, "", err
+	})
+	return detail, ownership, err
+}
+
 // CodexModels asks the wrapped executor for the models codex offers.
 func (a audited) CodexModels(ctx context.Context, contour string) ([]action.CodexModel, error) {
 	asker, ok := a.next.(action.CodexModelsAsker)

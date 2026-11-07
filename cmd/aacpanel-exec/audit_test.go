@@ -199,7 +199,7 @@ func TestAuditedAnswersEveryQuestionTheExecutorAnswers(t *testing.T) {
 		reflect.TypeFor[action.Asker](), reflect.TypeFor[action.WindowAsker](), reflect.TypeFor[action.ModelsAsker](),
 		reflect.TypeFor[action.McpAsker](), reflect.TypeFor[action.StatusAsker](), reflect.TypeFor[action.CommandsAsker](),
 		reflect.TypeFor[action.QuestionAsker](), reflect.TypeFor[action.SideAsker](), reflect.TypeFor[action.SetupAsker](), reflect.TypeFor[action.GuardKeeper](),
-		reflect.TypeFor[action.Capable](), reflect.TypeFor[action.Opener](), reflect.TypeFor[action.CodexModelsAsker](),
+		reflect.TypeFor[action.Capable](), reflect.TypeFor[action.Opener](), reflect.TypeFor[action.Restarter](), reflect.TypeFor[action.CodexModelsAsker](),
 		reflect.TypeFor[action.TermsAsker](), reflect.TypeFor[action.SecretsAsker](),
 	}
 	exec := reflect.TypeFor[*executor.Executor]()
@@ -275,5 +275,19 @@ func TestTheWrapperPassesOnEveryQuestionOfTheExecutor(t *testing.T) {
 		if ex.Implements(asker) && !wrapped.Implements(asker) {
 			t.Errorf("the executor answers action.%s, and the journal's wrapper does not pass it on", name)
 		}
+	}
+}
+
+type passingRestartExec struct{ muteExec }
+
+func (passingRestartExec) Restart(context.Context, action.Request) (string, *action.OwnerTransfer, error) {
+	return "restarted", &action.OwnerTransfer{From: "11111111-1111-4111-8111-111111111111", Name: "parent", Conversation: "22222222-2222-4222-8222-222222222222"}, nil
+}
+
+func TestAuditedPassesTheRestartOwnershipResult(t *testing.T) {
+	t.Setenv("AACP_SEEN_DIR", t.TempDir())
+	detail, ownership, err := audited{next: passingRestartExec{}}.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: "parent"})
+	if err != nil || detail != "restarted" || ownership == nil || ownership.Conversation != "22222222-2222-4222-8222-222222222222" {
+		t.Fatalf("restart through the audit wrapper lost its transfer: %q %+v %v", detail, ownership, err)
 	}
 }

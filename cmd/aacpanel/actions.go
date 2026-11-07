@@ -90,6 +90,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		s.prepareRestart(w, r, body.Target, body.Params)
 		return
 	}
+	if body.Kind == string(action.SessionRestart) {
+		s.pauseMu.Lock()
+		defer s.pauseMu.Unlock()
+	}
 	if body.Kind == string(action.ProjectMove) {
 		s.runProjectMove(w, r, body.Target, body.Params)
 		return
@@ -526,7 +530,11 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				want.Role, params["role"] = &action.OpenRole{Text: *givenRole, Opener: opener}, *givenRole
 			}
 			if parent != "" {
-				parent = s.openedUnder(r.Context(), parent, found)
+				// Waking preserves an existing relationship rather than
+				// placing a new child according to the current map.
+				if _, waking := r.Context().Value(sleepResumeKey{}).(store.LivingSession); !waking {
+					parent = s.openedUnder(r.Context(), parent, found)
+				}
 			}
 			if parent != "" {
 				want.Parent, params["parent"] = parent, parent
@@ -658,6 +666,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 		req.Project.Launch = raw
 		req.Project.Path, req.Project.ConfigDir = saved.CWD, saved.ConfigDir
+		req.Project.OpenedBy = saved.OpenedBy
+		if saved.OpenedBy != "" {
+			params["openedBy"] = saved.OpenedBy
+		}
 	}
 	if automatic, _ := r.Context().Value(automaticActionKey{}).(string); automatic != "" && req.Kind == action.SessionResume {
 		req.Silent = true
@@ -688,7 +700,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), action.Timeout(req.Kind, execTimeout))
 	defer cancel()
 
-	resp, err := s.exec.Do(ctx, req)
+	resp, err := s.doAction(ctx, req)
 	if resp.OK && parentNote != "" {
 		resp.Detail += "; " + parentNote
 	}

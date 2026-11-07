@@ -13,30 +13,34 @@ import (
 	"aacpanel/internal/toolset"
 )
 
-func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action.Request) (string, error) {
+func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action.Request) (string, *action.OwnerTransfer, error) {
+	if req.Conversation != "" && req.Conversation != th.ID {
+		return "", nil, fmt.Errorf("session %s runs thread %s, not %s: a restart replaces only the thread it names", th.Name, th.ID, req.Conversation)
+	}
+
 	if req.Resume != "" {
-		return "", fmt.Errorf("a Codex restart starts a fresh thread and takes no resume")
+		return "", nil, fmt.Errorf("a Codex restart starts a fresh thread and takes no resume")
 	}
 	if !e.restarting.take(th.Name) {
-		return "", fmt.Errorf("session %s is being restarted already", th.Name)
+		return "", nil, fmt.Errorf("session %s is being restarted already", th.Name)
 	}
 	defer e.restarting.give(th.Name)
 	if th.Link.Closing(th.ID) {
-		return "", fmt.Errorf("session %s has a replacement already and closes after this turn", th.Name)
+		return "", nil, fmt.Errorf("session %s has a replacement already and closes after this turn", th.Name)
 	}
 	terminals, err := codexTerminals(ctx, []string{th.ID})
 	if err != nil {
-		return "", fmt.Errorf("the terminal of session %s was not checked: %w", th.Name, err)
+		return "", nil, fmt.Errorf("the terminal of session %s was not checked: %w", th.Name, err)
 	}
 	if terminals[th.ID] != "" {
-		return "", fmt.Errorf("session %s runs in tmux: restart from the Codex terminal", th.Name)
+		return "", nil, fmt.Errorf("session %s runs in tmux: restart from the Codex terminal", th.Name)
 	}
 	if req.Project == nil {
-		return "", fmt.Errorf("session %s has no project on the map to restart from", th.Name)
+		return "", nil, fmt.Errorf("session %s has no project on the map to restart from", th.Name)
 	}
 	begin, err := th.Link.RestartSettings(th.ID)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	c, warns := launcher.ParseCodex(req.Project.Launch)
 	if begin.Model == "" {
@@ -59,7 +63,7 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	begin.Workspace = begin.Sandbox == "workspace-write" && (begin.Owner.Conversation != "" || req.Project.Codex != nil)
 	if req.Project.Codex != nil {
 		if err := req.Project.Codex.Validate(); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		begin.WritableRoots = req.Project.Codex.WritableRoots
 	}
@@ -70,7 +74,7 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	} else if !req.Clean {
 		values, err := sessionintent.Read(sessionintent.Dir(), codexPlace(th), th.Name)
 		if err != nil {
-			return "", fmt.Errorf("the messages of session %s were not read: %w", th.Name, err)
+			return "", nil, fmt.Errorf("the messages of session %s were not read: %w", th.Name, err)
 		}
 		begin.Message = values.Pick(sessionintent.Restart, c.Intent)
 	}
@@ -93,11 +97,11 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	if err != nil {
 		if id != "" {
 			if _, closeErr := th.Link.Close(ctx, id); closeErr != nil {
-				return "", fmt.Errorf("session %s stays open: %w; incomplete replacement %s could not be closed: %v",
+				return "", nil, fmt.Errorf("session %s stays open: %w; incomplete replacement %s could not be closed: %v",
 					th.Name, err, codex.SessionName(id), closeErr)
 			}
 		}
-		return "", fmt.Errorf("session %s stays open: its replacement did not start: %w", th.Name, err)
+		return "", nil, fmt.Errorf("session %s stays open: its replacement did not start: %w", th.Name, err)
 	}
 	name := codex.SessionName(id)
 	if err := role.Move(role.Dir(), codexPlace(th), th.Name, name); err != nil {
@@ -112,17 +116,18 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 		}
 	}
 	warns = append(warns, e.moveClaudeChildren(th, name)...)
-	if err := stream.PassOwners(th.ID, stream.SessionOwner{Name: name, Conversation: id}); err != nil {
+	ownership, err := stream.PassOwners(th.ID, stream.SessionOwner{Name: name, Conversation: id})
+	if err != nil {
 		warns = append(warns, "the children's opening records were not all transferred: "+err.Error())
 	}
 	if err := th.Link.CloseAfterTurn(th.ID); err != nil {
-		return "", fmt.Errorf("replacement %s started, but session %s could not be scheduled to close: %w", name, th.Name, err)
+		return "", ownership, fmt.Errorf("replacement %s started, but session %s could not be scheduled to close: %w", name, th.Name, err)
 	}
 	detail := fmt.Sprintf("session %s replaced by %s in %s; the old thread closes after this turn", th.Name, name, begin.CWD)
 	for _, w := range warns {
 		detail += "; WARNING: " + w
 	}
-	return detail, nil
+	return detail, ownership, nil
 }
 
 func (e *Executor) moveClaudeChildren(from codex.Thread, to string) []string {

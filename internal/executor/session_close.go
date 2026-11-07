@@ -44,6 +44,13 @@ func (e *Executor) sessionClose(ctx context.Context, target, conversation string
 		if err := runsConversation(target, conversation, "close"); err != nil {
 			return "", err
 		}
+		key, err := processOwnerKey(p.Agent)
+		if err != nil {
+			return "", err
+		}
+		if err := stream.KeepOpenedConversation(key, conversation); err != nil {
+			return "", fmt.Errorf("the closing session's opening could not be saved: %w", err)
+		}
 	}
 	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
 		return e.closeGently(ctx, s, p, true)
@@ -64,25 +71,25 @@ func (e *Executor) sessionClose(ctx context.Context, target, conversation string
 // otherwise close the session an earlier restart brought up under the name.
 // The request's text is the session's own next message, for a continued
 // conversation or for a fresh start after readiness. It wins over saved messages.
-func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (string, error) {
+func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (string, *action.OwnerTransfer, error) {
 	target, resume := req.Target, req.Resume
 	p, err := lookupAgent(target)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	for _, named := range []string{resume, req.Conversation} {
 		if named == "" {
 			continue
 		}
 		if err := runsConversation(target, named, "restart"); err != nil {
-			return "", err
+			return "", nil, err
 		}
 	}
 	if req.Project != nil {
 		return e.restartFromMap(ctx, target, p, req.Project, resume, req.Text, req.Anyway, req.Clean)
 	}
 	if !p.Home {
-		return "", fmt.Errorf(
+		return "", nil, fmt.Errorf(
 			"session %s runs in %s, not in the home directory: a restart from scratch is for the host's "+
 				"main session only. Other sessions are closed here and opened again from the projects map, "+
 				"which carries their launch parameters",
@@ -95,7 +102,7 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 		home.IntentKey = ""
 	}
 	if home.Launch, err = restartOpening(home.Launch, req.Text, req.Clean); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	var from string
 	if s, err := findOneLiveSession(target); err == nil {
@@ -103,14 +110,15 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 	}
 	closed, err := e.closeAgent(ctx, p)
 	if err != nil {
-		return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
+		return "", nil, fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
 	}
 
 	rep, err := e.runLauncher(ctx, home, resume)
 	if err != nil {
-		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
+		return "", nil, fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
-	return closed + "; " + describeConsole(rep) + restartedWith(resume, "") + passChildren(from, rep), nil
+	suffix, ownership := passChildren(from, rep)
+	return closed + "; " + describeConsole(rep) + restartedWith(resume, "") + suffix, ownership, nil
 }
 
 // runsConversation refuses a restart or a close, as act names it, that names
@@ -139,10 +147,10 @@ func restartedWith(resume, more string) string {
 	return " with an empty context" + more
 }
 
-func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume, intent string, anyway, clean bool) (string, error) {
+func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume, intent string, anyway, clean bool) (string, *action.OwnerTransfer, error) {
 	next, err := chooseProject(target, want)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	next.Parent = keptParent(p.Agent, next.Parent)
 	s, err := findOneLiveSession(target)
@@ -166,7 +174,7 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 		next.IntentKey = ""
 	}
 	if next.Launch, err = restartOpening(next.Launch, intent, clean); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if held && !anyway {
 		closed, err = e.closeGently(ctx, s, p, true)
@@ -174,14 +182,14 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 		closed, err = e.closeAgent(ctx, p)
 	}
 	if err != nil {
-		return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
+		return "", nil, fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
 	}
 	rep, err := e.runLauncher(ctx, next, resume)
 	if err != nil {
-		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
+		return "", nil, fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
-	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh +
-		passChildren(from, rep), nil
+	suffix, ownership := passChildren(from, rep)
+	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh + suffix, ownership, nil
 }
 
 // passChildren hands the sessions a restarted session had opened to the
@@ -189,12 +197,12 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 // the children recorded under the old one would no longer be its own: it could
 // not close them, and their reports would go nowhere. A tmux session names no
 // conversation at its start, and its children stay where they were.
-func passChildren(from string, rep launcher.Report) string {
-	err := stream.PassOwners(from, stream.SessionOwner{Name: rep.Session, Conversation: rep.Conversation})
+func passChildren(from string, rep launcher.Report) (string, *action.OwnerTransfer) {
+	ownership, err := stream.PassOwners(from, stream.SessionOwner{Name: rep.Session, Conversation: rep.Conversation})
 	if err != nil {
-		return "; the sessions it had opened stay with its previous conversation: " + err.Error()
+		return "; the sessions it had opened stay with its previous conversation: " + err.Error(), nil
 	}
-	return ""
+	return "", ownership
 }
 
 // Clean restarts ignore the saved message as well as the inherited one.

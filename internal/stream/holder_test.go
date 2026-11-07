@@ -375,7 +375,7 @@ func start(t *testing.T, mutate func(*Spec)) *rig {
 	t.Helper()
 	// Short on purpose: a unix socket path longer than 108 bytes is refused,
 	// and a test's own temporary directory is longer than that.
-	run, err := os.MkdirTemp("/tmp", "hold")
+	run, err := os.MkdirTemp("", "hold")
 	if err != nil {
 		t.Fatal(err)
 	}

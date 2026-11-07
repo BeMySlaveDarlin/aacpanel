@@ -62,3 +62,24 @@ func (s *Store) DropSessionPause(ctx context.Context, host int, conversation str
 	_, err = pool.Exec(ctx, `DELETE FROM session_pauses WHERE host_id=$1 AND conversation=$2`, host, conversation)
 	return err
 }
+
+// The host's ownership transfer and the visual parent are independent:
+// manual grouping never grants ownership of another session's child.
+// Sleeping children need the census after the handover to find their new
+// parent. An awake pause must keep the timestamp of its unfinished turn.
+func (s *Store) PassPauseOwners(ctx context.Context, host int, from, conversation, name string, at time.Time) error {
+	if from == "" || conversation == "" || from == conversation {
+		return nil
+	}
+	pool, err := s.Pool()
+	if err != nil {
+		return err
+	}
+	_, err = pool.Exec(ctx, `UPDATE session_pauses SET saved=saved || jsonb_build_object(
+		'OpenedBy', CASE WHEN saved->>'OpenedBy'=$2 THEN $3::text ELSE coalesce(saved->>'OpenedBy','') END,
+		'ParentConversation', CASE WHEN saved->>'ParentConversation'=$2 THEN $3::text ELSE coalesce(saved->>'ParentConversation','') END,
+		'Parent', CASE WHEN saved->>'ParentConversation'=$2 THEN $4::text ELSE coalesce(saved->>'Parent','') END),
+		commanded_at=CASE WHEN sleeping THEN greatest(commanded_at,$5::timestamptz) ELSE commanded_at END
+		WHERE host_id=$1 AND (saved->>'OpenedBy'=$2 OR saved->>'ParentConversation'=$2)`, host, from, conversation, name, at)
+	return err
+}

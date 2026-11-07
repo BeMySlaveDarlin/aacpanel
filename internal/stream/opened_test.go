@@ -10,8 +10,12 @@ func TestPassingOwnershipPreservesTheChildsIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := SessionOwner{Name: "lead", Conversation: "new"}
-	if err := PassOwners("old", owner); err != nil {
-		t.Fatal(err)
+	passed, err := PassOwners("old", owner)
+	if err != nil || passed == nil || passed.From != "old" || passed.Name != owner.Name || passed.Conversation != owner.Conversation {
+		t.Fatalf("the ownership result was not returned: %+v %v", passed, err)
+	}
+	if again, err := PassOwners(owner.Conversation, owner); err != nil || again != nil {
+		t.Fatalf("a continued conversation emitted a transfer: %+v %v", again, err)
 	}
 	records, err := OpenedSessions()
 	child.SessionOwner, child.Key = owner, "child"

@@ -203,6 +203,7 @@ func TestARestartHandsTheChildrenToTheConversationItComesBackWith(t *testing.T) 
 		t.Run(c.name, func(t *testing.T) {
 			t.Setenv("XDG_STATE_HOME", t.TempDir())
 			mine := []string{"process-7001-100", "019a2000-0000-7000-8000-00000000c0de"}
+
 			for _, id := range mine {
 				if err := stream.KeepOwner(id, stream.SessionOwner{Name: "demo", Conversation: streamSID}); err != nil {
 					t.Fatal(err)
@@ -216,9 +217,16 @@ func TestARestartHandsTheChildrenToTheConversationItComesBackWith(t *testing.T) 
 			e, _ := newTest(t, "")
 			withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
 
-			detail, err := e.Execute(context.Background(), restartOf(dir, c.resume))
+			detail, ownership, err := e.Restart(context.Background(), restartOf(dir, c.resume))
 			if err != nil {
 				t.Fatal(err)
+			}
+			if c.back != streamSID {
+				if ownership == nil || ownership.From != streamSID || ownership.Name != "demo" || ownership.Conversation != c.back {
+					t.Fatalf("the host transfer was not returned to the panel: %+v", ownership)
+				}
+			} else if ownership != nil {
+				t.Fatalf("continuing a conversation emitted a transfer: %+v", ownership)
 			}
 			for _, id := range mine {
 				if got := stream.OwnerOf(id); got.Conversation != c.owner || got.Name != "demo" {

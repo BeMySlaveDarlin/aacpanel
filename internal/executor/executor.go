@@ -187,13 +187,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.SessionClose:
 		return e.sessionClose(ctx, req.Target, req.Conversation)
 	case action.SessionRestart:
-		if !e.restarting.take(req.Target) {
-			return "", fmt.Errorf("session %s is being restarted already: a second restart would bring up a "+
-				"second session, so this one does nothing", req.Target)
-		}
-		defer e.restarting.give(req.Target)
-		defer markRestarting(req.Target)()
-		return e.sessionRestart(ctx, req)
+		detail, _, err := e.Restart(ctx, req)
+		return detail, err
 	case action.SessionSend:
 		if req.Asked != "" {
 			return "", fmt.Errorf("%s is no codex session: only codex asks a question it does not wait for", req.Target)

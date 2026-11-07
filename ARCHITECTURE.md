@@ -258,6 +258,15 @@ the parent as a letter, which wakes the parent and lifts that pause before
 delivery. Name, conversation, contour and transport remain those saved for
 sleep. A deadline or Continue sends the instruction to continue after wake-up.
 
+Sleep keeps the visual parent and the opener as separate identities. The
+fresh census before closing supplies the parent, and the executor supplies
+the opener. A conversation-bound close completes the child conversation in
+its opening record before ending the process. Wake-up forwards the saved
+opener and preserves the parent without applying the map's rule for a new
+placement. A live opener is resolved directly; an absent opener is restored
+only from a record for that same child conversation and opener. A reused name
+inherits no right to close or answer the child.
+
 A `session.letter` from another session wakes the recipient and lifts its
 pause, delivering the letter after the conversation is live. A person's
 `session.send` wakes it for one answer and retains the deadline: a fresh census
@@ -1013,6 +1022,16 @@ A parent restarted anew runs a new conversation that the panel itself names
 at the start, and its records move to that conversation; a restart that goes
 on keeps the conversation and the records as they are. A tmux parent names no
 conversation at its start, and its records stay with the previous one.
+
+The same `PassOwners` result travels in the restart reply. Both the manual
+restart and the context cycle pass the panel's pause records to that UUID and
+name while holding the pause lock. Opener and visual parent move independently;
+deadlines and sleep state remain intact. Sleeping children require a census
+newer than the handover before waking, while awake pauses keep their turn
+barrier. A transfer already completed on the host remains in a failed reply
+when a later restart step fails. A database failure is reported as an action
+failure even though the replacement process can already be running.
+
 The record survives an executor restart; resuming a closed thread from the
 archive clears it. `turn/completed` queues one delivery attempt per thread and
 turn in the connected executor, including failure and interruption. A separate

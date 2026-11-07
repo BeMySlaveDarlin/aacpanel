@@ -428,8 +428,11 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 	started := time.Now()
 	runCtx, cancel := context.WithTimeout(ctx, Timeout(req.Kind, s.timeout))
 	var detail, session string
+	var ownership *OwnerTransfer
 	var err error
-	if opener, ok := s.exec.(Opener); ok && (req.Kind == SessionOpen || req.Kind == SessionResume && req.Agent == ResumeCodex) {
+	if restarter, ok := s.exec.(Restarter); ok && req.Kind == SessionRestart {
+		detail, ownership, err = restarter.Restart(runCtx, req)
+	} else if opener, ok := s.exec.(Opener); ok && (req.Kind == SessionOpen || req.Kind == SessionResume && req.Agent == ResumeCodex) {
 		detail, session, err = opener.Open(runCtx, req)
 	} else {
 		detail, err = s.exec.Execute(runCtx, req)
@@ -445,6 +448,7 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		cur.resp.Session = session
 		log.Printf("aacpanel-exec: %s %s done in %s", req.Kind, req.Target, took.Round(time.Millisecond))
 	}
+	cur.resp.Ownership = ownership
 	close(cur.done)
 	return cur.resp
 }

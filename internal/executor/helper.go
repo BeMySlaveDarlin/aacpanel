@@ -22,6 +22,25 @@ func (e *Executor) openingSession(conversation string) (stream.SessionOwner, err
 	return stream.SessionOwner{Name: s.Name, Conversation: conversation}, nil
 }
 
+// A sleeping opener has no process. Only the same child conversation can
+// inherit its archived opening; a reused session name grants no ownership.
+func (e *Executor) resumedOpening(child, opener string) (stream.SessionOwner, error) {
+	owner, err := e.openingSession(opener)
+	if err == nil {
+		return owner, nil
+	}
+	rows, readErr := stream.OpenedSessions()
+	if readErr != nil {
+		return stream.SessionOwner{}, readErr
+	}
+	for _, row := range rows {
+		if row.SessionID == child && row.Conversation == opener {
+			return row.SessionOwner, nil
+		}
+	}
+	return stream.SessionOwner{}, fmt.Errorf("the resumed conversation has no opening record for this parent: %w", err)
+}
+
 func processOwnerKey(pid int) (string, error) {
 	start, ok := procStart(pid)
 	if !ok {

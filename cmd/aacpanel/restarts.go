@@ -295,7 +295,7 @@ func (s *Server) restartAction(ctx context.Context, c store.RestartCycle, step r
 	}
 	var resp action.Response
 	if err == nil {
-		resp, err = s.exec.Do(ctx, req)
+		resp, err = s.doAction(ctx, req)
 	}
 	outcome := store.ActionOutcome{Result: store.ActionOK, Detail: resp.Detail, Duration: time.Duration(resp.DurationMs) * time.Millisecond}
 	if err == nil && !resp.OK {

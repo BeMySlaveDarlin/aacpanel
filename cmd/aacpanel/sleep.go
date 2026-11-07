@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/host"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/session"
 	"aacpanel/internal/store"
@@ -50,22 +51,9 @@ func (s *Server) rememberPause(ctx context.Context, row pauseSession, until, com
 		saved.ProjectID, saved.Project = found.project.ID, found.project.Name
 		saved.Contour, saved.ConfigDir = found.profile.Name, found.profile.ConfigDir
 	}
-	if row.Parent != nil {
-		saved.Parent = row.Parent.Session
-		if parent, ok := s.host.LiveSession(saved.Parent); ok {
-			saved.ParentConversation = parent.SessionID
-		}
-		if saved.ParentConversation == "" {
-			pauses, err := s.sessionPauses(ctx)
-			if err != nil {
-				return err
-			}
-			for _, parent := range pauses {
-				if parent.Session == saved.Parent {
-					saved.ParentConversation = parent.Conversation
-				}
-			}
-		}
+	saved.Parent, saved.ParentConversation, err = s.pauseParent(ctx, row.LiveSession)
+	if err != nil {
+		return err
 	}
 	p := store.SessionPause{LivingSession: saved, Snapshot: row.Snapshot, Sleeping: row.Sleeping, CommandAt: commanded}
 	if !until.IsZero() {
@@ -76,6 +64,26 @@ func (s *Server) rememberPause(ctx context.Context, row pauseSession, until, com
 		return err
 	}
 	return s.db.PutSessionPause(ctx, id, p)
+}
+
+func (s *Server) pauseParent(ctx context.Context, row host.LiveSession) (string, string, error) {
+	if row.Parent == nil {
+		return "", "", nil
+	}
+	name := row.Parent.Session
+	if live, ok := s.host.LiveSession(name); ok {
+		return name, live.SessionID, nil
+	}
+	pauses, err := s.sessionPauses(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	for _, parent := range pauses {
+		if parent.Session == name {
+			return name, parent.Conversation, nil
+		}
+	}
+	return name, "", nil
 }
 
 func panelPauseAlarm(p store.SessionPause) pauseAlarm {
@@ -119,6 +127,11 @@ func (s *Server) sessionsPaused(ctx context.Context, payload []byte) ([]byte, er
 			delete(row, "waitingFor")
 			delete(row, "work")
 			delete(row, "nextAlarm")
+			if p.Parent != "" {
+				row["parent"] = host.SessionRef{Session: p.Parent}
+			} else {
+				delete(row, "parent")
+			}
 			rows = append(rows, row)
 		}
 		if row != nil {
@@ -274,6 +287,10 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 				break
 			}
 			before := p
+			p.Parent, p.ParentConversation, err = s.pauseParent(ctx, row.LiveSession)
+			if err != nil {
+				return err
+			}
 			opening, err := s.exec.Opening(ctx, p.Session, p.Conversation)
 			if err != nil {
 				return err

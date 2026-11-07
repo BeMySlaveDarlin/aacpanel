@@ -68,7 +68,7 @@ func TestACodexRestartKeepsItsPlaceAndClosesAfterTheCallingTurn(t *testing.T) {
 			p.Launch = json.RawMessage(`{"agent":"codex","codexModel":"gpt-map","codexEffort":"low","codexSandbox":"workspace-write","codexTransport":"tmux","intent":"map message"}`)
 			r := action.Request{Kind: action.SessionRestart, Target: name, Project: p, Conversation: old.ID,
 				Agent: action.ResumeCodex, Text: "Read the saved handoff"}
-			detail, err := e.Execute(t.Context(), r)
+			detail, ownership, err := e.Restart(t.Context(), r)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,6 +91,9 @@ func TestACodexRestartKeepsItsPlaceAndClosesAfterTheCallingTurn(t *testing.T) {
 			replacement := e.codex.Find(codex.SessionName(newID))
 			if len(replacement) != 1 || replacement[0].Link != old.Link || !heldMark(t, newID) {
 				t.Fatalf("the replacement is not held by the old home: %+v", replacement)
+			}
+			if ownership == nil || ownership.From != old.ID || ownership.Name != codex.SessionName(newID) || ownership.Conversation != newID {
+				t.Fatalf("the Codex ownership transfer was not returned: %+v", ownership)
 			}
 			settings, err := old.Link.RestartSettings(newID)
 			if err != nil || settings.Name != "cve fix" {
