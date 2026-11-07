@@ -41,6 +41,13 @@ var presets = map[string]preset{
 	ModeAuto:     {profile: ":workspace", approval: "on-request", reviewer: "auto_review"},
 }
 
+// ReviewAutomatically changes who approves a sandbox escape without replacing
+// the sandbox or writable roots the helper was explicitly given.
+func (b *Begin) ReviewAutomatically() {
+	p := presets[ModeAuto]
+	b.Approval, b.Reviewer = p.approval, p.reviewer
+}
+
 // settings are the parts of a thread's settings the panel shows beyond its
 // model and effort, which thread/read says. The daemon tells them in the
 // answer of thread/start and thread/resume and in thread/settings/updated to

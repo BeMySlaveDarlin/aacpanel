@@ -79,7 +79,7 @@ func TestACodexRestartKeepsItsPlaceAndClosesAfterTheCallingTurn(t *testing.T) {
 			start := paramsOf(t, starts[2])
 			config := start["config"].(map[string]any)
 			if start["cwd"] != cwd || start["model"] != "gpt-old" || start["sandbox"] != "read-only" ||
-				start["approvalPolicy"] != "never" || config["model_reasoning_effort"] != "high" ||
+				start["approvalPolicy"] != "on-request" || start["approvalsReviewer"] != "auto_review" || config["model_reasoning_effort"] != "high" ||
 				config["mcp_servers.aacpanel.command"] != panelTools {
 				t.Fatalf("the replacement lost the live settings: %v", start)
 			}

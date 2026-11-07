@@ -975,10 +975,24 @@ close the child by name with `session_close`.** The helper is held in the
 contour's daemon and takes a letter as soon as the open returns. It starts
 without the map's opening message; the task arrives in an envelope naming the
 opening session as its parent. Model and effort inherit the map unless the
-call overrides them. Helpers use `approvalPolicy: never`, `workspace-write`
-with network on, or explicit `read-only`; extra absolute writable roots are
-supplied by the caller, not inferred from the host. These choices affect one
-start and leave the map intact.
+call overrides them. Helpers start and restart with `approvalPolicy: on-request`
+and `approvalsReviewer: auto_review`, taken from the Auto preset, with
+`workspace-write` and network on, or explicit `read-only`. Workspace helpers
+add both their common git directory and their checkout's own gitdir, plus
+existing Go build and module caches, to the caller's explicit writable roots,
+without duplicates. The executor uses cache environment values or Go's standard
+cache directories, so this needs no Go program in its PATH. TMPDIR is writable
+through the daemon's environment and is not added as another root. These choices
+affect the helper and leave the map intact; ordinary sessions keep the map's policy.
+
+Automatic approval reviews are not requests for the owner. The link reads the
+review lifecycle and correlates it with server requests by thread, turn and
+item or callback. A matching request stays off the owner's pending list and
+out of the collector's waiting state while the guardian reviews or has decided
+it, including when the daemon's approval flag lags behind. Strict review alone
+creates no prompt: it allows a matching actual server request to reach the
+owner. Managed human-command requests, questions and requests outside an
+automatic review keep the ordinary card, notification and answer path.
 
 **Roles and session messages use the Codex home's directory, the thread's
 repository and its panel session name.** `session.role` and the thread-bound

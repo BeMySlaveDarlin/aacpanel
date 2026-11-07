@@ -33,7 +33,7 @@ func TestACodexHelperReportsEveryTurnToItsOpeningSession(t *testing.T) {
 	th := e.codex.Find(name)[0]
 	start := paramsOf(t, srv.Calls("thread/start")[0])
 	config := start["config"].(map[string]any)
-	if start["model"] != "gpt-6.1-sol" || start["approvalPolicy"] != "never" || start["sandbox"] != "workspace-write" ||
+	if start["model"] != "gpt-6.1-sol" || start["approvalPolicy"] != "on-request" || start["approvalsReviewer"] != "auto_review" || start["sandbox"] != "workspace-write" ||
 		config["model_reasoning_effort"] != "high" || config["sandbox_workspace_write.network_access"] != true ||
 		!reflect.DeepEqual(config["sandbox_workspace_write.writable_roots"], []any{p.Path}) {
 		t.Fatalf("the helper started with %v", start)
@@ -271,7 +271,7 @@ func TestACodexHelperCanStartReadOnlyAndRefusesUnknownLaunchValues(t *testing.T)
 		t.Fatal(err)
 	}
 	start := paramsOf(t, srv.Calls("thread/start")[0])
-	if start["sandbox"] != "read-only" || start["approvalPolicy"] != "never" || start["model"] != "gpt-6.1-sol" ||
+	if start["sandbox"] != "read-only" || start["approvalPolicy"] != "on-request" || start["approvalsReviewer"] != "auto_review" || start["model"] != "gpt-6.1-sol" ||
 		start["config"].(map[string]any)["sandbox_workspace_write.network_access"] != nil {
 		t.Fatalf("read-only did not reach the daemon: %v", start)
 	}

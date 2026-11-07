@@ -1303,6 +1303,7 @@ func (s *Server) start(c *client, raw json.RawMessage) map[string]any {
 		CWD      string `json:"cwd"`
 		Model    string `json:"model"`
 		Approval string `json:"approvalPolicy"`
+		Reviewer string `json:"approvalsReviewer"`
 		Sandbox  string `json:"sandbox"`
 		Config   struct {
 			Effort string `json:"model_reasoning_effort"`
@@ -1311,7 +1312,7 @@ func (s *Server) start(c *client, raw json.RawMessage) map[string]any {
 	_ = json.Unmarshal(raw, &p)
 	s.startN++
 	th := Thread{ID: fmt.Sprintf("019a2000-0000-7000-8000-0000beef%04x", s.startN), CWD: p.CWD, Model: p.Model,
-		Effort: p.Config.Effort, Status: "idle", Created: time.Now().Unix(), Approval: p.Approval,
+		Effort: p.Config.Effort, Status: "idle", Created: time.Now().Unix(), Approval: p.Approval, Reviewer: p.Reviewer,
 		Sandbox: legacySandbox[p.Sandbox]}
 	if th.Model == "" {
 		th.Model = "gpt-home"

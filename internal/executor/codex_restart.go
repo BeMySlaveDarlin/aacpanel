@@ -55,7 +55,7 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	begin.Owner = stream.OwnerOf(th.ID)
 	begin.Approval = c.Approval
 	if begin.Owner.Conversation != "" {
-		begin.Approval = "never"
+		begin.ReviewAutomatically()
 		if begin.Sandbox == "" {
 			begin.Sandbox = "workspace-write"
 		}
@@ -66,6 +66,9 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 			return "", nil, err
 		}
 		begin.WritableRoots = req.Project.Codex.WritableRoots
+	}
+	if begin.Owner.Conversation != "" && begin.Workspace {
+		begin.WritableRoots = helperWritableRoots(ctx, begin.CWD, begin.WritableRoots)
 	}
 	warns = append(warns, "the link does not retain writable roots; the replacement uses the launch's roots or the Codex home's defaults")
 	begin.Message = c.Intent

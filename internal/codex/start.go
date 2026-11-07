@@ -27,6 +27,7 @@ type Begin struct {
 	CWD      string
 	Model    string
 	Approval string
+	Reviewer string
 	Sandbox  string
 	// Effort is the thread's from its start, and goes with the first turn.
 	Effort string
@@ -115,7 +116,7 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 		return "", err
 	}
 	params := map[string]any{"cwd": b.CWD}
-	for key, value := range map[string]string{"model": b.Model, "approvalPolicy": b.Approval, "sandbox": b.Sandbox} {
+	for key, value := range map[string]string{"model": b.Model, "approvalPolicy": b.Approval, "approvalsReviewer": b.Reviewer, "sandbox": b.Sandbox} {
 		if value != "" {
 			params[key] = value
 		}

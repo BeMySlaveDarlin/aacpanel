@@ -254,15 +254,16 @@ func TestPollWritesTheStateOfAThreadAndNothingOfTheConversation(t *testing.T) {
 	var params struct {
 		ClientInfo   struct{ Name string } `json:"clientInfo"`
 		Capabilities struct {
-			Experimental bool     `json:"experimentalApi"`
-			Attestation  bool     `json:"requestAttestation"`
-			Quiet        []string `json:"optOutNotificationMethods"`
+			Experimental  bool     `json:"experimentalApi"`
+			Attestation   bool     `json:"requestAttestation"`
+			HumanApproval bool     `json:"requiredHumanApproval"`
+			Quiet         []string `json:"optOutNotificationMethods"`
 		} `json:"capabilities"`
 	}
 	if err := json.Unmarshal(hello[0], &params); err != nil {
 		t.Fatal(err)
 	}
-	if params.ClientInfo.Name != "aacpanel" || !params.Capabilities.Experimental || params.Capabilities.Attestation {
+	if params.ClientInfo.Name != "aacpanel" || !params.Capabilities.Experimental || params.Capabilities.Attestation || !params.Capabilities.HumanApproval {
 		t.Errorf("initialize went with %s", hello[0])
 	}
 	for _, m := range []string{"item/completed", "item/agentMessage/delta", "turn/diff/updated",
@@ -275,14 +276,17 @@ func TestPollWritesTheStateOfAThreadAndNothingOfTheConversation(t *testing.T) {
 		t.Error("the word that a request was answered is turned off: a request answered in the TUI would wait on the phone")
 	}
 	for m, why := range map[string]string{
-		"turn/completed":             "a helper would never report back to its parent",
-		"thread/name/updated":        "a name changed in the TUI would leave the panel's on the row until the next read",
-		"thread/goal/updated":        "the goal would stand as it was until the next read",
-		"thread/goal/cleared":        "a goal cleared in the TUI would stay on the row until the next read",
-		"thread/status/changed":      "a thread that turns free would wait a round for the next message of the queue",
-		"thread/settings/updated":    "a model or a mode changed in the TUI would not reach the panel",
-		"thread/tokenUsage/updated":  "the fill of the context would wait for the rollout",
-		"account/rateLimits/updated": "the limits would wait for the next read",
+		"turn/completed":                          "a helper would never report back to its parent",
+		"thread/name/updated":                     "a name changed in the TUI would leave the panel's on the row until the next read",
+		"thread/goal/updated":                     "the goal would stand as it was until the next read",
+		"thread/goal/cleared":                     "a goal cleared in the TUI would stay on the row until the next read",
+		"thread/status/changed":                   "a thread that turns free would wait a round for the next message of the queue",
+		"thread/settings/updated":                 "a model or a mode changed in the TUI would not reach the panel",
+		"thread/tokenUsage/updated":               "the fill of the context would wait for the rollout",
+		"account/rateLimits/updated":              "the limits would wait for the next read",
+		"item/autoApprovalReview/started":         "guardian work would appear as an owner approval",
+		"item/autoApprovalReview/completed":       "guardian decisions would remain owner approvals",
+		"autoApprovalReview/strictReviewRequired": "a matching request could not reach the owner",
 	} {
 		if slices.Contains(params.Capabilities.Quiet, m) {
 			t.Errorf("%s is turned off: %s", m, why)

@@ -7,7 +7,7 @@ import (
 )
 
 // CodexLaunch overrides the map for one start, without changing the project.
-// Approval is deliberately absent: a helper has nobody to answer a prompt.
+// Approval is deliberately absent: the caller cannot replace the helper's reviewer policy.
 type CodexLaunch struct {
 	Model         string   `json:"model,omitempty"`
 	Effort        string   `json:"effort,omitempty"`

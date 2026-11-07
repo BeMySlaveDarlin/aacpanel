@@ -65,7 +65,7 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 		}
 	}
 	if owner.Conversation != "" {
-		c.Transport, c.Intent, c.Approval = launcher.CodexInDaemon, "", "never"
+		c.Transport, c.Intent = launcher.CodexInDaemon, ""
 		c.Sandbox = "workspace-write"
 		if p.Codex != nil && p.Codex.Sandbox != "" {
 			c.Sandbox = p.Codex.Sandbox
@@ -91,6 +91,12 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 	if p.Codex != nil {
 		begin.WritableRoots = p.Codex.WritableRoots
 		begin.Workspace = c.Sandbox == "workspace-write"
+	}
+	if owner.Conversation != "" {
+		begin.ReviewAutomatically()
+		if begin.Workspace {
+			begin.WritableRoots = helperWritableRoots(ctx, begin.CWD, begin.WritableRoots)
+		}
 	}
 	if path, err := toolServer(); err == nil {
 		begin.Tools, begin.Allowed = path, toolset.CodexAllowed()

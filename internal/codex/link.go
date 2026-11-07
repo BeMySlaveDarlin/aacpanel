@@ -68,12 +68,12 @@ var waitsForPerson = []string{methodCommand, methodFileChange, methodPermissions
 var quiet = []string{
 	"error", "thread/started", "thread/archived", "thread/deleted",
 	"thread/unarchived", "thread/closed", "thread/reverted", "skills/changed",
+	"thread/readState/changed", "thread/section/changed",
 	"thread/attachment/updated", "thread/prediction/updated",
 	"thread/queue/changed", "project/changed", "thread/project/updated", "thread/environment/connected",
 	"thread/environment/disconnected",
 	"turn/started", "hook/started", "hook/completed", "turn/diff/updated",
-	"turn/plan/updated", "item/started", "item/autoApprovalReview/started",
-	"item/autoApprovalReview/completed", "autoApprovalReview/strictReviewRequired", "item/completed",
+	"turn/plan/updated", "item/started", "item/completed",
 	"rawResponseItem/completed", "rawResponse/completed", "item/agentMessage/delta", "item/plan/delta",
 	"command/exec/outputDelta", "process/outputDelta", "process/exited",
 	"item/commandExecution/outputDelta", "item/commandExecution/terminalInteraction",
@@ -190,14 +190,17 @@ type Context struct {
 // Params are the params of a request that waits for a person, the part the
 // panel shows. One struct reads every kind, each filling its own fields.
 type Params struct {
-	ThreadID  string `json:"threadId"`
-	TurnID    string `json:"turnId"`
-	ItemID    string `json:"itemId"`
-	Command   string `json:"command"`
-	CWD       string `json:"cwd"`
-	Reason    string `json:"reason"`
-	GrantRoot string `json:"grantRoot"`
-	Network   *struct {
+	ThreadID   string `json:"threadId"`
+	TurnID     string `json:"turnId"`
+	ItemID     string `json:"itemId"`
+	ApprovalID string `json:"approvalId"`
+	Kind       string `json:"kind"`
+	Started    int64  `json:"startedAtMs"`
+	Command    string `json:"command"`
+	CWD        string `json:"cwd"`
+	Reason     string `json:"reason"`
+	GrantRoot  string `json:"grantRoot"`
+	Network    *struct {
 		Host     string `json:"host"`
 		Protocol string `json:"protocol"`
 	} `json:"networkApprovalContext"`
@@ -349,6 +352,7 @@ type Link struct {
 	release string
 	threads map[string]*thread
 	pending map[string][]Request
+	reviews map[string]*approvalReviews
 	said    string
 	// polled is set once the threads of the connection have been read:
 	// before that, a thread the link does not list may only not be read yet.
@@ -638,7 +642,7 @@ func initialize(ctx context.Context, c *conn) (string, error) {
 	params := map[string]any{
 		"clientInfo": map[string]any{"name": "aacpanel", "title": "aacpanel", "version": "1"},
 		"capabilities": map[string]any{
-			"experimentalApi": true, "requestAttestation": false, "optOutNotificationMethods": quiet,
+			"experimentalApi": true, "requestAttestation": false, "requiredHumanApproval": true, "optOutNotificationMethods": quiet,
 		},
 	}
 	// The answer is read loosely, for the release alone: an answer of another
@@ -797,6 +801,9 @@ func (l *Link) seen(info threadInfo, asked time.Time) bool {
 		l.pending[info.ID] = slices.DeleteFunc(l.pending[info.ID], func(r Request) bool {
 			return r.Since.Before(asked)
 		})
+		if s := l.reviews[info.ID]; s != nil && !s.last.After(asked) && len(l.pending[info.ID]) == 0 {
+			delete(l.reviews, info.ID)
+		}
 	}
 	return true
 }
@@ -937,6 +944,10 @@ func unwritten(err error) bool {
 // the TUI shows them, the panel does not answer them.
 func (l *Link) handle(msg message) {
 	switch {
+	case len(msg.ID) == 0 && (msg.Method == "item/autoApprovalReview/started" || msg.Method == "item/autoApprovalReview/completed"):
+		l.onReview(msg.Params)
+	case len(msg.ID) == 0 && msg.Method == "autoApprovalReview/strictReviewRequired":
+		l.onStrictReview(msg.Params)
 	case len(msg.ID) == 0 && msg.Method == "turn/completed":
 		l.completedTurn(msg.Params)
 	case len(msg.ID) == 0 && msg.Method == "thread/status/changed":
@@ -1134,7 +1145,7 @@ func (l *Link) save(id string) {
 func (l *Link) state(t *thread) State {
 	waiting := []string{}
 	var ask *Ask
-	for _, r := range l.pending[t.info.ID] {
+	for _, r := range l.ownerPendingLocked(t.info.ID) {
 		waiting = append(waiting, r.Tool())
 		if ask == nil {
 			ask = r.Ask()
@@ -1144,7 +1155,12 @@ func (l *Link) state(t *thread) State {
 	// has not been sent yet, or one the panel does not answer. It waits on a
 	// person all the same.
 	if len(waiting) == 0 {
-		waiting = append(waiting, t.info.Status.Flags...)
+		for _, flag := range t.info.Status.Flags {
+			if flag == flagApproval && l.automaticApprovalLocked(t) {
+				continue
+			}
+			waiting = append(waiting, flag)
+		}
 	}
 	st := State{
 		Summary: stream.Summary{
@@ -1241,6 +1257,7 @@ func (l *Link) forget() {
 		l.remove(id)
 	}
 	l.pending = map[string][]Request{}
+	l.reviews = nil
 	l.polled = false
 	l.activity = nil
 }
@@ -1249,6 +1266,7 @@ func (l *Link) remove(id string) {
 	_ = os.Remove(stream.StatePath(id))
 	delete(l.threads, id)
 	delete(l.pending, id)
+	delete(l.reviews, id)
 	delete(l.usage, id)
 }
 
@@ -1267,7 +1285,7 @@ func (l *Link) client() (*conn, error) {
 func (l *Link) Pending(threadID string) []Request {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return slices.Clone(l.pending[threadID])
+	return l.ownerPendingLocked(threadID)
 }
 
 // Interrupt stops the turn a thread runs; false when none runs.

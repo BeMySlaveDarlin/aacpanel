@@ -140,6 +140,24 @@
      "properties": {
       "method": {
        "enum": [
+        "thread/sample"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/sample/cancel"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
         "thread/archive"
        ]
       },
@@ -369,6 +387,15 @@
       "method": {
        "enum": [
         "thread/memoryMode/set"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/memory/read"
        ]
       }
      }
@@ -644,6 +671,15 @@
      "properties": {
       "method": {
        "enum": [
+        "thread/readState/update"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
         "thread/turns/list"
        ]
       },
@@ -661,6 +697,24 @@
       },
       "params": {
        "$ref": "#/definitions/v2/ThreadItemsListParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/items/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/guardianReview"
+       ]
       }
      }
     },
@@ -1391,6 +1445,15 @@
      "properties": {
       "method": {
        "enum": [
+        "account/gcp/setup"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
         "account/bedrock/checkGovCloudRequirements"
        ]
       }
@@ -1401,6 +1464,24 @@
       "method": {
        "enum": [
         "account/login/cancel"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "accountSession/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "accountSession/switch"
        ]
       }
      }
@@ -1474,6 +1555,15 @@
       "method": {
        "enum": [
         "feedback/upload"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "feedback/save"
        ]
       }
      }
@@ -1751,9 +1841,35 @@
     }
    ]
   },
+  "CommandExecutionApprovalKind": {
+   "description": "Distinguishes a command approval from input sent to an existing terminal.",
+   "oneOf": [
+    {
+     "enum": [
+      "command",
+      "writeStdin"
+     ],
+     "type": "string"
+    },
+    {
+     "description": "A managed checkpoint requiring a fresh human decision. Only `accept`, `decline`, and `cancel` are valid. Requires the `requiredHumanApproval` initialize capability. This prompt does not itself start a command execution item.",
+     "enum": [
+      "humanCommand"
+     ],
+     "type": "string"
+    }
+   ]
+  },
   "CommandExecutionRequestApprovalParams": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "properties": {
+    "approvalId": {
+     "description": "Unique identifier for this specific approval callback.\n\nFor regular shell/unified_exec approvals, this is null.\n\nFor zsh-exec-bridge subcommand approvals, multiple callbacks can belong to one parent `itemId`, so `approvalId` is a distinct opaque callback id (a UUID) used to disambiguate routing. Stdin approvals also use a distinct callback id; inspect `kind` to distinguish them.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
     "availableDecisions": {
      "description": "Ordered list of decisions the client may present for this prompt.",
      "items": {
@@ -1785,6 +1901,15 @@
     "itemId": {
      "type": "string"
     },
+    "kind": {
+     "allOf": [
+      {
+       "$ref": "#/definitions/CommandExecutionApprovalKind"
+      }
+     ],
+     "default": "command",
+     "description": "Kind of action under review. Defaults to `command` for older servers."
+    },
     "networkApprovalContext": {
      "anyOf": [
       {
@@ -1802,6 +1927,11 @@
       "string",
       "null"
      ]
+    },
+    "startedAtMs": {
+     "description": "Unix timestamp (in milliseconds) when this approval request started.",
+     "format": "int64",
+     "type": "integer"
     },
     "threadId": {
      "type": "string"
@@ -1959,6 +2089,10 @@
     "requestAttestation": {
      "default": false,
      "description": "Opt into `attestation/generate` requests for upstream `x-oai-attestation`.",
+     "type": "boolean"
+    },
+    "requiredHumanApproval": {
+     "description": "Present `humanCommand` approvals to a person and return only a one-time decision. Requires `experimentalApi`. Pending requests can be replayed to compatible clients.",
      "type": "boolean"
     }
    },
@@ -2696,6 +2830,15 @@
      "properties": {
       "method": {
        "enum": [
+        "thread/readState/changed"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
         "thread/archived"
        ]
       }
@@ -2755,6 +2898,15 @@
       },
       "params": {
        "$ref": "#/definitions/v2/ThreadNameUpdatedNotification"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/section/changed"
+       ]
       }
      }
     },
@@ -2941,6 +3093,9 @@
        "enum": [
         "item/autoApprovalReview/started"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ItemGuardianApprovalReviewStartedNotification"
       }
      }
     },
@@ -2950,6 +3105,9 @@
        "enum": [
         "item/autoApprovalReview/completed"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ItemGuardianApprovalReviewCompletedNotification"
       }
      }
     },
@@ -2959,6 +3117,9 @@
        "enum": [
         "autoApprovalReview/strictReviewRequired"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/StrictReviewRequiredNotification"
       }
      }
     },
@@ -3788,6 +3949,13 @@
      }
     ]
    },
+   "AutoReviewDecisionSource": {
+    "description": "[UNSTABLE] Source that produced a terminal approval auto-review decision.",
+    "enum": [
+     "agent"
+    ],
+    "type": "string"
+   },
    "CollaborationMode": {
     "description": "Collaboration mode for a Codex session.",
     "properties": {
@@ -4088,6 +4256,181 @@
     "title": "GetAccountRateLimitsResponse",
     "type": "object"
    },
+   "GuardianApprovalReview": {
+    "description": "[UNSTABLE] Temporary approval auto-review payload used by `item/autoApprovalReview/*` notifications. This shape is expected to change soon.",
+    "properties": {
+     "status": {
+      "$ref": "#/definitions/v2/GuardianApprovalReviewStatus"
+     }
+    },
+    "required": [
+     "status"
+    ],
+    "type": "object"
+   },
+   "GuardianApprovalReviewAction": {
+    "oneOf": [
+     {
+      "properties": {
+       "type": {
+        "enum": [
+         "command"
+        ],
+        "title": "CommandGuardianApprovalReviewActionType",
+        "type": "string"
+       }
+      },
+      "required": [
+       "command",
+       "cwd",
+       "source",
+       "type"
+      ],
+      "title": "CommandGuardianApprovalReviewAction",
+      "type": "object"
+     },
+     {
+      "properties": {
+       "type": {
+        "enum": [
+         "execve"
+        ],
+        "title": "ExecveGuardianApprovalReviewActionType",
+        "type": "string"
+       }
+      },
+      "required": [
+       "argv",
+       "cwd",
+       "program",
+       "source",
+       "type"
+      ],
+      "title": "ExecveGuardianApprovalReviewAction",
+      "type": "object"
+     },
+     {
+      "description": "A child approval for input to an existing command execution item.",
+      "properties": {
+       "approvalId": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "writeStdin"
+        ],
+        "title": "WriteStdinGuardianApprovalReviewActionType",
+        "type": "string"
+       }
+      },
+      "required": [
+       "approvalId",
+       "cwd",
+       "processId",
+       "stdin",
+       "type"
+      ],
+      "title": "WriteStdinGuardianApprovalReviewAction",
+      "type": "object"
+     },
+     {
+      "properties": {
+       "type": {
+        "enum": [
+         "applyPatch"
+        ],
+        "title": "ApplyPatchGuardianApprovalReviewActionType",
+        "type": "string"
+       }
+      },
+      "required": [
+       "cwd",
+       "files",
+       "type"
+      ],
+      "title": "ApplyPatchGuardianApprovalReviewAction",
+      "type": "object"
+     },
+     {
+      "properties": {
+       "host": {
+        "type": "string"
+       },
+       "protocol": {
+        "$ref": "#/definitions/v2/NetworkApprovalProtocol"
+       },
+       "type": {
+        "enum": [
+         "networkAccess"
+        ],
+        "title": "NetworkAccessGuardianApprovalReviewActionType",
+        "type": "string"
+       }
+      },
+      "required": [
+       "host",
+       "port",
+       "protocol",
+       "target",
+       "type"
+      ],
+      "title": "NetworkAccessGuardianApprovalReviewAction",
+      "type": "object"
+     },
+     {
+      "properties": {
+       "server": {
+        "type": "string"
+       },
+       "toolName": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "mcpToolCall"
+        ],
+        "title": "McpToolCallGuardianApprovalReviewActionType",
+        "type": "string"
+       }
+      },
+      "required": [
+       "server",
+       "toolName",
+       "type"
+      ],
+      "title": "McpToolCallGuardianApprovalReviewAction",
+      "type": "object"
+     },
+     {
+      "properties": {
+       "type": {
+        "enum": [
+         "requestPermissions"
+        ],
+        "title": "RequestPermissionsGuardianApprovalReviewActionType",
+        "type": "string"
+       }
+      },
+      "required": [
+       "permissions",
+       "type"
+      ],
+      "title": "RequestPermissionsGuardianApprovalReviewAction",
+      "type": "object"
+     }
+    ]
+   },
+   "GuardianApprovalReviewStatus": {
+    "description": "[UNSTABLE] Lifecycle state for an approval auto-review.",
+    "enum": [
+     "inProgress",
+     "approved",
+     "denied",
+     "timedOut",
+     "aborted"
+    ],
+    "type": "string"
+   },
    "HookErrorInfo": {
     "properties": {
      "message": {
@@ -4234,7 +4577,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
      "cwds": {
-      "description": "When empty, defaults to the current session working directory.",
+      "description": "Working directories to inspect when no thread is specified. An empty list uses the session cwd.",
       "items": {
        "type": "string"
       },
@@ -4258,6 +4601,99 @@
      "data"
     ],
     "title": "HooksListResponse",
+    "type": "object"
+   },
+   "ItemGuardianApprovalReviewCompletedNotification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "description": "[UNSTABLE] Temporary notification payload for approval auto-review. This shape is expected to change soon.",
+    "properties": {
+     "action": {
+      "$ref": "#/definitions/v2/GuardianApprovalReviewAction"
+     },
+     "decisionSource": {
+      "$ref": "#/definitions/v2/AutoReviewDecisionSource"
+     },
+     "review": {
+      "$ref": "#/definitions/v2/GuardianApprovalReview"
+     },
+     "reviewId": {
+      "description": "Stable identifier for this review.",
+      "type": "string"
+     },
+     "startedAtMs": {
+      "description": "Unix timestamp (in milliseconds) when this review started.",
+      "format": "int64",
+      "type": "integer"
+     },
+     "targetItemId": {
+      "description": "Identifier for the reviewed item or tool call when one exists.\n\nIn most cases, one review maps to one target item. The exceptions are - execve reviews, where a single command may contain multiple execve calls to review (only possible when using the shell_zsh_fork feature) - stdin reviews, which refer to the existing parent command item and have a separate approval ID in the action payload - network policy reviews, where there is no target item\n\nA network call is triggered by a CommandExecution item, so having a target_item_id set to the CommandExecution item would be misleading because the review is about the network call, not the command execution. Therefore, target_item_id is set to None for network policy reviews.",
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "threadId": {
+      "type": "string"
+     },
+     "turnId": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "action",
+     "completedAtMs",
+     "decisionSource",
+     "review",
+     "reviewId",
+     "startedAtMs",
+     "threadId",
+     "turnId"
+    ],
+    "title": "ItemGuardianApprovalReviewCompletedNotification",
+    "type": "object"
+   },
+   "ItemGuardianApprovalReviewStartedNotification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "description": "[UNSTABLE] Temporary notification payload for approval auto-review. This shape is expected to change soon.",
+    "properties": {
+     "action": {
+      "$ref": "#/definitions/v2/GuardianApprovalReviewAction"
+     },
+     "review": {
+      "$ref": "#/definitions/v2/GuardianApprovalReview"
+     },
+     "reviewId": {
+      "description": "Stable identifier for this review.",
+      "type": "string"
+     },
+     "startedAtMs": {
+      "description": "Unix timestamp (in milliseconds) when this review started.",
+      "format": "int64",
+      "type": "integer"
+     },
+     "targetItemId": {
+      "description": "Identifier for the reviewed item or tool call when one exists.\n\nIn most cases, one review maps to one target item. The exceptions are - execve reviews, where a single command may contain multiple execve calls to review (only possible when using the shell_zsh_fork feature) - stdin reviews, which refer to the existing parent command item and have a separate approval ID in the action payload - network policy reviews, where there is no target item\n\nA network call is triggered by a CommandExecution item, so having a target_item_id set to the CommandExecution item would be misleading because the review is about the network call, not the command execution. Therefore, target_item_id is set to None for network policy reviews.",
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "threadId": {
+      "type": "string"
+     },
+     "turnId": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "action",
+     "review",
+     "reviewId",
+     "startedAtMs",
+     "threadId",
+     "turnId"
+    ],
+    "title": "ItemGuardianApprovalReviewStartedNotification",
     "type": "object"
    },
    "LegacyAppPathString": {
@@ -4605,6 +5041,8 @@
      "edu",
      "edu_plus",
      "edu_pro",
+     "sci",
+     "sci_plus",
      "unknown"
     ],
     "type": "string"
@@ -4902,8 +5340,7 @@
    },
    "ReviewDelivery": {
     "enum": [
-     "inline",
-     "detached"
+     "inline"
     ],
     "type": "string"
    },
@@ -4920,7 +5357,7 @@
        }
       ],
       "default": null,
-      "description": "Where to run the review: inline (default) on the current thread or detached on a new thread (returned in `reviewThreadId`). Detached delivery is deprecated and emits `deprecationNotice`. Use `thread/start` followed by an inline review for a separate review thread."
+      "description": "Reviews run inline on the supplied thread. Omit this field or pass `inline`. To review on a separate thread, start a thread first and use its id."
      },
      "target": {
       "$ref": "#/definitions/v2/ReviewTarget"
@@ -5250,6 +5687,29 @@
      "desc"
     ],
     "type": "string"
+   },
+   "StrictReviewRequiredNotification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "startedAtMs": {
+      "description": "Unix timestamp (in milliseconds) when this review started.",
+      "format": "int64",
+      "type": "integer"
+     },
+     "threadId": {
+      "type": "string"
+     },
+     "turnId": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "startedAtMs",
+     "threadId",
+     "turnId"
+    ],
+    "title": "StrictReviewRequiredNotification",
+    "type": "object"
    },
    "Thread": {
     "properties": {
@@ -5718,6 +6178,7 @@
     "type": "object"
    },
    "ThreadItem": {
+    "description": "A thread item and its recorded lifecycle times. The payload stays flat on the wire.",
     "oneOf": [
      {
       "properties": {
@@ -6019,6 +6480,25 @@
       "type": "object"
      },
      {
+      "anyOf": [
+       {
+        "properties": {},
+        "required": [
+         "fileId"
+        ],
+        "title": "FileIdThreadItem",
+        "type": "object"
+       },
+       {
+        "properties": {},
+        "required": [
+         "result"
+        ],
+        "title": "ResultThreadItem",
+        "type": "object"
+       }
+      ],
+      "description": "Either inline generated-image data or its durable attachment-store identity.\n\n`File` must remain first so rollouts written during the migration, which contain both an empty `result` and a `fileId`, retain the file reference when deserialized.",
       "properties": {
        "type": {
         "enum": [
@@ -6030,7 +6510,6 @@
       },
       "required": [
        "id",
-       "result",
        "status",
        "type"
       ],
@@ -6090,7 +6569,9 @@
       "title": "ContextCompactionThreadItem",
       "type": "object"
      }
-    ]
+    ],
+    "properties": {},
+    "type": "object"
    },
    "ThreadItemEntry": {
     "properties": {
@@ -6588,6 +7069,17 @@
         "type": "null"
        }
       ]
+     },
+     "approvalsReviewer": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/ApprovalsReviewer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Override where approval requests are routed for review on this thread and subsequent turns."
      },
      "config": {
       "additionalProperties": true,
@@ -7157,6 +7649,24 @@
       "type": "object"
      },
      {
+      "anyOf": [
+       {
+        "properties": {},
+        "required": [
+         "url"
+        ],
+        "title": "UrlUserInput",
+        "type": "object"
+       },
+       {
+        "properties": {},
+        "required": [
+         "fileId"
+        ],
+        "title": "FileIdUserInput",
+        "type": "object"
+       }
+      ],
       "properties": {
        "type": {
         "enum": [
@@ -7167,8 +7677,7 @@
        }
       },
       "required": [
-       "type",
-       "url"
+       "type"
       ],
       "title": "AudioUserInput",
       "type": "object"
@@ -7232,5 +7741,5 @@
  },
  "title": "CodexAppServerProtocol",
  "type": "object",
- "x-codexVersion": "codex-cli 0.162.1"
+ "x-codexVersion": "codex-cli 0.167.0"
 }

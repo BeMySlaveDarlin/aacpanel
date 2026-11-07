@@ -19,6 +19,7 @@ call initialize
   send clientInfo.version
   send capabilities.experimentalApi
   send capabilities.requestAttestation
+  send capabilities.requiredHumanApproval
   send capabilities.optOutNotificationMethods[]
   read userAgent
 
@@ -100,6 +101,7 @@ call thread/start
   send cwd
   send model
   send approvalPolicy: untrusted on-request never
+  send approvalsReviewer: user auto_review
   send sandbox: read-only workspace-write danger-full-access
   send config
   read thread.id
@@ -330,6 +332,9 @@ answer item/commandExecution/requestApproval
   read threadId
   read turnId
   read itemId
+  read approvalId
+  read kind: humanCommand
+  read startedAtMs
   read command
   read cwd
   read reason
@@ -465,7 +470,6 @@ quiet error thread/started thread/archived thread/deleted thread/unarchived thre
 quiet skills/changed thread/attachment/updated thread/prediction/updated thread/queue/changed project/changed
 quiet thread/project/updated thread/environment/connected thread/environment/disconnected
 quiet turn/started hook/started hook/completed turn/diff/updated turn/plan/updated item/started
-quiet item/autoApprovalReview/started item/autoApprovalReview/completed autoApprovalReview/strictReviewRequired
 quiet item/completed rawResponseItem/completed rawResponse/completed item/agentMessage/delta item/plan/delta
 quiet command/exec/outputDelta process/outputDelta process/exited item/commandExecution/outputDelta
 quiet item/commandExecution/terminalInteraction item/fileChange/outputDelta item/fileChange/patchUpdated
@@ -481,6 +485,41 @@ quiet thread/realtime/item/started thread/realtime/item/transcript/delta thread/
 quiet thread/realtime/transcript/delta thread/realtime/transcript/done thread/realtime/outputAudio/delta
 quiet thread/realtime/sdp thread/realtime/error thread/realtime/closed windows/worldWritableWarning
 quiet windowsSandbox/setupCompleted account/login/completed
+quiet thread/readState/changed thread/section/changed
+
+hear item/autoApprovalReview/started
+  read threadId
+  read turnId
+  read reviewId
+  read targetItemId
+  read startedAtMs
+  read review.status: inProgress
+  read action.type: networkAccess mcpToolCall
+  read action<writeStdin>.approvalId
+  read action<networkAccess>.host
+  read action<networkAccess>.protocol
+  read action<mcpToolCall>.server
+  read action<mcpToolCall>.toolName
+
+hear item/autoApprovalReview/completed
+  read threadId
+  read turnId
+  read reviewId
+  read targetItemId
+  read startedAtMs
+  read decisionSource: agent
+  read review.status: inProgress
+  read action.type: networkAccess mcpToolCall
+  read action<writeStdin>.approvalId
+  read action<networkAccess>.host
+  read action<networkAccess>.protocol
+  read action<mcpToolCall>.server
+  read action<mcpToolCall>.toolName
+
+hear autoApprovalReview/strictReviewRequired
+  read threadId
+  read turnId
+  read startedAtMs
 
 hear turn/completed
   read threadId

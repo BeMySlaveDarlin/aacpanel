@@ -257,6 +257,28 @@ func TestAThreadTheLinkJoinsShowsItsSettings(t *testing.T) {
 	})
 }
 
+func TestResumingAThreadKeepsItsApprovalReviewer(t *testing.T) {
+	for _, mode := range []string{ModeAsk, ModeAuto} {
+		t.Run(mode, func(t *testing.T) {
+			p := presets[mode]
+			th := idle(threadA)
+			th.Status, th.Profile, th.Approval, th.Reviewer = "notLoaded", p.profile, p.approval, p.reviewer
+			srv, l := linked(t, th)
+			ready(t, l)
+			if _, err := l.Resume(t.Context(), threadA); err != nil {
+				t.Fatal(err)
+			}
+			for _, raw := range srv.Calls("thread/resume") {
+				got := params(t, raw)
+				if got["approvalPolicy"] != nil || got["approvalsReviewer"] != nil {
+					t.Fatalf("resuming replaced the saved reviewer: %s", raw)
+				}
+			}
+			stateSays(t, threadA, "the resumed approval mode", func(st State) bool { return st.Mode == mode })
+		})
+	}
+}
+
 // Settings another client changes reach the state of a thread the link is a
 // client of.
 func TestSettingsChangedElsewhereReachTheState(t *testing.T) {

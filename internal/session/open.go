@@ -39,13 +39,12 @@ const openDescription = "Opens only on the person's request: another session spe
 	"Give absolute dir in a mapped project or its worktree; outside the map it is not opened. Optional name " +
 	"overrides the map's; a busy name gets a free one. To resume a closed Claude conversation, give resume, " +
 	"its id; dir may be omitted or belong to that project, and agent and Codex options are forbidden. A " +
-	"same-project session opens under the caller. Account and launch come from the map; agent and Codex " +
-	"model, effort, sandbox and writableRoots override this start only. Codex uses approvalPolicy never, " +
-	"workspace-write with network on unless read-only is chosen; writableRoots adds absolute paths only " +
-	"with workspace-write. For an existing session use send_to_session, for an internal subagent use the " +
+	"same-project session opens under the caller. Account and launch come from the map; agent and Codex options " +
+	"override this start only. Codex uses on-request + auto_review and workspace-write with network, unless read-only; writableRoots adds absolute paths only " +
+	"with workspace-write. Git metadata and existing Go caches are writable too. For an existing session use send_to_session, for an internal subagent use the " +
 	"client's agent tools. Tell the person the returned name and account, then send the task: immediately " +
-	"for Codex, after Claude appears in send_to_session's list. If the outcome is unknown, check that list " +
-	"before retrying. Continue independent work or end the turn for the report. Reports reach stream or daemon " +
+	"for Codex, after Claude appears in send_to_session's list. Check that list before retrying an unknown outcome. " +
+	"Continue independent work or end the turn for the report. Reports reach stream or daemon " +
 	"parents and wake sleeping parents. Live tmux or closed parents get none. Long reports arrive as file paths."
 
 // openWait bounds the wait for the panel's answer. The panel answers once the

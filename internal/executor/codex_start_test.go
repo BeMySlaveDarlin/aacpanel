@@ -72,6 +72,11 @@ func onCodexContour(t *testing.T, setup ...func(*codextest.Server)) (*codextest.
 // hands the executor. Setup runs before the link can observe the daemon.
 func onCodexHome(t *testing.T, name, config, registryLines string, setup ...func(*codextest.Server)) (*codextest.Server, *Executor, *action.Project) {
 	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	for _, key := range []string{"GOCACHE", "GOMODCACHE", "GOPATH"} {
+		t.Setenv(key, "")
+	}
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	sessionFiles(t)
@@ -467,8 +472,8 @@ func TestNewStartsTheDaemonWhereNoneRuns(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cache := t.TempDir()
-			t.Setenv("XDG_CACHE_HOME", cache)
 			srv, e, p := onCodexContour(t, tc.stop)
+			t.Setenv("XDG_CACHE_HOME", cache)
 			home := registry.CodexHomes()[0].Dir
 			if _, err := os.Stat(codex.SocketPath(home)); (err == nil) != tc.left {
 				t.Fatalf("the socket left behind: %v, want %t", err, tc.left)
