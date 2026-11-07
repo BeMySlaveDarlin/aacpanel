@@ -238,8 +238,13 @@
         repeating-linear-gradient(90deg, var(--line) 0 2px, transparent 2px 4px);
 }
 .limit-mini .limit-old { top: -7px; right: -7px; }
-.pfactions { display: flex; flex: none; align-items: center; gap: 4px; }
-.pfaction { display: grid; flex: none; place-items: center; width: 44px; height: 44px; padding: 8px; border: var(--hair) solid var(--edge); border-radius: var(--r-card); background: var(--glass); box-shadow: var(--gloss), var(--hairline); color: var(--ink-dim); }
+/* The actions keep to the right edge and take the height of the vendor frames
+   beside them. A frame draws its top line through the middle of its legend,
+   so the tiles start half a legend down to meet that line. Folded, the row
+   has no frames, and the tiles keep their own size. */
+.pfactions { display: flex; flex: none; align-self: stretch; gap: 4px; margin-left: auto; padding-top: calc(var(--t-xs) / 2); }
+.pflimits.tucked .pfactions { align-self: center; padding-top: 0; }
+.pfaction { display: grid; flex: none; place-items: center; width: 48px; min-height: 44px; padding: 8px; border: var(--hair) solid var(--edge); border-radius: var(--r-card); background: var(--glass); box-shadow: var(--gloss), var(--hairline); color: var(--ink-dim); }
 .pfaction svg { width: var(--i-md); height: var(--i-md); }
 .pfaction:active { background: var(--accent-bg); color: var(--accent); }
 .newgroup { padding: .65rem .2rem .35rem; font-size: var(--t-sm); font-weight: 600; color: var(--ink-faint); }
