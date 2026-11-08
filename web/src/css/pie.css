@@ -129,7 +129,9 @@
     outline: none;
     -webkit-tap-highlight-color: transparent;
 }
-.piehub b { font-size: var(--t-xs); font-weight: 600; line-height: 1.2; color: var(--ink); overflow-wrap: anywhere; }
+/* A long name keeps to two lines inside the hub; the plate over the ring says
+   it whole. */
+.piehub b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; font-size: var(--t-xs); font-weight: 600; line-height: 1.2; color: var(--ink); overflow-wrap: anywhere; }
 .piehub span { margin-top: .1rem; font-size: var(--t-xs); line-height: 1.2; color: var(--ink-faint); white-space: nowrap; }
 .piehub.pieback b { color: var(--accent); }
 .piesec:focus-visible .pieword { outline: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: var(--r-small); }

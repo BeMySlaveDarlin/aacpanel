@@ -166,7 +166,7 @@ function Lift({ el, box }) {
 // Plate says what the chosen item does, why it cannot be done now, or — with
 // nothing chosen — whose menu it is and how it is used. A finger held over an
 // item lifting does not do, or lifted over one, is told so.
-function Plate({ at, item, name, lifting }) {
+function Plate({ at, item, name, lifting, node }) {
     const why = item && item.off ? item.off : "";
     const tap = Boolean(item) && !why && lifting && item.tap;
     const words = !item ? [name, at.desk ? DESK_HINT : HINT]
@@ -174,7 +174,7 @@ function Plate({ at, item, name, lifting }) {
         : tap ? [item.title, `${item.note ? `${item.note} · ` : ""}tap it: lifting here does nothing`]
         : [item.title, item.note || ""];
     return html`
-        <div class=${`pieplate${why ? " pieoff" : ""}${item && item.danger && !why ? " piedanger" : ""}`}
+        <div class=${`pieplate${why ? " pieoff" : ""}${item && item.danger && !why ? " piedanger" : ""}`} ref=${node}
              style=${`bottom:${f1(at.h - at.plate)}px${at.desk ? `;left:${f1(at.x)}px` : ""}`} aria-live="polite">
             <b>${words[0]}</b>${words[1] && html`<span class=${why || tap ? "piewhy" : ""}>${words[1]}</span>`}
         </div>
@@ -301,6 +301,27 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
     // opens.
     const [anchor] = useState(() => (spot && lift && lift.isConnected ? { ...spot, from: lift.getBoundingClientRect().right } : spot));
     const [raised] = useState(() => liftOf(lift, placeOf(window.innerWidth, window.innerHeight, anchor)));
+    // The plate is laid out for a line of words, and a long name or note takes
+    // more: the thing raised goes up over the plate as it is drawn, and never
+    // back down, so it does not jump while sectors are tried.
+    const plateNode = useRef(null);
+    const [plateTop, setPlateTop] = useState(null);
+    useLayoutEffect(() => {
+        const el = plateNode.current;
+        if (!el || !raised) return undefined;
+        const read = () => {
+            const top = el.getBoundingClientRect().top;
+            setPlateTop((was) => (was == null ? top : Math.min(was, top)));
+        };
+        read();
+        const seen = new ResizeObserver(read);
+        seen.observe(el);
+        return () => seen.disconnect();
+    }, []);
+    const over = raised && !anchor && plateTop != null && raised.box.top + raised.box.height > plateTop - LIFT_GAP;
+    const shown = over
+        ? { box: { ...raised.box, top: Math.max(8, plateTop - LIFT_GAP - raised.box.height) }, from: raised.from || raised.box }
+        : raised;
     const menu = useRef(null);
     // The element a press on the pie went down on: a click counts only where
     // its press went down, so the click that ends the press opening the pie
@@ -452,9 +473,9 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
         <div class=${`pie${spot ? " piedesk" : ""}`} onPointerDownCapture=${(event) => { armed.current = event.target; }}
              onContextMenu=${(event) => event.preventDefault()}>
             <div class="piescrim" onClick=${pressed(() => closer())}></div>
-            ${raised && raised.from && html`<div class="piewas" style=${px(raised.from)}></div>`}
-            ${raised && html`<${Lift} el=${lift} box=${raised.box} />`}
-            <${Plate} at=${at} item=${chosen} name=${name} lifting=${held || (Boolean(sel) && lifted === sel)} />
+            ${shown && shown.from && html`<div class="piewas" style=${px(shown.from)}></div>`}
+            ${shown && html`<${Lift} el=${lift} box=${shown.box} />`}
+            <${Plate} at=${at} item=${chosen} name=${name} lifting=${held || (Boolean(sel) && lifted === sel)} node=${plateNode} />
             <${Ring} at=${at} sectors=${sectors} />
             <div class=${`piemenu${many ? " piemany" : ""}`} role="menu" aria-label=${label} tabindex="-1" ref=${menu}
                  style=${`left:${f1(at.left)}px;top:${f1(at.top)}px;width:${at.side}px;height:${at.side}px;clip-path:circle(${reach}px)`}
