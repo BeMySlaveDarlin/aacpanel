@@ -215,8 +215,13 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 			continue
 		}
 		if !exists {
-			if !row.idle() || row.Pct == nil || row.Limit <= 0 || (row.LimitKnown != nil && !*row.LimitKnown) ||
-				*row.Pct < float64(guard.Cap)-guards.RestartMargin {
+			if !row.idle() || row.Pct == nil || row.Limit <= 0 || (row.LimitKnown != nil && !*row.LimitKnown) {
+				continue
+			}
+			atCap := *row.Pct >= float64(guard.Cap)-guards.RestartMargin
+			idleNearCap := row.StatusAt > 0 && now.Sub(time.UnixMilli(row.StatusAt)) >= guards.RestartIdleAfter &&
+				*row.Pct >= float64(guard.Cap)*guards.RestartIdleRatio
+			if !atCap && !idleNearCap {
 				continue
 			}
 			c = store.RestartCycle{Conversation: row.SessionID, Session: row.Name, CommandAt: now}

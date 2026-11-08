@@ -24,8 +24,9 @@ import (
 )
 
 // The prompt stamp: before every prompt the model is told the date, the
-// context of its session with where the cap of its project falls, the limits
-// of its account and the load of the machine, from the collector's snapshot.
+// context of its session, the limits of its account and the load of the machine,
+// from the collector's snapshot. Without a confirmed automatic restart, it
+// also names where to finalize.
 // The role of the session comes last, only when the conversation needs to be
 // told it (lineRole). Each prompt sweeps the stamp's state files and the role
 // marks after stampKeep untouched, so a closed conversation leaves no files
@@ -225,13 +226,10 @@ func stampLines(state map[string]any, id, limits string, g action.Guard, now tim
 	return lines
 }
 
-// lineContext is the context fill of the session, with where its cap falls in
-// its window. The share is of the window, the hard limit; the cap stands
-// beside it as a number of its own — a share of the cap read as a share of the
-// window says "wrap up" a quarter too early. Where the project restarts its
-// sessions itself, the cap is where the restart comes: the session knows how
-// near it is, so as not to start there what the restart would cut, and leaves
-// it out of its replies — the guard wraps it up.
+// lineContext measures context against the model's window, its hard limit.
+// A session without automatic restart also sees where to finalize. An
+// automatic restart leaves the cap out: anticipating it can stop work short
+// of the cycle's threshold and leave the session waiting for another prompt.
 func lineContext(state map[string]any, id string, g action.Guard) string {
 	s := sessionOf(state, id)
 	if s == nil || s["pct"] == nil || !truthy(s["limit"]) {
@@ -243,15 +241,15 @@ func lineContext(state map[string]any, id string, g action.Guard) string {
 	if !okPct || !okTokens || !okLimit {
 		return ""
 	}
-	at := whole(limit * float64(g.Cap) / 100 / 1000)
-	note := "finalize from " + at + "k"
-	if g.Restart {
-		note = "auto restart at " + at + "k, automatic: leave it out of replies"
+	line := "Context:  " + whole(tokens/1000) + "k/" + window(limit) + " (" + fixed(pct) + "%)"
+	if !g.Restart {
+		at := whole(limit * float64(g.Cap) / 100 / 1000)
+		line += " · finalize from " + at + "k"
 	}
 	if known, ok := s["limitKnown"]; ok && !truthy(known) {
-		note += " · the model window is not exact"
+		line += " · the model window is not exact"
 	}
-	return "Context:  " + whole(tokens/1000) + "k/" + window(limit) + " (" + fixed(pct) + "%) · " + note
+	return line
 }
 
 // window names a window: a round million as 1M — "1000k" does not read as

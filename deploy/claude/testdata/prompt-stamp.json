@@ -92,9 +92,9 @@
       "steps": [
         {"state": "base", "set": {"limits": {"fiveHour": {"pct": 12}, "sevenDay": {"pct": 34}, "profile": "personal"}}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 12% · week 34%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
       ]},
-    {"what": "a project that restarts its sessions says where the restart comes, and to leave it out of replies", "guards": "/srv/proj\t80\t1\n",
+    {"what": "a project that restarts its sessions leaves the threshold out of the context line", "guards": "/srv/proj\t80\t1\n",
       "steps": [
-        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/proj/app"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/proj/app"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%)", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
       ]},
     {"what": "the cap is that of the closest place above the working directory", "guards": "/srv/proj\t80\t1\n/srv/proj/Globex\t60\t0\n",
       "steps": [
@@ -110,11 +110,11 @@
       ]},
     {"what": "past the cap of a project that restarts, the alarm holds new work back", "guards": "/srv/proj\t80\t1\n",
       "steps": [
-        {"state": "base", "payload": {"session_id": "other", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  900k/1M (90%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "Alarms:   CONTEXT past the cap: start no new work, background included; the panel asks this session to save its state before the restart"]}
+        {"state": "base", "payload": {"session_id": "other", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  900k/1M (90%)", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "Alarms:   CONTEXT past the cap: start no new work, background included; the panel asks this session to save its state before the restart"]}
       ]},
-    {"what": "just short of the cap the stamp names the cap, not the guard's margin, and no alarm", "guards": "/srv/proj\t80\t1\n",
+    {"what": "just short of the cap the automatic restart stamp names no threshold or alarm", "guards": "/srv/proj\t80\t1\n",
       "steps": [
-        {"state": "base", "set": {"sessions.0.tokens": 795000, "sessions.0.pct": 79.5}, "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  795k/1M (80%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+        {"state": "base", "set": {"sessions.0.tokens": 795000, "sessions.0.pct": 79.5}, "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  795k/1M (80%)", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
       ]},
     {"what": "a window that is not a round million stays in thousands, and the cap is its share", "guards": "/srv/proj\t70\t0\n",
       "steps": [

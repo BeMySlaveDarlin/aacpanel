@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"aacpanel/internal/action"
 )
@@ -22,11 +23,16 @@ const CapDefault = 80
 
 // RestartMargin is how far under the cap, in points of the window, a session
 // of a project that restarts its sessions is asked to save at the end of a turn.
-// A session wraps its work up for the restart it sees coming and stops a
-// little short of the cap, and a session stopped under it does not stop again
-// until someone writes to it. The prompt stamp names the cap itself, never the
-// margin: told of the margin, a session would stop short of that instead.
+// This leaves room for preparation without waiting for another prompt.
 const RestartMargin = 1.0
+
+// RestartIdleAfter and RestartIdleRatio let a session stopped near the cap
+// prepare without another prompt growing its context. The cycle can give up
+// the remaining share of the cap after this much idle time.
+const (
+	RestartIdleAfter = 10 * time.Minute
+	RestartIdleRatio = 0.95
+)
 
 // Home is the directory the executor keeps what the hooks of the host read
 // in, under the user's state directory.

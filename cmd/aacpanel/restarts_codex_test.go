@@ -305,7 +305,12 @@ func TestRestartPolicyLetsTheStampPromiseOnlyManagedRestartsPG(t *testing.T) {
 				t.Fatal(err)
 			}
 			stamp := reply.Hook.Context
-			if !strings.Contains(stamp, "CONTEXT past the cap") || strings.Contains(stamp, "auto restart at") != tc.want ||
+			contextLine := "Context:  850k/1M (85%)"
+			if !tc.want {
+				contextLine += " · finalize from 800k"
+			}
+			lines := strings.Split(stamp, "\n")
+			if len(lines) < 2 || lines[1] != contextLine || !strings.Contains(stamp, "CONTEXT past the cap") ||
 				strings.Contains(stamp, "start no new work") != tc.want || strings.Contains(stamp, "the panel asks") != tc.want {
 				t.Fatalf("the stamp's restart promise is %t, want %t:\n%s", !tc.want, tc.want, stamp)
 			}

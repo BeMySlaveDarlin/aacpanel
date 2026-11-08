@@ -181,7 +181,11 @@ database migrates.
 **The service coordinates restarts at the context cap.** Every five seconds it
 reads the collector's snapshot. A Claude session or Codex thread in a project with
 `autoRestart`, with its turn over and no question or permission pending, is
-asked to save once its context reaches the cap minus `guards.RestartMargin`. Background work
+asked to save once its context reaches the cap minus `guards.RestartMargin`,
+or after at least ten minutes idle by `statusUpdatedAt` with context at 95% of
+the cap. Both entrances require a known model window and use the same cycle.
+The idle entrance gives up the remaining share of the cap so a session stopped
+near it can prepare without another prompt growing its context. Background work
 does not delay this command: the command asks the session to update its task
 registry, save a handoff through its project's finalize skill where present,
 commit completed work and cleanly stop its agents, workflows, background
@@ -193,13 +197,16 @@ the person about the context or restart.
 Paused sessions, sessions outside the map and projects without `autoRestart` are excluded.
 Codex receives the command through its daemon's message path, without terminal
 keystrokes, and its `session_ready` call is bound to the calling thread.
-The cycle excludes Codex in tmux, and the prompt stamp promises it no automatic restart.
+The cycle excludes Codex in tmux, and the prompt stamp gives it no automatic restart instruction.
 The stamp confirms restart eligibility through the service's read-only
 `/api/session/restart-policy` endpoint, which shares the cycle's map, pause and
 transport checks and waits at most 100 ms; without confirmation it only warns
 about the context cap.
-The prompt stamp names the cap itself, never the margin: a session told of the
-margin would stop short of that instead.
+With automatic restart confirmed, the stamp's context line gives only the
+fill and model window, retaining a warning when that window is not exact.
+It leaves out the cap and restart threshold so a session does not anticipate
+the command and stop work short of the cycle's entrance. Without confirmation,
+the line still names where to finalize.
 
 The cycle is kept by conversation in `session_restarts`. A service replacement
 keeps its command, readiness, reminder and restart attempt. Readiness alone

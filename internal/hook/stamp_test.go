@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/hostcfg"
 )
 
@@ -240,6 +241,28 @@ func TestCodexStampUsesTheThreadsAccount(t *testing.T) {
 	}
 }
 
+func TestContextLineLeavesTheAutomaticRestartThresholdOut(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		restart bool
+		known   bool
+		want    string
+	}{
+		{"automatic restart", true, true, "Context:  688k/1M (69%)"},
+		{"manual finalization", false, true, "Context:  688k/1M (69%) · finalize from 700k"},
+		{"automatic restart with an approximate window", true, false, "Context:  688k/1M (69%) · the model window is not exact"},
+		{"manual finalization with an approximate window", false, false, "Context:  688k/1M (69%) · finalize from 700k · the model window is not exact"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := decodeKeeping(t, []byte(`{"sessions":[{"sessionId":"mine","tokens":688000,"limit":1000000,"pct":68.8}]}`)).(map[string]any)
+			sessionOf(state, "mine")["limitKnown"] = tc.known
+			if got := lineContext(state, "mine", action.Guard{Cap: 70, Restart: tc.restart}); got != tc.want {
+				t.Fatalf("context line %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStampPromisesARestartOnlyAfterThePanelConfirmsIt(t *testing.T) {
 	for _, tc := range []struct {
 		name, body string
@@ -271,7 +294,12 @@ func TestStampPromisesARestartOnlyAfterThePanelConfirmsIt(t *testing.T) {
 			writeFile(t, filepath.Join(os.Getenv("XDG_STATE_HOME"), "aacpanel", "guards.tsv"), "/srv/proj\t80\t1\n")
 			writeFile(t, filepath.Join(state, "state.json"), `{"sessions":[{"sessionId":"thread","tokens":850000,"limit":1000000,"pct":85}]}`)
 			stamp := stampPrompt("UserPromptSubmit", []byte(`{"session_id":"thread","cwd":"/srv/proj"}`), time.Now()).Context
-			if strings.Contains(stamp, "CONTEXT past the cap") != tc.past || strings.Contains(stamp, "auto restart at") != tc.want ||
+			contextLine := "Context:  850k/1M (85%)"
+			if !tc.want {
+				contextLine += " · finalize from 800k"
+			}
+			lines := strings.Split(stamp, "\n")
+			if len(lines) < 2 || lines[1] != contextLine || strings.Contains(stamp, "CONTEXT past the cap") != tc.past ||
 				strings.Contains(stamp, "start no new work") != (tc.want && tc.past) || strings.Contains(stamp, "the panel asks") != (tc.want && tc.past) {
 				t.Fatalf("the stamp promised an unconfirmed restart:\n%s", stamp)
 			}

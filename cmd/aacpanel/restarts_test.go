@@ -11,6 +11,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/host"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -289,6 +290,92 @@ func TestRestartCycleEligibilityPG(t *testing.T) {
 	case req := <-fake.got:
 		t.Fatalf("ineligible command: %+v", req)
 	default:
+	}
+}
+
+func TestRestartCycleStartsNearTheCapAfterIdlePG(t *testing.T) {
+	for _, agent := range []string{schema.AgentClaude, schema.AgentCodex} {
+		t.Run(agent, func(t *testing.T) {
+			for _, tc := range []struct {
+				name    string
+				pct     float64
+				idle    time.Duration
+				edit    func(*restartSession)
+				restart bool
+			}{
+				{"ten minutes at 95 percent of cap", 66.5, 10 * time.Minute, nil, true},
+				{"longer than ten minutes", 66.5, 11 * time.Minute, nil, true},
+				{"nine minutes", 66.5, 9 * time.Minute, nil, false},
+				{"just before ten minutes", 66.5, 10*time.Minute - time.Millisecond, nil, false},
+				{"94 percent of cap", 65.8, 10 * time.Minute, nil, false},
+				{"cap minus margin at turn end", 69, 0, nil, true},
+				{"under cap minus margin at turn end", 68.9, 0, nil, false},
+				{"running turn", 66.5, 10 * time.Minute, func(r *restartSession) { r.Status = "busy" }, false},
+				{"turn over beside an agent", 66.5, 10 * time.Minute, func(r *restartSession) {
+					r.Status, r.TurnOver, r.Work = "busy", true, json.RawMessage(`{"agents":1}`)
+				}, true},
+				{"waiting", 66.5, 10 * time.Minute, func(r *restartSession) { r.Waiting = "input needed" }, false},
+				{"question", 66.5, 10 * time.Minute, func(r *restartSession) { r.Ask = json.RawMessage(`{"text":"choose"}`) }, false},
+				{"permission", 66.5, 10 * time.Minute, func(r *restartSession) { r.Permission = json.RawMessage(`{}`) }, false},
+				{"unknown window", 66.5, 10 * time.Minute, func(r *restartSession) { v := false; r.LimitKnown = &v }, false},
+				{"missing window", 66.5, 10 * time.Minute, func(r *restartSession) { r.Limit = 0 }, false},
+				{"missing context", 66.5, 10 * time.Minute, func(r *restartSession) { r.Pct = nil }, false},
+				{"missing status time", 66.5, 10 * time.Minute, func(r *restartSession) { r.StatusAt = 0 }, false},
+				{"future status time", 66.5, -time.Minute, nil, false},
+				{"paused conversation", 66.5, 10 * time.Minute, nil, false},
+				{"pause alarm", 66.5, 10 * time.Minute, func(r *restartSession) { r.Pause = &pauseAlarm{ID: "pause", Name: action.PauseNoEndAlarm} }, false},
+				{"automatic restart disabled", 66.5, 10 * time.Minute, nil, false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					srv, fake, dir := restartServer(t)
+					profiles, err := srv.db.Profiles(t.Context())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := srv.db.UpdateProfile(t.Context(), profiles[0].ID, store.ProfileEdit{LaunchSet: map[string]any{
+						"agent": agent, "autoRestart": tc.name != "automatic restart disabled", "contextCap": 70,
+					}}); err != nil {
+						t.Fatal(err)
+					}
+					now := time.Now().Truncate(time.Millisecond)
+					known := true
+					row := restartSession{LiveSession: host.LiveSession{Name: "aacpanel-2", SessionID: switchSID, CWD: dir,
+						Agent: agent, Transport: "stream"}, Status: "idle", StatusAt: now.Add(-tc.idle).UnixMilli(),
+						Pct: &tc.pct, Limit: 1000000, LimitKnown: &known}
+					if tc.edit != nil {
+						tc.edit(&row)
+					}
+					if tc.name == "paused conversation" {
+						keepRestartPause(t, srv, row, now)
+					}
+					restartSnapshot(t, srv, row, now)
+					if err := srv.restartOnce(t.Context(), now); err != nil {
+						t.Fatal(err)
+					}
+					cycles, err := srv.db.RestartCycles(t.Context())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !tc.restart {
+						noRestartRequest(t, fake)
+						if len(cycles) != 0 {
+							t.Fatalf("an ineligible session entered the cycle: %+v", cycles)
+						}
+						return
+					}
+					if req := restartRequest(t, fake); req.Kind != action.SessionSend || req.Text != restartMessage(restartCommand) {
+						t.Fatalf("save command: %+v", req)
+					}
+					if len(cycles) != 1 || !cycles[0].Commanded || cycles[0].Done || cycles[0].Conversation != row.SessionID || !cycles[0].CommandAt.Equal(now) {
+						t.Fatalf("the save command did not enter the readiness cycle: %+v", cycles)
+					}
+					if err := srv.restartOnce(t.Context(), now); err != nil {
+						t.Fatal(err)
+					}
+					noRestartRequest(t, fake)
+				})
+			}
+		})
 	}
 }
 

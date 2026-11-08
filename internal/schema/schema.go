@@ -235,8 +235,9 @@ var params = []Param{
 	{
 		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject}, Default: CapDefault, Host: true,
-		Help: "the share of the model's window a session works up to: the prompt stamp names it, and past it " +
-			"a session with Auto restart wraps up and starts afresh",
+		Help: "the share of the model's window a session works up to: past it, or idle for ten minutes close " +
+			"under it, a session with Auto restart wraps up and starts afresh; without Auto restart the prompt " +
+			"stamp names it as the point to finalize from",
 		Unset: "80% of the model's window", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
