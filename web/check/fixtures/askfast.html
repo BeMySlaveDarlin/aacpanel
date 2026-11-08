@@ -8,7 +8,8 @@
 // Question cards answered by inputs that come faster than the card is drawn.
 // A question of several choices asked by a session on the stream: two options
 // tapped in one go, then a third option, a note and Send in another. The same
-// card with Send tapped twice in one go. And a form an MCP server asks through
+// card with Send tapped twice in one go. The same card answered with words of
+// one's own beside the picks. And a form an MCP server asks through
 // codex: two picks of one field, a switch flipped twice, words and Send twice,
 // all in one go. Every input has to reach the answer, and one card sends one.
 import { h, render } from "preact";
@@ -118,6 +119,24 @@ window.done = (async () => {
     send().click();
     send().click();
     result.twice = await done();
+
+    // Words of one's own opened beside a pick keep it, and a pick after them
+    // keeps the words open.
+    mount({ ask: checks("toolu_ask_own"), stream: true });
+    if (!await until(() => options().length === 3)) throw new Error("the third question did not show");
+    await settled();
+    options()[0].querySelector(".askpick").click();
+    await settled();
+    root.querySelector(".askown .askpick").click();
+    await settled();
+    options()[2].querySelector(".askpick").click();
+    await settled();
+    const words = root.querySelector(".askopts textarea.askinput");
+    result.beside = { picked: on(), open: Boolean(root.querySelector(".askown.on") && words) };
+    if (!words) throw new Error("the field of one's own words closed at a pick");
+    type(words, "a smoke run");
+    send().click();
+    result.own = await done();
 
     mount({ ask: form, codex: true });
     if (!await until(() => root.querySelector(".askswitch"))) throw new Error("the form did not show");

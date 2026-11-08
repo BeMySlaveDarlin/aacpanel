@@ -226,18 +226,21 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
         send(questions.map((_, i) => a.picks[i] || []), questions.map((_, i) => a.texts[i] || ""));
     };
 
+    // Words of one's own stand in place of the pick of a single choice, and
+    // beside the picks of a multiple one, as one more item of it.
     const openOwn = (n) => {
         if (ownBlocked(n) || sending) return;
         if (latest.current.writing === n) {
             change((a) => ({ texts: one(a.texts, n, "", ""), writing: -1 }));
             return;
         }
-        change((a) => ({ picks: one(a.picks, n, [], []), writing: n }));
+        if (questions[n].multi) change(() => ({ writing: n }));
+        else change((a) => ({ picks: one(a.picks, n, [], []), writing: n }));
     };
 
     const pick = (n, k) => {
         if (!ready || sending) return;
-        if (latest.current.writing === n) {
+        if (latest.current.writing === n && !questions[n].multi) {
             change((a) => ({ texts: one(a.texts, n, "", ""), writing: -1 }));
         }
         if (instant) return send([[k + 1]], questions.map(() => ""));
@@ -329,6 +332,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
                                     open=${writing === n}
                                     text=${own(n)}
                                     stepped=${stepped}
+                                    multi=${Boolean(questions[n].multi)}
                                     secret=${Boolean(questions[n].secret)}
                                     disabled=${Boolean(ownBlocked(n)) || sending}
                                     why=${ownBlocked(n)}
@@ -467,7 +471,7 @@ function Option({ opt, on, disabled, onPick, onPreview }) {
     `;
 }
 
-function OwnWords({ open, text, stepped, secret, disabled, why, onOpen, onText }) {
+function OwnWords({ open, text, stepped, multi, secret, disabled, why, onOpen, onText }) {
     return html`
         <div class=${`askopt askown${open ? " on" : ""}${disabled ? " off" : ""}`}>
             <button class="askpick" type="button" disabled=${disabled} onClick=${onOpen}>
@@ -475,7 +479,9 @@ function OwnWords({ open, text, stepped, secret, disabled, why, onOpen, onText }
                 <span class="askbody">
                     <span class="askname">Answer in your own words</span>
                     <span class="askdesc">
-                        ${why || (stepped ? "an answer to this question, not to the whole round" : "your own text instead of an option")}
+                        ${why || (multi ? "your own text beside the options picked"
+                            : stepped ? "an answer to this question, not to the whole round"
+                            : "your own text instead of an option")}
                     </span>
                 </span>
             </button>
@@ -540,7 +546,7 @@ function Review({ questions, picks, texts, onEdit }) {
                     <div class="askrow" key=${n}>
                         <span class="askrowq">${q.header || q.text}</span>
                         <span class=${`askrowa${labels.length || said ? "" : " skip"}`}>
-                            ${shown || (labels.length ? labels.join(", ") : "skipped")}
+                            ${[...labels, shown].filter(Boolean).join(", ") || "skipped"}
                         </span>
                         <button class="askedit" type="button" onClick=${() => onEdit(n)}>change</button>
                     </div>

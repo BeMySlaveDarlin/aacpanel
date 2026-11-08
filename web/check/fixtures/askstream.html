@@ -69,8 +69,17 @@ window.done = (async () => {
     const drop = document.querySelector(".askdrop");
     const result = { own: Boolean(own && !own.disabled), drop: Boolean(drop && !drop.disabled), prose: readQuestion(document) };
     if (preview === "short" || preview === "long") return result;
-    document.querySelectorAll(".askopts .askopt:not(.askown) .askpick")[1].click();
+    // A single choice takes a pick or words of one's own: each takes the
+    // other's place.
+    const opts = () => document.querySelectorAll(".askopts .askopt:not(.askown)");
+    opts()[0].querySelector(".askpick").click();
     await quiet();
+    own.click();
+    await quiet();
+    const pickKept = opts()[0].classList.contains("on");
+    opts()[1].querySelector(".askpick").click();
+    await quiet();
+    result.swap = [pickKept, Boolean(document.querySelector(".askown.on"))];
     const note = document.querySelector(".asknote");
     result.note = Boolean(note);
     if (note) {

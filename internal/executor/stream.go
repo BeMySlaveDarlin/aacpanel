@@ -474,6 +474,9 @@ func annotations(in askInput, notes []string) map[string]any {
 	return out
 }
 
+// answersFor words the answer to each question. A free-form answer stands in
+// place of the pick of a single choice, and beside the picks of a multiple one
+// as one more item of its list.
 func answersFor(in askInput, picks [][]int, texts []string) (map[string]string, string, error) {
 	if len(picks) != len(in.Questions) {
 		return nil, "", fmt.Errorf("there are %d questions, but %d answers arrived", len(in.Questions), len(picks))
@@ -485,13 +488,8 @@ func answersFor(in askInput, picks [][]int, texts []string) (map[string]string, 
 		if i < len(texts) {
 			own = strings.TrimSpace(texts[i])
 		}
-		if own != "" {
-			if len(picks[i]) > 0 {
-				return nil, "", fmt.Errorf("question %d has both a picked option and a free-form answer", i+1)
-			}
-			answers[q.Question] = own
-			said = append(said, fmt.Sprintf("in your own words, %d characters", len([]rune(own))))
-			continue
+		if !q.Multi && own != "" && len(picks[i]) > 0 {
+			return nil, "", fmt.Errorf("question %d takes a single choice, but both a picked option and a free-form answer arrived", i+1)
 		}
 		if !q.Multi && len(picks[i]) > 1 {
 			return nil, "", fmt.Errorf("question %d takes a single choice, but %d options arrived", i+1, len(picks[i]))
@@ -503,12 +501,22 @@ func answersFor(in askInput, picks [][]int, texts []string) (map[string]string, 
 			}
 			labels = append(labels, q.Options[n-1].Label)
 		}
+		told := strings.Join(labels, ", ")
+		if own != "" {
+			labels = append(labels, own)
+			words := fmt.Sprintf("in your own words, %d characters", len([]rune(own)))
+			if told == "" {
+				told = words
+			} else {
+				told += " and " + words
+			}
+		}
 		if len(labels) == 0 {
 			said = append(said, "skipped")
 			continue
 		}
 		answers[q.Question] = strings.Join(labels, ", ")
-		said = append(said, strings.Join(labels, ", "))
+		said = append(said, told)
 	}
 	if len(answers) == 0 {
 		return nil, "", errors.New("there is nothing to send: no option was picked and not a word was written")

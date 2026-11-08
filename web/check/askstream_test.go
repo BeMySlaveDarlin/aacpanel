@@ -14,6 +14,7 @@ func TestAStreamQuestionOpensWhatATerminalCannot(t *testing.T) {
 		Prose questionProseSeen `json:"prose"`
 		Own   bool              `json:"own"`
 		Drop  bool              `json:"drop"`
+		Swap  []bool            `json:"swap"`
 		Note  bool              `json:"note"`
 		Sent  []struct {
 			Kind   string         `json:"kind"`
@@ -29,6 +30,9 @@ func TestAStreamQuestionOpensWhatATerminalCannot(t *testing.T) {
 	if !got.Drop {
 		t.Error("the discuss item is shut for a stream session")
 	}
+	if !reflect.DeepEqual(got.Swap, []bool{false, false}) {
+		t.Errorf("a single choice kept the pick under words of one's own, or the words under a pick: %v", got.Swap)
+	}
 	if !got.Note {
 		t.Fatal("no field for a note appeared beside the pick")
 	}
@@ -38,6 +42,9 @@ func TestAStreamQuestionOpensWhatATerminalCannot(t *testing.T) {
 	notes, _ := got.Sent[0].Params["notes"].([]any)
 	if len(notes) != 1 || notes[0] != "but keep the search in it" {
 		t.Errorf("the note did not go with the answer: %+v", got.Sent[0].Params)
+	}
+	if _, words := got.Sent[0].Params["texts"]; words {
+		t.Errorf("words of one's own went with the pick of a single choice: %+v", got.Sent[0].Params)
 	}
 }
 
@@ -70,17 +77,24 @@ func (c fastCard) answer(t *testing.T, what string, want map[string]any) {
 // Inputs that come faster than a question card is drawn all reach the answer,
 // and the card sends it once. Two options of a multiple choice tapped in one
 // go stay picked, and a third tap, a note and Send in one go send the three
-// picks with the note; Send tapped twice in one go sends one answer. A form of
-// an MCP server keeps two picks of one field, a switch flipped twice and words
-// typed in the same go as Send, and sends them once. An input built on the
-// values of the last drawing drops the one before it, and a Send that reads
-// whether an answer is going from the last drawing sends a second.
+// picks with the note; Send tapped twice in one go sends one answer. Words of
+// one's own opened beside a pick keep it, stay open through a further pick and
+// go with both picks. A form of an MCP server keeps two picks of one field, a
+// switch flipped twice and words typed in the same go as Send, and sends them
+// once. An input built on the values of the last drawing drops the one before
+// it, and a Send that reads whether an answer is going from the last drawing
+// sends a second.
 func TestInputsFasterThanTheCardAllReachTheAnswer(t *testing.T) {
 	var got struct {
-		First []int    `json:"first"`
-		Round fastCard `json:"round"`
-		Twice fastCard `json:"twice"`
-		Form  fastCard `json:"form"`
+		First  []int    `json:"first"`
+		Round  fastCard `json:"round"`
+		Twice  fastCard `json:"twice"`
+		Beside struct {
+			Picked []int `json:"picked"`
+			Open   bool  `json:"open"`
+		} `json:"beside"`
+		Own  fastCard `json:"own"`
+		Form fastCard `json:"form"`
 	}
 	runFixture(t, "askfast.html", &got)
 
@@ -95,6 +109,15 @@ func TestInputsFasterThanTheCardAllReachTheAnswer(t *testing.T) {
 	got.Twice.answer(t, "Send twice", map[string]any{
 		"ask":   "toolu_ask_twice",
 		"picks": []any{[]any{1.0}},
+	})
+	if !reflect.DeepEqual(got.Beside.Picked, []int{1, 3}) || !got.Beside.Open {
+		t.Errorf("words of one's own beside a multiple choice left %v picked, the field open: %v",
+			got.Beside.Picked, got.Beside.Open)
+	}
+	got.Own.answer(t, "own words beside the picks", map[string]any{
+		"ask":   "toolu_ask_own",
+		"picks": []any{[]any{1.0, 3.0}},
+		"texts": []any{"a smoke run"},
 	})
 	got.Form.answer(t, "the form", map[string]any{
 		"ask":   "elicit-fast",

@@ -287,6 +287,43 @@ func TestAnAnswerOnTheStreamIsTheWordsOfTheOptions(t *testing.T) {
 	}
 }
 
+// Words of one's own go beside the picks of a multiple choice as one more item
+// of its list.
+func TestOwnWordsGoBesideThePicksOfAMultipleChoice(t *testing.T) {
+	f := onTheStream(t, true, question())
+	e, _ := newTest(t, "")
+	r := req(action.SessionAnswer, "demo")
+	r.Answer = &action.Answer{AskID: "toolu_q", Picks: [][]int{{1}, {1, 3}, {}}, Texts: []string{"", " and a smoke run ", ""}}
+	if _, err := e.Execute(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	var body struct {
+		UpdatedInput struct {
+			Answers map[string]string `json:"answers"`
+		} `json:"updatedInput"`
+	}
+	if err := json.Unmarshal(only(t, f).Response, &body); err != nil {
+		t.Fatal(err)
+	}
+	if got := body.UpdatedInput.Answers["Which checks"]; got != "unit, e2e, and a smoke run" {
+		t.Errorf("the multiple choice was answered %q", got)
+	}
+}
+
+// A single choice takes a pick or words of one's own, and both are refused.
+func TestASingleChoiceTakesAPickOrOwnWords(t *testing.T) {
+	f := onTheStream(t, true, question())
+	e, _ := newTest(t, "")
+	r := req(action.SessionAnswer, "demo")
+	r.Answer = &action.Answer{AskID: "toolu_q", Picks: [][]int{{1}, {}, {1}}, Texts: []string{"", "", "later"}}
+	if _, err := e.Execute(context.Background(), r); err == nil {
+		t.Error("a single choice went with both a pick and words of one's own")
+	}
+	if len(f.asked()) != 0 {
+		t.Error("the holder was answered anyway")
+	}
+}
+
 // A note beside a pick reaches the model with the answer, keyed by the
 // question the way the tool reads it.
 func TestANoteBesideAPickGoesWithTheAnswer(t *testing.T) {
