@@ -1,4 +1,4 @@
-// Package taskreg reads the file registry without writing to its source.
+// Package taskreg describes project tasks and reads file registries without writing to their source.
 package taskreg
 
 import (
@@ -78,6 +78,8 @@ type Event struct {
 }
 
 type Handoff struct {
+	SessionName string          `json:"sessionName"`
+	Next        string          `json:"next"`
 	File        string          `json:"file"`
 	Key         string          `json:"key"`
 	Session     string          `json:"session"`

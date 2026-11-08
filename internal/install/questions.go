@@ -105,7 +105,7 @@ var Kit = []Part{
 var Legs = []string{"tailscale", "lan", "domain"}
 
 // hookParts are the parts that wire a hook into claude, besides the relay.
-var hookParts = []string{"copies", "nudge", "stamp", "background", "heavy"}
+var hookParts = []string{"copies", "nudge", "stamp", "background", "heavy", "tools"}
 
 const (
 	typeOwn  = "Type something."

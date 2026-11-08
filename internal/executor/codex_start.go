@@ -99,7 +99,7 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 		}
 	}
 	if path, err := toolServer(); err == nil {
-		begin.Tools, begin.Allowed = path, toolset.CodexAllowed()
+		begin.Tools, begin.Allowed = path, toolset.CodexAllowedFor(p.Path)
 	} else {
 		warns = append(warns, "the session starts without the panel's tools: the executor does not know its own path: "+
 			err.Error())

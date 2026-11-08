@@ -39,6 +39,14 @@ func (s *Server) importTaskStores(ctx context.Context, projectID int) (taskImpor
 					continue
 				}
 				found = true
+				writer, e := s.db.TaskWriter(ctx, project.ID)
+				if e != nil {
+					out.Errors = append(out.Errors, project.Name+": "+e.Error())
+					continue
+				}
+				if writer == taskreg.PanelWriter {
+					continue
+				}
 				snapshot, e := s.chat.TaskStore(ctx, project.Path)
 				if e != nil {
 					out.Errors = append(out.Errors, project.Name+": "+e.Error())
@@ -190,7 +198,9 @@ func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) {
 	}
 	detail.Task.People = taskreg.People(actors, c.sessions)
 	for i := range detail.Events {
-		detail.Events[i].ActorName = taskreg.ActorName(detail.Events[i].Actor, c.sessions)
+		if detail.Events[i].ActorName == "" {
+			detail.Events[i].ActorName = taskreg.ActorName(detail.Events[i].Actor, c.sessions)
+		}
 	}
 	writeJSON(w, detail)
 }
@@ -239,7 +249,9 @@ func (s *Server) apiTaskPeriod(w http.ResponseWriter, r *http.Request) {
 				refs = []string{""}
 			}
 			for i := range activity.Events {
-				activity.Events[i].ActorName = taskreg.ActorName(activity.Events[i].Actor, c.sessions)
+				if activity.Events[i].ActorName == "" {
+					activity.Events[i].ActorName = taskreg.ActorName(activity.Events[i].Actor, c.sessions)
+				}
 			}
 			for _, ref := range refs {
 				groups[ref] = append(groups[ref], activity)

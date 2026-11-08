@@ -183,12 +183,12 @@ func TestTheHooksOfCodexAreWiredAndTrusted(t *testing.T) {
 	}
 	for e, want := range map[string][]string{"Stop": {"bash /home/u/atlas-scripts/cost-snapshot/cost-snapshot.sh",
 		"AACP_HOOK_CODEX_HOME=" + codexHome + " " + executor + " hook checklist-reminder"},
-		"SessionStart": {"bash /home/u/atlas-scripts/agent-context/session-context.sh codex"}} {
+		"SessionStart": {"bash /home/u/atlas-scripts/agent-context/session-context.sh codex", executor + " hook task-context"}} {
 		if got := commandsOf(t, hooks, e); !slices.Equal(got, want) {
 			t.Errorf("the machine's %s: %q", e, got)
 		}
 	}
-	for _, place := range []string{"pre_tool_use:0:0", "user_prompt_submit:0:0", "stop:1:0"} {
+	for _, place := range []string{"pre_tool_use:0:0", "user_prompt_submit:0:0", "stop:1:0", "session_start:1:0"} {
 		if got, want := trustOf(config, place), hashAt(t, hooks, place); got != want {
 			t.Errorf("%s is trusted as %q, codex reads it as %q:\n%s", place, got, want, config)
 		}
@@ -460,6 +460,7 @@ func codexHookListing(home, executor, state, trust string, enabled, stamp bool, 
 	if len(stopGroup) > 0 {
 		group = stopGroup[0]
 	}
+	hooks = append(hooks, map[string]any{"key": path + ":session_start:" + strconv.Itoa(group) + ":0", "handlerType": "command", "command": executor + " hook task-context", "enabled": true, "trustStatus": "trusted"})
 	hooks = append(hooks, map[string]any{"key": path + ":stop:" + strconv.Itoa(group) + ":0", "handlerType": "command",
 		"command": "AACP_HOOK_CODEX_HOME=" + shellQuote(home) + " " + executor + " hook checklist-reminder", "enabled": true, "trustStatus": "trusted"})
 	if stamp && trust != "" {

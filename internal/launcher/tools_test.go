@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -299,5 +301,42 @@ func TestWhereNamesTheSession(t *testing.T) {
 		if err != nil || got.Name != want || got.Place != (mcp.Place{ConfigDir: contour, Dir: "/srv/proj/lab"}) {
 			t.Errorf("process %d: %+v %v, meant the name %q", pid, got, err, want)
 		}
+	}
+}
+
+func TestRunAddsRegistryPermissionsOnlyForPanelProjects(t *testing.T) {
+	stubToolServer(t)
+	for _, writer := range []string{"cctm", "panel"} {
+		t.Run(writer, func(t *testing.T) {
+			dir := t.TempDir()
+			panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var in struct {
+					CWD       string `json:"cwd"`
+					Operation string `json:"operation"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+					t.Error(err)
+				}
+				if in.CWD != dir || in.Operation != "project" {
+					t.Errorf("permission scope: %+v", in)
+				}
+				fmt.Fprintf(w, `{"project":{"writer":%q}}`, writer)
+			}))
+			t.Cleanup(panel.Close)
+			t.Setenv("AACP_PANEL_URL", panel.URL)
+			proc := fakeProc(t, fproc{pid: 100, comm: "konsole", args: []string{"konsole"}})
+			log := fakeTmuxLauncher(t, proc, "aacpanel", 200, 4242)
+			fakeWindow(t)
+			machineClaude(t)
+			if _, err := Run(t.Context(), Spec{Dir: dir, Session: "aacpanel"}); err != nil {
+				t.Fatal(err)
+			}
+			said := string(readFile(t, log))
+			for _, tool := range []string{"task_list", "task_show", "task_create", "task_update", "handoff_write", "handoff_read"} {
+				if strings.Contains(said, "mcp__aacpanel__"+tool) != (writer == "panel") {
+					t.Fatalf("%s permission under %s: %s", tool, writer, said)
+				}
+			}
+		})
 	}
 }

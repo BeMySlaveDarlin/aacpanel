@@ -92,7 +92,7 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 		begin.Name = th.Name
 	}
 	if path, err := toolServer(); err == nil {
-		begin.Tools, begin.Allowed = path, toolset.CodexAllowed()
+		begin.Tools, begin.Allowed = path, toolset.CodexAllowedFor(begin.CWD)
 	} else {
 		warns = append(warns, "the replacement starts without the panel's tools: "+err.Error())
 	}

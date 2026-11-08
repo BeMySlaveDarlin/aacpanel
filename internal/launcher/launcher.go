@@ -112,7 +112,7 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 		warns = append(warns, modeWarn)
 	}
 
-	params, toolsWarn := withTools(params)
+	params, toolsWarn := withTools(params, spec.Dir)
 	if toolsWarn != "" {
 		warns = append(warns, toolsWarn)
 	}

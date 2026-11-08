@@ -8,8 +8,10 @@
 package toolset
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"aacpanel/internal/checklist"
@@ -19,6 +21,7 @@ import (
 	"aacpanel/internal/request"
 	"aacpanel/internal/role"
 	"aacpanel/internal/session"
+	"aacpanel/internal/taskreg"
 )
 
 // lead is the server's first sentence to a session: the tools reach the
@@ -66,7 +69,17 @@ func tools() []mcp.Tool {
 
 // Server is the panel's MCP server for the claude bind finds.
 func Server(bind mcp.Bind) *mcp.Server {
-	return &mcp.Server{Lead: lead, Tools: tools(), Bind: bind}
+	srv := &mcp.Server{Lead: lead, Tools: tools(), Bind: bind}
+	if bind != nil {
+		srv.More = registryTools(func() string {
+			b, e := bind()
+			if e != nil {
+				return ""
+			}
+			return b.Place.Dir
+		})
+	}
+	return srv
 }
 
 // codexTools are the tools the panel gives a thread of codex, each bound to
@@ -96,8 +109,8 @@ func codexTools() []mcp.Tool {
 // CodexServer is the panel's MCP server for a codex: caller finds the thread
 // each call comes from, since one codex holds many threads. Nothing is known
 // of the thread before a call, and the server's word says nothing of it.
-func CodexServer(caller func(meta json.RawMessage) (mcp.Binding, error)) *mcp.Server {
-	return &mcp.Server{Lead: codexLead, Tools: codexTools(),
+func CodexServer(caller func(meta json.RawMessage) (mcp.Binding, error), directory ...string) *mcp.Server {
+	srv := &mcp.Server{Lead: codexLead, Tools: codexTools(),
 		Bind: func() (mcp.Binding, error) {
 			return mcp.Binding{}, errors.New("a codex thread is known by its call alone")
 		},
@@ -105,6 +118,10 @@ func CodexServer(caller func(meta json.RawMessage) (mcp.Binding, error)) *mcp.Se
 			return func() (mcp.Binding, error) { return caller(meta) }
 		},
 	}
+	if len(directory) > 0 {
+		srv.More = registryTools(func() string { return directory[0] })
+	}
+	return srv
 }
 
 // CodexAllowed are the tools a thread of codex the panel starts calls without
@@ -123,4 +140,49 @@ func CodexAllowed() []string {
 // gives them.
 func Allowed() []string {
 	return Server(nil).Allowed()
+}
+
+// Codex starts a server in each thread's directory before it names the thread
+// in a tool call. Listing is scoped by that directory; writes still require
+// the bound conversation and the service's authoritative project check.
+func registryTools(directory func() string) func() []mcp.Tool {
+	var once sync.Once
+	var tools []mcp.Tool
+	return func() []mcp.Tool {
+		once.Do(func() {
+			dir := directory()
+			if dir == "" {
+				return
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			defer cancel()
+			var out taskreg.Context
+			if taskreg.Call(ctx, session.Here().Panel, taskreg.Request{Operation: "project", CWD: dir}, &out) == nil && out.Project.Writer == taskreg.PanelWriter {
+				tools = taskreg.Tools(session.Here().Panel)
+			}
+		})
+		return tools
+	}
+}
+
+// AllowedFor adds registry tools only for a project the panel writes. The
+// ordinary list remains the installer's account-wide baseline.
+func AllowedFor(directory string) []string {
+	out := Allowed()
+	for _, tool := range registryTools(func() string { return directory })() {
+		if tool.Allowed {
+			out = append(out, mcp.Qualified(tool.Name))
+		}
+	}
+	return out
+}
+
+func CodexAllowedFor(directory string) []string {
+	out := CodexAllowed()
+	for _, tool := range registryTools(func() string { return directory })() {
+		if tool.Allowed {
+			out = append(out, tool.Name)
+		}
+	}
+	return out
 }

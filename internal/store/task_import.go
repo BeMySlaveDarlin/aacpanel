@@ -27,7 +27,15 @@ type TaskImportResult struct {
 
 // ImportTasks mirrors one mapped project. Locking its map row serializes
 // concurrent imports and prevents a stale path from importing into a moved map.
-func (s *Store) ImportTasks(ctx context.Context, projectID int, expectedPath string, snapshot taskreg.Snapshot) (out TaskImportResult, err error) {
+func (s *Store) ImportTasks(ctx context.Context, projectID int, expectedPath string, snapshot taskreg.Snapshot) (TaskImportResult, error) {
+	return s.importTaskSnapshot(ctx, projectID, expectedPath, snapshot, false)
+}
+
+func (s *Store) SwitchTaskWriter(ctx context.Context, projectID int, expectedPath string, snapshot taskreg.Snapshot) (TaskImportResult, error) {
+	return s.importTaskSnapshot(ctx, projectID, expectedPath, snapshot, true)
+}
+
+func (s *Store) importTaskSnapshot(ctx context.Context, projectID int, expectedPath string, snapshot taskreg.Snapshot, switchWriter bool) (out TaskImportResult, err error) {
 	defer func() { err = Unavailable(err) }()
 	out = TaskImportResult{ProjectID: projectID, Root: snapshot.Root, Errors: append([]string{}, snapshot.Errors...)}
 	pool, err := s.Pool()
@@ -39,8 +47,8 @@ func (s *Store) ImportTasks(ctx context.Context, projectID int, expectedPath str
 		return out, err
 	}
 	defer tx.Rollback(ctx)
-	var current string
-	err = tx.QueryRow(ctx, `SELECT path FROM profile_projects WHERE id=$1 FOR UPDATE`, projectID).Scan(&current)
+	var current, writer string
+	err = tx.QueryRow(ctx, `SELECT path,task_writer FROM profile_projects WHERE id=$1 FOR UPDATE`, projectID).Scan(&current, &writer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, ErrNotFound
 	}
@@ -50,7 +58,13 @@ func (s *Store) ImportTasks(ctx context.Context, projectID int, expectedPath str
 	if current != expectedPath {
 		return out, ErrConflict
 	}
-	if !snapshot.Present {
+	if writer == taskreg.PanelWriter {
+		return out, nil
+	}
+	if switchWriter && (len(snapshot.Errors) > 0 || (snapshot.Present && (!snapshot.TasksComplete || !snapshot.HandoffsComplete))) {
+		return out, badRequest("the final file import must be complete and readable")
+	}
+	if !snapshot.Present && !switchWriter {
 		return out, nil
 	}
 	meta := snapshot.Meta
@@ -137,6 +151,14 @@ func (s *Store) ImportTasks(ctx context.Context, projectID int, expectedPath str
 	}
 	if snapshot.HandoffsComplete {
 		if _, err = tx.Exec(ctx, `UPDATE project_handoffs SET deleted_at=now() WHERE project_id=$1 AND NOT(file=ANY($2::text[])) AND deleted_at IS NULL`, projectID, handoffs); err != nil {
+			return out, err
+		}
+	}
+	if switchWriter {
+		if len(out.Errors) > 0 {
+			return out, badRequest("the final file import has errors: %s", strings.Join(out.Errors, "; "))
+		}
+		if _, err = tx.Exec(ctx, `UPDATE profile_projects SET task_writer='panel' WHERE id=$1`, projectID); err != nil {
 			return out, err
 		}
 	}

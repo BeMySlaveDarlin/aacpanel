@@ -41,7 +41,10 @@ const actionTimeout = 90 * time.Second
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "task" {
-		os.Exit(runTask(os.Args[2:], os.Stdout, os.Stderr))
+		os.Exit(runTaskInput(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "handoff" {
+		os.Exit(runHandoff(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	if len(os.Args) > 1 && os.Args[1] == statusline.Command {
 		os.Exit(statusline.Run(os.Stdin, os.Stdout, os.Stderr))
@@ -276,7 +279,7 @@ func runMCP(in io.Reader, out io.Writer, parent int) int {
 	if launcher.IsCodex(parent) {
 		srv = toolset.CodexServer(func(meta json.RawMessage) (mcp.Binding, error) {
 			return launcher.CodexCaller(parent, meta)
-		})
+		}, mcpDirectory())
 	}
 	if err := srv.Serve(context.Background(), in, out); err != nil {
 		fmt.Fprintf(os.Stderr, "aacpanel-exec: the MCP server: %v\n", err)
@@ -808,3 +811,5 @@ func (a audited) SleepingAlarms(ctx context.Context) (*action.SleepingAlarms, er
 	}
 	return asker.SleepingAlarms(ctx)
 }
+
+func mcpDirectory() string { dir, _ := os.Getwd(); return dir }

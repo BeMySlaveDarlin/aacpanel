@@ -16,6 +16,8 @@ type TaskFilter struct {
 	ContourID      int
 	ProjectID      int
 	Statuses       []string
+	Tags           []string
+	Next           bool
 	Tag            string
 	Text           string
 	External       string
@@ -67,6 +69,12 @@ func taskWhere(f TaskFilter) (string, []any, error) {
 			}
 		}
 		add("t.status=ANY($%d::text[])", f.Statuses)
+	}
+	if f.Next {
+		parts = append(parts, `t.status='open' AND NOT EXISTS(SELECT 1 FROM unnest(t.blocked_by) AS b(number) LEFT JOIN project_tasks blocker ON blocker.project_id=t.project_id AND blocker.number=b.number WHERE blocker.number IS NULL OR blocker.deleted_at IS NOT NULL OR blocker.status NOT IN ('done','cancelled'))`)
+	}
+	if len(f.Tags) > 0 {
+		add("t.tags @> $%d::text[]", f.Tags)
 	}
 	if f.Tag != "" {
 		add("$%d=ANY(t.tags)", f.Tag)
@@ -129,7 +137,7 @@ func (s *Store) Tasks(ctx context.Context, f TaskFilter) (out TaskPage, err erro
 		return out, err
 	}
 	args = append(args, out.Limit, out.Offset)
-	rows, err := pool.Query(ctx, `SELECT `+taskColumns+taskJoins+where+fmt.Sprintf(` ORDER BY c.sort,c.id,g.sort,g.id,p.sort,p.id,t.position NULLS LAST,t.number LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
+	rows, err := pool.Query(ctx, `SELECT `+taskColumns+taskJoins+where+fmt.Sprintf(` ORDER BY c.sort,c.id,g.sort,g.id,p.sort,p.id,CASE t.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 WHEN 'LOW' THEN 2 ELSE 3 END,t.position NULLS LAST,t.number LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
 	if err != nil {
 		return out, err
 	}
@@ -156,17 +164,12 @@ func (s *Store) Task(ctx context.Context, project int, number int64) (out taskre
 	if err != nil {
 		return out, err
 	}
-	rows, err := pool.Query(ctx, `SELECT file,key,session,kind,at,date,title,cwd,git,tasks,task_numbers,body,source_json,deleted_at
+	rows, err := pool.Query(ctx, `SELECT `+handoffColumns+`
 		FROM project_handoffs WHERE project_id=$1 AND $2=ANY(task_numbers) ORDER BY at DESC NULLS LAST,file`, project, number)
 	if err != nil {
 		return out, err
 	}
-	out.Handoffs, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (taskreg.Handoff, error) {
-		var h taskreg.Handoff
-		e := row.Scan(&h.File, &h.Key, &h.Session, &h.Kind, &h.At, &h.Date, &h.Title, &h.CWD, &h.Git, &h.Tasks, &h.TaskNumbers, &h.Body, &h.Source, &h.DeletedAt)
-		taskTimesUTC(h.At, h.DeletedAt)
-		return h, e
-	})
+	out.Handoffs, err = pgx.CollectRows(rows, scanHandoff)
 	return out, err
 }
 
@@ -175,14 +178,14 @@ func (s *Store) taskEvents(ctx context.Context, project int, number int64, from,
 	if err != nil {
 		return nil, err
 	}
-	rows, err := pool.Query(ctx, `SELECT id,kind,at,precision,actor,origin,payload FROM task_events
+	rows, err := pool.Query(ctx, `SELECT id,kind,at,precision,actor,origin,payload,actor_name FROM task_events
 		WHERE project_id=$1 AND task_number=$2 AND ($3::timestamptz IS NULL OR at >= $3) AND ($4::timestamptz IS NULL OR at < $4) ORDER BY at,id`, project, number, from, until)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (taskreg.Event, error) {
 		var e taskreg.Event
-		err := row.Scan(&e.ID, &e.Kind, &e.At, &e.Precision, &e.Actor, &e.Origin, &e.Payload)
+		err := row.Scan(&e.ID, &e.Kind, &e.At, &e.Precision, &e.Actor, &e.Origin, &e.Payload, &e.ActorName)
 		e.At = e.At.UTC()
 		return e, err
 	})

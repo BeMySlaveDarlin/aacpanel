@@ -2305,34 +2305,68 @@ has something to list.
 ## Data
 
 **The task registry belongs to mapped projects in Postgres.** Task numbers
-are local to each project and survive import unchanged. Until the registry
-switches writers, cctm alone edits the files in `.claude/session`; the panel
-mirrors them at startup, every five minutes and on `aacpanel-exec task import`.
-The collector reads bounded pages over the existing `chat.sock`, resolving
-linked worktrees to their common repository. The service selects paths from
-the map and checks the project's current path again before importing; projects
-outside the map are never scanned. The executor's task CLI only calls the
-service's local HTTP listener and never connects to Postgres.
+are local to each project and survive import unchanged. Each project has one
+writer: cctm files by default, or the panel. The panel mirrors file projects
+at startup, every five minutes and on `aacpanel-exec task import`; it never
+imports tasks or handoffs into a project it writes. The collector reads bounded
+pages over `chat.sock`, resolving linked worktrees to their common repository.
+Only mapped paths are read, and the current map path is checked under the same
+project lock that protects writes. `aacpanel-exec task switch <project-id>`
+performs a final complete import and changes the writer in one transaction.
+An unreadable file or incomplete listing refuses the switch; the CLI offers
+no reverse switch. The command is explicit and installation switches nothing.
 
 Tasks and project handoffs retain their original JSON text and parsed source,
-including unknown fields. Body sections render to Markdown in a fixed order;
-unknown sections follow in lexical order. The external source field is kept
-intact: cctm's native `{session,id}` binding is not an issue link. Issue numbers
-in the title, tags, `refs.jira` or explicit external link fields are indexed separately, and a
-task naming several issues appears in each issue's report group.
+including unknown fields. Imported body sections render to Markdown in a fixed
+order; unknown sections follow in lexical order. The external source field is
+kept intact: cctm's native `{session,id}` binding is not an issue link. Issue
+numbers in titles, tags, `refs.jira` or explicit external link fields are indexed
+separately; a task naming several issues appears in each issue's report group.
 
 Imported events contain only the source's creation, update and closure dates
-and their recorded session ids. Dates carry `precision: date`; no time or
-intermediate status history is invented. A status transition observed between
-imports is recorded only when the source has an update date. Source facts are
-deduplicated by source key, while panel events can have arbitrary kinds and
-payloads without a schema change. Deleted source tasks and handoffs are marked,
-and unreadable files or incomplete listings cannot mark them as deleted.
-Period reads use a half-open interval, include all event kinds and paginate
-tasks before grouping them by issue. Task reads and filters are under
-`/api/tasks`, details under `/api/projects/{id}/tasks/{number}`, and period
-reads under `/api/tasks/period`; explicit import is local-only. Later the
-panel's tools become the sole writer and supply new events directly.
+and recorded session ids. Dates carry `precision: date`; no time or intermediate
+status history is invented. A status transition observed between imports is
+recorded only when the source has an update date. Source facts are deduplicated
+by source key. Deleted source tasks and handoffs are marked; unreadable files
+or incomplete listings cannot mark them deleted. Panel edits record their actual
+time with `precision: instant`, kind, changed fields, conversation and session
+name; the person's CLI records `person`. A project row lock serializes imports,
+writer switching, edits and handoffs, and assigns consecutive task numbers even
+when agents create work concurrently. Markdown appends a named section by
+default; explicit replacement can replace the whole body, including clearing it.
+Closing records the author and time, and reopening clears the closure fields.
+
+The executor's task CLI and MCP server use only the service's local HTTP
+listener, never Postgres. `task list|show|next|create|update|close|reopen|note`
+and `handoff latest|show|write` expose the same registry operations. Writes name
+`-project <id>` or an agent's `-conversation <id>`; `-body-file <path>`,
+`-body-file -` or `-stdin` explicitly supplies markdown, so a body is never read
+implicitly or discarded. `next` excludes tasks with unfinished or missing
+blockers and orders work by priority, position and number. File projects refuse
+panel writes and continue using cctm.
+
+Only sessions in panel-written projects see `task_list`, `task_show`,
+`task_create`, `task_update`, `handoff_write` and `handoff_read`. A Claude binding
+or a Codex server's starting directory selects that set at the handshake;
+an unavailable service leaves the ordinary set until reconnect. Calls carry the
+bound conversation, and the service derives its current project and author
+from the live snapshot, refusing a caller naming a different project. The
+account-wide tool permissions and server instructions for file projects keep
+their ordinary set. A handoff records title, markdown and the next step; its
+created, closed and touched task lists come from that conversation's events
+since its previous handoff, rather than an agent's supplied lists. Reads select
+the latest project handoff or an explicit key.
+
+The installed `aacpanel-exec hook task-context` runs on `SessionStart` for
+Claude and Codex with Panel tools. It supplies the latest project handoff,
+its task groups and next step, then the first ten open tasks ordered by priority,
+position and number. Full handoff markdown stays behind `handoff_read`, so a
+long document does not crowd the queue out of the client's start context. The
+hook stays silent for cctm projects or an unavailable service, so file projects
+keep their own start hook. Period reads use a half-open interval, include all event kinds and paginate tasks before grouping
+them by issue. Reads and filters are under `/api/tasks`, task details under
+`/api/projects/{id}/tasks/{number}`, and period reads under `/api/tasks/period`;
+explicit import and registry operations are local-only.
 
 The phone's contour toolbar opens a task layer whose board carries summaries;
 documents load when a task is opened. An open task is in work after an event
@@ -3347,8 +3381,6 @@ in `.env` turns the check off, and then no request goes out at all.
   panel travels: the UPS watchdog is the machine's own system housekeeping, and
   polling the graphics card twice a minute wakes a laptop's discrete card for a
   chart nobody looks at.
-- **A task registry.** It lives as a claude plugin, not everybody has it, and on
-  somebody else's install the buttons would honestly answer "not found".
 - **Unrequested work in sessions.** The service sends only the preparation
   command and reminder of the context cycle enabled by `autoRestart`. It waits
   for an idle snapshot with no pending question or permission before typing;

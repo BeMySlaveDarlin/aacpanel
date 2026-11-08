@@ -456,6 +456,10 @@ func fakePanel(t *testing.T) <-chan map[string]any {
 	t.Helper()
 	got := make(chan map[string]any, 8)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tasks/registry" {
+			_, _ = w.Write([]byte(`{"project":{"writer":"cctm"}}`))
+			return
+		}
 		var asked map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&asked)
 		got <- asked
@@ -519,6 +523,10 @@ func TestTheCloseClosesOnlyTheSessionCalling(t *testing.T) {
 func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tasks/registry" {
+			_, _ = w.Write([]byte(`{"project":{"writer":"panel"}}`))
+			return
+		}
 		var cards []map[string]any
 		for range 4 {
 			cards = append(cards, map[string]any{"cwd": "/srv/proj", "title": strings.Repeat("𝔸", 200), "answered": 100, "questions": 100})

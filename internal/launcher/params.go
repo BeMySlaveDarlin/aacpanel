@@ -54,7 +54,8 @@ type Params struct {
 	// tools. The launch sets it, not the map: it names the executor's own
 	// path on the host, which a preview drawn in the panel's container does
 	// not know.
-	tools string
+	tools        string
+	allowedTools []string
 
 	// chrome hands a session on the stream Claude in Chrome. The launch sets
 	// it from the account, not the map: claude in a terminal turns Chrome on
@@ -250,7 +251,10 @@ func toolWords(p Params) []schema.Word {
 		return nil
 	}
 	out := []schema.Word{{Text: "--mcp-config", Key: keyPanelTools}, {Text: p.tools, Key: keyPanelTools}}
-	allowed := toolset.Allowed()
+	allowed := p.allowedTools
+	if allowed == nil {
+		allowed = toolset.Allowed()
+	}
 	if len(allowed) == 0 {
 		return out
 	}
@@ -273,7 +277,7 @@ const toolsPreview = "<the panel's tools>"
 
 // withTools puts the configuration of the panel's tools into the parameters
 // of a launch, or says why the session starts without them.
-func withTools(p Params) (Params, string) {
+func withTools(p Params, directory ...string) (Params, string) {
 	if !toolsOn(p) {
 		return p, ""
 	}
@@ -286,6 +290,9 @@ func withTools(p Params) (Params, string) {
 	}})
 	if err != nil {
 		return p, "the session starts without the panel's tools: " + err.Error()
+	}
+	if len(directory) > 0 {
+		p.allowedTools = toolset.AllowedFor(directory[0])
 	}
 	p.tools = string(config)
 	return p, ""

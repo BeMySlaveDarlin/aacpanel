@@ -357,7 +357,7 @@ func TestEveryAccountMovesItsStatusLineAndRetiresTheBriefHook(t *testing.T) {
 		if got := statusLineOf([]byte(raw)); got != want {
 			t.Errorf("%s: status line %q, want %q", dir, got, want)
 		}
-		if got := commandsOf(t, raw, "SessionStart"); !slices.Equal(got, []string{"mine-before", "mine-after"}) {
+		if got := commandsOf(t, raw, "SessionStart"); !slices.Equal(got, []string{"mine-before", "mine-after", g.in.execPath() + " hook task-context"}) {
 			t.Errorf("%s: SessionStart %q", dir, got)
 		}
 		if !strings.Contains(raw, `"matcher": "startup"`) || !strings.Contains(raw, `"padding": 1`) {

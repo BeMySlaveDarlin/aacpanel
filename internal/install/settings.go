@@ -244,6 +244,7 @@ var kitHooks = []kitHook{
 	{Part: "stamp", Event: "UserPromptSubmit", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
 	{Part: "background", Event: "Stop", Hook: "background-reminder", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true, Codex: true},
 	{Part: "heavy", Event: "PreToolUse", Matcher: "Bash", Hook: "heavy-gate", Timeout: 5, Codex: true},
+	{Part: "tools", Event: "SessionStart", Hook: "task-context", Timeout: 3, Codex: true},
 }
 
 // retiredHooks are the hooks the kit must not wire. No part of the kit puts
@@ -311,9 +312,9 @@ func AllowRules(has func(part string) bool) int {
 // parts has says are checked: the question relay and every hook part. The
 // plan and the demo count by it.
 func Hooks(has func(part string) bool) int {
-	n := 1
-	for _, p := range hookParts {
-		if has(p) {
+	n := 0
+	for _, h := range kitHooks {
+		if has(h.Part) {
 			n++
 		}
 	}

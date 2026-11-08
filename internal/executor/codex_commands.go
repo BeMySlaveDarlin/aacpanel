@@ -418,7 +418,7 @@ func codexMcpChange(ctx context.Context, th codex.Thread, change *action.McpChan
 	program, err := toolServer()
 	var allowed []string
 	if err == nil {
-		allowed = toolset.CodexAllowed()
+		allowed = toolset.CodexAllowedFor(codexPlace(th).Dir)
 	} else {
 		program = ""
 		warns = append(warns, "the thread has the servers of its config.toml alone: the executor does not know "+

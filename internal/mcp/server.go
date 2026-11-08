@@ -25,6 +25,8 @@ type Server struct {
 	// Tools are the tools the server lists and calls, in the order it lists
 	// them.
 	Tools []Tool
+	// More supplies tools scoped to this server's project at its handshake.
+	More func() []Tool
 	// Bind finds where the claude this server serves works.
 	Bind Bind
 	// Caller, where the server has it, finds who makes one call from what the
@@ -39,7 +41,7 @@ type Server struct {
 // claude gives them.
 func (s *Server) Allowed() []string {
 	var out []string
-	for _, t := range s.Tools {
+	for _, t := range s.available() {
 		if t.Allowed {
 			out = append(out, Qualified(t.Name))
 		}
@@ -149,7 +151,7 @@ func (s *Server) initialize(params json.RawMessage) map[string]any {
 func (s *Server) instructions() string {
 	b, err := s.Bind()
 	lines := []string{s.Lead}
-	for _, t := range s.Tools {
+	for _, t := range s.available() {
 		line := []string{t.Instructions}
 		if err == nil && t.Standing != nil {
 			line = append(line, t.Standing(b))
@@ -161,9 +163,16 @@ func (s *Server) instructions() string {
 
 func empty(s string) bool { return s == "" }
 
+func (s *Server) available() []Tool {
+	if s.More == nil {
+		return s.Tools
+	}
+	return append(slices.Clone(s.Tools), s.More()...)
+}
+
 func (s *Server) list() []any {
 	out := make([]any, 0, len(s.Tools))
-	for _, t := range s.Tools {
+	for _, t := range s.available() {
 		out = append(out, map[string]any{
 			"name":        t.Name,
 			"title":       t.Title,
@@ -186,7 +195,8 @@ func (s *Server) call(ctx context.Context, id json.RawMessage, params json.RawMe
 	if err := json.Unmarshal(params, &c); err != nil {
 		return failed(id, codeInvalidParams, "the call is not parsed: "+err.Error())
 	}
-	at := slices.IndexFunc(s.Tools, func(t Tool) bool { return t.Name == c.Name })
+	tools := s.available()
+	at := slices.IndexFunc(tools, func(t Tool) bool { return t.Name == c.Name })
 	if at < 0 {
 		return failed(id, codeInvalidParams, fmt.Sprintf("the server has no tool %q", c.Name))
 	}
@@ -194,7 +204,7 @@ func (s *Server) call(ctx context.Context, id json.RawMessage, params json.RawMe
 	if s.Caller != nil {
 		bind = s.Caller(c.Meta)
 	}
-	text, isError := s.Tools[at].Call(ctx, bind, c.Arguments)
+	text, isError := tools[at].Call(ctx, bind, c.Arguments)
 	return done(id, toolText(text, isError))
 }
 

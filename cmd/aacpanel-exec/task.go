@@ -17,7 +17,7 @@ import (
 
 func runTask(args []string, out, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: aacpanel-exec task import|list|show [flags]")
+		fmt.Fprintln(stderr, "usage: aacpanel-exec task import|switch|list|show|next|create|update|close|reopen|note [flags]")
 		return 2
 	}
 	command := args[0]

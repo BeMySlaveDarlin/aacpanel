@@ -272,6 +272,10 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	fakeCodex(t, proc, home, 800, first, second)
 	var asked []map[string]any
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tasks/registry" {
+			_, _ = w.Write([]byte(`{"project":{"writer":"cctm"}}`))
+			return
+		}
 		if r.URL.Path == "/api/briefs" {
 			_, _ = w.Write([]byte(`{"briefs":[]}`))
 			return
@@ -362,6 +366,10 @@ func TestTheServerClosesOnlyTheSessionItServes(t *testing.T) {
 	fakeCodex(t, proc, home, 800, thread)
 	var asked []map[string]any
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tasks/registry" {
+			_, _ = w.Write([]byte(`{"project":{"writer":"cctm"}}`))
+			return
+		}
 		if r.URL.Path == "/api/briefs" {
 			_, _ = w.Write([]byte(`{"briefs":[]}`))
 			return

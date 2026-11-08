@@ -84,6 +84,7 @@ type handler struct {
 // hook gives: the base name of the script of the panel's tree whose work it
 // does.
 var handlers = map[string]handler{
+	"task-context":        {Event: "SessionStart", Answer: taskContext},
 	"artifact-copy":       {Event: "PostToolUse", Wait: copyWait, Answer: copyPage},
 	"ask-hook":            {Event: "PreToolUse", Wait: relayWait, Answer: relayQuestion},
 	"background-reminder": {Event: "Stop", Answer: remindBackground},
