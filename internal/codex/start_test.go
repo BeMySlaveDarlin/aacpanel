@@ -259,9 +259,8 @@ func TestAHeldThreadIsLeftOnlyWhenClosed(t *testing.T) {
 	until(t, "a turn of another client to bring the thread back", written(t, held))
 }
 
-// The panel takes back the threads it held when the executor starts again,
-// before the daemon unloads them; a mark of a thread the daemon no longer has
-// is dropped.
+// The panel takes back the threads it held when the executor starts again;
+// a mark whose thread cannot be resumed is dropped after bounded attempts.
 func TestTheNextExecutorTakesBackTheHeldThreads(t *testing.T) {
 	srv, l := linked(t)
 	ready(t, l)

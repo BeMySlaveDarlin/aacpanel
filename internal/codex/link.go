@@ -378,9 +378,12 @@ type Link struct {
 	// held are the threads the panel started and stays a client of until it
 	// closes them: nothing else holds such a thread, and the daemon unloads a
 	// thread a while after its last client leaves. Each is marked on the disk
-	// too, so an executor started again takes them back before the daemon
+	// too, so an executor started again takes them back even after the daemon
 	// lets them go.
 	held map[string]bool
+	// recovering counts consecutive failed resumes across connections, so a
+	// missing rollout cannot keep the poll retrying forever.
+	recovering map[string]int
 	// closed are the threads the panel let go that the daemon has not unloaded
 	// yet: they are no session any more, unless a turn runs in them again.
 	// Each is kept with the turn the close interrupted.
@@ -418,7 +421,8 @@ func NewLink(home, contour string) *Link {
 		home: home, contour: contour, socket: SocketPath(home), holder: os.Getpid(),
 		threads: map[string]*thread{}, pending: map[string][]Request{},
 		held: map[string]bool{}, closed: map[string]string{}, moving: map[string]bool{}, wake: make(chan struct{}, 1),
-		boxes: loadOutboxes(contour), usage: map[string]Context{}, kick: make(chan struct{}, 1),
+		recovering: map[string]int{},
+		boxes:      loadOutboxes(contour), usage: map[string]Context{}, kick: make(chan struct{}, 1),
 		reported: map[string]bool{}, reportWake: make(chan struct{}, 1),
 	}
 }
@@ -679,7 +683,7 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 	listed := time.Now()
 	ids, err := loaded(ctx, c)
 	if err == nil {
-		l.unloaded(ids)
+		ids = l.unloaded(ctx, c, ids)
 		l.mu.Lock()
 		l.activity = make(map[string]string, len(ids))
 		for _, id := range ids {
@@ -1202,7 +1206,7 @@ func (l *Link) drop(live map[string]bool, listed time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for id, t := range l.threads {
-		if !live[id] && !t.seenAt.After(listed) {
+		if !live[id] && !l.held[id] && !t.seenAt.After(listed) {
 			l.remove(id)
 		}
 	}

@@ -5,13 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"maps"
 	"os"
-	"path/filepath"
 	"regexp"
-	"slices"
-	"strings"
 	"time"
 
 	"aacpanel/internal/mcp"
@@ -107,14 +103,8 @@ func (l *Link) Ready(ctx context.Context) error {
 	}
 }
 
-// Start starts a thread in the daemon and, with a first message, its first
-// turn. It returns the id of the thread; a first message that did not go is
-// an error beside a thread that did start.
-func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
-	c, err := l.client()
-	if err != nil {
-		return "", err
-	}
+// params carries the same launch overrides into a start and a recovery.
+func (b Begin) params() map[string]any {
 	params := map[string]any{"cwd": b.CWD}
 	for key, value := range map[string]string{"model": b.Model, "approvalPolicy": b.Approval, "approvalsReviewer": b.Reviewer, "sandbox": b.Sandbox} {
 		if value != "" {
@@ -137,6 +127,18 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 	if len(config) > 0 {
 		params["config"] = config
 	}
+	return params
+}
+
+// Start starts a thread in the daemon and, with a first message, its first
+// turn. It returns the id of the thread; a first message that did not go is
+// an error beside a thread that did start.
+func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
+	c, err := l.client()
+	if err != nil {
+		return "", err
+	}
+	params := b.params()
 	l.sub.Lock()
 	defer l.sub.Unlock()
 	var out struct {
@@ -164,7 +166,17 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 	settled.planKnown = true
 	l.set(id, func(t *thread) { t.subscribed, t.settings = true, settled })
 	if b.Hold {
-		l.hold(id)
+		// A helper inheriting the home's model still keeps that choice when
+		// a daemon update changes the home's defaults.
+		if b.Owner.Conversation != "" {
+			if out.Thread.Model != "" {
+				b.Model = out.Thread.Model
+			}
+			if out.Thread.Effort != "" {
+				b.Effort = out.Thread.Effort
+			}
+		}
+		l.hold(id, b.params())
 	}
 	if b.Parent != "" {
 		l.adopt(id, b.Parent)
@@ -230,7 +242,7 @@ func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 	l.seen(out.Thread, time.Now())
 	settled := out.read()
 	l.set(threadID, func(t *thread) { t.subscribed, t.settings = true, settled })
-	l.hold(threadID)
+	l.hold(threadID, nil)
 	l.save(threadID)
 	return out.Thread.CWD, nil
 }
@@ -246,8 +258,9 @@ func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 // beside the servers of its home, as it started. The conversation, the name
 // and the goal are on the disk and stay; the permissions a thread started
 // with are not, and the settings a resume read just before go back with
-// thread/settings/update. tools and allowed are the panel's server as at the
-// start: empty tools gives the thread the servers of its config.toml alone.
+// thread/settings/update. tools and allowed name the panel's current server,
+// retained for recovery too; empty tools gives the thread the servers of its
+// config.toml alone.
 //
 // What the unload would cut or cross is refused instead: a turn that runs —
 // the archive interrupts it — background terminals, which it ends, the agents
@@ -314,6 +327,9 @@ func (l *Link) Reconnect(ctx context.Context, threadID, tools string, allowed []
 	}
 	l.set(threadID, func(t *thread) { t.subscribed, t.settings = true, settled })
 	l.save(threadID)
+	if err := l.keepHeldTools(threadID, tools, allowed); err != nil {
+		return errors.Join(lost, fmt.Errorf("the servers started anew, but their recovery settings were not kept: %w", err))
+	}
 	return lost
 }
 
@@ -533,87 +549,6 @@ func (l *Link) letGo(ctx context.Context, c *conn, id string, active bool) bool 
 	delete(l.closed, id)
 	l.mu.Unlock()
 	return false
-}
-
-// unloaded forgets what the link kept of threads the daemon no longer has
-// loaded: one the panel closed is gone, and one it held was let go past it —
-// the daemon was started again, or no executor ran for a while. What waited
-// in the panel's queue of such a thread goes with it: the link stays a client
-// of a thread while its queue holds anything, so only a daemon started again
-// or an executor down past the daemon's patience gets here, and a message
-// sent into a thread the daemon let go is not the panel's to bring it back
-// for.
-func (l *Link) unloaded(ids []string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for id := range l.closed {
-		if !slices.Contains(ids, id) {
-			delete(l.closed, id)
-		}
-	}
-	for id := range l.held {
-		if !slices.Contains(ids, id) {
-			delete(l.held, id)
-			_ = os.Remove(heldPath(l.contour, id))
-		}
-	}
-	for id, b := range l.boxes {
-		if slices.Contains(ids, id) {
-			continue
-		}
-		if len(b.Queue) > 0 {
-			log.Printf("codex %s: thread %s is no longer loaded, and %d messages of the panel's queue go with it",
-				l.home, id, len(b.Queue))
-		}
-		delete(l.boxes, id)
-		l.keepOutbox(id)
-	}
-}
-
-// heldDir keeps a mark per thread the panel holds, by the contour of its
-// home: the threads outlive an executor, and the one started after it has to
-// know which of them are the panel's to take back.
-func heldDir(contour string) string {
-	return filepath.Join(stream.Dir(), "codex-held", contour)
-}
-
-func heldPath(contour, id string) string { return filepath.Join(heldDir(contour), id) }
-
-// heldMarks are the threads of a contour the panel holds, as marked.
-func heldMarks(contour string) map[string]bool {
-	out := map[string]bool{}
-	entries, err := os.ReadDir(heldDir(contour))
-	if err != nil {
-		return out
-	}
-	for _, e := range entries {
-		if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-			out[e.Name()] = true
-		}
-	}
-	return out
-}
-
-// hold marks a thread the panel holds. A mark not written leaves the thread
-// held only until the connection drops: the link takes back the marked ones.
-func (l *Link) hold(id string) {
-	l.mu.Lock()
-	l.held[id] = true
-	l.mu.Unlock()
-	err := os.MkdirAll(heldDir(l.contour), 0o700)
-	if err == nil {
-		err = os.WriteFile(heldPath(l.contour, id), nil, 0o600)
-	}
-	if err != nil {
-		log.Printf("codex %s: thread %s is held, and its mark was not written: %v", l.home, id, err)
-	}
-}
-
-func (l *Link) unhold(id string) {
-	l.mu.Lock()
-	delete(l.held, id)
-	l.mu.Unlock()
-	_ = os.Remove(heldPath(l.contour, id))
 }
 
 func textInput(text string) []any {

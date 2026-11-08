@@ -6766,6 +6766,27 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "description": "There are three ways to resume a thread: 1. By thread_id: load the thread from disk by thread_id and resume it. 2. By history: instantiate the thread from memory and resume it. 3. By path: load the thread from disk by path and resume it.\n\nFor non-running threads, the precedence is: history > non-empty path > thread_id. If using history or a non-empty path for a non-running thread, the thread_id param will be ignored.\n\nIf thread_id identifies a running thread, app-server rejoins that thread and treats a non-empty path as a consistency check against the active rollout path. Empty string path values are treated as absent.\n\nPrefer using thread_id whenever possible.",
     "properties": {
+     "approvalPolicy": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/AskForApproval"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "approvalsReviewer": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/ApprovalsReviewer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Override where approval requests are routed for review on this thread and subsequent turns."
+     },
      "config": {
       "additionalProperties": true,
       "type": [
@@ -6773,9 +6794,32 @@
        "null"
       ]
      },
+     "cwd": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
      "excludeTurns": {
       "description": "When true, return only thread metadata and live-resume state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after resuming. Full-history hydration is deprecated for paginated threads; use this with `thread/turns/list` and `thread/items/list` instead.",
       "type": "boolean"
+     },
+     "model": {
+      "description": "Configuration overrides for the resumed thread, if any.",
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "sandbox": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/SandboxMode"
+       },
+       {
+        "type": "null"
+       }
+      ]
      },
      "threadId": {
       "type": "string"

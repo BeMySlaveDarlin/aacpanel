@@ -42,7 +42,7 @@ func cacheFixture(t *testing.T) (string, string) {
 	return build, mod
 }
 
-func TestHelperStartAndRestartKeepBothGitDirectoriesAndCaches(t *testing.T) {
+func TestHelperStartRestartAndRecoveryKeepBothGitDirectoriesAndCaches(t *testing.T) {
 	for _, worktree := range []bool{false, true} {
 		t.Run(map[bool]string{false: "main checkout", true: "worktree checkout"}[worktree], func(t *testing.T) {
 			srv, e, p := onCodexContour(t)
@@ -71,7 +71,8 @@ func TestHelperStartAndRestartKeepBothGitDirectoriesAndCaches(t *testing.T) {
 				t.Fatal(err)
 			}
 			old := e.codex.Find(name)[0]
-			if _, _, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name, Conversation: old.ID, Project: p}); err != nil {
+			_, ownership, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name, Conversation: old.ID, Project: p})
+			if err != nil {
 				t.Fatal(err)
 			}
 			want := []any{extra, common}
@@ -90,6 +91,23 @@ func TestHelperStartAndRestartKeepBothGitDirectoriesAndCaches(t *testing.T) {
 					!reflect.DeepEqual(config["sandbox_workspace_write.writable_roots"], want) {
 					t.Fatalf("the helper lost its approvals or roots: %s, want roots %v", raw, want)
 				}
+			}
+			if ownership == nil {
+				t.Fatal("the restart returned no replacement conversation")
+			}
+			id := ownership.Conversation
+			srv.Unload(id)
+			waitFor(t, "the replacement helper to recover", func() bool { return srv.Loads(id) == 1 && srv.Subscribed(id) })
+			wantResume := paramsOf(t, starts[1])
+			wantResume["threadId"], wantResume["excludeTurns"] = id, true
+			matched := false
+			for _, raw := range srv.Calls("thread/resume") {
+				if reflect.DeepEqual(paramsOf(t, raw), wantResume) {
+					matched = true
+				}
+			}
+			if !matched || !heldMark(t, id) {
+				t.Fatalf("the recovered helper lost its restart parameters: %s, want %v", srv.Calls("thread/resume"), wantResume)
 			}
 			p.OpenedBy, p.Codex = "", nil
 			if _, _, err := open(t, e, p, `{"agent":"codex","codexApproval":"untrusted","codexSandbox":"workspace-write"}`); err != nil {

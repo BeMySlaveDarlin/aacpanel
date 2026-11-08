@@ -12,7 +12,7 @@ import (
 
 // RestartSettings carries only what the link knows, with the name the panel
 // gave the thread. Empty settings let the executor fall back to the map;
-// writable roots are not kept by the link.
+// writable roots for a replacement come from the executor's launch settings.
 func (l *Link) RestartSettings(id string) (Begin, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

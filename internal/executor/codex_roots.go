@@ -7,7 +7,25 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"aacpanel/internal/codex"
 )
+
+// prepareCodexHelper applies the same permissions to every helper launch;
+// the link retains the resulting parameters for a daemon's later recovery.
+func prepareCodexHelper(ctx context.Context, begin *codex.Begin) {
+	if begin.Owner.Conversation == "" {
+		return
+	}
+	begin.ReviewAutomatically()
+	if begin.Sandbox == "" {
+		begin.Sandbox = "workspace-write"
+	}
+	begin.Workspace = begin.Sandbox == "workspace-write"
+	if begin.Workspace {
+		begin.WritableRoots = helperWritableRoots(ctx, begin.CWD, begin.WritableRoots)
+	}
+}
 
 // A worktree needs both git directories: Codex protects its own gitdir even
 // when the common directory is writable. Cache defaults cannot depend on Go

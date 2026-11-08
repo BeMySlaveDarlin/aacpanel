@@ -1000,6 +1000,17 @@ cache directories, so this needs no Go program in its PATH. TMPDIR is writable
 through the daemon's environment and is not added as another root. These choices
 affect the helper and leave the map intact; ordinary sessions keep the map's policy.
 
+A held helper survives a daemon restart or an executor absent past the daemon's
+unload timeout. Its mark retains the launch parameters, without messages or
+credentials, so `thread/resume` restores the same model, effort, sandbox, roots,
+approval reviewer and panel tools. The conversation, session name, parent and
+opener stay, and queued messages wait through recovery; recovery itself sends
+no message. Explicitly closed threads lose their marks and stay closed. A
+thread that cannot be loaded is released after three failed attempts, with its
+mark and queue removed and the reason in the executor's log. A lost connection
+does not spend an attempt. Empty marks carry no launch overrides and resume
+with the daemon's settings.
+
 Automatic approval reviews are not requests for the owner. The link reads the
 review lifecycle and correlates it with server requests by thread, turn and
 item or callback. A matching request stays off the owner's pending list and
@@ -1216,8 +1227,9 @@ answering round alone through `stop_hook_active`.
   waits. A thread the panel started in the daemon is
   the exception: the panel is its only client and holds it until it closes it.
   Each such thread is marked in the holders' directory, so an executor started
-  again joins it before the daemon lets it go; the mark of a thread the daemon
-  no longer has is dropped.
+  again joins it even after the daemon lets it go, using the launch parameters
+  retained in its mark. A thread that fails to resume after three attempts is
+  released and logged; threads the panel does not hold are not brought back.
 - **The executor stays blind to the conversation.** The notifications that
   carry it are turned off at the handshake, the state file holds no text of it
   — not the preview of the thread — and the only words it keeps are those a

@@ -951,6 +951,7 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 			}
 			t.Profile, t.Sandbox = "", "workspaceWrite"
 		}
+		t.Thread.launch(raw)
 		t.subs[c] = true
 		var after []map[string]any
 		for _, a := range s.approvals {
@@ -1299,21 +1300,10 @@ func (s *Server) pluginRead(raw json.RawMessage) (any, []map[string]any, string)
 // with the model and the effort asked or the home's own, idle and with the
 // caller as its client. Its id ends in the number of the thread.
 func (s *Server) start(c *client, raw json.RawMessage) map[string]any {
-	var p struct {
-		CWD      string `json:"cwd"`
-		Model    string `json:"model"`
-		Approval string `json:"approvalPolicy"`
-		Reviewer string `json:"approvalsReviewer"`
-		Sandbox  string `json:"sandbox"`
-		Config   struct {
-			Effort string `json:"model_reasoning_effort"`
-		} `json:"config"`
-	}
-	_ = json.Unmarshal(raw, &p)
 	s.startN++
-	th := Thread{ID: fmt.Sprintf("019a2000-0000-7000-8000-0000beef%04x", s.startN), CWD: p.CWD, Model: p.Model,
-		Effort: p.Config.Effort, Status: "idle", Created: time.Now().Unix(), Approval: p.Approval, Reviewer: p.Reviewer,
-		Sandbox: legacySandbox[p.Sandbox]}
+	th := Thread{ID: fmt.Sprintf("019a2000-0000-7000-8000-0000beef%04x", s.startN),
+		Status: "idle", Created: time.Now().Unix()}
+	th.launch(raw)
 	if th.Model == "" {
 		th.Model = "gpt-home"
 	}
@@ -1325,6 +1315,30 @@ func (s *Server) start(c *client, raw json.RawMessage) map[string]any {
 	answer["thread"] = t.json()
 	answer["cwd"] = th.CWD
 	return answer
+}
+
+// launch applies the overrides shared by thread/start and thread/resume.
+func (th *Thread) launch(raw json.RawMessage) {
+	var p struct {
+		CWD      string `json:"cwd"`
+		Model    string `json:"model"`
+		Approval string `json:"approvalPolicy"`
+		Reviewer string `json:"approvalsReviewer"`
+		Sandbox  string `json:"sandbox"`
+		Config   struct {
+			Effort string `json:"model_reasoning_effort"`
+		} `json:"config"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	for to, from := range map[*string]string{&th.CWD: p.CWD, &th.Model: p.Model, &th.Effort: p.Config.Effort,
+		&th.Approval: p.Approval, &th.Reviewer: p.Reviewer} {
+		if from != "" {
+			*to = from
+		}
+	}
+	if p.Sandbox != "" {
+		th.Profile, th.Sandbox = "", legacySandbox[p.Sandbox]
+	}
 }
 
 // legacySandbox is the type of the sandbox policy a sandbox mode of

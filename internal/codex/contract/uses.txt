@@ -59,6 +59,11 @@ call thread/read
 call thread/resume
   send threadId
   send excludeTurns
+  send cwd
+  send model
+  send approvalPolicy: on-request untrusted never
+  send approvalsReviewer: auto_review
+  send sandbox: read-only workspace-write danger-full-access
   send config
   read thread.id
   read thread.parentThreadId

@@ -92,12 +92,7 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 		begin.WritableRoots = p.Codex.WritableRoots
 		begin.Workspace = c.Sandbox == "workspace-write"
 	}
-	if owner.Conversation != "" {
-		begin.ReviewAutomatically()
-		if begin.Workspace {
-			begin.WritableRoots = helperWritableRoots(ctx, begin.CWD, begin.WritableRoots)
-		}
-	}
+	prepareCodexHelper(ctx, &begin)
 	if path, err := toolServer(); err == nil {
 		begin.Tools, begin.Allowed = path, toolset.CodexAllowedFor(p.Path)
 	} else {
