@@ -8,9 +8,9 @@
 <script type="module">
 // The cards expose only the actions the host can take: the home session never
 // closes, a daemon thread restarts and outside sessions are only read. At a
-// desk they are the card's menu, opened by a right click (the menu has a
-// fixture of its own, ctxmenu.html), on the phone its pie, opened by a long
-// press. Every press still belongs to the gate, with its own confirmation.
+// desk the card's pie opens on a right click (deskcard.html), on the phone on
+// a long press. Every press still belongs to the gate, with its own
+// confirmation.
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
@@ -48,8 +48,9 @@ window.fetch = counted(async (url, init) => {
     return new Response("", { status: 404 });
 });
 const desk = document.getElementById("desk");
-// The column stands under a host of pies too: a card of the desk keeps to
-// its menu, and its long press stays the browser's, wherever it is drawn.
+// The column stands under a host of pies too, as in the shell of the desk: a
+// card there opens its pie on a right click, and its long press stays the
+// browser's.
 const mountDesk = (host = exec, wait = null) => render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec: host, wait },
     h(SessionColumn, {
         snapshot, limits: null, current: "", onPick(p) { opened.push(p); }, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec: host, wait,
@@ -304,7 +305,7 @@ async function gestures() {
     card.scrollIntoView({ block: "center" });
 
     // At a desk the card carries no buttons and a long press opens nothing:
-    // its actions are its menu.
+    // its pie opens on a right click.
     const deskCard = desk.querySelector('.sc[data-name="lab"]');
     press("pointerdown", deskCard.querySelector(".scopen"));
     await quiet();

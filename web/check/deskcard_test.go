@@ -57,8 +57,15 @@ type deskCard struct {
 	BellsVisited map[string]string        `json:"bellsVisited"`
 	ColumnText   string                   `json:"columnText"`
 	Rows         []deskCardRow            `json:"rows"`
-	Asked        []string                 `json:"asked"`
-	Shelf        []struct {
+	Pie          struct {
+		Shift                                       struct{ Prevented, Opened bool }
+		Prevented, Desk, Gate, ClosedAfter, Escaped bool
+		Items                                       []string
+		Plate                                       string
+		Sent                                        []struct{ Kind, Target string }
+	} `json:"pie"`
+	Asked []string `json:"asked"`
+	Shelf []struct {
 		Name    string `json:"name"`
 		Contour string `json:"contour"`
 		When    string `json:"when"`
@@ -218,10 +225,11 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	}
 }
 
-// A live card carries no controls: at a desk they are the menu of its right
-// click, which leaves out the close of the home session, and a new session in
-// a project is the plus of its heading.
-func TestDeskCardsLeaveTheirControlsToTheMenu(t *testing.T) {
+// A live card carries no controls: at a desk a right click opens them as its
+// pie, the desk's own, and a sector does what it says through the gate. Shift
+// keeps the browser's menu, Escape takes the pie down, and a new session in a
+// project is the plus of its heading.
+func TestDeskCardsOpenTheirPieOnARightClick(t *testing.T) {
 	got := runDeskCard(t)
 
 	if len(got.Rows) < 7 {
@@ -229,8 +237,29 @@ func TestDeskCardsLeaveTheirControlsToTheMenu(t *testing.T) {
 	}
 	for _, row := range got.Rows {
 		if row.Icons != 0 {
-			t.Errorf("%s has %d controls on the card, expected none: they are its menu", row.Name, row.Icons)
+			t.Errorf("%s has %d controls on the card, expected none: they are its pie", row.Name, row.Icons)
 		}
+	}
+	p := got.Pie
+	if p.Shift.Prevented || p.Shift.Opened {
+		t.Errorf("a right click with Shift took the browser's menu away (%v) or opened the pie (%v)", p.Shift.Prevented, p.Shift.Opened)
+	}
+	if !p.Prevented || !p.Desk {
+		t.Fatalf("a right click on the card opened no pie of the desk: prevented %v, desk %v", p.Prevented, p.Desk)
+	}
+	want := "Close the session,Restart the session,Pause…,Pin the group,More,Stop the turn"
+	if strings.Join(p.Items, ",") != want {
+		t.Errorf("the pie of aacpanel offers %v, expected %s", p.Items, want)
+	}
+	if !strings.Contains(p.Plate, "click an action") {
+		t.Errorf("the plate of the desk's pie reads %q, expected it to ask for a click", p.Plate)
+	}
+	if !p.Gate || len(p.Sent) != 1 || p.Sent[0].Kind != "session.restart" || p.Sent[0].Target != "aacpanel" || !p.ClosedAfter {
+		t.Errorf("Restart in the pie went through the gate %v, sent %+v, closed the pie %v: expected one confirmed session.restart of aacpanel",
+			p.Gate, p.Sent, p.ClosedAfter)
+	}
+	if !p.Escaped {
+		t.Error("Escape left the pie of the desk open")
 	}
 }
 

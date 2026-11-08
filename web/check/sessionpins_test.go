@@ -158,7 +158,7 @@ func TestPinPressMovesBothListsBeforeTheSnapshot(t *testing.T) {
 			}
 			if screen == "desk" && (p.PinMenu.Label != "Unpin the group of review" || !p.PinMenu.Off || p.PinMenu.Note != "Pinning the group" ||
 				p.UnpinMenu.Label != "Pin the group of review" || !p.UnpinMenu.Off || p.UnpinMenu.Note != "Unpinning the group") {
-				t.Errorf("the menus do not follow the expected pin: %+v, %+v", p.PinMenu, p.UnpinMenu)
+				t.Errorf("the pies of the desk do not follow the expected pin: %+v, %+v", p.PinMenu, p.UnpinMenu)
 			}
 			if len(p.Refused) != 2 {
 				t.Fatalf("expected a refusal from each screen, got %+v", p.Refused)

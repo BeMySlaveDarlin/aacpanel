@@ -31,6 +31,8 @@ const HOLD_SLOP = 10;
 // much it grows, and the gap between two sectors.
 const RING = 140;
 const HUB = 48;
+// At a desk the ring is larger, by the room a monitor has.
+const RING_DESK = 200;
 const PUSH = 9;
 const GROW = 6;
 const GAP = 3;
@@ -47,6 +49,7 @@ const REACH = 48;
 const MANY = 8;
 
 const HINT = "tap an action, or slide to it and lift";
+const DESK_HINT = "click an action";
 const RAD = Math.PI / 180;
 
 const f1 = (n) => n.toFixed(1);
@@ -68,15 +71,27 @@ function wedge(x, y, r0, r1, a0, a1) {
 }
 
 // placeOf lays the pie out on a screen of w by h: the centre of the ring and
-// its radius, the box the ring is drawn in, where the plate ends and the
-// highest a thing pressed may stand to stay clear of a plate of one line.
-function placeOf(w, h) {
-    const ring = Math.max(96, Math.min(RING, w / 2 - 8 - PUSH - GROW));
+// its radius and the hub's, the box the ring is drawn in, where the plate ends
+// and the highest a thing pressed may stand to stay clear of a plate of one
+// line. On a phone the ring stands low in the middle, in reach of the thumb;
+// at a desk (spot, the point of the click) it is larger and stands at the
+// height of the pointer, beside what was clicked (from, its right edge) so it
+// stays in sight, held inside the screen with its plate over it.
+function placeOf(w, h, spot = null) {
+    const room = 8 + PUSH + GROW;
+    const ring = spot
+        ? Math.max(96, Math.min(RING_DESK, w / 2 - room, (h - PLATE_GAP - PLATE_LINE - 24) / 2 - room))
+        : Math.max(96, Math.min(RING, w / 2 - room));
+    const hub = Math.round((HUB * Math.max(ring, RING)) / RING);
     const side = 2 * (ring + PUSH + GROW + 12);
-    const x = w / 2;
-    const y = Math.max(ring + PLATE_GAP + PLATE_LINE + 24, h - LOW - ring);
+    const within = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+    const x = spot ? within(spot.from == null ? spot.x : spot.from + side / 2 - 12, side / 2 + 8, w - side / 2 - 8) : w / 2;
+    const y = spot
+        ? within(spot.y, ring + PLATE_GAP + PLATE_LINE + 16, h - side / 2 - 8)
+        : Math.max(ring + PLATE_GAP + PLATE_LINE + 24, h - LOW - ring);
     const plate = y - ring - PLATE_GAP;
-    return { w, h, x, y, ring, side, left: x - side / 2, top: y - side / 2, plate, clear: plate - PLATE_LINE - LIFT_GAP };
+    return { w, h, x, y, ring, hub, side, left: x - side / 2, top: y - side / 2, plate, clear: plate - PLATE_LINE - LIFT_GAP,
+        desk: Boolean(spot), beside: Boolean(spot) && spot.from != null };
 }
 
 // sectorsOf draws the slots of a ring in its box, clockwise from the top: the
@@ -95,14 +110,14 @@ function sectorsOf(items, sel, at) {
         const edge = [];
         for (let k = 0; k <= 8; k += 1) {
             const deg = mid - step / 2 + (step * k) / 8;
-            edge.push(point(o.x, o.y, HUB + 4, deg), point(o.x, o.y, r1, deg));
+            edge.push(point(o.x, o.y, at.hub + 4, deg), point(o.x, o.y, r1, deg));
         }
         const xs = edge.map((p) => p.x);
         const ys = edge.map((p) => p.y);
         return {
             it, out, slot: i, on: it.key === sel,
-            d: wedge(o.x, o.y, HUB + 4, r1, mid - step / 2, mid + step / 2),
-            mid: point(o.x, o.y, (HUB + r1) / 2 + 4, mid),
+            d: wedge(o.x, o.y, at.hub + 4, r1, mid - step / 2, mid + step / 2),
+            mid: point(o.x, o.y, (at.hub + r1) / 2 + 4, mid),
             box: { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) },
         };
     });
@@ -114,7 +129,7 @@ function slotAt(at, n, x, y) {
     const dx = x - at.x;
     const dy = y - at.y;
     const far = Math.hypot(dx, dy);
-    if (far <= HUB + 4) return "hub";
+    if (far <= at.hub + 4) return "hub";
     if (far > at.ring + REACH) return -1;
     const deg = Math.atan2(dy, dx) / RAD + 90;
     return ((Math.round(deg / (360 / n)) % n) + n) % n;
@@ -126,7 +141,7 @@ function liftOf(el, at) {
     if (!el || !el.isConnected) return null;
     const r = el.getBoundingClientRect();
     const box = { left: r.left, top: r.top, width: r.width, height: r.height };
-    if (r.bottom <= at.clear) return { box, from: null };
+    if (at.beside || r.bottom <= at.clear) return { box, from: null };
     return { box: { ...box, top: Math.max(8, at.clear - r.height) }, from: box };
 }
 
@@ -154,13 +169,13 @@ function Lift({ el, box }) {
 function Plate({ at, item, name, lifting }) {
     const why = item && item.off ? item.off : "";
     const tap = Boolean(item) && !why && lifting && item.tap;
-    const words = !item ? [name, HINT]
+    const words = !item ? [name, at.desk ? DESK_HINT : HINT]
         : why ? [item.title, lifting ? `${why} — lifting here does nothing` : why]
         : tap ? [item.title, `${item.note ? `${item.note} · ` : ""}tap it: lifting here does nothing`]
         : [item.title, item.note || ""];
     return html`
         <div class=${`pieplate${why ? " pieoff" : ""}${item && item.danger && !why ? " piedanger" : ""}`}
-             style=${`bottom:${f1(at.h - at.plate)}px`} aria-live="polite">
+             style=${`bottom:${f1(at.h - at.plate)}px${at.desk ? `;left:${f1(at.x)}px` : ""}`} aria-live="polite">
             <b>${words[0]}</b>${words[1] && html`<span class=${why || tap ? "piewhy" : ""}>${words[1]}</span>`}
         </div>
     `;
@@ -203,7 +218,7 @@ function Ring({ at, sectors }) {
         const token = (name) => css.getPropertyValue(name).trim();
         const c = at.side / 2;
         const hub = new Path2D();
-        hub.arc(c, c, HUB, 0, 2 * Math.PI);
+        hub.arc(c, c, at.hub, 0, 2 * Math.PI);
         const shapes = drawn.map((s) => ({ s, path: new Path2D(s.d) }));
 
         // The shadow of the ring is cast by its outline drawn out of sight:
@@ -275,21 +290,24 @@ function Ring({ at, sectors }) {
 // plate call the thing it is for, lift the element pressed, press the pointer
 // still held from the press that opened it and where it went down (null when
 // the keyboard or a reader opened it), onClose takes it down.
-export function Pie({ label, name, items, lift = null, press = null, onClose }) {
+export function Pie({ label, name, items, lift = null, press = null, spot = null, onClose }) {
     const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
     const [more, setMore] = useState(false);
     const [sel, setSel] = useState("");
     const [held, setHeld] = useState(Boolean(press));
     // The item the press lifted over without doing it.
     const [lifted, setLifted] = useState("");
-    const [raised] = useState(() => liftOf(lift, placeOf(window.innerWidth, window.innerHeight)));
+    // At a desk the ring stands beside what was clicked, measured once as it
+    // opens.
+    const [anchor] = useState(() => (spot && lift && lift.isConnected ? { ...spot, from: lift.getBoundingClientRect().right } : spot));
+    const [raised] = useState(() => liftOf(lift, placeOf(window.innerWidth, window.innerHeight, anchor)));
     const menu = useRef(null);
     // The element a press on the pie went down on: a click counts only where
     // its press went down, so the click that ends the press opening the pie
     // chooses nothing.
     const armed = useRef(null);
 
-    const at = placeOf(size.w, size.h);
+    const at = placeOf(size.w, size.h, anchor);
     const parent = items.find((it) => it && it.items);
     const ring = more && parent ? parent.items : items;
     const sectors = sectorsOf(ring, sel, at);
@@ -345,7 +363,9 @@ export function Pie({ label, name, items, lift = null, press = null, onClose }) 
         };
         window.addEventListener("resize", resized);
         document.addEventListener("keydown", keys, true);
-        focusFirst(!press);
+        // A pie the keyboard opened stands on its first sector; a press or a
+        // click leaves the choice to the pointer.
+        focusFirst(!press && !spot);
         return () => {
             window.removeEventListener("resize", resized);
             document.removeEventListener("keydown", keys, true);
@@ -429,7 +449,7 @@ export function Pie({ label, name, items, lift = null, press = null, onClose }) 
     const many = ring.length > MANY;
     const reach = at.ring + PUSH + GROW;
     return html`
-        <div class="pie" onPointerDownCapture=${(event) => { armed.current = event.target; }}
+        <div class=${`pie${spot ? " piedesk" : ""}`} onPointerDownCapture=${(event) => { armed.current = event.target; }}
              onContextMenu=${(event) => event.preventDefault()}>
             <div class="piescrim" onClick=${pressed(() => closer())}></div>
             ${raised && raised.from && html`<div class="piewas" style=${px(raised.from)}></div>`}
@@ -456,11 +476,11 @@ export function Pie({ label, name, items, lift = null, press = null, onClose }) 
                     </button>
                 `)}
                 <button type="button" role="menuitem" class=${`piehub${more ? " pieback" : ""}`}
-                        style=${`left:${f1(at.side / 2 - HUB)}px;top:${f1(at.side / 2 - HUB)}px;width:${2 * HUB}px;height:${2 * HUB}px`}
+                        style=${`left:${f1(at.side / 2 - at.hub)}px;top:${f1(at.side / 2 - at.hub)}px;width:${2 * at.hub}px;height:${2 * at.hub}px`}
                         aria-label=${more ? "Back to the first ring" : "Close the menu"}
                         onFocus=${stand("")} onClick=${pressed((event) => hub(event.detail === 0))}>
                     <b aria-hidden="true">${more ? "Back" : name}</b>
-                    <span aria-hidden="true">${more ? "to the first ring" : "tap here to close"}</span>
+                    <span aria-hidden="true">${more ? "to the first ring" : at.desk ? "click here to close" : "tap here to close"}</span>
                 </button>
             </div>
         </div>

@@ -1,7 +1,7 @@
 // Pin scenarios share the session groups page and its browser. Both screens
 // take the same snapshots, as two devices do after the collector reads a pin.
-// The pin of a card is an item of its menu at a desk and a sector of its pie
-// on the phone.
+// The pin of a card is a sector of its pie, opened by a right click at a desk
+// and by a long press on the phone.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn, orderOf } from "/src/desktop/sessions.js";
@@ -10,6 +10,7 @@ import { CATCH_UP_LIMIT, CATCH_UP_MS, useCatchUp } from "/src/catchup.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { MenuHost } from "/src/desktop/menu.js";
+import { CardPieHost } from "/src/screens/sessions/cardpie.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 import { closePie, item, openPie, sector, settled, underPies } from "/check/fixtures/pie.js";
 
@@ -74,11 +75,11 @@ export async function sessionPins(phoneOnly = false) {
     function Lists({ snapshot }) {
         wait = useCatchUp(snapshot, refresh);
         return html`<${ToastHost}><${GateHost}><${MenuHost}>
-            <div class="deskshell"><div class="dkbody">
+            <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${wait}><div class="deskshell"><div class="dkbody">
                 <${SessionColumn} snapshot=${snapshot} limits=${null} wait=${wait}
                     current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec}
                     onOrder=${(list) => { order = list.map((s) => s.name); }} />
-            </div></div>
+            </div></div><//>
             <div class="phone">
                 <${Sessions} snapshot=${{ ...snapshot, profileMap: [profileMap[0]],
                     sessions: snapshot.sessions.filter((s) => s.contour === 8) }} ageSec=${0} exec=${exec} wait=${wait} />
@@ -124,29 +125,28 @@ export async function sessionPins(phoneOnly = false) {
         await settled();
         await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
     };
-    const menuItem = async (name, label) => {
-        const row = deskRow(name);
-        row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 100, clientY: 100 }));
-        await until(() => mount.querySelector(".pkrow"));
-        const entry = [...mount.querySelectorAll(".pkrow")].find((r) => text(r.querySelector(".pkname")) === label);
-        if (!entry) throw new Error(`no menu item ${label}`);
-        return entry;
+    // deskPinOf opens the pie of a desk card, as a right click does, and gives
+    // its pin.
+    const deskPinOf = async (name) => {
+        await settled();
+        await openPie(deskRow(name));
+        return sector("pin");
     };
-    const menuPin = async (name, label) => {
-        const entry = await menuItem(name, label);
-        if (!entry || entry.getAttribute("aria-disabled") === "true") throw new Error(`no menu item ${label}`);
+    const deskPin = async (name, label) => {
+        const pin = await deskPinOf(name);
+        if (!pin || pin.getAttribute("aria-disabled") === "true" || pin.getAttribute("aria-label") !== label) {
+            throw new Error(`no ${label} in the pie of ${name}`);
+        }
         const before = sent.length;
-        entry.click();
+        pin.click();
         await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
+        await settled();
         await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
     };
-    const pendingMenu = async (name, label) => {
-        const entry = await menuItem(name, label);
-        const out = { label: text(entry.querySelector(".pkname")), off: entry.getAttribute("aria-disabled") === "true",
-            note: text(entry.querySelector(".pkdesc")) };
-        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-        await until(() => !mount.querySelector(".pkrow"));
-        return out;
+    const pendingPin = async (name) => {
+        const pin = item(await deskPinOf(name));
+        await closePie();
+        return { label: pin.label, off: pin.off, note: pin.why };
     };
     const answer = async (ok) => {
         reply(ok ? json({ ok: true, logged: true }) : new Response(JSON.stringify({ error: "the pin could not be saved" }), { status: 403 }));
@@ -167,7 +167,7 @@ export async function sessionPins(phoneOnly = false) {
         await phonePin("thread");
         out.pinning = read();
         out.pinLook = await look("review");
-        if (!phoneOnly) out.pinMenu = await pendingMenu("child", "Unpin the group of review");
+        if (!phoneOnly) out.pinMenu = await pendingPin("child");
         await answer(true);
         out.answered = read();
         out.answerPending = (await look("review")).pending;
@@ -184,7 +184,7 @@ export async function sessionPins(phoneOnly = false) {
             if (pin.on) out.pressed.push(name);
         }
         if (phoneOnly) await phonePin("audit");
-        else await menuPin("audit", "Pin the group");
+        else await deskPin("audit", "Pin the group");
         out.secondPinning = read();
         await answer(true);
         await confirm();
@@ -200,10 +200,10 @@ export async function sessionPins(phoneOnly = false) {
         await paint();
         out.reopened = read();
         if (phoneOnly) await phonePin("child");
-        else await menuPin("child", "Unpin the group of review");
+        else await deskPin("child", "Unpin the group of review");
         out.unpinning = read();
         out.unpinLook = await look("review");
-        if (!phoneOnly) out.unpinMenu = await pendingMenu("thread", "Pin the group of review");
+        if (!phoneOnly) out.unpinMenu = await pendingPin("thread");
         await answer(true);
         await confirm();
         out.unpinned = read();
@@ -217,7 +217,7 @@ export async function sessionPins(phoneOnly = false) {
         out.sent = sent.map((r) => `${r.kind}:${r.target}:${JSON.stringify(r.params)}`);
         out.confirmation = Boolean(document.querySelector(".sheet.on"));
         out.refused = [];
-        for (const press of [() => phonePin("thread"), () => phoneOnly ? phonePin("audit") : menuPin("audit", "Pin the group")]) {
+        for (const press of [() => phonePin("thread"), () => phoneOnly ? phonePin("audit") : deskPin("audit", "Pin the group")]) {
             await press();
             const during = read();
             await answer(false);
@@ -230,7 +230,7 @@ export async function sessionPins(phoneOnly = false) {
         await paint();
         out.refusedUnpin = { before: read() };
         if (phoneOnly) await phonePin("audit");
-        else await menuPin("audit", "Unpin the group");
+        else await deskPin("audit", "Unpin the group");
         out.refusedUnpin.during = read();
         await answer(false);
         out.refusedUnpin.after = read();

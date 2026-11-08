@@ -275,7 +275,10 @@ func TestTheKeyboardOpensTheMenuOfTheRow(t *testing.T) {
 // tmux, one the panel did not start, a thread of codex, a closed conversation
 // on the shelf and in the archive, the heading of a project, a container
 // running and stopped, a stack. The settings of a project are in the menu of
-// its heading, not of its cards. A dimmed item is marked ~.
+// its heading, not of its cards. A dimmed item is marked ~. The page mounts
+// the column without the host of the pies: a live card's right click opens
+// there the menu of its session, the one a node of the home graph opens,
+// which at the desk a card leaves to its pie.
 func TestEveryObjectHasItsMenu(t *testing.T) {
 	got := ctxMenuPage(t)
 	if got.CodexRestart == nil || got.CodexRestart.Kind != "session.restart" || got.CodexRestart.Target != "codex-1" || len(got.CodexRestart.Params) != 0 {
@@ -406,7 +409,7 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 		t.Errorf("Close of a session sent %+v — expected session.close of aacpanel", c)
 	}
 	// A restart or a close the host does not know, or one already under way,
-	// is dimmed and says why: the card carries no buttons, its menu holds them.
+	// is dimmed and says why.
 	for state, why := range map[string][2]string{
 		"unknown": {"the host does not know the action “session.restart”", "the host does not know the action “session.close”"},
 		"close":   {"The session is already closing", "The session is already closing"},

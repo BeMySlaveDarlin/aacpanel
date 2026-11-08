@@ -276,7 +276,7 @@ func TestALongPressOnAPhoneCardOpensItsPie(t *testing.T) {
 		t.Errorf("the ways out of the pie tried: %v, want the scrim, the back of the phone and Escape", g.Closes)
 	}
 	if g.Desk.Pie || g.Desk.Buttons != 0 {
-		t.Errorf("at a desk a long press opened a pie (%v) or the card carries %d buttons, where its actions are its menu", g.Desk.Pie, g.Desk.Buttons)
+		t.Errorf("at a desk a long press opened a pie (%v) or the card carries %d buttons, where its actions are its pie on a right click", g.Desk.Pie, g.Desk.Buttons)
 	}
 }
 

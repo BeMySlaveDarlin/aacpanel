@@ -7,10 +7,10 @@ import (
 )
 
 // The home session of the host is the one the panel itself lives next to: the
-// panel does not close it, just as it does not stop its own container. At a
-// desk a live card carries no controls; its menu is where the close lives,
-// and the menu leaves the item out entirely for the home session, rather than
-// dimming it.
+// panel does not close it, just as it does not stop its own container. The
+// menu of a session — a node of the home graph's, a card's where no pie
+// stands — leaves the item out entirely for the home session, rather than
+// dimming it; the pie of a card leaves its slot empty.
 const (
 	cardFile     = "src/screens/sessions/sessioncard.js"
 	controlsFile = "src/screens/sessions/controls.js"

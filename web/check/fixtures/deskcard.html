@@ -36,6 +36,8 @@ import { SessionColumn } from "/src/desktop/sessions.js";
 import { PastCard } from "/src/screens/sessions/sessioncard.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
+import { CardPieHost } from "/src/screens/sessions/cardpie.js";
+import { closePie, openPie, pie as pieOf, settled, underPies, until } from "/check/fixtures/pie.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
@@ -139,11 +141,14 @@ const exec = { available: true, kinds: ["session.close", "session.restart", "ses
 const picked = [];
 const orders = [];
 let archiveOpened = 0;
-const column = (sessions, current, currentId = "") => render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
-    snapshot: { at: now / 1000, sessions, profileMap, limits, profiles: accounts, host: { home: "/home/u" } },
-    limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
-    onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait,
-}))), document.getElementById("root"));
+// The column stands under the host of the pies, as in the shell of the desk.
+const column = (sessions, current, currentId = "") => {
+    const snapshot = { at: now / 1000, sessions, profileMap, limits, profiles: accounts, host: { home: "/home/u" } };
+    render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec, wait }, h(SessionColumn, {
+        snapshot, limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
+        onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait,
+    })))), document.getElementById("root"));
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
@@ -301,6 +306,41 @@ window.done = (async () => {
     column(first, "aacpanel");
     await quiet();
     out.bellsVisited = calls();
+
+    // A right click on a live card opens its pie, the desk's own; Shift keeps
+    // the browser's menu; a sector does what the phone's does, through the
+    // gate; Escape takes the pie down.
+    await quiet();
+    underPies();
+    const pieCard = rowOf("aacpanel");
+    const pr = pieCard.getBoundingClientRect();
+    const click = (shiftKey) => {
+        const e = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: pr.left + 40, clientY: pr.top + 10, shiftKey });
+        pieCard.dispatchEvent(e);
+        return e.defaultPrevented;
+    };
+    out.pie = { shift: { prevented: click(true) } };
+    await quiet();
+    out.pie.shift.opened = Boolean(pieOf());
+    out.pie.prevented = click(false);
+    await until(() => pieOf() && pieOf().contains(document.activeElement), "the pie of the desk card");
+    const pie = pieOf();
+    out.pie.desk = pie.classList.contains("piedesk");
+    out.pie.items = [...pie.querySelectorAll(".piesec")].map((b) => b.getAttribute("aria-label"));
+    out.pie.plate = text(pie.querySelector(".pieplate"));
+    const sentBefore = sent.length;
+    pie.querySelector('.piesec[data-key="restart"]').click();
+    const gate = () => document.querySelector('.sheet.on[aria-label="action confirmation"]');
+    await until(gate, "the confirmation of the restart");
+    out.pie.gate = true;
+    gate().querySelector(".btnrow .btn:last-child").click();
+    await until(() => sent.length > sentBefore && !gate(), "the restart sent");
+    out.pie.sent = sent.slice(sentBefore);
+    await settled();
+    out.pie.closedAfter = !pieOf();
+    await openPie(pieCard);
+    await closePie();
+    out.pie.escaped = !pieOf();
 
     // The time of a closed conversation on the phone.
     render(h(ToastHost, null, h(GateHost, null, html`<${PastCard} row=${archive[1]} exec=${exec} onOpen=${() => {}} />`)),

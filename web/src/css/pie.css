@@ -135,5 +135,13 @@
 .piesec:focus-visible .pieword { outline: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: var(--r-small); }
 .piehub:focus-visible { outline: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
 
+/* At a desk the ring is larger, and its words and icons with it. */
+.piedesk .pieword { gap: .3rem; font-size: var(--t-sm); }
+.piedesk .pieword svg { width: calc(var(--i-lg) * 1.35); height: calc(var(--i-lg) * 1.35); }
+.piedesk .piemany .pieword svg { width: var(--i-lg); height: var(--i-lg); }
+.piedesk .piehub b, .piedesk .piehub span { font-size: var(--t-sm); }
+.piedesk .pieplate b { font-size: var(--t-lg); }
+.piedesk .pieplate span { font-size: var(--t-sm); }
+
 /* The pie stands over the bar of the tabs, as a sheet does. */
 .shell:has(.pie) .body { z-index: 3; }

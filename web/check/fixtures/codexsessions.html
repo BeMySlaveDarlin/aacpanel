@@ -98,10 +98,12 @@ const exec = { available: true, kinds: ["session.close", "session.restart", "ses
 const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }];
 const snapshot = { sessions, profileMap: [{ ...profileMap[0], codexHome: "/home/u/.codex-profiles/acme" }],
     host: { home: "/home/u" } };
-render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, h(SessionColumn, {
-    snapshot: { at: 1, sessions, profileMap, limits: null }, limits: null,
+// The column stands under the host of the pies, as in the shell of the desk.
+const deskSnapshot = { at: 1, sessions, profileMap, limits: null };
+render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, h(CardPieHost, { snapshot: deskSnapshot, exec, wait: null }, h(SessionColumn, {
+    snapshot: deskSnapshot, limits: null,
     current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
-})))), document.getElementById("desk"));
+}))))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}>
         <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
@@ -193,21 +195,12 @@ window.done = (async () => {
     out.deskMarks = names(deskRow, ".scl1 .sctag");
     out.deskFacts = [text(deskRow.querySelector(".scagent"))];
     out.deskAgent = agentOf(deskRow.querySelector(".scagent"));
-    // At a desk the actions of a card are its menu.
-    const deskMenu = async (row) => {
-        row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 20, clientY: 20 }));
-        await until(() => document.querySelector(".ctxmenu"), "the menu of a desktop card");
-        return Array.from(document.querySelectorAll('.ctxmenu [role="menuitem"]'));
-    };
-    const dropMenu = async () => {
-        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-        await until(() => !document.querySelector(".ctxmenu"), "the menu closed");
-    };
-    const deskItem = async (row, label) => (await deskMenu(row)).find((b) => text(b.querySelector(".pkname")) === label);
-    out.deskActs = (await deskMenu(deskRow))
-        .filter((b) => ["Pause…", "Restart the session", "Pin the group", "Close the session"].includes(text(b.querySelector(".pkname"))))
-        .map((b) => ({ label: text(b.querySelector(".pkname")), tip: b.dataset.tip || "" }));
-    await dropMenu();
+    // At a desk the actions of a card are its pie, opened by a right click.
+    await quiet();
+    underPies();
+    await openPie(deskRow);
+    out.deskActs = ring().map((it) => ({ label: it.label, tip: it.why }));
+    await closePie();
     out.deskSay = text(deskRow.querySelector(".scsay"));
     out.claudeMarks = names(claudeRow, ".scl1 .sctag");
     out.claudeAgent = agentOf(claudeRow.querySelector(".scagent"));
@@ -320,7 +313,8 @@ window.done = (async () => {
 
     // The close of the desktop row and of the phone's card, each through
     // its own gate.
-    const deskClose = await deskItem(deskRow, "Close the session");
+    await openPie(deskRow);
+    const deskClose = sector("close");
     if (deskClose) {
         deskClose.click();
         out.deskCloseSheet = await closeSheet(desk);
@@ -331,7 +325,9 @@ window.done = (async () => {
     await settled();
 
     out.restarts = {};
-    (await deskItem(deskRow, "Restart the session")).click();
+    await settled();
+    await openPie(deskRow);
+    sector("restart").click();
     out.restarts["desktop row"] = await closeSheet(desk);
     await openPie(phoneRow);
     sector("restart").click();

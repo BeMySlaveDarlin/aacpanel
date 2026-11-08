@@ -22,8 +22,8 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			var got struct {
 				Pause struct {
 					Sleep struct {
-						States, Edges  []string
-						Controls, Menu []struct {
+						States, Edges []string
+						Controls      []struct {
 							Key, Label, Why string
 							Off             bool
 						}
@@ -73,16 +73,8 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 					t.Errorf("sleeping control: %+v", control)
 				}
 			}
-			if screen.name == "desk" {
-				if len(p.Sleep.Menu) == 0 {
-					t.Error("sleeping menu is absent")
-				}
-				for _, item := range p.Sleep.Menu {
-					allowed := item.Label == "Continue now" || item.Label == "Close the session"
-					if allowed && item.Off || !allowed && (!item.Off || item.Why != "sleeping") {
-						t.Errorf("sleeping menu item: %+v", item)
-					}
-				}
+			if len(p.Sleep.Controls) == 0 {
+				t.Error("the pie of a sleeping card is absent")
 			}
 			if c := p.Sleep.Continue; c.Kind != "project.pause" || c.Target != "lab" || c.Params["session"] != "lab" || c.Params["project"] != float64(501) || c.Params["alone"] != true || c.Params["resume"] != true {
 				t.Errorf("sleeping Continue: %+v", c)

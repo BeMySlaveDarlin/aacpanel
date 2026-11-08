@@ -1,7 +1,7 @@
 // Pause and restart controls share the pages that already exercise sessions:
 // the pause of a project from the heading over its cards, the pause and the
-// continue of one session from its card — its menu at a desk, its pie on the
-// phone — and the restart choices. lab-docs had the panel open a helper
+// continue of one session from its card's pie — opened by a right click at a
+// desk, by a long press on the phone — and the restart choices. lab-docs had the panel open a helper
 // in the other project; a scope of its own includes that helper. The quick
 // choices are pressed on a clock set by the fixture.
 import { render } from "preact";
@@ -68,9 +68,9 @@ export async function sessionPause() {
         const live = snapshot.sessions;
         setLiveSessions(live);
         render(html`<${ToastHost}><${GateHost}><${MenuHost}>
-            ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
+            ${wide ? html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="deskshell" style="position:static;height:650px"><div class="dkbody">
                 <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
-            </div></div>` : html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="page">
+            </div></div><//>` : html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="page">
                 <${ProjectBlock} block=${block(project, live.filter((s) => !s.outside && s.project?.id === project.id))} profile=${profile} live=${live} exec=${exec} />
             </div><//>`}
             ${chat && html`<div class="pausechat" style="height:500px;display:flex;flex-direction:column">
@@ -104,18 +104,9 @@ export async function sessionPause() {
         sheet().querySelector(".pausescope").dispatchEvent(new Event("change", { bubbles: true }));
         await quiet();
     };
-    // A control of a card: the item of its menu at a desk, the sector of its
-    // pie on the phone, Continue in the place of Pause on a paused card.
-    const ITEMS = { pause: "Pause…", continue: "Continue now", restart: "Restart the session", close: "Close the session" };
+    // A control of a card: the sector of its pie, Continue in the place of
+    // Pause on a paused card.
     const press = async (kind, name) => {
-        if (wide) {
-            mount.querySelector(`.sc[data-name="${name}"]`).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 50, clientY: 100 }));
-            await until(() => mount.querySelector(".pkrow"), `the menu of ${name}`);
-            const item = [...mount.querySelectorAll(".pkrow")].find((el) => text(el.querySelector(".pkname")) === ITEMS[kind]);
-            if (!item) throw new Error(`no ${ITEMS[kind]} in the menu of ${name}`);
-            item.click();
-            return;
-        }
         await openPie(mount.querySelector(`.sc[data-name="${name}"]`));
         sector(kind === "continue" ? "pause" : kind).click();
     };
@@ -242,30 +233,18 @@ export async function sessionPause() {
         const sleepingCard = mount.querySelector('.sc[data-name="lab"]');
         out.sleep = { states: [...mount.querySelectorAll(".sc .scsay")].map(text),
             edges: [...mount.querySelectorAll(".sc:not(.scpast) .scedge")].map((e) => e.className) };
-        if (wide) {
-            out.sleep.controls = [...sleepingCard.querySelectorAll(".scact")].map((el) => ({
-                label: el.getAttribute("aria-label"), off: el.getAttribute("aria-disabled") === "true", why: el.getAttribute("data-tip") || "",
-            }));
-            sleepingCard.dispatchEvent(new MouseEvent("contextmenu", { bubbles:true, cancelable:true, clientX:50, clientY:100 }));
-            await until(() => mount.querySelector(".pkrow"), "sleeping menu");
-            out.sleep.menu = [...mount.querySelectorAll(".pkrow")].map((el) => ({
-                label: text(el.querySelector(".pkname")), off: el.getAttribute("aria-disabled") === "true", why: el.getAttribute("data-tip") || "",
-            }));
-            [...mount.querySelectorAll(".pkrow")].find((el) => text(el.querySelector(".pkname")) === "Continue now").click();
-        } else {
-            await openPie(sleepingCard);
-            out.sleep.controls = ring();
-            sector("pause").click();
-        }
+        await openPie(sleepingCard);
+        out.sleep.controls = ring();
+        sector("pause").click();
         await until(() => sent.length === 10, "sleeping Continue");
         out.sleep.continue = sent.at(-1);
-        if (!wide) await settled();
+        await settled();
         await press("close", "lab");
         await until(() => gate(), "sleeping Close confirmation");
         gate().querySelector(".btnrow .btn:last-child").click();
         await until(() => sent.length === 11 && !gate(), "sleeping Close");
         out.sleep.close = sent.at(-1);
-        if (!wide) await settled();
+        await settled();
         return out;
     } finally {
         render(null,mount); mount.remove(); window.fetch=fetch;

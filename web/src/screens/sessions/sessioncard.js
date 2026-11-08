@@ -12,10 +12,10 @@
 //   5  its settings, each in a place of its own whether on or off, and how
 //      full its context is; the context bar runs along the bottom edge.
 //
-// A live card carries no controls, and its name takes the line: on a phone a
-// long press on the card opens them as its pie (cardpie.js), in the reach of
-// the thumb, and at a desk a right click opens them as its menu
-// (desktop/sessionmenu.js), which holds more than a row of icons could.
+// A live card carries no controls, and its name takes the line: they are its
+// pie (cardpie.js), opened on a phone by a long press on the card, in the
+// reach of the thumb, and at a desk by a right click, larger and beside the
+// card.
 
 import { useRef, useState } from "preact/hooks";
 
@@ -252,6 +252,22 @@ function menuOn(onMenu) {
     return onMenu ? (event) => onMenu(event, event.currentTarget.querySelector(".scopen")) : undefined;
 }
 
+// pieOn opens the pie of a card at a desk from a right click anywhere on it,
+// around the point of the click, or the middle of the card where the keyboard
+// asked for it. Shift and a selection in the card keep the browser's own
+// menu, as the menus of the desk do.
+function pieOn(open) {
+    return (event) => {
+        const el = event.currentTarget;
+        const sel = document.getSelection();
+        if (event.shiftKey || (sel && !sel.isCollapsed && sel.rangeCount > 0 && sel.getRangeAt(0).intersectsNode(el))) return;
+        event.preventDefault();
+        const box = el.getBoundingClientRect();
+        const pointed = event.button === 2 && (event.clientX || event.clientY);
+        open(pointed ? { x: event.clientX, y: event.clientY } : { x: box.left + box.width / 2, y: box.top + box.height / 2 });
+    };
+}
+
 // Act is one control of a card: an icon, its name for a reader and its tip;
 // on paints it in the accent, pressed says a toggle's state to a reader and
 // busy that its press is on its way. One that cannot be pressed now stays in
@@ -269,8 +285,10 @@ function Act({ label, tip, off, on = false, pressed, busy = false, onPress, chil
 // session above it says already. depth is how many steps in the card stands
 // under the sessions that opened it; from names a parent that stands
 // elsewhere. A press anywhere on the card opens the conversation, a long one
-// on a phone its pie; onMenu is the menu of a right click, where there is
-// one; current marks the conversation open beside the list.
+// on a phone its pie, a right click at a desk its pie too; onMenu is the menu
+// of a right click where no pie stands — a session the panel only reads, a
+// page with no host of pies; current marks the conversation open beside the
+// list.
 export function SessionCard({ s, limits, wait, exec, profile = null, profiles = [], notes = null, known = "",
     depth = 0, from = "", current = false, desk = false, onOpen, onMenu }) {
     const busy = busyOf(s, wait);
@@ -289,16 +307,21 @@ export function SessionCard({ s, limits, wait, exec, profile = null, profiles = 
         : claudeOwner?.profile || s.account?.profile || (s.contour && profile?.id === s.contour && profile.profile) || s.profile || "";
     const time = timeOf(state);
     const timeTone = state.tone === "wait" ? "wait" : state.unseen ? "unseen" : ["idle", "paused"].includes(state.tone) ? "quiet" : "";
-    // On a phone the controls are the card's pie, opened by a long press on
-    // the card; a session the panel only reads has none either way.
+    // The controls are the card's pie: on a phone a long press on the card
+    // opens it, at a desk a right click; a session the panel only reads has
+    // none either way, and at a desk keeps the menu of what it can do.
     const pie = useCardPie();
     const card = useRef(null);
-    const pies = !desk && Boolean(pie) && !s.outside;
+    const own = Boolean(pie) && !s.outside;
+    const pies = !desk && own;
     const hold = useHold(card, pies ? (press) => pie.open({ name: s.session, profile, card: card.current, press }) : null);
+    const onContextMenu = desk && own
+        ? pieOn((spot) => pie.open({ name: s.session, profile, card: card.current, spot }))
+        : menuOn(onMenu);
     return html`
         <div class=${`sc${state.tone === "wait" ? " scwait" : ""}${depth ? " sckid" : ""}${current ? " sccur" : ""}${desk ? " scdesk" : ""}${pies ? " scpie" : ""}`}
              data-name=${s.session} data-tone=${state.tone} data-kind=${state.kind} style=${depth ? `--depth:${depth}` : undefined}
-             ref=${card} onContextMenu=${menuOn(onMenu)} ...${hold}>
+             ref=${card} onContextMenu=${onContextMenu} ...${hold}>
             <button class="scopen" type="button" aria-label=${`open conversation ${s.session}`}
                     onClick=${() => onOpen && onOpen(s)}></button>
             <div class="scl1">

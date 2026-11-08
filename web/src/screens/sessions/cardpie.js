@@ -40,9 +40,10 @@ import { pinOf } from "./pin.js";
 
 const CardPieContext = createContext(null);
 
-// useCardPie returns the host's open({ name, profile, card, press }) — the
-// pie of the session name, raised from the card element, with the pointer of
-// the press still held — or null where no host stands.
+// useCardPie returns the host's open({ name, profile, card, press, spot }) —
+// the pie of the session name, raised from the card element, with the pointer
+// of the press still held, or at a desk around the point of a right click
+// (spot) — or null where no host stands.
 export function useCardPie() {
     return useContext(CardPieContext);
 }
@@ -97,12 +98,12 @@ export function CardPieHost({ snapshot, exec, wait, onTerm, children }) {
         const el = from.current;
         if (el && el.isConnected) el.focus({ preventScroll: true });
     }, []);
-    const open = useCallback(({ name, profile = null, card = null, press = null }) => {
+    const open = useCallback(({ name, profile = null, card = null, press = null, spot = null }) => {
         setPie((was) => {
             if (was) return was;
             from.current = card ? card.querySelector(".scopen") : null;
             seq.current += 1;
-            return { name, profile, card, press, key: seq.current };
+            return { name, profile, card, press, spot, key: seq.current };
         });
     }, []);
     const host = useMemo(() => ({ open }), [open]);
@@ -130,7 +131,7 @@ export function CardPieHost({ snapshot, exec, wait, onTerm, children }) {
         <${CardPieContext.Provider} value=${host}>
             ${children}
             ${pie && s && !s.outside && html`
-                <${CardPie} key=${pie.key} s=${s} profile=${pie.profile} card=${pie.card} press=${pie.press}
+                <${CardPie} key=${pie.key} s=${s} profile=${pie.profile} card=${pie.card} press=${pie.press} spot=${pie.spot}
                             snapshot=${snapshot} exec=${exec} wait=${wait} onTerm=${onTerm} onClose=${close}
                             onSheet=${(kind) => setSheet({ kind, name: s.session, profile: pie.profile })} />
             `}
@@ -144,7 +145,7 @@ export function CardPieHost({ snapshot, exec, wait, onTerm, children }) {
 // CardPie is the pie of one live session. What the host is asked about the
 // session — which way it can move, whether a window shows it — is asked as
 // the pie opens, as the menu of a right click asks it at a desk.
-function CardPie({ s, profile, card, press, snapshot, exec, wait, onTerm, onClose, onSheet }) {
+function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, onClose, onSheet }) {
     const run = useAction();
     const toast = useToast();
     const codex = isCodex(s);
@@ -232,5 +233,5 @@ function CardPie({ s, profile, card, press, snapshot, exec, wait, onTerm, onClos
     const items = s.sleeping ? first.map((item) => item && !["close", "pause"].includes(item.key)
         ? { ...item, off: "sleeping", items: item.items?.map((sub) => ({ ...sub, off: "sleeping" })) } : item) : first;
     return html`<${Pie} label=${`session ${shownName(s)}`} name=${shownName(s)} items=${items} lift=${card} press=${press}
-                        onClose=${onClose} />`;
+                        spot=${spot} onClose=${onClose} />`;
 }

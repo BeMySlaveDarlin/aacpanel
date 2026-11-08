@@ -117,14 +117,15 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the claude row beside it opens with %+v, expected the word Claude with no tip", got.ClaudeAgent)
 	}
 	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 0 {
-		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked, and its actions are its menu",
+		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked, and its actions are its pie",
 			got.ClaudeMarks, got.ClaudeActs)
 	}
-	if len(got.DeskActs) != 4 || got.DeskActs[0].Label != "Pin the group" || got.DeskActs[1].Label != "Pause…" ||
-		got.DeskActs[2].Label != "Restart the session" || got.DeskActs[3].Label != "Close the session" {
-		t.Errorf("the menu of the codex thread's desktop card offers %+v, expected pin, pause, restart and close", got.DeskActs)
-	} else {
-		saysCodexClose(t, "the tip of the close in the desktop menu", got.DeskActs[3].Tip)
+	var deskActs []string
+	for _, act := range got.DeskActs {
+		deskActs = append(deskActs, act.Label)
+	}
+	if want := "Close the session,Restart the session,Pause…,Pin the group,More,Stop the turn"; strings.Join(deskActs, ",") != want {
+		t.Errorf("the pie of the codex thread's desktop card offers %v, expected %s", deskActs, want)
 	}
 	if got.DeskSay != "allow a tool" {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)

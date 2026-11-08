@@ -24,6 +24,7 @@ import { Home } from "./home.js";
 import { PANELS, RightPanel } from "./panels.js";
 import { MapSettings } from "./settings.js";
 import { MenuHost } from "./menu.js";
+import { CardPieHost } from "../screens/sessions/cardpie.js";
 import { MAX, MIN, useScale } from "./scale.js";
 
 export const SECTIONS = [
@@ -443,6 +444,7 @@ export function DesktopShell({
                     </div>
                 </header>
 
+                <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${wait} onTerm=${term.route ? openTerm : null}>
                 <div class=${`dkbody${panel ? " withpanel" : ""}${wide ? " full" : ""}`}>
                     ${!wide && left()}
                     ${center()}
@@ -462,6 +464,7 @@ export function DesktopShell({
                         />
                     `}
                 </div>
+                <//>
 
                 ${settings && html`<${Settings} onClose=${() => setSettings(false)} exec=${exec} />`}
 
