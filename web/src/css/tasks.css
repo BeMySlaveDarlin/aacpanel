@@ -1,7 +1,10 @@
 /* The registry uses the contour's row blocks; only the focused work is open. */
 .tqscreen { display: flex; flex-direction: column; gap: .4rem; padding-bottom: 1.2rem; }
 .tqscreen > * { flex: none; }
-.tqscreen > .pjblock { margin: 0; }
+.pztabs.tqtabs { flex-wrap: nowrap; overflow-x: auto; margin-top: 0; }
+.tqtabs .pztab { flex: none; white-space: nowrap; }
+.tqpanel { display: flex; flex-direction: column; gap: .4rem; }
+.tqpanel > .pjblock { margin: 0; }
 .tqrow { display: grid; grid-template-columns: .9rem minmax(0, 1fr) auto; align-items: start; column-gap: .55rem; width: 100%; min-height: 44px; padding: .55rem .75rem .6rem .8rem; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; line-height: 1.3; }
 .tqgroup > .tqrow + .tqrow { border-top: var(--hair) solid var(--line); }
 .tqrow:active { background: var(--surface); }

@@ -14,8 +14,12 @@ type contourTaskScene struct {
 		Kind, Target string
 		Params       struct{ Project int }
 	}
-	Profile                            bool
-	Headings                           []string
+	Profile bool
+	Tabs    struct {
+		Initial, Unfiled, Quiet, Deferred, OpenDeferred, Closed  taskBoardState
+		Search, SearchClosed, EmptyUnfiled, SearchUnfiled, Empty taskBoardState
+		TaskBack, ReportBack, Reopened, WithoutUnfiled           taskBoardState
+	}
 	Unfiled                            string
 	QuietBefore                        bool
 	QuietAfter                         string
@@ -53,6 +57,13 @@ type contourTaskScene struct {
 		ToggledClosed, OutsideClosed, EscapeClosed, InsideKept bool
 		FoldClosed, UnfoldClosed                               bool
 	}
+}
+
+type taskBoardState struct {
+	Tabs, Selected, Headings, Rows, Folds []string
+	Unfiled, Hint                         string
+	Periods, Panels                       int
+	Linked                                bool
 }
 
 type limitPopoverState struct {
@@ -270,9 +281,6 @@ func TestLimitFramesKeepVendorsAndStaleReadingsDistinct(t *testing.T) {
 func TestContourTasksGroupWorkAndOpenDetailsAndPeriodReports(t *testing.T) {
 	var got contourTaskScene
 	runFixture(t, "limitsfold.html", &got)
-	if strings.Join(got.Headings, "|") != "In work 1|No task 1|Quiet 1|Deferred 1|Closed 3" {
-		t.Errorf("task groups: %v", got.Headings)
-	}
 	if !strings.Contains(got.Unfiled, "SER-1064") || !strings.Contains(got.Unfiled, "work-ser1064") || !got.QuietBefore || !strings.Contains(got.QuietAfter, "Review the quiet importer") {
 		t.Errorf("unfiled/backlog: %+v", got)
 	}
@@ -292,6 +300,76 @@ func TestContourTasksGroupWorkAndOpenDetailsAndPeriodReports(t *testing.T) {
 	}
 	if !got.TaskBack || !got.ScreenBack || !got.EmptyBack {
 		t.Errorf("back failed to close a layer: %+v", got)
+	}
+}
+
+func TestContourTaskTabsShowOneSectionAndKeepItUnderSheets(t *testing.T) {
+	var got contourTaskScene
+	runFixture(t, "limitsfold.html", &got)
+	tabs := got.Tabs
+	if strings.Join(tabs.Initial.Tabs, "|") != "In work 1|No task 1|Quiet 1|Deferred 1|Closed 3" {
+		t.Errorf("task tabs: %v", tabs.Initial.Tabs)
+	}
+	for i, board := range []taskBoardState{tabs.Initial, tabs.Unfiled, tabs.Quiet, tabs.Deferred, tabs.Closed} {
+		want := []string{"In work 1", "No task 1", "Quiet 1", "Deferred 1", "Closed 3"}[i]
+		if board.Panels != 1 || !board.Linked || strings.Join(board.Selected, "|") != want || strings.Join(board.Headings, "|") != want {
+			t.Errorf("section %d: %+v, want only %s", i, board, want)
+		}
+		rows, folds, periods := 0, 0, 0
+		if i == 0 {
+			rows = 1
+		}
+		if i == 2 || i == 3 {
+			folds = 1
+		}
+		if i == 4 {
+			periods = 4
+			folds = len(board.Folds)
+			if folds == 0 {
+				t.Error("closed tasks lost their month groups")
+			}
+		}
+		if len(board.Rows) != rows || len(board.Folds) != folds || board.Periods != periods || (board.Unfiled != "") != (i == 1) {
+			t.Errorf("section %s includes another section's content: %+v", want, board)
+		}
+	}
+	if len(tabs.OpenDeferred.Rows) != 1 || !strings.Contains(tabs.OpenDeferred.Rows[0], "Deferred API work") {
+		t.Errorf("deferred project did not unfold: %+v", tabs.OpenDeferred)
+	}
+	for _, board := range []taskBoardState{tabs.TaskBack, tabs.ReportBack} {
+		if strings.Join(board.Selected, "|") != "Closed 3" || board.Periods != 4 {
+			t.Errorf("closing a sheet reset the selected section: %+v", board)
+		}
+	}
+	if strings.Join(tabs.Reopened.Selected, "|") != "In work 1" {
+		t.Errorf("reopening the task layer kept the previous selection: %+v", tabs.Reopened)
+	}
+	if strings.Join(tabs.WithoutUnfiled.Tabs, "|") != "In work 1|Quiet 1|Deferred 1|Closed 3" {
+		t.Errorf("a registry without unfiled work gained a No task tab: %+v", tabs.WithoutUnfiled)
+	}
+}
+
+func TestContourTaskSearchCountsEverySectionAndExplainsAnEmptyTab(t *testing.T) {
+	var got contourTaskScene
+	runFixture(t, "limitsfold.html", &got)
+	tabs := got.Tabs
+	if strings.Join(tabs.Search.Tabs, "|") != "In work 1|No task 0|Quiet 0|Deferred 0|Closed 1" {
+		t.Errorf("search did not update all tab counts: %+v", tabs.Search)
+	}
+	if strings.Join(tabs.Search.Selected, "|") != "Quiet 0" || !strings.Contains(tabs.Search.Hint, "No matches in Quiet") || len(tabs.Search.Rows) != 0 || len(tabs.Search.Folds) != 0 || tabs.Search.Periods != 0 {
+		t.Errorf("an empty selected section switched tabs or lost its explanation: %+v", tabs.Search)
+	}
+	if strings.Join(tabs.SearchClosed.Selected, "|") != "Closed 1" || tabs.SearchClosed.Periods != 4 {
+		t.Errorf("search lost matching work in another section: %+v", tabs.SearchClosed)
+	}
+	if strings.Join(tabs.EmptyUnfiled.Selected, "|") != "No task 0" || !strings.Contains(tabs.EmptyUnfiled.Hint, "No matches in No task") {
+		t.Errorf("an empty No task tab cannot explain the search: %+v", tabs.EmptyUnfiled)
+	}
+	if strings.Join(tabs.SearchUnfiled.Tabs, "|") != "In work 0|No task 1|Quiet 0|Deferred 0|Closed 0" || !strings.Contains(tabs.SearchUnfiled.Unfiled, "SER-1064") {
+		t.Errorf("search lost an unfiled session's name: %+v", tabs.SearchUnfiled)
+	}
+	if strings.Join(tabs.Empty.Tabs, "|") != "In work 0|No task 0|Quiet 0|Deferred 0|Closed 0" || strings.Join(tabs.Empty.Selected, "|") != "No task 0" || !strings.Contains(tabs.Empty.Hint, "No matches in No task") {
+		t.Errorf("a search with no results replaced the selected section: %+v", tabs.Empty)
 	}
 }
 

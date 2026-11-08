@@ -23,6 +23,30 @@ const click = async (selector) => {
     await quiet();
 };
 const back = async (predicate) => { history.back(); await until(predicate); };
+const pickTaskTab = (id) => click(`.tqscreen [role="tab"][id="tq-4-${id}"]`);
+const findTask = async (value) => {
+    const input = document.querySelector(".tqsearch input");
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+};
+const taskBoard = () => {
+    const selected = [...document.querySelectorAll('.tqscreen [role="tab"][aria-selected="true"]')];
+    const panels = [...document.querySelectorAll('.tqscreen [role="tabpanel"]')];
+    return {
+        tabs: [...document.querySelectorAll('.tqscreen [role="tablist"] [role="tab"]')].map(text),
+        selected: selected.map(text),
+        headings: [...document.querySelectorAll(".tqscreen .pjsection")].map(text),
+        rows: [...document.querySelectorAll(".tqscreen .tqrow")].map(text),
+        folds: [...document.querySelectorAll(".tqscreen .tqpname")].map(text),
+        unfiled: text(document.querySelector(".tqnotasks")),
+        hint: text(document.querySelector(".tqscreen .tqhintline")),
+        periods: document.querySelectorAll(".tqscreen .tqtile").length,
+        panels: panels.length,
+        linked: selected.length === 1 && panels.length === 1 && selected[0].getAttribute("aria-controls") === panels[0].id
+            && panels[0].getAttribute("aria-labelledby") === selected[0].id,
+    };
+};
 const sheet = (label) => document.querySelector(`.sheet.on[aria-label="${label}"]`);
 const stamp = (days = 0) => { const now = new Date(); return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - days)).toISOString(); };
 const person = { name: "work-ser1063", known: true, live: true, status: "busy", conversations: ["11111111-old", "22222222-live"] };
@@ -64,7 +88,7 @@ const realFetch = window.fetch.bind(window);
 window.fetch = counted(async (url, init = {}) => {
     const u = new URL(String(url), location.origin);
     requests.push(u.pathname);
-    if (u.pathname === "/api/tasks/board") return json({ tasks: u.searchParams.get("contour") === "4" ? boardTasks() : [], noTask: mode === "empty" ? [] : noTask, notes: [] });
+    if (u.pathname === "/api/tasks/board") return json({ tasks: u.searchParams.get("contour") === "4" ? boardTasks() : [], noTask: ["empty", "filed"].includes(mode) ? [] : noTask, notes: [] });
     const detail = u.pathname.match(/^\/api\/projects\/(\d+)\/tasks\/(\d+)$/);
     if (detail) {
         const row = boardTasks().find((t) => t.projectId === Number(detail[1]) && t.number === Number(detail[2]));
@@ -107,7 +131,7 @@ export async function contourScene(root, hash) {
             await click('.pfpage .pfaction[aria-label="Tasks"]');
             await until(() => document.querySelector(".tqscreen") && !text(document.querySelector(".tqscreen")).includes("Loading tasks"));
             if (hash === "task") await click(".tqrow");
-            if (hash === "report") await click(".tqtile.report");
+            if (hash === "report") { await pickTaskTab("closed"); await click(".tqtile.report"); }
             await quiet();
         }
         return { screenshot: hash };
@@ -136,25 +160,47 @@ export async function contourScene(root, hash) {
     await until(() => document.querySelector(".pflimitrow"));
     await click('.pfpage .pfaction[aria-label="Tasks"]');
     await until(() => document.querySelector(".tqrow"));
-    out.headings = [...document.querySelectorAll(".tqscreen .pjsection")].map(text);
+    out.tabs = { initial: taskBoard() };
+    await pickTaskTab("unfiled");
+    out.tabs.unfiled = taskBoard();
     out.unfiled = text(document.querySelector(".tqnotasks"));
+    await pickTaskTab("quiet");
+    out.tabs.quiet = taskBoard();
     out.quietBefore = document.querySelector('[aria-label="Quiet"] .tqrow') === null;
     await click('[aria-label="Quiet"] .tqpline');
     out.quietAfter = text(document.querySelector('[aria-label="Quiet"] .tqrow'));
+    await findTask("SER-1063");
+    out.tabs.search = taskBoard();
+    await pickTaskTab("closed");
+    out.tabs.searchClosed = taskBoard();
+    await pickTaskTab("unfiled");
+    out.tabs.emptyUnfiled = taskBoard();
+    await findTask("work-ser1064");
+    out.tabs.searchUnfiled = taskBoard();
+    await findTask("nothing-matches");
+    out.tabs.empty = taskBoard();
+    await findTask("");
+    await pickTaskTab("deferred");
+    out.tabs.deferred = taskBoard();
+    await click('[aria-label="Deferred"] .tqpline');
+    out.tabs.openDeferred = taskBoard();
+    await pickTaskTab("closed");
+    out.tabs.closed = taskBoard();
     await click(".tqtiles .tqtile");
     out.closedToday = text(document.querySelector(".tqtiles + .tqfoldgroup"));
     await click(".tqtiles .tqtile");
-    await click(".tqgroup .tqrow");
-    await until(() => sheet("Task")?.querySelector(".tqbody b"));
-    out.task = { body: text(sheet("Task").querySelector(".tqbody")), people: text(sheet("Task").querySelector(".tqpeople")), events: text(sheet("Task").querySelector(".tqevents")) };
-    await back(() => !sheet("Task"));
-    out.taskBack = Boolean(document.querySelector(".tqscreen"));
     await click(".tqtile.report");
     await until(() => sheet("Report")?.querySelector(".tqrline"));
     await click('.sheet.on[aria-label="Report"] .tqrline');
     out.report = text(sheet("Report").querySelector(".tqactivity"));
     out.reportRows = sheet("Report").querySelectorAll(".tqactivity").length;
     out.reportPages = periodCalls.length;
+    await click('.sheet.on[aria-label="Report"] .tqactivity .tqrow');
+    await until(() => sheet("Task")?.querySelector(".tqbody b"));
+    out.task = { body: text(sheet("Task").querySelector(".tqbody")), people: text(sheet("Task").querySelector(".tqpeople")), events: text(sheet("Task").querySelector(".tqevents")) };
+    await back(() => !sheet("Task"));
+    out.taskBack = Boolean(document.querySelector(".tqscreen")) && Boolean(sheet("Report"));
+    out.tabs.taskBack = taskBoard();
     const yesterday = [...sheet("Report").querySelectorAll(".tqperiods button")].find((b) => text(b) === "Yesterday");
     yesterday.click();
     await until(() => text(sheet("Report")).includes("LMS-42"));
@@ -165,24 +211,27 @@ export async function contourScene(root, hash) {
     out.week = text(sheet("Report"));
     out.periodCalls = periodCalls;
     await back(() => !sheet("Report"));
+    out.tabs.reportBack = taskBoard();
     await back(() => !document.querySelector(".tqscreen"));
     out.screenBack = Boolean(document.querySelector(".pflimitrow"));
     mode = "long";
     await click('.pfpage .pfaction[aria-label="Tasks"]');
-    await until(() => document.querySelector('[aria-label="Quiet"] .tqpline'));
+    await until(() => document.querySelector(".tqrow"));
+    out.tabs.reopened = taskBoard();
     out.longCollapsed = document.querySelectorAll(".tqrow").length;
+    await pickTaskTab("quiet");
     await click('[aria-label="Quiet"] .tqpline');
     out.longFirst = document.querySelector('[aria-label="Quiet"]').querySelectorAll(".tqrow").length;
     await click('[aria-label="Quiet"] .tqmore');
     out.longMore = document.querySelector('[aria-label="Quiet"]').querySelectorAll(".tqrow").length;
-    const search = document.querySelector('.tqsearch input');
-    search.value = "Queued task 239";
-    search.dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
+    await findTask("Queued task 239");
     out.searched = text(document.querySelector('[aria-label="Quiet"]')).includes("Queued task 239") && !text(document.querySelector('[aria-label="Quiet"]')).includes("Queued task 0");
-    search.value = "";
-    search.dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
+    await findTask("");
+    await back(() => !document.querySelector(".tqscreen"));
+    mode = "filed";
+    await click('.pfpage .pfaction[aria-label="Tasks"]');
+    await until(() => document.querySelector(".tqrow"));
+    out.tabs.withoutUnfiled = taskBoard();
     await back(() => !document.querySelector(".tqscreen"));
     mode = "empty";
     await click('.pfpage .pfaction[aria-label="Tasks"]');
