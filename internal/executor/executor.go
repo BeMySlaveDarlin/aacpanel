@@ -183,6 +183,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		}
 	}
 	switch req.Kind {
+	case action.TaskSummary:
+		return e.taskSummary(ctx, req)
 	case action.CodexUpdate, action.ClaudeUpdate:
 		return e.updateAgent(ctx, req.Kind)
 	case action.ContainerStart, action.ContainerStop, action.ContainerRestart:

@@ -29,7 +29,7 @@ export function useTaskPeriod(contour, period) {
                     offset += page.limit;
                     if (!page.limit && offset < total) throw new Error("The report page did not advance.");
                 } while (offset < total);
-                if (!controller.signal.aborted) setState({ kind: "ready", groups: [...groups].map(([external, tasks]) => ({ external, tasks })), total });
+                if (!controller.signal.aborted) setState({ kind: "ready", groups: [...groups].map(([external, tasks]) => ({ external, tasks })), total, from, until });
             } catch (err) {
                 if (!controller.signal.aborted) setState({ kind: "failed", error: err.message });
             }

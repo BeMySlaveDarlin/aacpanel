@@ -79,15 +79,31 @@ const limits = { contours: [{ profile: "Acme", contour: 4, ageSec: 30, fiveHour:
 const live = [{ session: "work-ser1063", sessionId: "22222222-live", cwd: "/srv/shop", project: { id: 7, name: "shop" }, contour: 4, status: "busy", pct: 12, transport: "stream" },
     { session: "home", sessionId: "home-id", cwd: "/home/u", project: { id: 6, name: "home" }, contour: 4, home: true, status: "idle", pct: 1, transport: "stream" }];
 const snapshot = { at: now, sessions: live, profileMap: profiles, host: { home: "/home/u" }, limits };
-const exec = { available: true, kinds: ["session.open", "session.send"] };
+const exec = { available: true, kinds: ["session.open", "session.send", "task.summary"] };
 const wait = { opening: () => [], of: () => null };
 const requests = [];
 const sent = [];
 let periodCalls = [];
+const summaryCache = new Map();
+const summaryProbe = { posts: [], busy: false, copied: "" };
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value) => { summaryProbe.copied = value; } } });
 const realFetch = window.fetch.bind(window);
 window.fetch = counted(async (url, init = {}) => {
     const u = new URL(String(url), location.origin);
     requests.push(u.pathname);
+    if (u.pathname === "/api/exec") return json(exec);
+    if (u.pathname === "/api/tasks/summary") {
+        const body = init.method === "POST" ? JSON.parse(init.body) : Object.fromEntries(u.searchParams);
+        const key = JSON.stringify([String(body.contour), body.from, body.until]);
+        if (init.method === "POST") {
+            summaryProbe.posts.push(body);
+            await new Promise(requestAnimationFrame);
+            summaryProbe.busy ||= text(document.querySelector(".tqsummary")).includes("Summarizing…");
+            if (summaryProbe.posts.length === 2) return new Response("The model is unavailable.", { status: 503 });
+            summaryCache.set(key, { text: "Inventory was **verified** by work-ser1063.", model: "sonnet", createdAt: "2025-01-01T10:00:00Z" });
+        }
+        return json({ summary: summaryCache.get(key) || null });
+    }
     if (u.pathname === "/api/tasks/board") return json({ tasks: u.searchParams.get("contour") === "4" ? boardTasks() : [], noTask: ["empty", "filed"].includes(mode) ? [] : noTask, notes: [] });
     const detail = u.pathname.match(/^\/api\/projects\/(\d+)\/tasks\/(\d+)$/);
     if (detail) {
@@ -195,6 +211,23 @@ export async function contourScene(root, hash) {
     out.report = text(sheet("Report").querySelector(".tqactivity"));
     out.reportRows = sheet("Report").querySelectorAll(".tqactivity").length;
     out.reportPages = periodCalls.length;
+    await until(() => sheet("Report")?.querySelector(".tqsummary .btn:not([disabled])"));
+    out.summary = { firstButton: text(sheet("Report").querySelector(".tqsummary .btn")) };
+    await click('.tqsummary .btn');
+    out.summary.beforeConfirm = summaryProbe.posts.length;
+    await click('.sheet.on[aria-label="action confirmation"] .btn.primary');
+    await until(() => sheet("Report")?.querySelector(".tqsummary .msg b"));
+    out.summary.text = text(sheet("Report").querySelector(".tqsummary"));
+    out.summary.markdown = text(sheet("Report").querySelector(".tqsummary .msg b"));
+    out.summary.time = sheet("Report").querySelector(".tqsummary time").getAttribute("datetime");
+    await click('.tqsummary .btn + .btn');
+    out.summary.copied = summaryProbe.copied;
+    out.summary.again = text(sheet("Report").querySelector(".tqsummary .btn"));
+    await click('.tqsummary .btn');
+    await click('.sheet.on[aria-label="action confirmation"] .btn.primary');
+    out.summary.failure = text(sheet("Report").querySelector(".tqsummary"));
+    out.summary.busy = summaryProbe.busy;
+    out.summary.posts = summaryProbe.posts;
     await click('.sheet.on[aria-label="Report"] .tqactivity .tqrow');
     await until(() => sheet("Task")?.querySelector(".tqbody b"));
     out.task = { body: text(sheet("Task").querySelector(".tqbody")), people: text(sheet("Task").querySelector(".tqpeople")), events: text(sheet("Task").querySelector(".tqevents")) };
@@ -209,6 +242,11 @@ export async function contourScene(root, hash) {
     week.click();
     await until(() => text(sheet("Report")).includes("SER-1063") && text(sheet("Report").querySelector('.tqperiods [aria-pressed="true"]')) === "Week");
     out.week = text(sheet("Report"));
+    out.summary.periodCleared = !sheet("Report").querySelector(".tqsummary .msg");
+    const today = [...sheet("Report").querySelectorAll(".tqperiods button")].find((b) => text(b) === "Today");
+    today.click();
+    await until(() => sheet("Report")?.querySelector(".tqsummary .msg b"));
+    out.summary.cached = text(sheet("Report").querySelector(".tqsummary .msg b"));
     out.periodCalls = periodCalls;
     await back(() => !sheet("Report"));
     out.tabs.reportBack = taskBoard();

@@ -20,18 +20,27 @@ type contourTaskScene struct {
 		Search, SearchClosed, EmptyUnfiled, SearchUnfiled, Empty taskBoardState
 		TaskBack, ReportBack, Reopened, WithoutUnfiled           taskBoardState
 	}
-	Unfiled                            string
-	QuietBefore                        bool
-	QuietAfter                         string
-	ClosedToday                        string
-	Week                               string
-	Searched                           bool
-	Task                               struct{ Body, People, Events string }
-	TaskBack                           bool
-	Report                             string
-	ReportRows, ReportPages            int
-	Yesterday                          string
-	PeriodCalls                        []struct{ From, Until, Offset string }
+	Unfiled                 string
+	QuietBefore             bool
+	QuietAfter              string
+	ClosedToday             string
+	Week                    string
+	Searched                bool
+	Task                    struct{ Body, People, Events string }
+	TaskBack                bool
+	Report                  string
+	ReportRows, ReportPages int
+	Yesterday               string
+	PeriodCalls             []struct{ From, Until, Offset string }
+	Summary                 struct {
+		FirstButton, Text, Markdown, Time, Copied, Again, Failure, Cached string
+		BeforeConfirm                                                     int
+		Busy, PeriodCleared                                               bool
+		Posts                                                             []struct {
+			Contour     int
+			From, Until string
+		}
+	}
 	ScreenBack                         bool
 	LongCollapsed, LongFirst, LongMore int
 	Empty                              string
@@ -292,7 +301,7 @@ func TestContourTasksGroupWorkAndOpenDetailsAndPeriodReports(t *testing.T) {
 	if !strings.Contains(got.Task.People, "2 conversations") || !strings.Contains(got.Task.Events, "Changed") || !strings.Contains(got.Task.Events, "work-ser1063") {
 		t.Errorf("participants/events: %+v", got.Task)
 	}
-	if got.ReportRows != 2 || got.ReportPages != 2 || !strings.Contains(got.Report, "Changed") || !strings.Contains(got.Yesterday, "LMS-42") || len(got.PeriodCalls) != 5 || !strings.Contains(got.Week, "SER-1063") {
+	if got.ReportRows != 2 || got.ReportPages != 2 || !strings.Contains(got.Report, "Changed") || !strings.Contains(got.Yesterday, "LMS-42") || len(got.PeriodCalls) != 7 || !strings.Contains(got.Week, "SER-1063") {
 		t.Errorf("period report: %+v", got)
 	}
 	if !strings.Contains(got.ClosedToday, "Completed inventory check") {
@@ -300,6 +309,20 @@ func TestContourTasksGroupWorkAndOpenDetailsAndPeriodReports(t *testing.T) {
 	}
 	if !got.TaskBack || !got.ScreenBack || !got.EmptyBack {
 		t.Errorf("back failed to close a layer: %+v", got)
+	}
+	if got.Summary.FirstButton != "Summarize" || got.Summary.BeforeConfirm != 0 || !got.Summary.Busy || len(got.Summary.Posts) != 2 {
+		t.Errorf("summary confirmation and progress: %+v", got.Summary)
+	}
+	if got.Summary.Markdown != "verified" || got.Summary.Cached != "verified" || !strings.Contains(got.Summary.Text, "sonnet") || got.Summary.Time != "2025-01-01T10:00:00Z" || got.Summary.Copied != "Inventory was **verified** by work-ser1063." {
+		t.Errorf("summary content, metadata, copy and cache: %+v", got.Summary)
+	}
+	if got.Summary.Again != "Summarize again" || !strings.Contains(got.Summary.Failure, "The model is unavailable.") || !got.Summary.PeriodCleared {
+		t.Errorf("summary retry, errors or period switch: %+v", got.Summary)
+	}
+	for _, post := range got.Summary.Posts {
+		if post.Contour != 4 || post.From != got.PeriodCalls[0].From || post.Until != got.PeriodCalls[0].Until {
+			t.Errorf("summary requested a different contour or period: %+v", post)
+		}
 	}
 }
 

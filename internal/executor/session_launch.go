@@ -65,9 +65,15 @@ func (e *Executor) runTermStarter(ctx context.Context, dir, id string) (launcher
 }
 
 func (e *Executor) runInUnit(ctx context.Context, bin, mode, what string, held hostcfg.Ceilings, spec any) (launcher.Report, error) {
+	var rep launcher.Report
+	err := e.runUnit(ctx, bin, mode, what, held, spec, &rep)
+	return rep, err
+}
+
+func (e *Executor) runUnit(ctx context.Context, bin, mode, what string, held hostcfg.Ceilings, spec, report any) error {
 	body, err := json.Marshal(spec)
 	if err != nil {
-		return launcher.Report{}, fmt.Errorf("the task for the launcher was not built: %w", err)
+		return fmt.Errorf("the task for the launcher was not built: %w", err)
 	}
 
 	env := cleanEnv(os.Environ())
@@ -79,17 +85,16 @@ func (e *Executor) runInUnit(ctx context.Context, bin, mode, what string, held h
 
 	if err := cmd.Run(); err != nil {
 		if text := strings.TrimSpace(errs.String()); text != "" {
-			return launcher.Report{}, fmt.Errorf("%s: %s", what, shortenLines(text))
+			return fmt.Errorf("%s: %s", what, shortenLines(text))
 		}
-		return launcher.Report{}, fmt.Errorf("%s: %w", what, err)
+		return fmt.Errorf("%s: %w", what, err)
 	}
 
-	var rep launcher.Report
-	if err := json.Unmarshal(out.Bytes(), &rep); err != nil {
-		return launcher.Report{}, fmt.Errorf("the launcher answer was not parsed (%q): %w",
+	if err := json.Unmarshal(out.Bytes(), report); err != nil {
+		return fmt.Errorf("the launcher answer was not parsed (%q): %w",
 			shortenLines(strings.TrimSpace(out.String())), err)
 	}
-	return rep, nil
+	return nil
 }
 
 func cleanEnv(env []string) []string {
@@ -119,16 +124,23 @@ func unitEnv(kv string) bool {
 // one that starts it — and inherits the cores and the ceilings the unit is
 // held to.
 func launchArgs(env []string, bin, mode, cores string, held hostcfg.Ceilings) []string {
+	killMode := "process"
+	if mode == summaryFlag {
+		killMode = "control-group"
+	}
 	args := []string{
 		"--user",
 		"--quiet",
 		"--wait",
 		"--pipe",
 		"--collect",
-		"--property=KillMode=process",
+		"--property=KillMode=" + killMode,
 	}
 	args = append(args, inSlice(held)...)
 	args = append(args, affinity(cores)...)
+	if mode == summaryFlag {
+		args = append(args, "--property=RuntimeMaxSec=120s")
+	}
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {
 			args = append(args, "--setenv="+kv)
@@ -147,9 +159,10 @@ func affinity(cores string) []string {
 }
 
 const (
-	launchFlag = "-launch"
-	windowFlag = "-window"
-	termFlag   = "-term"
+	launchFlag  = "-launch"
+	windowFlag  = "-window"
+	termFlag    = "-term"
+	summaryFlag = "-summary"
 )
 
 func passEnv(name string) bool {

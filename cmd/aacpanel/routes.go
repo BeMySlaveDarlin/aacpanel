@@ -126,6 +126,8 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/tasks", g.page(s.apiTasks))
 	mux.Handle("GET /api/tasks/board", g.page(s.apiTaskBoard))
 	mux.Handle("GET /api/tasks/period", g.page(s.apiTaskPeriod))
+	mux.Handle("GET /api/tasks/summary", g.page(s.apiTaskSummary))
+	mux.Handle("POST /api/tasks/summary", g.page(s.apiTaskSummary))
 	mux.Handle("GET /api/projects/{id}/tasks/{number}", g.page(s.apiTask))
 	if g.local {
 		mux.HandleFunc("POST /api/tasks/import", s.apiTaskImport)

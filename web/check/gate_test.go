@@ -661,11 +661,12 @@ func TestJournalClaimOnlyForJournaledActions(t *testing.T) {
 		hasOwnSend := strings.Contains(block, "send:")
 		declaredUnjournaled := strings.Contains(block, "journaled: false")
 
-		if hasOwnSend && !declaredUnjournaled {
+		// A summary has a period endpoint, but journals the executor action.
+		if hasOwnSend && !declaredUnjournaled && id != string(action.TaskSummary) {
 			t.Errorf("%q goes by an address of its own (send:) but is not marked journaled: false — "+
 				"the gate will promise a journal entry that never happens", id)
 		}
-		if !hasOwnSend && declaredUnjournaled {
+		if (!hasOwnSend || id == string(action.TaskSummary)) && declaredUnjournaled {
 			t.Errorf("%q is marked journaled: false but has no address of its own — then it goes "+
 				"through /api/actions and really is written to the journal, and the flag lies", id)
 		}
@@ -754,9 +755,9 @@ func TestJournalFlagMatchesOwnAddress(t *testing.T) {
 		ownAddress := regexp.MustCompile(`(?m)^\s+send:`).MatchString(block)
 		marked := regexp.MustCompile(`(?m)^\s+journaled: false`).MatchString(block)
 		switch {
-		case ownAddress && !marked:
+		case ownAddress && !marked && name != string(action.TaskSummary):
 			t.Errorf("%s goes by an address of its own but promises a journal: there will be no entry", name)
-		case !ownAddress && marked:
+		case (!ownAddress || name == string(action.TaskSummary)) && marked:
 			t.Errorf("%s goes through /api/actions and is journaled, yet it is marked as not written", name)
 		}
 	}

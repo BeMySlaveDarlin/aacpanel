@@ -370,6 +370,17 @@ function sessionHint(one) {
 }
 
 export const ACTIONS = {
+    "task.summary": {
+        title: () => "Summarize this period?",
+        effect: "Claude reads the recorded task activity and writes a summary using this contour's account. This spends its model allowance. The summary is cached; the conversation is not saved.",
+        ok: "Summarize",
+        done: () => "Summary ready",
+        send: {
+            verb: "POST",
+            path: () => "/api/tasks/summary",
+            body: (target, params) => ({ contour: params.contour, from: params.from, until: params.until }),
+        },
+    },
     "codex.update": {
         title: () => "Update Codex?",
         effect: "The panel installs the current release and checks its protocol. Idle daemons restart; busy daemons wait until a later update check finds their turns finished.",

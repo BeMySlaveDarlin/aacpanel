@@ -739,6 +739,7 @@ is a display; the locale always.
   question marks. `AACP_LANG`.
 
 **Claude**
+- `AACP_TASK_SUMMARY_MODEL` selects the model for task report summaries; the executor defaults to `sonnet`.
 - *What starts claude?* — what `command -v claude` gives, the link kept as it
   is so that an update of claude reaches the panel; off `PATH`,
   `~/.local/bin/claude`, where the native installer puts it; a wrapper of your

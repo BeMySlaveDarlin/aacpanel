@@ -73,6 +73,7 @@ func main() {
 		"start a claude session from the task on stdin and print a JSON report. "+
 			"Not a panel action: the executor calls itself here through systemd-run, "+
 			"because from its own namespace a session writes no transcript")
+	summary := flag.Bool("summary", false, "write a task summary from the task on stdin without keeping a conversation")
 	window := flag.Bool("window", false,
 		"open a terminal window to a live tmux session from the task on stdin. "+
 			"Like -launch, it is called by the executor through systemd-run: otherwise the window "+
@@ -152,6 +153,9 @@ func main() {
 
 	if *launch {
 		os.Exit(runLaunch())
+	}
+	if *summary {
+		os.Exit(runSummary(os.Stdin, os.Stdout, os.Stderr))
 	}
 
 	if *window {

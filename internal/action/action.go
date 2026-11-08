@@ -103,6 +103,8 @@ const (
 	WindowOpen Kind = "window.open"
 	// TaskStop stops one background job of a session.
 	TaskStop Kind = "task.stop"
+	// TaskSummary writes a report from registry events without keeping a conversation.
+	TaskSummary Kind = "task.summary"
 	// AgentStop stops a subagent the session started.
 	AgentStop Kind = "agent.stop"
 	// ObserverStop stops an observer of the panel a session started, with its
@@ -164,7 +166,7 @@ var Kinds = []Kind{
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionRole, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
-	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent, SessionPin,
+	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent, SessionPin, TaskSummary,
 }
 
 // Valid reports whether the executor knows this kind of action.

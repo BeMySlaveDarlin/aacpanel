@@ -90,7 +90,7 @@ func (r Request) Validate() error {
 	if r.ParentQuestion != "" && (r.Kind != SessionLetter || !safeUUID(r.ParentQuestion) || !safeUUID(r.Conversation) || r.Caller != "" || r.From != "" || r.FromCodex != nil) {
 		return badRequest("a parent question needs its child and recipient conversations and has no agent sender")
 	}
-	if r.Contour != "" && r.Ask != AskCodexModels && r.Agent != ResumeCodex {
+	if r.Contour != "" && r.Ask != AskCodexModels && r.Agent != ResumeCodex && r.Kind != TaskSummary {
 		return badRequest("only the question of the codex models and a resume of codex name a contour")
 	}
 	if r.Discover && r.Ask != AskMcp {
@@ -265,6 +265,13 @@ func (r Request) Validate() error {
 		return badRequest("action %s takes no answers to questions", r.Kind)
 	}
 	switch {
+	case r.Kind == TaskSummary:
+		if r.Project == nil || r.Contour == "" || !safeID(r.Contour) || strings.TrimSpace(r.Text) == "" || len(r.Text) > 256<<10 {
+			return badRequest("a task summary needs a mapped contour project and a bounded prompt")
+		}
+		if err := safeText(r.Text); err != nil {
+			return err
+		}
 	case r.Kind == SessionSend, r.Kind == SessionFile, r.Kind == SessionLetter:
 		if r.Kind != SessionFile && strings.TrimSpace(r.Text) == "" {
 			return badRequest("a message to the session without text")
@@ -477,7 +484,7 @@ func (r Request) Validate() error {
 		return badRequest("action %s stops no background work", r.Kind)
 	}
 	if r.Project != nil {
-		if r.Kind != SessionOpen && r.Kind != SessionResume && r.Kind != SessionSwitch && r.Kind != SessionRestart {
+		if r.Kind != SessionOpen && r.Kind != SessionResume && r.Kind != SessionSwitch && r.Kind != SessionRestart && r.Kind != TaskSummary {
 			return badRequest("action %s takes no project", r.Kind)
 		}
 		if err := r.Project.validate(); err != nil {

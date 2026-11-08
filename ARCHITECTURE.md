@@ -2422,6 +2422,29 @@ recorded participant ids, including short prefixes, and conversations with a
 known name fold together; a name guessed from a directory is not attribution.
 Live issue sessions with no matching registry task stand in a separate block.
 
+**Period reports are summarized by Claude on the contour's account.** The
+service reads all registry events in the half-open period in one ordered query,
+groups them by external issue and sends their titles, status changes, notes and
+recorded authors as data. The language comes from `AACP_LANG` in the mounted
+host description, with Russian as the fallback for an unspecified language.
+`GET /api/tasks/summary` reads the cache; `POST` goes through the action gate and
+journal as `task.summary`. A SHA-256 fingerprint covers the complete event records;
+the database keys the text, model and generation time by contour, period and
+fingerprint. Changed records make the cached answer unavailable, and an event
+arriving during generation refuses the stale answer. Empty periods start no run.
+
+The executor passes a mapped project of the contour to the same launcher and
+`systemd-run` environment path as session starts. Its working directory is that
+project: a contour's wrapper may select the account by directory and remove
+`CLAUDE_CONFIG_DIR`, so running from the executor's directory would charge the
+wrong account. The print run uses `--no-session-persistence`; a service answer
+must never appear in the project's conversation archive. Tools, MCP, slash
+commands and hooks are disabled, and a replacement system prompt treats the
+events as records. The run is limited to two minutes, one turn, 4096 output
+tokens and 64 KiB of text. The unit has the same lifetime limit and kills its
+whole unit. `AACP_TASK_SUMMARY_MODEL` selects the model, with `sonnet`
+as the default; no live session is opened or reused.
+
 Postgres in a container of its own, not lodged inside somebody else's: the panel
 must not fall together with a neighbouring project's database, and the other way
 round. The port is not published outwards — only the service reaches it, and
