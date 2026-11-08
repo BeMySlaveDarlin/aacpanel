@@ -727,7 +727,7 @@ span.pjname { cursor: default; }
 .scedge.s2 i { background: var(--ctx-2); }
 .scedge.s3 i { background: var(--ctx-3); }
 .scedge.s4 i { background: var(--ctx-4); }
-.scedge.scpeak i { background: var(--ink-faint); opacity: .5; }
+.scedge.scpeak i, .scedge.scsleep i { background: var(--ink-faint); opacity: .5; }
 .scblock { position: absolute; top: 0; bottom: 0; right: 0; text-decoration: none;
     background: repeating-linear-gradient(90deg, rgba(var(--tint), .3) 0 3px, transparent 3px 6px); }
 .sccap { position: absolute; top: -2px; bottom: 0; width: 1.5px; background: rgba(var(--tint), .35); }

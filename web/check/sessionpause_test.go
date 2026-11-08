@@ -22,7 +22,7 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			var got struct {
 				Pause struct {
 					Sleep struct {
-						States         []string
+						States, Edges  []string
 						Controls, Menu []struct {
 							Key, Label, Why string
 							Off             bool
@@ -32,7 +32,7 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 							Params       map[string]any
 						}
 					}
-					State, Ends, Header, SessionScope, SessionCount, OpenedCount, OpenedResume             string
+					State, Ends, Header, SessionScope, SessionCount, OpenedCount, OpenedResume, AwakeEdge  string
 					Feed, ProjectRecipients, GroupRecipients, Options, SessionRecipients, OpenedRecipients []string
 					SessionScopes, NoOpenedScopes                                                          []struct{ Value, Label string }
 					AloneResumeAbsent                                                                      bool
@@ -60,6 +60,12 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			p := got.Pause
 			if len(p.Sleep.States) != 2 || !strings.HasPrefix(p.Sleep.States[0], "sleeping until ") || p.Sleep.States[1] != "sleeping" {
 				t.Errorf("sleeping states: %v", p.Sleep.States)
+			}
+			// A sleeping session holds its context without spending it: its
+			// bar is grey, an awake one's keeps the colour of its fill.
+			if len(p.Sleep.Edges) != 2 || !strings.Contains(p.Sleep.Edges[0], "scsleep") || !strings.Contains(p.Sleep.Edges[1], "scsleep") ||
+				strings.Contains(p.AwakeEdge, "scsleep") {
+				t.Errorf("the context bars of sleeping sessions are %v, of an awake one %q: want grey only while asleep", p.Sleep.Edges, p.AwakeEdge)
 			}
 			for _, control := range p.Sleep.Controls {
 				allowed := control.Key == "pause" || control.Key == "close" || strings.HasPrefix(control.Label, "continue session ") || strings.HasPrefix(control.Label, "close session ")

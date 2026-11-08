@@ -233,10 +233,12 @@ function Badges({ mode, place, cap, auto, remote, worktree, ctx, heavyPlace = 0,
 // Edge is the context bar along the bottom of the card, of the whole window,
 // with the cap marked on it: in the accent where the session restarts there.
 // What lies past the cap is the share the session never reaches, set apart.
-function Edge({ pct, cap, auto, past = false }) {
+// A sleeping session holds its context without spending it: its bar is grey,
+// as an archived one's.
+function Edge({ pct, cap, auto, past = false, asleep = false }) {
     const capped = !past && cap != null && cap > 0 && cap < 100;
     return html`
-        <span class=${`scedge ${past ? "scpeak" : fill(pct || 0)}`} aria-hidden="true">
+        <span class=${`scedge ${past ? "scpeak" : asleep ? "scsleep" : fill(pct || 0)}`} aria-hidden="true">
             ${pct != null && html`<i style=${`width:${Math.max(0, Math.min(100, pct))}%`}></i>`}
             ${capped && html`<s class="scblock" style=${`left:${cap}%`}></s>`}
             ${capped && html`<b class=${`sccap${auto ? " scauto" : ""}`} style=${`left:${cap}%`}></b>`}
@@ -309,7 +311,7 @@ export function SessionCard({ s, limits, wait, exec, profile = null, profiles = 
                       queued=${s.queued || 0} compacts=${s.compacts || 0} />
             <${Badges} mode=${s.mode || ""} place=${placeOf(s)} cap=${s.cap} auto=${s.autoRestart} remote=${Boolean(s.remote)}
                        worktree=${s.checkout || ""} heavyPlace=${s.heavyPlace || 0} ctx=${s.noRequests ? "—" : `${Math.round(s.pct || 0)}%`} />
-            <${Edge} pct=${s.noRequests ? null : s.pct || 0} cap=${s.cap} auto=${s.autoRestart} />
+            <${Edge} pct=${s.noRequests ? null : s.pct || 0} cap=${s.cap} auto=${s.autoRestart} asleep=${Boolean(s.sleeping)} />
         </div>
     `;
 }

@@ -129,6 +129,7 @@ export async function sessionPause() {
         const out = {
             state: text(card.querySelector(".scsay")),
             ends: text(card.querySelector(".sctime")),
+            awakeEdge: card.querySelector(".scedge").className,
             header: text(mount.querySelector(".pausechat .talkword, .pausechat .dkword")),
             feed: [...mount.querySelectorAll(".pausecard .sentlabel")].map(text),
             letters: mount.querySelectorAll(".pausefeed .mletter").length,
@@ -239,7 +240,8 @@ export async function sessionPause() {
         await quiet();
         underPies();
         const sleepingCard = mount.querySelector('.sc[data-name="lab"]');
-        out.sleep = { states: [...mount.querySelectorAll(".sc .scsay")].map(text) };
+        out.sleep = { states: [...mount.querySelectorAll(".sc .scsay")].map(text),
+            edges: [...mount.querySelectorAll(".sc:not(.scpast) .scedge")].map((e) => e.className) };
         if (wide) {
             out.sleep.controls = [...sleepingCard.querySelectorAll(".scact")].map((el) => ({
                 label: el.getAttribute("aria-label"), off: el.getAttribute("aria-disabled") === "true", why: el.getAttribute("data-tip") || "",
