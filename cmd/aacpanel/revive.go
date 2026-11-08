@@ -180,7 +180,7 @@ func (r *reviver) candidates(ctx context.Context, rows []store.LivingSession) ([
 		if p, ok := pauseConversation(pauses, row.Conversation); ok && p.Sleeping {
 			continue
 		}
-		if row.Parent != "" || row.Outside {
+		if row.Outside {
 			continue
 		}
 		if _, alive := liveConversation(snap, row.Conversation); alive {
@@ -277,18 +277,17 @@ func (r *reviver) recover(ctx context.Context, rows []store.LivingSession) (tota
 	if err != nil {
 		return len(rows), 0, []string{err.Error()}
 	}
-	total = len(pending)
-	claude := pending[:0]
-	for _, row := range pending {
-		if row.Agent == schema.AgentCodex {
-			failed = append(failed, row.Session+": codex")
-			continue
-		}
-		claude = append(claude, row)
-	}
-	pending = claude
-	total, raised, more := r.raise(ctx, pending, total, r.restorePause)
+	total, raised, more := r.raise(ctx, pending, len(pending), r.restorePause)
 	return total, raised, append(failed, more...)
+}
+
+// resumeParams resumes a conversation of claude by its id and name, and a
+// thread of codex through the daemon of its home, named by its contour.
+func resumeParams(row store.LivingSession) map[string]any {
+	if row.Agent == schema.AgentCodex {
+		return map[string]any{"session": row.Conversation, "agent": action.ResumeCodex, "contour": row.Contour}
+	}
+	return map[string]any{"session": row.Conversation, "name": row.Session}
 }
 
 // Sleep and reboot recovery share admission and census confirmation. A group
@@ -345,7 +344,7 @@ func (r *reviver) raise(ctx context.Context, pending []store.LivingSession, tota
 					resumeCtx = context.WithValue(ctx, sleepResumeKey{}, row)
 					resumeCtx = context.WithValue(resumeCtx, automaticActionKey{}, "session wake")
 				}
-				err = r.srv.automaticAction(resumeCtx, string(action.SessionResume), row.Session, map[string]any{"session": row.Conversation, "name": row.Session})
+				err = r.srv.automaticAction(resumeCtx, string(action.SessionResume), row.Session, resumeParams(row))
 			}
 			if err != nil {
 				failed = append(failed, row.Session+": "+err.Error())

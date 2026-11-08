@@ -89,7 +89,12 @@ func (s *Server) keepLiving(ctx context.Context, now time.Time) error {
 		}
 		if found, ok := projectAt(profiles, row.CWD, s.worktrees(), s.db.ProjectRoots()); ok {
 			item.ProjectID, item.Project = found.project.ID, found.project.Name
-			item.Contour, item.ConfigDir = found.profile.Name, found.profile.ConfigDir
+			item.ConfigDir = found.profile.ConfigDir
+			// A thread of codex keeps the contour its codex home is named by:
+			// the executor finds the daemon that resumes it by that name.
+			if item.Agent != schema.AgentCodex {
+				item.Contour = found.profile.Name
+			}
 		}
 		live = append(live, item)
 	}

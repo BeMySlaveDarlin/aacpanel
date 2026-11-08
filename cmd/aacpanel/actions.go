@@ -684,7 +684,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			params["openedBy"] = saved.OpenedBy
 		}
 	}
-	if automatic, _ := r.Context().Value(automaticActionKey{}).(string); automatic != "" && req.Kind == action.SessionResume {
+	// An automatic resume of claude leaves out the map's opening message; a
+	// thread of codex goes on in its daemon with no message of the panel's.
+	if automatic, _ := r.Context().Value(automaticActionKey{}).(string); automatic != "" && req.Kind == action.SessionResume && req.Agent != action.ResumeCodex {
 		req.Silent = true
 		if params == nil {
 			params = map[string]any{}

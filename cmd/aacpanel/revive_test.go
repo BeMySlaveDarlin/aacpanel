@@ -83,7 +83,9 @@ func (s *reviveScene) drain() {
 			}
 			s.requests = append(s.requests, req)
 			if req.Kind == action.SessionResume {
-				if (req.Device == "reboot recovery" || req.Device == "session wake") && (!req.Silent || req.Text != "") {
+				// Claude resumes silently; a thread of codex goes on in its daemon
+				// with no message of the panel's.
+				if (req.Device == "reboot recovery" || req.Device == "session wake") && ((!req.Silent && req.Agent != action.ResumeCodex) || req.Text != "") {
 					s.t.Errorf("recovery sent an opening message: %+v", req)
 				}
 				row := store.LivingSession{Conversation: req.Resume, Session: req.Target, CWD: s.dir}
@@ -140,7 +142,7 @@ func TestRecoveryFiltersTheLastBootCensusPG(t *testing.T) {
 	root, child, outside, alive, thread := s.row(1), s.row(2), s.row(3), s.row(4), s.row(5)
 	child.Parent = "lead"
 	outside.Outside = true
-	thread.Agent = "codex"
+	thread.Agent, thread.Contour = "codex", "personal"
 	s.snap.Sessions = append(s.snap.Sessions, livingRow{LiveSession: host.LiveSession{Name: "renamed", SessionID: alive.Conversation, CWD: s.dir}})
 	s.publish()
 	rows := []store.LivingSession{root, child, outside, alive, thread}
@@ -155,9 +157,23 @@ func TestRecoveryFiltersTheLastBootCensusPG(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM session_living WHERE boot_id='new' AND host_id=$1`, hostID).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("fresh census: %d %v", count, err)
 	}
+	// A child and a thread of codex come back with the root: only outside
+	// sessions and conversations already live are left.
 	total, raised, failed := s.r.recover(t.Context(), rows)
-	if total != 2 || raised != 1 || len(failed) != 1 || !strings.Contains(failed[0], "codex") {
+	if total != 3 || raised != 3 || len(failed) != 0 {
 		t.Fatalf("filtered recovery: %d %d %v", total, raised, failed)
+	}
+	resumed := map[string]action.Request{}
+	for _, req := range s.requests {
+		if req.Kind == action.SessionResume {
+			resumed[req.Resume] = req
+		}
+	}
+	if _, ok := resumed[child.Conversation]; !ok {
+		t.Errorf("the child was not resumed: %+v", s.requests)
+	}
+	if req, ok := resumed[thread.Conversation]; !ok || req.Agent != action.ResumeCodex || req.Contour != "personal" {
+		t.Errorf("the thread of codex was resumed as %+v, want through the daemon of its contour", req)
 	}
 	profiles, _ := s.srv.db.Profiles(t.Context())
 	if _, err := s.srv.db.UpdateProfile(t.Context(), profiles[0].ID, store.ProfileEdit{LaunchSet: map[string]any{"reviveAfterReboot": false}}); err != nil {
@@ -175,17 +191,22 @@ func TestRecoveryFiltersTheLastBootCensusPG(t *testing.T) {
 	if _, err := s.srv.db.UpdateProject(t.Context(), s.project.ID, store.ProjectEdit{LaunchSet: map[string]any{"reviveAfterReboot": true}}); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := s.r.candidates(t.Context(), []store.LivingSession{thread}); err != nil || len(got) != 1 {
+	// The thread above was revived and lives; another one, gone, stands for
+	// the place's override.
+	gone := s.row(11)
+	gone.Agent, gone.Contour = "codex", "personal"
+	if got, err := s.r.candidates(t.Context(), []store.LivingSession{gone}); err != nil || len(got) != 1 {
 		t.Fatalf("project override: %+v %v", got, err)
 	}
 }
 
 func TestLivingCensusKeepsParentsAndPausesAndRejectsPartialReadsPG(t *testing.T) {
 	s := newReviveScene(t)
-	root, kid := s.row(1), s.row(2)
+	root, kid, thread := s.row(1), s.row(2), s.row(3)
 	s.snap.Sessions = []livingRow{
 		{LiveSession: host.LiveSession{Name: root.Session, SessionID: root.Conversation, CWD: s.dir, Transport: "stream"}, Pause: &pauseAlarm{ID: "0123456789abcdef", Name: action.PauseNoEndAlarm, Next: time.Now().Add(time.Hour).Format(time.RFC3339)}},
 		{LiveSession: host.LiveSession{Name: kid.Session, SessionID: kid.Conversation, CWD: s.dir, Parent: &host.SessionRef{Session: root.Session}}},
+		{LiveSession: host.LiveSession{Name: thread.Session, SessionID: thread.Conversation, CWD: s.dir, Agent: "codex"}, Profile: "work"},
 	}
 	s.publish()
 	if err := s.srv.keepLiving(t.Context(), time.Now()); err != nil {
@@ -202,6 +223,12 @@ func TestLivingCensusKeepsParentsAndPausesAndRejectsPartialReadsPG(t *testing.T)
 	child, err := s.srv.db.LivingConversation(t.Context(), hostID, kid.Conversation)
 	if err != nil || child == nil || child.ParentConversation != root.Conversation {
 		t.Fatalf("the saved parent: %+v %v", child, err)
+	}
+	// A thread of codex keeps the contour its home is named by, which its
+	// daemon is found by, though its directory belongs to a mapped project.
+	saved, err := s.srv.db.LivingConversation(t.Context(), hostID, thread.Conversation)
+	if err != nil || saved == nil || saved.Contour != "work" || saved.ProjectID != s.project.ID {
+		t.Fatalf("the saved thread of codex: %+v %v", saved, err)
 	}
 	good := s.snap
 	for _, change := range []func(*livingSnapshot){

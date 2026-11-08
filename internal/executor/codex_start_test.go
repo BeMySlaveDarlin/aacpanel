@@ -261,36 +261,40 @@ func TestAThreadOfTheArchiveIsResumedInTheDaemonOfItsContour(t *testing.T) {
 	}
 }
 
-// A contour whose home has no daemon running is refused with the way to go on
-// with the thread, and the panel starts no daemon for a resume; a contour
-// without a codex home is refused as well.
-func TestAResumeInAHomeWithoutADaemonIsRefused(t *testing.T) {
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	home := filepath.Join(t.TempDir(), ".codex")
-	if err := os.Mkdir(home, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(registry.CodexHomesEnv, home)
+// A thread is resumed through the daemon of its home, and a daemon that is
+// down — after a host reboot none is up — is started as an open starts it,
+// so the thread goes on; a contour without a codex home is refused.
+func TestAResumeInAHomeWithoutADaemonStartsIt(t *testing.T) {
+	srv, e, _ := onCodexContour(t, (*codextest.Server).Close)
+	home := registry.CodexHomes()[0].Dir
 	_, started := fakeCodex(t, false)
-	ctx, cancel := context.WithCancel(context.Background())
-	e := New(nil, "")
-	e.codex = codex.Start(ctx, registry.CodexHomes(), nil, e.reportCodexTurn)
-	t.Cleanup(func() {
-		cancel()
-		e.codex.Wait()
-	})
+	unit := fakeSystemdRun(t)
+	go func() {
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) {
+			if _, err := os.Stat(started); err == nil {
+				srv.Start(t)
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
 
 	const past = "019a2000-0000-7000-8000-00000000a1b2"
 	resume := action.Request{Kind: action.SessionResume, Target: "shop", Resume: past, Agent: action.ResumeCodex,
-		Contour: "personal"}
-	_, name, err := e.Open(context.Background(), resume)
-	if err == nil || !strings.Contains(err.Error(), "no codex daemon runs for "+home) ||
-		!strings.Contains(err.Error(), "codex resume "+past) || name != "" {
-		t.Errorf("a resume in a home without a daemon answered %v, naming %q", err, name)
+		Contour: "acme"}
+	_, _, err := e.Open(context.Background(), resume)
+	if err != nil && strings.Contains(err.Error(), "is not up") {
+		t.Fatalf("a resume in a home without a daemon did not start it: %v", err)
 	}
-	if _, err := os.Stat(started); !os.IsNotExist(err) {
-		t.Errorf("a resume started codex: %v", err)
+	if got := string(readArgv(t, started)); got != "app-server daemon start\nCODEX_HOME="+home+"\n" {
+		t.Errorf("codex started as %q", got)
+	}
+	if args := string(readArgv(t, unit)); !strings.Contains(args, "--setenv=CODEX_HOME="+home) {
+		t.Errorf("the daemon unit went without its home: %q", args)
+	}
+	if n := len(srv.Calls("thread/resume")); n != 1 {
+		t.Errorf("the thread was resumed %d times in the started daemon, want once", n)
 	}
 	resume.Contour = "algo"
 	if _, err := e.Execute(context.Background(), resume); err == nil ||

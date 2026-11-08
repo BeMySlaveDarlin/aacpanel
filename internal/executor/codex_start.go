@@ -165,14 +165,14 @@ func (e *Executor) codexResume(ctx context.Context, contour, threadID string, at
 		return "", "", fmt.Errorf("contour %s has no codex home — %s names none for it — so the panel has no "+
 			"daemon to resume thread %s in", contour, registry.CodexHomesEnv, threadID)
 	}
-	if !link.Up() {
-		return "", "", fmt.Errorf("no codex daemon runs for %s, and the panel resumes a thread only through the "+
-			"daemon of its home: codex resume %s goes on with it in codex's terminal", link.Home(), threadID)
+	// A daemon that is down — after a host reboot none is up — is started as
+	// an open starts it: the thread goes on only through its home's daemon.
+	from := dir
+	if from == "" {
+		from = link.Home()
 	}
-	wctx, cancel := context.WithTimeout(ctx, linkWait)
-	defer cancel()
-	if err := link.Ready(wctx); err != nil {
-		return "", "", err
+	if _, err := e.codexDaemon(ctx, link, from); err != nil {
+		return "", "", fmt.Errorf("the codex daemon of %s, which resumes thread %s, is not up: %w", link.Home(), threadID, err)
 	}
 	name := codex.SessionName(threadID)
 	cwd, err := link.ResumeIn(ctx, threadID, dir)

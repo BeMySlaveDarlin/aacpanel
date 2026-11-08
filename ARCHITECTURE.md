@@ -1427,9 +1427,9 @@ answering round alone through `stop_hook_active`.
   where the thread ran — and the panel joins the thread in the daemon of that
   contour with `thread/resume` and holds it as a thread it started: it is a
   live session again, `codex-<8 hex>`, and nothing runs until it is written
-  to. No daemon is started for it, since a resume brings back what a person
-  had: a home whose daemon is down is refused with the way back in codex's
-  own terminal, and a subagent's thread as a part of its parent's turn.
+  to. A home whose daemon is down — every one after a host reboot — gets it
+  started as an open starts it, so the thread goes on; a subagent's thread is
+  refused as a part of its parent's turn.
 - **Only what the protocol does is done.** A message starts a turn on a free
   thread, and so does a letter of another session, in its envelope; a stop interrupts the turn — the inner turn of a review, which the
   daemon names when it refuses the root one — Esc declines what waits, a file
@@ -2123,14 +2123,18 @@ nothing. The metric archive is not used to infer this set.
 Recovery claims the new boot in `session_boots` before any action. The first
 known boot only establishes the census. A restart of the service in the same
 boot does not repeat recovery, including after a partially completed attempt;
-conversations left behind remain available for a manual resume. Children,
-sessions outside the panel, places with Revive after reboot off, and
-conversations already live are excluded. A reused session name cannot stand
-in for its previous conversation. Codex threads are reported as not revived.
+conversations left behind remain available for a manual resume. Sessions
+outside the panel, places with Revive after reboot off, and conversations
+already live are excluded; sessions another opened come back with the rest,
+after their parent. A reused session name cannot stand in for its previous
+conversation.
 
-Each Claude conversation goes through `session.resume` and the ordinary
-action journal, without an opening message from the map or a saved session
-override. At most five start together. Another batch waits until every
+Each conversation goes through `session.resume` and the ordinary action
+journal. Claude's comes back without an opening message from the map or a
+saved session override. A thread of codex goes on in the daemon of its home,
+found by the contour the census keeps for it — the name of its codex home,
+not the map's label — and a daemon that is down, as every one is after a
+reboot, is started as an open starts it. At most five start together. Another batch waits until every
 successfully started member of the previous one appears live in a fresh
 census. Host admission reuses the heavy queue's measurements and calculation:
 available memory, the agents' slice excluding reclaimable file cache, its
