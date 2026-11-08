@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"aacpanel/internal/codex/codextest"
 )
@@ -55,7 +56,36 @@ func autoReviewed(t *testing.T) (*codextest.Server, *Link, string) {
 	t.Helper()
 	b := Begin{CWD: "/srv/proj", Sandbox: "workspace-write", Hold: true}
 	b.ReviewAutomatically()
-	return started(t, b)
+	srv, l, id := started(t, b)
+	// Reviews belong to a running turn: an idle thread read clears them.
+	srv.Running(id, "turn")
+	stateSays(t, id, "the running turn before its review", func(st State) bool { return st.Busy })
+	return srv, l, id
+}
+
+func TestGuardianReviewLastsUntilTheThreadIsIdle(t *testing.T) {
+	srv, l, id := autoReviewed(t)
+	srv.Notify(id, methodReviewStarted, reviewPayload("turn", "review", "item", "inProgress"))
+	reviewReached(t, l, id, "inProgress")
+	for _, active := range []bool{true, false} {
+		if !active {
+			srv.Set(id, "idle")
+		}
+		// Read after the event so seen must reconcile it with a newer snapshot,
+		// even when the test reaches the event before the next scheduled poll.
+		asked := time.Now()
+		info, err := read(t.Context(), mustClient(t, l), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l.seen(info, asked)
+		l.mu.Lock()
+		kept := l.reviews[id] != nil
+		l.mu.Unlock()
+		if kept != active {
+			t.Fatalf("the review after the %s thread read: kept=%t, want %t", info.Status.Type, kept, active)
+		}
+	}
 }
 
 func TestGuardianReviewKeepsApprovalsAndFlagsAwayFromTheOwner(t *testing.T) {
