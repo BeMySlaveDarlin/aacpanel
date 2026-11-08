@@ -12,23 +12,14 @@ import { level, pct, uptime } from "../format.js";
 
 // The bar is one line at any phone width and in any state. The chip of the
 // connection keeps the words of the state; a long host name gives way instead.
-// The theme and the install live in the host menu; the caret lights up while
-// the install waits there, or it would never be found.
-export function Header({ hostName = "host", ageSec, conn, route, flag = false, alerts = 0, query, onQuery, onMenu, onAlerts }) {
-    const [searching, setSearching] = useState(false);
+export function Header({ hostName = "host", ageSec, conn, route, alerts = 0, onAlerts }) {
     const state = connection({ conn, ageSec, route });
     const leg = state.leg !== undefined;
 
     return html`
         <header class="top">
             <div class="titlerow">
-                <button
-                    class="host"
-                    type="button"
-                    data-flag=${flag ? "install" : undefined}
-                    aria-label=${flag ? `${hostName} menu, the app can be installed` : `${hostName} menu`}
-                    onClick=${onMenu}
-                ><span class="hname">${hostName}</span><span class="caret">▾</span></button>
+                <div class="host"><span class="hname">${hostName}</span></div>
                 <button
                     class="conn"
                     type="button"
@@ -51,41 +42,18 @@ export function Header({ hostName = "host", ageSec, conn, route, flag = false, a
                         ${Icon.alerts()}
                         ${alerts > 0 && html`<span class="badge">${alerts}</span>`}
                     </button>
-                    <button
-                        class="iconbtn ${searching ? "on" : ""}"
-                        type="button"
-                        aria-label="search"
-                        aria-pressed=${searching ? "true" : "false"}
-                        onClick=${() => {
-                            if (searching) onQuery("");
-                            setSearching(!searching);
-                        }}
-                    >${Icon.search()}</button>
                 </div>
             </div>
-
-            ${searching && html`
-                <input
-                    class="search"
-                    type="search"
-                    placeholder="Filter by name"
-                    autocomplete="off"
-                    spellcheck=${false}
-                    value=${query}
-                    onInput=${(event) => onQuery(event.target.value)}
-                />
-            `}
         </header>
     `;
 }
 
-// HostMenu is the sheet behind the host name. It opens on what the machine is
+// HostMenu is the sheet behind the settings button. It opens on what the machine is
 // doing — the load, the limits of the contour, the briefs waiting — each a
 // door to its page, then the install or the update while one waits, the pages
 // that have no tab of their own, the theme and the way out. Above those pages
 // stand the accounts of Claude and Codex and the balancer between them, doors
-// that do not open yet. It fits the height the sheet opens to: nothing in it
-// needs a drag to be found. A value the app does not have leaves its line out;
+// that do not open yet. A value the app does not have leaves its line out;
 // the menu says less rather than a zero.
 export function HostMenu({
     open, onClose, onPage, hostName = "host", snapshot, conn, ageSec, route,
@@ -173,6 +141,9 @@ export function HostMenu({
                 <button class="hm-q" type="button" onClick=${() => onPage("settings")}>
                     <span class="t">${Icon.info()}Settings</span>
                     <small>host · device</small>
+                </button>
+                <button class="hm-q" type="button" onClick=${() => onPage("profiles")}>
+                    <span class="t">${Icon.cube()}Profiles</span>
                 </button>
             </div>
             <div class="hm-foot">

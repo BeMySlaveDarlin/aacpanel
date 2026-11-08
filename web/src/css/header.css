@@ -1,4 +1,4 @@
-/* Header, snapshot age, icon buttons, badges, search, limits and chips. */
+/* Header, snapshot age, icon buttons, badges, form fields, limits and chips. */
 
 .top {
     flex: none;
@@ -12,11 +12,6 @@
     mask-image: linear-gradient(180deg, #000 calc(100% - 6px), transparent);
 }
 
-/* The rows under the bar keep the page gutter; the bar itself runs nearly to
-   the edges, because its buttons are 44 px targets with the mark drawn in the
-   middle, and a gutter on top of that would push the words off a 360 screen. */
-.top > .search { margin: 0 calc(1rem - 2px) .6rem calc(1rem - 4px); width: auto; }
-
 /* One line, 48 px, at every width and in every state: nothing in the bar
    wraps. Words that do not fit are cut inside their own box, so no button is
    ever sawn through its border. */
@@ -28,33 +23,19 @@
     white-space: nowrap;
 }
 
-/* The host name is the one thing in the bar that gives way: a long one loses
-   its tail, the caret stays, and the chip keeps the words of the state. */
+/* The host name gives way so the chip keeps the words of the state. */
 .titlerow .host {
     flex: 0 1 auto;
     min-width: 0;
     height: 44px;
     padding: 0 5px 0 8px;
-    gap: 4px;
     font-size: var(--t-base);
     font-weight: 800;
     letter-spacing: .04em;
+    cursor: default;
 }
 
 .titlerow .hname { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.titlerow .caret { flex: none; }
-.titlerow .host[data-flag] .caret { color: var(--accent); }
-.titlerow .host[data-flag] .caret::after {
-    content: "";
-    display: inline-block;
-    width: 5px;
-    height: 5px;
-    margin-left: 2px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 6px var(--accent);
-    vertical-align: .5em;
-}
 
 /* The chip draws 28 px and takes a 44 px tall target. It does not shrink:
    its box stops at 163 px and the words inside it are cut there instead. */
@@ -162,8 +143,8 @@
 .iconbtn.accent { color: var(--accent); }
 .iconbtn.accent:active { background: var(--accent-bg); }
 
-/* In the bar the buttons lose the hairline: two framed squares next to a
-   framed chip read as three chips. */
+/* In the bar the alert button loses the hairline so it does not read as
+   another chip beside the connection. */
 .icons .iconbtn { width: 44px; height: 44px; box-shadow: none; }
 .icons .iconbtn.on { box-shadow: none; }
 .icons .iconbtn svg { width: var(--i-md); height: var(--i-md); }
@@ -171,9 +152,8 @@
 
 /* The host menu: the host and how the app reaches it, three live tiles that
    are doors to their pages, one strip for the install or the update while it
-   waits, three doors that do not open yet, three quiet doors and a footer with
-   the theme and the way out. All of it fits the height the sheet opens to on a
-   phone. */
+   waits, the doors that do not open yet, the quiet pages and a footer with
+   the theme and the way out. */
 .hm-head { padding: 0 2.6rem .2rem .5rem; }
 .hm-name { font-weight: 800; font-size: var(--t-lg); letter-spacing: .04em; }
 .hm-sub { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; font-size: var(--t-xs); color: var(--ink-dim); }

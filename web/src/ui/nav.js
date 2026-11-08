@@ -8,21 +8,15 @@ export const TABS = [
     { id: "host", label: "Host", icon: Icon.cpu },
 ];
 
-export const PAGES = [
-    { id: "profiles", label: "Profiles", icon: Icon.cube },
-];
-
-export const SECTIONS = [...TABS, ...PAGES];
-
-// Sessions and profiles stand left of the home button, the host and the
-// terminals right of it, each side in this order.
-const LEFT = ["sessions", "profiles"];
-const RIGHT = ["host", "terminals"];
+// Sessions and terminals stand left of the home button; the host and the
+// settings menu stand right of it.
+const LEFT = ["sessions", "terminals"];
+const RIGHT = ["host"];
 
 // Nav draws the menu. A listener without the terminal has no terminals item:
 // a button there would open a screen with nothing behind it.
-export function Nav({ current, onSelect, home, terminals = true }) {
-    const items = SECTIONS.filter((section) => terminals || section.id !== "terminals");
+export function Nav({ current, onSelect, onMenu, menu = false, flag = false, home, terminals = true }) {
+    const items = TABS.filter((section) => terminals || section.id !== "terminals");
     const button = (section) => html`
         <button
             key=${section.id}
@@ -42,6 +36,12 @@ export function Nav({ current, onSelect, home, terminals = true }) {
             ${side(LEFT)}
             <div class="homeslot">${home}</div>
             ${side(RIGHT)}
+            <button type="button" aria-label=${flag ? "Settings, the app can be installed" : "Settings"}
+                aria-haspopup="dialog" aria-expanded=${menu ? "true" : "false"}
+                data-flag=${flag ? "install" : undefined} onClick=${onMenu}>
+                ${Icon.settings()}
+                <span>Settings</span>
+            </button>
         </nav>
     `;
 }

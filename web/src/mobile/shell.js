@@ -5,7 +5,7 @@ import { html } from "../html.js";
 import { useBackClose } from "../ui/back.js";
 import { Header, HostMenu } from "../ui/header.js";
 import { Chips } from "../ui/chips.js";
-import { Nav, PAGES, TABS } from "../ui/nav.js";
+import { Nav, TABS } from "../ui/nav.js";
 import { HomeButton } from "../ui/home.js";
 import { LogBar } from "../ui/logbar.js";
 import { useToastHide } from "../ui/toasts.js";
@@ -42,7 +42,6 @@ export function MobileShell({
 }) {
     const [tab, setTab] = useState(lastTab);
     const [filters, setFilters] = useState({ host: "all", sessions: "all" });
-    const [query, setQuery] = useState("");
     const [open, setOpen] = useState(() => new Set());
 
     const [page, setPage] = useState(null);
@@ -93,16 +92,6 @@ export function MobileShell({
         }
     }, []);
 
-    const goNav = useCallback((id) => {
-        if (TABS.some((t) => t.id === id)) {
-            goTab(id);
-            return;
-        }
-        setPage(id);
-    }, [goTab]);
-
-    const section = PAGES.some((p) => p.id === page);
-
     const [want, setWant] = useState(null);
     const goHome = useCallback((name, id) => {
         setPage(null);
@@ -138,16 +127,12 @@ export function MobileShell({
     return html`
         <div class=${`shell${updateReady ? " has-update" : ""}${layer || page ? " no-nav" : ""}`}>
             <${Header}
-                onMenu=${() => setMenu(true)}
                 hostName=${(snapshot && snapshot.hostName) || "host"}
-                flag=${!!installable}
                 ageSec=${ageSec}
                 conn=${conn}
                 route=${route}
                 alerts=${openAlerts}
                 onAlerts=${() => setPage("alerts")}
-                query=${query}
-                onQuery=${setQuery}
             />
 
             ${!page && chips && html`<${Chips} items=${chips} current=${filter} onSelect=${setFilter} />`}
@@ -178,7 +163,6 @@ export function MobileShell({
                     snapshot=${snapshot}
                     filter=${filter}
                     onFilter=${setFilter}
-                    query=${query}
                     open=${open}
                     onToggle=${toggleStack}
                     onLogs=${openLogs}
@@ -235,10 +219,13 @@ export function MobileShell({
                 </div>
             `}
 
-            ${!layer && (!page || section) && html`
+            ${!layer && (!page || page === "profiles") && html`
                 <${Nav}
                     current=${page || tab}
-                    onSelect=${goNav}
+                    onSelect=${goTab}
+                    onMenu=${() => setMenu(true)}
+                    menu=${menu}
+                    flag=${!!installable}
                     terminals=${term.route}
                     home=${html`
                         <${HomeButton}
@@ -255,7 +242,7 @@ export function MobileShell({
 }
 
 function Screen({
-    tab, tree, snapshot, filter, onFilter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec,
+    tab, tree, snapshot, filter, onFilter, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec,
     history, faults, onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm, onSession,
 }) {
     if (tab === "sessions") {
@@ -267,7 +254,7 @@ function Screen({
         return html`<${Terminals} snapshot=${snapshot} exec=${exec} onLayer=${onLayer}
             want=${wantTerm} onWanted=${onWantedTerm} onSession=${onSession} />`;
     }
-    return html`<${Host} tree=${tree} treeError=${treeError} filter=${filter} onFilter=${onFilter} query=${query}
+    return html`<${Host} tree=${tree} treeError=${treeError} filter=${filter} onFilter=${onFilter}
         open=${open} onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec}
         snapshot=${snapshot} hostError=${hostError} ageSec=${ageSec} history=${history} faults=${faults} />`;
 }

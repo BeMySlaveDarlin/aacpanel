@@ -19,7 +19,7 @@ const LABEL = { containers: "Containers", machine: "Machine", journal: "Journal"
 // containers. The machine and the journal stand here without the way back
 // they have when the host menu opens them over the screen.
 export function Host({
-    tree, treeError, filter, onFilter, query, open, onToggle, onLogs, onDone, exec,
+    tree, treeError, filter, onFilter, open, onToggle, onLogs, onDone, exec,
     snapshot, hostError, ageSec, history, faults,
 }) {
     const [current, pick] = useProfilePage(PAGES, PAGE_KEY);
@@ -39,7 +39,7 @@ export function Host({
                 if (name === "journal") return html`<${Journal} />`;
                 return html`
                     <${Chips} items=${filterChips(tree)} current=${filter} onSelect=${onFilter} />
-                    <${Containers} tree=${tree} error=${treeError} filter=${filter} query=${query}
+                    <${Containers} tree=${tree} error=${treeError} filter=${filter}
                         open=${open} onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec} />
                 `;
             }}

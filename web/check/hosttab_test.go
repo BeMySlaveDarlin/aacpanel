@@ -55,16 +55,22 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 				Target string `json:"target"`
 			} `json:"sent"`
 		} `json:"programs"`
-		Certificate string    `json:"certificate"`
-		Order       []float64 `json:"order"`
-		Error       string    `json:"error"`
-		Nav         []string  `json:"nav"`
-		NavOn       string    `json:"navOn"`
-		Pages       []string  `json:"pages"`
-		First       hostPage  `json:"first"`
-		Forward     hostTurn  `json:"forward"`
-		Machine     hostPage  `json:"machine"`
-		Pulled      struct {
+		Certificate        string    `json:"certificate"`
+		Order              []float64 `json:"order"`
+		Error              string    `json:"error"`
+		Nav                []string  `json:"nav"`
+		NavOn              string    `json:"navOn"`
+		LogoOpenedMenu     bool      `json:"logoOpenedMenu"`
+		SettingsOpenedMenu bool      `json:"settingsOpenedMenu"`
+		MenuHasProfiles    bool      `json:"menuHasProfiles"`
+		ProfilesOpened     bool      `json:"profilesOpened"`
+		ProfilesClosedMenu bool      `json:"profilesClosedMenu"`
+		ProfilesNav        []string  `json:"profilesNav"`
+		Pages              []string  `json:"pages"`
+		First              hostPage  `json:"first"`
+		Forward            hostTurn  `json:"forward"`
+		Machine            hostPage  `json:"machine"`
+		Pulled             struct {
 			Box   string  `json:"box"`
 			Moved float64 `json:"moved"`
 			Page  string  `json:"page"`
@@ -133,11 +139,23 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 	})
 
 	t.Run("the tab is called Host and a kept containers tab opens it", func(t *testing.T) {
-		if want := []string{"Sessions", "Profiles", "Host"}; !equalStrings(got.Nav, want) {
+		if want := []string{"Sessions", "Host", "Settings"}; !equalStrings(got.Nav, want) {
 			t.Errorf("the bottom menu reads %v, expected %v", got.Nav, want)
 		}
 		if got.NavOn != "Host" {
 			t.Errorf("a phone that kept the containers tab opened on %q, expected the host tab", got.NavOn)
+		}
+	})
+	t.Run("Settings opens the menu and Profiles stays reachable", func(t *testing.T) {
+		if got.LogoOpenedMenu {
+			t.Error("the host name still opens the menu")
+		}
+		if !got.SettingsOpenedMenu || !got.MenuHasProfiles || !got.ProfilesOpened || !got.ProfilesClosedMenu {
+			t.Errorf("Settings opened the menu %v, Profiles was present %v, opened %v, and closed the menu %v",
+				got.SettingsOpenedMenu, got.MenuHasProfiles, got.ProfilesOpened, got.ProfilesClosedMenu)
+		}
+		if want := []string{"Sessions", "Host", "Settings"}; !equalStrings(got.ProfilesNav, want) {
+			t.Errorf("the profiles page has no way back through the menu: %v", got.ProfilesNav)
 		}
 	})
 	if got.Error != "" {

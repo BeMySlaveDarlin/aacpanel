@@ -27,11 +27,26 @@ nav.tabs button {
 }
 
 nav.tabs button svg { width: var(--i-lg); height: var(--i-lg); }
-nav.tabs button[aria-current="true"] {
+nav.tabs button[aria-current="true"], nav.tabs button[aria-expanded="true"] {
     color: var(--accent);
     font-weight: 600;
 }
 nav.tabs .tbadge { top: 0; right: 50%; margin-right: -19px; border-color: var(--deep); }
+
+/* The install waits in the menu, so its mark belongs to the button that
+   opens it. */
+nav.tabs button[data-flag]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 50%;
+    margin-right: -16px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+}
 
 .homeslot {
     display: flex;

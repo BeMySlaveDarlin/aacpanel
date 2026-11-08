@@ -41,12 +41,6 @@ func TestEveryMenuSectionOpensSomething(t *testing.T) {
 		}
 		t.Errorf("tab %q is in the menu, but Screen does not know it — the button lights up and opens nothing", id)
 	}
-
-	for _, id := range ids("PAGES") {
-		if !strings.Contains(app, `page === "`+id+`"`) {
-			t.Errorf("section %q is in the menu, but app.js has no page === %q branch — the button opens nothing", id, id)
-		}
-	}
 }
 
 func TestEveryDesktopViewOpensSomething(t *testing.T) {

@@ -6,15 +6,18 @@ import (
 )
 
 type barState struct {
-	Text    string  `json:"text"`
-	Tone    string  `json:"tone"`
-	Dot     string  `json:"dot"`
-	Label   string  `json:"label"`
-	SignIn  string  `json:"signIn"`
-	Still   *string `json:"still"`
-	Caret   bool    `json:"caret"`
-	Flag    bool    `json:"flag"`
-	Buttons []struct {
+	Text          string  `json:"text"`
+	Tone          string  `json:"tone"`
+	Dot           string  `json:"dot"`
+	Label         string  `json:"label"`
+	SignIn        string  `json:"signIn"`
+	Still         *string `json:"still"`
+	Caret         bool    `json:"caret"`
+	HostButton    bool    `json:"hostButton"`
+	HostFocusable bool    `json:"hostFocusable"`
+	Search        bool    `json:"search"`
+	Flag          bool    `json:"flag"`
+	Buttons       []struct {
 		Label string `json:"label"`
 	} `json:"buttons"`
 }
@@ -80,7 +83,7 @@ var barStill = map[string]string{
 }
 
 // The app bar on a phone says every state of the link in one chip, and the
-// host name carries the menu with the theme and the install.
+// host name is plain text and Settings carries the install mark.
 func TestTheAppBarSaysEveryStateOfTheLink(t *testing.T) {
 	var got appBar
 	runFixture(t, "appbar.html", &got)
@@ -93,8 +96,11 @@ func TestTheAppBarSaysEveryStateOfTheLink(t *testing.T) {
 			t.Errorf("%s: the bar was not read", name)
 			continue
 		}
-		if !bar.Caret {
-			t.Errorf("%s: the host has no caret of its menu", name)
+		if bar.Caret || bar.HostButton || bar.HostFocusable {
+			t.Errorf("%s: the host name is interactive or carries a menu caret: %+v", name, bar)
+		}
+		if bar.Search {
+			t.Errorf("%s: the header still has a search field", name)
 		}
 		if bar.Text != want.text || bar.Tone != want.tone || bar.Dot != want.dot {
 			t.Errorf("%s: the chip reads %q, tone %q, dot %q; want %q, %q, %q",
@@ -107,8 +113,8 @@ func TestTheAppBarSaysEveryStateOfTheLink(t *testing.T) {
 		for _, b := range bar.Buttons {
 			labels = append(labels, b.Label)
 		}
-		if strings.Join(labels, ",") != "alerts,search" {
-			t.Errorf("%s: the bar ends with %v — alerts and search stay, the theme moved to the menu", name, labels)
+		if strings.Join(labels, ",") != "alerts" {
+			t.Errorf("%s: the bar ends with %v, expected only alerts", name, labels)
 		}
 		if (name == "signedout") != (bar.SignIn == "/login") {
 			t.Errorf("%s: the way to sign in is %q", name, bar.SignIn)
@@ -123,7 +129,7 @@ func TestTheAppBarSaysEveryStateOfTheLink(t *testing.T) {
 			t.Errorf("%s: a state is dated %q, not %q — the time of its snapshot", name, *bar.Still, still)
 		}
 		if bar.Flag != (name == "install") {
-			t.Errorf("%s: the host flags the install: %v", name, bar.Flag)
+			t.Errorf("%s: Settings flags the install: %v", name, bar.Flag)
 		}
 	}
 	if got.Opened != 1 {
@@ -175,10 +181,10 @@ func TestTheHostMenuCarriesThemeAndInstall(t *testing.T) {
 	var got appBar
 	runFixture(t, "appbar.html", &got)
 	m := got.Menu
-	if strings.Join(m.Items, "|") != "Machine|Usage|Briefs|Install the appnot installed yet|Claude|Codex|Balancer|Journal|Devices|Settings|Sign out" {
+	if strings.Join(m.Items, "|") != "Machine|Usage|Briefs|Install the appnot installed yet|Claude|Codex|Balancer|Journal|Devices|Settings|Profiles|Sign out" {
 		t.Errorf("the menu reads %q", m.Items)
 	}
-	if strings.Join(m.ItemsInstalled, "|") != "Machine|Usage|Briefs|Claude|Codex|Balancer|Journal|Devices|Settings|Sign out" {
+	if strings.Join(m.ItemsInstalled, "|") != "Machine|Usage|Briefs|Claude|Codex|Balancer|Journal|Devices|Settings|Profiles|Sign out" {
 		t.Errorf("an installed app still offers the install: %q", m.ItemsInstalled)
 	}
 	if strings.Join(m.Theme, ",") != "Dark:true,Light:false" || strings.Join(m.ThemeLight, ",") != "Dark:false,Light:true" {

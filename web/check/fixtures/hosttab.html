@@ -64,6 +64,7 @@ window.fetch = counted(async (url, options) => {
     if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
     if (u.startsWith("/api/briefs")) return json({ briefs: [] });
     if (u.startsWith("/api/devices")) return json({ devices: [], revoked: [], current: 1 });
+    if (u === "/api/profiles") return json({ profiles: [] });
     return json({});
 });
 window.EventSource = class {
@@ -213,7 +214,7 @@ const layer = () => {
 const door = (item) => Array.from(document.querySelectorAll(".sheet.on .hm-tile, .sheet.on .hm-q"))
     .find((b) => text(b.querySelector(".t")) === item);
 const openMenu = async (item) => {
-    document.querySelector("header.top .host").click();
+    navTo("Settings");
     await until(() => document.querySelector(".sheet.on .hm-live"));
     door(item).click();
     await until(() => layer().title === item);
@@ -245,6 +246,24 @@ window.done = (async () => {
         out.navOn = navOn();
         out.pages = names();
         out.first = look("Containers");
+        document.querySelector("header.top .host").click();
+        await quiet();
+        out.logoOpenedMenu = Boolean(document.querySelector('.sheet.on[aria-label="menu"]'));
+        if (out.logoOpenedMenu) {
+            document.querySelector('.sheet.on[aria-label="menu"] .sheetclose').click();
+            await quiet();
+        }
+        navTo("Settings");
+        await quiet();
+        out.settingsOpenedMenu = Boolean(document.querySelector('.sheet.on[aria-label="menu"]'));
+        out.menuHasProfiles = Boolean(door("Profiles"));
+        if (door("Profiles")) door("Profiles").click();
+        await quiet();
+        out.profilesOpened = Boolean(document.querySelector('.body .pffab[aria-label="add a contour"]'));
+        out.profilesClosedMenu = !document.querySelector('.sheet.on[aria-label="menu"]');
+        out.profilesNav = nav().map(text);
+        navTo("Host");
+        await until(() => settled("Containers"));
         await pause("containers");
 
         out.forward = await swipe(1, "Machine");
@@ -329,7 +348,7 @@ window.done = (async () => {
         document.querySelector(".body > .phead .pback").click();
         await drawn();
         const between = document.querySelector(".pfpager") ? current() : "";
-        document.querySelector("header.top .host").click();
+        navTo("Settings");
         await drawn();
         door("Machine").click();
         await drawn();

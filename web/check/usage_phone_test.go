@@ -17,7 +17,7 @@ import (
 
 const phoneUsage = "src/screens/usage.js"
 
-func TestUsageOpensFromTheMenuUnderTheLogo(t *testing.T) {
+func TestUsageOpensFromTheSettingsMenu(t *testing.T) {
 	files := srcFiles(t)
 	shell := files["src/mobile/shell.js"]
 	if shell == "" {
@@ -32,11 +32,11 @@ func TestUsageOpensFromTheMenuUnderTheLogo(t *testing.T) {
 		t.Error("the usage branch opens something other than the usage screen, or opens it without a way back")
 	}
 	if !strings.Contains(shellSheet(t, files), `onPage("usage")`) {
-		t.Error("the usage screen has no entry in the menu under the logo")
+		t.Error("the usage screen has no entry in the settings menu")
 	}
 }
 
-// shellSheet returns the sheet behind the host name. It lives in the header,
+// shellSheet returns the settings menu. It lives in the header module,
 // and the shell opens the page it names: without that hand-over every entry is
 // drawn and opens nothing.
 func shellSheet(t *testing.T, files map[string]string) string {

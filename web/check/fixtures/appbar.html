@@ -7,10 +7,11 @@
 <div id="sheet"></div>
 <script type="module">
 // The app bar on a phone in every state of the link: one line, one chip for the
-// connection, and the sheets behind the host name and behind the chip.
+// connection, and the sheets behind Settings and behind the chip.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Header, HostMenu } from "/src/ui/header.js";
+import { Nav } from "/src/ui/nav.js";
 import { RouteSheet, asOf } from "/src/ui/route.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -61,8 +62,9 @@ const states = [
 
 const root = document.getElementById("root");
 const show = (conn, ageSec, flag, r, host = "HELIOS") => render(html`
-    <${Header} hostName=${host} conn=${conn} ageSec=${ageSec} route=${r} flag=${flag}
-               alerts=${3} query="" onQuery=${() => {}} onMenu=${() => {}} onAlerts=${() => {}} />
+    <${Header} hostName=${host} conn=${conn} ageSec=${ageSec} route=${r}
+               alerts=${3} onAlerts=${() => {}} />
+    <${Nav} current="host" onSelect=${() => {}} onMenu=${() => {}} flag=${flag} />
 `, root);
 
 // measureBar reads what the bar says in one state of the link.
@@ -73,7 +75,10 @@ const measureBar = () => ({
     label: document.querySelector(".conn").getAttribute("aria-label"),
     signIn: (document.querySelector(".signin") || { getAttribute: () => "" }).getAttribute("href"),
     caret: Boolean(document.querySelector(".titlerow .host .caret")),
-    flag: document.querySelector(".titlerow .host").hasAttribute("data-flag"),
+    hostButton: document.querySelector(".titlerow .host").matches("button, a, [role=button]"),
+    hostFocusable: document.querySelector(".titlerow .host").tabIndex >= 0,
+    search: Boolean(root.querySelector('input[type="search"], input[placeholder="Filter by name"]')),
+    flag: document.querySelector('nav.tabs button[aria-haspopup="dialog"]').hasAttribute("data-flag"),
     buttons: [...document.querySelectorAll(".titlerow .icons .iconbtn")].map((b) => ({ label: b.getAttribute("aria-label") })),
 });
 

@@ -82,7 +82,7 @@ export function hostUsage(tree, host) {
     };
 }
 
-export function Containers({ tree, error, filter, query, open, onToggle, onLogs, onDone, exec }) {
+export function Containers({ tree, error, filter, open, onToggle, onLogs, onDone, exec }) {
     const [details, setDetails] = useState(null);
     const toast = useToast();
     const run = useAction();
@@ -97,20 +97,19 @@ export function Containers({ tree, error, filter, query, open, onToggle, onLogs,
     if (!tree) return html`<p class="empty">The container tree has not arrived yet.</p>`;
 
     const match = FILTERS[filter] || FILTERS.all;
-    const needle = query.trim().toLowerCase();
 
     const stacks = tree.stacks
         .map((stack) => ({
             ...stack,
             kind: stackState(stack),
             use: usage(stack),
-            shown: stack.containers.filter((c) => match(c) && hit(stack, c, needle)),
+            shown: stack.containers.filter(match),
         }))
         .filter((stack) => stack.shown.length > 0);
 
     const nothing = stacks.length === 0;
 
-    const forced = filter !== "all" || needle !== "";
+    const forced = filter !== "all";
 
     return html`
         ${nothing && html`<p class="empty">Nothing matched the filter.</p>`}
@@ -203,11 +202,6 @@ function meta(c) {
     const parts = [`${c.cpu.toFixed(1)}% cpu`, bytes(c.mem)];
     if (c.health) parts.push(c.health);
     return parts.join(" · ");
-}
-
-function hit(stack, c, needle) {
-    if (!needle) return true;
-    return stack.name.toLowerCase().includes(needle) || c.name.toLowerCase().includes(needle);
 }
 
 function Details({ container, exec, onCopy, onLogs, onRun }) {

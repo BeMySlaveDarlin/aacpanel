@@ -6,9 +6,8 @@ import (
 )
 
 // The bottom menu is where a screen lives when it is opened often: the
-// terminals stand there, and usage, briefs and the journal are under the
-// logo — one door each, and what the sheet opens carries its own way back.
-func TestTerminalsSitInTheBottomMenuAndUsageUnderTheLogo(t *testing.T) {
+// terminals stand there, and the other pages open through Settings.
+func TestTerminalsSitInTheBottomMenuAndPagesInTheSettingsMenu(t *testing.T) {
 	files := srcFiles(t)
 	nav := stripComments(files["src/ui/nav.js"])
 	if nav == "" {
@@ -17,16 +16,16 @@ func TestTerminalsSitInTheBottomMenuAndUsageUnderTheLogo(t *testing.T) {
 	if !strings.Contains(nav, `id: "terminals"`) {
 		t.Error("the terminals are not in the bottom menu")
 	}
-	for _, gone := range []string{`id: "usage"`, `id: "briefs"`, `id: "journal"`} {
+	for _, gone := range []string{`id: "usage"`, `id: "briefs"`, `id: "journal"`, `id: "profiles"`} {
 		if strings.Contains(nav, gone) {
 			t.Errorf("%s is in the bottom menu, which has five columns and all of them are taken", gone)
 		}
 	}
 
 	sheet := shellSheet(t, files)
-	for _, page := range []string{"usage", "briefs", "journal"} {
+	for _, page := range []string{"usage", "briefs", "journal", "profiles"} {
 		if !strings.Contains(sheet, `onPage("`+page+`")`) {
-			t.Errorf("%s has no entry in the sheet under the logo: there is no way into it at all", page)
+			t.Errorf("%s has no entry in the settings menu: there is no way into it at all", page)
 		}
 	}
 	// The live tiles lead the sheet: the machine, the usage that came from the
@@ -41,7 +40,7 @@ func TestTerminalsSitInTheBottomMenuAndUsageUnderTheLogo(t *testing.T) {
 		order = append(order, rest[:strings.Index(rest, `"`)])
 	}
 	if len(order) < 3 || strings.Join(order[:3], ",") != "machine,usage,briefs" {
-		t.Errorf("the sheet under the logo opens %v — the live tiles machine, usage and briefs do not lead it", order)
+		t.Errorf("the settings menu opens %v — the live tiles machine, usage and briefs do not lead it", order)
 	}
 
 	shell := stripComments(files["src/mobile/shell.js"])

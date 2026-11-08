@@ -177,8 +177,8 @@ func menuOpensOnWhatTheMachineIsDoing(t *testing.T, got hostMenu) {
 	for _, q := range m.Quiet {
 		quiet[q.Title] = shown(q.Sub)
 	}
-	if len(m.Quiet) != 3 || quiet["Journal"] != "1 failed today" || quiet["Devices"] != "3 with access" ||
-		quiet["Settings"] != "host · device" {
+	if len(m.Quiet) != 4 || quiet["Journal"] != "1 failed today" || quiet["Devices"] != "3 with access" ||
+		quiet["Settings"] != "host · device" || quiet["Profiles"] != "<none>" {
 		t.Errorf("the quiet doors read %+v", m.Quiet)
 	}
 	if len(m.Quiet) == 0 || !m.Quiet[0].Crit {
@@ -223,7 +223,7 @@ func menuOpensAtOnceAndAsksWhenItOpens(t *testing.T, got hostMenu) {
 
 // Every door opens its page through the shell, in the order the menu reads.
 func menuDoorsOpenTheirPages(t *testing.T, got hostMenu) {
-	if strings.Join(got.Pages, ",") != "machine,usage,briefs,journal,devices,settings" {
+	if strings.Join(got.Pages, ",") != "machine,usage,briefs,journal,devices,settings,profiles" {
 		t.Errorf("the doors opened %v", got.Pages)
 	}
 }

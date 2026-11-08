@@ -22,6 +22,8 @@ export const Icon = {
 
     info: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="7.8" r="1" fill="currentColor" stroke="none" /></svg>`,
 
+    settings: () => html`<svg ...${stroke}><path d="m9.5 3-.5 2-1.6.9-2-.6-2.5 4.4 1.5 1.4v1.8l-1.5 1.4 2.5 4.4 2-.6L9 19l.5 2h5l.5-2 1.6-.9 2 .6 2.5-4.4-1.5-1.4v-1.8l1.5-1.4-2.5-4.4-2 .6L15 5l-.5-2Z" /><circle cx="12" cy="12" r="3" /></svg>`,
+
     disk: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="2.5" /></svg>`,
 
     // The viewer: the files of a project, which is a directory before it is

@@ -175,12 +175,12 @@ func cardsClose(t *testing.T, c cardClose, cards int, title, runs string) {
 }
 
 type termsPhoneShot struct {
-	Error    string   `json:"error"`
-	Nav      []string `json:"nav"`
-	LogoMenu []string `json:"logoMenu"`
-	Tabs     []string `json:"tabs"`
-	Current  string   `json:"current"`
-	Pages    []struct {
+	Error        string   `json:"error"`
+	Nav          []string `json:"nav"`
+	SettingsMenu []string `json:"settingsMenu"`
+	Tabs         []string `json:"tabs"`
+	Current      string   `json:"current"`
+	Pages        []struct {
 		Title  string `json:"title"`
 		Places []struct {
 			Head  string   `json:"head"`
@@ -282,15 +282,14 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		t.Fatalf("the walk broke off: %s", got.Error)
 	}
 
-	// Sessions and profiles stand left of the home button, the host and the
-	// terminals right of it; usage is among the live tiles that lead the menu
-	// under the logo.
-	t.Run("the bottom menu and the menu under the logo", func(t *testing.T) {
-		if want := []string{"Sessions", "Profiles", "(home)", "Host", "Terminals"}; !equalStrings(got.Nav, want) {
+	// The terminal stays beside Sessions, while Settings opens the menu with
+	// the live tiles and the profile map.
+	t.Run("the bottom menu and the settings menu", func(t *testing.T) {
+		if want := []string{"Sessions", "Terminals", "(home)", "Host", "Settings"}; !equalStrings(got.Nav, want) {
 			t.Errorf("the bottom menu reads %v, expected %v", got.Nav, want)
 		}
-		if len(got.LogoMenu) < 3 || !equalStrings(got.LogoMenu[:3], []string{"Machine", "Usage", "Briefs"}) {
-			t.Errorf("the menu under the logo reads %v — the live tiles lead it, usage among them: it left the bottom menu for there", got.LogoMenu)
+		if len(got.SettingsMenu) < 3 || !equalStrings(got.SettingsMenu[:3], []string{"Machine", "Usage", "Briefs"}) || !contains("Profiles", got.SettingsMenu) {
+			t.Errorf("the settings menu reads %v, expected the live tiles first and Profiles among its doors", got.SettingsMenu)
 		}
 	})
 
@@ -591,8 +590,8 @@ func TestNoTerminalRouteNoTerminals(t *testing.T) {
 	if got.Error != "" {
 		t.Fatalf("the fixture broke off: %s", got.Error)
 	}
-	if contains("Terminals", got.Nav) || len(got.Nav) != 3 {
-		t.Errorf("the bottom menu reads %v, expected Sessions, Profiles, Host", got.Nav)
+	if !equalStrings(got.Nav, []string{"Sessions", "Host", "Settings"}) {
+		t.Errorf("the bottom menu reads %v, expected Sessions, Host, Settings", got.Nav)
 	}
 	if got.Tab != "host" {
 		t.Errorf("a kept terminals tab stays %q, expected the host", got.Tab)

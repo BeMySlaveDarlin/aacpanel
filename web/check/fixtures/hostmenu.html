@@ -7,7 +7,7 @@
 <script type="module">
 // The host menu on a phone: the head with the way to the host, three live
 // tiles, the strip of the install or the update, three doors that do not open
-// yet, three quiet doors and the footer. Each scenario stubs what the service
+// yet, the quiet pages and the footer. Each scenario stubs what the service
 // answers and what the snapshot carries, and reads what the menu says and
 // where its presses go.
 //
@@ -177,7 +177,7 @@ window.done = (async () => {
 
     // Each door opens its page: the tiles, then the quiet ones.
     for (const title of ["Machine", "Usage", "Briefs"]) pressTile(title);
-    for (const title of ["Journal", "Devices", "Settings"]) pressQuiet(title);
+    for (const title of ["Journal", "Devices", "Settings", "Profiles"]) pressQuiet(title);
     out.pages = log.pages.slice();
 
     // The doors that do not open yet are pressed and open nothing.
