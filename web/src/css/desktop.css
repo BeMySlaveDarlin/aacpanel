@@ -433,9 +433,13 @@
 
     .dkleft .scglyph svg { width: .83em; height: .83em; }
 
-    .dkleft .scl1 { min-height: .96rem; }
+    /* The column is narrow: the name keeps its line first, and the readings
+       and controls go under it when they do not fit beside it. */
+    .dkleft .scl1 { min-height: .96rem; flex-wrap: wrap; row-gap: .2rem; }
 
-    .dkleft .scname { font-size: var(--t-sm); line-height: 1.2; }
+    .dkleft .scname { flex: 1 0 auto; max-width: 100%; font-size: var(--t-sm); line-height: 1.2; }
+
+    .dkleft .scres + .scacts { margin-left: auto; }
 
     .dkleft .scacts { margin-block: -.17rem; }
 
