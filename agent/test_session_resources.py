@@ -47,9 +47,10 @@ class SessionResources(unittest.TestCase):
         self.counters(group)
         return sid
 
-    def counters(self, group=UNIT, mem=512 * 1024**2, used=900_000_000):
+    def counters(self, group=UNIT, mem=512 * 1024**2, used=900_000_000, files=0, shared=0):
         root = self.cgroup / group.lstrip("/")
         self.write(root / "memory.current", f"{mem}\n")
+        self.write(root / "memory.stat", f"anon {mem - files}\nfile {files}\nshmem {shared}\n")
         self.write(root / "cpu.stat", f"usage_usec {used}\nuser_usec 123\nsystem_usec 456\n")
         return root
 
@@ -70,6 +71,14 @@ class SessionResources(unittest.TestCase):
         self.assertEqual(self.collect()[sid]["res"], {"mem": 512 * 1024**2, "cpu": 3.3})
         self.clock.return_value = 108
         self.assertEqual(self.collect()[sid]["res"]["cpu"], 0.0)
+
+    def test_the_file_cache_is_not_the_sessions_memory(self):
+        sid = self.process()
+        self.counters(mem=5 * 1024**3, files=4 * 1024**3, shared=256 * 1024**2)
+        self.assertEqual(self.collect()[sid]["res"],
+                         {"mem": 1024**3 + 256 * 1024**2, "cache": 4 * 1024**3 - 256 * 1024**2})
+        self.counters(mem=1024**2, files=2 * 1024**2)
+        self.assertEqual(self.collect()[sid]["res"]["mem"], 0)
 
     def test_only_a_sessions_own_unit_has_resource_readings(self):
         cases = [
@@ -97,6 +106,8 @@ class SessionResources(unittest.TestCase):
             ("cpu.stat", "usage_usec invalid\n"),
             ("cpu.stat", "user_usec 123\n"),
             ("memory.current", "-1\n"),
+            ("memory.stat", None),
+            ("memory.stat", "anon 1\n"),
         ]):
             group = SLICE + f"/run-p{i}-i1.service"
             sid = self.process(group, pid=5000 + i)

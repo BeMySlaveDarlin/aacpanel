@@ -39,13 +39,22 @@ def of_sessions(files):
         root = os.path.join(CGROUP, group.lstrip("/"))
         try:
             mem = int(read(os.path.join(root, "memory.current")))
+            pages = dict(line.split() for line in read(os.path.join(root, "memory.stat")).splitlines())
+            files, shared = int(pages["file"]), int(pages["shmem"])
             stat = dict(line.split() for line in read(os.path.join(root, "cpu.stat")).splitlines())
             used = int(stat["usage_usec"])
         except (OSError, ValueError, KeyError):
             continue
-        if mem < 0 or used < 0:
+        if mem < 0 or used < 0 or files < 0 or shared < 0:
             continue
-        res = {"mem": mem}
+        # The unit is charged for the files it read and wrote, and that cache
+        # is what the kernel drops first. The reading is what the session
+        # holds, as the host's heavy queue counts it: shared memory stays,
+        # since only swap takes it.
+        cache = min(files - min(shared, files), mem)
+        res = {"mem": mem - cache}
+        if cache:
+            res["cache"] = cache
         was = _previous.get(group)
         if was and now > was[0] and used >= was[1]:
             res["cpu"] = round((used - was[1]) / (now - was[0]) / 10000, 1)

@@ -142,6 +142,8 @@ class Confinement(unittest.TestCase):
         group = next(line[3:] for line in raw.splitlines() if line.startswith("0::"))
         root = pathlib.Path("/sys/fs/cgroup") / group.lstrip("/")
         self.assertGreaterEqual(int((root / "memory.current").read_text(encoding="utf-8")), 0)
+        pages = dict(line.split() for line in (root / "memory.stat").read_text(encoding="utf-8").splitlines())
+        self.assertGreaterEqual(int(pages["file"]), 0)
         stat = dict(line.split() for line in (root / "cpu.stat").read_text(encoding="utf-8").splitlines())
         self.assertGreaterEqual(int(stat["usage_usec"]), 0)
 

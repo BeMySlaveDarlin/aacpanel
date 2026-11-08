@@ -16,6 +16,7 @@ type sessionCardSeen struct {
 	Line5     string   `json:"line5"`
 	Name1     string   `json:"name1"`
 	Resources []string `json:"resources"`
+	MemoryTip string   `json:"memoryTip"`
 	Controls  []string `json:"controls"`
 	Runs      []string `json:"runs"`
 	Alarm     string   `json:"alarm"`
@@ -101,6 +102,11 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 		}
 		if !slices.Equal(c.Resources, resources[state]) {
 			t.Errorf("%s (%s) has resource badges %v, want %v", state, c.Name, c.Resources, resources[state])
+		}
+		// The memory badge is the session's own weight; the cache of the
+		// files it touched stands only in the badge's tip.
+		if tip := map[string]string{"working": "Session memory", "waiting": "Session memory · 3.5 GB of file cache besides"}[state]; tip != "" && c.MemoryTip != tip {
+			t.Errorf("%s (%s) has the memory tip %q, want %q", state, c.Name, c.MemoryTip, tip)
 		}
 		if state == "working" {
 			if !strings.Contains(c.Line5, "queued 2") {

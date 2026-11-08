@@ -90,11 +90,15 @@ function Resources({ res, account }) {
     if (!res && !account) return null;
     const mem = res && bytes(res.mem).replace(" ", "").replace(/([KMGT])B$/, "$1");
     const cpu = res?.cpu === undefined ? "—" : pct(res.cpu);
+    // The reading leaves out the cache of files the session read and wrote:
+    // the kernel drops it first, and counted in it would look like the
+    // session's own weight.
+    const memTip = res?.cache ? `Session memory · ${bytes(res.cache)} of file cache besides` : "Session memory";
     return html`
         <span class="scres">
             ${account && html`<span class="scmeter scaccount" title="Subscription account" aria-label=${`Subscription account: ${account}`}>${Icon.badge()}${account}</span>`}
             ${res && html`
-                <span class="scmeter" title="Session memory" aria-label=${`Session memory: ${mem}`}>${Icon.memory()}${mem}</span>
+                <span class="scmeter" title=${memTip} aria-label=${`${memTip}: ${mem}`}>${Icon.memory()}${mem}</span>
                 <span class="scmeter" title="Session CPU · one core" aria-label=${`Session CPU: ${cpu}`}>${Icon.cpu()}${cpu}</span>
             `}
         </span>
