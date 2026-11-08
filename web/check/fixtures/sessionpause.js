@@ -1,9 +1,9 @@
 // Pause and restart controls share the pages that already exercise sessions:
 // the pause of a project from the heading over its cards, the pause and the
 // continue of one session from its card — its buttons at a desk, its pie on
-// the phone — and the restart choices. lab-docs
-// had the panel open a helper in the other project, which its pause reaches
-// too; the quick choices are pressed on a clock set by the fixture.
+// the phone — and the restart choices. lab-docs had the panel open a helper
+// in the other project; a scope of its own includes that helper. The quick
+// choices are pressed on a clock set by the fixture.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { ProjectBlock } from "/src/screens/sessions/blocks.js";
@@ -44,7 +44,7 @@ export async function sessionPause() {
         { session: "thread", sessionId: "thread-id", project: peer, agent: "codex", contour: 50, status: "idle", pct: 10, transport: "stream" },
         { session: "quiet", sessionId: "quiet-id", project: peer, contour: 50, status: "idle", pct: 5, transport: "stream" },
         { session: "outside", sessionId: "outside-id", project, contour: 50, outside: true, status: "idle", pct: 5 },
-        { session: "helper", sessionId: "helper-id", project: peer, parent: { session: "lab-docs" }, contour: 50, status: "idle", pct: 3, transport: "stream" },
+        { session: "helper", sessionId: "helper-id", project: peer, parent: { session: "lab-docs" }, contour: 50, status: "idle", pct: 3, transport: "stream", pauseAlarm: pause },
     ];
     const snapshot = { at: Date.now()/1000, sessions, profileMap: [profile] };
     const exec = { available: true, kinds: ["project.pause", "session.open", "session.close", "session.restart", "session.pin", "session.send"] };
@@ -57,7 +57,6 @@ export async function sessionPause() {
         if (String(url).startsWith("/api/sessions/archive")) return json({ rows: [], total: 0 });
         return new Response("", { status: 404 });
     });
-    setLiveSessions(sessions);
     const block = (p, list) => ({ key: p.id, name:p.name, project:p, group:"Services", live:list, ghosts:[] });
     const messages = [
         { role:"mail", source:"panel", from:"pause", until:next, text:"Words without a date.", pos:1 },
@@ -65,17 +64,22 @@ export async function sessionPause() {
         { role:"mail", source:"alarm", from:"pause", text:"Rang.", pos:3 },
         { role:"mail", source:"panel", from:"pause with no end", text:"Words without an end.", pos:4 },
     ];
-    render(html`<${ToastHost}><${GateHost}><${MenuHost}>
-        ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
-            <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
-        </div></div>` : html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="page">
-            <${ProjectBlock} block=${block(project,[sessions[0], sessions[1]])} profile=${profile} live=${sessions} exec=${exec} />
-        </div><//>`}
-        <div class="pausechat" style="height:500px;display:flex;flex-direction:column">
-            <${Chat} name="lab" id="lab-id" live=${sessions[0]} snapshot=${snapshot} exec=${exec} onBack=${() => {}} />
-        </div>
-        <div class="chatfeed pausefeed">${messages.map((item) => html`<${Row} key=${item.pos} item=${item} />`)}</div>
-    <//><//><//>`, mount);
+    const show = (snapshot, chat = false) => {
+        const live = snapshot.sessions;
+        setLiveSessions(live);
+        render(html`<${ToastHost}><${GateHost}><${MenuHost}>
+            ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
+                <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
+            </div></div>` : html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="page">
+                <${ProjectBlock} block=${block(project, live.filter((s) => !s.outside && s.project?.id === project.id))} profile=${profile} live=${live} exec=${exec} />
+            </div><//>`}
+            ${chat && html`<div class="pausechat" style="height:500px;display:flex;flex-direction:column">
+                <${Chat} name="lab" id="lab-id" live=${live[0]} snapshot=${snapshot} exec=${exec} onBack=${() => {}} />
+            </div>
+            <div class="chatfeed pausefeed">${messages.map((item) => html`<${Row} key=${item.pos} item=${item} />`)}</div>`}
+        <//><//><//>`, mount);
+    };
+    show(snapshot, true);
     const text = (el) => el?.textContent.replace(/\s+/g," ").trim() || "";
     // The page's clock at a time of today, and what the field of a moment
     // reads, built apart from the sheet's own arithmetic.
@@ -92,6 +96,14 @@ export async function sessionPause() {
     const pauseButton = () => mount.querySelector('[aria-label="pause sessions in project lab"]');
     const sheet = () => mount.querySelector('.sheet.on[aria-label="pause sessions"]');
     const gate = () => mount.querySelector('.sheet.on[aria-label="action confirmation"]');
+    const recipients = () => [...sheet().querySelectorAll(".pauserecipients li")].map(text);
+    const scopeOptions = () => [...sheet().querySelectorAll(".pausescope option")].map((o) => ({ value: o.value, label: text(o) }));
+    const scopeCount = () => [...sheet().querySelectorAll(".cmdnote")].map(text).find((t) => /sessions? in this scope:/.test(t));
+    const selectScope = async (value) => {
+        sheet().querySelector(".pausescope").value = value;
+        sheet().querySelector(".pausescope").dispatchEvent(new Event("change", { bubbles: true }));
+        await quiet();
+    };
     // A control of a card: its button at a desk, the sector of its pie on the
     // phone, Continue in the place of Pause on a paused card.
     const press = async (kind, name) => {
@@ -125,11 +137,9 @@ export async function sessionPause() {
         };
         pauseButton().click();
         await until(() => sheet(), "pause sheet");
-        out.projectRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
-        sheet().querySelector(".pausescope").value="group";
-        sheet().querySelector(".pausescope").dispatchEvent(new Event("change",{bubbles:true}));
-        await quiet();
-        out.groupRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
+        out.projectRecipients = recipients();
+        await selectScope("group");
+        out.groupRecipients = recipients();
         out.opened = { value: field().value, pressed: [...sheet().querySelectorAll('.pausechips .chip[aria-pressed="true"]')].map(text),
             ahead: (new Date(field().value).getTime() - Date.now()) / 60000 };
         out.choices = [...sheet().querySelectorAll(".pausepreset")].map((row) => [...row.querySelectorAll(".pauselabel, .chip")].map(text));
@@ -167,7 +177,15 @@ export async function sessionPause() {
         await press("pause", "lab-docs");
         await until(() => sheet(), "pause sheet of one session");
         out.sessionScope = sheet().querySelector(".pausescope").value;
-        out.sessionRecipients = [...sheet().querySelectorAll(".pauserecipients li")].map(text);
+        out.sessionScopes = scopeOptions();
+        out.sessionRecipients = recipients();
+        out.sessionCount = scopeCount();
+        out.aloneResumeAbsent = !sheet().querySelector(".pauseresume");
+        await selectScope("opened");
+        out.openedRecipients = recipients();
+        out.openedCount = scopeCount();
+        out.openedResume = text(sheet().querySelector(".pauseresume"));
+        await selectScope("session");
         // Half past nine: two hours is half past eleven, and until 9 is nine
         // tomorrow.
         Date.now = () => at(0, 9, 30).getTime();
@@ -181,9 +199,15 @@ export async function sessionPause() {
         }
         await press("pause", "lab-docs");
         await until(() => sheet(), "pause sheet with no end");
+        await selectScope("opened");
         out.noEnd = { ...(await choose("No end")), off: field().disabled, note: text(sheet().querySelector(".pausenoend")) };
         sheet().querySelector(".pauseapply").click();
         await until(() => sent.length===8 && !sheet(), "pause request with no end");
+        await press("pause", "lab-docs");
+        await until(() => sheet(), "resume sheet of opened sessions");
+        await selectScope("opened");
+        sheet().querySelector(".pauseresume").click();
+        await until(() => sent.length===9 && !sheet(), "resume request of opened sessions");
         out.oneSent = sent.slice(5);
         if (wide) {
             mount.querySelector(".dkproj").dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:50,clientY:100}));
@@ -195,17 +219,18 @@ export async function sessionPause() {
             sheet().querySelector(".sheetclose").click();
         }
         await quiet();
+        show({ ...snapshot, sessions: [sessions[1]] });
+        await quiet();
+        underPies();
+        await press("pause", "lab-docs");
+        await until(() => sheet(), "pause sheet without opened sessions");
+        out.noOpenedScopes = scopeOptions();
+        sheet().querySelector(".sheetclose").click();
+        await quiet();
         const sleepers = [{ ...sessions[0], sleeping: true },
             { ...sessions[1], sleeping: true, pauseAlarm: { id: "panel:docs-id", name: "pause-no-end", next: "" } }];
         const sleeping = { ...snapshot, sessions: sleepers };
-        setLiveSessions(sleepers);
-        render(html`<${ToastHost}><${GateHost}><${MenuHost}>
-            ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
-                <${SessionColumn} snapshot=${sleeping} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
-            </div></div>` : html`<${CardPieHost} snapshot=${sleeping} exec=${exec} wait=${null}><div class="page">
-                <${ProjectBlock} block=${block(project,sleepers)} profile=${profile} live=${sleepers} exec=${exec} />
-            </div><//>`}
-        <//><//><//>`, mount);
+        show(sleeping);
         await quiet();
         underPies();
         const sleepingCard = mount.querySelector('.sc[data-name="lab"]');
@@ -225,13 +250,13 @@ export async function sessionPause() {
             out.sleep.controls = ring();
             sector("pause").click();
         }
-        await until(() => sent.length === 9, "sleeping Continue");
+        await until(() => sent.length === 10, "sleeping Continue");
         out.sleep.continue = sent.at(-1);
         if (!wide) await settled();
         await press("close", "lab");
         await until(() => gate(), "sleeping Close confirmation");
         gate().querySelector(".btnrow .btn:last-child").click();
-        await until(() => sent.length === 10 && !gate(), "sleeping Close");
+        await until(() => sent.length === 11 && !gate(), "sleeping Close");
         out.sleep.close = sent.at(-1);
         if (!wide) await settled();
         return out;

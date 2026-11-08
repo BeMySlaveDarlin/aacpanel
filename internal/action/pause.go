@@ -18,13 +18,15 @@ const (
 )
 
 // Pause names a place on the map, never a client-supplied list of sessions.
-// Session narrows the project to one of its sessions, by name; the
-// service checks that the session runs in that project. NoEnd is a pause with
-// no end time: it lasts until the person lifts it.
+// Session narrows the project to one of its sessions, by name; the service
+// checks that the session runs in that project. Alone excludes the sessions
+// it opened. NoEnd is a pause with no end time: it lasts until the person
+// lifts it.
 type Pause struct {
 	Project int    `json:"project"`
 	Group   bool   `json:"group"`
 	Session string `json:"session,omitempty"`
+	Alone   bool   `json:"alone,omitempty"`
 	Until   string `json:"until"`
 	NoEnd   bool   `json:"noEnd"`
 	Resume  bool   `json:"resume"`
@@ -38,6 +40,9 @@ func (p Pause) Validate(now time.Time) (time.Time, error) {
 	}
 	if p.Session != "" && p.Group {
 		return time.Time{}, badRequest("a pause of one session cannot take in its group")
+	}
+	if p.Alone && p.Session == "" {
+		return time.Time{}, badRequest("a pause alone needs a session")
 	}
 	if p.Resume {
 		if p.Until != "" || p.NoEnd {

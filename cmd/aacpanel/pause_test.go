@@ -245,7 +245,7 @@ func TestProjectPauseOfOneSessionPG(t *testing.T) {
 		t.Fatalf("a resume of a session with no pause: %d %s", code, body)
 	}
 	for _, name := range []string{"thread", "unmapped"} {
-		code, body := postPause(t, srv, action.Pause{Project: anchor.ID, Session: name, Until: until.Format(time.RFC3339)})
+		code, body := postPause(t, srv, action.Pause{Project: anchor.ID, Session: name, Alone: true, Until: until.Format(time.RFC3339)})
 		if code != http.StatusBadRequest || !strings.Contains(body, "does not run in project") {
 			t.Fatalf("a pause of %s outside the project: %d %s", name, code, body)
 		}
@@ -253,8 +253,16 @@ func TestProjectPauseOfOneSessionPG(t *testing.T) {
 	if code, body := postPause(t, srv, action.Pause{Project: anchor.ID, Session: "gone", Until: until.Format(time.RFC3339)}); code != http.StatusConflict {
 		t.Fatalf("a pause of a session that is not live: %d %s", code, body)
 	}
-	if code, body := postPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Group: true, Resume: true}); code != http.StatusBadRequest {
-		t.Fatalf("a pause of one session with its group: %d %s", code, body)
+	for _, p := range []action.Pause{
+		{Project: anchor.ID, Session: "child", Group: true, Resume: true},
+		{Project: anchor.ID, Alone: true, Until: until.Format(time.RFC3339)},
+		{Project: anchor.ID, Alone: true, NoEnd: true},
+		{Project: anchor.ID, Alone: true, Resume: true},
+		{Project: anchor.ID, Group: true, Alone: true, Resume: true},
+	} {
+		if code, body := postPause(t, srv, p); code != http.StatusBadRequest {
+			t.Fatalf("an invalid scope %+v: %d %s", p, code, body)
+		}
 	}
 	nothingMore(t, fake)
 	if got := strings.Join(pauseJournal(t, srv)[before:], ","); got != "child,child" {
@@ -266,7 +274,7 @@ func TestProjectPauseOfOneSessionPG(t *testing.T) {
 // had the panel open, wherever they run, and it is lifted from them the same
 // way. A session one of those opened, and a session nobody opened, are left
 // alone. The worktree session opened a helper in the second project, and the
-// helper opened one more.
+// helper opened one more. Alone leaves the helper's pause untouched.
 func TestProjectPauseGoesOneStepDownPG(t *testing.T) {
 	srv, fake, anchor, until := pauseServer(t, func(other string) []map[string]any {
 		alarm := func(id, name string) pauseAlarm {
@@ -291,9 +299,29 @@ func TestProjectPauseGoesOneStepDownPG(t *testing.T) {
 		nothingMore(t, fake)
 		return strings.Join(names, ",")
 	}
+	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Alone: true, Until: until.Format(time.RFC3339)}, 1)
+	if got := recipients(1, func(req action.Request) { pauseInstruction(t, req, until) }); got != "child" {
+		t.Fatalf("the pause of a session alone reached %s", got)
+	}
+	pauses, err := srv.sessionPauses(t.Context())
+	if err != nil || len(pauses) != 1 || pauses[0].Session != "child" {
+		t.Fatalf("the saved pause of a session alone: %+v, %v", pauses, err)
+	}
+	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Alone: true, Resume: true}, 1)
+	resumeOf(t, fake, "child", "0123456789abcdef")
+	nothingMore(t, fake)
+	if pauses, err = srv.sessionPauses(t.Context()); err != nil || len(pauses) != 0 {
+		t.Fatalf("the lifted pause of a session alone: %+v, %v", pauses, err)
+	}
 	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Until: until.Format(time.RFC3339)}, 2)
 	if got := recipients(2, func(req action.Request) { pauseInstruction(t, req, until) }); got != "child,helper" {
 		t.Fatalf("the pause of a session reached %s", got)
+	}
+	sendPause(t, srv, action.Pause{Project: anchor.ID, Session: "child", Alone: true, Resume: true}, 1)
+	resumeOf(t, fake, "child", "0123456789abcdef")
+	nothingMore(t, fake)
+	if pauses, err = srv.sessionPauses(t.Context()); err != nil || len(pauses) != 1 || pauses[0].Session != "helper" || pauses[0].Until == nil || !pauses[0].Until.Equal(until) {
+		t.Fatalf("the helper's pause after lifting its opener alone: %+v, %v", pauses, err)
 	}
 	sendPause(t, srv, action.Pause{Project: anchor.ID, NoEnd: true}, 3)
 	if got := recipients(3, func(req action.Request) { noEndInstruction(t, req) }); got != "lead,child,helper" {

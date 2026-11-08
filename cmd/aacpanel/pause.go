@@ -37,7 +37,8 @@ type pauseSession struct {
 // put it in the wrong place. The pause goes one step down from the scope: a
 // session the panel opened for a session of it works for that session and
 // waits with it, wherever it runs, and is lifted with it; the sessions that
-// one opened in turn are not its parent's to stop.
+// one opened in turn are not its parent's to stop. Alone keeps a session's
+// pause and resume from reaching the sessions it opened.
 func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSession, string, error) {
 	list, err := s.db.Profiles(ctx)
 	if err != nil {
@@ -95,7 +96,7 @@ func (s *Server) pauseTargets(ctx context.Context, p action.Pause) ([]pauseSessi
 	}
 	targets := make([]pauseSession, 0)
 	for _, row := range snapshot.Sessions {
-		if !reached(row) || !(scope[row.Name] || scope[row.OpenedBy()]) || (p.Resume && row.Pause == nil) {
+		if !reached(row) || !(scope[row.Name] || (!p.Alone && scope[row.OpenedBy()])) || (p.Resume && row.Pause == nil) {
 			continue
 		}
 		targets = append(targets, row)

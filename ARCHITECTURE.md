@@ -239,8 +239,13 @@ it, and marks its live row as restarting until the cycle finishes. A repeated
 request preserves readiness and the cycle's deadlines.
 
 **A project pause belongs to the panel.** The `project.pause` service action
-resolves a project, its map group or one session, including the sessions those
-sessions had the panel open one step down, wherever they run. The journal
+resolves a project, its map group or one session. Project and group scopes
+include the sessions those sessions had the panel open one step down,
+wherever they run. A session card defaults to that session alone and offers
+its directly opened sessions as a separate scope when any are reachable.
+The request's `alone` flag requires a session; without it, that session's
+scope includes the sessions it opened. Pause and resume use the same selected
+scope; Continue on a card lifts only that session's pause. The journal
 records the scope and delivery failures. Claude receives an instruction to
 finish at a clean stopping point, start no new work and end its turn. The
 panel keeps the conversation, name, project, contour, directory, transport,

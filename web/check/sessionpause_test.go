@@ -32,11 +32,13 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 							Params       map[string]any
 						}
 					}
-					State, Ends, Header, SessionScope                                    string
-					Feed, ProjectRecipients, GroupRecipients, Options, SessionRecipients []string
-					Letters                                                              int
-					Priority, Choices                                                    [][]string
-					PauseSent, Restart, OneSent                                          []struct {
+					State, Ends, Header, SessionScope, SessionCount, OpenedCount, OpenedResume             string
+					Feed, ProjectRecipients, GroupRecipients, Options, SessionRecipients, OpenedRecipients []string
+					SessionScopes, NoOpenedScopes                                                          []struct{ Value, Label string }
+					AloneResumeAbsent                                                                      bool
+					Letters                                                                                int
+					Priority, Choices                                                                      [][]string
+					PauseSent, Restart, OneSent                                                            []struct {
 						Kind, Target string
 						Params       map[string]any
 					}
@@ -76,7 +78,7 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 					}
 				}
 			}
-			if c := p.Sleep.Continue; c.Kind != "project.pause" || c.Target != "lab" || c.Params["session"] != "lab" || c.Params["project"] != float64(501) || c.Params["resume"] != true {
+			if c := p.Sleep.Continue; c.Kind != "project.pause" || c.Target != "lab" || c.Params["session"] != "lab" || c.Params["project"] != float64(501) || c.Params["alone"] != true || c.Params["resume"] != true {
 				t.Errorf("sleeping Continue: %+v", c)
 			}
 			if c := p.Sleep.Close; c.Kind != "session.close" || c.Target != "lab" {
@@ -102,7 +104,7 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			}
 			// A pause reaches the sessions its sessions had the panel open, the
 			// helper of lab-docs in the other project among them.
-			if strings.Join(p.ProjectRecipients, ",") != "lab · paused,lab-docs,helper" || strings.Join(p.GroupRecipients, ",") != "lab · paused,lab-docs,peer,quiet,helper" {
+			if strings.Join(p.ProjectRecipients, ",") != "lab · paused,lab-docs,helper · paused" || strings.Join(p.GroupRecipients, ",") != "lab · paused,lab-docs,peer,quiet,helper · paused" {
 				t.Errorf("pause scope: %v / %v", p.ProjectRecipients, p.GroupRecipients)
 			}
 			wantChoices := [][]string{{"For", "1 h", "2 h", "4 h", "6 h", "12 h"}, {"Until the morning", "8:00", "9:00", "10:00"},
@@ -159,25 +161,46 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			if screen.name == "desk" && !p.Menu {
 				t.Errorf("pause entry availability: %+v", p)
 			}
-			// One session is paused and continued by its card, by the same
-			// action addressed to the session within its project; the helper
-			// it opened is paused with it.
-			if p.SessionScope != "session" || strings.Join(p.SessionRecipients, ",") != "lab-docs,helper" {
+			// The card defaults to one session; the sessions it opened belong
+			// to a scope of their own, available only when it reaches some.
+			if p.SessionScope != "session" || strings.Join(p.SessionRecipients, ",") != "lab-docs" || p.SessionCount != "1 session in this scope:" {
 				t.Errorf("the pause of one session opens on %q for %v", p.SessionScope, p.SessionRecipients)
 			}
-			if len(p.OneSent) != 3 {
+			if strings.Join(p.OpenedRecipients, ",") != "lab-docs,helper · paused" || p.OpenedCount != "2 sessions in this scope:" || p.OpenedResume != "Resume 1" || !p.AloneResumeAbsent {
+				t.Errorf("the scope of opened sessions: recipients %v, count %q, resume %q, alone resume absent %v", p.OpenedRecipients, p.OpenedCount, p.OpenedResume, p.AloneResumeAbsent)
+			}
+			for _, c := range []struct {
+				name string
+				got  []struct{ Value, Label string }
+				want string
+			}{
+				{"with opened sessions", p.SessionScopes, "session:This session · lab-docs,opened:With the 1 it opened · lab-docs,project:This project · lab,group:Whole group · Services"},
+				{"without opened sessions", p.NoOpenedScopes, "session:This session · lab-docs,project:This project · lab,group:Whole group · Services"},
+			} {
+				var options []string
+				for _, o := range c.got {
+					options = append(options, o.Value+":"+o.Label)
+				}
+				if strings.Join(options, ",") != c.want {
+					t.Errorf("the scopes %s: %+v", c.name, c.got)
+				}
+			}
+			if len(p.OneSent) != 4 {
 				t.Fatalf("the pause of one session sent %+v", p.OneSent)
 			}
 			if c := p.OneSent[0]; c.Kind != "project.pause" || c.Params["project"] != float64(501) || c.Params["session"] != "lab" ||
-				c.Params["resume"] != true || c.Params["group"] != nil {
+				c.Params["alone"] != true || c.Params["resume"] != true || c.Params["group"] != nil {
 				t.Errorf("the continue of the paused card sent %+v", c)
 			}
 			if c := p.OneSent[1]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || !sameMoment(c.Params["until"], p.Expect.NineTomorrowAt) ||
-				c.Params["group"] != nil || c.Params["noEnd"] != nil {
+				c.Params["alone"] != true || c.Params["group"] != nil || c.Params["noEnd"] != nil {
 				t.Errorf("the pause of one session sent %+v, want until %s", c, p.Expect.NineTomorrowAt)
 			}
-			if c := p.OneSent[2]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || c.Params["noEnd"] != true || c.Params["until"] != nil {
+			if c := p.OneSent[2]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || c.Params["alone"] != false || c.Params["noEnd"] != true || c.Params["until"] != nil {
 				t.Errorf("the pause with no end sent %+v", c)
+			}
+			if c := p.OneSent[3]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || c.Params["alone"] != false || c.Params["resume"] != true || c.Params["group"] != nil || c.Params["until"] != nil {
+				t.Errorf("the resume of opened sessions sent %+v", c)
 			}
 		})
 	}

@@ -17,11 +17,12 @@ function groupOf(project, profile) {
 // pauseRows lists the sessions a pause reaches: those of the project,
 // of its whole group, or the one session it is given, and one step down the
 // sessions any of them had the panel open, wherever those run, as the
-// service takes them.
-export function pauseRows(project, profile, sessions = [], group = false, only = null) {
-    const reached = (s) => !s.outside && s.sessionId;
+// service takes them. Alone excludes the sessions the given session opened.
+export function pauseRows(project, profile, sessions = [], group = false, only = null, alone = false) {
+    const reached = (s) => !s.outside && s.session && s.sessionId;
     const projects = group ? groupOf(project, profile)?.projects || [project] : [project];
     const scope = only ? [only].filter(reached) : sessions.filter((s) => reached(s) && projects.some((p) => sessionsOf(p, [s]).length));
+    if (alone) return scope;
     const names = new Set(scope.map((s) => s.session));
     return [...scope, ...sessions.filter((s) => reached(s) && !names.has(s.session) && names.has(openedBy(s)))];
 }
@@ -40,7 +41,7 @@ export function sessionPauseWhy(s, project, exec) {
 
 // continueSession lifts the pause of one session now, before its end.
 export function continueSession(run, project, s) {
-    return run("project.pause", project.session || project.name, { project: project.id, session: s.session, resume: true });
+    return run("project.pause", project.session || project.name, { project: project.id, session: s.session, alone: true, resume: true });
 }
 
 // continueProject lifts the pause of every session of a project now.
@@ -93,12 +94,15 @@ export function PauseSheet({ project, profile, sessions = [], session = null, ex
     const [scope, setScope] = useState(session ? "session"
         : !pauseRows(project, profile, sessions).length && group ? "group" : "project");
     const whole = scope === "group";
+    const one = scope === "session" || scope === "opened";
+    const alone = scope === "session";
+    const opened = session ? pauseRows(project, profile, sessions, false, session).length - 1 : 0;
     const [value, setValue] = useState(() => localInput(new Date(Date.now() + 3600000)));
     const [chosen, setChosen] = useState("1 h");
     const noEnd = chosen === NO_END;
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
-    const rows = pauseRows(project, profile, sessions, whole, scope === "session" ? session : null);
+    const rows = pauseRows(project, profile, sessions, whole, one ? session : null, alone);
     const paused = rows.filter((s) => s.pauseAlarm);
     const why = whyNot(exec, "project.pause");
     const at = new Date(value).getTime();
@@ -106,7 +110,7 @@ export function PauseSheet({ project, profile, sessions = [], session = null, ex
     const send = async (resume) => {
         setBusy(true);
         const reply = await run("project.pause", project.session || project.name, {
-            project: project.id, ...(scope === "session" ? { session: session.session } : { group: whole }),
+            project: project.id, ...(one ? { session: session.session, alone } : { group: whole }),
             ...(resume ? { resume: true } : noEnd ? { noEnd: true } : { until: pauseUntil(value) }),
         });
         setBusy(false);
@@ -123,6 +127,7 @@ export function PauseSheet({ project, profile, sessions = [], session = null, ex
             <label class="cmdnote">Scope
                 <select class="rnname cxfield pausescope" value=${scope} onChange=${(e) => { setScope(e.currentTarget.value); setResult(null); }}>
                     ${session && html`<option value="session">This session · ${shownName(session)}</option>`}
+                    ${opened > 0 && html`<option value="opened">With the ${opened} it opened · ${shownName(session)}</option>`}
                     <option value="project">This project · ${project.name}</option>
                     ${group && html`<option value="group">Whole group · ${group.name}</option>`}
                 </select>
