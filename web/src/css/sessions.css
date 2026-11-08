@@ -834,3 +834,8 @@ button.scstub { cursor: pointer; }
 .pauselabel { font-size: var(--t-xs); color: var(--ink-faint); }
 .pausechips { display: flex; flex-wrap: wrap; gap: .3rem; }
 .pausechips .chip { padding: .25rem .6rem; font-size: var(--t-xs); }
+.pausesheet .cxfield { display: block; width: 100%; margin-top: .3rem; }
+/* Who a pause reaches, held to a few lines however many it is, and what the
+   service said it could not reach. */
+.pauserecipients { max-height: 8rem; overflow: auto; font-size: var(--t-sm); }
+.pauseresult { color: var(--warn); }

@@ -192,6 +192,11 @@
 .gtchoice { margin-top: .8rem; }
 .gtchoice .pkscope { margin: 0; }
 .gtchoice .hint { margin: .35rem 0 0; }
+/* A pick of a few long options stands as a list: each its title and, under
+   it, what it does, read from the left. */
+.gtchoicelist .pkscope { flex-direction: column; border: 0; background: none; gap: .4rem; }
+.gtchoicelist .pkseg { width: 100%; white-space: normal; text-align: left; border: var(--hair) solid var(--line); border-radius: var(--r-small); padding: .7rem; }
+.gtchoicelist small { display: block; margin-top: .3rem; font-size: var(--t-sm); font-weight: 400; color: var(--ink-dim); }
 .gtmark { margin-left: .4rem; font-size: var(--t-xs); font-weight: 400; color: var(--ink-faint); }
 
 .btnrow { display: flex; gap: .4rem; margin-top: .8rem; }
