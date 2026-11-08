@@ -74,6 +74,8 @@ if _reason:
 # directory of the run, where nothing is; a test that needs them names its own.
 os.environ["XDG_RUNTIME_DIR"] = os.path.join(os.environ["AACP_STATE_DIR"], "run")
 os.environ["AACP_CODEX_HOMES"] = os.path.join(os.environ["AACP_STATE_DIR"], "codex")
+# A wrapper's token owner marks belong to live processes, never to the run.
+os.environ["AACP_TOKEN_OWNERS_DIR"] = ""
 
 
 class Reason(unittest.TestCase):

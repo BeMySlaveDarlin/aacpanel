@@ -811,6 +811,13 @@ func sessionsByContour(payload []byte, list []store.Profile) []byte {
 	}
 	for _, row := range rows {
 		putContour(row, byDir)
+		var account map[string]json.RawMessage
+		if json.Unmarshal(row["account"], &account) == nil && account != nil {
+			putContour(account, byDir)
+			if raw, err := json.Marshal(account); err == nil {
+				row["account"] = raw
+			}
+		}
 	}
 	raw, err := json.Marshal(rows)
 	if err != nil {

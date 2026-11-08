@@ -125,6 +125,35 @@ def codex_account(home):
     return {"profile": codex_contour(owner), "codexHome": owner}
 
 
+def claude_account(pid, start):
+    """Returns the token owner a wrapper recorded for this exact process, or None.
+
+    A contour can borrow another account's token. Its launch mark follows the
+    process, since changing the wrapper's routing does not change a running
+    session's credentials. Reused pids must not inherit an earlier owner's mark.
+    """
+    directory = os.environ.get("AACP_TOKEN_OWNERS_DIR")
+    if not directory or not start or type(pid) is not int or pid <= 0:
+        return None
+    try:
+        with open(os.path.join(os.path.expanduser(directory), f"{pid}.json"), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if (not isinstance(data, dict) or type(data.get("pid")) is not int
+            or data["pid"] != pid or str(data.get("procStart")) != start):
+        return None
+    owner = data.get("owner")
+    if not isinstance(owner, str) or not owner.strip():
+        return None
+    account = {"profile": owner}
+    for name, config_dir in profiles():
+        if name == owner:
+            account["configDir"] = config_dir
+            break
+    return account
+
+
 def config_dirs():
     """Returns the config directories of every contour, the personal one first."""
     return [d for _, d in profiles()]

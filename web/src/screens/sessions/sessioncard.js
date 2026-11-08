@@ -328,9 +328,12 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
     // page's label names its account only when the contour matches.
     // Codex can share another contour's auth file, whose home names its
     // owning contour in the map independently of the thread's own page.
+    // A claude wrapper can name another token owner too, mapped by the
+    // owner's config directory rather than the session's contour.
     const owner = s.account?.codexHome && profiles.find((p) => p.codexHome === s.account.codexHome);
+    const claudeOwner = s.account?.contour && profiles.find((p) => p.id === s.account.contour);
     const account = isCodex(s) ? owner?.profile || s.account?.profile || ""
-        : (s.contour && profile?.id === s.contour && profile.profile) || s.profile || "";
+        : claudeOwner?.profile || s.account?.profile || (s.contour && profile?.id === s.contour && profile.profile) || s.profile || "";
     const pin = pinOf(s, sessions.length ? sessions : [s], wait);
     const time = timeOf(state);
     const timeTone = state.tone === "wait" ? "wait" : state.unseen ? "unseen" : ["idle", "paused"].includes(state.tone) ? "quiet" : "";

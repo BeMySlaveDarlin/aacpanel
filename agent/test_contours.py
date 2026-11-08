@@ -548,6 +548,96 @@ class Contours(unittest.TestCase):
         found = agent.sessions()["sessions"]
         self.assertEqual([s.get("profile") for s in found], ["work"])
 
+    def token_owner_session(self):
+        work = self.contour()
+        self.owner_pid, self.owner_start = 4247, 12345
+        self.owners = os.path.join(self.root, "owners")
+        os.makedirs(self.owners)
+        environment = patch.dict(os.environ, {
+            "AACP_TOKEN_OWNERS_DIR": self.owners,
+            "XDG_RUNTIME_DIR": os.path.join(self.root, "run"),
+            "XDG_STATE_HOME": os.path.join(self.root, "state"),
+        })
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.addCleanup(setattr, agent.ctx, "PROC", agent.ctx.PROC)
+        agent.ctx.PROC = os.path.join(self.root, "proc")
+        proc = os.path.join(agent.ctx.PROC, str(self.owner_pid))
+        os.makedirs(proc)
+        with open(os.path.join(proc, "stat"), "w", encoding="utf-8") as f:
+            f.write(f"{self.owner_pid} (claude (wrapper)) S " + "0 " * 18 + f"{self.owner_start}\n")
+        with open(os.path.join(work, "sessions", f"{self.owner_pid}.json"), "w", encoding="utf-8") as f:
+            json.dump({"pid": self.owner_pid, "procStart": self.owner_start, "sessionId": UUID_B,
+                       "name": "site", "cwd": "/srv/proj/Labs/site"}, f)
+        self.addCleanup(setattr, agent.ctx, "sessions", agent.ctx.sessions)
+        agent.ctx.sessions = lambda: {
+            "sessions": [{"session": "site", "sessionId": UUID_B}], "notes": [],
+        }
+        return work
+
+    def owner_mark(self, **fields):
+        data = {"pid": self.owner_pid, "procStart": self.owner_start, "profile": "work", "owner": "personal"}
+        data.update(fields)
+        with open(os.path.join(self.owners, f"{self.owner_pid}.json"), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+    def test_a_borrowed_token_names_its_owner_without_moving_the_session(self):
+        work = self.token_owner_session()
+        self.owner_mark()
+
+        row = agent.sessions()["sessions"][0]
+        self.assertEqual(row.get("account"), {"profile": "personal", "configDir": self.home})
+        self.assertEqual((row["profile"], row["configDir"]), ("work", work))
+
+    def test_a_token_owner_follows_the_registry_config_directory(self):
+        work = self.token_owner_session()
+        self.registry(("renamed", work, "-"))
+        self.owner_mark(owner="renamed")
+
+        row = agent.sessions()["sessions"][0]
+        self.assertEqual(row.get("account"), {"profile": "renamed", "configDir": work})
+
+    def test_an_unlisted_token_owner_keeps_its_name(self):
+        self.token_owner_session()
+        self.owner_mark(owner="external")
+        self.assertEqual(agent.sessions()["sessions"][0].get("account"), {"profile": "external"})
+
+    def test_a_token_owner_mark_of_another_process_start_is_ignored(self):
+        work = self.token_owner_session()
+        self.owner_mark(procStart=self.owner_start - 1)
+
+        row = agent.sessions()["sessions"][0]
+        self.assertNotIn("account", row)
+        self.assertEqual((row["profile"], row["configDir"]), ("work", work))
+
+    def test_missing_and_invalid_token_owner_marks_keep_the_directory_account(self):
+        work = self.token_owner_session()
+        cases = [None, b"{", b"\xff", b"[]", b"null"]
+        for fields in ({"pid": 42}, {"pid": True}, {"procStart": None}, {"owner": ""}, {"owner": []}):
+            self.owner_mark(**fields)
+            with open(os.path.join(self.owners, f"{self.owner_pid}.json"), "rb") as f:
+                cases.append(f.read())
+        path = os.path.join(self.owners, f"{self.owner_pid}.json")
+        os.unlink(path)
+        for raw in cases:
+            with self.subTest(mark=raw):
+                if raw is not None:
+                    with open(path, "wb") as f:
+                        f.write(raw)
+                row = agent.sessions()["sessions"][0]
+                self.assertNotIn("account", row)
+                self.assertEqual((row["profile"], row["configDir"]), ("work", work))
+                self.assertEqual(agent.sessions()["notes"], [])
+
+    def test_an_empty_token_owners_parameter_disables_the_marks(self):
+        work = self.token_owner_session()
+        self.owner_mark()
+        os.environ["AACP_TOKEN_OWNERS_DIR"] = ""
+
+        row = agent.sessions()["sessions"][0]
+        self.assertNotIn("account", row)
+        self.assertEqual((row["profile"], row["configDir"]), ("work", work))
+
     def test_a_live_session_knows_its_contour(self):
         work = self.contour()
         with open(os.path.join(work, "sessions", "4244.json"), "w", encoding="utf-8") as f:

@@ -303,8 +303,17 @@ def sessions():
     versions = live_session_version()
     places = live_session_places()
     live_files = live_session_files()
-    opened_keys = {s["sessionId"]: f"process-{s['pid']}-{ctx.proc_start(s['pid'])}"
-                   for s in live_files if s.get("sessionId")}
+    opened_keys, accounts = {}, {}
+    for live in live_files:
+        sid = live.get("sessionId")
+        if not sid:
+            continue
+        pid = live["pid"]
+        start = ctx.proc_start(pid)
+        opened_keys[sid] = f"process-{pid}-{start}"
+        account = contours.claude_account(pid, start)
+        if account:
+            accounts[sid] = account
     readings = resources.of_sessions(live_files)
     held_by = observers.held_by_conversation()
     seen_transcripts = set()
@@ -319,6 +328,8 @@ def sessions():
             s["openedKey"] = opened_keys[sid]
         if sid in readings and s.get("agent") != "codex":
             s["res"] = readings[sid]
+        if sid in accounts and s.get("agent") != "codex":
+            s["account"] = accounts[sid]
         if sid:
             found = profiles.get(sid)
             if found:

@@ -882,6 +882,8 @@ account and `*` takes every directory no other line does. The collector reads
 the accounts from it after `AACP_CLAUDE_HOME`, and a new contour on the map is
 taken from them — without a registry a contour's paths are typed by hand.
 
+`AACP_TOKEN_OWNERS_DIR` optionally names the wrapper's directory of `<pid>.json` marks (`pid`, `procStart`, `profile`, `owner`); the collector checks `/proc/<pid>/stat` before using the owner for the account badge, and empty disables it.
+
 `AACP_CODEX_HOMES` names the codex accounts the panel watches, joined by `:`
 like the claude ones; unset or empty, it is `~/.codex`. With codex on the
 machine the installer asks *Which codex homes does the panel watch?* and writes

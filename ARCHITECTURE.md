@@ -2509,6 +2509,8 @@ and its codex home so the screen can use the profile map's label even when
 the thread runs in another contour. A missing file or a broken link leaves
 the badge absent.
 
+**A Claude card can name the token owner recorded by a wrapper.** With `AACP_TOKEN_OWNERS_DIR` set, the collector reads `<pid>.json` (`pid`, `procStart`, `profile`, `owner`), checks the pid and its start against `/proc/<pid>/stat`, and maps the owner through the contour registry; absent, invalid or stale marks leave the config directory's badge, and an empty parameter disables the lookup.
+
 **A session is recognised by its process, not by the freshness of a file**:
 session names are reused between runs, and yesterday's conversation under the
 same name is a different conversation.
