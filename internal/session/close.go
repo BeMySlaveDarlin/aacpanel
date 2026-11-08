@@ -30,7 +30,7 @@ const closeRules = " Without name it closes only this session; with name, only a
 	"A Codex helper stays open for follow-up turns until its parent or person explicitly asks it to close. " +
 	"Save the work and give the report first. Agents, workflows, background commands and observers hold the " +
 	"close: wait for them or report what is running. anyway: true ends that work too, only on the person's word. " +
-	"Alarms do not hold the close but end with the session. Do not close just to await a reply; end the turn. " +
+	"Alarms do not hold this close and end with it; Claude's panel sleep keeps them. Do not close just to await a reply; end the turn. " +
 	"Use session_open to start or resume another conversation. After a child close, this session can continue."
 
 // CloseDescription is the tool's own word to the model.

@@ -85,13 +85,37 @@ func (f *fakeUnits) wasStopped(unit string) bool {
 // fakeOwners stands in for the sessions of the machine: one session, alive
 // while alive says so, that keeps every letter it is given.
 type fakeOwners struct {
-	mu      sync.Mutex
-	alive   bool
-	unknown bool
-	refuse  error
-	wakeErr error
-	wakes   []string
-	from    []string
+	mu       sync.Mutex
+	alive    bool
+	unknown  bool
+	refuse   error
+	wakeErr  error
+	wakes    []string
+	from     []string
+	resumed  *Owner
+	woken    []Owner
+	searches int
+}
+
+func (f *fakeOwners) Find(_ context.Context, conversation string) (Owner, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.searches++
+	if f.resumed != nil && f.resumed.Conversation == conversation {
+		return *f.resumed, true, nil
+	}
+	return Owner{}, false, nil
+}
+
+func (f *fakeOwners) FindAll(_ context.Context, conversations []string) (map[string]Owner, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.searches++
+	owners := map[string]Owner{}
+	if f.resumed != nil && slices.Contains(conversations, f.resumed.Conversation) {
+		owners[f.resumed.Conversation] = *f.resumed
+	}
+	return owners, nil
 }
 
 func (f *fakeOwners) Resolve(_ context.Context, c Caller) (Owner, error) {
@@ -101,16 +125,20 @@ func (f *fakeOwners) Resolve(_ context.Context, c Caller) (Owner, error) {
 	return Owner{Session: "lab", Conversation: c.Conversation, PID: c.PID, Start: "77", Codex: c.Codex}, nil
 }
 
-func (f *fakeOwners) Alive(Owner) (bool, bool) {
+func (f *fakeOwners) Alive(owner Owner) (bool, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if owner.Tmux {
+		f.searches++
+	}
 	return f.alive, !f.unknown
 }
 
-func (f *fakeOwners) Wake(_ context.Context, _ Owner, from, text string) error {
+func (f *fakeOwners) Wake(_ context.Context, owner Owner, from, text string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.wakes, f.from = append(f.wakes, text), append(f.from, from)
+	f.woken = append(f.woken, owner)
 	return f.wakeErr
 }
 
@@ -494,7 +522,7 @@ func TestRefusedWakesKeepTheirLinesAndRingsUntilTheAttemptLimit(t *testing.T) {
 				batch: []string{"the run finished"}, end: &Ending{}}
 			for attempt := 1; attempt < wakeTries; attempt++ {
 				k.wake(t.Context(), w, &w.rec, true)
-				k.lookAtAlarm(t.Context(), ring)
+				k.lookAtAlarm(t.Context(), ring, nil)
 				if w.tries != attempt || w.rec.Woken != 0 || !w.rec.LastWake.IsZero() || w.rec.Ended != nil ||
 					!slices.Equal(w.batch, []string{"the run finished"}) {
 					t.Fatalf("attempt %d consumed the refused observer wake: %+v", attempt, w)
@@ -507,7 +535,7 @@ func TestRefusedWakesKeepTheirLinesAndRingsUntilTheAttemptLimit(t *testing.T) {
 				owners.wakeErr = nil
 			}
 			k.wake(t.Context(), w, &w.rec, true)
-			k.lookAtAlarm(t.Context(), ring)
+			k.lookAtAlarm(t.Context(), ring, nil)
 			if w.tries != 0 || len(w.batch) != 0 || w.rec.Ended == nil || ring.tries != 0 || !ring.rec.Next.After(due) {
 				t.Fatal("the last attempt did not retire the wake and move the repeat on")
 			}

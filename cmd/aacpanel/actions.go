@@ -99,6 +99,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 	req := action.Request{Kind: action.Kind(body.Kind), Target: body.Target}
+	if internal, _ := r.Context().Value(sleepActionKey{}).(bool); internal && body.Params["sleeping"] == true {
+		req.Sleeping = true
+		req.Conversation, _ = body.Params["conversation"].(string)
+	}
 	if req.Kind == action.SessionReady {
 		s.sessionReady(w, r, body.Target, body.Params)
 		return
@@ -141,7 +145,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			req.Conversation = req.Caller
 		}
 	}
-	if why := s.codexOutOfReach(req.Target); why != "" {
+	if why := s.codexOutOfReach(req.Target); why != "" && !req.Sleeping {
 		http.Error(w, why, http.StatusConflict)
 		return
 	}
@@ -238,6 +242,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 		req.Work = work
 		params = map[string]any{"work": work.ID}
+		if req.Sleeping {
+			params["sleeping"], params["conversation"] = true, req.Conversation
+		}
 		if work.Line != "" {
 			params["line"] = work.Line
 		}

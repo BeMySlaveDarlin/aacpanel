@@ -60,6 +60,9 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Sleeping && ((r.Kind != SessionClose && r.Kind != AlarmCancel) || !safeUUID(r.Conversation) || r.Caller != "") {
+		return badRequest("a sleep close or sleeping alarm cancellation needs its conversation and no caller")
+	}
 	if r.Report != nil && (r.Kind != SessionLetter || !safeUUID(r.Report.Thread) || !safeUUID(r.Report.Parent) || r.Conversation != r.Report.Parent || r.From != "" || r.FromCodex != nil || r.Caller != "" || r.ParentQuestion != "") {
 		return badRequest("a helper report needs its child and recipient conversations and has no other sender")
 	}
@@ -98,7 +101,7 @@ func (r Request) Validate() error {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
-		case AskKinds, AskTerms, AskSecrets, AskCodexModels, AskHeavy, AskHeadroom:
+		case AskKinds, AskTerms, AskSecrets, AskCodexModels, AskHeavy, AskHeadroom, AskSleepingAlarms:
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}

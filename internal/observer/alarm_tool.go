@@ -22,7 +22,7 @@ const (
 // The alarm tools' lines in the server's word to every session that has them.
 const (
 	AlarmSetInstructions = "Use alarm_set for 'come back in ten minutes' or a repeated check; it wakes this " +
-		"session, not the phone, so end the turn instead of sleeping."
+		"session, not the phone, so end the turn instead of sleeping. Panel sleep keeps it; its ring lifts the pause."
 	AlarmListInstructions   = "Use alarm_list to check scheduled wakes before adding, changing or cancelling one."
 	AlarmCancelInstructions = "Use alarm_cancel when a timed follow-up is no longer needed or before replacing its schedule."
 )
@@ -39,7 +39,8 @@ func alarmSetDescription(busy string) string {
 		"work or end the turn, without sleeping or polling. For a command's result use observer_start; to call " +
 		"the person use notify. This is a session wake, not a phone reminder. The letter is from the alarm, " +
 		"not the person; " + busy + " It survives a panel restart and delivers an overdue ring on return, " +
-		"but ends when this session closes or restarts. Cancel repeating checks with alarm_cancel when done. " + wakeTransports
+		"and survives Claude's panel sleep: a ring wakes the conversation and lifts its pause. Other closes " +
+		"and restarts end it. Cancel repeating checks with alarm_cancel when done. " + wakeTransports
 }
 
 // The list's and the cancel's own words to the model.

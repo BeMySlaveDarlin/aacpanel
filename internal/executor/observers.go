@@ -37,6 +37,46 @@ func (e *Executor) Observers() *observer.Keeper {
 
 type observerOwners struct{ e *Executor }
 
+func (o observerOwners) FindAll(ctx context.Context, conversations []string) (map[string]observer.Owner, error) {
+	all, err := allLiveSessions()
+	if err != nil {
+		return nil, err
+	}
+	wanted := make(map[string]bool, len(conversations))
+	for _, conversation := range conversations {
+		wanted[conversation] = true
+	}
+	owners := make(map[string]observer.Owner, len(conversations))
+	for _, s := range all {
+		if !wanted[s.SessionID] {
+			continue
+		}
+		if owner, err := claudeObserverOwner(ctx, s); err == nil {
+			owners[s.SessionID] = owner
+			delete(wanted, s.SessionID)
+		}
+	}
+	return owners, nil
+}
+
+func (o observerOwners) Find(ctx context.Context, conversation string) (observer.Owner, bool, error) {
+	all, err := allLiveSessions()
+	if err != nil {
+		return observer.Owner{}, false, err
+	}
+	for _, s := range all {
+		if s.SessionID == conversation {
+			owner, err := o.Resolve(ctx, observer.Caller{Conversation: conversation, PID: s.PID})
+			return owner, err == nil, err
+		}
+	}
+	return observer.Owner{}, false, nil
+}
+
+func (e *Executor) SleepingAlarms(context.Context) (*action.SleepingAlarms, error) {
+	return e.Observers().SleepingAlarms(), nil
+}
+
 // Resolve finds the live session a call names: a claude by its process and
 // the conversation it runs, a codex by the thread a daemon holds.
 func (o observerOwners) Resolve(ctx context.Context, c observer.Caller) (observer.Owner, error) {
@@ -56,29 +96,33 @@ func (o observerOwners) Resolve(ctx context.Context, c observer.Caller) (observe
 		if s.PID != c.PID || s.SessionID != c.Conversation {
 			continue
 		}
-		tmux := !onStream(s)
-		if tmux {
-			if _, err := tmuxPaneFor(ctx, s.PID); err != nil {
-				return observer.Owner{}, err
-			}
-		} else {
-			st, err := streamState(ctx, s)
-			if err != nil {
-				return observer.Owner{}, err
-			}
-			if st.Protocol < stream.LettersSince {
-				return observer.Owner{}, fmt.Errorf("session %s was started before the panel could wake it, and it "+
-					"keeps the program it started with until it ends: restart the session (the conversation is kept) "+
-					"and call again then", s.Name)
-			}
-		}
-		start, ok := procStart(s.PID)
-		if !ok {
-			return observer.Owner{}, fmt.Errorf("the process of session %s is gone", s.Name)
-		}
-		return observer.Owner{Session: s.Name, Conversation: s.SessionID, PID: s.PID, Start: start, Tmux: tmux}, nil
+		return claudeObserverOwner(ctx, s)
 	}
 	return observer.Owner{}, fmt.Errorf("no live session runs conversation %s in process %d", c.Conversation, c.PID)
+}
+
+func claudeObserverOwner(ctx context.Context, s liveSession) (observer.Owner, error) {
+	tmux := !onStream(s)
+	if tmux {
+		if _, err := tmuxPaneFor(ctx, s.PID); err != nil {
+			return observer.Owner{}, err
+		}
+	} else {
+		st, err := streamState(ctx, s)
+		if err != nil {
+			return observer.Owner{}, err
+		}
+		if st.Protocol < stream.LettersSince {
+			return observer.Owner{}, fmt.Errorf("session %s was started before the panel could wake it, and it "+
+				"keeps the program it started with until it ends: restart the session (the conversation is kept) "+
+				"and call again then", s.Name)
+		}
+	}
+	start, ok := procStart(s.PID)
+	if !ok {
+		return observer.Owner{}, fmt.Errorf("the process of session %s is gone", s.Name)
+	}
+	return observer.Owner{Session: s.Name, Conversation: s.SessionID, PID: s.PID, Start: start, Tmux: tmux}, nil
 }
 
 // Alive says whether a session still runs as it did when its observer

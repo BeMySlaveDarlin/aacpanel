@@ -216,6 +216,17 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		}
 		return Response{ID: req.ID, OK: true, Headroom: room}
 	}
+	if req.Ask == AskSleepingAlarms {
+		asker, ok := s.exec.(SleepingAlarmsAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not read sleeping alarms"), 0)
+		}
+		alarms, err := asker.SleepingAlarms(ctx)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, SleepingAlarms: alarms}
+	}
 
 	if req.Ask == AskTerms {
 		asker, ok := s.exec.(TermsAsker)

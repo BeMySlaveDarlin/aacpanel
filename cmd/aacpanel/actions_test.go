@@ -50,6 +50,9 @@ func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExe
 				}
 				f.got <- req
 				out := f.resp
+				if req.Ask == action.AskSleepingAlarms && out.SleepingAlarms == nil {
+					out.SleepingAlarms = &action.SleepingAlarms{Alarms: []action.SleepingAlarm{}}
+				}
 				out.ID = req.ID
 				json.NewEncoder(conn).Encode(out)
 			}()

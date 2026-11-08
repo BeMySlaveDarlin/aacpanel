@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/observer"
 	"aacpanel/internal/stream"
 )
 
@@ -35,7 +37,7 @@ type agentProc struct {
 // its conversation, and the close goes ahead only while the session still
 // runs it: a late repeat of the call would otherwise close a session brought
 // up under the name since.
-func (e *Executor) sessionClose(ctx context.Context, target, conversation string) (string, error) {
+func (e *Executor) sessionClose(ctx context.Context, target, conversation string, sleeping bool) (detail string, err error) {
 	p, err := findAgent(target)
 	if err != nil {
 		return "", err
@@ -50,6 +52,21 @@ func (e *Executor) sessionClose(ctx context.Context, target, conversation string
 		}
 		if err := stream.KeepOpenedConversation(key, conversation); err != nil {
 			return "", fmt.Errorf("the closing session's opening could not be saved: %w", err)
+		}
+	}
+	if sleeping {
+		start, present := procStart(p.Agent)
+		if !present {
+			return "", fmt.Errorf("the process of session %s is gone", target)
+		}
+		owner := observer.Owner{Session: target, Conversation: conversation, PID: p.Agent, Start: start}
+		defer func() {
+			if err != nil {
+				err = errors.Join(err, e.Observers().SetAlarmsSleeping(owner, false))
+			}
+		}()
+		if err = e.Observers().SetAlarmsSleeping(owner, true); err != nil {
+			return "", err
 		}
 	}
 	if s, err := findOneLiveSession(target); err == nil && onStream(s) {

@@ -249,8 +249,9 @@ wakes on its own. A fresh census must show a completed turn
 after that instruction, no pending question or permission, and no agents,
 workflows, background commands or observers running. Alarms and wake-ups run
 nothing and do not hold sleep. The panel then uses `session.close` with the
-conversation check. The database marks sleep before closing so a reboot does
-not revive it as work that was running.
+conversation check and a sleep mark. The executor persists that mark in the
+conversation's alarms before closing its process. The database marks sleep
+before closing so a reboot does not revive it as work that was running.
 
 Sleeping cards remain in the sessions list, supplied by the service beside
 the host census, with `sleeping until` and the person's local clock, or
@@ -265,6 +266,15 @@ manual resume path, without waking it or lifting its pause. Its report reaches
 the parent as a letter, which wakes the parent and lifts that pause before
 delivery. Name, conversation, contour and transport remain those saved for
 sleep. A deadline or Continue sends the instruction to continue after wake-up.
+The sleep timer reads all sleeping alarms from the executor once per tick and
+wakes at the earlier of the pause deadline and the next ring, including a
+pause with no end. A ring uses the same admission and batches, lifts the pause
+and sends no continuation message: the alarm delivers its own letter after
+the process is live. The same tick cancels a sleeping alarm whose conversation
+is neither sleeping in the database nor live in the census. The alarm file
+is the only schedule; the service keeps no copy. The price is a query to the
+executor each tick and a wake that waits for memory admission and a fresh
+census before the ring can be delivered.
 
 Sleep keeps the visual parent and the opener as separate identities. The
 fresh census before closing supplies the parent, and the executor supplies
@@ -2232,7 +2242,7 @@ one in tmux or a thread of codex, with an old stream holder refused — and are
 allowed without asking: they run nothing and touch only what the session set.
 The same composer check and failed-wake retries govern a ring typed into tmux.
 
-**An alarm outlives the executor, not its session.** Each alarm is a file
+**An alarm outlives the executor and Claude's panel sleep.** Each alarm is a file
 under `~/.local/state/aacpanel/alarms/`, beside the directories of the
 observers: whose it is, its note, its span and the moment of its next ring,
 written again after every ring. An executor started again reads the files
@@ -2242,9 +2252,19 @@ rings it missed rather than making them up, and keeps its beat. A crash
 between a ring and its record costs a second letter, never a lost one. The
 owner is the observers' owner — the process of a claude by its pid and the
 start of it, the thread of a codex — and the same three looks that find it
-gone take its alarms away, so a close, a restart and the restart past the
-context cap end every alarm of the session. The price: a session started
-again to go on with its conversation sets its alarms anew. A thread whose
+gone take its alarms away, so an ordinary close, a restart and the restart
+past the context cap end every alarm of the session. A sleep close marks its
+alarms on disk before ending the process. They wait without ringing or
+expiring until a new live Claude process runs the same conversation, then
+persist its pid, process start and transport and clear the sleep mark before
+ringing. An overdue ring follows the same late-delivery and repeat rhythm
+rules as an executor outage. Sleeping alarms share one census read every five
+seconds, resolving only their conversations; each alarm uses that look's map
+instead of scanning the session files itself. A person's one turn followed by
+sleep uses the same mark again; Continue and deadline wakes preserve the alarms too. The
+price: a resume after an ordinary close still sets its alarms anew, while
+sleep needs the service to wake the conversation and reconcile abandoned
+sleeping alarms. Codex alarms keep their thread ownership. A thread whose
 daemon is not read yet is not rung until it is, and its alarms are removed
 with a line in the executor's journal after the same one-hour limit.
 

@@ -32,6 +32,8 @@ type Request struct {
 	// codex names the thread: the session is restarted or closed only while it
 	// still runs that one.
 	Conversation string `json:"conversation,omitempty"`
+	// Sleeping preserves alarms on a sleep close, or cancels a sleeping orphan.
+	Sleeping bool `json:"sleeping,omitempty"`
 
 	// AutoRestart marks the service's context cycle: its intent opens a fresh
 	// conversation. Anyway ends unfinished work after the cycle's reminder.

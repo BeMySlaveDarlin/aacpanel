@@ -800,3 +800,11 @@ func (a audited) Opening(ctx context.Context, target, conversation string) (*act
 	}
 	return asker.Opening(ctx, target, conversation)
 }
+
+func (a audited) SleepingAlarms(ctx context.Context) (*action.SleepingAlarms, error) {
+	asker, ok := a.next.(action.SleepingAlarmsAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not read sleeping alarms")
+	}
+	return asker.SleepingAlarms(ctx)
+}

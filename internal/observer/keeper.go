@@ -26,6 +26,10 @@ type Owners interface {
 	// was started: the same process of claude, the thread still held. known
 	// is false while that cannot be told — a daemon of codex not read yet.
 	Alive(o Owner) (alive, known bool)
+	// Find resolves a live Claude process for a sleeping alarm's conversation.
+	Find(ctx context.Context, conversation string) (Owner, bool, error)
+	// FindAll shares one census read across the sleeping conversations of a look.
+	FindAll(ctx context.Context, conversations []string) (map[string]Owner, error)
 	// Wake gives the session a letter signed by from, not as the words of its
 	// person.
 	Wake(ctx context.Context, o Owner, from, text string) error
@@ -42,6 +46,10 @@ type Runner interface {
 	// Units are the units of observers the user's manager has.
 	Units(ctx context.Context) ([]string, error)
 }
+
+// Sleeping owners need a file census, so they share a slower look while
+// the service admits and resumes their conversations.
+const sleepStep = 5 * time.Second
 
 // How the keeper looks at its observers.
 var (
@@ -90,9 +98,10 @@ type Keeper struct {
 	// both take the last place.
 	starting sync.Mutex
 
-	mu     sync.Mutex
-	watch  map[string]*watch
-	alarms map[string]*ringing
+	mu            sync.Mutex
+	watch         map[string]*watch
+	alarms        map[string]*ringing
+	nextSleepLook time.Time
 }
 
 // watch is one observer as the keeper follows it. A look at it and its end

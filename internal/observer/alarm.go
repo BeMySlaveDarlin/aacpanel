@@ -19,17 +19,15 @@ import (
 // command, so it needs no unit: the keeper holds it itself, keeps it on the
 // disk and rings it — wakes the session with a letter, as an observer wakes
 // one — at its moment, and every so long after when it repeats. It belongs to
-// the session that set it and ends as an observer ends, with the session: a
-// session started again knows nothing of what the one before it meant to be
-// woken for, and sets its own.
+// the session that set it. Panel sleep preserves it for the same conversation;
+// other closes and restarts end it with its process.
 
 // The bounds of the alarms. A session keeps AlarmsPerSession and the host
 // AlarmsTotal. A ring is a turn of the session's model, and EveryMin keeps a
 // repeat from becoming a loop that wakes the session faster than it works: a
 // session that has to look that often wants an observer of a command that
 // looks for it. AheadDays bounds how far ahead a ring is set: a moment past it
-// is a slip of the date, and no session runs that long without the restart
-// that ends its alarms.
+// is a slip of the date.
 const (
 	AlarmsPerSession = 10
 	AlarmsTotal      = 100
@@ -159,7 +157,9 @@ type Alarm struct {
 	// rings once.
 	Every time.Duration `json:"every,omitempty"`
 	Owner Owner         `json:"owner"`
-	Set   time.Time     `json:"set"`
+	// Sleeping keeps the schedule while panel sleep releases its process.
+	Sleeping bool      `json:"sleeping,omitempty"`
+	Set      time.Time `json:"set"`
 	// UnknownSince bounds a codex daemon's absence across executor restarts.
 	UnknownSince time.Time `json:"unknownSince,omitzero"`
 	// Next is the moment it rings next. A ring moves it on by Every past the
@@ -342,18 +342,41 @@ func (k *Keeper) CancelAlarm(ctx context.Context, c Caller, name string) (AlarmV
 // lookAtAlarms ends the alarms of sessions that are gone and rings the ones
 // whose moment came.
 func (k *Keeper) lookAtAlarms(ctx context.Context) {
+	now := k.now()
 	k.mu.Lock()
 	all := make([]*ringing, 0, len(k.alarms))
+	conversations := []string{}
+	sleepDue := !now.Before(k.nextSleepLook)
 	for _, r := range k.alarms {
+		if r.rec.Sleeping {
+			if !sleepDue {
+				continue
+			}
+			if !slices.Contains(conversations, r.rec.Owner.Conversation) {
+				conversations = append(conversations, r.rec.Owner.Conversation)
+			}
+		}
 		all = append(all, r)
 	}
+	if len(conversations) > 0 {
+		k.nextSleepLook = now.Add(sleepStep)
+	}
 	k.mu.Unlock()
+	var owners map[string]Owner
+	if len(conversations) > 0 {
+		var err error
+		owners, err = k.owners.FindAll(ctx, conversations)
+		if err != nil {
+			// An unread census proves no replacement; sleepers wait for the next look.
+			owners = nil
+		}
+	}
 	for _, r := range all {
-		k.lookAtAlarm(ctx, r)
+		k.lookAtAlarm(ctx, r, owners)
 	}
 }
 
-func (k *Keeper) lookAtAlarm(ctx context.Context, r *ringing) {
+func (k *Keeper) lookAtAlarm(ctx context.Context, r *ringing, owners map[string]Owner) {
 	r.busy.Lock()
 	defer r.busy.Unlock()
 	k.mu.Lock()
@@ -362,7 +385,30 @@ func (k *Keeper) lookAtAlarm(ctx context.Context, r *ringing) {
 	if !kept {
 		return
 	}
-	alive, why := k.ownerStatus(rec.Owner, &r.gone, &rec.UnknownSince)
+	sleeping := rec.Sleeping
+	if sleeping {
+		owner, found := owners[rec.Owner.Conversation]
+		// The closing process may still be alive after the sleep mark is
+		// written. Only its replacement can take the alarm back.
+		if !found || owner.Same(rec.Owner) {
+			return
+		}
+		rec.Owner, rec.Sleeping = owner, false
+		if err := writeAlarm(k.alarmDir, rec); err != nil {
+			log.Printf("alarm %s: the resumed owner was not written: %v", rec.Name, err)
+			return
+		}
+		r.gone, r.tries = 0, 0
+		k.mu.Lock()
+		r.rec = rec
+		k.mu.Unlock()
+	}
+	alive, why := true, ""
+	// The shared census verified a replacement already; checking each rebound
+	// alarm again would repeat that census for owners in tmux.
+	if !sleeping {
+		alive, why = k.ownerStatus(rec.Owner, &r.gone, &rec.UnknownSince)
+	}
 	if why != "" {
 		k.dropAlarm(r, why)
 		return

@@ -244,11 +244,15 @@ func (s *Server) pauseOnce(ctx context.Context, now time.Time) error {
 }
 
 func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
-	if s.exec == nil || s.host == nil {
+	if s.exec == nil || s.host == nil || s.db == nil {
 		return nil
 	}
+	alarms, err := s.exec.SleepingAlarms(ctx)
+	if err != nil {
+		return err
+	}
 	pauses, err := s.sessionPauses(ctx)
-	if err != nil || len(pauses) == 0 {
+	if err != nil || (len(pauses) == 0 && len(alarms.Alarms) == 0) {
 		return err
 	}
 	snap, err := s.livingSnapshot(now)
@@ -269,9 +273,26 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 	if err != nil {
 		return err
 	}
+	alarmDue := map[string]bool{}
+	for _, alarm := range alarms.Alarms {
+		p, paused := pauseConversation(pauses, alarm.Conversation)
+		_, live := liveConversation(snap, alarm.Conversation)
+		if (!paused || !p.Sleeping) && !live {
+			cancelCtx := context.WithValue(ctx, sleepActionKey{}, true)
+			cancelCtx = context.WithValue(cancelCtx, automaticActionKey{}, "session sleep")
+			if err := s.automaticAction(cancelCtx, string(action.AlarmCancel), alarm.Session,
+				map[string]any{"sleeping": true, "conversation": alarm.Conversation, "id": alarm.ID}); err != nil {
+				return err
+			}
+			continue
+		}
+		if paused && !now.Before(alarm.Next) {
+			alarmDue[alarm.Conversation] = true
+		}
+	}
 	due := []store.SessionPause{}
 	for _, p := range pauses {
-		if p.Until != nil && !now.Before(*p.Until) {
+		if alarmDue[p.Conversation] || (p.Until != nil && !now.Before(*p.Until)) {
 			due = append(due, p)
 			continue
 		}
@@ -305,7 +326,7 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 			}
 			sleepCtx := context.WithValue(ctx, sleepActionKey{}, true)
 			sleepCtx = context.WithValue(sleepCtx, automaticActionKey{}, "session sleep")
-			err = s.automaticAction(sleepCtx, string(action.SessionClose), p.Session, map[string]any{"conversation": p.Conversation})
+			err = s.automaticAction(sleepCtx, string(action.SessionClose), p.Session, map[string]any{"conversation": p.Conversation, "sleeping": true})
 			if err != nil {
 				if saveErr := s.db.PutSessionPause(ctx, hostID, before); saveErr != nil {
 					return saveErr
@@ -319,6 +340,9 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 		return nil
 	}
 	return s.wakePauses(ctx, due, func(p store.SessionPause) error {
+		if alarmDue[p.Conversation] {
+			return s.db.DropSessionPause(ctx, hostID, p.Conversation)
+		}
 		wakeCtx := context.WithValue(ctx, sleepActionKey{}, true)
 		wakeCtx = context.WithValue(wakeCtx, automaticActionKey{}, "pause timer")
 		if err := s.automaticAction(wakeCtx, string(action.SessionSend), p.Session, map[string]any{"text": action.PanelMessage("pause over", "The person has lifted the pause. Continue your work.")}); err != nil {

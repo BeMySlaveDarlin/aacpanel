@@ -72,6 +72,10 @@ func sleepTurn(t *testing.T, s *reviveScene, p store.SessionPause) store.Session
 	}
 	s.drain()
 	s.publish()
+	last := s.requests[len(s.requests)-1]
+	if last.Kind != action.SessionClose || !last.Sleeping || last.Conversation != p.Conversation {
+		t.Fatalf("sleep did not preserve the conversation's alarms: %+v", last)
+	}
 	rows, err := s.srv.sessionPauses(t.Context())
 	if err != nil || len(rows) != 1 || !rows[0].Sleeping || len(s.snap.Sessions) != 0 {
 		t.Fatalf("sleep: %+v live %+v %v", rows, s.snap.Sessions, err)

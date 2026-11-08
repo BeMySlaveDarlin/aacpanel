@@ -40,8 +40,9 @@ type Response struct {
 
 	Kinds []Kind `json:"kinds,omitempty"`
 
-	Permission *Permission `json:"permission,omitempty"`
-	Opening    *Opening    `json:"opening,omitempty"`
+	Permission     *Permission     `json:"permission,omitempty"`
+	Opening        *Opening        `json:"opening,omitempty"`
+	SleepingAlarms *SleepingAlarms `json:"sleepingAlarms,omitempty"`
 
 	Window *Window `json:"window,omitempty"`
 

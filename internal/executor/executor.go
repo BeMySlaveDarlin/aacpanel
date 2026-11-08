@@ -139,6 +139,15 @@ func (e *Executor) Kinds() []action.Kind {
 
 // Execute runs one action request and reports what happened.
 func (e *Executor) Execute(ctx context.Context, req action.Request) (string, error) {
+	if req.Kind == action.AlarmCancel && req.Sleeping {
+		if req.Work == nil || req.Conversation == "" {
+			return "", fmt.Errorf("a sleeping alarm cancellation needs its id and conversation")
+		}
+		if err := e.Observers().CancelSleepingAlarm(ctx, req.Conversation, req.Work.ID); err != nil {
+			return "", err
+		}
+		return "the sleeping alarm was reconciled", nil
+	}
 	if req.Caller != "" {
 		if req.Kind != action.SessionClose && req.Kind != action.SessionAnswer && req.Kind != action.SessionLetter {
 			return "", fmt.Errorf("only a child close, answer or letter takes a caller")
@@ -167,6 +176,9 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 			return "", err
 		}
 		if th != nil {
+			if req.Sleeping {
+				return "", fmt.Errorf("Codex threads do not sleep")
+			}
 			return e.codexAction(ctx, *th, req)
 		}
 	}
@@ -185,7 +197,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.SessionResume:
 		return e.sessionResume(ctx, req.Target, req.Resume, req.Project, req.Silent)
 	case action.SessionClose:
-		return e.sessionClose(ctx, req.Target, req.Conversation)
+		return e.sessionClose(ctx, req.Target, req.Conversation, req.Sleeping)
 	case action.SessionRestart:
 		detail, _, err := e.Restart(ctx, req)
 		return detail, err
