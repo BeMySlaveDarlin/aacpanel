@@ -126,12 +126,12 @@ type ctxMenu struct {
 		Choices []string `json:"choices"`
 		Sent    ctxSent  `json:"sent"`
 	} `json:"stood"`
-	ClosedByMenu    *ctxSent `json:"closedByMenu"`
-	ClosedByButton  *ctxSent `json:"closedByButton"`
-	Stopped         *ctxSent `json:"stopped"`
-	StoppedByButton *ctxSent `json:"stoppedByButton"`
-	Started         *ctxSent `json:"started"`
-	StartedByButton *ctxSent `json:"startedByButton"`
+	ClosedByMenu    *ctxSent              `json:"closedByMenu"`
+	Ends            map[string][]*ctxItem `json:"ends"`
+	Stopped         *ctxSent              `json:"stopped"`
+	StoppedByButton *ctxSent              `json:"stoppedByButton"`
+	Started         *ctxSent              `json:"started"`
+	StartedByButton *ctxSent              `json:"startedByButton"`
 	StackFacts      []struct {
 		Value string `json:"value"`
 		Name  string `json:"name"`
@@ -288,17 +288,17 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 	}
 	want := map[string]string{
 		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
-			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
+			"Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
 		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
-			"Copy the session ID · Copy the resume command · | · Restart the session",
+			"Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session",
 		"scratch": "Open · Terminal of the project · | · ~Rename… · ~Role… · ~Session messages… · | · Move to the stream · Open a window on this machine · " +
-			"~Turn Remote Control on · ~Stand under… · ~Pin the group · | · Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
+			"~Turn Remote Control on · ~Stand under… · ~Pin the group · | · Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
 		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · " +
-			"Copy the session ID · Copy the resume command · | · Restart the session · Close the session",
+			"Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
 		"ext": "Open · | · Copy the session ID · Copy the resume command",
 		"codex": "Open · | · ~Stand under… · ~Pin the group · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · " +
-			"Stop the turn · Restart the session · Close the session",
-		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · Restart the session · Close the session",
+			"Stop the turn · ~Pause… · Restart the session · Close the session",
+		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archive":      "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
 		"archiveCodex": "Open · Resume · New session in the project · | · Copy the thread ID · Copy the resume command",
@@ -372,8 +372,8 @@ func TestAnItemThatCannotBePressedSaysWhy(t *testing.T) {
 	}
 }
 
-// An item sends what the button of the same name sends, through the gate: the
-// close of the row, Resume of the shelf, the new session of the archive and
+// An item sends what the button of the same name sends, through the gate:
+// Resume of the shelf, the new session of the archive and
 // of a project's plus, the stop and the start of a container, the stack
 // brought down. A restart reaches any session the panel started, not only
 // the home one. The rest does what its button does: the terminal of the
@@ -386,7 +386,6 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 		menu, button *ctxSent
 		kind, target string
 	}{
-		{"close of a session", got.ClosedByMenu, got.ClosedByButton, "session.close", "aacpanel"},
 		{"Resume of a closed conversation", got.Resumed, got.ResumedByButton, "session.resume", "blog"},
 		{"new session from the archive", got.ArchiveNew, got.ArchiveNewByButton, "session.open", "blog"},
 		{"new session of a project", got.ProjectNew, got.ProjectNewByButton, "session.open", "aacpanel"},
@@ -401,6 +400,27 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 		}
 		if !reflect.DeepEqual(p.menu, p.button) {
 			t.Errorf("%s: the menu sent %+v and the button %+v", p.what, p.menu, p.button)
+		}
+	}
+	if c := got.ClosedByMenu; c == nil || c.Kind != "session.close" || c.Target != "aacpanel" || len(c.Params) != 0 {
+		t.Errorf("Close of a session sent %+v — expected session.close of aacpanel", c)
+	}
+	// A restart or a close the host does not know, or one already under way,
+	// is dimmed and says why: the card carries no buttons, its menu holds them.
+	for state, why := range map[string][2]string{
+		"unknown": {"the host does not know the action “session.restart”", "the host does not know the action “session.close”"},
+		"close":   {"The session is already closing", "The session is already closing"},
+		"restart": {"The session is already restarting", "The session is already restarting"},
+	} {
+		items := got.Ends[state]
+		if len(items) != 2 {
+			t.Errorf("with the %s state the menu of aacpanel holds %+v, expected Restart and Close", state, items)
+			continue
+		}
+		for i, item := range items {
+			if item == nil || !item.Off || !strings.HasPrefix(item.Tip, why[i]) {
+				t.Errorf("with the %s state item %d of the menu is %+v, expected dimmed with %q", state, i, item, why[i])
+			}
 		}
 	}
 	if r := got.Restarted; r == nil || r.Kind != "session.restart" || r.Target != "aacpanel" || len(r.Params) != 1 || r.Params["clean"] != true {

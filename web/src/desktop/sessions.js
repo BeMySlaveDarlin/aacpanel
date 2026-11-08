@@ -283,7 +283,7 @@ function ContourSection({ name, entry, list, blocks, archive, folds, limits, map
     const waits = list.filter((s) => stateOf(s, snapshot && snapshot.limits).tone === "wait").length;
     const open = (session, id) => onPick({ name: session, id });
     const menuOf = (s) => menu && menu(...liveMenuOf(s, {
-        exec, snapshot, wait, onOpen: () => open(s.session, s.sessionId), onTerm,
+        exec, snapshot, wait, onOpen: () => open(s.session, s.sessionId), onTerm, profile: entry,
     }));
     const notes = splitNotes((snapshot && snapshot.sessionNotes) || [], (snapshot && snapshot.sessions) || []).own;
     return html`

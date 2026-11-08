@@ -25,7 +25,7 @@ html,body{margin:0}
 // no Shift even for Shift+F10; the right button is 2. The page sends both as
 // Chrome does.
 import { h, render } from "preact";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { ContainersCenter, StackColumn } from "/src/desktop/containers.js";
@@ -141,9 +141,16 @@ function Probe() {
 }
 
 const snapshot = { at: now / 1000, sessions, profileMap, profiles: [{ name: "personal", auth: "builtin" }], host: { home: "/home/u" } };
-const wait = { opening: () => [], of: () => null };
+// waitOf answers what the panel is doing to a session; the menu asks it as
+// it opens.
+let waitOf = () => null;
+const wait = { opening: () => [], of: (act, name) => waitOf(act, name) };
 
+// redraw draws the shell again, as a change of the panel's waits does.
+let redraw = () => {};
 function Shell() {
+    const [, setDrawn] = useState(0);
+    redraw = () => setDrawn((n) => n + 1);
     const shell = useRef(null);
     const tip = useRef(null);
     useEffect(() => attachTips(shell.current, tip.current), []);
@@ -549,7 +556,25 @@ window.done = (async () => {
     out.restarted = await press("Restart the session");
     await openOn(aac);
     out.closedByMenu = await press("Close the session");
-    out.closedByButton = await confirmClick(aac.querySelector('[aria-label="close session aacpanel"]'));
+    // A restart or a close the host does not know, or one already under way,
+    // stands dimmed in the menu and says why.
+    const kinds = exec.kinds;
+    exec.kinds = kinds.filter((k) => k !== "session.restart" && k !== "session.close");
+    await openOn(aac);
+    out.ends = { unknown: [about("Restart the session"), about("Close the session")] };
+    await shut();
+    exec.kinds = kinds;
+    for (const kind of ["close", "restart"]) {
+        waitOf = (act, name) => act === kind && name === "aacpanel" ? { since: 1 } : null;
+        redraw();
+        await quiet();
+        await openOn(rowOf("aacpanel"));
+        out.ends[kind] = [about("Restart the session"), about("Close the session")];
+        await shut();
+    }
+    waitOf = () => null;
+    redraw();
+    await quiet();
 
     await openOn(contOf("shop-web"));
     out.lists.running = read();

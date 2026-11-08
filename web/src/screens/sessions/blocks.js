@@ -281,10 +281,9 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
     folds = null, desk = false, current = "", menuOf = null, onStub = null }) {
     const own = useFolds();
     const [folded, fold] = folds || own;
-    const everyone = live || list;
     const card = (s, depth = 0, from = "", parent = "") => html`
         <${SessionCard} key=${s.session} s=${s} depth=${depth} from=${from} limits=${limits} wait=${wait} exec=${exec}
-                        sessions=${everyone} profile=${profile} profiles=${profiles} notes=${notes && notes.get(s.session)}
+                        profile=${profile} profiles=${profiles} notes=${notes && notes.get(s.session)}
                         known=${parent || known}
                         desk=${desk} current=${current === s.session} onMenu=${menuOf ? menuOf(s) : null}
                         onOpen=${(row) => onOpen && onOpen(row.session, row.sessionId)} />

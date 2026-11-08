@@ -57,7 +57,6 @@ type deskCard struct {
 	BellsVisited map[string]string        `json:"bellsVisited"`
 	ColumnText   string                   `json:"columnText"`
 	Rows         []deskCardRow            `json:"rows"`
-	HomeAct      string                   `json:"homeAct"`
 	Asked        []string                 `json:"asked"`
 	Shelf        []struct {
 		Name    string `json:"name"`
@@ -219,27 +218,19 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	}
 }
 
-// A card offers its controls — pause, restart, pin and close — whether it is
-// the one session of its project or not: a new session in a project is the
-// plus of its heading. The home session has no close. One the panel did not
-// start has no controls, which the fixture of such sessions holds.
-func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
+// A live card carries no controls: at a desk they are the menu of its right
+// click, which leaves out the close of the home session, and a new session in
+// a project is the plus of its heading.
+func TestDeskCardsLeaveTheirControlsToTheMenu(t *testing.T) {
 	got := runDeskCard(t)
 
 	if len(got.Rows) < 7 {
 		t.Fatalf("the column shows %d live cards: %+v", len(got.Rows), got.Rows)
 	}
 	for _, row := range got.Rows {
-		want := 4
-		if row.Name == "helios" {
-			want = 3
+		if row.Icons != 0 {
+			t.Errorf("%s has %d controls on the card, expected none: they are its menu", row.Name, row.Icons)
 		}
-		if row.Icons != want {
-			t.Errorf("%s has %d controls, expected %d", row.Name, row.Icons, want)
-		}
-	}
-	if got.HomeAct != "pause session helios,restart session helios,pin session group helios" {
-		t.Errorf("the home session offers %q, expected pause, restart and pin", got.HomeAct)
 	}
 }
 

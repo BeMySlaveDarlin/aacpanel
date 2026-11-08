@@ -57,68 +57,6 @@ func TestSessionCardsMarkAutomaticRestart(t *testing.T) {
 	}
 }
 
-func TestDesktopSessionActionsFollowThePhone(t *testing.T) {
-	var got struct {
-		DesktopActions map[string][]struct {
-			Label     string
-			Off, Icon bool
-			Pressed   *string
-		}
-		DesktopGates []struct {
-			Name, Kind     string
-			Before, Opened int
-			Sent           []struct{ Kind, Target string }
-		}
-		DesktopUnavailable []struct {
-			Off bool
-			Why string
-		}
-		DesktopBusy bool
-	}
-	runFixture(t, "sessionstops.html", &got)
-	for name, want := range map[string]string{
-		"helios": "pause,restart,pin", "lab": "pause,restart,pin,close", "quiet": "pause,restart,pin,close",
-		"codex-5afc361b": "pause,restart,pin,close", "outside": "",
-	} {
-		var actions []string
-		for _, b := range got.DesktopActions[name] {
-			pin := b.Label == "pin session group "+name
-			pause := strings.HasPrefix(b.Label, "pause session ")
-			if pin {
-				actions = append(actions, "pin")
-				if b.Pressed == nil || *b.Pressed != "false" {
-					t.Errorf("%s: the pin has no unpressed state: %+v", name, b)
-				}
-			} else {
-				actions = append(actions, strings.TrimSuffix(b.Label, " session "+name))
-			}
-			if !b.Icon || b.Off != (pin || pause) {
-				t.Errorf("%s: the action has the wrong icon or availability: %+v", name, b)
-			}
-		}
-		if strings.Join(actions, ",") != want {
-			t.Errorf("%s offers %v, want %s", name, actions, want)
-		}
-	}
-	if len(got.DesktopGates) != 4 {
-		t.Fatalf("desktop actions reached %d confirmations, want four", len(got.DesktopGates))
-	}
-	for _, gate := range got.DesktopGates {
-		if gate.Before != 0 || gate.Opened != 0 || len(gate.Sent) != 1 ||
-			gate.Sent[0].Kind != "session."+gate.Kind || gate.Sent[0].Target != gate.Name {
-			t.Errorf("the desktop press bypassed the gate or opened the conversation: %+v", gate)
-		}
-	}
-	if len(got.DesktopUnavailable) != 3 || !got.DesktopBusy {
-		t.Errorf("desktop availability: %+v, busy held back: %v", got.DesktopUnavailable, got.DesktopBusy)
-	}
-	for _, b := range got.DesktopUnavailable {
-		if !b.Off || !strings.Contains(b.Why, "the host does not know") {
-			t.Errorf("an unknown desktop action is available or unexplained: %+v", b)
-		}
-	}
-}
-
 func TestSessionNotesReachTheScreen(t *testing.T) {
 	src := screenSrc(t, "src/screens/sessions.js")
 	if src == "" {

@@ -99,7 +99,7 @@ func TestPinnedGroupsKeepTheirChildrenAndTheirContour(t *testing.T) {
 }
 
 type pinLook struct {
-	Pressed, Pending, Off, Mark, MarkOn, MarkPending bool
+	Pressed, Pending, Off bool
 }
 
 type pinWaits struct {
@@ -141,23 +141,20 @@ func TestPinPressMovesBothListsBeforeTheSnapshot(t *testing.T) {
 			if !reflect.DeepEqual(p.Unpinning, p.Unpinned) {
 				t.Errorf("unpinning waited for a snapshot: %+v, confirmed %+v", p.Unpinning, p.Unpinned)
 			}
-			if !p.PinLook.Pressed || !p.PinLook.Pending || !p.PinLook.Off ||
-				!p.PinLook.MarkOn || !p.PinLook.MarkPending {
+			if !p.PinLook.Pressed || !p.PinLook.Pending || !p.PinLook.Off {
 				t.Errorf("a pin in flight does not show its expected state: %+v", p.PinLook)
 			}
 			if !p.AnswerPending || !p.Lagging {
 				t.Error("the executor's answer or a snapshot without the pin cleared the wait")
 			}
-			if !p.ConfirmedLook.Pressed || p.ConfirmedLook.Pending || p.ConfirmedLook.Off ||
-				!p.ConfirmedLook.MarkOn || p.ConfirmedLook.MarkPending {
+			if !p.ConfirmedLook.Pressed || p.ConfirmedLook.Pending || p.ConfirmedLook.Off {
 				t.Errorf("the confirmed pin still looks pending: %+v", p.ConfirmedLook)
 			}
-			if p.UnpinLook.Pressed || !p.UnpinLook.Pending || !p.UnpinLook.Off ||
-				p.UnpinLook.MarkOn || !p.UnpinLook.MarkPending {
+			if p.UnpinLook.Pressed || !p.UnpinLook.Pending || !p.UnpinLook.Off {
 				t.Errorf("unpinning did not show the expected state: %+v", p.UnpinLook)
 			}
-			if p.UnpinnedLook.Pressed || p.UnpinnedLook.Pending || p.UnpinnedLook.Off || !p.UnpinnedLook.Mark || p.UnpinnedLook.MarkOn || p.UnpinnedLook.MarkPending {
-				t.Errorf("the confirmed unpin left the button pressed or pending: %+v", p.UnpinnedLook)
+			if p.UnpinnedLook.Pressed || p.UnpinnedLook.Pending || p.UnpinnedLook.Off {
+				t.Errorf("the confirmed unpin left the pin pressed or pending: %+v", p.UnpinnedLook)
 			}
 			if screen == "desk" && (p.PinMenu.Label != "Unpin the group of review" || !p.PinMenu.Off || p.PinMenu.Note != "Pinning the group" ||
 				p.UnpinMenu.Label != "Pin the group of review" || !p.UnpinMenu.Off || p.UnpinMenu.Note != "Unpinning the group") {

@@ -591,7 +591,6 @@ span.pjname { cursor: default; }
 .scres { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: .27rem; }
 .scmeter { display: inline-flex; align-items: center; gap: .2rem; padding: .1rem .27rem; border-radius: var(--r-small); background: var(--code-bg); font-size: var(--t-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .scmeter svg { width: var(--i-sm); height: var(--i-sm); color: var(--ink-faint); }
-.scres + .scacts { margin-left: 0; }
 .scacts { flex: none; margin-left: auto; display: inline-flex; align-items: center; margin-block: -.4rem; }
 .scact {
     display: inline-grid;

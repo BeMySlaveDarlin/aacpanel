@@ -116,15 +116,15 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if got.ClaudeAgent.Text != "Claude" || got.ClaudeAgent.Agent != "claude" || got.ClaudeAgent.Tip != "" {
 		t.Errorf("the claude row beside it opens with %+v, expected the word Claude with no tip", got.ClaudeAgent)
 	}
-	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 4 {
-		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked, pinnable, restartable and closable",
+	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 0 {
+		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked, and its actions are its menu",
 			got.ClaudeMarks, got.ClaudeActs)
 	}
-	if len(got.DeskActs) != 4 || got.DeskActs[0].Label != "pause session "+name || got.DeskActs[1].Label != "restart session "+name ||
-		got.DeskActs[2].Label != "pin session group "+name || got.DeskActs[3].Label != "close session "+name {
-		t.Errorf("the desktop card of the codex thread offers %+v, expected pause, restart, pin and close", got.DeskActs)
+	if len(got.DeskActs) != 4 || got.DeskActs[0].Label != "Pin the group" || got.DeskActs[1].Label != "Pause…" ||
+		got.DeskActs[2].Label != "Restart the session" || got.DeskActs[3].Label != "Close the session" {
+		t.Errorf("the menu of the codex thread's desktop card offers %+v, expected pin, pause, restart and close", got.DeskActs)
 	} else {
-		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[3].Tip)
+		saysCodexClose(t, "the tip of the close in the desktop menu", got.DeskActs[3].Tip)
 	}
 	if got.DeskSay != "allow a tool" {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)
@@ -464,10 +464,10 @@ func TestCodexRestartWaitsForItsReplacementAndExplainsUnavailableActions(t *test
 			BeforeOrder, AfterOrder                                                                                []string
 		}
 		Unavailable []struct {
-			Why                     string
-			Desk, Phone, Tool, Menu *button
-			Sent                    int
-			Gate                    bool
+			Why               string
+			Phone, Tool, Menu *button
+			Sent              int
+			Gate              bool
 		}
 	}
 	runWideFixture(t, "codexsessions.html", &got)
@@ -491,7 +491,7 @@ func TestCodexRestartWaitsForItsReplacementAndExplainsUnavailableActions(t *test
 		if unavailable.Sent != 0 || unavailable.Gate {
 			t.Errorf("the %s restart sent an action or opened the gate: %+v", unavailable.Why, unavailable)
 		}
-		for where, act := range map[string]*button{"desktop": unavailable.Desk, "phone": unavailable.Phone, "tools": unavailable.Tool, "menu": unavailable.Menu} {
+		for where, act := range map[string]*button{"phone": unavailable.Phone, "tools": unavailable.Tool, "menu": unavailable.Menu} {
 			if unavailable.Why == "outside" {
 				if act != nil {
 					t.Errorf("%s offers to restart an outside thread: %+v", where, act)

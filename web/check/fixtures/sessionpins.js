@@ -1,7 +1,7 @@
 // Pin scenarios share the session groups page and its browser. Both screens
 // take the same snapshots, as two devices do after the collector reads a pin.
-// The pin of a card is its button at a desk and a sector of its pie on the
-// phone.
+// The pin of a card is an item of its menu at a desk and a sector of its pie
+// on the phone.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn, orderOf } from "/src/desktop/sessions.js";
@@ -109,14 +109,10 @@ export async function sessionPins(phoneOnly = false) {
     const look = async (name) => {
         const pin = item(await phonePinOf(name));
         await closePie();
-        const mark = deskRow(name).querySelector(".scact[aria-pressed]");
         return {
             pressed: pin.on,
             pending: /^(Pinning|Unpinning) the group$/.test(pin.why),
             off: pin.off,
-            mark: Boolean(mark),
-            markOn: mark && mark.getAttribute("aria-pressed") === "true",
-            markPending: mark && mark.getAttribute("aria-busy") === "true",
         };
     };
     const phonePin = async (name) => {
@@ -126,20 +122,6 @@ export async function sessionPins(phoneOnly = false) {
         pin.click();
         await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
         await settled();
-        await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
-    };
-    const deskPin = async (name) => {
-        const button = deskRow(name).querySelector(".scact[aria-pressed]");
-        if (!button || button.getAttribute("aria-disabled") === "true") throw new Error(`no pin button for ${name}`);
-        const before = sent.length;
-        button.click();
-        await until(() => sent.length > before && wait.of("pin", sent.at(-1).target));
-        // The group moves to the pinned place at once: its card is drawn
-        // there anew.
-        const pending = () => deskRow(name).querySelector(".scact[aria-pressed]");
-        await until(() => pending().getAttribute("aria-busy") === "true");
-        pending().click();
-        if (sent.length !== before + 1) throw new Error("a pending pin was sent twice");
         await until(() => order.join("\n") === cards(".dkbody .sc:not(.scpast)").join("\n"));
     };
     const menuItem = async (name, label) => {
@@ -218,7 +200,7 @@ export async function sessionPins(phoneOnly = false) {
         await paint();
         out.reopened = read();
         if (phoneOnly) await phonePin("child");
-        else await deskPin("child");
+        else await menuPin("child", "Unpin the group of review");
         out.unpinning = read();
         out.unpinLook = await look("review");
         if (!phoneOnly) out.unpinMenu = await pendingMenu("thread", "Pin the group of review");

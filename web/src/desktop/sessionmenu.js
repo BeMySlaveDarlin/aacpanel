@@ -38,11 +38,11 @@ export const UNDER_WAY = { close: "The session is already closing", restart: "Th
 // takes them. What the session's close or restart is doing it asks the
 // waits of the panel (wait), what they would stop the snapshot. The settings
 // of the session's project are in the menu of the project's heading.
-export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm }) {
+export function liveMenuOf(s, { exec, snapshot, wait, onOpen, onTerm, profile = null }) {
     const closing = wait ? wait.of("close", s.session) : null;
     const restarting = wait ? wait.of("restart", s.session) : null;
     return [SessionMenu, {
-        s, exec, snapshot, wait, onOpen, onTerm, lost: stopsOf(s),
+        s, exec, snapshot, wait, onOpen, onTerm, profile, lost: stopsOf(s),
         closing: closing ? UNDER_WAY.close : "", restarting: restarting || s.restarting ? UNDER_WAY.restart : "",
     }, `session ${shownName(s)}`];
 }
@@ -125,7 +125,21 @@ function endsOf(exec, closing, restarting) {
     };
 }
 
-function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting }) {
+// pauseItem is the pause of the one session, as on its pie: the sheet of the
+// pause with the session as its scope, and on a paused session the continue.
+function pauseItem(s, { exec, snapshot, profile, run, sheet }) {
+    const project = s.project && s.project.id ? s.project : null;
+    const why = sessionPauseWhy(s, project, exec);
+    if (s.pauseAlarm) {
+        return html`<${MenuItem} key="pause" label="Continue now" off=${why} onPick=${() => continueSession(run, project, s)} />`;
+    }
+    return html`<${MenuItem} key="pause" label="Pause…" off=${why}
+        onPick=${() => sheet("pause sessions", (close) => html`
+            <${PauseSheet} project=${project} profile=${profile} sessions=${(snapshot && snapshot.sessions) || [s]}
+                           session=${s} exec=${exec} onDone=${close} />`)} />`;
+}
+
+function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting, profile }) {
     const run = useAction();
     const sheet = useMenuSheet();
     const toast = useToast();
@@ -146,6 +160,7 @@ function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting }) {
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}
                                                      onPick=${() => run("session.stop", s.session, {})} />`,
+            pauseItem(s, { exec, snapshot, profile, run, sheet }),
             html`<${MenuItem} key="restart" label="Restart the session" off=${codexRestartWhy(s) || restartWhy} tip=${CODEX_RESTART}
                               onPick=${() => run("session.restart", s.session, {})} />`,
             html`<${MenuItem} key="close" label="Close the session" off=${closeWhy} tip=${CODEX_CLOSE}
@@ -154,7 +169,7 @@ function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting }) {
     ]} />`;
 }
 
-function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarting, lost }) {
+function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarting, lost, profile }) {
     const run = useAction();
     const { closeWhy, restartWhy } = endsOf(exec, closing, restarting);
     const toast = useToast();
@@ -211,6 +226,7 @@ function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarti
         ],
         copies(s, toast, snapshot),
         [
+            pauseItem(s, { exec, snapshot, profile, run, sheet }),
             html`<${MenuItem} key="restart" label="Restart the session" note=${stops} off=${restartWhy}
                               onPick=${() => run("session.restart", s.session, {})} />`,
             !s.home && html`<${MenuItem} key="close" label="Close the session" note=${stops} off=${closeWhy}

@@ -178,8 +178,8 @@ const facts = (name) => {
         ctx: text(row.querySelector(".scctx")),
     };
 };
-// rows says how many controls every live card offers.
-const rows = () => live().map((row) => ({ name: row.dataset.name, icons: row.querySelectorAll(".scacts .scact").length }));
+// rows says how many controls every live card carries.
+const rows = () => live().map((row) => ({ name: row.dataset.name, icons: row.querySelectorAll(".scact").length }));
 
 // calls reads the cards that say their session called the person, by name,
 // with what they say and how long ago.
@@ -208,7 +208,6 @@ window.done = (async () => {
     out.bells = calls();
     out.columnText = text(root().querySelector(".dkscroll"));
     out.rows = rows();
-    out.homeAct = [...rowOf("helios").querySelectorAll(".scacts .scact")].map((b) => b.getAttribute("aria-label")).join(",");
 
     // The shelf.
     out.asked = [...asked];

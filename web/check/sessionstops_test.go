@@ -41,7 +41,6 @@ type stopsRun struct {
 	Opened      []struct{ Name, ID string } `json:"opened"`
 	More        int                         `json:"more"`
 	Notes       map[string]string           `json:"notes"`
-	Tips        map[string]*string          `json:"tips"`
 	Unavailable []pieItem                   `json:"unavailable"`
 	Busy        bool                        `json:"busy"`
 	BusyMarks   []struct {
@@ -238,11 +237,6 @@ func TestThePhoneCardsOfferRestartAndCloseThroughThePie(t *testing.T) {
 		t.Errorf("the end of a session with nothing at work reads %q", got.Notes["quiet"])
 	}
 	saysCodexClose(t, "the pie of a phone card", got.Notes["codex-5afc361b"])
-	for name, want := range map[string]string{"helios": "stops 1 background task, 2 agents · a new session with an empty context; this one stays in the archive", "lab": "stops 3 background tasks, 1 workflow · the conversation stays in the archive", "quiet": "the conversation stays in the archive"} {
-		if got.Tips[name] == nil || *got.Tips[name] != want {
-			t.Errorf("the desktop button of %s tips %v, expected %q", name, got.Tips[name], want)
-		}
-	}
 }
 
 // A long press opens the pie and nothing else: no text is selected, the
@@ -281,8 +275,8 @@ func TestALongPressOnAPhoneCardOpensItsPie(t *testing.T) {
 	if len(g.Closes) != 3 {
 		t.Errorf("the ways out of the pie tried: %v, want the scrim, the back of the phone and Escape", g.Closes)
 	}
-	if g.Desk.Pie || g.Desk.Buttons == 0 {
-		t.Errorf("at a desk a long press opened a pie (%v) or the card lost its buttons (%d)", g.Desk.Pie, g.Desk.Buttons)
+	if g.Desk.Pie || g.Desk.Buttons != 0 {
+		t.Errorf("at a desk a long press opened a pie (%v) or the card carries %d buttons, where its actions are its menu", g.Desk.Pie, g.Desk.Buttons)
 	}
 }
 

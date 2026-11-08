@@ -7,74 +7,68 @@ import (
 )
 
 // The home session of the host is the one the panel itself lives next to: the
-// panel does not close it, just as it does not stop its own container. The
-// card — the one card of the phone and the desk — leaves the action out
-// entirely, rather than disabling it. What its controls do and whether they
-// can be pressed lives beside it, for its buttons and its pie alike.
+// panel does not close it, just as it does not stop its own container. At a
+// desk a live card carries no controls; its menu is where the close lives,
+// and the menu leaves the item out entirely for the home session, rather than
+// dimming it.
 const (
 	cardFile     = "src/screens/sessions/sessioncard.js"
 	controlsFile = "src/screens/sessions/controls.js"
+	menuFile     = "src/desktop/sessionmenu.js"
 )
 
 func TestDesktopHidesCloseForTheHomeSession(t *testing.T) {
 	files := srcFiles(t)
-	src := stripComments(files[cardFile])
+	src := stripComments(files[menuFile])
 	if src == "" {
-		t.Fatalf("%s not found — the test looks in the wrong place", cardFile)
+		t.Fatalf("%s not found — the test looks in the wrong place", menuFile)
 	}
-	acts := funcBody(t, src, "function Controls(")
-	if !strings.Contains(acts, "closeSession(") || !strings.Contains(files[controlsFile], `run("session.close"`) {
-		t.Fatalf("%s: the controls of a card hold no close action — the test guards the wrong place", cardFile)
+	menu := funcBody(t, src, "function ClaudeMenu(")
+	closeItem := strings.Index(menu, `key="close"`)
+	if closeItem < 0 || !strings.Contains(menu, `run("session.close"`) {
+		t.Fatalf("%s: the menu of a session holds no close — the test guards the wrong place", menuFile)
 	}
-	gate := regexp.MustCompile(`!s\.home\s*&&`).FindStringIndex(acts)
+	gate := regexp.MustCompile(`!s\.home\s*&&`).FindStringIndex(menu)
 	if gate == nil {
-		t.Fatalf("%s: the card offers to close the home session — the panel does not close the main session of the host, just as it does not stop its own container", cardFile)
+		t.Fatalf("%s: the menu offers to close the home session — the panel does not close the main session of the host, just as it does not stop its own container", menuFile)
 	}
-	if icon := strings.Index(acts, `label=${`+"`"+`close session`); icon < 0 || icon < gate[0] {
-		t.Errorf("%s: the home check comes after the close control — the button is still drawn, only its handler is gated", cardFile)
+	if gate[0] > closeItem {
+		t.Errorf("%s: the home check comes after the close item — the item is still drawn, only its handler is gated", menuFile)
 	}
 }
 
 // The home session gets the one action the panel does have for it: a restart
-// from scratch. Every card of claude offers that action through the host
-// check; the home card offers no close.
+// from scratch. The menu of every claude session offers it through the host
+// check; the home one offers no close.
 func TestHomeSessionRestartsFromScratchOnTheDesktop(t *testing.T) {
 	files := srcFiles(t)
-	src := stripComments(files[cardFile])
+	src := stripComments(files[menuFile])
 	if src == "" {
-		t.Fatalf("%s not found — the test looks in the wrong place", cardFile)
+		t.Fatalf("%s not found — the test looks in the wrong place", menuFile)
 	}
-	acts := funcBody(t, src, "function Controls(")
-	restart := strings.Index(acts, "restart session")
+	menu := funcBody(t, src, "function ClaudeMenu(")
+	restart := strings.Index(menu, `key="restart"`)
 	if restart < 0 {
-		t.Fatalf("%s: the controls of a card have no restart", cardFile)
+		t.Fatalf("%s: the menu of a session has no restart", menuFile)
 	}
-	start := strings.LastIndex(acts[:restart], "<${Act}")
-	end := strings.Index(acts[restart:], "Icon.refresh()")
-	if start < 0 || end < 0 {
-		t.Fatalf("%s: the restart of a card is not one control with its icon", cardFile)
+	item := menu[restart:]
+	if end := strings.Index(item, "/>"); end >= 0 {
+		item = item[:end]
 	}
-	home := acts[start : restart+end+len("Icon.refresh()")]
-	for _, want := range []string{"restartSession(", "Icon.refresh"} {
-		if !strings.Contains(home, want) {
-			t.Errorf("%s: the restart of a card has no %s", cardFile, want)
-		}
+	if !strings.Contains(item, `run("session.restart"`) {
+		t.Errorf("%s: the restart of a session does not restart", menuFile)
 	}
-	if strings.Contains(home, "closeSession(") {
-		t.Errorf("%s: the restart of a card closes the session inside its own block", cardFile)
+	if strings.Contains(item, "!s.home") || strings.Contains(item, `"session.close"`) {
+		t.Errorf("%s: the restart of a session is gated by the home check or closes it", menuFile)
 	}
-	controls := stripComments(files[controlsFile])
-	if !strings.Contains(acts, "endsOf(") ||
-		!strings.Contains(funcBody(t, controls, "function endsOf("), `knows(exec, "session.restart")`) {
-		t.Errorf("%s: the restart control does not ask whether the host can do it", cardFile)
-	}
-	if !strings.Contains(controls, `restartSession = (run, s) => run("session.restart"`) {
-		t.Errorf("%s: the restart of a card does not restart", controlsFile)
+	if !strings.Contains(menu, "endsOf(") ||
+		!strings.Contains(funcBody(t, src, "function endsOf("), `knows(exec, "session.restart")`) {
+		t.Errorf("%s: the restart item does not ask whether the host can do it", menuFile)
 	}
 
 	block := after(files[registryFile], `"session.restart":`)
 	if block == "" {
-		t.Fatalf("%s: the registry has no session.restart — the buttons would press an unknown action", registryFile)
+		t.Fatalf("%s: the registry has no session.restart — the menu would press an unknown action", registryFile)
 	}
 	for _, want := range []string{"danger: true", `ok: "Restart"`, "choice: restartChoice"} {
 		if !strings.Contains(block, want) {

@@ -64,9 +64,9 @@ type sessionCardsRun struct {
 // the list does not change its shape when a session starts to wait; only a
 // session with no checklist, the quiet one here, has neither the line of its
 // step nor its bar. A live
-// card carries its controls at a desk — on the phone they are its pie — and
-// an archived one its resume; what runs is counted on the state's line, and a
-// card with nothing running counts nothing.
+// card carries no controls — at a desk they are its menu, on the phone its
+// pie — and an archived one its resume; what runs is counted on the state's
+// line, and a card with nothing running counts nothing.
 func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	t.Helper()
 	for name, want := range map[string][]string{
@@ -133,13 +133,10 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 			}
 			continue
 		}
-		// On the phone the controls of a live card are its pie, and the name
-		// takes the line.
-		if got.Desk && len(c.Controls) < 4 {
-			t.Errorf("%s (%s) has %d controls, want pause, restart, pin and close", state, c.Name, len(c.Controls))
-		}
-		if !got.Desk && len(c.Controls) != 0 {
-			t.Errorf("%s (%s) has the controls %v on the phone, where they are its pie", state, c.Name, c.Controls)
+		// The controls of a live card are its menu at a desk and its pie on
+		// the phone, and the name takes the line.
+		if len(c.Controls) != 0 {
+			t.Errorf("%s (%s) has the controls %v on the card, where they are its menu or its pie", state, c.Name, c.Controls)
 		}
 	}
 

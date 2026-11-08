@@ -98,10 +98,10 @@ const exec = { available: true, kinds: ["session.close", "session.restart", "ses
 const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }];
 const snapshot = { sessions, profileMap: [{ ...profileMap[0], codexHome: "/home/u/.codex-profiles/acme" }],
     host: { home: "/home/u" } };
-render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, h(SessionColumn, {
     snapshot: { at: 1, sessions, profileMap, limits: null }, limits: null,
     current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
-}))), document.getElementById("desk"));
+})))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}>
         <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
@@ -193,8 +193,21 @@ window.done = (async () => {
     out.deskMarks = names(deskRow, ".scl1 .sctag");
     out.deskFacts = [text(deskRow.querySelector(".scagent"))];
     out.deskAgent = agentOf(deskRow.querySelector(".scagent"));
-    out.deskActs = Array.from(deskRow.querySelectorAll(".scacts .scact"))
-        .map((i) => ({ label: i.getAttribute("aria-label") || "", tip: i.dataset.tip || "" }));
+    // At a desk the actions of a card are its menu.
+    const deskMenu = async (row) => {
+        row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: 20, clientY: 20 }));
+        await until(() => document.querySelector(".ctxmenu"), "the menu of a desktop card");
+        return Array.from(document.querySelectorAll('.ctxmenu [role="menuitem"]'));
+    };
+    const dropMenu = async () => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        await until(() => !document.querySelector(".ctxmenu"), "the menu closed");
+    };
+    const deskItem = async (row, label) => (await deskMenu(row)).find((b) => text(b.querySelector(".pkname")) === label);
+    out.deskActs = (await deskMenu(deskRow))
+        .filter((b) => ["Pause…", "Restart the session", "Pin the group", "Close the session"].includes(text(b.querySelector(".pkname"))))
+        .map((b) => ({ label: text(b.querySelector(".pkname")), tip: b.dataset.tip || "" }));
+    await dropMenu();
     out.deskSay = text(deskRow.querySelector(".scsay"));
     out.claudeMarks = names(claudeRow, ".scl1 .sctag");
     out.claudeAgent = agentOf(claudeRow.querySelector(".scagent"));
@@ -307,7 +320,7 @@ window.done = (async () => {
 
     // The close of the desktop row and of the phone's card, each through
     // its own gate.
-    const deskClose = deskRow.querySelector('.scacts .scact[aria-label^="close session"]');
+    const deskClose = await deskItem(deskRow, "Close the session");
     if (deskClose) {
         deskClose.click();
         out.deskCloseSheet = await closeSheet(desk);
@@ -318,7 +331,7 @@ window.done = (async () => {
     await settled();
 
     out.restarts = {};
-    deskRow.querySelector('[aria-label^="restart session"]').click();
+    (await deskItem(deskRow, "Restart the session")).click();
     out.restarts["desktop row"] = await closeSheet(desk);
     await openPie(phoneRow);
     sector("restart").click();
@@ -387,11 +400,9 @@ window.done = (async () => {
     ]) {
         await mount(live, executor);
         await until(() => probe.querySelector(".probe-tools .toollabel"));
-        const deskAct = probe.querySelector(`.dkleft .scact[aria-label="restart session ${live.session}"]`);
         const toolAct = Array.from(probe.querySelectorAll(".probe-tools .toolrow"))
             .find((b) => text(b.querySelector(".toollabel")) === "Restart the session");
         const before = sent.length;
-        deskAct?.click();
         // A session the panel did not start has no pie: its contextmenu is
         // the browser's.
         let phoneSays = null;
@@ -412,7 +423,6 @@ window.done = (async () => {
         menuAct?.click();
         if (!await quiet()) throw new Error(`The ${why} actions did not settle`);
         out.unavailable.push({ why,
-            desk: deskAct ? { off: deskAct.getAttribute("aria-disabled") === "true", note: deskAct.dataset.tip } : null,
             phone: phoneSays ? { off: phoneSays.off, note: phoneSays.why } : null,
             tool: toolAct ? { off: toolAct.disabled, note: text(toolAct.querySelector(".toolnote")) } : null,
             menu: menuAct ? { off: menuAct.getAttribute("aria-disabled") === "true", note: menuAct.dataset.tip } : null,

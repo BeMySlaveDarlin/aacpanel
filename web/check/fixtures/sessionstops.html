@@ -8,7 +8,8 @@
 <script type="module">
 // The cards expose only the actions the host can take: the home session never
 // closes, a daemon thread restarts and outside sessions are only read. At a
-// desk they are the card's buttons, on the phone its pie, opened by a long
+// desk they are the card's menu, opened by a right click (the menu has a
+// fixture of its own, ctxmenu.html), on the phone its pie, opened by a long
 // press. Every press still belongs to the gate, with its own confirmation.
 import { h, render } from "preact";
 import { Sessions } from "/src/screens/sessions.js";
@@ -47,8 +48,8 @@ window.fetch = counted(async (url, init) => {
     return new Response("", { status: 404 });
 });
 const desk = document.getElementById("desk");
-// The column stands under a host of pies too: a card of the desk keeps its
-// buttons, and its long press stays the browser's, wherever it is drawn.
+// The column stands under a host of pies too: a card of the desk keeps to
+// its menu, and its long press stays the browser's, wherever it is drawn.
 const mountDesk = (host = exec, wait = null) => render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec: host, wait },
     h(SessionColumn, {
         snapshot, limits: null, current: "", onPick(p) { opened.push(p); }, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec: host, wait,
@@ -70,12 +71,7 @@ const row = (name) => phone.querySelector(`[aria-label="open conversation ${name
 const off = (b) => b.getAttribute("aria-disabled") === "true";
 // A pause of a session outside the map has a reason of its own: no project
 // to address it by.
-const acts = (card) => [...card.querySelectorAll(".scact")].filter((b) => !b.getAttribute("aria-label").startsWith("pause "));
 const gate = () => phone.querySelector('.sheet.on[aria-label="action confirmation"]');
-const tip = (label) => {
-    const el = document.querySelector(`#desk [aria-label="${label}"]`);
-    return el ? el.getAttribute("data-tip") || "" : null;
-};
 const focused = (name) => document.activeElement === row(name).querySelector(".scopen");
 // A gate a pie opened is answered: confirmed or cancelled, and the history
 // left standing on no layer.
@@ -87,7 +83,7 @@ const answer = async (yes) => {
 
 window.done = (async () => {
     await until(() => phone.querySelectorAll(".sc").length === sessions.length);
-    const out = { pies: {}, gates: [], tips: {}, notes: {} };
+    const out = { pies: {}, gates: [], notes: {} };
     for (const s of sessions) {
         const card = row(s.session);
         // A press is tried where the finger finds the card: on the screen.
@@ -132,42 +128,6 @@ window.done = (async () => {
         out.gates.push(shot);
     }
     out.gestures = await gestures();
-    for (const [name, kind] of [["helios", "restart"], ["lab", "close"], ["quiet", "close"]]) out.tips[name] = tip(`${kind} session ${name}`);
-    out.desktopActions = Object.fromEntries(sessions.map((s) => {
-        const card = desk.querySelector(`.sc[data-name="${s.session}"]`);
-        return [s.session, [...card.querySelectorAll(".scact")].map((b) => ({
-            label: b.getAttribute("aria-label"), off: b.getAttribute("aria-disabled") === "true",
-            pressed: b.getAttribute("aria-pressed"), icon: Boolean(b.querySelector("svg")),
-        }))];
-    }));
-    const deskGate = () => desk.querySelector('.sheet.on[aria-label="action confirmation"]');
-    out.desktopGates = [];
-    for (const [name, kind] of [["lab", "restart"], ["lab", "close"], ["helios", "restart"], ["codex-5afc361b", "close"]]) {
-        const before = sent.length, picked = opened.length;
-        desk.querySelector(`[aria-label="${kind} session ${name}"]`).click();
-        await until(() => deskGate()?.querySelector(".btnrow .btn:last-child"));
-        const shot = { name, kind, before: sent.length - before, opened: opened.length - picked };
-        deskGate().querySelector(".btnrow .btn:last-child").click();
-        await until(() => sent.length === before + 1 && !deskGate());
-        shot.sent = sent.slice(before);
-        out.desktopGates.push(shot);
-    }
-    mountDesk({ available: true, kinds: [] });
-    await quiet();
-    out.desktopUnavailable = acts(desk.querySelector('.sc[data-name="lab"]')).map((b) => ({
-        off: b.getAttribute("aria-disabled") === "true", why: b.getAttribute("data-tip"),
-    }));
-    out.desktopBusy = true;
-    for (const kind of ["restart", "close"]) {
-        mountDesk(exec, { of: (act, name) => name === "lab" && act === kind ? { since: 1 } : null, opening: () => [] });
-        await quiet();
-        const before = sent.length;
-        for (const b of desk.querySelectorAll('[aria-label$="session lab"]')) {
-            out.desktopBusy = out.desktopBusy && b.getAttribute("aria-disabled") === "true";
-            b.click();
-        }
-        out.desktopBusy = out.desktopBusy && sent.length === before && !deskGate();
-    }
     mountDesk();
     mount({ available: true, kinds: [] });
     await quiet();
@@ -343,7 +303,8 @@ async function gestures() {
     out.stop = { sent: sent.slice(sentBefore), gate: Boolean(gate()) };
     card.scrollIntoView({ block: "center" });
 
-    // At a desk the card keeps its buttons and a long press opens nothing.
+    // At a desk the card carries no buttons and a long press opens nothing:
+    // its actions are its menu.
     const deskCard = desk.querySelector('.sc[data-name="lab"]');
     press("pointerdown", deskCard.querySelector(".scopen"));
     await quiet();

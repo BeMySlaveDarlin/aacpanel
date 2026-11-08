@@ -1,7 +1,7 @@
 // Pause and restart controls share the pages that already exercise sessions:
 // the pause of a project from the heading over its cards, the pause and the
-// continue of one session from its card — its buttons at a desk, its pie on
-// the phone — and the restart choices. lab-docs had the panel open a helper
+// continue of one session from its card — its menu at a desk, its pie on the
+// phone — and the restart choices. lab-docs had the panel open a helper
 // in the other project; a scope of its own includes that helper. The quick
 // choices are pressed on a clock set by the fixture.
 import { render } from "preact";
@@ -104,11 +104,16 @@ export async function sessionPause() {
         sheet().querySelector(".pausescope").dispatchEvent(new Event("change", { bubbles: true }));
         await quiet();
     };
-    // A control of a card: its button at a desk, the sector of its pie on the
-    // phone, Continue in the place of Pause on a paused card.
+    // A control of a card: the item of its menu at a desk, the sector of its
+    // pie on the phone, Continue in the place of Pause on a paused card.
+    const ITEMS = { pause: "Pause…", continue: "Continue now", restart: "Restart the session", close: "Close the session" };
     const press = async (kind, name) => {
         if (wide) {
-            mount.querySelector(`[aria-label="${kind} session ${name}"]`).click();
+            mount.querySelector(`.sc[data-name="${name}"]`).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 50, clientY: 100 }));
+            await until(() => mount.querySelector(".pkrow"), `the menu of ${name}`);
+            const item = [...mount.querySelectorAll(".pkrow")].find((el) => text(el.querySelector(".pkname")) === ITEMS[kind]);
+            if (!item) throw new Error(`no ${ITEMS[kind]} in the menu of ${name}`);
+            item.click();
             return;
         }
         await openPie(mount.querySelector(`.sc[data-name="${name}"]`));
