@@ -108,6 +108,23 @@ def codex_contour(home):
     return _name_of(home, ".codex")
 
 
+def codex_account(home):
+    """Returns the contour owning a home's auth file, without opening the credentials.
+
+    Several homes can share an account through symlinks: the file's home
+    pays for all of them, independently of the contour a thread runs in.
+    The listed home lets the screen find its label in the profile map.
+    """
+    if not home:
+        return None
+    auth = os.path.realpath(os.path.join(home, "auth.json"))
+    if not os.path.isfile(auth):
+        return None
+    owner = os.path.dirname(auth)
+    owner = next((listed for _, listed in codex_homes() if os.path.realpath(listed) == owner), owner)
+    return {"profile": codex_contour(owner), "codexHome": owner}
+
+
 def config_dirs():
     """Returns the config directories of every contour, the personal one first."""
     return [d for _, d in profiles()]

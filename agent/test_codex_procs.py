@@ -213,6 +213,11 @@ class Parent(Procs):
 
 
 class Terminal(Procs):
+    def test_an_outside_thread_carries_the_owner_of_its_shared_auth_file(self):
+        account = self.shared_account()
+        self.exec_run()
+        self.assertEqual(ctx.codex_own_rows(ctx.codex_live())[0].get("account"), account)
+
     def test_a_codex_in_a_terminal_is_a_row_of_its_own_only_read(self):
         self.claude()
         files = self.thread(self.home, TUI, source="cli", open_turn=False)

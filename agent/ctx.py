@@ -489,6 +489,13 @@ def codex_row(data, waits=None):
     counts = {k: v for k, v in (waits or {}).items() if k in ("observers", "alarms") and v}
     if counts:
         row["work"] = {"tasks": 0, "agents": 0, **row.get("work", {}), **counts}
+    return _with_codex_account(row)
+
+
+def _with_codex_account(row):
+    account = contours.codex_account(row.get("codexHome"))
+    if account:
+        row["account"] = account
     return row
 
 
@@ -1028,7 +1035,7 @@ def codex_own_row(proc):
     config_dir = _account(proc["contour"])
     if config_dir:
         row["configDir"] = config_dir
-    return _with_crew(_with_checklist(row), proc["rollout"])
+    return _with_codex_account(_with_crew(_with_checklist(row), proc["rollout"]))
 
 
 def _given_name(home, thread):

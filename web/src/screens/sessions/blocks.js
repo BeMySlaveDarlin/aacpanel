@@ -241,7 +241,7 @@ export function knownOf(block) {
 // ProjectBlock is one project: a heading with its name, its group and its
 // controls (see headed); its live sessions, those being raised and, with
 // none, its last conversation.
-export function ProjectBlock({ block, profile, exec, wait, notes, live, past, onOpen, onProject, limits }) {
+export function ProjectBlock({ block, profile, profiles, exec, wait, notes, live, past, onOpen, onProject, limits }) {
     const project = block.project;
     const known = knownOf(block);
     const sessions = live || block.live;
@@ -258,7 +258,7 @@ export function ProjectBlock({ block, profile, exec, wait, notes, live, past, on
                 </div>
             `}
             <${LiveLines} limits=${limits} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
-                          onOpen=${onOpen} exec=${exec} profile=${profile} known=${known} />
+                          onOpen=${onOpen} exec=${exec} profile=${profile} profiles=${profiles} known=${known} />
             ${block.ghosts.map((task) => html`<${GhostCard} key=${task.target} task=${task} known=${known} />`)}
             ${block.past && html`<${PastCard} row=${block.past} about=${aboutOf(block.past, project)} exec=${exec} known=${known}
                                             onOpen=${(row) => onOpen && onOpen(row.name, row.sessionId)} />`}
@@ -277,14 +277,14 @@ export function ProjectBlock({ block, profile, exec, wait, notes, live, past, on
 // its own folds — its arrow keys go down the same rows — the conversation
 // open beside the column (current), the menu of a card (menuOf) and how a
 // closed parent opens (onStub).
-export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits, profile = null, known = "",
+export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits, profile = null, profiles = [], known = "",
     folds = null, desk = false, current = "", menuOf = null, onStub = null }) {
     const own = useFolds();
     const [folded, fold] = folds || own;
     const everyone = live || list;
     const card = (s, depth = 0, from = "", parent = "") => html`
         <${SessionCard} key=${s.session} s=${s} depth=${depth} from=${from} limits=${limits} wait=${wait} exec=${exec}
-                        sessions=${everyone} profile=${profile} notes=${notes && notes.get(s.session)}
+                        sessions=${everyone} profile=${profile} profiles=${profiles} notes=${notes && notes.get(s.session)}
                         known=${parent || known}
                         desk=${desk} current=${current === s.session} onMenu=${menuOf ? menuOf(s) : null}
                         onOpen=${(row) => onOpen && onOpen(row.session, row.sessionId)} />

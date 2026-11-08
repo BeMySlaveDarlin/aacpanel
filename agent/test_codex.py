@@ -112,6 +112,16 @@ class Runtime(unittest.TestCase):
         done.wait()
         return done.pid
 
+    def shared_account(self):
+        owner = os.path.join(self.root, ".codex-profiles", "billing")
+        os.makedirs(owner)
+        auth = os.path.join(owner, "auth.json")
+        with open(auth, "w", encoding="utf-8") as f:
+            f.write("credentials are not parsed")
+        os.symlink(auth, os.path.join(self.home, "auth.json"))
+        put_env(self, contours.CODEX_ENV, os.pathsep.join([self.home, owner]))
+        return {"profile": "billing", "codexHome": owner}
+
     def keep_checklist(self, thread=THREAD, **extra):
         """Writes the checklist the executor's server keeps for a thread, under the name of the thread."""
         data = {"configDir": self.home, "dir": "/home/u/Projects/demo", "name": f"codex-{thread[-8:]}",
@@ -223,6 +233,11 @@ class InputQueue(Runtime):
 
 
 class Rows(Runtime):
+    def test_a_thread_carries_the_owner_of_its_shared_auth_file(self):
+        account = self.shared_account()
+        self.follow()
+        self.assertEqual(ctx.codex_sessions()[0].get("account"), account)
+
     def test_a_thread_a_live_executor_follows_is_a_row(self):
         self.follow()
         self.assertEqual(ctx.codex_sessions(), [{

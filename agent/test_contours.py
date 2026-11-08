@@ -5,6 +5,7 @@ import shutil
 import sys
 import time
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -330,6 +331,40 @@ class Contours(unittest.TestCase):
         self.codex_homes(by_map, second)
         self.assertEqual(contours.codex_homes(), [("claude-work", by_map), ("work", second)],
                          "of two homes named after the map the first listed is not the contour's")
+
+    def test_a_codex_account_belongs_to_the_home_of_its_real_auth_file(self):
+        self.account()
+        personal = self.codex_home(".codex")
+        owner = self.codex_home(".codex-profiles", "work")
+        shared = self.codex_home(".codex-profiles", "shared")
+        self.codex_homes(personal, owner, shared)
+        auth = os.path.join(owner, "auth.json")
+        with open(auth, "wb") as f:
+            f.write(b"\xff")
+        os.symlink(os.path.relpath(auth, personal), os.path.join(personal, "auth.json"))
+        os.symlink(os.path.join(personal, "auth.json"), os.path.join(shared, "auth.json"))
+        plain_open = open
+
+        def metadata_only(path, *args, **kwargs):
+            if os.path.basename(path) == "auth.json":
+                self.fail("account discovery opened the credentials instead of resolving their path")
+            return plain_open(path, *args, **kwargs)
+
+        with patch("builtins.open", metadata_only), patch("io.open", metadata_only):
+            for home in (owner, personal, shared):
+                with self.subTest(home=home):
+                    self.assertEqual(contours.codex_account(home),
+                                     {"profile": "claude-work", "codexHome": owner})
+
+    def test_a_codex_home_without_an_auth_file_has_no_account(self):
+        missing = self.codex_home(".codex-profiles", "missing")
+        dangling = self.codex_home(".codex-profiles", "dangling")
+        directory = self.codex_home(".codex-profiles", "directory")
+        os.symlink(os.path.join(missing, "auth.json"), os.path.join(dangling, "auth.json"))
+        os.mkdir(os.path.join(directory, "auth.json"))
+        for home in (missing, dangling, directory, ""):
+            with self.subTest(home=home):
+                self.assertIsNone(contours.codex_account(home))
 
     def rate(self, config, five, seven, at=None):
         import time

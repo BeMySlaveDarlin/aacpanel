@@ -2402,6 +2402,14 @@ The collector reads `/proc` and claude transcripts and writes a snapshot: load,
 disks, network, processes, live sessions with how full their context is, port
 checks.
 
+**A Codex card names the contour owning its auth file.** Homes can share an
+account through symlinks: the collector resolves the home's `auth.json` and
+names the contour of the directory that holds the real file. It reads only
+the path, never the credentials. The session's `account` carries that contour
+and its codex home so the screen can use the profile map's label even when
+the thread runs in another contour. A missing file or a broken link leaves
+the badge absent.
+
 **A session is recognised by its process, not by the freshness of a file**:
 session names are reused between runs, and yesterday's conversation under the
 same name is a different conversation.

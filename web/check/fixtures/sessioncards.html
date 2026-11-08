@@ -210,6 +210,8 @@ window.done = (async () => {
     // The map's label can differ from the collector's name. A missing
     // account cannot inherit the page it happens to stand on, and a codex
     // home says where a thread runs rather than whose subscription pays.
+    const owner = { profile: "claude-work", codexHome: "/home/u/.codex-profiles/work" };
+    const accountMap = [...profileMap, { id: 2, profile: "Client account", codexHome: owner.codexHome }];
     const accountCases = [
         ["mapped", { profile: "claude-work", contour: 2 }, { id: 2, profile: "Client account" }],
         ["without-resources", { profile: "claude-work", contour: 2, res: null }, { id: 2, profile: "Client account" }],
@@ -218,11 +220,15 @@ window.done = (async () => {
         ["without-account", { profile: "", contour: 0 }, profileMap[0]],
         ["without-data", { profile: "", contour: 0, res: null }, profileMap[0]],
         ["codex", { agent: "codex", profile: "personal", contour: 1, codexHome: "/home/u/.codex" }, profileMap[0]],
+        ["codex-shared", { agent: "codex", profile: "personal", contour: 1, codexHome: "/home/u/.codex", account: owner }, profileMap[0]],
+        ["codex-own", { agent: "codex", profile: "claude-work", contour: 2, codexHome: owner.codexHome, account: owner }, accountMap[1]],
+        ["codex-unmapped", { agent: "codex", account: { profile: "external", codexHome: "/srv/codex-external" } }, profileMap[0]],
+        ["codex-without-resources", { agent: "codex", account: owner, res: null }, profileMap[0]],
     ];
     const accountHost = document.createElement("div");
     document.body.append(accountHost);
     render(wrap(h("div", null, accountCases.map(([name, fields, profile]) => h(SessionCard, {
-        key: name, s: { ...sessions[0], session: `account-${name}`, ...fields }, profile, desk, exec,
+        key: name, s: { ...sessions[0], session: `account-${name}`, ...fields }, profile, profiles: accountMap, desk, exec,
     })))), accountHost);
     await quiet();
     const accounts = Object.fromEntries(accountCases.map(([name]) => [name,

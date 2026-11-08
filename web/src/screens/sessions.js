@@ -111,6 +111,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
         return html`<${Project}
             project=${project}
             profile=${profiles.find((p) => p.id === project.contour) || null}
+            profiles=${profiles}
             limits=${limits}
             sessions=${sessionsNow}
             notes=${splitNotes((snapshot && snapshot.sessionNotes) || [], sessionsNow).own}
@@ -257,7 +258,7 @@ function Page({ name, profile, limits, stale, sessions, everyone, snapshot, open
                     </div>
                     ${list.map((block) => html`
                         <${ProjectBlock} limits=${limits} key=${block.key} block=${block} profile=${profile} exec=${exec} wait=${wait} notes=${notes}
-                                         live=${everyone} past=${recent}
+                                         live=${everyone} past=${recent} profiles=${snapshot?.profileMap || []}
                                          onOpen=${onChat} onProject=${toProject} />
                     `)}
                 `;

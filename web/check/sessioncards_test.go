@@ -69,13 +69,17 @@ type sessionCardsRun struct {
 func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	t.Helper()
 	for name, want := range map[string][]string{
-		"mapped":            {"Client account", "512M", "3%"},
-		"without-resources": {"Client account"},
-		"unmapped":          {"external", "512M", "3%"},
-		"another-page":      {"external", "512M", "3%"},
-		"without-account":   {"512M", "3%"},
-		"without-data":      {},
-		"codex":             {"512M", "3%"},
+		"mapped":                  {"Client account", "512M", "3%"},
+		"without-resources":       {"Client account"},
+		"unmapped":                {"external", "512M", "3%"},
+		"another-page":            {"external", "512M", "3%"},
+		"without-account":         {"512M", "3%"},
+		"without-data":            {},
+		"codex":                   {"512M", "3%"},
+		"codex-shared":            {"Client account", "512M", "3%"},
+		"codex-own":               {"Client account", "512M", "3%"},
+		"codex-unmapped":          {"external", "512M", "3%"},
+		"codex-without-resources": {"Client account"},
 	} {
 		badges, ok := got.Accounts[name]
 		if !ok || !slices.Equal(badges, want) {

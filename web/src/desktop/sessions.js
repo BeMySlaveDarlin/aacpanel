@@ -305,7 +305,7 @@ function ContourSection({ name, entry, list, blocks, archive, folds, limits, map
                         ${headed(block) && html`<${ProjectHead} block=${block} entry=${entry} snapshot=${snapshot} exec=${exec} wait=${wait}
                                                                 onTerm=${onTerm} onSettings=${onSettings} />`}
                         <${LiveLines} list=${block.live} live=${snapshot?.sessions || []} past=${archive} limits=${limits} wait=${wait} notes=${notes}
-                                      exec=${exec} profile=${entry} known=${known}
+                                      exec=${exec} profile=${entry} profiles=${map} known=${known}
                                       folds=${folds} desk current=${current} menuOf=${menuOf} onOpen=${open}
                                       onStub=${(row) => onPick({ name: row.name, id: row.sessionId, archived: true, row })} />
                         ${block.ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} known=${known} />`)}

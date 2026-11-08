@@ -313,7 +313,7 @@ function Controls({ s, project, profile, sessions, exec, pin, busy }) {
 // elsewhere. A press anywhere on the card opens the conversation, a long one
 // on a phone its pie; onMenu is the menu of a right click, where there is
 // one; current marks the conversation open beside the list.
-export function SessionCard({ s, limits, wait, exec, sessions = [], profile = null, notes = null, known = "",
+export function SessionCard({ s, limits, wait, exec, sessions = [], profile = null, profiles = [], notes = null, known = "",
     depth = 0, from = "", current = false, desk = false, onOpen, onMenu }) {
     const busy = busyOf(s, wait);
     const state = stateOf(s, limits, { viewed: current });
@@ -322,7 +322,11 @@ export function SessionCard({ s, limits, wait, exec, sessions = [], profile = nu
     const name = shownName(s);
     // An unassigned session can stand on the default contour's page, so the
     // page's label names its account only when the contour matches.
-    const account = isCodex(s) ? "" : (s.contour && profile?.id === s.contour && profile.profile) || s.profile || "";
+    // Codex can share another contour's auth file, whose home names its
+    // owning contour in the map independently of the thread's own page.
+    const owner = s.account?.codexHome && profiles.find((p) => p.codexHome === s.account.codexHome);
+    const account = isCodex(s) ? owner?.profile || s.account?.profile || ""
+        : (s.contour && profile?.id === s.contour && profile.profile) || s.profile || "";
     const pin = pinOf(s, sessions.length ? sessions : [s], wait);
     const time = timeOf(state);
     const timeTone = state.tone === "wait" ? "wait" : state.unseen ? "unseen" : ["idle", "paused"].includes(state.tone) ? "quiet" : "";
