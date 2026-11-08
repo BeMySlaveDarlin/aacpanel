@@ -24,8 +24,8 @@ const EXT = {
 // the phone drew of it is a JPEG named after it; a picture a call returned is
 // named by the place of its result.
 export function shotName(shot, pos) {
-    if (shot && shot.upload && shot.preview) return `${shot.upload.replace(/\.[^.]*$/, "")}-preview.jpg`;
-    if (shot && shot.upload) return shot.upload;
+    const name = shot && (shot.upload || shot.name);
+    if (name) return shot.preview ? `${name.replace(/\.[^.]*$/, "")}-preview.jpg` : name;
     const ext = EXT[(shot && shot.media) || ""] || "png";
     if (shot && shot.part != null) return `attachment-${shot.pos}-${shot.index || 0}-${shot.part}.${ext}`;
     return `attachment-${pos}-${(shot && shot.index) || 0}.${ext}`;

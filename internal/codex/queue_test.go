@@ -199,6 +199,34 @@ func TestPicturesGoWithTheMessageAsLocalImages(t *testing.T) {
 	}
 }
 
+func TestAQueuedPictureKeepsItsPathOnDiskUntilDelivery(t *testing.T) {
+	srv, l := linked(t, idle(threadA))
+	until(t, "the state file", written(t, threadA))
+	if err := l.Compact(t.Context(), threadA); err != nil {
+		t.Fatal(err)
+	}
+	m := Message{Text: "inspect this\n/srv/files/notes.txt", Images: []string{"/srv/files/shot.png"}}
+	if sent, err := l.Send(t.Context(), threadA, m); err != nil || sent.Place != 1 {
+		t.Fatalf("queue: %+v, %v", sent, err)
+	}
+	raw, err := os.ReadFile(outboxPath("acme", threadA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var box outbox
+	if err := json.Unmarshal(raw, &box); err != nil {
+		t.Fatal(err)
+	}
+	if len(box.Queue) != 1 || box.Queue[0].Text != m.Text || len(box.Queue[0].Images) != 1 || box.Queue[0].Images[0] != m.Images[0] {
+		t.Fatalf("the outbox lost its file references: %s", raw)
+	}
+	srv.Set(threadA, "idle")
+	until(t, "the queued files to reach a turn", func() bool { return len(srv.Calls("turn/start")) == 1 })
+	if got := turnTexts(t, srv); got[0] != "text:"+m.Text+" localImage:"+m.Images[0] {
+		t.Errorf("the queue delivered %q", got)
+	}
+}
+
 // The queue is the panel's and not the connection's: a link that dialled
 // the daemon again, and an executor started again, deliver what waited, and
 // the disk keeps nothing of it once a turn took it.

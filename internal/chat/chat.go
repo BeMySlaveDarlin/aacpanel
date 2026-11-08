@@ -311,11 +311,13 @@ type InputQueue struct {
 }
 
 type QueuedMessage struct {
-	MessageID   string   `json:"messageId"`
-	Fingerprint string   `json:"fingerprint,omitempty"`
-	Since       string   `json:"since"`
-	Text        *string  `json:"text,omitempty"`
-	Images      []string `json:"images,omitempty"`
+	MessageID   string    `json:"messageId"`
+	Fingerprint string    `json:"fingerprint,omitempty"`
+	Since       string    `json:"since"`
+	Text        *string   `json:"text,omitempty"`
+	Images      []string  `json:"images,omitempty"`
+	Shots       []Shot    `json:"shots,omitempty"`
+	Files       []FileRef `json:"files,omitempty"`
 }
 
 // WorkAlarm is one alarm of a session: its name and the note it left itself,

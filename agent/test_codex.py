@@ -207,6 +207,35 @@ class Checklist(Runtime):
 
 
 class InputQueue(Runtime):
+    def test_queued_uploads_and_their_delivered_row_share_file_references(self):
+        from test_uploads import PNG
+        from chat.uploads import uploads_in
+        self.follow(queue=1)
+        files = os.path.join(self.root, "files")
+        os.makedirs(files)
+        put_env(self, "AACP_FILES", files)
+        image = os.path.join(files, "20261009-120007-ab12cd-shot.png")
+        note = os.path.join(files, "20261009-120007-cd34ef-notes.txt")
+        for path, data in ((image, PNG), (note, b"notes")):
+            with open(path, "wb") as f:
+                f.write(data)
+        outbox = os.path.join(held.stream_dir(), "codex-outbox", "work", THREAD + ".json")
+        os.makedirs(os.path.dirname(outbox))
+        for caption in ("inspect this", ""):
+            text = "\n".join(filter(None, (caption, note)))
+            with open(outbox, "w", encoding="utf-8") as f:
+                json.dump({"queue": [{"text": text, "images": [image], "since": "2026-10-09T12:00:07Z"}]}, f)
+            message = chat.answer({"session": THREAD, "state": True})["state"]["queue"]["messages"][0]
+            shots, refs = uploads_in(text + "\n" + image)
+            self.assertEqual(message["shots"], shots)
+            self.assertEqual(message["files"], refs)
+            record = {"type": "event_msg", "payload": {"type": "item_completed", "item": {
+                "type": "UserMessage", "content": [{"type": "text", "text": text},
+                                                      {"type": "localImage", "path": image}]}}}
+            self.assertEqual(chat.parse(record, 9)[0]["text"], text + "\n" + image)
+        record["payload"]["item"]["content"] = [{"type": "localImage", "path": image}]
+        self.assertEqual(chat.parse(record, 10)[0]["text"], image)
+
     def test_the_outbox_reaches_the_feed_without_a_rollout_message(self):
         self.follow(queue=1)
         path = os.path.join(held.stream_dir(), "codex-outbox", "work", THREAD + ".json")

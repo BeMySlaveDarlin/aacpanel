@@ -116,14 +116,20 @@ export function queuedLocal(local, queue) {
 
 // Codex writes no transcript row until a turn takes the input. Its outbox is
 // the feed's waiting tail on every device, including a freshly opened page.
+function queueText(message) {
+    return [message.text, ...(message.images || [])].filter(Boolean).join("\n");
+}
+
 export function outboxRows(queue, local, taken, items) {
     return (queue ? queue.messages : []).filter((message) => message.text !== undefined
         && !taken.has(message.messageId)
-        && !local.some((row) => row.messageId ? row.messageId === message.messageId : sameReply(message.text, row))
+        && !local.some((row) => row.messageId ? row.messageId === message.messageId
+            : sameReply(queueText(message), row))
         && !items.some((item) => item.role === "me" && !item.cut && !item.state
-            && item.text === message.text.trim() && Date.parse(item.at) >= Date.parse(message.since)))
+            && item.text === queueText(message).trim() && Date.parse(item.at) >= Date.parse(message.since)))
         .map((message) => ({ role: "me", key: `queue-${message.messageId || message.since}`, at: message.since,
-            messageId: message.messageId, text: [message.text, ...(message.images || [])].filter(Boolean).join("\n"),
+            messageId: message.messageId, text: queueText(message),
+            shots: message.shots, files: message.files,
             state: "queued" }));
 }
 

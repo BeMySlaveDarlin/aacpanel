@@ -237,7 +237,9 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 		"session": "567f4d24-cd5f-48fa-bdc1-04c89d203494",
 		"items": [], "total": 0, "moreBefore": false, "first": null, "last": null,
 		"state": {
-			"queue": {"messages": [{"messageId": "message-id", "fingerprint": "input-hash", "since": "2026-08-25T10:00:00Z", "text": "waiting", "images": ["/srv/proj/shot.png"]}], "withdrawn": ["withdrawn-hash"]},
+			"queue": {"messages": [{"messageId": "message-id", "fingerprint": "input-hash", "since": "2026-08-25T10:00:00Z", "text": "waiting", "images": ["/srv/proj/shot.png"],
+			    "shots": [{"upload": "shot.png", "path": "/srv/proj/shot.png", "media": "image/png", "preview": true}],
+			    "files": [{"path": "/srv/proj/notes.txt", "name": "notes.txt"}]}], "withdrawn": ["withdrawn-hash"]},
 			"tasks": [{"id": "b0g4knhe1", "text": "Waiting for CI", "at": "2026-08-25T10:00:00Z", "kind": "bash", "event": "2026-08-25T10:19:00Z", "line": "gh run watch 4211"},
 			          {"id": "wakeup", "text": "watching CI", "at": "2026-08-25T10:01:00Z", "kind": "wake", "due": "2026-08-25T10:21:00Z"}],
 			"agents": [{"name": "audit-rules", "text": "rules audit", "at": "2026-08-25T10:00:00Z",

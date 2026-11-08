@@ -106,6 +106,24 @@ func only(t *testing.T, f *fakeHolder) stream.Request {
 	return got[0]
 }
 
+func TestAFileSentToABusyStreamCarriesItsSavedPath(t *testing.T) {
+	f := onTheStream(t, true)
+	dir := t.TempDir()
+	t.Setenv(filesEnv, dir)
+	e, _ := newTest(t, "")
+	if _, err := e.sessionFile(t.Context(), "demo", "inspect this", []action.File{{Name: "shot.png", Data: []byte("the picture")}}); err != nil {
+		t.Fatal(err)
+	}
+	names, err := os.ReadDir(dir)
+	if err != nil || len(names) != 1 {
+		t.Fatalf("saved files: %v, %v", names, err)
+	}
+	got := only(t, f)
+	if got.Op != stream.OpSend || got.Text != "inspect this\n"+dir+"/"+names[0].Name() {
+		t.Fatalf("the holder did not receive the attachment path: %+v", got)
+	}
+}
+
 func TestStreamInput(t *testing.T) {
 	f := onTheStream(t, true)
 	e, _ := newTest(t, "")

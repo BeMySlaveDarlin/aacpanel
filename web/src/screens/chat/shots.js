@@ -12,6 +12,7 @@ import { Photo, shotName } from "./photo.js";
 // sent goes by its name, a picture a call returned by the place of its
 // result, a picture pasted into a prompt by the record it came in.
 export function shotSrc(session, id, pos, shot) {
+    if (shot.src) return shot.src;
     const base = `/api/chat/image?session=${encodeURIComponent(session)}${idParam(id)}`;
     if (shot.upload) return `${base}&upload=${encodeURIComponent(shot.upload)}`;
     if (shot.part != null) return `${base}&pos=${shot.pos}&i=${shot.index}&part=${shot.part}`;

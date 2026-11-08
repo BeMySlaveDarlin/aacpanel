@@ -1237,6 +1237,12 @@ def rows(record, pos, state=None, shelf=None):
         return [_review(item, at, pos)]
     if kind == "UserMessage":
         text = _text(item.get("content"), "text")
+        # Local pictures are separate input parts. Keep their paths with the
+        # caption so the upload reader and the queue recognise the same row.
+        paths = [part["path"] for part in (item.get("content") or [])
+                 if isinstance(part, dict) and part.get("type") == "localImage"
+                 and isinstance(part.get("path"), str)]
+        text = "\n".join([text, *paths]).strip()
         letters = _letters(text, at, pos)
         if letters:
             return letters

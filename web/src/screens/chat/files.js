@@ -87,6 +87,7 @@ export function FileCard({ file, onOpen, onSave, tag }) {
     }
     return html`
         <button class=${`mfile${tag ? " tagged" : ""}`} type="button"
+                disabled=${!file.path}
                 onClick=${() => onOpen && onOpen(file)}
                 onContextMenu=${menu && onOpen && menu(FileMenu, { file, onOpen, onSave }, `file ${file.name}`)}
                 data-path=${file.path}
@@ -128,7 +129,7 @@ export function HandedFiles({ files, onOpen, onSave }) {
     return html`
         <div class="mflist mfhanded">
             ${files.map((file) => html`
-                <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
+                <${FileCard} key=${file.path || file.name} file=${file} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
             `)}
         </div>
     `;

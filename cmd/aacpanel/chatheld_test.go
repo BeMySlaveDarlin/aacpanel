@@ -9,6 +9,35 @@ import (
 	"aacpanel/internal/chat"
 )
 
+func TestQueuedAttachmentsReachTheChatAPI(t *testing.T) {
+	reply := okReply()
+	reply["state"] = map[string]any{"tasks": []any{}, "agents": []any{}, "queue": map[string]any{
+		"messages": []any{map[string]any{"messageId": "", "text": "inspect this", "since": "2026-10-09T12:00:07Z",
+			"images": []string{"/srv/files/shot.png"},
+			"shots":  []any{map[string]any{"upload": "shot.png", "path": "/srv/files/shot.png", "media": "image/png", "preview": true}},
+			"files":  []any{map[string]any{"path": "/srv/files/notes.txt", "name": "notes.txt"}}}},
+		"withdrawn": []any{},
+	}}
+	agent := startAgent(t, reply)
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+	w := httptest.NewRecorder()
+	srv.apiChat(w, httptest.NewRequest(http.MethodGet, "/api/chat?session=sentinel", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("response %d: %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		State struct{ Queue chat.InputQueue }
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	q := got.State.Queue.Messages
+	if len(q) != 1 || len(q[0].Shots) != 1 || q[0].Shots[0].Path != "/srv/files/shot.png" || !q[0].Shots[0].Preview ||
+		len(q[0].Files) != 1 || q[0].Files[0].Path != "/srv/files/notes.txt" {
+		t.Fatalf("queued attachments did not cross the API: %s", w.Body.String())
+	}
+}
+
 // The observers and the alarms a session asked the panel for come down with
 // the state of its conversation, every field the collector reads of them: a
 // field the service did not declare would be dropped on the way, and a row

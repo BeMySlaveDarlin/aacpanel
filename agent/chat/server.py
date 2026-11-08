@@ -26,7 +26,7 @@ from .repo import answer as repo_answer
 from .taskstore import answer as taskstore_answer
 from .search import refusal, search
 from .spots import call, image
-from .uploads import sent_as, upload, uploads_home
+from .uploads import sent_as, upload, uploads_home, uploads_in
 from .window import feed
 from .waiting import cards as waiting_cards
 
@@ -387,6 +387,17 @@ def held_by(session):
     found = {key: value for key, value in lists.items() if value}
     queue = held.queue(session)
     if queue is not None:
+        # Codex has no rollout row before delivery. Resolve the outbox's
+        # saved paths here, with the same rules as delivered messages.
+        for message in queue["messages"]:
+            if "text" not in message:
+                continue
+            text = "\n".join([message["text"], *message.get("images", [])])
+            shots, files = uploads_in(text)
+            if shots:
+                message["shots"] = shots
+            if files:
+                message["files"] = files
         found["queue"] = queue
     return found
 

@@ -2,6 +2,41 @@ package check
 
 import "testing"
 
+func TestQueuedAttachmentsStayVisibleUntilDelivery(t *testing.T) {
+	for _, screen := range []struct{ name, size, pointer string }{
+		{"phone", phoneScreen, phonePointer}, {"desk", deskScreen, deskPointer},
+	} {
+		t.Run(screen.name, func(t *testing.T) {
+			type shown struct {
+				Rows, Pictures int
+				Files          []string
+				Queued         bool
+			}
+			var got struct {
+				Attachments []struct {
+					Agent, Caption                    string
+					Local, Waiting, Reload, Delivered shown
+				}
+			}
+			runFixtureOn(t, "takeback.html", screen.size, screen.pointer, &got)
+			if len(got.Attachments) != 4 {
+				t.Fatalf("both agents with and without captions must run: %+v", got)
+			}
+			for _, row := range got.Attachments {
+				for name, state := range map[string]shown{"local": row.Local, "waiting": row.Waiting, "reload": row.Reload, "delivered": row.Delivered} {
+					files := len(state.Files) == 0
+					if row.Caption != "" {
+						files = len(state.Files) == 1 && state.Files[0] == "notes.txt"
+					}
+					if state.Rows != 1 || state.Pictures != 1 || !files || state.Queued != (name != "delivered") {
+						t.Errorf("%s, caption %q, %s: attachment missing or message duplicated: %+v", row.Agent, row.Caption, name, state)
+					}
+				}
+			}
+		})
+	}
+}
+
 // A row remains cancellable across the local/feed handoff and a reload, and
 // the owner's queue settles its state without another transcript record.
 func TestAQueuedMessageKeepsItsControlsUntilTheOwnerTakesIt(t *testing.T) {

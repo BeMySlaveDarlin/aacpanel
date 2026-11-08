@@ -31,6 +31,21 @@ const DRAWN = /\.(png|apng|jpe?g|jfif|gif|webp|avif|bmp)$/i;
 
 const HEIF = /\.(heic|heif)$/i;
 
+// pickedAttachments lends the feed the files already read by the composer
+// until the host can name their saved copies. These bytes stay on this page.
+export function pickedAttachments(pack) {
+    const shots = [], files = [];
+    for (const [index, file] of pack.entries()) {
+        if (file.preview || DRAWN.test(file.name)) {
+            shots.push({ index, name: file.name, preview: Boolean(file.preview),
+                src: `data:${file.preview ? "image/jpeg" : "application/octet-stream"};base64,${file.preview || file.data}` });
+        } else {
+            files.push({ name: file.name, size: file.size });
+        }
+    }
+    return { shots, files };
+}
+
 const TARGETS = [
     { id: "camera", label: "Camera", icon: Icon.camera, accept: "image/*", capture: "environment", multiple: false },
     { id: "photo", label: "Photos", icon: Icon.photo, accept: "image/*", capture: undefined, multiple: true },

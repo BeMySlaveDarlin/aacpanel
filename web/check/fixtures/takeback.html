@@ -19,13 +19,17 @@ import { counted, quiet } from "/check/fixtures/quiet.js";
 const root = document.getElementById("root");
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const sent = [];
+const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
 const started = Date.now() - 60000;
 const at = (n) => new Date(started + n * 1000).toISOString();
 let items = [], messages = [], withdrawn = [], source = null, refuse = false;
 const state = () => ({ tasks: [], agents: [], queue: { messages, withdrawn } });
 const emit = (kind, body) => source.dispatchEvent(new MessageEvent(kind, { data: JSON.stringify(body) }));
+const fetchData = window.fetch.bind(window);
 window.fetch = counted(async (url, init) => {
     const u = String(url);
+    if (u.startsWith("data:")) return fetchData(url, init);
+    if (u.startsWith("/api/chat/image?")) return new Response(new Blob([png], { type: "image/png" }));
     if (u.startsWith("/api/chat?")) return json({ items, first: items[0]?.pos ?? 0,
         last: items.at(-1)?.pos ?? 0, total: items.length, moreBefore: false, state: state() });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -44,7 +48,7 @@ window.EventSource = class extends EventTarget {
     constructor() { super(); this.readyState = 1; source = this; }
     close() { this.readyState = 2; }
 };
-const exec = { available: true, kinds: ["session.send", "session.unqueue", "session.stop"] };
+const exec = { available: true, kinds: ["session.send", "session.file", "session.unqueue", "session.stop"] };
 const count = () => root.querySelectorAll(".mqueue").length;
 const queued = () => root.querySelectorAll(".msg.queued").length;
 const until = async (ok) => {
@@ -136,8 +140,54 @@ window.done = (async () => {
     const before = queuedRows([{ ...row, at: at(0) }], queue);
     const file = queuedRows([{ ...row, text: "caption\n/srv/files/shot.png" }], queue);
     const repeated = queuedRows([{ ...row, state: "withdrawn" }], { ...queue, withdrawn: ["same-hash"] });
+    const attachments = [];
+    for (const agent of ["claude", "codex"]) {
+        for (const caption of ["inspect this", ""]) {
+            items = []; messages = []; withdrawn = []; refuse = false;
+            await open(agent);
+            const data = new DataTransfer();
+            data.items.add(new File([png], "shot.png", { type: "image/png" }));
+            if (caption) data.items.add(new File(["notes"], "notes.txt", { type: "text/plain" }));
+            const area = root.querySelector("textarea");
+            area.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+            await until(() => root.querySelectorAll(".clipoff").length === (caption ? 2 : 1));
+            area.value = caption;
+            area.dispatchEvent(new Event("input", { bubbles: true }));
+            await quiet();
+            root.querySelector(".sendbtn").click();
+            const loaded = () => root.querySelector(".chatfeed .mshot img")?.naturalWidth > 0;
+            await until(() => loaded() && root.querySelector(".chatfeed .mstamp")?.textContent === "queued");
+            const visible = () => ({ rows: root.querySelectorAll(".chatfeed .feedrow.r-me").length,
+                pictures: root.querySelectorAll(".chatfeed .mshot img").length,
+                files: Array.from(root.querySelectorAll(".chatfeed .mfhanded .mfname")).map((el) => el.textContent.trim()),
+                queued: root.querySelector(".chatfeed .mstamp")?.textContent === "queued" });
+            const out = { agent, caption, local: visible() };
+            const image = "/srv/files/20261009-120007-ab12cd-shot.png";
+            const note = caption ? "/srv/files/20261009-120007-cd34ef-notes.txt" : "";
+            const shots = [{ upload: image.split("/").pop(), path: image, media: "image/png" }];
+            const files = note ? [{ path: note, name: "notes.txt" }] : [];
+            const text = [caption, note, image].filter(Boolean).join("\n");
+            messages = [{ messageId: "", since: at(1), ...(agent === "codex"
+                ? { text: [caption, note].filter(Boolean).join("\n"), images: [image], shots, files }
+                : { fingerprint: "file-hash" }) }];
+            if (agent === "claude") items = [{ role: "me", pos: 10, at: at(2), text, shots, files,
+                state: "queued", fingerprint: "file-hash" }];
+            await update();
+            await until(loaded);
+            out.waiting = visible();
+            await open(agent);
+            await until(loaded);
+            out.reload = visible();
+            messages = [];
+            items = [{ role: "me", pos: 10, at: at(2), text, shots, files, fingerprint: "file-hash" }];
+            await update();
+            await until(loaded);
+            out.delivered = visible();
+            attachments.push(out);
+        }
+    }
     await window.preview("claude");
-    return { results, ambiguous: duplicates.every((r) => !r.messageId), old: !before[0].messageId,
+    return { results, attachments, ambiguous: duplicates.every((r) => !r.messageId), old: !before[0].messageId,
         file: file[0].messageId === "one", repeated: repeated[0].messageId === "one" && repeated[0].state === "queued" };
 })();
 </script>

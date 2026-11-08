@@ -149,6 +149,8 @@ func TestShotFileNameSaysWhatItIs(t *testing.T) {
 		{"the type is unknown", map[string]any{"media": "image/x-strange", "index": 1}, 140, "attachment-140-1.png"},
 		{"a file the panel sent", map[string]any{"upload": "20260918-101010-ab12cd-plan.jpg", "media": "image/jpeg"},
 			140, "20260918-101010-ab12cd-plan.jpg"},
+		{"a picture still on the device", map[string]any{"name": "shot.png"}, 140, "shot.png"},
+		{"a local camera preview", map[string]any{"name": "IMG_0001.HEIC", "preview": true}, 140, "IMG_0001-preview.jpg"},
 		{"a picture a call returned", map[string]any{"pos": 900, "index": 1, "part": 0, "media": "image/png"},
 			140, "attachment-900-1-0.png"},
 	}

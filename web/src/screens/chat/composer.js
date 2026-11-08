@@ -9,7 +9,7 @@ import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
 import { WIDE } from "../../ui/wide.js";
 import { dictation, HOLD_MS, join, listen, speech } from "./dictate.js";
-import { clipName, FILES_MAX, intake, mb, PickFile } from "./tools.js";
+import { clipName, FILES_MAX, intake, mb, pickedAttachments, PickFile } from "./tools.js";
 import { withQuote } from "./quote.js";
 import { canRunShell, sendShell, shellOf } from "./shell.js";
 
@@ -414,7 +414,8 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
         // bubble, once as its echo.
         const row = {
             role: "me", key, at: new Date().toISOString(),
-            text: body || named,
+            text: body,
+            ...pickedAttachments(pack),
             sent: body,
             file: named || undefined,
             from: { name, text: body, files: pack.length },

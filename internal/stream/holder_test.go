@@ -729,6 +729,36 @@ type brokenPipe struct{}
 func (brokenPipe) Write([]byte) (int, error) { return 0, errors.New("broken pipe") }
 func (brokenPipe) Close() error              { return nil }
 
+func TestAQueuedFileKeepsItsPathInTheHolderState(t *testing.T) {
+	dir := t.TempDir()
+	input, err := os.Create(filepath.Join(dir, "input.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = input.Close() })
+	h := &Holder{stdin: input, statePath: filepath.Join(dir, "state.json")}
+	const text = "inspect this\n/srv/files/shot.png"
+	reply := h.do(Request{Op: OpSend, Text: text})
+	if !reply.OK {
+		t.Fatalf("send: %+v", reply)
+	}
+	state := h.do(Request{Op: OpState}).State
+	if len(state.Queue) != 1 || state.Queue[0].Text != text {
+		t.Fatalf("the waiting input lost its file path: %+v", state.Queue)
+	}
+	raw, err := os.ReadFile(h.statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sum Summary
+	if err := json.Unmarshal(raw, &sum); err != nil {
+		t.Fatal(err)
+	}
+	if len(sum.Queued) != 1 || sum.Queued[0].Fingerprint != Fingerprint(text) || strings.Contains(string(raw), "inspect this") {
+		t.Fatalf("the summary lost the full input's identity or exposed its words: %s", raw)
+	}
+}
+
 // A message taken back from claude's queue leaves the holder's queue too: it
 // will never be read, and a queue that kept it would block a switch for good.
 func TestAMessageTakenBackLeavesTheQueue(t *testing.T) {

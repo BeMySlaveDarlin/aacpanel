@@ -3,9 +3,36 @@ package check
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestQueuedFileReferencesSurviveTheFeedHandoff(t *testing.T) {
+	bundle := bundleFront(t, filepath.Join(webDir, "src/screens/chat/feed.js"))
+	var got struct {
+		Waiting []struct {
+			Shots []struct{ Path string }
+			Files []struct{ Path string }
+		}
+		Local, Delivered int
+	}
+	launchNode(t, bundle, `
+import { outboxRows } from BUNDLE;
+const since = "2026-10-09T12:00:00Z";
+const text = "inspect this\n/srv/files/notes.txt";
+const queue = { messages: [{ text, since, images: ["/srv/files/shot.png"],
+    shots: [{ path: "/srv/files/shot.png", upload: "shot.png" }], files: [{ path: "/srv/files/notes.txt", name: "notes.txt" }] }] };
+const waiting = outboxRows(queue, [], new Set(), []);
+const local = outboxRows(queue, [{ text: "inspect this", from: { files: 2 } }], new Set(), []);
+const delivered = outboxRows(queue, [], new Set(), [{ role: "me", at: since, text: text + "\n/srv/files/shot.png" }]);
+process.stdout.write(JSON.stringify({ waiting, local: local.length, delivered: delivered.length }));
+`, &got)
+	if len(got.Waiting) != 1 || len(got.Waiting[0].Shots) != 1 || got.Waiting[0].Shots[0].Path != "/srv/files/shot.png" ||
+		len(got.Waiting[0].Files) != 1 || got.Waiting[0].Files[0].Path != "/srv/files/notes.txt" || got.Local != 0 || got.Delivered != 0 {
+		t.Fatalf("queued attachments were lost or duplicated at handoff: %+v", got)
+	}
+}
 
 // A message just sent is drawn by the screen until the transcript echoes it.
 // The rows still on their way are read at render time: the echo and the

@@ -103,6 +103,21 @@ class Uploads(unittest.TestCase):
         self.assertEqual(len(mine), 1, mine)
         self.assertEqual([s["upload"] for s in mine[0].get("shots", [])], ["20260920-100000-ab12cd-shot.png"])
 
+    def test_a_stream_attachment_has_its_picture_before_delivery(self):
+        path = self.sent("20260920-100000-ab12cd-shot.png")
+        text = f"inspect this\n{path}"
+        attachment = line({"type": "attachment", "timestamp": AT,
+                           "attachment": {"type": "queued_command", "prompt": text}})
+        self.write(attachment)
+        row = self.mine()[-1]
+        self.assertEqual(row["state"], "queued")
+        self.assertEqual(row["shots"][0]["path"], path)
+        self.write(attachment, line({"type": "user", "timestamp": AT, "promptSource": "sdk",
+                                     "message": {"content": text}}))
+        rows = [row for row in self.mine() if row["text"] == text]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["shots"][0]["path"], path)
+
     def test_every_picture_of_a_message_is_drawn_once(self):
         one = self.sent("20260920-100000-ab12cd-one.png")
         two = self.sent("20260920-100000-ef34ab-two.jpg")
