@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/chat"
 	"aacpanel/internal/host"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/store"
@@ -120,8 +121,99 @@ func TestTaskSummaryUsesPeriodEventsAndInvalidatesItsCachePG(t *testing.T) {
 func TestTaskSummaryLanguageDefaultsToRussian(t *testing.T) {
 	t.Setenv(hostcfg.PathEnv, filepath.Join(t.TempDir(), "missing.env"))
 	t.Setenv(hostcfg.LangEnv, "")
-	from, until := time.Now(), time.Now().Add(time.Hour)
-	if got := summaryPrompt(store.TaskFilter{From: &from, Until: &until}, store.SummarySource{Records: json.RawMessage(`{}`)}); !strings.Contains(got, "language ru ") {
+	got, err := summaryPrompt(store.SummarySource{}, taskContext{})
+	if err != nil || !strings.Contains(got, "language ru ") {
 		t.Fatal("the summary has no Russian language fallback")
+	}
+}
+
+func TestTaskSummaryResolvesArchivedAuthorsLikeThePeriodPG(t *testing.T) {
+	srv, root := profilesServer(t)
+	project := fillMap(t, srv, root)
+	profiles, err := srv.db.Profiles(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	contour := profiles[0].ID
+	if _, err := srv.db.SwitchTaskWriter(t.Context(), project, filepath.Join(root, "aacpanel"), taskreg.Snapshot{}); err != nil {
+		t.Fatal(err)
+	}
+	title := "SER-1063: Verify inventory"
+	actor := taskreg.Actor{Conversation: "11111111", Name: "inventory-worker"}
+	if _, err := srv.db.WriteTask(t.Context(), project, 0, actor, taskreg.Edit{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := srv.db.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE task_events SET actor_name='' WHERE project_id=$1`, project); err != nil {
+		t.Fatal(err)
+	}
+	live, _ := json.Marshal(map[string]any{"at": time.Now().Unix(), "sessions": []any{}})
+	srv.host = hostWith(t, string(live))
+	agent := startAgent(t, map[string]any{"ok": true, "archive": chat.ArchivePage{
+		Rows: []chat.ArchiveRow{{SessionID: "11111111-2222-4333-8444-555555555555", Name: actor.Name}}, Total: 1, Limit: 100,
+	}})
+	srv.chat = chat.New(agent.path)
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: `{"text":"Inventory verified.","model":"sonnet"}`})
+	srv.exec = client
+	from, until := time.Now().Add(-time.Hour).UTC(), time.Now().Add(time.Hour).UTC()
+	query := url.Values{"contour": {strconv.Itoa(contour)}, "from": {from.Format(time.RFC3339Nano)}, "until": {until.Format(time.RFC3339Nano)}}
+	w := httptest.NewRecorder()
+	srv.apiTaskPeriod(w, httptest.NewRequest("GET", "/api/tasks/period?"+query.Encode(), nil))
+	var period store.TaskPeriod
+	if err := json.Unmarshal(w.Body.Bytes(), &period); err != nil || w.Code != http.StatusOK || len(period.Groups) != 1 || len(period.Groups[0].Tasks) != 1 || len(period.Groups[0].Tasks[0].Events) != 1 {
+		t.Fatalf("period: %d %s, %v", w.Code, w.Body.String(), err)
+	}
+	periodName := period.Groups[0].Tasks[0].Events[0].ActorName
+	if periodName != actor.Name {
+		t.Fatalf("the period did not resolve the archived author: %q", periodName)
+	}
+	body, _ := json.Marshal(map[string]any{"contour": contour, "from": from, "until": until})
+	w = httptest.NewRecorder()
+	srv.apiTaskSummary(w, httptest.NewRequest("POST", "/api/tasks/summary", strings.NewReader(string(body))))
+	if w.Code != http.StatusOK {
+		t.Fatalf("summary: %d %s", w.Code, w.Body.String())
+	}
+	request := <-fake.got
+	_, raw, found := strings.Cut(request.Text, "Activity records:\n")
+	var records map[string][]store.SummaryEvent
+	if err := json.Unmarshal([]byte(raw), &records); err != nil || !found || len(records["SER-1063"]) != 1 {
+		t.Fatalf("the summary prompt has no inventory event: %q, %v", raw, err)
+	}
+	if got := records["SER-1063"][0].Event.ActorName; got != periodName {
+		t.Fatalf("the summary event names %q instead of the period's archived author %q", got, periodName)
+	}
+	for range 2 {
+		select {
+		case request := <-agent.got:
+			if request.Archive == nil || request.Archive.Profile != root || len(request.Archive.Conversations) != 1 || request.Archive.Conversations[0] != actor.Conversation {
+				t.Fatalf("the period and summary must use the same filtered archive lookup: %+v", request)
+			}
+		default:
+			t.Fatal("the period or summary did not ask the archive for its author")
+		}
+	}
+}
+
+func TestTaskSummaryPromptStaysAboutWorkAndOmitsDates(t *testing.T) {
+	prompt, err := summaryPrompt(store.SummarySource{}, taskContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rule := range []string{
+		"Write only about the work: what was completed, started, and remains.",
+		"Keep it to at most five short bullets or paragraphs.",
+		"Combine completed tasks on the same topic into one line; do not enumerate every task.",
+		"never print conversation ids",
+		"Do not print dates, times, timestamps, or period boundaries.",
+		"without a heading or introduction",
+		"Do not describe the input data, its fields, format, missing values, or missing chronology.",
+		"Do not invent results or explanations for missing information.",
+	} {
+		if !strings.Contains(prompt, rule) {
+			t.Errorf("the summary prompt omits the rule %q", rule)
+		}
 	}
 }

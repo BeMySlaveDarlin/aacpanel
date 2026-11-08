@@ -198,9 +198,7 @@ func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) {
 	}
 	detail.Task.People = taskreg.People(actors, c.sessions)
 	for i := range detail.Events {
-		if detail.Events[i].ActorName == "" {
-			detail.Events[i].ActorName = taskreg.ActorName(detail.Events[i].Actor, c.sessions)
-		}
+		c.nameEvent(&detail.Events[i])
 	}
 	writeJSON(w, detail)
 }
@@ -249,9 +247,7 @@ func (s *Server) apiTaskPeriod(w http.ResponseWriter, r *http.Request) {
 				refs = []string{""}
 			}
 			for i := range activity.Events {
-				if activity.Events[i].ActorName == "" {
-					activity.Events[i].ActorName = taskreg.ActorName(activity.Events[i].Actor, c.sessions)
-				}
+				c.nameEvent(&activity.Events[i])
 			}
 			for _, ref := range refs {
 				groups[ref] = append(groups[ref], activity)

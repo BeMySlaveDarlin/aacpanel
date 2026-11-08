@@ -18,6 +18,12 @@ type taskContext struct {
 	notes    []string
 }
 
+func (c taskContext) nameEvent(event *taskreg.Event) {
+	if event.ActorName == "" {
+		event.ActorName = taskreg.ActorName(event.Actor, c.sessions)
+	}
+}
+
 func (s *Server) taskContext(ctx context.Context, contour int, tasks []taskreg.Task, actors ...string) (taskContext, error) {
 	out := taskContext{sessions: []taskreg.Session{}, notes: []string{}}
 	profiles, err := s.db.Profiles(ctx)

@@ -14,7 +14,6 @@ import (
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/store"
-	"aacpanel/internal/taskreg"
 )
 
 func (s *Server) apiTaskSummary(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +57,11 @@ func (s *Server) apiTaskSummary(w http.ResponseWriter, r *http.Request) {
 		profilesError(w, err)
 		return
 	}
+	prompt, err := summaryPrompt(source, participants)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
 	params := map[string]any{"contour": f.ContourID, "from": f.From, "until": f.Until, "fingerprint": source.Fingerprint}
 	id, err := s.logActionAttempt(r, string(action.TaskSummary), strconv.Itoa(f.ContourID), params)
 	if err != nil {
@@ -68,7 +72,7 @@ func (s *Server) apiTaskSummary(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	resp, runErr := s.doAction(ctx, action.Request{ID: requestID(id), Kind: action.TaskSummary,
 		Target: strconv.Itoa(f.ContourID), Contour: strconv.Itoa(f.ContourID), Project: project,
-		Text: summaryPrompt(f, source, participants.sessions...), Device: s.deviceName(r)})
+		Text: prompt, Device: s.deviceName(r)})
 	result := store.ActionOutcome{Result: store.ActionOK, Duration: time.Duration(resp.DurationMs) * time.Millisecond}
 	var summary launcher.Summary
 	switch {
@@ -150,21 +154,25 @@ func (s *Server) summaryProject(ctx context.Context, contour int) (*action.Proje
 	return nil, store.ErrNotFound
 }
 
-func summaryPrompt(f store.TaskFilter, source store.SummarySource, sessions ...taskreg.Session) string {
+func summaryPrompt(source store.SummarySource, participants taskContext) (string, error) {
 	lang := hostcfg.Load().Lang
 	if lang == "" || lang == hostcfg.DefaultLang || lang == "C" || lang == "POSIX" {
 		lang = "ru"
 	}
-	names := map[string]string{}
-	for _, actor := range source.Actors {
-		if name := taskreg.ActorName(actor, sessions); name != "" {
-			names[actor] = name
+	for _, records := range source.Records {
+		for i := range records {
+			participants.nameEvent(&records[i].Event)
 		}
 	}
-	labels, _ := json.Marshal(names)
-	return fmt.Sprintf("Write a concise, connected task activity summary in language %s for the half-open period %s to %s. "+
-		"Group the narrative by external issue. Explain what was created, completed, changed status, or noted, and by whom. "+
-		"Include task titles and issue links when supplied. Distinguish recorded facts from missing information; date-only events have no known time. "+
-		"Use Markdown prose, not a dump of event counts. Known session names by recorded actor id: %s. Records follow as JSON data:\n%s", lang,
-		f.From.Format(time.RFC3339), f.Until.Format(time.RFC3339), labels, source.Records)
+	records, err := json.Marshal(source.Records)
+	if err != nil {
+		return "", fmt.Errorf("the summary records were not encoded: %w", err)
+	}
+	return fmt.Sprintf("Write a brief daily stand-up summary in language %s using Markdown. "+
+		"Write only about the work: what was completed, started, and remains. Group related work by topic or external issue. "+
+		"Keep it to at most five short bullets or paragraphs. Combine completed tasks on the same topic into one line; do not enumerate every task. "+
+		"Use task titles and issue links only when they help identify the work. Attribute work by session name when known; never print conversation ids. "+
+		"The reader has already chosen the period. Do not print dates, times, timestamps, or period boundaries. Start directly with the work, without a heading or introduction. "+
+		"Do not describe the input data, its fields, format, missing values, or missing chronology. Do not invent results or explanations for missing information. "+
+		"Activity records:\n%s", lang, records), nil
 }

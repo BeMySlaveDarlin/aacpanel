@@ -19,13 +19,13 @@ type TaskSummary struct {
 }
 
 type SummarySource struct {
-	Records     json.RawMessage
+	Records     map[string][]SummaryEvent
 	Fingerprint string
 	Empty       bool
 	Actors      []string
 }
 
-type summaryEvent struct {
+type SummaryEvent struct {
 	Project string        `json:"project"`
 	Number  int64         `json:"number"`
 	Title   string        `json:"title"`
@@ -35,8 +35,8 @@ type summaryEvent struct {
 }
 
 // A single ordered read covers the whole period, including deleted tasks.
-// The same bytes feed the model and the cache key, so a changed source cannot
-// reuse a summary of facts the model never received.
+// The fingerprint uses recorded facts before names are resolved for display:
+// archive availability must not change a period's event identity.
 func (s *Store) TaskSummarySource(ctx context.Context, f TaskFilter) (out SummarySource, err error) {
 	defer func() { err = Unavailable(err) }()
 	if f.ContourID <= 0 || f.From == nil || f.Until == nil || !f.From.Before(*f.Until) {
@@ -56,11 +56,11 @@ func (s *Store) TaskSummarySource(ctx context.Context, f TaskFilter) (out Summar
 		return out, err
 	}
 	defer rows.Close()
-	groups := map[string][]summaryEvent{}
+	groups := map[string][]SummaryEvent{}
 	actors := map[string]bool{}
 	size := 0
 	for rows.Next() {
-		var row summaryEvent
+		var row SummaryEvent
 		e := &row.Event
 		if err = rows.Scan(&row.Project, &row.Number, &row.Title, &row.URL, &row.Issues,
 			&e.ID, &e.Kind, &e.At, &e.Precision, &e.Actor, &e.ActorName, &e.Origin, &e.Payload); err != nil {
@@ -91,11 +91,12 @@ func (s *Store) TaskSummarySource(ctx context.Context, f TaskFilter) (out Summar
 		return out, err
 	}
 	out.Empty = len(groups) == 0
-	out.Records, err = json.Marshal(groups)
+	out.Records = groups
+	raw, err := json.Marshal(groups)
 	if err != nil {
 		return out, err
 	}
-	sum := sha256.Sum256(out.Records)
+	sum := sha256.Sum256(raw)
 	out.Fingerprint = hex.EncodeToString(sum[:])
 	return out, nil
 }
