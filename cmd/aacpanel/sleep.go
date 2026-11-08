@@ -127,6 +127,7 @@ func (s *Server) sessionsPaused(ctx context.Context, payload []byte) ([]byte, er
 			delete(row, "waitingFor")
 			delete(row, "work")
 			delete(row, "nextAlarm")
+			delete(row, "res")
 			if p.Parent != "" {
 				row["parent"] = host.SessionRef{Session: p.Parent}
 			} else {

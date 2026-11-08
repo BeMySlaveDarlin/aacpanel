@@ -121,6 +121,19 @@ func TestSleepingCardsAndDeadlinesSurviveServiceReplacementPG(t *testing.T) {
 			if noEnd && p.Until != nil {
 				t.Fatal("an indefinite pause acquired a deadline")
 			}
+			// The snapshot kept for the card was taken while the process lived and
+			// carries its readings; asleep, the session uses neither memory nor CPU.
+			var kept map[string]any
+			if err := json.Unmarshal(p.Snapshot, &kept); err != nil {
+				t.Fatal(err)
+			}
+			kept["res"] = map[string]any{"mem": 218 << 20, "cpu": 1.5}
+			withRes, err := json.Marshal(kept)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.Snapshot = withRes
+			savePause(t, s, p)
 			replacement := &Server{db: s.srv.db, host: s.srv.host, hostName: s.srv.hostName, exec: s.srv.exec, home: s.srv.home, sleepConfig: s.r.config}
 			s.srv = replacement
 			replacement.sleeper = &reviver{srv: replacement, config: s.r.config, read: s.r.read, measure: s.r.measure, sleep: true}
@@ -139,10 +152,11 @@ func TestSleepingCardsAndDeadlinesSurviveServiceReplacementPG(t *testing.T) {
 				Sessions []struct {
 					Sleeping           bool
 					Session, SessionID string
-					Pause              *pauseAlarm `json:"pauseAlarm"`
+					Pause              *pauseAlarm     `json:"pauseAlarm"`
+					Res                json.RawMessage `json:"res"`
 				}
 			}
-			if err := json.Unmarshal(raw, &snap); err != nil || len(snap.Sessions) != 1 || !snap.Sessions[0].Sleeping || (noEnd && snap.Sessions[0].Pause.Name != action.PauseNoEndAlarm) || (!noEnd && snap.Sessions[0].Pause.Next != p.Until.Format(time.RFC3339)) {
+			if err := json.Unmarshal(raw, &snap); err != nil || len(snap.Sessions) != 1 || !snap.Sessions[0].Sleeping || snap.Sessions[0].Res != nil || (noEnd && snap.Sessions[0].Pause.Name != action.PauseNoEndAlarm) || (!noEnd && snap.Sessions[0].Pause.Next != p.Until.Format(time.RFC3339)) {
 				t.Fatalf("sleeping card: %s %v", raw, err)
 			}
 			sendPause(t, replacement, action.Pause{Project: s.project.ID, Session: p.Session, Resume: true}, 1)
