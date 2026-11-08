@@ -211,6 +211,26 @@ class Threads(Homes):
                                   self.thread(4, cwd="/srv")]).close()
         self.assertEqual(sorted(r["sessionId"] for r in self.page(under="/srv/app")), [tid(1), tid(2)])
 
+    def test_a_project_archive_includes_former_paths_and_their_worktrees(self):
+        self.database(self.work, [
+            self.thread(1, cwd="/srv/app"),
+            self.thread(2, cwd="/srv/former"),
+            self.thread(3, cwd="/srv/former/.claude/worktrees/fix"),
+            self.thread(4, cwd="/srv/claimed"),
+            self.thread(5, cwd="/srv/claimed/.claude/worktrees/fix"),
+            self.thread(6, cwd="/srv/former-other"),
+            self.thread(7, cwd="/srv/app/nested"),
+        ]).close()
+        want = {"under": "/srv/app", "under_paths": ["/srv/app", "/srv/former", "/srv/claimed"],
+                "exclude_paths": ["/srv/claimed", "/srv/app/nested"]}
+        page = self.index.page(limit=2, **want)
+        self.assertEqual(page["total"], 3)
+        rest = self.index.page(limit=2, offset=2, **want)
+        self.assertEqual(sorted(r["sessionId"] for r in page["rows"] + rest["rows"]), [tid(1), tid(2), tid(3)])
+        rows = self.page(**dict(want, exclude_paths=["/srv"]))
+        self.assertEqual([r["sessionId"] for r in rows], [tid(7), tid(1)],
+                         "a current root closer than another project's root still owns its conversations")
+
     def test_a_live_thread_is_left_out(self):
         self.database(self.work, [self.thread(1), self.thread(2)]).close()
         self.assertEqual([r["sessionId"] for r in self.page(skip=[tid(2)])], [tid(1)])

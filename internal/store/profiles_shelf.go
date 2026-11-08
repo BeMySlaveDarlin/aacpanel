@@ -58,7 +58,7 @@ func (s *Store) SetForGroup(ctx context.Context, groupID int, key string, value 
 			return 0, err
 		}
 		if err := rewrite(ctx, tx, before, `UPDATE profile_projects SET launch = $2 WHERE id = $1
-			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, launch); err != nil {
+			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`, launch); err != nil {
 			return 0, err
 		}
 		n++
@@ -101,7 +101,7 @@ func (s *Store) MoveShelf(ctx context.Context, from, to int) (n int, err error) 
 	}
 	for _, before := range projects {
 		if err := rewrite(ctx, tx, before, `UPDATE profile_projects SET group_id = $2, sort = $3 WHERE id = $1
-			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, to, sort); err != nil {
+			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`, to, sort); err != nil {
 			return 0, err
 		}
 		sort++
@@ -127,7 +127,7 @@ func (s *Store) shelf(ctx context.Context, groupID int) (pgx.Tx, []ProfileProjec
 		return nil, nil, missing(err, "there is no group %d", groupID)
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT id, group_id, name, path, session_name, base_branch, sort, launch
+		SELECT id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths
 		FROM profile_projects WHERE group_id = $1 ORDER BY sort, id FOR UPDATE`, groupID)
 	if err != nil {
 		tx.Rollback(ctx)

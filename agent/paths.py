@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""State directory defaults shared by the agent modules."""
+"""Filesystem paths shared by the agent modules."""
 
 import os
 
@@ -14,3 +14,9 @@ def state_dir():
 def state(name):
     """Returns the path to a state file by its name."""
     return os.path.join(state_dir(), name)
+
+
+def under(path, root):
+    """Reports whether a directory is a root or lies below it, without reading the disk."""
+    root = root.rstrip("/")
+    return bool(root) and (path == root or path.startswith(root + "/"))

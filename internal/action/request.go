@@ -24,6 +24,9 @@ type Request struct {
 	// Resume is the conversation to go on with: the one session.resume brings
 	// back, or the one session.restart closes and starts again.
 	Resume string `json:"resume,omitempty"`
+	// ResumeAt relocates a conversation from a former project directory. Only
+	// the executor can check the candidate and fall back to the current root.
+	ResumeAt *ResumeDirectory `json:"resumeAt,omitempty"`
 	// Silent resumes a conversation without either saved opening message.
 	Silent bool `json:"silent,omitempty"`
 
@@ -177,6 +180,12 @@ type ProjectMoveSpec struct {
 type CodexSender struct {
 	Home string `json:"home"`
 	Dir  string `json:"dir"`
+}
+
+// ResumeDirectory names a relocated conversation's directory and its root.
+type ResumeDirectory struct {
+	Path string `json:"path"`
+	Root string `json:"root"`
 }
 
 // Project is the project to open.

@@ -158,7 +158,7 @@ func groupFields(g ProfileGroup) map[string]any {
 }
 
 func projectFields(p ProfileProject) map[string]any {
-	return fieldsWithLaunch(map[string]any{"name": p.Name, "path": p.Path, "session": p.Session,
+	return fieldsWithLaunch(map[string]any{"name": p.Name, "path": p.Path, "previousPaths": p.PreviousPaths, "session": p.Session,
 		"base": p.Base, "group": float64(p.GroupID)}, p.Launch)
 }
 
@@ -180,19 +180,20 @@ func normalized(fields map[string]any) map[string]any {
 // deletedProject is what the journal keeps of a deleted project: everything
 // an undo needs to put it back as it was, its identifier included.
 type deletedProject struct {
-	ID      int             `json:"id"`
-	GroupID int             `json:"groupId"`
-	Name    string          `json:"name"`
-	Path    string          `json:"path"`
-	Session string          `json:"session"`
-	Base    string          `json:"base"`
-	Sort    int             `json:"sort"`
-	Launch  json.RawMessage `json:"launch"`
+	ID            int             `json:"id"`
+	GroupID       int             `json:"groupId"`
+	Name          string          `json:"name"`
+	Path          string          `json:"path"`
+	PreviousPaths []string        `json:"previousPaths"`
+	Session       string          `json:"session"`
+	Base          string          `json:"base"`
+	Sort          int             `json:"sort"`
+	Launch        json.RawMessage `json:"launch"`
 }
 
 func keptProject(p ProfileProject) deletedProject {
 	return deletedProject{ID: p.ID, GroupID: p.GroupID, Name: p.Name, Path: p.Path, Session: p.Session,
-		Base: p.Base, Sort: p.Sort, Launch: p.Launch}
+		Base: p.Base, Sort: p.Sort, Launch: p.Launch, PreviousPaths: p.PreviousPaths}
 }
 
 // journalDeletedProjects writes a deletion for every project a delete took,
@@ -311,10 +312,10 @@ func (s *Store) UndoDelete(ctx context.Context, entryID int64) (p ProfileProject
 		launch = json.RawMessage(`{}`)
 	}
 	row := tx.QueryRow(ctx, `
-		INSERT INTO profile_projects (id, group_id, name, path, session_name, base_branch, sort, launch)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`,
-		kept.ID, kept.GroupID, kept.Name, kept.Path, kept.Session, kept.Base, kept.Sort, launch)
+		INSERT INTO profile_projects (id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`,
+		kept.ID, kept.GroupID, kept.Name, kept.Path, kept.Session, kept.Base, kept.Sort, launch, append([]string{}, kept.PreviousPaths...))
 	p, err = scanProject(rowOnly{row})
 	if err != nil {
 		return p, s.pathTaken(ctx, err, kept.Path)

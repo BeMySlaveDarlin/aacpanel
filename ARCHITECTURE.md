@@ -2037,8 +2037,29 @@ checkout first, so a worktree made a moment ago opens as its project without a
 session working in it first. The climb stops below a project root: a
 project that is a root itself, like the home directory, holds the machine's own
 session, and taking it for the owner of whatever lies under it would start that
-in another account. A thread of codex looks for no project at all: the daemon
-of its home knows where it ran, as "Codex sessions" says.
+in another account.
+
+The map keeps each project's former directories in `previousPaths`. Changing
+its path adds the former path without duplicates and removes the new current
+path from that list; the API can replace the list with absolute paths. Current
+project paths take precedence over all former paths, including for worktrees.
+Archive rows, live sessions and other directory lookups use the same rule.
+The archive of one project sends its current and former paths to the collector,
+along with the current paths of other projects, so filtering precedes pagination
+and respects current ownership. Its string `under` stays alongside `underPaths`
+and `excludePaths`: a collector that does not understand the lists continues
+to filter by the current path alone, and a service sending only the string
+keeps that behavior with a collector that understands both. Ownership checks
+read the candidate transcripts' cached metadata before pagination; a cold
+index parses those candidates once.
+A resume below a former path replaces that prefix with the current project
+path, preserving the relative directory; the executor falls back to the current
+project root when that directory is absent. Claude starts there, while Codex
+receives it as the `cwd` of `thread/resume`, keeping the thread's own settings
+and contour. An ordinary Codex resume leaves its saved directory to the daemon.
+Transcripts and rollouts are never rewritten: whoever moves a project directory
+also moves its encoded directory under `~/.claude/projects` so Claude can find
+the conversation from its new launch directory.
 
 **Kinds are split by intent, not by convenience.** Answering a question and
 dismissing a question are different actions, because their consequences differ.

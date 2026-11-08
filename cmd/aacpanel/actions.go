@@ -152,14 +152,19 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 
 	var cwd, ranAs, parentNote string
 	// A thread of codex is resumed in the daemon of its home, which knows where
-	// it ran: the archive row names the thread and the contour of its home, and
-	// no project is looked for — the thread is the daemon's, not a launch of
-	// the map's.
+	// it ran. A former project directory supplies only a replacement cwd;
+	// the thread keeps its own launch settings and the contour of its home.
 	codexResume := req.Kind == action.SessionResume && body.Params["agent"] == action.ResumeCodex
 	if codexResume {
 		req.Agent = action.ResumeCodex
 		req.Resume, _ = body.Params["session"].(string)
 		req.Contour, _ = body.Params["contour"].(string)
+		var err error
+		req.ResumeAt, err = s.codexResumeDirectory(r.Context(), req.Resume)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		parent, why, err := s.archivedParent(r.Context(), req.Resume)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -507,6 +512,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		switch {
 		case req.Kind == action.SessionResume:
 			want, found, err = s.resumeProject(r.Context(), body.Params, cwd, req.Target, dir)
+			req.ResumeAt = found.resumeDirectory()
 		case dir != "":
 			want, found, err = s.projectIn(r.Context(), dir)
 		default:

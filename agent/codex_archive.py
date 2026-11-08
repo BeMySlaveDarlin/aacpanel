@@ -31,6 +31,7 @@ import sys
 
 import contours
 import held
+import paths
 
 STATE_DB = "state_5.sqlite"
 
@@ -126,7 +127,7 @@ def threads(wanted=None, under=None, skip=()):
             if found is None or found["id"] in skip:
                 continue
             cwd = found["cwd"].rstrip("/")
-            if under and cwd != under and not cwd.startswith(under + "/"):
+            if under and not paths.under(cwd, under):
                 continue
             out.append(found)
     out.sort(key=lambda t: (t["updatedMs"], t["id"]), reverse=True)
@@ -330,17 +331,12 @@ def runs(calls, contour, until=0):
     return out
 
 
-def _under(path, root):
-    root = root.rstrip("/")
-    return bool(root) and (path == root or path.startswith(root + "/"))
-
-
 def _ran_in(call, cwd):
     """Says whether a thread ran where a call may have started it."""
     own = cwd.split(TASKS, 1)[0].rstrip("/")
     if not own:
         return False
-    return _under(own, call.get("cwd") or "") or any(_under(named, own) for named in call.get("paths") or ())
+    return paths.under(own, call.get("cwd") or "") or any(paths.under(named, own) for named in call.get("paths") or ())
 
 
 def _starter(near, made, told, till):

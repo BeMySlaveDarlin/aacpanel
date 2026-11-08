@@ -11,6 +11,7 @@ import test_barrier  # noqa: E402,F401
 import archive  # noqa: E402
 import contours  # noqa: E402
 import models  # noqa: E402
+import chat.server as chat_server  # noqa: E402
 
 def setUpModule():
     models.CACHE_PATH = None
@@ -721,3 +722,50 @@ class Under(unittest.TestCase):
         self.put("-opt-p-a", "11111111-1111-4111-8111-111111111111", "/opt/p/a")
         self.put("-opt-p-b", "22222222-2222-4222-8222-222222222222", "/opt/p/b")
         self.assertEqual(self.ids(None)[1], 2)
+
+    def test_previous_paths_and_worktrees_belong_to_the_project_before_paging(self):
+        cases = [
+            ("/srv/current", "/srv/current"),
+            ("/srv/former", "/srv/former"),
+            ("/srv/former/.claude/worktrees/fix", "/srv/former/.claude/worktrees/fix"),
+            ("/srv/current", "/srv/claimed"),
+            ("/srv/claimed/.claude/worktrees/fix", "/srv/claimed/.claude/worktrees/fix"),
+            ("/srv/former-other", "/srv/former-other"),
+            ("/srv/current/nested", "/srv/current/nested"),
+            ("/srv/current", ""),
+        ]
+        ids = []
+        for n, (directory, cwd) in enumerate(cases, 1):
+            uuid = f"{n:08d}-1111-4111-8111-111111111111"
+            ids.append(uuid)
+            self.put(archive.slug_of(directory), uuid, cwd)
+        self.addCleanup(setattr, chat_server, "_archive", chat_server._archive)
+        chat_server._archive = self.index
+        request = {"under": "/srv/current", "underPaths": ["/srv/current", "/srv/former", "/srv/claimed"],
+                   "excludePaths": ["/srv/claimed", "/srv/current/nested"], "limit": 2}
+        reply = chat_server.answer({"archive": request})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual(reply["archive"]["total"], 4)
+        rest = chat_server.answer({"archive": dict(request, offset=2)})["archive"]
+        found = reply["archive"]["rows"] + rest["rows"]
+        self.assertEqual(sorted(r["sessionId"] for r in found), [ids[n] for n in (0, 1, 2, 7)])
+
+    def test_the_nearest_current_project_wins_over_former_roots(self):
+        self.put("-srv-current", UUID_A, "/srv/current")
+        self.put("-srv-former", UUID_B, "/srv/former")
+        rows = self.index.page(under="/srv/current", under_paths=["/srv/current", "/srv/former"],
+                               exclude_paths=["/srv"])["rows"]
+        self.assertEqual([r["sessionId"] for r in rows], [UUID_A])
+
+    def test_a_root_project_holds_its_session_without_claiming_former_subdirectories(self):
+        self.put("-srv-current", UUID_A, "/srv/former/subdir")
+        self.put("-srv-former", UUID_B, "/srv/former")
+        page = self.index.page(under="/srv/current", under_paths=["/srv/current", "/srv/former"],
+                               exclude_paths=["/srv/former"], path_roots=["/srv", "/srv/former"])
+        self.assertEqual(page["rows"], [], "a root below another root is still a current project")
+        page = self.index.page(under="/srv/current", under_paths=["/srv/current", "/srv/former"],
+                               exclude_paths=["/srv/former"], path_roots=["/srv/current", "/srv/former"])
+        self.assertEqual([r["sessionId"] for r in page["rows"]], [UUID_A])
+        page = self.index.page(under="/srv/former", under_paths=["/srv/former"],
+                               path_roots=["/srv/former"])
+        self.assertEqual([r["sessionId"] for r in page["rows"]], [UUID_B])

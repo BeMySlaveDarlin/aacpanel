@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -98,6 +99,31 @@ func inside(path string, roots []string) bool {
 
 func (s *Store) checkPath(path string) (string, error) {
 	return CheckProjectPath(path, s.projectRoots)
+}
+
+// Former directories identify conversations, not places the executor may open:
+// they can outlive both the directory and the configured roots.
+func previousProjectPaths(edit *[]string, kept []string, before, current string) ([]string, error) {
+	paths := kept
+	if edit != nil {
+		paths = *edit
+	}
+	paths = slices.Clone(paths)
+	if before != "" && before != current {
+		paths = append(paths, before)
+	}
+	out := []string{}
+	for _, raw := range paths {
+		p := strings.TrimSpace(raw)
+		if !filepath.IsAbs(p) || len(p) > profilePathMax || strings.ContainsAny(p, "\x00\n\r") {
+			return nil, badRequest("the previous project path %q must be an absolute path without NUL bytes or line breaks, at most %d characters", p, profilePathMax)
+		}
+		p = filepath.Clean(p)
+		if p != current && !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // CheckConfigDir checks the form of a contour's configuration directory.

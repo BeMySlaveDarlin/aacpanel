@@ -608,12 +608,10 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	picks = append(picks, byID...)
 	if raw := q.Get("project"); raw != "" {
-		under, err := s.projectDir(r.Context(), raw)
-		if err != nil {
+		if err := s.projectArchive(r.Context(), raw, &req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		req.Under = under
 	}
 	if len(picks) == 1 {
 		req.Profile = picks[0]
@@ -631,29 +629,37 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, page)
 }
 
-// projectDir returns the directory of a project of the map by its id.
-func (s *Server) projectDir(ctx context.Context, raw string) (string, error) {
+// projectArchive filters by the map's current and former project paths before
+// pagination, so hidden conversations cannot leave gaps or an incorrect total.
+func (s *Server) projectArchive(ctx context.Context, raw string, req *chat.ArchiveReq) error {
 	id, err := strconv.Atoi(raw)
 	if err != nil || id <= 0 {
-		return "", fmt.Errorf("project %q is not an id of the map", raw)
+		return fmt.Errorf("project %q is not an id of the map", raw)
 	}
 	if s.db == nil {
-		return "", errors.New("the archive of a project needs the map, and the database is not configured")
+		return errors.New("the archive of a project needs the map, and the database is not configured")
 	}
 	list, err := s.db.Profiles(ctx)
 	if err != nil {
-		return "", fmt.Errorf("the map is unavailable: %w", err)
+		return fmt.Errorf("the map is unavailable: %w", err)
 	}
+	found, ok := projectByID(list, id)
+	if !ok {
+		return fmt.Errorf("there is no project %d in the map — refresh the page", id)
+	}
+	req.Under = found.project.Path
+	req.UnderPaths = append([]string{found.project.Path}, found.project.PreviousPaths...)
+	req.PathRoots = s.db.ProjectRoots()
 	for _, profile := range list {
 		for _, group := range profile.Groups {
 			for _, p := range group.Projects {
-				if p.ID == id {
-					return p.Path, nil
+				if p.ID != id {
+					req.ExcludePaths = append(req.ExcludePaths, p.Path)
 				}
 			}
 		}
 	}
-	return "", fmt.Errorf("there is no project %d in the map — refresh the page", id)
+	return nil
 }
 
 func (s *Server) placeArchive(ctx context.Context, rows []chat.ArchiveRow) {

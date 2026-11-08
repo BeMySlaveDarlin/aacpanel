@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/hostcfg"
@@ -154,7 +155,11 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 // tail of its id. No daemon is started for it: a resume brings back what a
 // person had, and a daemon that does not run is the person's to start —
 // codex resume in codex's terminal goes on with the thread there.
-func (e *Executor) codexResume(ctx context.Context, contour, threadID string) (string, string, error) {
+func (e *Executor) codexResume(ctx context.Context, contour, threadID string, at *action.ResumeDirectory) (string, string, error) {
+	dir, err := resumeDirectory(at)
+	if err != nil {
+		return "", "", err
+	}
 	link := e.codex.Contour(contour)
 	if link == nil {
 		return "", "", fmt.Errorf("contour %s has no codex home — %s names none for it — so the panel has no "+
@@ -170,7 +175,7 @@ func (e *Executor) codexResume(ctx context.Context, contour, threadID string) (s
 		return "", "", err
 	}
 	name := codex.SessionName(threadID)
-	cwd, err := link.Resume(ctx, threadID)
+	cwd, err := link.ResumeIn(ctx, threadID, dir)
 	if err != nil {
 		return "", "", fmt.Errorf("thread %s was not resumed in the codex daemon of contour %s: %w", name, contour, err)
 	}

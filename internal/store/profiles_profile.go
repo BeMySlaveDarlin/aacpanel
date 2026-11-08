@@ -179,7 +179,7 @@ func (s *Store) DeleteProfile(ctx context.Context, id int, cascade bool) (err er
 		rows, err := tx.Query(ctx, `
 			DELETE FROM profile_projects
 			 WHERE group_id IN (SELECT id FROM profile_groups WHERE profile_id = $1)
-			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, id)
+			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`, id)
 		if err != nil {
 			return err
 		}

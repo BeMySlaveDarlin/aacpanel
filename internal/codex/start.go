@@ -210,6 +210,12 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 // subagent's thread is part of its parent's turn and is not resumed: the panel
 // leaves it at once.
 func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
+	return l.ResumeIn(ctx, threadID, "")
+}
+
+// ResumeIn supplies a new cwd only for a relocated project; an empty directory
+// leaves the daemon's saved cwd in force.
+func (l *Link) ResumeIn(ctx context.Context, threadID, cwd string) (string, error) {
 	c, err := l.client()
 	if err != nil {
 		return "", err
@@ -220,7 +226,11 @@ func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 		Thread threadInfo `json:"thread"`
 		settingsWire
 	}
-	if err := within(ctx, c, "thread/resume", map[string]any{"threadId": threadID, "excludeTurns": true}, &out); err != nil {
+	params := map[string]any{"threadId": threadID, "excludeTurns": true}
+	if cwd != "" {
+		params["cwd"] = cwd
+	}
+	if err := within(ctx, c, "thread/resume", params, &out); err != nil {
 		return "", err
 	}
 	if out.Thread.ID != threadID {

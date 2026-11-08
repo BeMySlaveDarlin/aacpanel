@@ -52,7 +52,7 @@ type project struct {
 // thread under the tail of its id.
 func (e *Executor) Open(ctx context.Context, req action.Request) (string, string, error) {
 	if req.Kind == action.SessionResume && req.Agent == action.ResumeCodex {
-		detail, name, err := e.codexResume(ctx, req.Contour, req.Resume)
+		detail, name, err := e.codexResume(ctx, req.Contour, req.Resume, req.ResumeAt)
 		if err != nil || req.Parent == "" {
 			return detail, name, err
 		}
@@ -238,17 +238,30 @@ func insideRoots(path string, roots []string) bool {
 	return false
 }
 
-func (e *Executor) sessionResume(ctx context.Context, target, resume string, want *action.Project, silent bool) (string, error) {
+func (e *Executor) sessionResume(ctx context.Context, req action.Request) (string, error) {
 	e.projectMoves.Lock()
 	defer e.projectMoves.Unlock()
-	p, err := chooseProject(target, want)
+	want := req.Project
+	if req.ResumeAt != nil {
+		if want == nil {
+			return "", fmt.Errorf("a relocated Claude conversation needs its project")
+		}
+		dir, err := resumeDirectory(req.ResumeAt)
+		if err != nil {
+			return "", err
+		}
+		copy := *want
+		copy.Path = dir
+		want = &copy
+	}
+	p, err := chooseProject(req.Target, want)
 	if err != nil {
 		return "", err
 	}
 	if err := historymove.Pending(registry.ConfigDirs(), p.Path); err != nil {
 		return "", err
 	}
-	owner, err := e.resumedOpening(resume, p.OpenedBy)
+	owner, err := e.resumedOpening(req.Resume, p.OpenedBy)
 	if err != nil {
 		return "", err
 	}
@@ -259,19 +272,41 @@ func (e *Executor) sessionResume(ctx context.Context, target, resume string, wan
 		}
 	}
 	p.IntentKey = sessionintent.First
-	if silent {
+	if req.Silent {
 		p.IntentKey = ""
 		p.Launch, err = restartOpening(p.Launch, "", true)
 		if err != nil {
 			return "", err
 		}
 	}
-	rep, err := e.runLauncher(ctx, p, resume)
+	rep, err := e.runLauncher(ctx, p, req.Resume)
 	if err != nil {
 		return "", err
 	}
-	detail := describeConsole(rep) + ", resumed conversation " + resume
+	detail := describeConsole(rep) + ", resumed conversation " + req.Resume
 	return detail, keepOwner(rep, owner)
+}
+
+func resumeDirectory(at *action.ResumeDirectory) (string, error) {
+	if at == nil {
+		return "", nil
+	}
+	root, err := checkProjectDir(at.Root)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Clean(at.Path)
+	if !filepath.IsAbs(at.Path) || !insideRoots(dir, []string{root}) {
+		return "", fmt.Errorf("the resumed directory %q is outside project %s", at.Path, root)
+	}
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) || err == nil && !info.IsDir() {
+		return root, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("the resumed directory cannot be read: %w", err)
+	}
+	return checkProjectDir(dir)
 }
 
 func projects() ([]project, error) {

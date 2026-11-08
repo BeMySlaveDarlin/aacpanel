@@ -20,11 +20,12 @@ import (
 )
 
 type projectNode struct {
-	ID      int    `json:"id"`
-	Name    string `json:"name"`
-	Comment string `json:"comment"`
-	Path    string `json:"path"`
-	Session string `json:"session"`
+	ID            int      `json:"id"`
+	Name          string   `json:"name"`
+	Comment       string   `json:"comment"`
+	Path          string   `json:"path"`
+	PreviousPaths []string `json:"previousPaths"`
+	Session       string   `json:"session"`
 	// Line is the command the project's next launch runs.
 	Line *schema.Line `json:"line,omitempty"`
 	// Own is what the project sets otherwise than its contour would: the
@@ -240,13 +241,14 @@ func profileMap(list []store.Profile, home string) []profileNode {
 			projects := make([]projectNode, 0, len(group.Projects))
 			for _, p := range group.Projects {
 				projects = append(projects, projectNode{
-					ID:      p.ID,
-					Name:    p.Name,
-					Path:    p.Path,
-					Session: sessionNameOf(p),
-					Line:    p.Line,
-					Own:     ownValues(profile.Effective, p.Effective),
-					Agent:   agentOf(p.Effective),
+					ID:            p.ID,
+					Name:          p.Name,
+					Path:          p.Path,
+					PreviousPaths: p.PreviousPaths,
+					Session:       sessionNameOf(p),
+					Line:          p.Line,
+					Own:           ownValues(profile.Effective, p.Effective),
+					Agent:         agentOf(p.Effective),
 				})
 			}
 			if len(projects) == 0 {
@@ -290,6 +292,8 @@ type mapProject struct {
 	// resumed there — its transcript is kept by that directory — with the
 	// launch parameters of the project.
 	at string
+	// previous is the former root that matched the conversation's directory.
+	previous string
 }
 
 // launchProject finds the project of the map a session is opened or resumed
@@ -394,6 +398,9 @@ func (s *Server) launchOf(found mapProject) (*action.Project, error) {
 	if found.at != "" {
 		at = found.at
 	}
+	if relocated := found.resumeDirectory(); relocated != nil {
+		at = relocated.Path
+	}
 	dir, err := store.CheckProjectPath(at, s.db.ProjectRoots())
 	if err != nil {
 		return nil, fmt.Errorf("project %q cannot be opened: %w", found.project.Name, err)
@@ -473,13 +480,13 @@ func (s *Server) worktreesFor(ctx context.Context, list []store.Profile, dir str
 // root itself — the home directory — holds the machine's own session, not the
 // projects under it, and taking it for their owner would start them in its
 // contour.
-func projectOwning(list []store.Profile, dir string, worktreeOf map[string]string, roots []string) (mapProject, bool) {
-	for d := dir; belowRoot(d, roots); d = path.Dir(d) {
-		if found, ok := projectByPath(list, d); ok {
+func projectOwning(list []store.Profile, dir string, worktreeOf map[string]string, roots []string, previous bool) (mapProject, bool) {
+	for d := dir; belowRoot(d, roots) || previous && path.IsAbs(d) && d != "/"; d = path.Dir(d) {
+		if found, ok := projectByDirectory(list, d, previous); ok {
 			return found, true
 		}
 		if main := worktreeOf[d]; main != "" && main != dir {
-			if found, ok := projectOwning(list, main, nil, roots); ok {
+			if found, ok := projectOwning(list, main, nil, roots, previous); ok {
 				return found, true
 			}
 		}
@@ -536,11 +543,100 @@ func projectAt(list []store.Profile, cwd string, worktreeOf map[string]string, r
 	if found, ok := projectByPath(list, dir); ok {
 		return found, true
 	}
-	if found, ok := projectOwning(list, path.Clean(dir), worktreeOf, roots); ok {
+	if found, ok := projectOwning(list, path.Clean(dir), worktreeOf, roots, false); ok {
+		found.at = path.Clean(dir)
+		return found, true
+	}
+	if found, ok := projectByDirectory(list, path.Clean(dir), true); ok {
+		found.at = path.Clean(dir)
+		return found, true
+	}
+	if found, ok := projectOwning(list, path.Clean(dir), worktreeOf, roots, true); ok {
 		found.at = path.Clean(dir)
 		return found, true
 	}
 	return mapProject{}, false
+}
+
+func projectByDirectory(list []store.Profile, dir string, previous bool) (mapProject, bool) {
+	if !previous {
+		return projectByPath(list, dir)
+	}
+	// A directory claimed by a current project cannot name another project's past.
+	if _, taken := projectByPath(list, dir); taken {
+		return mapProject{}, false
+	}
+	for _, profile := range list {
+		for _, group := range profile.Groups {
+			for _, p := range group.Projects {
+				for _, old := range p.PreviousPaths {
+					if old == dir {
+						return mapProject{profile: profile, group: group.Name, project: p, previous: old}, true
+					}
+				}
+			}
+		}
+	}
+	return mapProject{}, false
+}
+
+func (m mapProject) resumeDirectory() *action.ResumeDirectory {
+	if m.previous == "" {
+		return nil
+	}
+	suffix := strings.TrimPrefix(m.at, m.previous)
+	if m.at != m.previous && !strings.HasPrefix(m.at, m.previous+"/") {
+		// A sibling worktree can identify its former repository without being
+		// under that path; no corresponding directory can be inferred for it.
+		suffix = ""
+	}
+	return &action.ResumeDirectory{Path: path.Clean(m.project.Path + suffix), Root: m.project.Path}
+}
+
+func (s *Server) codexResumeDirectory(ctx context.Context, conversation string) (*action.ResumeDirectory, error) {
+	if s.db == nil {
+		return nil, nil
+	}
+	list, err := s.db.Profiles(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hasPrevious := false
+	for _, profile := range list {
+		for _, group := range profile.Groups {
+			for _, p := range group.Projects {
+				hasPrevious = hasPrevious || len(p.PreviousPaths) > 0
+			}
+		}
+	}
+	if !hasPrevious {
+		return nil, nil
+	}
+	var cwd string
+	if s.chat.Available() {
+		page, err := s.chat.Archive(ctx, chat.ArchiveReq{Conversations: []string{conversation}, Limit: 1})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range page.Rows {
+			if row.SessionID == conversation && row.Agent == schema.AgentCodex {
+				cwd = row.CWD
+			}
+		}
+	} else {
+		hostID, err := s.db.HostID(ctx, s.hostName)
+		if err != nil {
+			return nil, err
+		}
+		cwd, _, err = s.db.SessionResumeAt(ctx, hostID, conversation)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if found, ok := projectAt(list, cwd, s.worktrees(), s.db.ProjectRoots()); ok {
+		return found.resumeDirectory(), nil
+	}
+	return nil, nil
 }
 
 // ref is the entry of the map a session row carries: which project it ran in

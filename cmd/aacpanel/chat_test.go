@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -977,6 +978,30 @@ func TestArchiveOfAProjectAsksForItsDirectoryPG(t *testing.T) {
 			"/api/sessions/archive?limit=5&project="+strconv.Itoa(project+1000), nil))
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("response %d, expected 400: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("former paths and current ownership reach the collector together", func(t *testing.T) {
+		former, claimed := filepath.Join(root, "former"), filepath.Join(root, "claimed")
+		previous := []string{former, claimed}
+		if _, err := srv.db.UpdateProject(t.Context(), project, store.ProjectEdit{PreviousPaths: &previous}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := srv.db.CreateProject(t.Context(), group, store.ProjectEdit{Name: &claimed, Path: &claimed}); err != nil {
+			t.Fatal(err)
+		}
+		w := httptest.NewRecorder()
+		srv.apiSessionsArchive(w, httptest.NewRequest(http.MethodGet,
+			"/api/sessions/archive?limit=5&project="+strconv.Itoa(project), nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("response %d: %s", w.Code, w.Body.String())
+		}
+		req := <-agent.got
+		if req.Archive == nil || req.Archive.Under != dir ||
+			!slices.Equal(req.Archive.UnderPaths, []string{dir, former, claimed}) ||
+			!slices.Equal(req.Archive.ExcludePaths, []string{claimed}) ||
+			!slices.Equal(req.Archive.PathRoots, []string{root}) {
+			t.Fatalf("the project's archive lost its former paths or current ownership: %+v", req.Archive)
 		}
 	})
 }

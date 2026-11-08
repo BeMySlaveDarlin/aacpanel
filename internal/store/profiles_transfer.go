@@ -25,7 +25,7 @@ func (s *Store) TransferProject(ctx context.Context, id, group int,
 		return p, err
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx))
-	before, err := scanProject(rowOnly{tx.QueryRow(ctx, `SELECT id, group_id, name, path, session_name, base_branch, sort, launch
+	before, err := scanProject(rowOnly{tx.QueryRow(ctx, `SELECT id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths
   FROM profile_projects WHERE id=$1 FOR UPDATE`, id)})
 	if err != nil {
 		return p, missing(err, "there is no project %d", id)
@@ -65,7 +65,7 @@ func (s *Store) TransferProject(ctx context.Context, id, group int,
 	}
 	p, err = scanProject(rowOnly{tx.QueryRow(ctx, `UPDATE profile_projects SET group_id=$2,
   sort=(SELECT COALESCE(MAX(sort),-1)+1 FROM profile_projects WHERE group_id=$2)
-  WHERE id=$1 RETURNING id,group_id,name,path,session_name,base_branch,sort,launch`, id, group)})
+  WHERE id=$1 RETURNING id,group_id,name,path,session_name,base_branch,sort,launch,previous_paths`, id, group)})
 	if err != nil {
 		return ProfileProject{}, err
 	}

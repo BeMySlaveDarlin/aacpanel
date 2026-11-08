@@ -184,6 +184,9 @@ def _answer(request):
                 profiles=[p for p in (want_archive.get("profiles") or ())
                           if isinstance(p, str) and p],
                 under=want_archive.get("under") if isinstance(want_archive.get("under"), str) else None,
+                under_paths=want_archive.get("underPaths") if isinstance(want_archive.get("underPaths"), list) else None,
+                exclude_paths=want_archive.get("excludePaths") if isinstance(want_archive.get("excludePaths"), list) else None,
+                path_roots=want_archive.get("pathRoots") if isinstance(want_archive.get("pathRoots"), list) else None,
                 conversations=conversations,
             )
         except OSError as e:

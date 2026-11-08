@@ -28,6 +28,10 @@ func (s *Store) CreateProject(ctx context.Context, groupID int, e ProjectEdit) (
 	if err != nil {
 		return p, err
 	}
+	previous, err := previousProjectPaths(e.PreviousPaths, nil, "", path)
+	if err != nil {
+		return p, err
+	}
 	session, err := checkSession(e.Session)
 	if err != nil {
 		return p, err
@@ -48,10 +52,10 @@ func (s *Store) CreateProject(ctx context.Context, groupID int, e ProjectEdit) (
 	defer tx.Rollback(ctx)
 
 	row := tx.QueryRow(ctx, `
-		INSERT INTO profile_projects (group_id, name, path, session_name, base_branch, sort, launch)
-		VALUES ($1, $2, $3, COALESCE($4, ''), COALESCE($7, ''), COALESCE($5, (SELECT COALESCE(MAX(sort), -1) + 1 FROM profile_projects WHERE group_id = $1)), COALESCE($6, '{}'::jsonb))
-		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`,
-		groupID, name, path, session, e.Sort, launch, base)
+		INSERT INTO profile_projects (group_id, name, path, session_name, base_branch, sort, launch, previous_paths)
+		VALUES ($1, $2, $3, COALESCE($4, ''), COALESCE($7, ''), COALESCE($5, (SELECT COALESCE(MAX(sort), -1) + 1 FROM profile_projects WHERE group_id = $1)), COALESCE($6, '{}'::jsonb), $8)
+		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`,
+		groupID, name, path, session, e.Sort, launch, base, previous)
 	p, err = scanProject(rowOnly{row})
 	if err != nil {
 		return p, s.pathTaken(ctx, noParent(err, "there is no group %d", groupID), path)
@@ -129,16 +133,25 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 		}
 	}
 	before, err := scanProject(rowOnly{tx.QueryRow(ctx, `
-		SELECT id, group_id, name, path, session_name, base_branch, sort, launch
+		SELECT id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths
 		FROM profile_projects WHERE id = $1 FOR UPDATE`, id)})
 	if err != nil {
 		return p, missing(err, "there is no project %d", id)
+	}
+	current := before.Path
+	if path != nil {
+		current = *path
+	}
+	previous, err := previousProjectPaths(e.PreviousPaths, before.PreviousPaths, before.Path, current)
+	if err != nil {
+		return p, err
 	}
 
 	row := tx.QueryRow(ctx, `
 		UPDATE profile_projects SET
 			name         = COALESCE($2, name),
 			path         = COALESCE($3, path),
+			previous_paths = $9,
 			session_name = COALESCE($4, session_name),
 			base_branch  = COALESCE($8, base_branch),
 			group_id     = COALESCE($7, group_id),
@@ -148,8 +161,8 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 			END),
 			launch       = COALESCE($6, launch)
 		WHERE id = $1
-		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`,
-		id, name, path, session, e.Sort, launch, e.GroupID, base)
+		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`,
+		id, name, path, session, e.Sort, launch, e.GroupID, base, previous)
 	p, err = scanProject(rowOnly{row})
 	if err != nil {
 		pathVal := ""
@@ -222,7 +235,7 @@ func (s *Store) DeleteProject(ctx context.Context, id int) (entry int64, err err
 
 	p, err := scanProject(rowOnly{tx.QueryRow(ctx, `
 		DELETE FROM profile_projects WHERE id = $1
-		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, id)})
+		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`, id)})
 	if err != nil {
 		return 0, missing(err, "there is no project %d", id)
 	}

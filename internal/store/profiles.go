@@ -77,14 +77,15 @@ type ProfileGroup struct {
 
 // ProfileProject is a project: the thing that can be opened.
 type ProfileProject struct {
-	ID      int             `json:"id"`
-	GroupID int             `json:"groupId"`
-	Name    string          `json:"name"`
-	Path    string          `json:"path"`
-	Session string          `json:"session"`
-	Base    string          `json:"base"`
-	Sort    int             `json:"sort"`
-	Launch  json.RawMessage `json:"launch"`
+	ID            int             `json:"id"`
+	GroupID       int             `json:"groupId"`
+	Name          string          `json:"name"`
+	Path          string          `json:"path"`
+	PreviousPaths []string        `json:"previousPaths"`
+	Session       string          `json:"session"`
+	Base          string          `json:"base"`
+	Sort          int             `json:"sort"`
+	Launch        json.RawMessage `json:"launch"`
 	// Effective is what the project starts with, parameter by parameter,
 	// with the layer of each.
 	Effective []schema.Value `json:"effective"`
@@ -120,17 +121,18 @@ func (e GroupEdit) Agreed() bool { return e.MoveProfile || e.MoveContour }
 
 // ProjectEdit holds the project's fields.
 type ProjectEdit struct {
-	Name        *string         `json:"name"`
-	Path        *string         `json:"path"`
-	Session     *string         `json:"session"`
-	Base        *string         `json:"base"`
-	GroupID     *int            `json:"groupId"`
-	Sort        *int            `json:"sort"`
-	MoveProfile bool            `json:"moveProfile"`
-	MoveContour bool            `json:"moveContour"`
-	Launch      json.RawMessage `json:"launch"`
-	LaunchSet   map[string]any  `json:"launchSet"`
-	LaunchUnset []string        `json:"launchUnset"`
+	Name          *string         `json:"name"`
+	Path          *string         `json:"path"`
+	PreviousPaths *[]string       `json:"previousPaths"`
+	Session       *string         `json:"session"`
+	Base          *string         `json:"base"`
+	GroupID       *int            `json:"groupId"`
+	Sort          *int            `json:"sort"`
+	MoveProfile   bool            `json:"moveProfile"`
+	MoveContour   bool            `json:"moveContour"`
+	Launch        json.RawMessage `json:"launch"`
+	LaunchSet     map[string]any  `json:"launchSet"`
+	LaunchUnset   []string        `json:"launchUnset"`
 }
 
 // Profiles returns the whole map: profiles, their groups and the projects inside.
@@ -179,7 +181,7 @@ func (s *Store) Profiles(ctx context.Context) (out []Profile, err error) {
 	}
 
 	rows, err = pool.Query(ctx, `
-		SELECT id, group_id, name, path, session_name, base_branch, sort, launch
+		SELECT id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths
 		FROM profile_projects ORDER BY group_id, sort, id`)
 	if err != nil {
 		return nil, err
@@ -224,7 +226,7 @@ func scanGroup(r pgx.CollectableRow) (ProfileGroup, error) {
 
 func scanProject(r pgx.CollectableRow) (ProfileProject, error) {
 	var p ProfileProject
-	err := r.Scan(&p.ID, &p.GroupID, &p.Name, &p.Path, &p.Session, &p.Base, &p.Sort, &p.Launch)
+	err := r.Scan(&p.ID, &p.GroupID, &p.Name, &p.Path, &p.Session, &p.Base, &p.Sort, &p.Launch, &p.PreviousPaths)
 	return p, err
 }
 

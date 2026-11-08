@@ -47,7 +47,7 @@ func (s *Store) Unpin(ctx context.Context, contourID int, key string) (n int, er
 	}
 
 	rows, err := tx.Query(ctx, `
-		SELECT r.id, r.group_id, r.name, r.path, r.session_name, r.base_branch, r.sort, r.launch
+		SELECT r.id, r.group_id, r.name, r.path, r.session_name, r.base_branch, r.sort, r.launch, r.previous_paths
 		FROM profile_projects r JOIN profile_groups g ON g.id = r.group_id
 		WHERE g.profile_id = $1
 		ORDER BY r.id
@@ -75,7 +75,7 @@ func (s *Store) Unpin(ctx context.Context, contourID int, key string) (n int, er
 		}
 		after, err := scanProject(rowOnly{tx.QueryRow(ctx, `
 			UPDATE profile_projects SET launch = $2 WHERE id = $1
-			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, before.ID, launch)})
+			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch, previous_paths`, before.ID, launch)})
 		if err != nil {
 			return 0, err
 		}

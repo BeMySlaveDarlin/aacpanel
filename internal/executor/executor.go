@@ -167,7 +167,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	// A resume of codex names a thread by its id, and the session it brings
 	// up is not there yet to be found by the target.
 	if req.Kind == action.SessionResume && req.Agent == action.ResumeCodex {
-		detail, _, err := e.codexResume(ctx, req.Contour, req.Resume)
+		detail, _, err := e.codexResume(ctx, req.Contour, req.Resume, req.ResumeAt)
 		return detail, err
 	}
 	if sessionTarget(req.Kind) {
@@ -195,7 +195,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		detail, _, err := e.sessionOpen(ctx, req.Target, req.Project)
 		return detail, err
 	case action.SessionResume:
-		return e.sessionResume(ctx, req.Target, req.Resume, req.Project, req.Silent)
+		return e.sessionResume(ctx, req)
 	case action.SessionClose:
 		return e.sessionClose(ctx, req.Target, req.Conversation, req.Sleeping)
 	case action.SessionRestart:

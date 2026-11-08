@@ -694,6 +694,15 @@ type ArchiveReq struct {
 	// Under keeps only the conversations that ran in a directory or below it:
 	// the archive of one project.
 	Under string `json:"under,omitempty"`
+	// UnderPaths adds the project's former directories. Under remains a string
+	// so a collector that does not know these fields keeps its current filter.
+	UnderPaths []string `json:"underPaths,omitempty"`
+	// ExcludePaths names other projects' current roots, which take precedence
+	// over former roots. A closer current root of this project still owns it.
+	ExcludePaths []string `json:"excludePaths,omitempty"`
+	// PathRoots keeps a project at a configured root, such as the home session,
+	// from owning every directory beneath that root.
+	PathRoots []string `json:"pathRoots,omitempty"`
 
 	Conversations []string `json:"conversations,omitempty"`
 }

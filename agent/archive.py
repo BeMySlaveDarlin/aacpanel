@@ -247,7 +247,8 @@ class Index:
         at = seconds(seen.get("lastAt"))
         return mtime if at is None else at
 
-    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None, under=None, conversations=None):
+    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None, under=None, conversations=None,
+             under_paths=None, exclude_paths=None, path_roots=None):
         """Returns a page of the archive for the named profiles, the freshest first.
 
         With a directory, only the conversations that ran in it or below it: the
@@ -272,12 +273,21 @@ class Index:
         picked = resolve_profiles(wanted)
         under = (under or "").rstrip("/")
         own = slug_of(under) if under else ""
+        directories = tuple(dict.fromkeys(p.rstrip("/") for p in (under_paths or ())
+                                          if isinstance(p, str) and p.rstrip("/")))
+        excluded = tuple(p.rstrip("/") for p in (exclude_paths or ()) if isinstance(p, str) and p.rstrip("/"))
+        roots = tuple(p.rstrip("/") for p in (path_roots or ()) if isinstance(p, str) and p.rstrip("/"))
+        slugs = {}
+        for directory in directories:
+            slugs.setdefault(slug_of(directory), directory)
 
         # A conversation is the time it last spoke, the time its file was
         # touched, its file, and the thread of codex it is, None for claude's.
         files = []
-        for thread in codex_archive.threads({_named(p) for p in wanted}, under, skip):
+        for thread in codex_archive.threads({_named(p) for p in wanted}, None if directories else under, skip):
             if not wanted_id(thread["id"]):
+                continue
+            if directories and not project_directory(thread["cwd"], under, directories, excluded, roots):
                 continue
             at = thread["updatedMs"] / 1000
             files.append((at, at, thread["rollout"], 0, thread["contour"], thread))
@@ -297,7 +307,16 @@ class Index:
                 sid = name[:-len(".jsonl")]
                 if not wanted_id(sid):
                     continue
-                if own and not self.ran_under(path, st.st_size, st.st_mtime, contour, under, own):
+                if directories:
+                    slug = os.path.basename(os.path.dirname(path))
+                    if not any(slug == s or slug.startswith(s + "-") for s in slugs):
+                        continue
+                    # A moved transcript's slug names its new directory while
+                    # its cwd can still belong to another current project.
+                    cwd = (self.entry(path, st.st_size, st.st_mtime, contour).get("cwd") or slugs.get(slug, "")).rstrip("/")
+                    if not project_directory(cwd, under, directories, excluded, roots):
+                        continue
+                elif own and not self.ran_under(path, st.st_size, st.st_mtime, contour, under, own):
                     continue
                 files.append((self.when(sid, path, st.st_size, st.st_mtime),
                               st.st_mtime, path, st.st_size, contour, None))
@@ -323,7 +342,19 @@ class Index:
         if not slug.startswith(own + "-"):
             return False
         cwd = (self.entry(path, size, mtime, contour).get("cwd") or "").rstrip("/")
-        return cwd == under or cwd.startswith(under + "/")
+        return paths.under(cwd, under)
+
+
+def project_directory(cwd, current, directories, excluded, roots):
+    """Current project paths win over every former path, nearest current root first."""
+    def holds(directory):
+        return cwd == directory or paths.under(cwd, directory) and (
+            not roots or any(p != directory and paths.under(directory, p) for p in roots))
+
+    claimed = max((p for p in excluded if holds(p)), key=len, default="")
+    if claimed:
+        return holds(current) and len(current) > len(claimed)
+    return holds(current) or any(paths.under(cwd, p) for p in directories if p != current)
 
 
 def slug_of(directory):
