@@ -38,10 +38,10 @@ class SentFilesTheReaderDoesNotOpen(unittest.TestCase):
         self.addCleanup(env.stop)
         self.path = os.path.join(self.root, f"{UUID}.jsonl")
 
-    def write(self, files, cwd=None):
+    def write(self, files, cwd=None, tool="SendUserFile"):
         cwd = self.cwd if cwd is None else cwd
         call = {"type": "assistant", "timestamp": "2026-08-23T10:00:00Z", "cwd": cwd,
-                "message": {"content": [{"type": "tool_use", "id": "t1", "name": "SendUserFile",
+                "message": {"content": [{"type": "tool_use", "id": "t1", "name": tool,
                                          "input": {"files": files, "caption": "here"}}]}}
         attachments = [{"path": path, "size": 100, "isImage": False,
                         "media_type": "application/pdf", "pathValidated": True,
@@ -50,6 +50,9 @@ class SentFilesTheReaderDoesNotOpen(unittest.TestCase):
                    "message": {"content": [{"type": "tool_result", "tool_use_id": "t1",
                                             "content": f"{len(files)} files delivered to user."}]},
                    "toolUseResult": {"caption": "here", "attachments": attachments}}
+        if tool == "mcp__aacpanel__file_send":
+            receipt["toolUseResult"] = [{"type": "text", "text": json.dumps(receipt["toolUseResult"])}]
+            receipt["message"]["content"][0]["content"] = receipt["toolUseResult"]
         with open(self.path, "w", encoding="utf-8") as f:
             f.write(line(call))
             f.write(line(receipt))
@@ -68,6 +71,16 @@ class SentFilesTheReaderDoesNotOpen(unittest.TestCase):
         files = self.card()["files"]
         self.assertEqual([(f["name"], f.get("outside")) for f in files],
                          [("resume.pdf", None), ("resume.pdf", None), ("token", True)])
+
+    def test_panel_receipts_keep_the_caption_and_outside_mark_in_every_window(self):
+        self.write([os.path.join(self.elsewhere, "report.pdf"), os.path.join(self.secrets, "token")],
+                   tool="mcp__aacpanel__file_send")
+        for options in ({}, {"after": 0}):
+            with self.subTest(options=options):
+                items = chat.feed(self.path, **options)["items"]
+                self.assertEqual([item["role"] for item in items], ["sent"])
+                self.assertEqual(items[0]["text"], "here")
+                self.assertEqual([f.get("outside") for f in items[0]["files"]], [None, True])
 
     def test_a_link_into_the_secrets_is_marked(self):
         target = os.path.join(self.secrets, "token")

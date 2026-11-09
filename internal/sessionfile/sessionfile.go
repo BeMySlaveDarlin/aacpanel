@@ -43,3 +43,10 @@ func Dir(kind string) string {
 	}
 	return filepath.Join(base, "aacpanel", kind)
 }
+
+// SecretsDir stays outside the state mounted into the panel's container and
+// outside the files its feed opens. The executor and file tools share it so
+// a receipt can never expose a notepad meant only for the session.
+func SecretsDir() string {
+	return Dir("secrets")
+}

@@ -28,6 +28,7 @@ def sent_card(result, use, at, pos):
     that failed answers with an error and no attachments — it stays a plain
     call in the run, with the error readable in its details, and gives no card.
     """
+    result = sesstate.sent_result(result)
     files = [{"path": f["path"], "name": f["file"],
               **{k: f[k] for k in ("size", "media") if k in f}}
              for f in sesstate.sent_files(result)]

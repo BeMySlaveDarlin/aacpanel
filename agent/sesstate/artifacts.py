@@ -1,5 +1,6 @@
 """What the session has made: published artifacts, written documents, files sent to the human."""
 
+import json
 import os
 import re
 
@@ -17,7 +18,7 @@ DOC_TOOLS = ("Write", "Edit", "MultiEdit")
 
 DOC_EXT = (".md", ".markdown", ".txt", ".rst", ".adoc", ".org")
 
-SENT_TOOL = "SendUserFile"
+SENT_TOOLS = ("SendUserFile", "mcp__aacpanel__file_send")
 
 
 def result_text(block):
@@ -147,6 +148,25 @@ def _document(state, data, at):
     _prune(state.docs)
 
 
+def sent_result(result):
+    """Reads the native receipt or the JSON text blocks returned by the panel.
+
+    All readers use this boundary so both clients keep one receipt format,
+    and malformed answers never turn requested files into deliveries.
+    """
+    if isinstance(result, list):
+        text = "\n".join(block["text"] for block in result
+                         if isinstance(block, dict) and block.get("type") == "text"
+                         and isinstance(block.get("text"), str))
+        try:
+            result = json.loads(text)
+        except (ValueError, TypeError):
+            return {}
+    if not isinstance(result, dict):
+        return {}
+    return result
+
+
 def sent_files(result):
     """Returns the files a delivery handed to the human: path, name, size and type.
 
@@ -154,7 +174,8 @@ def sent_files(result):
     went. A delivery that failed carries no attachments, and a file it names
     without a path is nothing to open.
     """
-    if not isinstance(result, dict) or not isinstance(result.get("attachments"), list):
+    result = sent_result(result)
+    if not isinstance(result.get("attachments"), list):
         return []
     out = []
     for item in result["attachments"]:

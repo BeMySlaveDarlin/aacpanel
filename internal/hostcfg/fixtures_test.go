@@ -245,6 +245,7 @@ var (
 		"internal/collector/brief.go":  {`"бриф", "опросник", "скинь в панель", "отвечу потом"`},
 		"internal/collector/notify.go": {`"позови меня", "пингани", "дай знать на телефон"`},
 		"internal/collector/secret.go": {`"скину токен", "дам пароль", "вот доступы"`},
+		"internal/artifact/send.go":    {`"скинь файл", "покажи скрин", "пришли в панель"`},
 
 		// The range of letters a check walks over, and a file name as the desktop
 		// of a machine in another locale writes it — data the code has to accept.

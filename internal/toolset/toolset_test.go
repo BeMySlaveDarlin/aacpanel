@@ -51,6 +51,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__brief_publish",
 		"mcp__aacpanel__brief_delete",
 		"mcp__aacpanel__notify",
+		"mcp__aacpanel__file_send",
 		"mcp__aacpanel__secret_ask",
 		"mcp__aacpanel__request",
 		"mcp__aacpanel__session_restart",
@@ -70,11 +71,50 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 	}
 }
 
+func TestFileSendIsNamedInTheLeadAndUsesTheCallingThreadsDirectory(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	for _, first := range []string{lead, codexLead} {
+		if !strings.Contains(first, "a file to show: file_send") {
+			t.Errorf("the lead does not name file_send: %s", first)
+		}
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "report.pdf")
+	if err := os.WriteFile(path, []byte("%PDF-1.4\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv := CodexServer(func(meta json.RawMessage) (mcp.Binding, error) {
+		b, err := codexCaller(meta)
+		b.Place.Dir = dir
+		return b, err
+	})
+	replies := exchange(t, srv,
+		toolCall(1, "file_send", `{"files":["report.pdf"]}`, `{"threadId":"`+codexThread+`"}`))
+	result, _ := replies[1]["result"].(map[string]any)
+	if result == nil || result["isError"] != nil {
+		t.Fatalf("the thread could not send its report: %v", replies[1])
+	}
+	blocks, _ := result["content"].([]any)
+	if len(blocks) != 1 {
+		t.Fatalf("the receipt is not one text block: %v", result)
+	}
+	block, _ := blocks[0].(map[string]any)
+	var receipt struct {
+		Attachments []struct {
+			Path string `json:"path"`
+		} `json:"attachments"`
+	}
+	text, _ := block["text"].(string)
+	if err := json.Unmarshal([]byte(text), &receipt); err != nil || len(receipt.Attachments) != 1 || receipt.Attachments[0].Path != path {
+		t.Fatalf("the receipt does not name the thread's report: %s, %v", text, err)
+	}
+}
+
 // A thread of codex the panel starts calls without asking the tools a claude
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer",
+	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
@@ -345,7 +385,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)

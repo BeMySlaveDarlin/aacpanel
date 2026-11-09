@@ -14,6 +14,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/sessionfile"
 )
 
 const (
@@ -27,7 +28,7 @@ const (
 // which is mounted into the container, and not among the files sent from the
 // phone, which the feed opens.
 func SecretsDir() string {
-	return filepath.Join(stateDir(), "secrets")
+	return sessionfile.SecretsDir()
 }
 
 // secretsHome makes the directory of secrets, closed to everyone but the

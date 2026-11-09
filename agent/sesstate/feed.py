@@ -4,7 +4,7 @@ import collections
 import os
 import re
 
-from .artifacts import (ARTIFACT_URL_RE, DOC_TOOLS, SENT_TOOL, _artifact, _document,
+from .artifacts import (ARTIFACT_URL_RE, DOC_TOOLS, SENT_TOOLS, _artifact, _document,
                         _sent, result_text)
 from .limits import MAX_ITEMS, _short
 from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
@@ -185,7 +185,7 @@ def _feed_record(state, record, raw):
             if name in DOC_TOOLS:
                 _document(state, data, at)
                 continue
-            if name == SENT_TOOL:
+            if name in SENT_TOOLS:
                 state.pending[block.get("id")] = {"kind": "sent"}
                 continue
             if name == "ScheduleWakeup":
@@ -250,10 +250,11 @@ def _feed_record(state, record, raw):
         if started["kind"] == "task":
             _task_left(state, block, result, started)
             continue
-        if not isinstance(result, dict):
-            continue
         if started["kind"] == "sent":
-            _sent(state, result, at)
+            if not block.get("is_error"):
+                _sent(state, result, at)
+            continue
+        if not isinstance(result, dict):
             continue
         if started["kind"] == "cron":
             scheduled(state, started, result)

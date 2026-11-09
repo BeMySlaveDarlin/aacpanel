@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 
@@ -217,6 +218,25 @@ class Sent(Transcript):
             self.delivered("toolu_2", [(secret, 12, "text/plain")], at="2026-08-30T11:00:00Z"),
         )
         self.assertEqual([(s["count"], s.get("outside")) for s in got["sent"]], [(2, True)])
+
+    def panel_delivery(self, files, failed=False):
+        records = [json.loads(raw) for raw in self.delivered("toolu_panel", files).splitlines()]
+        records[0]["message"]["content"][0]["name"] = "mcp__aacpanel__file_send"
+        result = records[1]
+        result["toolUseResult"] = [{"type": "text", "text": json.dumps(result["toolUseResult"])}]
+        result["message"]["content"][0].update(content=result["toolUseResult"], is_error=failed)
+        return "".join(line(record) for record in records)
+
+    def test_panel_receipts_keep_the_same_files_and_outside_marks(self):
+        secret = self.touch("token", "private", root=self.secrets())
+        got = self.state(self.panel_delivery([(self.pdf, 10, "application/pdf"),
+                                              (secret, 7, "text/plain")]))
+        self.assertEqual([(s["path"], s["size"], s["media"], s.get("outside")) for s in got["sent"]],
+                         [(self.pdf, 10, "application/pdf", None), (secret, 7, "text/plain", True)])
+
+    def test_a_failed_panel_receipt_keeps_no_sent_files(self):
+        got = self.state(self.panel_delivery([(self.pdf, 10, "application/pdf")], failed=True))
+        self.assertEqual(got["sent"], [], "an error carrying a receipt still sent nothing")
 
 if __name__ == "__main__":
     unittest.main()

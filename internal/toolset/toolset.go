@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"aacpanel/internal/artifact"
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/collector"
 	"aacpanel/internal/mcp"
@@ -28,7 +29,7 @@ import (
 // person through the panel, and a line of every tool says when to reach for it.
 const (
 	leadStart = "The person follows this session in the panel, on phone and desk. A blocking question: "
-	leadWays  = "a phone call: notify; a long read with questions: brief_publish; a credential: secret_ask; " +
+	leadWays  = "a phone call: notify; a file to show: file_send; a long read with questions: brief_publish; a credential: secret_ask; " +
 		"a task for their hands: request; another session: send_to_session; a command to watch: observer_start; a time to return: alarm_set."
 	lead      = leadStart + "AskUserQuestion; " + leadWays
 	codexLead = leadStart + "the client's question tool, or ask in the conversation and end the turn if unavailable; " + leadWays
@@ -45,7 +46,7 @@ const (
 // that a tool of any other server keeps a description up to the same length.
 const (
 	WordEnv = "CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH"
-	WordMax = 6656
+	WordMax = 6912
 )
 
 func tools() []mcp.Tool {
@@ -55,6 +56,7 @@ func tools() []mcp.Tool {
 		collector.BriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
+		artifact.Tool(),
 		collector.SecretAsk(collector.NotifySocket()),
 		request.Tool(session.Here().Panel),
 		session.Restart(session.Here()),
@@ -94,6 +96,7 @@ func codexTools() []mcp.Tool {
 		collector.CodexBriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
+		artifact.Tool(),
 		collector.SecretAsk(collector.NotifySocket()),
 		request.Tool(session.Here().Panel),
 		session.CodexRestart(session.Here()),

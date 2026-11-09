@@ -2826,15 +2826,15 @@ allowed names from it, so a session is never allowed a tool the server does not
 have. The server's word to a session — in its system prompt — is a lead and a
 line from every tool, since a tool of a server is often deferred and its
 description unread. The lead routes a blocking question to the client's question
-tool, a phone call to `notify`, a long read to `brief_publish`, a credential to
-`secret_ask`, a task for the person's hands to `request`, a letter to
+tool, a phone call to `notify`, a file to show to `file_send`, a long read to
+`brief_publish`, a credential to `secret_ask`, a task for the person's hands to `request`, a letter to
 `send_to_session`, a command watch to `observer_start` and a timed return to
 `alarm_set`. A blocking request ends the turn until the person's answer arrives;
 a nonblocking one leaves the agent free to continue independent work. Each tool's line
 says when to reach for it; its description gives the arguments, limits, alternatives
 and whether to continue work or end the turn. Question and permission dialogs
 already call the person, so they need no extra `notify`. Claude keeps 2048 UTF-16 units of that word by default
-and cuts the rest mid-sentence. The launcher lifts the ceiling to 6656 with
+and cuts the rest mid-sentence. The launcher lifts the ceiling to 6912 with
 `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the environment of every session
 it hands the tools; claude holds the description of every tool of every
 server to the same ceiling, so those are lifted too. The lead and every line
@@ -2849,7 +2849,8 @@ MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries
 the brief — `brief_publish`, whose call without a document returns the rules of
 writing one, and `brief_delete` — the call to the person, `notify`, and the
-notepad of secrets, `secret_ask`, and tasks for the person, `request`. The machine's brief guide is edited in
+notepad of secrets, `secret_ask`, tasks for the person, `request`, and files to
+show, `file_send`. The machine's brief guide is edited in
 Settings → Briefs and kept in the database after a one-time import of
 `aacpanel/brief-guide.md` from the user's configuration directory through the
 collector; each call without a document reads it from the local panel within
@@ -2859,6 +2860,11 @@ panel's shelf and names the answered, unsent briefs of the session's directory,
 newest first, up to three and a count of the rest. The answers live in the
 panel's database, so reading the collector's shelf alone would not say which
 are waiting. The read has two seconds; an unavailable panel adds no line.
+`file_send` returns a receipt of regular files, resolved from the session's
+directory or an absolute path, without copying them. A refused path refuses
+the whole call; the executor's secrets directory and links into it are never
+sent. Both clients draw the existing sent-files card from the receipt, with
+the caption of the receipt. The paths must remain on disk for the history to open.
 The tools speak to the collector's sockets under the conversation and the
 directory the
 server finds for its claude rather than any the model names, so a brief lands

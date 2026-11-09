@@ -374,7 +374,8 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                         continue
                     if sent is not None and use in sent:
                         sent.discard(use)
-                        card = sent_card(record.get("toolUseResult"), use, at, pos)
+                        card = (sent_card(record.get("toolUseResult"), use, at, pos)
+                                if not b.get("is_error") else None)
                         if card:
                             links.append(card)
                         continue
@@ -613,7 +614,7 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     # was asked is known only from its answer, and the card
                     # takes the title and the notepad from the call.
                     briefs[block.get("id") or ""] = secret_call(block.get("input"))
-                if name == sesstate.SENT_TOOL and sent is not None:
+                if name in sesstate.SENT_TOOLS and sent is not None:
                     # The call goes into the run as a call: whether anything
                     # reached the human is known only from the answer, and
                     # the window takes the call out once its card is drawn.

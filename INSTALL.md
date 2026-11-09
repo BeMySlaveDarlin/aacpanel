@@ -239,7 +239,7 @@ plan into `<install>/plan.txt` and quits:
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
 │   · 15 allow rules · 5 hooks                                                 │
-│   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6656                │
+│   · env CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH raised to 6912                │
 │ In codex settings — ~/.codex/hooks.json, ~/.codex/config.toml                │
 │   · question hook · MCP server                                               │
 │   · 2 hooks, trusted · 13 tools approved                                     │
@@ -1394,7 +1394,7 @@ first in the chain and passes the payload on to the command that was there:
   "permissions": {"allow": [
     "mcp__aacpanel__checklist", "mcp__aacpanel__role",
     "mcp__aacpanel__brief_publish",
-    "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
+    "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify", "mcp__aacpanel__file_send",
     "mcp__aacpanel__secret_ask", "mcp__aacpanel__request", "mcp__aacpanel__session_close",
     "mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop",
     "mcp__aacpanel__observer_tail", "mcp__aacpanel__alarm_set",
@@ -1492,7 +1492,7 @@ server on its command line anyway, and claude keeps one server of a name, so
 the server in the account serves the sessions started by hand. claude keeps
 2048 UTF-16 units of a server's word by default and cuts the rest, the lines of
 the last tools first. The launcher lifts the ceiling for its own sessions with
-`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=6656`; for a session started by hand the
+`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=6912`; for a session started by hand the
 Panel tools part writes the same into the `env` of the account's
 `settings.json`, which claude puts into its own environment as it starts, and
 the ceiling is read from there each time it takes a server's word in. A value
@@ -1501,7 +1501,7 @@ it back:
 
 ```json
 {
-  "env": {"CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH": "6656"}
+  "env": {"CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH": "6912"}
 }
 ```
 
@@ -1523,7 +1523,7 @@ it is signed in.
   ```bash
   jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("hook ask-hook"))] | length' ~/.claude/settings.json      # 1
   jq '.statusLine.command | contains("aacpanel-exec statusline")' ~/.claude/settings.json                                     # true
-  jq -r '.env.CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH' ~/.claude/settings.json                                              # 6656 or more
+  jq -r '.env.CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH' ~/.claude/settings.json                                              # 6912 or more
   claude mcp get aacpanel                                                                                                  # Scope: User config
   <home>/bin/aacpanel-exec statusline </dev/null                                                                           # exits 0
   ```
@@ -1536,7 +1536,7 @@ it is signed in.
   The sum lets uninstall tell whether the file is still as it was written: then
   the copy goes back byte for byte. A file changed since loses the panel's
   lines, and the value of the env goes back to what the line names while it is
-  still 6656.
+  still 6912.
 
 ## S12a. `codex` — Codex hooks and tools
 
@@ -1589,7 +1589,7 @@ env = { AACP_STATE_DIR = "<state>" }   # only for a state directory other than t
 approval_mode = "approve"
 ```
 
-— and a table of the same form for `brief_publish`, `brief_delete`, `notify`,
+— and a table of the same form for `brief_publish`, `brief_delete`, `notify`, `file_send`,
 `secret_ask`, `session_close`, `observer_list`, `observer_stop`,
 `observer_tail`, `alarm_set`, `alarm_list`, `alarm_cancel`, `crew_status` and `session_answer` — the very list
 a thread the panel starts is given. A server of the name already
@@ -1783,7 +1783,7 @@ missing MCP server fails to connect at every session start.
    (put back the command after `AACP_STATUSLINE_NEXT=`, or remove the status
    line), the hooks of `aacpanel-exec hook` and their older script forms, the rules
    allowing `mcp__aacpanel__*`, and `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`
-   from `env` where it is 6656 and you did not set it. In every codex home: the
+   from `env` where it is 6912 and you did not set it. In every codex home: the
    same hooks of `hooks.json`, their `[hooks.state."…/hooks.json:…"]` tables in
    `config.toml` — the trust of a hook of yours that moves up in `hooks.json`
    goes with it to its new place — and `[mcp_servers.aacpanel]` with every

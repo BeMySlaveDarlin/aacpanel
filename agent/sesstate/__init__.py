@@ -7,8 +7,8 @@ import threading
 import contours
 
 from .artifacts import (ARTIFACT_PUBLISH, ARTIFACT_URL_RE, DOC_EXT,  # noqa: F401
-                        DOC_TOOLS, SENT_TOOL, artifact_fields, inside, opens, result_text,
-                        sent_files)
+                        DOC_TOOLS, SENT_TOOLS, artifact_fields, inside, opens, result_text,
+                        sent_files, sent_result)
 from .feed import State, _feed_record, _sub_record, ordered_agents  # noqa: F401
 from .limits import MAX_ITEMS, MAX_TEXT  # noqa: F401
 from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F401

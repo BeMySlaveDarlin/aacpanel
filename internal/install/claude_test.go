@@ -619,11 +619,12 @@ func TestAnAccountTheWrapperSignsInIsSignedIn(t *testing.T) {
 // since stays theirs. The manifest keeps what it was.
 func TestTheLengthOfTheWordGoesBackToThePersons(t *testing.T) {
 	key := toolset.WordEnv
+	length := strconv.Itoa(toolset.WordMax)
 	for _, c := range []struct{ name, was, theirs, after string }{
 		{"theirs", `"100"`, "", "100"},
 		{"none", "", "", "none"},
 		{"changed since", `"100"`, "9000", "9000"},
-		{"the panel's own already", `"6656"`, "", "6656"},
+		{"the panel's own already", strconv.Quote(length), "", length},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			raw := "{\n  \"model\": \"opus\"\n}\n"

@@ -1240,6 +1240,32 @@ class SentFiles(unittest.TestCase):
     FILES = [("/srv/proj/cv/resume.pdf", 89537, "application/pdf"),
              ("/srv/proj/cv/cover-letter.txt", 3097, "text/plain")]
 
+    def panel_records(self, failed=False):
+        call = self.call("panel", [f for f, _, _ in self.FILES])
+        call["message"]["content"][0]["name"] = "mcp__aacpanel__file_send"
+        result = self.receipt("panel", self.FILES)
+        result["toolUseResult"] = [{"type": "text", "text": json.dumps(result["toolUseResult"])}]
+        result["message"]["content"][0].update(content=result["toolUseResult"], is_error=failed)
+        return call, result
+
+    def test_a_panel_delivery_is_the_same_card_with_the_receipt_caption(self):
+        self.write(*self.panel_records())
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in items], ["sent"])
+        self.assertEqual(items[0]["text"], "Two pages and the letter")
+        self.assertEqual([(f["path"], f["size"], f["media"]) for f in items[0]["files"]], self.FILES)
+
+    def test_a_refused_panel_delivery_has_no_card(self):
+        self.write(*self.panel_records(failed=True))
+        items = chat.feed(self.path)["items"]
+        self.assertFalse(any(i["role"] == "sent" for i in items), items)
+
+    def test_a_malformed_panel_receipt_has_no_card(self):
+        call, result = self.panel_records()
+        result["toolUseResult"] = [{"type": "text", "text": "Nothing was sent."}]
+        self.write(call, result)
+        self.assertFalse(any(i["role"] == "sent" for i in chat.feed(self.path)["items"]))
+
     def test_a_delivery_is_a_card_with_the_caption_and_every_file(self):
         self.write(self.call("t1", [f for f, _, _ in self.FILES]), self.receipt("t1", self.FILES))
         items = chat.feed(self.path)["items"]

@@ -582,6 +582,33 @@ def mcp_call(server, tool, arguments, status="completed", text=None, error=None,
 
 
 class McpCalls(Runtime):
+    def test_a_panel_file_delivery_draws_the_sent_card_with_its_caption(self):
+        args = {"files": ["/srv/report.pdf"], "caption": "The finished report"}
+        receipt = {"caption": "The finished report", "attachments": [{"path": "/srv/report.pdf", "size": 12, "media_type": "application/pdf"}]}
+        record = mcp_call("aacpanel", "file_send", args, text=json.dumps(receipt))
+        self.assertEqual(chat.parse(record, 4), [{"role": "sent", "use": "call_9",
+                         "files": [{"path": "/srv/report.pdf", "name": "report.pdf",
+                                    "size": 12, "media": "application/pdf"}],
+                         "text": "The finished report", "cut": False,
+                         "at": "2026-10-09T12:06:00.000Z", "pos": 4}])
+        for status in ("completed", "failed"):
+            with self.subTest(status=status):
+                refused = mcp_call("aacpanel", "file_send", args, status=status, text=json.dumps(receipt))
+                refused["payload"]["item"]["result"]["isError"] = True
+                self.assertEqual([r["role"] for r in chat.parse(refused, 4)], ["tool", "result"])
+        other = mcp_call("other", "file_send", args, text=json.dumps(receipt))
+        self.assertEqual([r["role"] for r in chat.parse(other, 4)], ["tool", "result"])
+
+    def test_a_panel_file_delivery_marks_files_the_reader_cannot_open(self):
+        path = os.path.join(self.root, "state", "aacpanel", "secrets", "token")
+        receipt = {"attachments": [{"path": path, "size": 7, "media_type": "text/plain"}]}
+        self.add(mcp_call("aacpanel", "file_send", {"files": [path]}, text=json.dumps(receipt)))
+        reply = chat.answer({"session": THREAD, "limit": 50})
+        self.assertTrue(reply["ok"], reply)
+        card = reply["items"][-1]
+        self.assertEqual(card["role"], "sent")
+        self.assertTrue(card["files"][0].get("outside"), card)
+
     def add(self, record):
         """Appends a record to the rollout and returns where it starts."""
         pos = os.path.getsize(self.rollout)

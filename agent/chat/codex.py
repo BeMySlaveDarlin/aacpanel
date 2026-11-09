@@ -28,10 +28,11 @@ import shlex
 
 import contours
 import held
+import sesstate
 
 from .harness import COMPACTED, STOPPED
 from .cards import (BRIEF_TOOL, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT, NOTIFY_TOOL, SECRET_TOOL,
-                    brief_card, call_card, secret_call, secret_card, REQUEST_TOOL, request_card)
+                    brief_card, call_card, secret_call, secret_card, sent_card, REQUEST_TOOL, request_card)
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
 from .mail import LETTER_TOOL, mails, peer_name, undelivered
 from .tools import one_line, tool_arg, tool_kind, tool_label
@@ -483,7 +484,11 @@ def _mcp_call(item, use, at, pos, shelf=None):
         return []
     args = _mcp_args(item)
     card = None
-    if name == REQUEST_TOOL:
+    if name in sesstate.SENT_TOOLS:
+        result = item.get("result")
+        if isinstance(result, dict) and not result.get("isError") and not _failed(item):
+            card = sent_card(result.get("content"), use, at, pos)
+    elif name == REQUEST_TOOL:
         card = request_card(_mcp_said(item), args, use, at, pos)
     elif name == SECRET_TOOL:
         card = secret_card(_mcp_said(item), secret_call(args), use, at, pos)

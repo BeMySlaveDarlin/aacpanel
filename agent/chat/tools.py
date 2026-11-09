@@ -62,6 +62,7 @@ ARG_KEYS_BY_TOOL = {
     "CronCreate": ("cron",),
     "CronDelete": ("id",),
     "SendUserFile": ("files", "caption"),
+    "mcp__aacpanel__file_send": ("files", "caption"),
     "SubagentHandback": ("message",),
     "PushNotification": ("message",),
     "SendFeedback": ("title",),
