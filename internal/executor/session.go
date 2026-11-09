@@ -287,6 +287,10 @@ func (e *Executor) sessionResume(ctx context.Context, req action.Request) (strin
 	return detail, keepOwner(rep, owner)
 }
 
+// resumeDirectory is where a conversation goes on: the directory it ran in,
+// or its project's own when that directory is gone — a project moved, or a
+// worktree removed while the session slept. A directory that is there goes
+// only inside the project.
 func resumeDirectory(at *action.ResumeDirectory) (string, error) {
 	if at == nil {
 		return "", nil
@@ -296,7 +300,7 @@ func resumeDirectory(at *action.ResumeDirectory) (string, error) {
 		return "", err
 	}
 	dir := filepath.Clean(at.Path)
-	if !filepath.IsAbs(at.Path) || !insideRoots(dir, []string{root}) {
+	if !filepath.IsAbs(at.Path) {
 		return "", fmt.Errorf("the resumed directory %q is outside project %s", at.Path, root)
 	}
 	info, err := os.Stat(dir)
@@ -305,6 +309,9 @@ func resumeDirectory(at *action.ResumeDirectory) (string, error) {
 	}
 	if err != nil {
 		return "", fmt.Errorf("the resumed directory cannot be read: %w", err)
+	}
+	if !insideRoots(dir, []string{root}) {
+		return "", fmt.Errorf("the resumed directory %q is outside project %s", at.Path, root)
 	}
 	return checkProjectDir(dir)
 }

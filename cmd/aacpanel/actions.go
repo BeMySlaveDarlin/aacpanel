@@ -151,6 +151,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	}
 
 	var cwd, ranAs, parentNote string
+	var recorded int
 	// A thread of codex is resumed in the daemon of its home, which knows where
 	// it ran. A former project directory supplies only a replacement cwd;
 	// the thread keeps its own launch settings and the contour of its home.
@@ -180,7 +181,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				action.ResumeCodex+": no other agent", http.StatusBadRequest)
 			return
 		}
-		sessionID, dir, archived, err := s.resumeTarget(r, body.Target, body.Params)
+		sessionID, dir, archived, project, err := s.resumeTarget(r, body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -194,7 +195,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				return
 			}
 		}
-		cwd, ranAs = dir, archived
+		cwd, ranAs, recorded = dir, archived, project
 		req.Resume, req.Target = sessionID, filepath.Base(strings.TrimRight(dir, "/"))
 	}
 
@@ -513,6 +514,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		case req.Kind == action.SessionResume:
 			want, found, err = s.resumeProject(r.Context(), body.Params, cwd, req.Target, dir)
 			req.ResumeAt = found.resumeDirectory()
+			if err == nil && want == nil && dir == "" && recorded > 0 {
+				want, found, req.ResumeAt, err = s.recordedProject(r.Context(), recorded, cwd)
+			}
 		case dir != "":
 			want, found, err = s.projectIn(r.Context(), dir)
 		default:
@@ -1431,52 +1435,53 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"available": true, "kinds": kinds})
 }
 
-// resumeTarget finds the conversation a resume is about, where it ran and the
-// name it ran under. The screen knows which row was pressed and says so by its
+// resumeTarget finds the conversation a resume is about, where it ran, the
+// name it ran under and the project of the map a live or sleeping one was
+// recorded in. The screen knows which row was pressed and says so by its
 // identifier; the name is the older way in and cannot tell two conversations
 // apart when two contours hold a project of the same name.
-func (s *Server) resumeTarget(r *http.Request, name string, params map[string]any) (sessionID, cwd, ranAs string, err error) {
+func (s *Server) resumeTarget(r *http.Request, name string, params map[string]any) (sessionID, cwd, ranAs string, project int, err error) {
 	if s.db == nil {
-		return "", "", "", errors.New("the conversation cannot be resumed: the database is not configured")
+		return "", "", "", 0, errors.New("the conversation cannot be resumed: the database is not configured")
 	}
 	hostID, err := s.db.HostID(r.Context(), s.hostName)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", 0, err
 	}
 
 	if id, _ := params["session"].(string); strings.TrimSpace(id) != "" {
 		id = strings.TrimSpace(id)
 		row, readErr := s.db.LivingConversation(r.Context(), hostID, id)
 		if readErr != nil {
-			return "", "", "", readErr
+			return "", "", "", 0, readErr
 		}
 		if pauses, pauseErr := s.sessionPauses(r.Context()); pauseErr != nil {
-			return "", "", "", pauseErr
+			return "", "", "", 0, pauseErr
 		} else if p, ok := pauseConversation(pauses, id); ok {
 			row = &p.LivingSession
 		}
 		if row != nil {
-			return id, row.CWD, row.Session, nil
+			return id, row.CWD, row.Session, row.ProjectID, nil
 		}
 		cwd, ranAs, err = s.db.SessionResumeAt(r.Context(), hostID, id)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", 0, err
 		}
 		if cwd == "" {
-			return "", "", "", fmt.Errorf("conversation %q is not in the archive of this machine", id)
+			return "", "", "", 0, fmt.Errorf("conversation %q is not in the archive of this machine", id)
 		}
-		return id, cwd, ranAs, nil
+		return id, cwd, ranAs, 0, nil
 	}
 
 	sessionID, cwd, err = s.db.SessionResume(r.Context(), hostID, name)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", 0, err
 	}
 	if sessionID == "" {
-		return "", "", "", fmt.Errorf("there is no conversation of session %q to resume", name)
+		return "", "", "", 0, fmt.Errorf("there is no conversation of session %q to resume", name)
 	}
 	if cwd == "" {
-		return "", "", "", fmt.Errorf("the directory of session %q is not known — it cannot be resumed", name)
+		return "", "", "", 0, fmt.Errorf("the directory of session %q is not known — it cannot be resumed", name)
 	}
-	return sessionID, cwd, name, nil
+	return sessionID, cwd, name, 0, nil
 }

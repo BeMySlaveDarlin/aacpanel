@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -217,6 +218,33 @@ func TestSleepingDeadlineUsesTheTimerAfterServiceAndHostRestartPG(t *testing.T) 
 	}
 }
 
+// A worktree removed while its session slept is on the map no more: the
+// session wakes in the project it was recorded in, told where it ran, and the
+// executor starts it in the project's own directory when that one is gone.
+func TestSleepingSessionOfARemovedWorktreeWakesInItsProjectPG(t *testing.T) {
+	s, p := pausedScene(t, false)
+	p = sleepTurn(t, s, p)
+	gone := filepath.Join(filepath.Dir(s.dir), "worktrees", "fix-gone")
+	expired := time.Now().Add(-time.Minute)
+	p.Until, p.CWD = &expired, gone
+	savePause(t, s, p)
+	if err := s.srv.pauseOnce(t.Context(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	s.drain()
+	for _, req := range s.requests {
+		if req.Kind != action.SessionResume {
+			continue
+		}
+		if req.Project == nil || req.Project.ConfigDir != p.ConfigDir || req.Target != p.Session || req.Resume != p.Conversation ||
+			req.ResumeAt == nil || req.ResumeAt.Path != gone || req.ResumeAt.Root != s.dir {
+			t.Fatalf("the wake went as %+v, project %+v, at %+v", req, req.Project, req.ResumeAt)
+		}
+		return
+	}
+	t.Fatalf("the sleeping session was not resumed: %+v", s.requests)
+}
+
 func TestSleepingHumanMessageBorrowsOneTurnAndLetterLiftsThePausePG(t *testing.T) {
 	for _, kind := range []string{"session.send", "session.letter"} {
 		t.Run(kind, func(t *testing.T) {
@@ -351,6 +379,9 @@ func TestSleepingLetterWaitsForAConfirmedLiveConversationPG(t *testing.T) {
 	w := post(t, s.srv, fmt.Sprintf(`{"kind":"session.letter","target":%q,"params":{"text":"A delayed letter","from":%q}}`, p.Session, s.row(9).Conversation))
 	if w.Code == http.StatusOK {
 		t.Fatalf("the letter was accepted without a live recipient: %s", w.Body.String())
+	}
+	if body := w.Body.String(); !strings.Contains(body, "did not wake") || strings.Contains(body, "history") {
+		t.Errorf("the refusal does not say the session did not wake: %s", body)
 	}
 	s.drain()
 	for _, req := range s.requests[before:] {

@@ -390,6 +390,31 @@ func (s *Server) resumeProject(ctx context.Context, params map[string]any, cwd, 
 	return want, found, nil
 }
 
+// recordedProject is the project a live or sleeping conversation was recorded
+// in, when the directory it ran in is on the map no more: a worktree removed
+// while the session slept. The conversation goes on where it ran if the host
+// still has that directory, and in the project's own if not. A project gone
+// from the map leaves the resume without one, as before.
+func (s *Server) recordedProject(ctx context.Context, id int, cwd string) (*action.Project, mapProject, *action.ResumeDirectory, error) {
+	list, err := s.db.Profiles(ctx)
+	if err != nil {
+		return nil, mapProject{}, nil, fmt.Errorf("the project of the conversation cannot be found: %w", err)
+	}
+	found, ok := projectByID(list, id)
+	if !ok {
+		return nil, mapProject{}, nil, nil
+	}
+	want, err := s.launchOf(found)
+	if err != nil {
+		return nil, mapProject{}, nil, err
+	}
+	var at *action.ResumeDirectory
+	if strings.TrimSpace(cwd) != "" {
+		at = &action.ResumeDirectory{Path: cwd, Root: found.project.Path}
+	}
+	return want, found, at, nil
+}
+
 // launchOf is what the executor is handed to start a session of a project
 // found on the map: where it runs, under the project's session name, with the
 // launch parameters of its account and its own.

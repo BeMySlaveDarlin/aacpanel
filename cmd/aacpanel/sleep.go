@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -354,6 +355,16 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 
 // A letter lifts a pause, while a person's message borrows one turn. Holding
 // the same lock as the sleeper prevents closing between wake and delivery.
+// wakeError answers a message to a sleeping session that did not wake with
+// why it did not; a database that does not answer is said as everywhere.
+func wakeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, store.ErrUnavailable) || errors.Is(err, store.ErrClosed) {
+		historyError(w, err)
+		return
+	}
+	http.Error(w, "the sleeping session did not wake: "+err.Error(), http.StatusServiceUnavailable)
+}
+
 func (s *Server) pausedAction(w http.ResponseWriter, r *http.Request, term bool, kind, target string, params map[string]any) bool {
 	if internal, _ := r.Context().Value(sleepActionKey{}).(bool); internal || s.db == nil || s.exec == nil {
 		return false
@@ -419,7 +430,7 @@ func (s *Server) pausedAction(w http.ResponseWriter, r *http.Request, term bool,
 			return true
 		}
 		if err := s.wakePaused(r.Context(), p.Conversation); err != nil {
-			historyError(w, err)
+			wakeError(w, err)
 			return true
 		}
 	}
