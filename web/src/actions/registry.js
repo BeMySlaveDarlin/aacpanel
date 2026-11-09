@@ -1140,6 +1140,8 @@ const NAMES = {
     "agent.stop": "Stop subagent",
     // Sessions record starts after the private socket accepts them; no screen starts them.
     "session.ready": "Ready for restart",
+    "session.freeze": "Put session to sleep",
+    "session.thaw": "Wake session",
     "project.pause": "Pause sessions",
     "observer.start": "Start an observer",
     "alarm.set": "Set an alarm",

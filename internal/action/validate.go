@@ -163,6 +163,10 @@ func (r Request) Validate() error {
 		return badRequest("the target is longer than %d characters", targetLimit)
 	}
 	switch {
+	case r.Kind == SessionFreeze || r.Kind == SessionThaw:
+		if !safeUUID(r.Conversation) {
+			return badRequest("action %s needs the conversation the session must still run", r.Kind)
+		}
 	case r.Kind == CodexUpdate || r.Kind == ClaudeUpdate:
 		if r.Target != "host" {
 			return badRequest("agent updates target the host")

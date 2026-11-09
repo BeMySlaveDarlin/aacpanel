@@ -330,7 +330,19 @@ func (r *reviver) raise(ctx context.Context, pending []store.LivingSession, tota
 			}
 			if err == nil {
 				if current, alive := liveConversation(snap, row.Conversation); alive {
-					if err := after(ctx, row, current); err != nil {
+					// A process that appears while admission waits may still be
+					// frozen. Census presence alone does not prove it is awake.
+					if r.sleep {
+						var pauses []store.SessionPause
+						pauses, err = r.srv.sessionPauses(ctx)
+						if p, found := pauseConversation(pauses, row.Conversation); err == nil && found {
+							err = r.srv.thawPause(ctx, p)
+						}
+					}
+					if err == nil {
+						err = after(ctx, row, current)
+					}
+					if err != nil {
 						failed = append(failed, row.Session+": "+err.Error())
 					} else {
 						raised++

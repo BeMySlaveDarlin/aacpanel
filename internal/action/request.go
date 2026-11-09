@@ -30,10 +30,8 @@ type Request struct {
 	// Silent resumes a conversation without either saved opening message.
 	Silent bool `json:"silent,omitempty"`
 
-	// Conversation is the conversation a session.restart or a session.close is
-	// asked for by, when a session restarts or closes itself — a thread of
-	// codex names the thread: the session is restarted or closed only while it
-	// still runs that one.
+	// Conversation binds a close, restart, freeze or thaw to the conversation
+	// the session must still run. A thread of codex names the thread.
 	Conversation string `json:"conversation,omitempty"`
 	// Sleeping preserves alarms on a sleep close, or cancels a sleeping orphan.
 	Sleeping bool `json:"sleeping,omitempty"`

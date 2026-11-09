@@ -15,6 +15,10 @@ const (
 	SessionOpen      Kind = "session.open"
 	SessionResume    Kind = "session.resume"
 	SessionClose     Kind = "session.close"
+	// SessionFreeze and SessionThaw keep a paused stream session alive in its
+	// unit, so its process and working directory remain visible to the host.
+	SessionFreeze Kind = "session.freeze"
+	SessionThaw   Kind = "session.thaw"
 	// SessionRestart closes a session the gentle way and starts it again: as
 	// its project from the map when one holds its directory, the host's main
 	// session as it was otherwise. It starts with an empty context, or goes on
@@ -163,7 +167,7 @@ const (
 // Kinds is the full list of what the executor can do.
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown, CodexUpdate, ClaudeUpdate,
-	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
+	SessionOpen, SessionResume, SessionClose, SessionFreeze, SessionThaw, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionRole, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
 	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent, SessionPin, TaskSummary,

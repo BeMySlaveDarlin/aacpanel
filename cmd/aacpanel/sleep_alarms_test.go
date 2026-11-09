@@ -40,12 +40,12 @@ func TestSleepingAlarmWakesBeforeTheDeadlineAndLiftsThePausePG(t *testing.T) {
 			}
 			s.drain()
 			pauses, err := s.srv.sessionPauses(t.Context())
-			if err != nil || len(pauses) != 0 || len(s.started) != 1 {
+			if err != nil || len(pauses) != 0 || len(s.started) != 0 || s.frozen[p.Conversation] {
 				t.Fatalf("alarm wake: %d pauses, %d starts, error %v", len(pauses), len(s.started), err)
 			}
 			requests := s.requests[before:]
-			if len(requests) != 1 || requests[0].Kind != action.SessionResume || !requests[0].Silent {
-				t.Fatalf("an alarm wake sent something besides the silent resume: %+v", requests)
+			if len(requests) != 1 || requests[0].Kind != action.SessionThaw || requests[0].Conversation != p.Conversation {
+				t.Fatalf("an alarm wake sent something besides the thaw: %+v", requests)
 			}
 		})
 	}

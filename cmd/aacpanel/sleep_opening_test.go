@@ -75,6 +75,7 @@ func TestSleepingChildKeepsItsParentAndOpeningOnWakePG(t *testing.T) {
 					t.Fatalf("the sleeping card lost its parent: %+v", row.Parent)
 				}
 			}
+			loseSleepingProcess(t, s, p.Conversation)
 			saved.CommandAt = time.Now().Add(-2 * time.Second)
 			savePause(t, s, saved)
 			before := len(s.requests)

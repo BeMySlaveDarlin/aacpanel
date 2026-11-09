@@ -95,8 +95,8 @@ func panelPauseAlarm(p store.SessionPause) pauseAlarm {
 	return alarm
 }
 
-// Sleeping cards are service data. They never enter the collector's live
-// census, which would make a reboot revive conversations still on pause.
+// Sleep belongs to the service, including when a frozen process remains in
+// the collector's census. Reboot recovery checks the saved pause separately.
 func (s *Server) sessionsPaused(ctx context.Context, payload []byte) ([]byte, error) {
 	pauses, err := s.sessionPauses(ctx)
 	if err != nil || len(pauses) == 0 {
@@ -122,6 +122,14 @@ func (s *Server) sessionsPaused(ctx context.Context, payload []byte) ([]byte, er
 			if err := json.Unmarshal(p.Snapshot, &row); err != nil {
 				return nil, err
 			}
+			if p.Parent != "" {
+				row["parent"] = host.SessionRef{Session: p.Parent}
+			} else {
+				delete(row, "parent")
+			}
+			rows = append(rows, row)
+		}
+		if row != nil && p.Sleeping {
 			row["status"], row["sleeping"] = "idle", true
 			delete(row, "ask")
 			delete(row, "permission")
@@ -129,12 +137,6 @@ func (s *Server) sessionsPaused(ctx context.Context, payload []byte) ([]byte, er
 			delete(row, "work")
 			delete(row, "nextAlarm")
 			delete(row, "res")
-			if p.Parent != "" {
-				row["parent"] = host.SessionRef{Session: p.Parent}
-			} else {
-				delete(row, "parent")
-			}
-			rows = append(rows, row)
 		}
 		if row != nil {
 			row["pauseAlarm"] = panelPauseAlarm(p)
@@ -164,6 +166,15 @@ func (s *Server) wakePaused(ctx context.Context, conversation string) error {
 		return nil
 	}
 	return s.wakePauses(ctx, []store.SessionPause{p}, nil)
+}
+
+func (s *Server) thawPause(ctx context.Context, p store.SessionPause) error {
+	if !p.Sleeping {
+		return nil
+	}
+	wakeCtx := context.WithValue(ctx, sleepActionKey{}, true)
+	wakeCtx = context.WithValue(wakeCtx, automaticActionKey{}, "session wake")
+	return s.automaticAction(wakeCtx, string(action.SessionThaw), p.Session, map[string]any{"conversation": p.Conversation})
 }
 
 func (s *Server) wakePauses(ctx context.Context, pauses []store.SessionPause, after func(store.SessionPause) error) error {
@@ -197,6 +208,9 @@ func (s *Server) wakePauses(ctx context.Context, pauses []store.SessionPause, af
 	pending := []store.LivingSession{}
 	for _, p := range pauses {
 		if _, alive := liveConversation(snap, p.Conversation); alive {
+			if err := s.thawPause(ctx, p); err != nil {
+				return err
+			}
 			if after != nil {
 				if err := after(p); err != nil {
 					return err
@@ -297,15 +311,18 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 			due = append(due, p)
 			continue
 		}
+		if p.Sleeping {
+			continue
+		}
 		for _, row := range states.Sessions {
 			if row.SessionID != p.Conversation {
 				continue
 			}
 			busy, _ := session.BackgroundWork(row.Work)
 			requested, _ := time.Parse(time.RFC3339Nano, row.LastRequestAt)
-			// The pre-message idle census must not close a process before it
+			// The pre-message idle census must not put a process to sleep before it
 			// reads the pause, or before it answers the person's one turn.
-			finished := p.Sleeping || row.StatusAt > p.CommandAt.UnixMilli() || requested.After(p.CommandAt)
+			finished := row.StatusAt > p.CommandAt.UnixMilli() || requested.After(p.CommandAt)
 			if !row.idle() || busy || !finished || !time.Unix(snap.At, 0).After(p.CommandAt) {
 				break
 			}
@@ -327,7 +344,13 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 			}
 			sleepCtx := context.WithValue(ctx, sleepActionKey{}, true)
 			sleepCtx = context.WithValue(sleepCtx, automaticActionKey{}, "session sleep")
-			err = s.automaticAction(sleepCtx, string(action.SessionClose), p.Session, map[string]any{"conversation": p.Conversation, "sleeping": true})
+			kind := action.SessionClose
+			params := map[string]any{"conversation": p.Conversation, "sleeping": true}
+			if row.Transport == "stream" {
+				kind = action.SessionFreeze
+				delete(params, "sleeping")
+			}
+			err = s.automaticAction(sleepCtx, string(kind), p.Session, params)
 			if err != nil {
 				if saveErr := s.db.PutSessionPause(ctx, hostID, before); saveErr != nil {
 					return saveErr
@@ -354,7 +377,7 @@ func (s *Server) advancePauses(ctx context.Context, now time.Time) error {
 }
 
 // A letter lifts a pause, while a person's message borrows one turn. Holding
-// the same lock as the sleeper prevents closing between wake and delivery.
+// the same lock as the sleeper prevents sleeping between wake and delivery.
 // wakeError answers a message to a sleeping session that did not wake with
 // why it did not; a database that does not answer is said as everywhere.
 func wakeError(w http.ResponseWriter, err error) {

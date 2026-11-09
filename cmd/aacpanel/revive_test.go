@@ -30,6 +30,7 @@ type reviveScene struct {
 	measurements      int
 	measure           func() *action.Headroom
 	journalFrom       int64
+	frozen            map[string]bool
 }
 
 func newReviveScene(t *testing.T) *reviveScene {
@@ -40,7 +41,7 @@ func newReviveScene(t *testing.T) *reviveScene {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &reviveScene{t: t, srv: srv, exec: fake, dir: dir, project: profiles[0].Groups[0].Projects[0], snap: livingSnapshot{BootID: "new", At: time.Now().Unix(), Sessions: []livingRow{}}}
+	s := &reviveScene{t: t, srv: srv, exec: fake, dir: dir, project: profiles[0].Groups[0].Projects[0], snap: livingSnapshot{BootID: "new", At: time.Now().Unix(), Sessions: []livingRow{}}, frozen: map[string]bool{}}
 	pool, _ := srv.db.Pool()
 	if err := pool.QueryRow(t.Context(), `SELECT coalesce(max(id),0) FROM actions`).Scan(&s.journalFrom); err != nil {
 		t.Fatal(err)
@@ -82,6 +83,12 @@ func (s *reviveScene) drain() {
 				continue
 			}
 			s.requests = append(s.requests, req)
+			if s.exec.failures[req.Kind] != "" {
+				continue
+			}
+			if req.Kind == action.SessionFreeze || req.Kind == action.SessionThaw {
+				s.frozen[req.Conversation] = req.Kind == action.SessionFreeze
+			}
 			if req.Kind == action.SessionResume {
 				// Claude resumes silently; a thread of codex goes on in its daemon
 				// with no message of the panel's.
@@ -95,6 +102,7 @@ func (s *reviveScene) drain() {
 				}
 			}
 			if req.Kind == action.SessionClose {
+				delete(s.frozen, req.Conversation)
 				live := s.snap.Sessions[:0]
 				for _, row := range s.snap.Sessions {
 					if row.SessionID != req.Conversation {

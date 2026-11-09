@@ -70,6 +70,11 @@ func (e *Executor) sessionClose(ctx context.Context, target, conversation string
 		}
 	}
 	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
+		if streamFrozen(s) {
+			if _, err := e.sessionSleep(ctx, target, s.SessionID, false); err != nil {
+				return "", err
+			}
+		}
 		return e.closeGently(ctx, s, p, true)
 	}
 	return e.closeAgent(ctx, p)

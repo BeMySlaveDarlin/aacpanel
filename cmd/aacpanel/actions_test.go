@@ -21,8 +21,9 @@ import (
 )
 
 type fakeExec struct {
-	resp action.Response
-	got  chan action.Request
+	resp     action.Response
+	got      chan action.Request
+	failures map[action.Kind]string
 }
 
 func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExec) {
@@ -50,6 +51,9 @@ func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExe
 				}
 				f.got <- req
 				out := f.resp
+				if why := f.failures[req.Kind]; why != "" {
+					out.OK, out.Error = false, why
+				}
 				if req.Ask == action.AskSleepingAlarms && out.SleepingAlarms == nil {
 					out.SleepingAlarms = &action.SleepingAlarms{Alarms: []action.SleepingAlarm{}}
 				}

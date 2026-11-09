@@ -20,9 +20,10 @@ const streamSID = "66666666-6666-4666-8666-666666666666"
 // fakeHolder answers on a holder's socket the way a holder does and keeps what
 // it was asked, so a test sees what would have reached claude.
 type fakeHolder struct {
-	mu    sync.Mutex
-	state stream.State
-	got   []stream.Request
+	mu       sync.Mutex
+	state    stream.State
+	got      []stream.Request
+	contacts int
 	// Ops the holder answers with an error, as a holder that cannot do them.
 	fails map[string]string
 	// What claude answers to a control request, by its subtype.
@@ -60,6 +61,7 @@ func onTheStream(t *testing.T, busy bool, pending ...stream.Pending) *fakeHolder
 			var r stream.Request
 			_ = json.NewDecoder(conn).Decode(&r)
 			f.mu.Lock()
+			f.contacts++
 			if r.Op != stream.OpState {
 				f.got = append(f.got, r)
 			}

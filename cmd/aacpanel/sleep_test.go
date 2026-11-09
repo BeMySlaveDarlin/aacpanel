@@ -74,11 +74,11 @@ func sleepTurn(t *testing.T, s *reviveScene, p store.SessionPause) store.Session
 	s.drain()
 	s.publish()
 	last := s.requests[len(s.requests)-1]
-	if last.Kind != action.SessionClose || !last.Sleeping || last.Conversation != p.Conversation {
+	if last.Kind != action.SessionFreeze || last.Sleeping || last.Conversation != p.Conversation {
 		t.Fatalf("sleep did not preserve the conversation's alarms: %+v", last)
 	}
 	rows, err := s.srv.sessionPauses(t.Context())
-	if err != nil || len(rows) != 1 || !rows[0].Sleeping || len(s.snap.Sessions) != 0 {
+	if err != nil || len(rows) != 1 || !rows[0].Sleeping || len(s.snap.Sessions) != 1 || !s.frozen[p.Conversation] {
 		t.Fatalf("sleep: %+v live %+v %v", rows, s.snap.Sessions, err)
 	}
 	rows[0].CommandAt = time.Now().Add(-2 * time.Second)
@@ -126,8 +126,8 @@ func TestSleepingCardsAndDeadlinesSurviveServiceReplacementPG(t *testing.T) {
 			if noEnd && p.Until != nil {
 				t.Fatal("an indefinite pause acquired a deadline")
 			}
-			// The snapshot kept for the card was taken while the process lived and
-			// carries its readings; asleep, the session uses neither memory nor CPU.
+			// Sleeping cards omit resource readings, whether supplied by the live
+			// census or by the saved snapshot after a host restart.
 			var kept map[string]any
 			if err := json.Unmarshal(p.Snapshot, &kept); err != nil {
 				t.Fatal(err)
@@ -167,7 +167,7 @@ func TestSleepingCardsAndDeadlinesSurviveServiceReplacementPG(t *testing.T) {
 			sendPause(t, replacement, action.Pause{Project: s.project.ID, Session: p.Session, Resume: true}, 1)
 			s.drain()
 			rows, _ := replacement.sessionPauses(t.Context())
-			if len(rows) != 0 || len(s.started) != 1 {
+			if len(rows) != 0 || len(s.started) != 0 || s.frozen[p.Conversation] {
 				t.Fatalf("Continue: pauses %+v started %+v", rows, s.started)
 			}
 			last := s.requests[len(s.requests)-1]
@@ -181,6 +181,7 @@ func TestSleepingCardsAndDeadlinesSurviveServiceReplacementPG(t *testing.T) {
 func TestSleepingDeadlineUsesTheTimerAfterServiceAndHostRestartPG(t *testing.T) {
 	s, p := pausedScene(t, false)
 	p = sleepTurn(t, s, p)
+	loseSleepingProcess(t, s, p.Conversation)
 	expired := time.Now().Add(-time.Minute)
 	p.Until = &expired
 	savePause(t, s, p)
@@ -224,6 +225,7 @@ func TestSleepingDeadlineUsesTheTimerAfterServiceAndHostRestartPG(t *testing.T) 
 func TestSleepingSessionOfARemovedWorktreeWakesInItsProjectPG(t *testing.T) {
 	s, p := pausedScene(t, false)
 	p = sleepTurn(t, s, p)
+	loseSleepingProcess(t, s, p.Conversation)
 	gone := filepath.Join(filepath.Dir(s.dir), "worktrees", "fix-gone")
 	expired := time.Now().Add(-time.Minute)
 	p.Until, p.CWD = &expired, gone
@@ -258,7 +260,7 @@ func TestSleepingHumanMessageBorrowsOneTurnAndLetterLiftsThePausePG(t *testing.T
 			s.drain()
 			s.publish()
 			last := s.requests[len(s.requests)-1]
-			if string(last.Kind) != kind || last.Text != "Review this change" || len(s.started) != 1 {
+			if string(last.Kind) != kind || last.Text != "Review this change" || len(s.started) != 0 || s.frozen[p.Conversation] || s.requests[len(s.requests)-2].Kind != action.SessionThaw {
 				t.Fatalf("delivery after wake: %+v starts %+v", last, s.started)
 			}
 			rows, err := s.srv.sessionPauses(t.Context())
@@ -278,8 +280,8 @@ func TestSleepingHumanMessageBorrowsOneTurnAndLetterLiftsThePausePG(t *testing.T
 				t.Fatal(err)
 			}
 			s.drain()
-			if len(s.snap.Sessions) != 1 {
-				t.Fatal("the session was closed before answering the human")
+			if len(s.snap.Sessions) != 1 || s.frozen[p.Conversation] {
+				t.Fatal("the session slept before answering the human")
 			}
 			completed := time.Now().Add(3 * time.Second)
 			s.snap.Sessions[0].Status = "idle"
@@ -291,7 +293,7 @@ func TestSleepingHumanMessageBorrowsOneTurnAndLetterLiftsThePausePG(t *testing.T
 			}
 			s.drain()
 			rows, err = s.srv.sessionPauses(t.Context())
-			if err != nil || len(rows) != 1 || !rows[0].Sleeping || len(s.snap.Sessions) != 0 {
+			if err != nil || len(rows) != 1 || !rows[0].Sleeping || len(s.snap.Sessions) != 1 || !s.frozen[p.Conversation] {
 				t.Fatalf("the one answer did not return to sleep: %+v %v", rows, err)
 			}
 		})
@@ -308,7 +310,7 @@ func TestCloseSleepingSessionRemovesItsTimerWithoutResumingPG(t *testing.T) {
 	}
 	s.drain()
 	rows, _ := s.srv.sessionPauses(t.Context())
-	if len(rows) != 0 || len(s.requests) != before {
+	if len(rows) != 0 || len(s.requests) != before+1 || s.requests[before].Kind != action.SessionClose || s.requests[before].Conversation != p.Conversation || len(s.started) != 0 || len(s.snap.Sessions) != 0 {
 		t.Fatalf("close resumed or retained the sleep: %+v requests %+v", rows, s.requests[before:])
 	}
 }
@@ -374,6 +376,7 @@ func TestSleepWakeAdmitsBatchesAndWaitsForParentsPG(t *testing.T) {
 func TestSleepingLetterWaitsForAConfirmedLiveConversationPG(t *testing.T) {
 	s, p := pausedScene(t, true)
 	p = sleepTurn(t, s, p)
+	loseSleepingProcess(t, s, p.Conversation)
 	s.hold = true
 	before := len(s.requests)
 	w := post(t, s.srv, fmt.Sprintf(`{"kind":"session.letter","target":%q,"params":{"text":"A delayed letter","from":%q}}`, p.Session, s.row(9).Conversation))

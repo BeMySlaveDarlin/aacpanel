@@ -260,36 +260,52 @@ parent conversation and deadline in `session_pauses`; a null deadline never
 wakes on its own. A fresh census must show a completed turn
 after that instruction, no pending question or permission, and no agents,
 workflows, background commands or observers running. Alarms and wake-ups run
-nothing and do not hold sleep. The panel then uses `session.close` with the
-conversation check and a sleep mark. The executor persists that mark in the
-conversation's alarms before closing its process. The database marks sleep
-before closing so a reboot does not revive it as work that was running.
+nothing and do not hold sleep. A stream session sleeps through
+`session.freeze`, bound to its conversation.
+The executor marks its alarms sleeping, freezes its dedicated transient unit
+through the user's manager, writes its current memory to `memory.reclaim`
+and confirms `frozen 1` in `cgroup.events`. Reclaim is best effort: a refusal
+leaves the session frozen and names the reason in the result, with memory
+left to the kernel under pressure. A partial reclaim is accepted without a
+failure clause; pinned pages and the swap ceiling can leave memory resident.
+A failed sleep thaws the unit and restores its alarms. The holder, Claude and
+their MCP servers stay alive and visible to process and working-directory inventories.
+A session in tmux sleeps through `session.close` with the conversation check
+and a sleep mark: its unit can hold every session of that tmux server and
+cannot be frozen as one session. The database marks sleep before either
+action so a reboot does not revive it as work that was running.
 
-Sleeping cards remain in the sessions list, supplied by the service beside
-the host census, with `sleeping until` and the person's local clock, or
+Sleeping cards remain in the sessions list, marked by the service in the
+live census or supplied from their saved snapshot when the process is gone,
+with `sleeping until` and the person's local clock, or
 `sleeping` for a pause with no end. Continue wakes the conversation and removes
 its pause; Close removes the sleep permanently. Other card actions are
 unavailable while sleeping. A deadline that passed during a service or host
-restart wakes from the database after startup. Wake-up shares reboot recovery's
-silent resume, batches of at most five, host memory admission and fresh census
-confirmation. Parents precede their children when both wake in the same batch
-sequence. A child woken alone keeps its sleeping parent by name through the
+restart wakes from the database after startup. A sleeping conversation still
+live wakes through `session.thaw`: the executor thaws its unit, waits at most
+three seconds for `frozen 0` and restores its
+alarms before delivery. A sleeping conversation absent after a host reboot,
+or closed for tmux sleep, shares reboot recovery's silent resume, batches of
+at most five, host memory admission and fresh census confirmation. Parents
+precede their children when both wake in the same batch sequence. A child
+woken alone keeps its sleeping parent by name through the
 manual resume path, without waking it or lifting its pause. Its report reaches
 the parent as a letter, which wakes the parent and lifts that pause before
 delivery. Name, conversation, contour and transport remain those saved for
 sleep. A deadline or Continue sends the instruction to continue after wake-up.
 The sleep timer reads all sleeping alarms from the executor once per tick and
 wakes at the earlier of the pause deadline and the next ring, including a
-pause with no end. A ring uses the same admission and batches, lifts the pause
-and sends no continuation message: the alarm delivers its own letter after
-the process is live. The same tick cancels a sleeping alarm whose conversation
+pause with no end. A ring lifts the pause and sends no continuation message:
+the alarm delivers its own letter after thaw or resume. An absent process
+uses the same admission and batches. The same tick cancels a sleeping alarm
+whose conversation
 is neither sleeping in the database nor live in the census. The alarm file
 is the only schedule; the service keeps no copy. The price is a query to the
-executor each tick and a wake that waits for memory admission and a fresh
+executor each tick and, for an absent process, memory admission and a fresh
 census before the ring can be delivered.
 
 Sleep keeps the visual parent and the opener as separate identities. The
-fresh census before closing supplies the parent, and the executor supplies
+fresh census before sleep supplies the parent, and the executor supplies
 the opener. A conversation-bound close completes the child conversation in
 its opening record before ending the process. Wake-up forwards the saved
 opener and preserves the parent without applying the map's rule for a new
@@ -303,10 +319,13 @@ pause, delivering the letter after the conversation is live. A person's
 after that message must show its turn and background work over before it sleeps
 again. The `send_to_session` address list reads the panel's enriched snapshot,
 marks sleeping recipients and names their deadlines; its letter wakes them.
-Native Claude `SendMessage` delivery cannot reach a closed process; that
-is the price of releasing its memory. A process crash between recording sleep
-and closing is reconciled from the next fresh census. Context-cap restarts wait
-while the conversation is paused.
+A holder confirmed frozen is refused before any stream socket call, since a
+connection to it would wait unanswered in the backlog. Close thaws it first
+and then ends it normally. An unreadable freeze state leaves requests and
+close on their ordinary path. Native Claude `SendMessage` cannot run in a
+frozen process, and cannot reach one closed for tmux sleep. Sleep state belongs
+to the panel; a sleeping pause is never put to sleep again by a later census tick.
+Context-cap restarts wait while the conversation is paused.
 
 Codex keeps its pause inside its process. Its instruction sets `pause`, or a
 weekly `pause-no-end` alarm for a pause with no end, and ends its turn. Continue
@@ -1794,7 +1813,7 @@ The list of actions is closed.
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
 | agents of the host | `codex.update`, `claude.update` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach`, `session.intent`, `session.pin` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.freeze`, `session.thaw`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach`, `session.intent`, `session.pin` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
@@ -1959,9 +1978,11 @@ connection, with `MemoryMax` at the ask, `MemorySwapMax` at an eighth of it,
 `CPUQuota` at `AACP_HEAVY_CPUS` cores (4) and `OOMPolicy=continue`. The
 quota has a price: a full check of this repository, held to four cores, is
 throttled in a quarter of its periods and runs a tenth longer. Only the
-manager moves a process between cgroups: the executor's view of them is
-read-only. Once the pid is in the scope, the client closes the connection and
-becomes the command with `exec`, so its input, output, directory, environment
+manager moves a process between cgroups. The executor's namespace
+permits writes under its user's manager for sleeping sessions'
+`memory.reclaim`; other users' cgroups remain read-only. Once the pid is in the
+scope, the client closes the connection and becomes the command with `exec`,
+so its input, output, directory, environment
 with the session bus, signals and exit are the command's own; the run is
 killed at its ceiling, not its neighbours, and the scope ends with its last
 process. A process the run leaves behind keeps the scope, and the slot, until
@@ -2154,9 +2175,9 @@ the remaining conversations with the reason.
 
 A paused Claude conversation still awake at shutdown is recovered as live work;
 its pause and deadline remain in the panel's database. Recovery leaves that
-record in place, and the sleeper closes it once its turn and background work
-end. A sleeping conversation is excluded even if the last host census still
-showed its process: only the panel's deadline timer or an explicit wake-up
+record in place, and the sleeper puts it to sleep once its turn and background
+work end. A sleeping conversation is excluded even if the last host census
+still showed its process: only the panel's deadline timer or an explicit wake-up
 selects it. A saved process alarm without a panel record is restored through
 `project.pause`, becoming a service pause for Claude; an expired one receives
 Continue. The ordinary pause action and journal cover these deliveries.
@@ -2302,10 +2323,12 @@ between a ring and its record costs a second letter, never a lost one. The
 owner is the observers' owner — the process of a claude by its pid and the
 start of it, the thread of a codex — and the same three looks that find it
 gone take its alarms away, so an ordinary close, a restart and the restart
-past the context cap end every alarm of the session. A sleep close marks its
-alarms on disk before ending the process. They wait without ringing or
-expiring until a new live Claude process runs the same conversation, then
-persist its pid, process start and transport and clear the sleep mark before
+past the context cap end every alarm of the session. Sleep marks its alarms
+on disk before freezing or closing the process.
+Thaw clears the mark for the same owner after the kernel confirms it awake.
+After a sleep close, they wait without ringing or expiring until a new live
+Claude process runs the same conversation, then persist its pid, process
+start and transport and clear the sleep mark before
 ringing. An overdue ring follows the same late-delivery and repeat rhythm
 rules as an executor outage. Sleeping alarms share one census read every five
 seconds, resolving only their conversations; each alarm uses that look's map

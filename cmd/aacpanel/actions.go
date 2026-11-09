@@ -99,6 +99,13 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 	req := action.Request{Kind: action.Kind(body.Kind), Target: body.Target}
+	if req.Kind == action.SessionFreeze || req.Kind == action.SessionThaw {
+		if internal, _ := r.Context().Value(sleepActionKey{}).(bool); !internal {
+			http.Error(w, "only the panel's sleeper freezes or thaws sessions", http.StatusForbidden)
+			return
+		}
+		req.Conversation, _ = body.Params["conversation"].(string)
+	}
 	if internal, _ := r.Context().Value(sleepActionKey{}).(bool); internal && body.Params["sleeping"] == true {
 		req.Sleeping = true
 		req.Conversation, _ = body.Params["conversation"].(string)

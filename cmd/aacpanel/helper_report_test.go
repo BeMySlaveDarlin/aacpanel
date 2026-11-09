@@ -31,7 +31,7 @@ func TestACodexHelperReportWakesItsSleepingParentAndLiftsThePausePG(t *testing.T
 	s.drain()
 	s.publish()
 	sent := s.requests[before:]
-	if len(sent) != 2 || sent[0].Kind != action.SessionResume || sent[0].Resume != p.Conversation || !sent[0].Silent {
+	if len(sent) != 2 || sent[0].Kind != action.SessionThaw || sent[0].Conversation != p.Conversation || s.frozen[p.Conversation] {
 		t.Fatalf("report wake-up: %+v", sent)
 	}
 	delivered := sent[1]

@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 		&fieldWait, &freeWait, &seenTimeout, &workOpenWait,
 		&sendTimeout, &softWait, &pollEvery, &windowWait, &tmuxTimeout, &remoteWait, &remoteStepWait,
 		&clientGone, &keyPause, &fieldPoll, &transcriptLookup, &pastePoll, &typePause, &workStepWait,
-		&upPoll, &windowPoll,
+		&upPoll, &windowPoll, &freezeWait,
 	} {
 		*wait /= 10
 	}

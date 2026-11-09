@@ -323,6 +323,8 @@ var entailed = regexp.MustCompile(`entails:\s*"([a-z]+\.[a-zA-Z]+)"`)
 // alone, by the name the registry gives them. A letter is a session's, sent
 // with a tool of the panel's server.
 var askedOffScreen = map[string]string{
+	"session.freeze": "the panel after a paused session finishes its work",
+	"session.thaw":   "the panel when a sleeping session wakes",
 	"session.letter": "a session, with the send_to_session tool",
 	"session.ready":  "a session replying to the panel's request to save",
 	"observer.start": "a session after its private observer start",

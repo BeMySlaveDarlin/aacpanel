@@ -200,6 +200,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionResume(ctx, req)
 	case action.SessionClose:
 		return e.sessionClose(ctx, req.Target, req.Conversation, req.Sleeping)
+	case action.SessionFreeze, action.SessionThaw:
+		return e.sessionSleep(ctx, req.Target, req.Conversation, req.Kind == action.SessionFreeze)
 	case action.SessionRestart:
 		detail, _, err := e.Restart(ctx, req)
 		return detail, err

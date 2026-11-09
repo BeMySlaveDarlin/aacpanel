@@ -41,6 +41,9 @@ func onStream(s liveSession) bool {
 }
 
 func streamAsk(ctx context.Context, s liveSession, req stream.Request) (stream.Reply, error) {
+	if streamFrozen(s) {
+		return stream.Reply{}, fmt.Errorf("session %s sleeps: wake it before asking it to %s", s.Name, req.Op)
+	}
 	reply, err := stream.Ask(ctx, s.SessionID, req)
 	if err != nil {
 		return reply, fmt.Errorf("session %s is not answering on the stream: %w", s.Name, err)
