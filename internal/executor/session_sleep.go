@@ -17,9 +17,31 @@ import (
 
 var (
 	freezeWait   = 3 * time.Second
-	writeFreeze  = os.WriteFile
-	writeReclaim = os.WriteFile
+	writeFreeze  = writeControl
+	writeReclaim = writeControl
 )
+
+// writeControl writes a cgroup control file with one write(2) of its own.
+// Go takes a cgroup file for pollable, and when the kernel answers EAGAIN —
+// memory.reclaim that freed only part of the ask — it would wait for the file
+// to become writable, which never comes: the executor would hang there.
+func writeControl(path string, raw []byte, _ os.FileMode) error {
+	fd, err := syscall.Open(path, syscall.O_WRONLY|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	defer syscall.Close(fd)
+	for {
+		_, err = syscall.Write(fd, raw)
+		if err != syscall.EINTR {
+			break
+		}
+	}
+	if err != nil {
+		return &os.PathError{Op: "write", Path: path, Err: err}
+	}
+	return nil
+}
 
 // A terminal's unit can hold every session of its tmux server. Only the
 // holder of a stream session has a unit that can be frozen as one session.

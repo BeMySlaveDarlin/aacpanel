@@ -423,3 +423,22 @@ func TestExecutorUnitPermitsReclaimOnlyInItsUserManager(t *testing.T) {
 		t.Fatal("the executor cannot reclaim its session memory while keeping other users' cgroups read-only")
 	}
 }
+
+// A control file is written once, as it is, and its errors keep their errno:
+// a partial reclaim has to come back as EAGAIN, not wait for writability.
+func TestWriteControlWritesOnceAndKeepsTheErrno(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cgroup.freeze")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeControl(path, []byte("1"), 0); err != nil {
+		t.Fatal(err)
+	}
+	if raw, _ := os.ReadFile(path); string(raw) != "1" {
+		t.Fatalf("the control file holds %q", raw)
+	}
+	err := writeControl(filepath.Join(t.TempDir(), "gone"), []byte("1"), 0)
+	if !errors.Is(err, syscall.ENOENT) {
+		t.Fatalf("a missing control file answered %v", err)
+	}
+}
