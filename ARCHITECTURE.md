@@ -263,13 +263,15 @@ workflows, background commands or observers running. Alarms and wake-ups run
 nothing and do not hold sleep. A stream session sleeps through
 `session.freeze`, bound to its conversation.
 The executor marks its alarms sleeping, freezes its dedicated transient unit
-through the user's manager, writes its current memory to `memory.reclaim`
-and confirms `frozen 1` in `cgroup.events`. Reclaim is best effort: a refusal
-leaves the session frozen and names the reason in the result, with memory
+by writing `1` to its `cgroup.freeze`, writes its current memory to
+`memory.reclaim` and confirms `frozen 1` in `cgroup.events`. Reclaim is best
+effort: a refusal leaves the session frozen and names the reason in the result, with memory
 left to the kernel under pressure. A partial reclaim is accepted without a
 failure clause; pinned pages and the swap ceiling can leave memory resident.
 A failed sleep thaws the unit and restores its alarms. The holder, Claude and
-their MCP servers stay alive and visible to process and working-directory inventories.
+their MCP servers stay alive and visible to process and working-directory
+inventories. The launcher can be gone while its cgroup remains populated, so
+the manager's unit state does not govern sleep.
 A session in tmux sleeps through `session.close` with the conversation check
 and a sleep mark: its unit can hold every session of that tmux server and
 cannot be frozen as one session. The database marks sleep before either
@@ -282,9 +284,9 @@ with `sleeping until` and the person's local clock, or
 its pause; Close removes the sleep permanently. Other card actions are
 unavailable while sleeping. A deadline that passed during a service or host
 restart wakes from the database after startup. A sleeping conversation still
-live wakes through `session.thaw`: the executor thaws its unit, waits at most
-three seconds for `frozen 0` and restores its
-alarms before delivery. A sleeping conversation absent after a host reboot,
+live wakes through `session.thaw`: the executor writes `0` to `cgroup.freeze`,
+waits at most three seconds for `frozen 0` and restores its alarms before
+delivery. A sleeping conversation absent after a host reboot,
 or closed for tmux sleep, shares reboot recovery's silent resume, batches of
 at most five, host memory admission and fresh census confirmation. Parents
 precede their children when both wake in the same batch sequence. A child
@@ -1980,8 +1982,8 @@ quota has a price: a full check of this repository, held to four cores, is
 throttled in a quarter of its periods and runs a tenth longer. Only the
 manager moves a process between cgroups. The executor's namespace
 permits writes under its user's manager for sleeping sessions'
-`memory.reclaim`; other users' cgroups remain read-only. Once the pid is in the
-scope, the client closes the connection and becomes the command with `exec`,
+`cgroup.freeze` and `memory.reclaim`; other users' cgroups remain read-only.
+Once the pid is in the scope, the client closes the connection and becomes the command with `exec`,
 so its input, output, directory, environment
 with the session bus, signals and exit are the command's own; the run is
 killed at its ceiling, not its neighbours, and the scope ends with its last

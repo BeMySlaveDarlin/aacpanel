@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,6 +17,7 @@ import (
 
 var (
 	freezeWait   = 3 * time.Second
+	writeFreeze  = os.WriteFile
 	writeReclaim = os.WriteFile
 )
 
@@ -66,17 +66,16 @@ func streamFrozen(s liveSession) bool {
 }
 
 func setFrozen(ctx context.Context, dir string, frozen bool) error {
-	ctx, cancel := context.WithTimeout(ctx, freezeWait)
-	defer cancel()
-	op := "thaw"
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	value := "0"
 	if frozen {
-		op = "freeze"
+		value = "1"
 	}
-	out, err := exec.CommandContext(ctx, systemctlPath(), "--user", op, filepath.Base(dir)).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s %s: %w: %s", op, filepath.Base(dir), err, shortenLines(strings.TrimSpace(string(out))))
-	}
-	return nil
+	// The launcher has ended, so systemd can call its unit inactive while
+	// the holder and Claude still live in its cgroup. The kernel freezes them.
+	return writeFreeze(filepath.Join(dir, "cgroup.freeze"), []byte(value), 0o600)
 }
 
 func waitFrozen(ctx context.Context, dir string, want bool) error {

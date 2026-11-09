@@ -3,6 +3,8 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,12 +19,13 @@ import (
 )
 
 type freezeScene struct {
-	t     *testing.T
-	e     *Executor
-	h     *fakeHolder
-	dir   string
-	calls string
-	alarm string
+	t             *testing.T
+	e             *Executor
+	h             *fakeHolder
+	dir           string
+	alarm         string
+	writes        []string
+	refuse, stuck string
 }
 
 func newFreezeScene(t *testing.T) *freezeScene {
@@ -40,7 +43,7 @@ func newFreezeScene(t *testing.T) *freezeScene {
 	cgroupRoot = root
 	t.Cleanup(func() { cgroupRoot = before })
 	group := "/user.slice/user-1001.slice/user@1001.service/aacp.slice/aacp-agents.slice/run-session.service"
-	s := &freezeScene{t: t, e: e, h: h, dir: filepath.Join(root, group), calls: filepath.Join(root, "calls"), alarm: alarm}
+	s := &freezeScene{t: t, e: e, h: h, dir: filepath.Join(root, group), alarm: alarm}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -52,9 +55,31 @@ func newFreezeScene(t *testing.T) *freezeScene {
 		t.Fatal(err)
 	}
 	s.write("cgroup.events", "populated 1\nfrozen 0\n")
+	s.write("cgroup.freeze", "0")
 	s.write("memory.current", "1048576\n")
 	s.write("memory.reclaim", "")
-	s.systemctl("")
+	beforeWrite := writeFreeze
+	t.Cleanup(func() { writeFreeze = beforeWrite })
+	writeFreeze = func(path string, raw []byte, mode os.FileMode) error {
+		value := string(raw)
+		if path != filepath.Join(s.dir, "cgroup.freeze") || (value != "0" && value != "1") {
+			return fmt.Errorf("unexpected freeze write: %s %q", path, raw)
+		}
+		s.writes = append(s.writes, value)
+		if value == s.refuse {
+			return &os.PathError{Op: "write", Path: path, Err: syscall.EPERM}
+		}
+		if value == "1" && !s.sleeping() {
+			return fmt.Errorf("the alarm was not sleeping before its cgroup froze")
+		}
+		if err := os.WriteFile(path, raw, mode); err != nil {
+			return err
+		}
+		if value != s.stuck {
+			s.write("cgroup.events", "populated 1\nfrozen "+value+"\n")
+		}
+		return nil
+	}
 	return s
 }
 
@@ -63,27 +88,6 @@ func (s *freezeScene) write(name, body string) {
 	if err := os.WriteFile(filepath.Join(s.dir, name), []byte(body), 0o600); err != nil {
 		s.t.Fatal(err)
 	}
-}
-
-func (s *freezeScene) systemctl(extra string) {
-	s.t.Helper()
-	script := filepath.Join(filepath.Dir(s.calls), "systemctl")
-	body := "#!/bin/sh\necho \"$*\" >> \"$SLEEP_CALLS\"\n" + extra + `
-case "$2" in
-freeze)
-    if ! grep -q '"sleeping":true' "$SLEEP_ALARM"; then exit 9; fi
-    echo 'frozen 1' > "$SLEEP_GROUP/cgroup.events" ;;
-thaw) echo 'frozen 0' > "$SLEEP_GROUP/cgroup.events" ;;
-*) exit 8 ;;
-esac
-`
-	if err := os.WriteFile(script, []byte(body), 0o700); err != nil {
-		s.t.Fatal(err)
-	}
-	s.t.Setenv(systemctlEnv, script)
-	s.t.Setenv("SLEEP_CALLS", s.calls)
-	s.t.Setenv("SLEEP_GROUP", s.dir)
-	s.t.Setenv("SLEEP_ALARM", s.alarm)
 }
 
 func (s *freezeScene) act(kind action.Kind) error {
@@ -102,13 +106,17 @@ func (s *freezeScene) sleeping() bool {
 	return alarm.Sleeping
 }
 
-func (s *freezeScene) called() string {
-	s.t.Helper()
-	raw, err := os.ReadFile(s.calls)
-	if err != nil && !os.IsNotExist(err) {
-		s.t.Fatal(err)
+func (s *freezeScene) written() string {
+	return strings.Join(s.writes, "")
+}
+
+func TestCancelledFreezeDoesNotWriteTheCgroup(t *testing.T) {
+	s := newFreezeScene(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := setFrozen(ctx, s.dir, true); !errors.Is(err, context.Canceled) || s.written() != "" {
+		t.Fatalf("a cancelled caller changed the cgroup: writes %s error %v", s.written(), err)
 	}
-	return string(raw)
 }
 
 func TestFreezeKeepsTheProcessAndReclaimsBeforeConfirmingSleep(t *testing.T) {
@@ -134,8 +142,9 @@ func TestFreezeKeepsTheProcessAndReclaimsBeforeConfirmingSleep(t *testing.T) {
 	if err := s.act(action.SessionFreeze); err != nil {
 		t.Fatal(err)
 	}
-	if !wrote || !s.sleeping() || !strings.Contains(s.called(), "--user freeze run-session.service") {
-		t.Fatalf("sleep did not freeze and reclaim: %t %s", wrote, s.called())
+	raw, err := os.ReadFile(filepath.Join(s.dir, "cgroup.freeze"))
+	if err != nil || string(raw) != "1" || !wrote || !s.sleeping() || s.written() != "1" {
+		t.Fatalf("sleep did not freeze and reclaim: value %q reclaimed %t writes %s error %v", raw, wrote, s.written(), err)
 	}
 	if _, err := findOneLiveSession("demo"); err != nil {
 		t.Fatalf("sleep lost its live process: %v", err)
@@ -143,8 +152,9 @@ func TestFreezeKeepsTheProcessAndReclaimsBeforeConfirmingSleep(t *testing.T) {
 	if err := s.act(action.SessionThaw); err != nil {
 		t.Fatal(err)
 	}
-	if s.sleeping() || !strings.Contains(s.called(), "--user thaw run-session.service") {
-		t.Fatalf("wake did not restore the alarm: %s", s.called())
+	raw, err = os.ReadFile(filepath.Join(s.dir, "cgroup.freeze"))
+	if err != nil || string(raw) != "0" || s.sleeping() || s.written() != "10" {
+		t.Fatalf("wake did not restore the alarm: value %q writes %s error %v", raw, s.written(), err)
 	}
 	if err := s.act(action.SessionThaw); err != nil {
 		t.Fatalf("thawing an awake session failed: %v", err)
@@ -161,9 +171,9 @@ func TestFreezeFailureThawsAndRestoresTheAlarms(t *testing.T) {
 			restore := func() {}
 			switch step {
 			case "freeze":
-				s.systemctl("if [ \"$2\" = freeze ]; then exit 7; fi\n")
+				s.refuse = "1"
 			case "confirmation":
-				s.systemctl("if [ \"$2\" = freeze ]; then exit 0; fi\n")
+				s.stuck = "1"
 			case "alarm mark":
 				dir := filepath.Dir(s.alarm)
 				if err := os.Rename(dir, dir+"-kept"); err != nil {
@@ -181,13 +191,17 @@ func TestFreezeFailureThawsAndRestoresTheAlarms(t *testing.T) {
 					}
 				}
 			}
-			if err := s.act(action.SessionFreeze); err == nil {
+			sleepErr := s.act(action.SessionFreeze)
+			if sleepErr == nil {
 				t.Fatal("a failed sleep was accepted")
+			}
+			if step == "freeze" && !errors.Is(sleepErr, syscall.EPERM) {
+				t.Fatalf("the freeze write failure was lost: %v", sleepErr)
 			}
 			restore()
 			frozen, err := frozenGroup(s.dir)
-			if err != nil || frozen || s.sleeping() || !strings.Contains(s.called(), "--user thaw run-session.service") {
-				t.Fatalf("sleep failed without rollback: frozen %t alarm %t calls %s error %v", frozen, s.sleeping(), s.called(), err)
+			if err != nil || frozen || s.sleeping() || !strings.HasSuffix(s.written(), "0") {
+				t.Fatalf("sleep failed without rollback: frozen %t alarm %t writes %s error %v", frozen, s.sleeping(), s.written(), err)
 			}
 		})
 	}
@@ -231,7 +245,7 @@ func TestReclaimFailureLeavesTheSessionFrozenAndSaysWhy(t *testing.T) {
 			}
 			detail, err := s.e.Execute(t.Context(), action.Request{ID: "sleep", Kind: action.SessionFreeze, Target: "demo", Conversation: streamSID})
 			frozen, readErr := frozenGroup(s.dir)
-			if err != nil || readErr != nil || !frozen || !s.sleeping() || strings.Contains(s.called(), "--user thaw") {
+			if err != nil || readErr != nil || !frozen || !s.sleeping() || s.written() != "1" {
 				t.Fatalf("a refused reclaim rolled back sleep: %s frozen %t error %v read %v", detail, frozen, err, readErr)
 			}
 			if !strings.Contains(detail, "memory left to the kernel: ") || !strings.Contains(detail, failure.why) || strings.Contains(detail, s.dir) {
@@ -287,8 +301,8 @@ func TestUnreadableFreezeStateStillClosesTheSession(t *testing.T) {
 				t.Fatalf("an unreadable freeze state blocked close: %v", err)
 			}
 			got := s.h.asked()
-			if len(got) != 1 || got[0].Op != stream.OpClose || s.called() != "" {
-				t.Fatalf("close did not follow its ordinary path: requests %+v unit calls %s", got, s.called())
+			if len(got) != 1 || got[0].Op != stream.OpClose || s.written() != "" {
+				t.Fatalf("close did not follow its ordinary path: requests %+v cgroup writes %s", got, s.written())
 			}
 		})
 	}
@@ -366,7 +380,7 @@ func TestFreezeAndThawRefuseOtherConversationsAndSharedUnits(t *testing.T) {
 					t.Fatalf("%s accepted %s: %v", kind, mode, err)
 				}
 			}
-			if s.sleeping() || s.called() != "" {
+			if s.sleeping() || s.written() != "" {
 				t.Fatal("a refused request touched the unit or its alarm")
 			}
 		})
@@ -374,20 +388,24 @@ func TestFreezeAndThawRefuseOtherConversationsAndSharedUnits(t *testing.T) {
 }
 
 func TestThawWaitsForTheKernelBeforeRestoringAlarms(t *testing.T) {
-	for _, failure := range []string{"command", "confirmation"} {
+	for _, failure := range []string{"write", "confirmation"} {
 		t.Run(failure, func(t *testing.T) {
 			s := newFreezeScene(t)
 			if err := s.act(action.SessionFreeze); err != nil {
 				t.Fatal(err)
 			}
-			code := "exit 0"
-			if failure == "command" {
-				code = "exit 7"
+			if failure == "write" {
+				s.refuse = "0"
+			} else {
+				s.stuck = "0"
 			}
-			s.systemctl(code + "\n")
 			started := time.Now()
-			if err := s.act(action.SessionThaw); err == nil {
+			thawErr := s.act(action.SessionThaw)
+			if thawErr == nil {
 				t.Fatal("a session the kernel kept frozen was accepted as awake")
+			}
+			if failure == "write" && !errors.Is(thawErr, syscall.EPERM) {
+				t.Fatalf("the thaw write failure was lost: %v", thawErr)
 			}
 			if !s.sleeping() || time.Since(started) > time.Second {
 				t.Fatal("a failed thaw restored alarms or waited beyond its bound")
