@@ -164,6 +164,26 @@ func TestFreezeKeepsTheProcessAndReclaimsBeforeConfirmingSleep(t *testing.T) {
 	}
 }
 
+func TestThawingAnUnfrozenStreamKeepsItsLiveAlarms(t *testing.T) {
+	s := newFreezeScene(t)
+	before, err := os.ReadFile(s.alarm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.act(action.SessionThaw); err != nil {
+		t.Fatalf("thawing an unfrozen stream failed: %v", err)
+	}
+	after, err := os.ReadFile(s.alarm)
+	frozen, readErr := frozenGroup(s.dir)
+	if err != nil || readErr != nil || frozen || s.sleeping() || string(before) != string(after) || s.written() != "0" {
+		t.Fatalf("thaw changed an already live alarm or froze its owner: frozen %t writes %s error %v read %v", frozen, s.written(), err, readErr)
+	}
+	alarms, err := s.e.Observers().Alarms(t.Context(), streamCaller)
+	if err != nil || len(alarms) != 1 {
+		t.Fatalf("thaw lost the live alarm: %+v %v", alarms, err)
+	}
+}
+
 func TestFreezeFailureThawsAndRestoresTheAlarms(t *testing.T) {
 	for _, step := range []string{"freeze", "confirmation", "alarm mark"} {
 		t.Run(step, func(t *testing.T) {

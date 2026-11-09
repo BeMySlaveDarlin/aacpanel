@@ -162,19 +162,27 @@ func (s *Server) wakePaused(ctx context.Context, conversation string) error {
 		return err
 	}
 	p, ok := pauseConversation(pauses, conversation)
-	if !ok || !p.Sleeping {
+	if !ok {
+		return nil
+	}
+	if !p.Sleeping {
+		if current, live := s.host.LiveSessionOf(conversation); live {
+			return s.thawPause(ctx, current)
+		}
 		return nil
 	}
 	return s.wakePauses(ctx, []store.SessionPause{p}, nil)
 }
 
-func (s *Server) thawPause(ctx context.Context, p store.SessionPause) error {
-	if !p.Sleeping {
+// A lost freeze reply can leave the process frozen after the saved pause
+// rolls back. The live transport decides whether thaw is needed.
+func (s *Server) thawPause(ctx context.Context, current host.LiveSession) error {
+	if current.Transport != "stream" || current.Agent == schema.AgentCodex {
 		return nil
 	}
 	wakeCtx := context.WithValue(ctx, sleepActionKey{}, true)
 	wakeCtx = context.WithValue(wakeCtx, automaticActionKey{}, "session wake")
-	return s.automaticAction(wakeCtx, string(action.SessionThaw), p.Session, map[string]any{"conversation": p.Conversation})
+	return s.automaticAction(wakeCtx, string(action.SessionThaw), current.Name, map[string]any{"conversation": current.SessionID})
 }
 
 func (s *Server) wakePauses(ctx context.Context, pauses []store.SessionPause, after func(store.SessionPause) error) error {
@@ -207,8 +215,8 @@ func (s *Server) wakePauses(ctx context.Context, pauses []store.SessionPause, af
 	r.boot = snap.BootID
 	pending := []store.LivingSession{}
 	for _, p := range pauses {
-		if _, alive := liveConversation(snap, p.Conversation); alive {
-			if err := s.thawPause(ctx, p); err != nil {
+		if current, alive := liveConversation(snap, p.Conversation); alive {
+			if err := s.thawPause(ctx, current.LiveSession); err != nil {
 				return err
 			}
 			if after != nil {
@@ -447,7 +455,7 @@ func (s *Server) pausedAction(w http.ResponseWriter, r *http.Request, term bool,
 				return true
 			}
 		}
-	} else if p.Sleeping {
+	} else {
 		if text, _ := params["text"].(string); text == "" {
 			http.Error(w, "a message needs text", http.StatusBadRequest)
 			return true

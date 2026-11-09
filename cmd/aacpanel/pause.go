@@ -181,14 +181,14 @@ func (s *Server) applyPause(r *http.Request, p action.Pause, targets []pauseSess
 		if readErr != nil {
 			return pauseDelivery{}, readErr
 		}
-		var sleeping []store.SessionPause
+		var waking []store.SessionPause
 		for _, row := range targets {
-			if saved, ok := pauseConversation(pauses, row.SessionID); ok && saved.Sleeping {
-				sleeping = append(sleeping, saved)
+			if saved, ok := pauseConversation(pauses, row.SessionID); ok && (saved.Sleeping || row.Transport == "stream") {
+				waking = append(waking, saved)
 			}
 		}
-		if len(sleeping) > 0 {
-			wakeErr = s.wakePauses(ctx, sleeping, nil)
+		if len(waking) > 0 {
+			wakeErr = s.wakePauses(ctx, waking, nil)
 		}
 	}
 	for _, row := range targets {

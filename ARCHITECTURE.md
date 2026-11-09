@@ -286,11 +286,14 @@ unavailable while sleeping. A deadline that passed during a service or host
 restart wakes from the database after startup. A sleeping conversation still
 live wakes through `session.thaw`: the executor writes `0` to `cgroup.freeze`,
 waits at most three seconds for `frozen 0` and restores its alarms before
-delivery. A sleeping conversation absent after a host reboot,
-or closed for tmux sleep, shares reboot recovery's silent resume, batches of
-at most five, host memory admission and fresh census confirmation. Parents
-precede their children when both wake in the same batch sequence. A child
-woken alone keeps its sleeping parent by name through the
+delivery. Every wake of a live Claude stream conversation sends thaw, even
+when its saved pause is not sleeping: a lost freeze reply can roll back the
+record while leaving the process frozen. The live census supplies its
+transport; a tmux session receives no thaw. A sleeping conversation absent
+after a host reboot, or closed for tmux sleep, shares reboot recovery's silent
+resume, batches of at most five, host memory admission and fresh census
+confirmation. Parents precede their children when both wake in the same batch
+sequence. A child woken alone keeps its sleeping parent by name through the
 manual resume path, without waking it or lifting its pause. Its report reaches
 the parent as a letter, which wakes the parent and lifts that pause before
 delivery. Name, conversation, contour and transport remain those saved for

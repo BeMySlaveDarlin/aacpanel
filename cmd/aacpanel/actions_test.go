@@ -24,6 +24,8 @@ type fakeExec struct {
 	resp     action.Response
 	got      chan action.Request
 	failures map[action.Kind]string
+	socket   string
+	silent   action.Kind
 }
 
 func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExec) {
@@ -36,7 +38,7 @@ func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExe
 	}
 	t.Cleanup(func() { ln.Close() })
 
-	f := &fakeExec{resp: resp, got: make(chan action.Request, 64)}
+	f := &fakeExec{resp: resp, got: make(chan action.Request, 64), socket: sock}
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -50,6 +52,12 @@ func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExe
 					return
 				}
 				f.got <- req
+				if req.Kind != "" && req.Kind == f.silent {
+					// The client half-closes its request, so EOF cannot stand
+					// for its reply deadline. Keep the answer open until cleanup.
+					<-t.Context().Done()
+					return
+				}
 				out := f.resp
 				if why := f.failures[req.Kind]; why != "" {
 					out.OK, out.Error = false, why

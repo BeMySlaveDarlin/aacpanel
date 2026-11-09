@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/store"
 )
 
 // A reboot loses the process of a frozen conversation. Its pause stays in
@@ -194,5 +197,155 @@ func TestSleepingCardMasksLiveAndSavedActivityPG(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func timedOutFreeze(t *testing.T) (*reviveScene, store.SessionPause) {
+	t.Helper()
+	s, p := pausedScene(t, false)
+	p = finishPausedTurn(t, s, p)
+	s.exec.silent = action.SessionFreeze
+	s.srv.exec = action.NewClient(s.exec.socket, 100*time.Millisecond)
+	if err := s.srv.pauseOnce(t.Context(), time.Now()); err == nil || !strings.Contains(err.Error(), "timeout") {
+		t.Fatalf("the missing freeze reply did not time out: %v", err)
+	}
+	s.drain()
+	rows, err := s.srv.sessionPauses(t.Context())
+	if err != nil || len(rows) != 1 || rows[0].Sleeping || !s.frozen[p.Conversation] || s.requests[len(s.requests)-1].Kind != action.SessionFreeze {
+		t.Fatalf("the timed-out freeze did not leave a frozen process with an awake pause: %+v frozen %v error %v", rows, s.frozen, err)
+	}
+	return s, rows[0]
+}
+
+func TestTimedOutFreezeThawsBeforeEveryWakePG(t *testing.T) {
+	for _, wake := range []string{"timer", "Continue", "alarm", "message", "letter"} {
+		t.Run(wake, func(t *testing.T) {
+			s, p := timedOutFreeze(t)
+			before := len(s.requests)
+			kind := action.SessionSend
+			switch wake {
+			case "timer":
+				expired := time.Now().Add(-time.Second)
+				p.Until = &expired
+				savePause(t, s, p)
+				if err := s.srv.pauseOnce(t.Context(), time.Now()); err != nil {
+					t.Fatal(err)
+				}
+			case "Continue":
+				sendPause(t, s.srv, action.Pause{Project: s.project.ID, Session: p.Session, Resume: true}, 1)
+			case "alarm":
+				kind = ""
+				s.exec.resp.SleepingAlarms = &action.SleepingAlarms{Alarms: []action.SleepingAlarm{{ID: "0123456789abcdef", Session: p.Session, Conversation: p.Conversation, Next: time.Now().Add(-time.Second)}}}
+				if err := s.srv.pauseOnce(t.Context(), time.Now()); err != nil {
+					t.Fatal(err)
+				}
+			case "message", "letter":
+				if wake == "letter" {
+					kind = action.SessionLetter
+				}
+				w := post(t, s.srv, fmt.Sprintf(`{"kind":%q,"target":%q,"params":{"text":"Continue this work","from":%q}}`, kind, p.Session, s.row(9).Conversation))
+				if w.Code != http.StatusOK {
+					t.Fatalf("wake after a timed-out freeze: %d %s", w.Code, w.Body.String())
+				}
+			}
+			s.drain()
+			sent := s.requests[before:]
+			want := 2
+			if kind == "" {
+				want = 1
+			}
+			if len(sent) != want || sent[0].Kind != action.SessionThaw || sent[0].Conversation != p.Conversation || sent[0].Target != p.Session || s.frozen[p.Conversation] || len(s.started) != 0 {
+				t.Fatalf("the wake did not thaw the live conversation: %+v frozen %v", sent, s.frozen)
+			}
+			if kind != "" && sent[1].Kind != kind {
+				t.Fatalf("the wake did not deliver after thaw: %+v", sent)
+			}
+			rows, err := s.srv.sessionPauses(t.Context())
+			if err != nil || (wake == "message" && (len(rows) != 1 || rows[0].Sleeping || !rows[0].Until.Equal(*p.Until))) || (wake != "message" && len(rows) != 0) {
+				t.Fatalf("the wake lost or retained the wrong pause: %+v %v", rows, err)
+			}
+		})
+	}
+}
+
+func TestLiveWakeUsesTheCensusTransportPG(t *testing.T) {
+	for _, transport := range []string{"stream", "tmux"} {
+		for _, sleeping := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/%t", transport, sleeping), func(t *testing.T) {
+				s, p := pausedScene(t, true)
+				p.Sleeping, p.CommandAt = sleeping, time.Now().Add(-time.Second)
+				p.Transport = "stream"
+				if transport == "stream" {
+					p.Transport = "tmux"
+				}
+				savePause(t, s, p)
+				s.snap.Sessions[0].Transport = transport
+				s.publish()
+				before := len(s.requests)
+				if err := s.srv.wakePauses(t.Context(), []store.SessionPause{p}, nil); err != nil {
+					t.Fatal(err)
+				}
+				s.drain()
+				sent := s.requests[before:]
+				if transport == "tmux" {
+					if len(sent) != 0 {
+						t.Fatalf("tmux received a thaw: %+v", sent)
+					}
+				} else if len(sent) != 1 || sent[0].Kind != action.SessionThaw {
+					t.Fatalf("a live stream did not receive thaw: %+v", sent)
+				}
+			})
+		}
+	}
+}
+
+func TestAdmissionThawsLiveStreamsRegardlessOfTheSavedSleepMarkPG(t *testing.T) {
+	for _, transport := range []string{"stream", "tmux"} {
+		for _, sleep := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/sleep-%t", transport, sleep), func(t *testing.T) {
+				s, p := pausedScene(t, true)
+				s.snap.Sessions[0].Transport = transport
+				s.publish()
+				s.frozen[p.Conversation] = transport == "stream"
+				r := s.r
+				if sleep {
+					r = s.srv.sleeper
+				}
+				r.boot = s.snap.BootID
+				before, continued := len(s.requests), false
+				_, raised, failed := r.raise(t.Context(), []store.LivingSession{p.LivingSession}, 1, func(_ context.Context, _ store.LivingSession, _ livingRow) error {
+					s.drain()
+					continued = true
+					if s.frozen[p.Conversation] {
+						t.Fatal("admission continued before thaw")
+					}
+					return nil
+				})
+				if !continued || raised != 1 || len(failed) != 0 {
+					t.Fatalf("admission did not continue: raised %d failures %v", raised, failed)
+				}
+				s.drain()
+				sent := s.requests[before:]
+				if transport == "tmux" {
+					if len(sent) != 0 {
+						t.Fatalf("admission thawed tmux: %+v", sent)
+					}
+				} else if len(sent) != 1 || sent[0].Kind != action.SessionThaw {
+					t.Fatalf("admission did not thaw a live stream: %+v", sent)
+				}
+			})
+		}
+	}
+}
+
+func TestAdmissionDoesNotThawALiveCodexThreadPG(t *testing.T) {
+	s, p := pausedScene(t, true)
+	s.snap.Sessions[0].Agent = "codex"
+	s.publish()
+	before := len(s.requests)
+	_, raised, failed := s.r.raise(t.Context(), []store.LivingSession{p.LivingSession}, 1, func(context.Context, store.LivingSession, livingRow) error { return nil })
+	s.drain()
+	if raised != 1 || len(failed) != 0 || len(s.requests) != before {
+		t.Fatalf("admission thawed a Codex thread: raised %d failures %v actions %+v", raised, failed, s.requests[before:])
 	}
 }
