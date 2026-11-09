@@ -115,7 +115,14 @@
     padding: 0 9px;
     border-radius: var(--r-card);
     font-size: var(--t-xs);
+    /* The chip is glass over the bar, as the chip of the connection is: what
+       is used is a light tint of its tone, what is not shows the bar through. */
+    --gauge-ink: color-mix(in srgb, var(--accent) 30%, transparent);
+    background: linear-gradient(90deg, var(--gauge-ink) 0 var(--fill, 0%), transparent var(--fill, 0%) 100%);
 }
+
+.headload .dkgauge.warn { --gauge-ink: color-mix(in srgb, var(--warn) 30%, transparent); }
+.headload .dkgauge.crit { --gauge-ink: color-mix(in srgb, var(--crit) 34%, transparent); }
 
 .signin {
     flex: none;
