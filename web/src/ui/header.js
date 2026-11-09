@@ -6,15 +6,18 @@ import { logout } from "../auth.js";
 import { shelf, waiting } from "../data/briefs.js";
 import { openLimits } from "../screens/sessions/limits.js";
 import { Icon } from "./icons.js";
+import { Gauge, headLoad } from "./load.js";
 import { connection } from "./route.js";
 import { Sheet } from "./sheet.js";
 import { level, pct, uptime } from "../format.js";
 
-// The bar is one line at any phone width and in any state. The chip of the
-// connection keeps the words of the state; a long host name gives way instead.
-export function Header({ hostName = "host", ageSec, conn, route, alerts = 0, onAlerts }) {
+// The bar stays on one line: the host name gives way first, then the connection
+// words, so the machine readings stay whole. The full connection state remains
+// in its title, accessible label and sheet.
+export function Header({ hostName = "host", snapshot, ageSec, conn, route, alerts = 0, onAlerts, onMachine }) {
     const state = connection({ conn, ageSec, route });
     const leg = state.leg !== undefined;
+    const load = headLoad(snapshot);
 
     return html`
         <header class="top">
@@ -36,6 +39,13 @@ export function Header({ hostName = "host", ageSec, conn, route, alerts = 0, onA
                             : state.words}</em>
                     </span>
                 </button>
+                ${load && html`
+                    <button class="headload" type="button" aria-label="Machine" onClick=${onMachine}>
+                        <${Gauge} name="cpu" value=${load.cpu} />
+                        <${Gauge} name="mem" value=${load.mem} />
+                        <${Gauge} name="disk" value=${load.disk} />
+                    </button>
+                `}
                 ${state.signIn && html`<a class="signin" href="/login"><span>Sign in</span></a>`}
                 <div class="icons">
                     <button class="iconbtn" type="button" aria-label="alerts" onClick=${onAlerts}>

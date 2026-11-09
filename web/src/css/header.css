@@ -23,24 +23,28 @@
     white-space: nowrap;
 }
 
-/* The host name gives way so the chip keeps the words of the state. */
+/* The host name gives way before the connection words, so the machine
+   readings keep their width. Padding belongs to the name so its box can
+   disappear completely when the readings need the room. */
 .titlerow .host {
-    flex: 0 1 auto;
+    flex: 0 1000 auto;
     min-width: 0;
+    overflow: hidden;
     height: 44px;
-    padding: 0 5px 0 8px;
+    padding: 0;
     font-size: var(--t-base);
     font-weight: 800;
     letter-spacing: .04em;
     cursor: default;
 }
 
-.titlerow .hname { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.titlerow .hname { min-width: 0; padding: 0 5px 0 8px; overflow: hidden; text-overflow: ellipsis; }
 
-/* The chip draws 28 px and takes a 44 px tall target. It does not shrink:
-   its box stops at 163 px and the words inside it are cut there instead. */
+/* The chip draws 28 px and takes a 44 px tall target. Its words give way
+   after the host name so the machine readings stay whole; the full state
+   remains in the accessible label, the title and the sheet behind a tap. */
 .conn {
-    flex: none;
+    flex: 0 1 auto;
     min-width: 44px;
     height: 44px;
     display: flex;
@@ -89,6 +93,29 @@
 .conn[data-tone="crit"] .cdot { background: var(--crit); }
 /* A hollow dot: the panel has no live link, whatever the leg. */
 .conn .cdot[data-dot="off"] { background: none; box-shadow: inset 0 0 0 1.5px currentColor; }
+
+.headload {
+    flex: none;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+}
+
+.headload .dkgauge {
+    flex: none;
+    height: 28px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 9px;
+    border-radius: var(--r-card);
+    font-size: var(--t-xs);
+}
 
 .signin {
     flex: none;

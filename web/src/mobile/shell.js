@@ -128,11 +128,13 @@ export function MobileShell({
         <div class=${`shell${updateReady ? " has-update" : ""}${layer || page ? " no-nav" : ""}`}>
             <${Header}
                 hostName=${(snapshot && snapshot.hostName) || "host"}
+                snapshot=${snapshot}
                 ageSec=${ageSec}
                 conn=${conn}
                 route=${route}
                 alerts=${openAlerts}
                 onAlerts=${() => setPage("alerts")}
+                onMachine=${() => setPage("machine")}
             />
 
             ${!page && chips && html`<${Chips} items=${chips} current=${filter} onSelect=${setFilter} />`}

@@ -2,6 +2,7 @@
 
 @import "./css/tokens.css";
 @import "./css/base.css";
+@import "./css/load.css";
 @import "./css/header.css";
 @import "./css/cards.css";
 @import "./css/sessions.css";
