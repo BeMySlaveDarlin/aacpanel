@@ -26,6 +26,10 @@ type Spec struct {
 	Dir     string `json:"dir"`
 	Session string `json:"session"`
 	Resume  string `json:"resume,omitempty"`
+	// RanIn is the directory the resumed conversation ran in, when it goes on
+	// in Dir because that one is gone: its transcript is carried under Dir's
+	// project first, for claude reads one only under its own.
+	RanIn string `json:"ranIn,omitempty"`
 	// IntentKey selects the saved session message; empty preserves the supplied
 	// launch, as a transport switch or a continuation with its own words needs.
 	IntentKey string          `json:"intentKey,omitempty"`
@@ -80,6 +84,9 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 		return runCodex(ctx, spec)
 	}
 
+	if err := carryTranscript(spec.RanIn, spec.Dir, spec.Resume); err != nil {
+		return Report{}, err
+	}
 	if err := checkResume(spec.Dir, spec.Resume); err != nil {
 		return Report{}, err
 	}

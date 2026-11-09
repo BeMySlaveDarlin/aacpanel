@@ -49,8 +49,12 @@ func TestResumeUsesRelocatedDirectoryOnHost(t *testing.T) {
 					if _, err := e.Execute(t.Context(), r); err != nil {
 						t.Fatal(err)
 					}
-					if got := launchedSpec(t, log); got.Dir != want || got.Resume != conversation {
-						t.Fatalf("Claude launch = %v, want directory %s", got, want)
+					ranIn := ""
+					if !exists {
+						ranIn = dir
+					}
+					if got := launchedSpec(t, log); got.Dir != want || got.Resume != conversation || got.RanIn != ranIn {
+						t.Fatalf("Claude launch = %v, want directory %s carried from %q", got, want, ranIn)
 					}
 				}
 			})
@@ -75,8 +79,8 @@ func TestResumeInARemovedWorktreeGoesOnInTheProject(t *testing.T) {
 	if _, err := e.Execute(t.Context(), r); err != nil {
 		t.Fatal(err)
 	}
-	if got := launchedSpec(t, log); got.Dir != root || got.Resume != conversation {
-		t.Fatalf("Claude launch = %v, want directory %s", got, root)
+	if got := launchedSpec(t, log); got.Dir != root || got.Resume != conversation || got.RanIn != filepath.Clean(gone) {
+		t.Fatalf("Claude launch = %v, want directory %s carried from %s", got, root, gone)
 	}
 }
 

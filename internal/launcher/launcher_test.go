@@ -784,6 +784,69 @@ func TestCheckResumeWantsTranscriptOfThisProject(t *testing.T) {
 	}
 }
 
+// A conversation that goes on in another directory, because the one it ran
+// in is gone, is carried there with its subagents, and then passes the check;
+// one already there stays where it is.
+func TestCarryTranscriptMovesTheConversationUnderItsNewProject(t *testing.T) {
+	const uuid = "e29e01f1-748c-4a99-9fd6-e3d8827ed5d2"
+	home := t.TempDir()
+	contourDirs(t, home)
+	from, to := "/srv/proj/worktrees/fix-gone", "/srv/proj/Beta/service"
+	old := filepath.Join(home, "projects", "-srv-proj-worktrees-fix-gone")
+	if err := os.MkdirAll(filepath.Join(old, uuid, "subagents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(old, uuid+".jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := carryTranscript(from, to, uuid); err != nil {
+		t.Fatal(err)
+	}
+	moved := filepath.Join(home, "projects", "-srv-proj-Beta-service")
+	for _, name := range []string{uuid + ".jsonl", filepath.Join(uuid, "subagents")} {
+		if _, err := os.Stat(filepath.Join(moved, name)); err != nil {
+			t.Errorf("%s was not carried: %v", name, err)
+		}
+		if _, err := os.Stat(filepath.Join(old, name)); err == nil {
+			t.Errorf("%s stayed under the directory it ran in as well", name)
+		}
+	}
+	if err := checkResume(to, uuid); err != nil {
+		t.Errorf("the carried conversation was refused: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(old, uuid+".jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := carryTranscript(from, to, uuid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(old, uuid+".jsonl")); err != nil {
+		t.Error("a second copy was moved over the conversation already in place")
+	}
+}
+
+// Run carries the conversation before it checks it.
+func TestRunCarriesAConversationFromAGoneDirectory(t *testing.T) {
+	const uuid = "e29e01f1-748c-4a99-9fd6-e3d8827ed5d3"
+	home := t.TempDir()
+	contourDirs(t, home)
+	dir := t.TempDir()
+	from := filepath.Join(filepath.Dir(dir), "gone-worktree")
+	old := filepath.Join(home, "projects", strings.NewReplacer("/", "-", "_", "-", ".", "-").Replace(from))
+	if err := os.MkdirAll(old, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(old, uuid+".jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Run(context.Background(), Spec{Dir: dir, Session: "aacpanel", Resume: uuid, RanIn: from,
+		ClaudeBin: filepath.Join(t.TempDir(), "no-claude")})
+	if err == nil || strings.Contains(err.Error(), "there is no conversation") {
+		t.Fatalf("the conversation was not carried before the check: %v", err)
+	}
+}
+
 func TestCheckResumeStaysSilentWithoutProjectsDir(t *testing.T) {
 	contourDirs(t, t.TempDir())
 	if err := checkResume("/srv/proj/aacpanel", "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1"); err != nil {

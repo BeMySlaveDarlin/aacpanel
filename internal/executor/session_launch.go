@@ -38,7 +38,7 @@ func (e *Executor) runLauncher(ctx context.Context, p project, resume string) (l
 		held = e.memory.Session
 	}
 	return e.runInUnit(ctx, bin, launchFlag, "starting the session", held, launcher.Spec{
-		Dir: p.Path, Session: name, Resume: resume, Launch: p.Launch,
+		Dir: p.Path, Session: name, Resume: resume, RanIn: p.RanIn, Launch: p.Launch,
 		ClaudeBin: p.ClaudeBin, ConfigDir: p.ConfigDir, Parent: p.Parent, Role: p.Role, IntentKey: p.IntentKey,
 	})
 }

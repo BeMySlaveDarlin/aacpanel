@@ -93,6 +93,48 @@ func checkResume(dir, resume string) error {
 		"under its own project, and a session started with someone else's dies right away", resume, dir)
 }
 
+// carryTranscript moves a conversation that goes on in another directory —
+// its transcript and the folder of its subagents — from the project of the
+// directory it ran in to the project of the one it goes on in, in the same
+// contour. A transcript already there, or found nowhere, is left to
+// checkResume.
+func carryTranscript(from, to, resume string) error {
+	if from == "" || resume == "" || !uuidRE.MatchString(resume) {
+		return nil
+	}
+	for _, root := range projectRoots() {
+		projects := filepath.Join(root, "projects")
+		for _, slug := range slugs(to) {
+			if _, err := os.Stat(filepath.Join(projects, slug, resume+".jsonl")); err == nil {
+				return nil
+			}
+		}
+	}
+	for _, root := range projectRoots() {
+		projects := filepath.Join(root, "projects")
+		for _, slug := range slugs(from) {
+			src := filepath.Join(projects, slug)
+			if _, err := os.Stat(filepath.Join(src, resume+".jsonl")); err != nil {
+				continue
+			}
+			dst := filepath.Join(projects, slugs(to)[0])
+			if err := os.MkdirAll(dst, 0o700); err != nil {
+				return fmt.Errorf("the conversation %s was not carried to %s: %w", resume, to, err)
+			}
+			if info, err := os.Stat(filepath.Join(src, resume)); err == nil && info.IsDir() {
+				if err := os.Rename(filepath.Join(src, resume), filepath.Join(dst, resume)); err != nil {
+					return fmt.Errorf("the conversation %s was not carried to %s: %w", resume, to, err)
+				}
+			}
+			if err := os.Rename(filepath.Join(src, resume+".jsonl"), filepath.Join(dst, resume+".jsonl")); err != nil {
+				return fmt.Errorf("the conversation %s was not carried to %s: %w", resume, to, err)
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
 func slugs(dir string) []string {
 	rep := strings.NewReplacer("/", "-", "_", "-", ".", "-")
 	out := []string{rep.Replace(strings.TrimRight(dir, "/"))}

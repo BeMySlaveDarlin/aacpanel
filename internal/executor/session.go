@@ -44,6 +44,9 @@ type project struct {
 	IntentKey string
 	// Role is the role session_open gives the session; see action.Project.
 	Role *action.OpenRole
+	// RanIn is the directory a resumed conversation ran in, when it goes on
+	// in Path because that one is gone; see launcher.Spec.
+	RanIn string
 }
 
 // Open starts a session of a project, as New does, or goes on with a thread
@@ -242,6 +245,7 @@ func (e *Executor) sessionResume(ctx context.Context, req action.Request) (strin
 	e.projectMoves.Lock()
 	defer e.projectMoves.Unlock()
 	want := req.Project
+	ranIn := ""
 	if req.ResumeAt != nil {
 		if want == nil {
 			return "", fmt.Errorf("a relocated Claude conversation needs its project")
@@ -249,6 +253,9 @@ func (e *Executor) sessionResume(ctx context.Context, req action.Request) (strin
 		dir, err := resumeDirectory(req.ResumeAt)
 		if err != nil {
 			return "", err
+		}
+		if dir != filepath.Clean(req.ResumeAt.Path) {
+			ranIn = filepath.Clean(req.ResumeAt.Path)
 		}
 		copy := *want
 		copy.Path = dir
@@ -258,6 +265,7 @@ func (e *Executor) sessionResume(ctx context.Context, req action.Request) (strin
 	if err != nil {
 		return "", err
 	}
+	p.RanIn = ranIn
 	if err := historymove.Pending(registry.ConfigDirs(), p.Path); err != nil {
 		return "", err
 	}
