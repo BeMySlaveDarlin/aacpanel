@@ -54,7 +54,7 @@ export function DeskHead({ name, live, archive, pct, spent, move, tools, exec, t
                 </div>
                 ${tools}
             </div>
-            <${ContextBar} pct=${pct} peak=${!live} />
+            <${ContextBar} pct=${pct} peak=${!live} cap=${live && live.cap} autoRestart=${live && live.autoRestart} />
         </div>
     `;
 }

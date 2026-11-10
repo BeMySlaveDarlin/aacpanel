@@ -492,7 +492,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                 move=${move} tools=${deskTools} exec=${exec} taken=${takenNames(snapshot)} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
-                     foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
+                     foot=${html`<${ContextBar} pct=${pct} peak=${!live} cap=${live && live.cap} autoRestart=${live && live.autoRestart} />`}
                      tools=${html`<${MoreButton} onOpen=${() => setLook({ kind: "tools" })} />`}>
             <div class="chathead">
                 <h2>

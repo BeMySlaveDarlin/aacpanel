@@ -242,6 +242,17 @@ a.mcprow.toolrow { text-decoration: none; }
         color-mix(in srgb, var(--void) 75%, var(--ctx-4));
 }
 
+.ctxcap {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background: rgba(var(--tint), .55);
+}
+
+.ctxcap.auto { background: var(--accent); }
+
 .segbar {
     position: absolute;
     left: 0;

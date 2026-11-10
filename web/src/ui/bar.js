@@ -2,21 +2,21 @@
 import { html } from "../html.js";
 import { fill } from "../format.js";
 
-// ContextBar shows how much of the context has been lived through.
+// ContextBar shows how much of the context has been lived through, and where
+// the cap of the session stands, as its card in the list does: the track past
+// the cap is hatched and a tick marks the cap, in the accent when the session
+// restarts there by itself. The used fill stays above the hatching when a
+// session passes its cap; the tick stays above the fill.
 export function ContextBar({ pct, edge, peak, cap, autoRestart }) {
     if (pct == null) return null;
+    const capped = cap != null && cap > 0 && cap < 100;
     return html`
         <div class=${`ctxbar ${edge ? "edge" : "head"} ${peak ? "peak" : fill(pct)}`} role="presentation">
-            <${ContextBurn} cap=${cap} autoRestart=${autoRestart} />
+            ${capped && html`<span class="ctxburn" style=${`left:${cap}%`} aria-hidden="true"></span>`}
             <i style=${`width:${Math.max(0, Math.min(pct, 100))}%`}></i>
+            ${capped && html`<b class=${`ctxcap${autoRestart ? " auto" : ""}`} style=${`left:${cap}%`} aria-hidden="true"></b>`}
         </div>
     `;
-}
-
-// The used fill stays above the spent track when a session passes its cap.
-export function ContextBurn({ cap, autoRestart }) {
-    if (!autoRestart || cap == null || cap >= 100) return null;
-    return html`<span class="ctxburn" style=${`left:${Math.max(0, cap)}%`} aria-hidden="true"></span>`;
 }
 
 // SegBar shows how many containers of a stack are up.
