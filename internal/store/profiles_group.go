@@ -131,7 +131,7 @@ func checkGroupMove(ctx context.Context, q interface {
 
 // DeleteGroup removes a group.
 func (s *Store) DeleteGroup(ctx context.Context, id int, cascade bool) (err error) {
-	defer func() { err = Unavailable(err) }()
+	defer func() { err = Unavailable(taskRegistryNotEmpty(err)) }()
 
 	pool, err := s.Pool()
 	if err != nil {

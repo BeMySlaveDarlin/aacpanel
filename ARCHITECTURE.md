@@ -2393,6 +2393,14 @@ performs a final complete import and changes the writer in one transaction.
 An unreadable file or incomplete listing refuses the switch; the CLI offers
 no reverse switch. The command is explicit and installation switches nothing.
 
+Removing a mapped project whose writer is the panel is refused while it holds
+tasks or handoffs, including closed tasks and source records marked deleted.
+A database trigger protects direct deletion and removal through a group or
+contour; the map reports the project's name and registry counts, and the
+transaction leaves both the map and its journal untouched. The map's undo
+restores no registry data. Empty panel projects and file projects can be removed;
+file projects lose only their imported database copies.
+
 Tasks and project handoffs retain their original JSON text and parsed source,
 including unknown fields. Imported body sections render to Markdown in a fixed
 order; unknown sections follow in lexical order. The external source field is
@@ -2421,6 +2429,20 @@ and `handoff latest|show|write` expose the same registry operations. Writes name
 implicitly or discarded. `next` excludes tasks with unfinished or missing
 blockers and orders work by priority, position and number. File projects refuse
 panel writes and continue using cctm.
+
+When cc-task-manager is enabled in any Claude account, installation puts a
+`cctm` symlink beside `aacpanel-exec`, ahead of the plugin's directory on PATH.
+The executor called by that name asks the local-only `POST /api/tasks/writer`
+for the project owning its current directory, using the map's directory and
+worktree resolution. Panel projects refuse the plugin command and point to
+`task_*`/`handoff_*` tools or the executor's task and handoff CLI, so habitual
+file writes cannot silently disappear from the registry. File projects and
+unmapped directories exec the next real `cctm` on PATH with the caller's
+arguments, streams and exit status; names resolving to the executor are skipped
+to avoid recursion. An unavailable service falls back to the real plugin.
+Without that plugin the command refuses with the panel instructions, or reports
+that the panel did not answer and nothing was written. Installation leaves an
+unrelated `cctm` file in place and reports that it cannot guard the registry.
 
 Only sessions in panel-written projects see `task_list`, `task_show`,
 `task_create`, `task_update`, `handoff_write` and `handoff_read`. A Claude binding

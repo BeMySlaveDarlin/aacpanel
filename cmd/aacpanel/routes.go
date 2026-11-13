@@ -132,6 +132,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	if g.local {
 		mux.HandleFunc("POST /api/tasks/import", s.apiTaskImport)
 		mux.HandleFunc("POST /api/tasks/registry", s.apiTaskRegistry)
+		mux.HandleFunc("POST /api/tasks/writer", s.apiTaskWriter)
 	}
 	mux.Handle("GET /api/profiles/schema", g.page(s.apiProfilesSchema))
 	mux.Handle("GET /api/profiles/journal", g.page(s.apiProfilesJournal))

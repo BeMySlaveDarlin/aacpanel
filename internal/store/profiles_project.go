@@ -221,7 +221,7 @@ func checkMove(ctx context.Context, q interface {
 // DeleteProject removes a project and returns the journal entry that can put
 // it back.
 func (s *Store) DeleteProject(ctx context.Context, id int) (entry int64, err error) {
-	defer func() { err = Unavailable(err) }()
+	defer func() { err = Unavailable(taskRegistryNotEmpty(err)) }()
 
 	pool, err := s.Pool()
 	if err != nil {

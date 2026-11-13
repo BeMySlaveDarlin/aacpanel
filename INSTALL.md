@@ -1147,6 +1147,13 @@ action" while the button is alive.
 - **Manifest.** `exec-build	dir	<home>/bin	created` when it was made, and
   `exec-build	file	<home>/bin/aacpanel-exec	created sha=<sha256>`.
 
+The following `cctm` step adds `<home>/bin/cctm` as a symlink to `aacpanel-exec`
+when cc-task-manager is enabled in any Claude account. It guards panel-written
+task registries and passes file projects to the plugin's own command. Its check
+accepts an existing executor link; an unrelated file or link stays in place with
+a warning. The manifest records the created link as `cctm\tfile\t<home>/bin/cctm\tcreated`,
+so uninstall removes it. Put `<home>/bin` before the plugin's directory on PATH.
+
 ## S8. `exec-unit` — Executor unit
 
 **The executor is a user unit**, because it needs the session bus and graphics.

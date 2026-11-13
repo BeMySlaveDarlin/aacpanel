@@ -474,7 +474,7 @@ func profilesServer(t *testing.T) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"session_pauses", "profile_journal", "profile_projects", "profile_groups", "profiles"} {
+	for _, table := range []string{"project_handoffs", "project_tasks", "session_pauses", "profile_journal", "profile_projects", "profile_groups", "profiles"} {
 		if _, err := pool.Exec(t.Context(), "DELETE FROM "+table); err != nil {
 			t.Fatal(err)
 		}

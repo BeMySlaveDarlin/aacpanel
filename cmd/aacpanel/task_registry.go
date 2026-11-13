@@ -3,10 +3,44 @@ package main
 import (
 	"errors"
 	"net/http"
+	"path"
 
 	"aacpanel/internal/store"
 	"aacpanel/internal/taskreg"
 )
+
+func (s *Server) apiTaskWriter(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	var in struct {
+		CWD string `json:"cwd"`
+	}
+	if !decodeProfileBody(w, r, &in) {
+		return
+	}
+	if !path.IsAbs(in.CWD) {
+		http.Error(w, "the task writer lookup needs an absolute directory", http.StatusBadRequest)
+		return
+	}
+	profiles, err := s.db.Profiles(r.Context())
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	worktrees := s.worktreesFor(r.Context(), profiles, in.CWD, s.worktrees())
+	project, found := projectAt(profiles, in.CWD, worktrees, s.db.ProjectRoots())
+	if !found {
+		writeJSON(w, taskreg.Project{})
+		return
+	}
+	writer, err := s.db.TaskWriter(r.Context(), project.project.ID)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	writeJSON(w, taskreg.Project{ID: project.project.ID, Name: project.project.Name, Writer: writer})
+}
 
 func (s *Server) apiTaskRegistry(w http.ResponseWriter, r *http.Request) {
 	if !s.profilesReady(w) {

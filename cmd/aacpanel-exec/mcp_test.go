@@ -19,6 +19,11 @@ import (
 
 func TestMain(m *testing.M) {
 	_ = os.Setenv("AACP_PANEL_URL", "http://127.0.0.1:1")
+	if os.Getenv("AACP_TEST_CCTM") == "1" {
+		_ = os.Setenv("AACP_PANEL_URL", os.Getenv("AACP_TEST_CCTM_PANEL"))
+		os.Args[0] = "cctm"
+		main()
+	}
 	os.Exit(m.Run())
 }
 

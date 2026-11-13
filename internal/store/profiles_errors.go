@@ -102,6 +102,14 @@ func notEmpty(err error, format string, args ...any) error {
 	return err
 }
 
+func taskRegistryNotEmpty(err error) error {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) && pg.Code == "23514" && pg.ConstraintName == "panel_task_registry_not_empty" {
+		return fmt.Errorf("%w: %s", ErrNotEmpty, pg.Message)
+	}
+	return err
+}
+
 func missing(err error, format string, args ...any) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("%w: "+format, append([]any{ErrNotFound}, args...)...)

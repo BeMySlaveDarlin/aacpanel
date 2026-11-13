@@ -159,7 +159,7 @@ func (s *Store) UpdateProfile(ctx context.Context, id int, e ProfileEdit) (p Pro
 
 // DeleteProfile removes a profile together with its empty groups.
 func (s *Store) DeleteProfile(ctx context.Context, id int, cascade bool) (err error) {
-	defer func() { err = Unavailable(err) }()
+	defer func() { err = Unavailable(taskRegistryNotEmpty(err)) }()
 
 	pool, err := s.Pool()
 	if err != nil {
