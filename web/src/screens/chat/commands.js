@@ -43,6 +43,7 @@ export function panelCommands({ stream, live, pick, side }) {
     const talk = [
         ...(side ? [{ id: "btw", line: "/btw", note: "A question aside", kind: "side" }] : []),
         ...commandRows(SENT, stream),
+        { id: "finalize", line: "Wrap up", note: "Save the task registry and handoff; leave the session open", kind: "finalize", action: "session.finalize" },
     ];
     return [
         { title: "Screens", rows: screens },
@@ -73,7 +74,16 @@ export function CommandsSheet({ name, live, exec, onScreen, onPicker, onSide, on
     const why = canSend ? "" : whyNot(exec, "session.command");
     const groups = panelCommands({ stream, live, pick: Boolean(onPicker), side: Boolean(onSide) });
 
+    const canFinalize = knows(exec, "session.finalize") && Boolean(live?.prepareAvailable);
+    const finalizeWhy = !live?.prepareAvailable ? "preparation needs a mapped Claude session with panel tools" : whyNot(exec, "session.finalize");
+
     const press = async (row) => {
+        if (row.kind === "finalize") {
+            if (!canFinalize) return undefined;
+            const result = await run(row.action, name, {});
+            if (result?.ok) onDone();
+            return undefined;
+        }
         if (row.kind === "screen") return onScreen(row.id);
         if (row.kind === "command" && !canSend) return undefined;
         if (row.kind === "pick") return onPicker(row.id);
@@ -92,12 +102,12 @@ export function CommandsSheet({ name, live, exec, onScreen, onPicker, onSide, on
                     <div class="cmdsechead"><span>${g.title}</span></div>
                     <ul class="mcplist">
                         ${g.rows.map((row) => {
-                            const off = row.kind === "command" && !canSend;
+                            const off = row.kind === "command" && !canSend || row.kind === "finalize" && !canFinalize;
                             return html`
                             <li key=${row.id}>
                                 <button type="button" class="mcprow" onClick=${() => press(row)} disabled=${off}>
                                     <span class="cmdname">${row.line}</span>
-                                    <span class="cmdrownote">${off ? why : row.note}</span>
+                                    <span class="cmdrownote">${off ? row.kind === "finalize" ? finalizeWhy : why : row.note}</span>
                                     <span class="crgo">${Icon.chevron()}</span>
                                 </button>
                             </li>

@@ -47,6 +47,29 @@ class Scan(unittest.TestCase):
         self.dir = test_barrier.tmp_dir()
         self.addCleanup(self.dir.cleanup)
 
+    def test_only_new_input_advances_the_turn_stamp(self):
+        records = [
+            {"type": "user", "timestamp": "2026-08-24T10:00:00Z",
+             "message": {"content": "<panel-message from=\"session wrap up\">Save and call session_ready.</panel-message>"}},
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:01Z",
+             "message": {"content": [{"type": "tool_use", "name": "mcp__aacpanel__session_ready"}], "usage": usage(100)}},
+            {"type": "user", "timestamp": "2026-08-24T10:00:02Z",
+             "message": {"content": [{"type": "tool_result", "content": "Readiness accepted."}]}},
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:03Z",
+             "message": {"content": "Saved.", "usage": usage(110)}},
+            {"type": "user", "timestamp": "2026-08-24T10:00:04Z", "isCompactSummary": True,
+             "message": {"content": "The session saved its state."}},
+            {"type": "user", "timestamp": "2026-08-24T10:00:05Z", "isMeta": True,
+             "message": {"content": "A system reminder"}},
+        ]
+        got = archive.scan(self.write(*records))
+        self.assertEqual(got["lastTurnAt"], "2026-08-24T10:00:00Z")
+        self.assertEqual(got["lastRequestAt"], "2026-08-24T10:00:03Z")
+        for content in ("Continue with the next task", [{"type": "image", "source": {"type": "base64", "data": "AA=="}}]):
+            with self.subTest(content=content):
+                got = archive.scan(self.write(*records, {"type": "user", "timestamp": "2026-08-24T10:00:06Z", "message": {"content": content}}))
+                self.assertEqual(got["lastTurnAt"], "2026-08-24T10:00:06Z")
+
     def test_takes_the_last_context_and_the_peak(self):
         path = self.write(
             {"type": "user", "timestamp": "2026-08-24T10:00:00Z", "cwd": "/opt/x",

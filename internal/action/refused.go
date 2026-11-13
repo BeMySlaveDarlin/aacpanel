@@ -8,6 +8,7 @@ import "strings"
 // there, and the panel neither drives it nor opens it for a person to be stuck
 // in. The older name of the same command is refused with it.
 var Refused = map[string]string{
+	"finalize":      "use Wrap up to save through the panel's readiness cycle",
 	"permissions":   "the rules of permissions are a screen driven by keys, and the panel does not open it",
 	"allowed-tools": "the rules of permissions are a screen driven by keys, and the panel does not open it",
 }

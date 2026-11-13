@@ -14,6 +14,7 @@ import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 setLiveSessions([
+    { session: "prepared", sessionId: "c2", prepareAvailable: true, transport: "stream", status: "idle" },
     { session: "shop", sessionId: "c1", transport: "stream", status: "idle" },
     { session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", agent: "codex",
       transport: "stream", status: "busy" },
@@ -116,6 +117,19 @@ window.done = (async () => {
     }
 
     out.sent = sent.length;
+    out.prepared = [];
+    for (const immediate of [false, true]) {
+        const saved = await open("prepared");
+        const choices = Array.from(gate().querySelectorAll('[role="radio"]'));
+        const before = sent.length;
+        const selected = choices.map((c) => ({ text: text(c), picked: c.getAttribute("aria-checked") === "true" }));
+        if (immediate) choices[1].click();
+        await until(() => !immediate || choices[1].getAttribute("aria-checked") === "true");
+        gate().querySelector(".btnrow .btn:last-child").click();
+        await saved.answer;
+        out.prepared.push({ choices: selected, sent: sent.slice(before) });
+        await until(() => !gate());
+    }
     return out;
 })();
 </script>

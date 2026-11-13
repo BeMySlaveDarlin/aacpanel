@@ -28,8 +28,10 @@ const (
 	SessionRestart Kind = "session.restart"
 	// SessionReady records readiness in the service, never in the executor.
 	SessionReady Kind = "session.ready"
-	SessionKill  Kind = "session.kill"
-	SessionSend  Kind = "session.send"
+	// SessionFinalize saves a conversation through the service's readiness cycle.
+	SessionFinalize Kind = "session.finalize"
+	SessionKill     Kind = "session.kill"
+	SessionSend     Kind = "session.send"
 	// SessionLetter sends a letter from one live session to another: to the
 	// message socket of the recipient's claude, from the session that runs the
 	// conversation the request names. It is a kind of its own rather than a

@@ -90,6 +90,20 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		s.prepareRestart(w, r, body.Target, body.Params)
 		return
 	}
+	if body.Kind == string(action.SessionFinalize) {
+		s.prepareSession(w, r, action.SessionFinalize, body.Target, body.Params)
+		return
+	}
+	if body.Kind == string(action.SessionClose) && body.Params["prepare"] != nil {
+		prepare, ok := body.Params["prepare"].(bool)
+		if !ok || body.Params["caller"] != nil || body.Params["sleeping"] != nil {
+			http.Error(w, "a prepared close needs a boolean prepare and no caller or sleep", http.StatusBadRequest)
+			return
+		}
+		if prepare && s.prepareSession(w, r, action.SessionClose, body.Target, body.Params) {
+			return
+		}
+	}
 	if body.Kind == string(action.SessionRestart) {
 		s.pauseMu.Lock()
 		defer s.pauseMu.Unlock()
@@ -1434,7 +1448,7 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 	if s.db != nil && s.host != nil {
 		for _, kind := range kinds {
 			if kind == action.SessionSend {
-				kinds = append(kinds, action.ProjectPause)
+				kinds = append(kinds, action.ProjectPause, action.SessionFinalize)
 				break
 			}
 		}

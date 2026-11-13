@@ -3,6 +3,9 @@ package action
 import "testing"
 
 func TestReadinessBelongsToTheServiceAndFreshIntentToItsCycle(t *testing.T) {
+	if Valid(SessionFinalize) {
+		t.Fatal("wrap up reached the executor's closed list")
+	}
 	if Valid(SessionReady) {
 		t.Fatal("readiness reached the executor's closed list")
 	}
@@ -27,6 +30,21 @@ func TestReadinessBelongsToTheServiceAndFreshIntentToItsCycle(t *testing.T) {
 	} {
 		if err := c.req.Validate(); (err == nil) != c.ok {
 			t.Errorf("%+v: %v", c.req, err)
+		}
+	}
+}
+
+func TestFinalizeCannotBeSentAsAPluginCommand(t *testing.T) {
+	if _, ok := Commands["finalize"]; ok {
+		t.Fatal("finalize is still a slash command")
+	}
+	for _, r := range []Request{
+		{ID: "command", Kind: SessionCommand, Target: "lab", Command: &Command{Name: "finalize"}},
+		{ID: "send", Kind: SessionSend, Target: "lab", Text: "/finalize"},
+		{ID: "send", Kind: SessionSend, Target: "lab", Text: "/Finalize save everything"},
+	} {
+		if err := r.Validate(); err == nil {
+			t.Fatalf("the panel can still send /finalize: %+v", r)
 		}
 	}
 }

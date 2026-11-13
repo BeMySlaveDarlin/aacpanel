@@ -205,8 +205,8 @@ class Index:
         sid = os.path.basename(path)[:-len(".jsonl")]
         with self.lock:
             was = self.scanned.get(sid)
-            # A parse from before the prompts were kept is read again once.
-            if was and was.get("size") == size and was.get("mtime") == mtime and "prompts" in was:
+            # Cached parses must carry the input timestamp as well as prompts.
+            if was and was.get("size") == size and was.get("mtime") == mtime and "lastTurnAt" in was:
                 if was.get("profile") != profile:
                     was["profile"] = profile
                     self.dirty = True
@@ -397,7 +397,7 @@ def scan(path):
     """Returns everything the archive card needs, in one pass over the transcript."""
     out = {
         "cwd": "", "model": "", "effort": "", "mode": "",
-        "startedAt": "", "lastAt": "", "lastRequestAt": "",
+        "startedAt": "", "lastAt": "", "lastRequestAt": "", "lastTurnAt": "",
         "tokens": 0, "tokensMax": 0, "tokensIn": 0, "tokensOut": 0,
         "messages": 0, "compacts": 0,
         "stale": False,
@@ -432,6 +432,16 @@ def scan(path):
             out["effort"] = record.get("effort") or out["effort"]
             out["mode"] = record.get("permissionMode") or out["mode"]
             message = record.get("message") or {}
+            content = message.get("content")
+            # Tool results and compact summaries continue the current turn;
+            # messages, including panel instructions and pictures, start one.
+            if (record.get("type") == "user" and not record.get("isMeta")
+                    and not record.get("isCompactSummary")
+                    and (isinstance(content, str) and content.strip()
+                         or isinstance(content, list) and any(
+                             isinstance(b, dict) and b.get("type") in ("text", "image") for b in content)
+                         and not any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content))):
+                out["lastTurnAt"] = stamp or out["lastTurnAt"]
             usage = message.get("usage")
             if not usage or message.get("model") == "<synthetic>":
                 continue

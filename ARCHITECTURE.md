@@ -245,6 +245,28 @@ the same idle and readiness conditions, tells the session the person requested
 it, and marks its live row as restarting until the cycle finishes. A repeated
 request preserves readiness and the cycle's deadlines.
 
+**Close and Wrap up use the same preparation cycle.** For a live Claude session
+in a mapped project with panel tools, the close confirmation offers saving
+before closing by default and an immediate close as its second choice. The
+panel asks for the task registry, handoff, completed commits and background work
+to be settled, then waits for `session_ready` and a fresh idle snapshot before
+issuing a conversation-bound `session.close` through the ordinary executor and
+journal. A missing readiness or unfinished work gets a reminder and the same
+five-minute grace before a forced close. Codex threads, sessions outside the
+panel's reach and sessions without panel tools close directly. Wrap up uses the
+service action `session.finalize`: it sends the same saving instruction and
+accepts readiness, leaving the session open. It has no forced close and sends
+no plugin slash command. Readiness outside an active panel cycle is refused.
+
+Readiness for Close or Wrap up persists its acceptance time by conversation in
+`session_finalizations`. An idle session shows `finalized`, and a close of that
+quiet, saved conversation skips the saving instruction. The collector's
+`lastTurnAt` dates incoming messages that start a turn, including pictures and
+panel instructions; a later input removes the mark. Tool results, compact
+summaries and model requests do not advance it, so the final model response
+after `session_ready` cannot undo its own readiness. A restart makes a new
+conversation and needs no mark on the one it replaces.
+
 **A project pause belongs to the panel.** The `project.pause` service action
 resolves a project, its map group or one session. Project and group scopes
 include the sessions those sessions had the panel open one step down,
@@ -2043,7 +2065,10 @@ directory it ran in, not in the project's own: a session of a worktree goes on
 working in the worktree. A session no project holds
 is restarted only if it is the host's main one. The phone's live cards offer
 Restart and Close directly, with Restart alone on the main session, Close
-alone for codex and neither for a session outside the panel. A project session
+alone for codex and neither for a session outside the panel. Close defaults to
+the readiness cycle for mapped Claude sessions with panel tools; the same
+confirmation offers an immediate close. A finalized, quiet conversation skips
+preparation. A project session
 can also ask for its own restart through the local listener, naming its
 conversation. The service coordinates automatic context restarts separately.
 

@@ -292,7 +292,6 @@ var Commands = map[string][]string{
 	"clear":          nil,
 	"compact":        nil,
 	"context":        nil,
-	"finalize":       nil,
 	"usage":          nil,
 	"reload-plugins": nil,
 	"reload-skills":  nil,

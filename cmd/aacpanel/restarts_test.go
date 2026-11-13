@@ -146,7 +146,7 @@ func restartServer(t *testing.T) (*Server, *fakeExec, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(t.Context(), "DELETE FROM session_restarts"); err != nil {
+	if _, err := pool.Exec(t.Context(), "DELETE FROM session_restarts; DELETE FROM session_finalizations"); err != nil {
 		t.Fatal(err)
 	}
 	return srv, fake, dir

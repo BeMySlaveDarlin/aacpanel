@@ -127,10 +127,10 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     }
     const phase = s.restartPhase;
     if (phase && phase.phase === "saving") {
-        return make("busy", "saving", "saving for restart", { until: Date.parse(phase.forceAt || "") || 0 });
+        return make("busy", "saving", phase.finish === "close" ? "saving before close" : phase.finish === "finalize" ? "wrapping up" : "saving for restart", { until: Date.parse(phase.forceAt || "") || 0 });
     }
     if (s.restarting || (phase && phase.phase === "forcing")) {
-        return make("busy", "restarting", "restarting", { until: phase ? Date.parse(phase.forceAt || "") || 0 : 0 });
+        return make("busy", "restarting", phase?.finish === "close" ? "closing" : "restarting", { until: phase ? Date.parse(phase.forceAt || "") || 0 : 0 });
     }
     const limit = limitOf(s, limits);
     if (limit && limit.over) return make("wait", "limit", "stopped by the limit");
@@ -189,7 +189,7 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     }
     const list = checklistOf(s.checklist);
     const unseen = unseenOf(s, viewed);
-    const word = list && list.over ? "done" : "idle";
+    const word = s.finalizedAt ? "finalized" : list && list.over ? "done" : "idle";
     return make("idle", word, word, { unseen, note: unseen ? "not seen" : "" });
 }
 

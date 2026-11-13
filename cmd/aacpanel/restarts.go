@@ -24,17 +24,34 @@ const (
 	restartSnapshotAge = 30 * time.Second
 )
 
-const restartCommand = "This session has reached its project's context cap. The panel will restart it with an empty context. " +
-	"Start no new work, background included. Update the task registry, save a handoff using the project's finalize skill if it has one, " +
-	"and commit completed work. Cleanly stop your background commands, agents, workflows and panel observers. " +
+const savePreparation = "Start no new work, background included. Update the task registry, save a handoff using the project's finalize skill if it has one, " +
+	"and commit completed work. Cleanly stop your background commands, agents, workflows and panel observers. "
+
+const restartCommand = "This session has reached its project's context cap. The panel will restart it with an empty context. " + savePreparation +
 	"Then call session_ready (mcp__aacpanel__session_ready), optionally with intent for the fresh session's first message, " +
 	"and end the turn. Do not call session_restart. Do this silently: do not tell the person about the context, the cap or the restart."
 
-const manualRestartCommand = "The person has asked the panel to restart this session with an empty context. " +
-	"Start no new work, background included. Update the task registry, save a handoff using the project's finalize skill if it has one, " +
-	"and commit completed work. Cleanly stop your background commands, agents, workflows and panel observers. " +
+const manualRestartCommand = "The person has asked the panel to restart this session with an empty context. " + savePreparation +
 	"Then call session_ready (mcp__aacpanel__session_ready), optionally with intent for the fresh session's first message, " +
 	"and end the turn. Do not call session_restart."
+
+const saveWorkCommand = savePreparation +
+	"Then call session_ready (mcp__aacpanel__session_ready) and end the turn. Do not close or restart this session yourself."
+
+const closeCommand = "The person has asked the panel to save and close this session. " + saveWorkCommand
+const finalizeCommand = "The person has asked the panel to wrap up this session and leave it open. " + saveWorkCommand
+
+func preparationReminder(c store.RestartCycle, work string) string {
+	text := "The panel is waiting for session_ready. Finish saving the task registry and handoff, commit completed work, " +
+		"and stop your background commands, agents, workflows and panel observers. Call session_ready and end the turn."
+	if work != "" {
+		text = "Readiness was accepted, but this session still has " + work + " at work. Cleanly stop that work, then end the turn and wait."
+	}
+	if c.Finish == store.PrepareClose {
+		text += " The panel will close this session even if preparation is unfinished five minutes after this reminder."
+	}
+	return text + " Do not close or restart this session yourself."
+}
 
 const restartReminder = "The panel is waiting for session_ready. Finish saving the task registry and handoff, commit completed work, " +
 	"and stop your background commands, agents, workflows and panel observers. Call session_ready, optionally with intent, and end the turn. " +
@@ -51,10 +68,25 @@ func restartMessage(text string) string {
 	return action.PanelMessage(action.PanelContextRestart, text)
 }
 
+func preparationOrigin(c store.RestartCycle) string {
+	if c.Finish == store.PrepareClose {
+		return "session close"
+	}
+	if c.Finish == store.PrepareFinalize {
+		return "session wrap up"
+	}
+	return action.PanelContextRestart
+}
+
+func preparationMessage(c store.RestartCycle, text string) string {
+	return action.PanelMessage(preparationOrigin(c), text)
+}
+
 type restartSession struct {
 	host.LiveSession
 	TurnOver      bool            `json:"turnOver"`
 	LastRequestAt string          `json:"lastRequestAt"`
+	LastTurnAt    string          `json:"lastTurnAt"`
 	Status        string          `json:"status"`
 	StatusAt      int64           `json:"statusUpdatedAt"`
 	Waiting       string          `json:"waitingFor"`
@@ -97,26 +129,45 @@ func nextRestart(c store.RestartCycle, s restartSession, snapshotAt, now time.Ti
 			if c.Manual {
 				command = manualRestartCommand
 			}
-			return restartStep{Kind: action.SessionSend, Text: restartMessage(command)}
+			if c.Finish == store.PrepareClose {
+				command = closeCommand
+			}
+			if c.Finish == store.PrepareFinalize {
+				command = finalizeCommand
+			}
+			return restartStep{Kind: action.SessionSend, Text: preparationMessage(c, command)}
 		}
 		return restartStep{}
 	}
 	busy, work := session.BackgroundWork(s.Work)
 	readyIdle := c.ReadyAt != nil && snapshotAt.After(*c.ReadyAt) && s.idle()
+	finish := action.SessionRestart
+	if c.Finish == store.PrepareClose {
+		finish = action.SessionClose
+	}
+	if c.Finish == store.PrepareFinalize {
+		finish = action.SessionReady
+	}
 	if readyIdle && !busy {
-		return restartStep{Kind: action.SessionRestart, Text: c.Intent}
+		return restartStep{Kind: finish, Text: c.Intent}
 	}
 	if c.RemindedAt != nil {
-		if !now.Before(c.RemindedAt.Add(restartGrace)) {
-			return restartStep{Kind: action.SessionRestart, Text: c.Intent, Anyway: true}
+		if c.Finish != store.PrepareFinalize && !now.Before(c.RemindedAt.Add(restartGrace)) {
+			return restartStep{Kind: finish, Text: c.Intent, Anyway: true}
 		}
 		return restartStep{}
 	}
 	if readyIdle && busy {
+		if c.Finish == store.PrepareClose || c.Finish == store.PrepareFinalize {
+			return restartStep{Kind: action.SessionSend, Text: preparationMessage(c, preparationReminder(c, work))}
+		}
 		return restartStep{Kind: action.SessionSend, Text: restartMessage(restartWorkReminder(work))}
 	}
 	requestAt, _ := time.Parse(time.RFC3339Nano, s.LastRequestAt)
 	if c.ReadyAt == nil && s.idle() && (s.StatusAt > c.CommandAt.UnixMilli() || requestAt.After(c.CommandAt)) && snapshotAt.After(c.CommandAt) {
+		if c.Finish == store.PrepareClose || c.Finish == store.PrepareFinalize {
+			return restartStep{Kind: action.SessionSend, Text: preparationMessage(c, preparationReminder(c, ""))}
+		}
 		return restartStep{Kind: action.SessionSend, Text: restartMessage(restartReminder)}
 	}
 	return restartStep{}
@@ -130,20 +181,25 @@ func nextRestart(c store.RestartCycle, s restartSession, snapshotAt, now time.Ti
 type restartPhase struct {
 	Phase   string `json:"phase"`
 	ForceAt string `json:"forceAt,omitempty"`
+	Finish  string `json:"finish,omitempty"`
 }
 
 func restartPhaseOf(c store.RestartCycle) *restartPhase {
 	if c.Done || !c.Commanded {
 		return nil
 	}
-	if c.RemindedAt == nil {
-		return &restartPhase{Phase: "saving"}
+	finish := ""
+	if c.Finish == store.PrepareClose || c.Finish == store.PrepareFinalize {
+		finish = c.Finish
+	}
+	if c.RemindedAt == nil || c.Finish == store.PrepareFinalize {
+		return &restartPhase{Phase: "saving", Finish: finish}
 	}
 	at := c.RemindedAt.Add(restartGrace)
 	if c.AttemptedAt != nil && c.AttemptedAt.Add(restartGrace).After(at) {
 		at = c.AttemptedAt.Add(restartGrace)
 	}
-	return &restartPhase{Phase: "forcing", ForceAt: at.UTC().Format(time.RFC3339)}
+	return &restartPhase{Phase: "forcing", ForceAt: at.UTC().Format(time.RFC3339), Finish: finish}
 }
 
 func (s *Server) runRestarts(ctx context.Context) {
@@ -202,6 +258,10 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 	for _, c := range cycles {
 		byID[c.Conversation] = c
 	}
+	marks, err := s.finalizations(ctx, snap)
+	if err != nil {
+		return err
+	}
 	for _, row := range snap.Sessions {
 		guard, ok, err := s.restartGuard(ctx, row, list, pauses)
 		if err != nil {
@@ -211,6 +271,12 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 			continue
 		}
 		c, exists := byID[row.SessionID]
+		if c.Done && c.Finish == store.PrepareFinalize {
+			if _, saved := marks[row.SessionID]; saved {
+				continue
+			}
+			c, exists = store.RestartCycle{}, false
+		}
 		if !guard.Restart && !c.Manual {
 			continue
 		}
@@ -244,7 +310,7 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 			return nil
 		}
 		c.AttemptedAt = nil
-		if step.Kind == action.SessionRestart {
+		if step.Kind == action.SessionRestart || step.Kind == action.SessionClose || step.Kind == action.SessionReady {
 			c.Done = true
 		} else if !c.Commanded {
 			c.Commanded = true
@@ -347,18 +413,25 @@ func (s *Server) apiRestartPolicy(w http.ResponseWriter, r *http.Request) {
 // The cycle uses the same executor protocol and append-only action journal
 // as a message or restart from the phone. No host access is added to the service.
 func (s *Server) restartAction(ctx context.Context, c store.RestartCycle, step restartStep) error {
+	if step.Kind == action.SessionReady {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, action.Timeout(step.Kind, execTimeout))
 	defer cancel()
 	params := map[string]any{"conversation": c.Conversation, "automatic": true, "chars": len([]rune(step.Text))}
 	if step.Anyway {
 		params["anyway"] = true
 	}
+	device := preparationOrigin(c)
 	id, err := s.db.LogAttempt(ctx, store.Action{Kind: string(step.Kind), Target: c.Session,
-		DeviceName: action.PanelContextRestart, Params: params})
+		DeviceName: device, Params: params})
 	if err != nil {
 		return err
 	}
-	req := action.Request{ID: requestID(id), Kind: step.Kind, Target: c.Session, Text: step.Text, Device: action.PanelContextRestart}
+	req := action.Request{ID: requestID(id), Kind: step.Kind, Target: c.Session, Text: step.Text, Device: device}
+	if step.Kind == action.SessionClose {
+		req.Conversation, req.Text = c.Conversation, ""
+	}
 	if step.Kind == action.SessionRestart {
 		plan, planErr := s.restartPlan(ctx, c.Session, map[string]any{"conversation": c.Conversation})
 		err = planErr

@@ -198,6 +198,9 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.resume":  "open",
 		"session.close":   "close",
 		"session.restart": "restart",
+		// A wrap up leaves the session open where it stood: the saving phase
+		// shows in its state line, not as a wait of the list.
+		"session.finalize": "",
 		// A switch keeps the name and the conversation: the wait clears when the
 		// session under the name lives on the other side.
 		"session.switch":  "switch",

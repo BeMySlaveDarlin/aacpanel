@@ -426,7 +426,7 @@ func TestEveryActionButtonChecksHostKnowsIt(t *testing.T) {
 	check := regexp.MustCompile(`knows\(exec, "([a-z]+\.[a-zA-Z]+)"\)`)
 
 	// A project pause is coordinated and journaled by the service.
-	onHost := map[string]bool{string(action.ProjectPause): true}
+	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}
@@ -648,7 +648,7 @@ func TestJournalClaimOnlyForJournaledActions(t *testing.T) {
 	body := actionsBlock(t, registry)
 
 	// A project pause is coordinated and journaled by the service.
-	onHost := map[string]bool{string(action.ProjectPause): true}
+	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}

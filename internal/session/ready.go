@@ -10,13 +10,13 @@ import (
 	"aacpanel/internal/mcp"
 )
 
-// Ready acknowledges the panel's context cycle without ending the process
+// Ready acknowledges the panel's preparation cycle without ending the process
 // while this tool call, or another call in the same turn, is still running.
 func Ready(h Host) mcp.Tool {
 	return mcp.Tool{
-		Name: "session_ready", Title: "Ready for the panel's restart", Allowed: true,
-		Instructions: "Use session_ready only after the panel asks this session to save for a restart; then end the turn and wait.",
-		Description:  "Reports that this session has saved its state and stopped its background work after the panel asked it to prepare for a context restart. It restarts nothing. Optional intent is the first message of the fresh session, up to 500 characters, without a leading dash or slash. After acceptance, end the turn and wait. Without a request from the panel, use session_restart for a restart the person asked for.",
+		Name: "session_ready", Title: "Ready for the panel", Allowed: true,
+		Instructions: "Use session_ready only after the panel asks this session to save for a restart, close or wrap up; then end the turn and wait.",
+		Description:  "Reports that this session has saved its state and stopped its background work after the panel asked it to prepare for a restart, close or wrap up. It closes and restarts nothing itself. Optional intent is the first message of a fresh session after a restart, up to 500 characters, without a leading dash or slash. After acceptance, end the turn and wait. Without a request from the panel, use session_restart for a restart the person asked for.",
 		InputSchema: map[string]any{
 			"type": "object", "additionalProperties": false,
 			"properties": map[string]any{"intent": map[string]any{
@@ -57,7 +57,7 @@ func Ready(h Host) mcp.Tool {
 			case !got.Taken:
 				return "Readiness was not accepted: " + got.Said, true
 			default:
-				return "Readiness accepted. End the turn and wait for the panel to restart this session.", false
+				return "Readiness accepted. End the turn and wait for the panel.", false
 			}
 		},
 	}

@@ -310,6 +310,7 @@ def _row(live):
             "effort": effort, "messages": found.get("messages") or 0,
             "compacts": found.get("compacts") or 0, "startedAt": started,
             "lastRequestAt": None,
+            "lastTurnAt": found.get("lastTurnAt") or "",
             **_mode(found),
         }
 
@@ -326,6 +327,7 @@ def _row(live):
         "effort": effort, "messages": found.get("messages") or 0,
         "compacts": found.get("compacts") or 0, "startedAt": started,
         "lastRequestAt": found.get("lastRequestAt"),
+        "lastTurnAt": found.get("lastTurnAt") or "",
         **_mode(found),
     }
 

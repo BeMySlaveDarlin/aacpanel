@@ -84,6 +84,19 @@ function restartChoice(target) {
     };
 }
 
+function closeChoice(target) {
+    const live = liveSessions.find((s) => s.session === target);
+    if (!live?.prepareAvailable || isCodex(live) || live.outside) return null;
+    return {
+        label: "close mode", layout: "list", value: "prepare",
+        apply: (value) => ({ prepare: value === "prepare", conversation: live.sessionId }),
+        options: [
+            { value: "prepare", label: "Save and close", note: "Ask the session to save its work and stop background work, wait for readiness, then close. A finalized session closes at once. After a reminder, unfinished preparation has five minutes." },
+            { value: "immediate", label: "Close immediately", note: "Skip saving and close now. Unfinished work and background processes end with the session." },
+        ],
+    };
+}
+
 // onTheMap finds a project of the map by its id, with its contour.
 function onTheMap(id) {
     if (!id) return null;
@@ -133,10 +146,6 @@ export const COMMANDS = {
     "reload-skills": {
         name: "Reload skills",
         effect: "The session reads its skills again, and nothing else. No request goes to the model, and the conversation stays as it is.",
-    },
-    finalize: {
-        name: "Wrap up",
-        effect: "The session will put together a summary and update its notes. That is minutes of work and a noticeable share of the limit.",
     },
     model: {
         name: "Model",
@@ -203,6 +212,7 @@ export const SCREENS = {
 // the panel does not open it. The host refuses them too; the composer says so
 // before the press.
 export const REFUSED = {
+    finalize: "use Wrap up to save through the panel’s readiness cycle",
     permissions: "not sent from the panel: the rules of permissions are a screen driven by keys",
     "allowed-tools": "not sent from the panel: the rules of permissions are a screen driven by keys",
 };
@@ -431,17 +441,25 @@ export const ACTIONS = {
     // kill — the host refuses a kill of codex.
     "session.close": {
         watch: "close",
+        choice: closeChoice,
         title: (target) => `Close session ${target}?`,
         effect: (params, target) => (codexTarget(target)
             ? "The turn codex is running breaks off, and the panel lets the thread go: the daemon unloads it "
                 + "once no client is left, and codex resume brings it back. A codex started in tmux closes "
                 + "with its tmux session."
-            : "We wait up to 15 seconds for the agent to finish writing the transcript."),
+            : closeChoice(target) ? "Choose whether the session saves its work before closing. The transcript stays in the archive."
+                : "We wait up to 15 seconds for the agent to finish writing the transcript."),
         done: (target) => `Session ${target} is closing`,
-        ok: (params, target) => (codexTarget(target) ? "Close" : "Close gently"),
+        ok: (params, target) => (codexTarget(target) || closeChoice(target) ? "Close" : "Close gently"),
         danger: true,
         escalate: (target) => (codexTarget(target) ? null : "session.kill"),
         escalateLabel: "Kill right now (kill -9)",
+    },
+    "session.finalize": {
+        title: (target) => `Wrap up ${target}?`,
+        effect: "Ask the session to save its task registry and handoff, commit completed work and stop background work. Readiness marks it finalized and leaves it open. This takes a turn and spends the model limit.",
+        done: (target) => `Session ${target} is wrapping up`,
+        ok: "Wrap up",
     },
     "project.pause": {
         instant: true,
@@ -1116,6 +1134,7 @@ const NAMES = {
     "claude.update": "Update Claude",
     "stack.down": "Bring down stack",
     "session.close": "Close session",
+    "session.finalize": "Wrap up session",
     "session.restart": "Restart session",
     "session.kill": "Kill session",
     "session.open": "Open session",
