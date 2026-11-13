@@ -78,6 +78,34 @@ type limitedExec struct{ kinds []Kind }
 func (e limitedExec) Execute(context.Context, Request) (string, error) { return "", nil }
 func (e limitedExec) Kinds() []Kind                                    { return e.kinds }
 
+func TestServerLeavesALiveSocket(t *testing.T) {
+	st := newStand(t, limitedExec{})
+	if _, err := NewServer(st.socket, limitedExec{}, 5*time.Second).Listen(); err == nil ||
+		!strings.Contains(err.Error(), "another executor answers") {
+		t.Fatalf("a second executor took the socket of a live one: %v", err)
+	}
+	conn, err := net.DialTimeout("unix", st.socket, time.Second)
+	if err != nil {
+		t.Fatalf("the live executor lost its socket: %v", err)
+	}
+	conn.Close()
+}
+
+func TestServerTakesAStaleSocket(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "exec.sock")
+	gone, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone.SetUnlinkOnClose(false)
+	gone.Close()
+	ln, err := NewServer(socket, limitedExec{}, 5*time.Second).Listen()
+	if err != nil {
+		t.Fatalf("a stale socket was not taken over: %v", err)
+	}
+	ln.Close()
+}
+
 func TestServerAnswersWithWhatTheHostCanDo(t *testing.T) {
 	client := serve(t, limitedExec{kinds: []Kind{ContainerStart, ContainerStop}})
 

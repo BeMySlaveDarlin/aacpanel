@@ -126,6 +126,12 @@ func (s *Server) Listen() (net.Listener, error) {
 		if info.Mode()&os.ModeSocket == 0 {
 			return nil, fmt.Errorf("%s is taken by something that is not a socket", s.path)
 		}
+		// A socket another executor answers on is that executor's, not a
+		// stale one: taking its path leaves the live executor serving nobody.
+		if conn, err := net.DialTimeout("unix", s.path, time.Second); err == nil {
+			conn.Close()
+			return nil, fmt.Errorf("another executor answers on %s", s.path)
+		}
 		if err := os.Remove(s.path); err != nil {
 			return nil, fmt.Errorf("stale socket: %w", err)
 		}
