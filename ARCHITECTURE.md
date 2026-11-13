@@ -2481,6 +2481,13 @@ created, closed and touched task lists come from that conversation's events
 since its previous handoff, rather than an agent's supplied lists. Reads select
 the latest project handoff or an explicit key.
 
+MCP task lists and write replies contain task summaries; only `task_show`
+includes the task's Markdown, with event summaries and handoff keys. Event
+summaries retain status transitions and changed fields without body text.
+Handoff reads and writes return Markdown once and grouped task numbers. Source
+records and screen attribution stay in the HTTP and CLI replies, so large
+documents do not multiply in an agent's context.
+
 The installed `aacpanel-exec hook task-context` runs on `SessionStart` for
 Claude and Codex with Panel tools. It supplies the latest project handoff,
 its task groups and next step, then the first ten open tasks ordered by priority,
