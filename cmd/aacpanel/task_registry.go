@@ -164,14 +164,25 @@ func (s *Server) apiTaskRegistry(w http.ResponseWriter, r *http.Request) {
 		out, err = s.db.Tasks(r.Context(), store.TaskFilter{ProjectID: id, Statuses: in.Status, Tags: in.Tags, Text: in.Text, Next: in.Next, Limit: in.Limit})
 	case "show":
 		out, err = s.db.Task(r.Context(), id, in.Number)
-	case "create":
-		out, err = s.db.WriteTask(r.Context(), id, 0, actor, in.Edit)
-	case "update":
-		if in.Number <= 0 {
+	case "create", "update":
+		if in.Operation == "update" && in.Number <= 0 {
 			http.Error(w, "an update needs a positive task number", http.StatusBadRequest)
 			return
 		}
-		out, err = s.db.WriteTask(r.Context(), id, in.Number, actor, in.Edit)
+		number := in.Number
+		if in.Operation == "create" {
+			number = 0
+		}
+		var written taskreg.Task
+		written, err = s.db.WriteTask(r.Context(), id, number, actor, in.Edit)
+		if err == nil {
+			// The task is read back as show reads it: the row the write
+			// returns has no project or contour, nor what the board derives
+			// from the events — whether it is in work and who touched it last.
+			var detail taskreg.Detail
+			detail, err = s.db.Task(r.Context(), id, written.Number)
+			out = detail.Task
+		}
 	case "handoff_write":
 		out, err = s.db.WriteHandoff(r.Context(), id, actor, cwd, in.Handoff)
 	case "handoff_read":

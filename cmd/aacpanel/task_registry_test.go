@@ -50,13 +50,20 @@ func TestTaskRegistryChecksTheBoundProjectAndRecordsItsAuthorPG(t *testing.T) {
 	create := taskreg.Request{Operation: "create", Conversation: own, Edit: taskreg.Edit{Title: &title}}
 	response := call(create, 200)
 	var task taskreg.Task
-	if err = json.Unmarshal(response, &task); err != nil || task.Number != 1 {
+	if err = json.Unmarshal(response, &task); err != nil || task.Number != 1 || task.Project == "" || task.ContourID == 0 {
 		t.Fatalf("create: %s %v", response, err)
 	}
 	detail, err := srv.db.Task(t.Context(), id, 1)
 	if err != nil || len(detail.Events) != 1 || detail.Events[0].Actor != own || detail.Events[0].ActorName != "task-worker" {
 		t.Fatalf("bound author: %+v %v", detail.Events, err)
 	}
+	done := "done"
+	response = call(taskreg.Request{Operation: "update", Conversation: own, Number: 1, Edit: taskreg.Edit{Status: &done}}, 200)
+	if err = json.Unmarshal(response, &task); err != nil || task.Status != "done" || task.InWork || task.LastActor != own || task.Project == "" {
+		t.Fatalf("update answers with the task as it now stands: %s %v", response, err)
+	}
+	reopened := "open"
+	call(taskreg.Request{Operation: "update", Conversation: own, Number: 1, Edit: taskreg.Edit{Status: &reopened}}, 200)
 	create.Project = id
 	create.Conversation = foreign
 	create.CWD = dir
