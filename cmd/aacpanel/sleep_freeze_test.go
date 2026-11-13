@@ -273,7 +273,9 @@ func TestLiveWakeUsesTheCensusTransportPG(t *testing.T) {
 		for _, sleeping := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%t", transport, sleeping), func(t *testing.T) {
 				s, p := pausedScene(t, true)
-				p.Sleeping, p.CommandAt = sleeping, time.Now().Add(-time.Second)
+				// The census keeps whole seconds: the sleep is dated by the
+				// census itself, which a clock reading may outrun by a second.
+				p.Sleeping, p.CommandAt = sleeping, time.Unix(s.snap.At, 0).Add(-time.Second)
 				p.Transport = "stream"
 				if transport == "stream" {
 					p.Transport = "tmux"
