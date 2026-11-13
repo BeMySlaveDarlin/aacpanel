@@ -16,6 +16,7 @@ import held  # noqa: E402
 import notes  # noqa: E402
 from chat import codex  # noqa: E402
 from collect import live  # noqa: E402
+import test_codex  # noqa: E402
 from test_codex import THREAD, Runtime, put_env  # noqa: E402
 from test_codex_archive import THREADS  # noqa: E402
 
@@ -197,6 +198,33 @@ class Parent(Procs):
         self.assertEqual(got, {TUI: None, RUN: ""},
                          "a codex hands down the environment of the claude that started it to every command")
 
+    def named(self, sid, name):
+        """Leaves the transcript of a conversation that is over, with the name it went by."""
+        folder = os.path.join(chat.PROJECTS_DIR, "-srv-lab")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, f"{sid}.jsonl"), "w", encoding="utf-8") as f:
+            for record in ({"type": "custom-title", "customTitle": "first", "sessionId": sid},
+                           {"type": "user", "timestamp": "2026-10-10T12:00:00Z", "cwd": "/srv/lab",
+                            "message": {"content": "go"}},
+                           {"type": "custom-title", "customTitle": name, "sessionId": sid}):
+                f.write(json.dumps(record, separators=(",", ":")) + "\n")
+
+    def test_a_run_sent_off_before_its_session_restarted_stays_with_the_session(self):
+        self.claude(name="lab")
+        self.named(GONE, "lab")
+        self.exec_run(ppid=1, CLAUDE_CODE_SESSION_ID=GONE)
+        procs = ctx.codex_live()
+        self.assertEqual([p.get("parent") for p in procs], [SESSION],
+                         "a restart starts another conversation under the same name, and the run stays with it")
+        self.assertEqual(ctx.codex_own_rows(procs), [], "the run rides on its session, not on a row of its own")
+
+    def test_a_run_of_a_conversation_named_otherwise_stands_on_its_own(self):
+        self.claude(name="lab")
+        self.named(GONE, "other")
+        self.exec_run(ppid=1, CLAUDE_CODE_SESSION_ID=GONE)
+        self.assertEqual([p.get("parent") for p in ctx.codex_live()], [""],
+                         "only the last name the conversation went by names its session")
+
     def test_a_run_whose_session_is_gone_stands_on_its_own(self):
         self.exec_run(CLAUDE_CODE_SESSION_ID=GONE)
         procs = ctx.codex_live()
@@ -210,6 +238,30 @@ class Parent(Procs):
             "tokens": 25840, "limit": 258400, "pct": 10.0, "limitKnown": True,
             "lastRequestAt": "2026-10-10T12:00:05.000Z", "title": "reviewer",
         }], "a run nobody live started is only read, by its role and never by what it was asked")
+
+
+class Asked(Procs):
+    """A question codex asked without waiting, on a row of a codex the panel only reads."""
+
+    def asked(self, thread, rollout):
+        """Writes into the rollout of a thread the questions it asked without waiting, the last one unanswered."""
+        with open(test_codex.ASYNC_QUESTIONS, encoding="utf-8") as src, open(rollout, "a", encoding="utf-8") as f:
+            f.writelines(line.replace(THREAD, thread) for line in src if '"session_meta"' not in line)
+
+    def test_a_run_asks_the_session_that_started_it_and_not_the_person(self):
+        self.exec_run(CLAUDE_CODE_SESSION_ID=GONE)
+        self.asked(RUN, self.thread(self.home, RUN)[1])
+        rows = ctx.codex_own_rows(ctx.codex_live())
+        self.assertEqual([r.get("title") for r in rows], ["reviewer"])
+        self.assertNotIn("ask", rows[0], "nobody answers a run of codex exec but its claude: the row hangs on it")
+
+    def test_a_codex_in_a_terminal_asks_the_person(self):
+        files = self.thread(self.home, TUI, source="cli")
+        self.asked(TUI, files[1])
+        self.process(OTHER_PID, "codex", [self.bin, "resume", TUI], env={"CODEX_HOME": self.home}, files=files)
+        rows = ctx.codex_own_rows(ctx.codex_live())
+        self.assertEqual([r.get("ask", {}).get("toolUseId") for r in rows], ["call_ask_logo"],
+                         "the person answers a codex in its terminal")
 
 
 class Terminal(Procs):

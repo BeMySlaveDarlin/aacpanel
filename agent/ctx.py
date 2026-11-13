@@ -632,7 +632,7 @@ def codex_ask(path):
                           for one in asked["asks"]]}
 
 
-def _with_crew(row, path):
+def _with_crew(row, path, asks=True):
     """Returns the row of a codex thread with the agents it has at work and the question it left hanging.
 
     Codex lets a thread go once its own turn is over, while the agents it
@@ -644,9 +644,11 @@ def _with_crew(row, path):
     or as free as the thread is, since codex goes on, and says it asks so.
     The question itself, with its options, goes with the state of the
     conversation (see codex_ask), as claude's does; the row names it by the
-    id its answer goes under, as claude's row does.
+    id its answer goes under, as claude's row does. A thread a claude session
+    drives asks that session, not the person (asks false): the question goes
+    back with the answer of the turn.
     """
-    asked = (_crew(path) or {}).get("asked")
+    asked = (_crew(path) or {}).get("asked") if asks else None
     if asked:
         row["ask"] = {"header": "", "text": asked["text"], "count": asked["count"], "at": asked["at"],
                       "async": True, "toolUseId": asked["id"]}
@@ -861,8 +863,11 @@ def codex_parent(proc, owners, sessions):
     it was started from and hands it down to every command its threads run.
     A chain that reaches the top with neither — a run sent off on its own,
     whose parent let it go — is named by the session claude put into its
-    environment, while that session lives. `owners` maps the pids of the
-    live sessions to what names them, `sessions` holds their ids.
+    environment, while that session lives, else by the live session that
+    goes by the name that conversation went by: a restart starts another
+    conversation under the same name, and the run stays with the session.
+    `owners` maps the pids of the live sessions to what names them,
+    `sessions` maps the ids of the live sessions to their names.
     """
     seen = set()
     at = parent_pid(proc["pid"])
@@ -874,7 +879,34 @@ def codex_parent(proc, owners, sessions):
         if _comm(at) == CODEX:
             return ""
         at = parent_pid(at)
-    return proc["claude"] if proc["claude"] in sessions else ""
+    if proc["claude"] in sessions:
+        return proc["claude"]
+    name = _conversation_name(proc["claude"])
+    return next((sid for sid, named in sessions.items() if named == name), "")
+
+
+# The names claude conversations went by, by the size and the time of their
+# transcripts: a run of codex sent off by a conversation that is over is
+# looked up on every reading of the sessions, and its transcript no longer
+# grows.
+_names = {}
+
+
+def _conversation_name(conversation):
+    """Returns the name a claude conversation went by last, empty for none."""
+    path = chat.claude_path(conversation)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return ""
+    key = (st.st_size, st.st_mtime_ns)
+    hit = _names.get(path)
+    if hit and hit[0] == key:
+        return hit[1]
+    if len(_names) >= MAX_CONTEXTS:
+        _names.clear()
+    _names[path] = (key, chat.title(path))
+    return _names[path][1]
 
 
 def codex_live(lives=None):
@@ -891,7 +923,7 @@ def codex_live(lives=None):
         lives = live_sessions()
     owners = {live["pid"]: {"session": live["name"], "sessionId": live["sessionId"]}
               for live in lives if live.get("pid")}
-    sessions = {live["sessionId"] for live in lives}
+    sessions = {live["sessionId"]: live["name"] for live in lives}
     for proc in procs:
         if _driven(proc):
             proc["parent"] = codex_parent(proc, owners, sessions)
@@ -1017,7 +1049,8 @@ def codex_own_row(proc):
     by its role for a run of codex exec or of codex as an MCP server, else by
     the name the panel gave the thread while a daemon held it, for as long as
     codex calls the thread by it: a name given in codex's own terminal since
-    is not shown, as it is not for a thread a daemon holds.
+    is not shown, as it is not for a thread a daemon holds. A run asks no
+    question of the person: the claude session that started it reads it.
     """
     thread = proc["thread"]
     found = codex.context(proc["rollout"]) or {"tokens": 0, "limit": 0, "at": "", "model": "",
@@ -1035,7 +1068,7 @@ def codex_own_row(proc):
     config_dir = _account(proc["contour"])
     if config_dir:
         row["configDir"] = config_dir
-    return _with_codex_account(_with_crew(_with_checklist(row), proc["rollout"]))
+    return _with_codex_account(_with_crew(_with_checklist(row), proc["rollout"], asks=not _driven(proc)))
 
 
 def _given_name(home, thread):

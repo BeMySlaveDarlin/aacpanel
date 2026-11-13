@@ -192,7 +192,7 @@ def _closed_with(bridge, near):
         path = _grep(needle, files)
         if path:
             sid = os.path.basename(path)[: -len(".jsonl")]
-            return {"id": sid, "name": _title(path) or os.path.basename(transcript_cwd(path).rstrip("/")) or sid[:8]}
+            return {"id": sid, "name": title(path) or os.path.basename(transcript_cwd(path).rstrip("/")) or sid[:8]}
     return None
 
 
@@ -213,7 +213,7 @@ def _grep(needle, files):
 TITLE_MARK = '"type":"custom-title"'
 
 
-def _title(path):
+def title(path):
     """Returns the last name a conversation was given, empty when it had none."""
     title = ""
     try:

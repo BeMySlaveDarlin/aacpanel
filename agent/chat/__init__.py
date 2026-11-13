@@ -20,8 +20,8 @@ from .harness import (COMMAND_RE, NOTES, PANEL_NOTE, SKIP, TASK_FIELD_RE,  # noq
 from .limits import (DEFAULT_LIMIT, MAX_ARG, MAX_ARGS, MAX_LIMIT,  # noqa: E402,F401
                      MAX_RESULT, MAX_TEXT, cut)
 from .locate import (SUBAGENT_ID_RE, UUID_RE, claude_path, dirs_for,  # noqa: E402,F401
-                     profile_dirs, record_cwd, subagent_path, transcript_cwd,
-                     transcript_path)
+                     profile_dirs, record_cwd, subagent_path, title,
+                     transcript_cwd, transcript_path)
 from .mail import MAIL_ATTR_RE, MAIL_RE, agent_mail, mails  # noqa: E402,F401
 from .queue import Pending, delivered  # noqa: E402,F401
 from .records import parse  # noqa: E402,F401
