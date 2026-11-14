@@ -269,7 +269,11 @@ p.pznote { margin: .3rem 0 0; }
 
 /* The shelf as a whole, and what lies next to it on disk. */
 .pzsummary { margin: .3rem 0 .5rem; color: var(--ink-dim); }
-.pzgroupmain .pown { flex: 0 1 auto; justify-content: flex-end; min-width: 0; }
+/* The project's name keeps its own line even when its launch has many overrides. */
+.pzprojectmain { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .25rem .5rem; }
+.pzprojectmain .pown { grid-column: 1; min-width: 0; overflow-wrap: anywhere; }
+.pzprojectmain .pown:empty { display: none; }
+.pzprojectmain .chev { grid-column: 2; grid-row: 1 / 3; }
 .pznear {
     display: flex; flex-direction: column; gap: .2rem;
     padding: .55rem 0; border-bottom: var(--hair) solid var(--line);

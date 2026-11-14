@@ -13,6 +13,9 @@ export function ownLabel(v) {
     switch (v.key) {
     case "agent": return value === "codex" ? "Codex" : "Claude Code";
     case "transport": return value === "stream" ? "stream" : "tmux";
+    case "codexTransport":
+    case "codexModel":
+    case "codexEffort": return `codex ${value}`;
     case "intent": return value === "" ? "no first message" : "first message";
     case "restartIntent": return "message after a restart";
     case "contextCap": return `cap ${value}%`;

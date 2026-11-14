@@ -97,3 +97,35 @@ func TestAGroupMovesToAnotherContourWhereNothingRoutes(t *testing.T) {
 		t.Errorf("the move's sheet %q sent %v", got.Sheet, got.Sent)
 	}
 }
+
+// Overrides leave the project's name visible, and the shelf counts the two
+// agents' efforts separately even when they have the same value.
+func TestGroupProjectsKeepTheirNameAndDistinctAgentSettings(t *testing.T) {
+	for _, screen := range []struct{ name, size, pointer string }{
+		{"phone360", `{"width":360,"height":852,"deviceScaleFactor":2,"mobile":true}`, phonePointer},
+		{"phone390", `{"width":390,"height":852,"deviceScaleFactor":2,"mobile":true}`, phonePointer},
+		{"desk", deskScreen, deskPointer},
+	} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got struct {
+				Settled     bool     `json:"settled"`
+				Name        string   `json:"name"`
+				NameVisible bool     `json:"nameVisible"`
+				Labels      []string `json:"labels"`
+				Summary     string   `json:"summary"`
+			}
+			serve := schemaAnswer(map[string]any{})
+			serve["/mode"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("crowded")) })
+			runFixtureServing(t, "groupsettings.html", screen.size, screen.pointer, serve, &got)
+			if !got.Settled || got.Name != "administration-console-with-a-long-project-name" || !got.NameVisible {
+				t.Errorf("the project name reads %q, visible %v, settled %v", got.Name, got.NameVisible, got.Settled)
+			}
+			if strings.Join(got.Labels, "|") != "xhigh|cap 70%|auto restart|message after a restart|codex xhigh" {
+				t.Errorf("the project's overrides read %v", got.Labels)
+			}
+			if got.Summary != "set otherwise than the contour: xhigh 1 of 1 · cap 70% 1 of 1 · auto restart 1 of 1 · message after a restart 1 of 1 · codex xhigh 1 of 1" {
+				t.Errorf("the shelf combines the agents' overrides as %q", got.Summary)
+			}
+		})
+	}
+}

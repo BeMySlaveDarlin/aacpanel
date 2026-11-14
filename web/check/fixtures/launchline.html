@@ -37,7 +37,10 @@ window.done = (async () => {
             ...drift(tmux, { session: "aacpanel", transport: null, model: "claude-sonnet-5" }),
         ],
         labels: [{ key: "transport", value: "stream" }, { key: "remoteControl", value: false }, { key: "contextCap", value: 70 },
-              { key: "intent", value: "" }, { key: "model", value: "sonnet" }].map(ownLabel),
+              { key: "intent", value: "" }, { key: "model", value: "sonnet" },
+              { key: "effort", value: "xhigh" }, { key: "codexEffort", value: "xhigh" },
+              { key: "codexModel", value: "gpt-6" }, { key: "transport", value: "tmux" },
+              { key: "codexTransport", value: "tmux" }].map(ownLabel),
     };
 })();
 </script>

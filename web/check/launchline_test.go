@@ -35,7 +35,7 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 	if got.Then != "then: remote control on · the first message" || got.TmuxThen {
 		t.Errorf("then reads %q (tmux has one: %v)", got.Then, got.TmuxThen)
 	}
-	if strings.Join(got.Labels, "|") != "stream|no RC|cap 70%|no first message|sonnet" {
+	if strings.Join(got.Labels, "|") != "stream|no RC|cap 70%|no first message|sonnet|xhigh|codex xhigh|codex gpt-6|tmux|codex tmux" {
 		t.Errorf("a project's own values read %v", got.Labels)
 	}
 	want := "person lives in tmux — the project says the stream|api runs Fable — the project says Opus"

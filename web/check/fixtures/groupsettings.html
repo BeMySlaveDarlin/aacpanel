@@ -23,10 +23,10 @@ const real = window.fetch.bind(window);
 const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
 
 const base = [
-    ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
+    ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", mode === "crowded" ? "high" : "xhigh", "account"],
     ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
     ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", null, "claude"],
-    ["env", null, "claude"], ["args", null, "claude"],
+    ["env", null, "claude"], ["args", null, "claude"], ["codexEffort", null, "codex"],
 ].map(([key, value, layer]) => ({ key, value, layer }));
 const effectiveOf = (launch) => base.map((v) => (v.key in launch ? { key: v.key, value: launch[v.key], layer: "project" } : v));
 const project = (id, name, launch) => ({
@@ -38,7 +38,11 @@ const personal = {
     account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 }, effective: base,
     ...(mode === "free" ? {} : { route: { prefix: "*" } }),
     groups: [
-        { id: 3, profileId: 3, name: "home", projects: [
+        { id: 3, profileId: 3, name: "home", projects: mode === "crowded" ? [
+            project(11, "administration-console-with-a-long-project-name", {
+                effort: "xhigh", codexEffort: "xhigh", contextCap: 70, autoRestart: true, restartIntent: "Keep working",
+            }),
+        ] : [
             project(11, "alpha", { remoteControl: true, transport: "stream" }), project(12, "beta", {}), project(13, "gamma", { effort: "high" }),
         ] },
         { id: 5, profileId: 3, name: "side", projects: [] },
@@ -111,7 +115,20 @@ const typeInto = async (el, value) => {
     await sleep(60);
 };
 
-window.done = mode === "free" ? (async () => {
+window.done = mode === "crowded" ? (async () => {
+    const settled = Boolean(await until(() => document.querySelector(".pzgroupmain .ownchip") && document.querySelector(".pzsummary")));
+    const row = document.querySelector(".pzgroupmain");
+    const name = row.querySelector(".pzgroupname");
+    const bounds = row.getBoundingClientRect();
+    const shown = name.getBoundingClientRect();
+    return {
+        settled, name: text(name),
+        nameVisible: name.checkVisibility() && shown.width > 0 && shown.height > 0
+            && shown.left >= bounds.left && shown.right <= bounds.right,
+        labels: Array.from(row.querySelectorAll(".ownchip"), text),
+        summary: text(document.querySelector(".pzsummary")),
+    };
+})() : mode === "free" ? (async () => {
     await until(() => field("Contour"));
     button("work", field("Contour")).click();
     await until(() => bar());

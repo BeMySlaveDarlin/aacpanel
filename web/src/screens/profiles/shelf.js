@@ -252,7 +252,7 @@ export function GroupSettings({ group, contour, profiles, disk, catalog, onClose
             onDrop=${wide ? dropOn : null}
             name=${(p) => `project ${p.name}`}
             row=${(p) => html`
-                <button class="pzgroupmain" type="button"
+                <button class="pzgroupmain pzprojectmain" type="button"
                         onClick=${() => onForm({ kind: "project", mode: "edit", profile: contour, group, project: p })}>
                     <span class="pzgroupname">${p.name}</span>
                     <span class="pown">${deviations(p, contour).map((v) => html`<span class="ownchip" key=${v.key}>${ownLabel(v)}</span>`)}</span>
