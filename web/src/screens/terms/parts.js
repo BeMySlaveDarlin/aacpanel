@@ -22,6 +22,7 @@ export const NAME_MAX = 40;
 export function TermCard({ t, acts, going = [], onOpen, onClose, onNew }) {
     const menu = useMenu();
     const busy = runs(t);
+    const { why } = itemsOf(t, acts);
     return html`
         <div class="tcardcell" role="presentation">
             <button class=${`tcard${busy ? " running" : ""}${t.foreign ? " foreign" : ""}`} type="button" onClick=${() => onOpen(t)}
@@ -37,8 +38,8 @@ export function TermCard({ t, acts, going = [], onOpen, onClose, onNew }) {
                 ${t.last && html`<span class="tcardlast">${t.last}</span>`}
             </button>
             <button type="button" class="tcardx" aria-label=${`close ${tabName(t)}`}
-                    disabled=${!acts.canClose(t) || going.includes(t.id)}
-                    title=${acts.canClose(t) ? undefined : acts.whyClose(t)}
+                    disabled=${Boolean(why.close) || going.includes(t.id)}
+                    title=${why.close || undefined}
                     onClick=${() => onClose(t)}>
                 ${Icon.close()}
             </button>
@@ -84,6 +85,7 @@ export function TermTabs({ tabs, current, acts, going = [], onPick, onClose, onN
         <div class=${box} role="tablist" aria-label="terminals of the place">
             ${tabs.map((t) => {
                 const on = t.id === current;
+                const { why } = itemsOf(t, acts);
                 return html`
                     <span key=${t.id} class=${`ttabcell${on ? " on" : ""}`} role="presentation">
                         <button type="button" role="tab" class=${`${one}${on ? " on" : ""}`}
@@ -96,8 +98,8 @@ export function TermTabs({ tabs, current, acts, going = [], onPick, onClose, onN
                             <span class="ttabname">${tabName(t)}</span>
                         </button>
                         <button type="button" class="ttabx" aria-label=${`close ${tabName(t)}`}
-                                disabled=${!acts.canClose(t) || going.includes(t.id)}
-                                title=${acts.canClose(t) ? undefined : acts.whyClose(t)}
+                                disabled=${Boolean(why.close) || going.includes(t.id)}
+                                title=${why.close || undefined}
                                 onClick=${() => onClose(t)}>
                             ${Icon.close()}
                         </button>

@@ -47,7 +47,7 @@ const HUES = ["--ok", "--accent-2", "--cat-agents", "--cat-tools"];
 const HUE_FALLBACK = ["#6b9c83", "#7fe3d4", "#b98cff", "#8f9dff"];
 
 // The kinds of background work a session reports, in the order its beads go.
-const WORK = ["agents", "tasks", "observers", "alarms"];
+const WORK = ["agents", "workflows", "tasks", "observers", "alarms"];
 
 // How fast a drag turns and tips the scene, in radians a pixel.
 const DRAG_YAW = 0.006;
@@ -194,7 +194,7 @@ export function graphOf(snapshot, before = null) {
             state,
             pct: s.pct || 0,
             idle: p.idle,
-            work: WORK.flatMap((kind) => Array((s.work && s.work[kind]) || 0).fill(kind)),
+            work: WORK.flatMap((kind) => Array((s.work && s.work[kind]) || 0).fill(kind === "workflows" ? "agents" : kind)),
             note: `${state.text}, ${short(p.idle)}`,
         };
     });

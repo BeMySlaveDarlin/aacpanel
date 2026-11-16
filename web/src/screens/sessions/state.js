@@ -46,22 +46,33 @@ export function runningOf(work) {
     return r.agents + r.commands + r.watchers;
 }
 
-// backgroundOf counts the background tasks of a session as the snapshot counts
-// them: its own, and the observers and the alarms it asked the panel for —
-// they end with it the same.
+// backgroundOf counts commands and observers, leaving timers to alarmsOf:
+// a timer runs nothing until it fires.
 export function backgroundOf(work) {
-    const w = work || {};
-    return (w.tasks || 0) + (w.observers || 0) + (w.alarms || 0);
+    const r = runsOf(work);
+    return r.commands + r.watchers;
 }
 
-// workOf says what a session has in its background, for a tip: its agents
-// and its background tasks.
+// alarmsOf counts the timers ahead of a session: the wakes it set itself and
+// the alarms the panel holds for it.
+export function alarmsOf(work) {
+    const w = work || {};
+    return (w.wakes || 0) + (w.alarms || 0);
+}
+
+// workOf names what a session keeps in its background for a tip, including
+// the timers ahead of it, which run nothing yet.
 export function workOf(work) {
-    const agents = (work && work.agents) || 0;
-    const tasks = backgroundOf(work);
+    const w = work || {};
+    const agents = w.agents || 0;
+    const workflows = w.workflows || 0;
+    const tasks = backgroundOf(w);
+    const alarms = alarmsOf(w);
     return [
         agents > 0 && `${agents} ${plural(agents, "agent", "agents")}`,
+        workflows > 0 && `${workflows} ${plural(workflows, "workflow", "workflows")}`,
         tasks > 0 && `${tasks} ${plural(tasks, "background task", "background tasks")}`,
+        alarms > 0 && `${alarms} ${plural(alarms, "alarm", "alarms")}`,
     ].filter(Boolean).join(" · ");
 }
 

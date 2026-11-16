@@ -9,6 +9,22 @@ import (
 	"testing"
 )
 
+func TestAWorkflowHasAnAgentMarkOnItsPlanet(t *testing.T) {
+	got := runModuleJS(t, "src/desktop/orbits/orbits.js", "graphOf", [][]any{
+		{map[string]any{"sessions": []any{
+			map[string]any{"session": "flow", "status": "idle", "work": map[string]any{"workflows": 1}},
+		}}},
+	})[0].(map[string]any)
+	nodes := got["nodes"].([]any)
+	if len(nodes) != 1 {
+		t.Fatalf("the workflow's session has %d planets, want one", len(nodes))
+	}
+	marks := nodes[0].(map[string]any)["work"].([]any)
+	if len(marks) != 1 || marks[0] != "agents" {
+		t.Errorf("the workflow's planet carries %v, want one agent mark", marks)
+	}
+}
+
 type homeGraph struct {
 	NotesOf map[string]string `json:"notesOf"`
 	Spins   struct {

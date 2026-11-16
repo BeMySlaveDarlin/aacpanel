@@ -51,5 +51,5 @@ export function useRemote({ name, live, exec, snapshot }) {
         const result = await run("session.remote", name, { on: !shown });
         if (result && result.ok) setWant(!shown);
     };
-    return { shown, contour, why, off, settling: want !== null, press };
+    return { shown, contour, why, off, press };
 }

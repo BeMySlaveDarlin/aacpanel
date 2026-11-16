@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { plural } from "../../format.js";
-import { backgroundOf, stateOf as cardState, timeOf } from "../sessions/state.js";
+import { alarmsOf, backgroundOf, stateOf as cardState, timeOf } from "../sessions/state.js";
 
 // Marquee renders a heading that does not fit as a running line.
 export function Marquee({ text }) {
@@ -125,13 +125,15 @@ export function MidName({ text }) {
 }
 
 // stopsOf names what a close or a restart of a live session ends with it: its
-// background tasks, agents and workflows at work, as the snapshot counts them.
+// background tasks, agents and workflows at work, and alarms still ahead.
 export function stopsOf(s) {
     const w = (s && s.work) || {};
     const out = [];
     const tasks = backgroundOf(w);
+    const alarms = alarmsOf(w);
     if (tasks > 0) out.push(`${tasks} ${plural(tasks, "background task", "background tasks")}`);
     if (w.agents > 0) out.push(`${w.agents} ${plural(w.agents, "agent", "agents")}`);
     if (w.workflows > 0) out.push(`${w.workflows} ${plural(w.workflows, "workflow", "workflows")}`);
+    if (alarms > 0) out.push(`${alarms} ${plural(alarms, "alarm", "alarms")}`);
     return out.join(", ");
 }

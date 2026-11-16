@@ -227,7 +227,7 @@ func TestThePhoneCardsOfferRestartAndCloseThroughThePie(t *testing.T) {
 	}
 	for name, want := range map[string]string{
 		"helios": "stops 1 background task, 2 agents · a new session",
-		"lab":    "stops 3 background tasks, 1 workflow · the conversation stays",
+		"lab":    "stops 2 background tasks, 1 workflow, 1 alarm · the conversation stays",
 	} {
 		if !strings.Contains(got.Notes[name], want) {
 			t.Errorf("the end of %s reads %q, expected it to name %q", name, got.Notes[name], want)

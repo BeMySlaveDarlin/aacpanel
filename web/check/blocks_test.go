@@ -187,6 +187,34 @@ func TestTheHeadSaysBackgroundWorkAsTheRowDoes(t *testing.T) {
 	}
 }
 
+func TestBackgroundWorkNamesWorkflowsAndAlarms(t *testing.T) {
+	cases := []struct {
+		name, line, stops string
+		work              map[string]any
+	}{
+		{"nothing", "", "", nil},
+		{"only a workflow", "1 workflow", "1 workflow", map[string]any{"workflows": 1}},
+		{"several workflows", "2 workflows", "2 workflows", map[string]any{"workflows": 2}},
+		{"an agent and an alarm", "1 agent · 1 alarm", "1 agent, 1 alarm", map[string]any{"agents": 1, "alarms": 1}},
+		{"only a wake", "1 alarm", "1 alarm", map[string]any{"tasks": 1, "wakes": 1}},
+		{"several alarms", "2 alarms", "2 alarms", map[string]any{"alarms": 2}},
+		{"every kind", "2 agents · 1 workflow · 2 background tasks · 2 alarms", "2 background tasks, 2 agents, 1 workflow, 2 alarms",
+			map[string]any{"agents": 2, "workflows": 1, "tasks": 2, "wakes": 1, "observers": 1, "alarms": 1}},
+	}
+	workCalls, stopCalls := make([][]any, len(cases)), make([][]any, len(cases))
+	for i, c := range cases {
+		workCalls[i] = []any{c.work}
+		stopCalls[i] = []any{map[string]any{"work": c.work}}
+	}
+	lines := runModuleJS(t, "src/screens/sessions/state.js", "workOf", workCalls)
+	stops := runModuleJS(t, "src/screens/chat/head.js", "stopsOf", stopCalls)
+	for i, c := range cases {
+		if lines[i] != c.line || stops[i] != c.stops {
+			t.Errorf("%s: background reads %q, close ends %q; want %q and %q", c.name, lines[i], stops[i], c.line, c.stops)
+		}
+	}
+}
+
 // Every kind of wait makes a card wait and lifts its block into what needs
 // the person — a question, a permission, a question asked in the conversation,
 // a request, a brief, a secret, a call — each said by its word and its
