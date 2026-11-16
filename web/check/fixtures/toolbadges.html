@@ -18,6 +18,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
+const wide = innerWidth >= 1100;
 const at = "2026-09-26T10:00:00Z";
 const kinds = Object.keys(KIND_NAMES).concat(["hook"]);
 const long = "A reply long enough to part the marks. ".repeat(4);
@@ -76,20 +77,22 @@ window.done = (async () => {
     const show = (session) => render(html`<${ToastHost}><${GateHost}><${Chat} name="lab" id="rail" live=${session}
         exec=${{ available: true, kinds: [] }} onBack=${() => {}} onUsage=${() => {}} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
     const read = () => ({
-        tail: Boolean(document.querySelector(".railbadge.k-files")),
-        anchored: Boolean(document.querySelector(".railbadge.k-bash")),
+        tail: Boolean(document.querySelector(wide ? ".tlentry.k-files" : ".railbadge.k-files")),
+        anchored: Boolean(document.querySelector(wide ? ".tlentry.k-bash" : ".railbadge.k-bash")),
         now: Boolean(document.querySelector(".nowchips .k-files")),
         agents: Boolean(document.querySelector(".nowwait")),
     });
     const until = async (ready) => {
         const end = performance.now() + 3000;
         while (!ready() && performance.now() < end) await frame();
+        if (!ready()) throw new Error("The timeline did not become ready");
     };
     show(live);
-    await until(() => document.querySelector(".nowchips .k-files") && document.querySelector(".railbadge.k-bash"));
+    await until(() => document.querySelector(".nowchips .k-files") && read().anchored);
     await quiet();
     out.running = read();
     show({ ...live, status: "idle" });
+    await until(() => read().tail && !read().now);
     await quiet();
     out.ended = read();
     show({ ...live, turnOver: true });
@@ -97,6 +100,7 @@ window.done = (async () => {
     out.waitingAgents = read();
     show(live);
     stream.listeners.chat({ data: JSON.stringify({ items: [{ role: "ai", text: "The file checks out.", pos: 5, at }], total: 5 }) });
+    await until(() => read().tail && read().anchored && read().now);
     await quiet();
     out.replied = read();
     return out;

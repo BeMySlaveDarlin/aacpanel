@@ -479,11 +479,13 @@ export function FeedGrid({ rows, wide, busy, row, tail, checklist, onOpen }) {
     const col = useRef(null);
     const geo = useGeometry(col, prose.length);
     // The bar above the composer carries the unfinished run until it has a
-    // reply or its turn ends. Filter before merging stacks so its badges and
-    // its height cannot leak into a neighbouring stack on the phone's rail.
-    const groups = useMemo(() => (geo ? (wide ? deskGroups(marks, geo, prose)
-        : railStacks(busy ? marks.filter((m) => !m.end) : marks, geo)) : []),
-        [marks, geo, wide, prose, busy]);
+    // reply or its turn ends. Filter before grouping so its work cannot leak
+    // into the timeline or a neighbouring stack on the phone's rail.
+    const groups = useMemo(() => {
+        if (!geo) return [];
+        const shown = busy ? marks.filter((m) => !m.end) : marks;
+        return wide ? deskGroups(shown, geo, prose) : railStacks(shown, geo);
+    }, [marks, geo, wide, prose, busy]);
     // A stack can reach past the last row: the strip is as tall as its
     // lowest stack, so the feed scrolls to it.
     const last = !wide && groups[groups.length - 1];

@@ -32,22 +32,30 @@ func TestEveryKindOfWorkHasABadgeOnTheTimeline(t *testing.T) {
 	}
 }
 
-func TestThePhoneRailWaitsForTheCurrentRun(t *testing.T) {
-	type run struct {
-		Tail, Anchored, Now, Agents bool
-	}
-	var got struct{ Running, Ended, WaitingAgents, Replied run }
-	runFixture(t, "toolbadges.html", &got)
-	if g := got.Running; g.Tail || !g.Anchored || !g.Now {
-		t.Errorf("running turn: %+v — its tail belongs to the now bar, and anchored work stays", g)
-	}
-	if g := got.Ended; !g.Tail || g.Now {
-		t.Errorf("ended turn: %+v — its tail belongs on the rail", g)
-	}
-	if g := got.WaitingAgents; !g.Tail || !g.Agents || g.Now {
-		t.Errorf("turn waiting on agents: %+v — the run is over and the bar counts the agents", g)
-	}
-	if g := got.Replied; !g.Tail || !g.Anchored || !g.Now {
-		t.Errorf("running turn after its reply: %+v — work anchored to a reply stays on the rail", g)
+func TestTimelineWaitsForTheCurrentRun(t *testing.T) {
+	for _, screen := range []string{"phone", "desktop"} {
+		t.Run(screen, func(t *testing.T) {
+			type run struct {
+				Tail, Anchored, Now, Agents bool
+			}
+			var got struct{ Running, Ended, WaitingAgents, Replied run }
+			if screen == "desktop" {
+				runWideFixture(t, "toolbadges.html", &got)
+			} else {
+				runFixture(t, "toolbadges.html", &got)
+			}
+			if g := got.Running; g.Tail || !g.Anchored || !g.Now {
+				t.Errorf("running turn: %+v — its tail belongs to the now bar, and anchored work stays", g)
+			}
+			if g := got.Ended; !g.Tail || g.Now {
+				t.Errorf("ended turn: %+v — its tail belongs on the timeline", g)
+			}
+			if g := got.WaitingAgents; !g.Tail || !g.Agents || g.Now {
+				t.Errorf("turn waiting on agents: %+v — the run is over and the bar counts the agents", g)
+			}
+			if g := got.Replied; !g.Tail || !g.Anchored || !g.Now {
+				t.Errorf("running turn after its reply: %+v — work anchored to a reply stays on the timeline", g)
+			}
+		})
 	}
 }
