@@ -149,7 +149,10 @@ func TestACallMarksItsSessionUntilTheSessionIsOpenedPG(t *testing.T) {
 		t.Fatalf("a session that never called is marked as called at %s", got)
 	}
 
-	const first = "2026-10-16T09:00:00Z"
+	// The panel keeps calls for a while only: a fixed date in the past would
+	// fall out of it once the calendar passes it.
+	at := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	first := at.Format(time.RFC3339)
 	call(first)
 	if got := calledOf(t, p.poll(t, "/api/host")); got != first {
 		t.Fatalf("the session that called is marked %q, wanted %q", got, first)
@@ -171,7 +174,7 @@ func TestACallMarksItsSessionUntilTheSessionIsOpenedPG(t *testing.T) {
 	// The session is on screen when the next call comes: the device marked
 	// it a moment ago, and the call is seen as it comes.
 	p.poll(t, "/api/host?viewing=sentinel")
-	call("2026-10-16T09:05:00Z")
+	call(at.Add(5 * time.Minute).Format(time.RFC3339))
 	if got := calledOf(t, p.poll(t, "/api/host")); got != "" {
 		t.Fatalf("a call made with the session on screen marks it, at %s", got)
 	}
