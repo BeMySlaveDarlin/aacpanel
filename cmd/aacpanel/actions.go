@@ -13,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
+	"aacpanel/internal/chat"
 	personrequest "aacpanel/internal/request"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
@@ -1489,6 +1490,19 @@ func (s *Server) resumeTarget(r *http.Request, name string, params map[string]an
 			return "", "", "", 0, err
 		}
 		if cwd == "" {
+			// The collector reads transcripts directly, before a short-lived
+			// conversation reaches the minute rollups.
+			if s.chat.Available() {
+				page, readErr := s.chat.Archive(r.Context(), chat.ArchiveReq{Limit: 1, Conversations: []string{id}})
+				if readErr != nil {
+					return "", "", "", 0, readErr
+				}
+				for _, archived := range page.Rows {
+					if archived.SessionID == id && archived.Agent == "" && archived.CWD != "" {
+						return id, archived.CWD, archived.Name, 0, nil
+					}
+				}
+			}
 			return "", "", "", 0, fmt.Errorf("conversation %q is not in the archive of this machine", id)
 		}
 		return id, cwd, ranAs, 0, nil
