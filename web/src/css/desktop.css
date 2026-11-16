@@ -392,7 +392,7 @@
     /* The heading right under the band of the contour needs no air above. */
     .dkcontour + .dkproj { padding-top: .35rem; }
 
-    .dkprojname { min-width: 0; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); overflow-wrap: anywhere; }
+    .dkprojname { min-width: 0; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 

@@ -265,7 +265,7 @@ function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings })
             project: p, profile: entry, sessions, exec, onNew: start, onTerm,
             onSettings: onSettings && entry ? () => onSettings({ contour: entry.id, project: p.id }) : null,
         }, `project ${block.name}`)}>
-            <span class="dkprojname">${block.name}</span>
+            <span class="dkprojname" data-tip=${block.name}>${block.name}</span>
             ${block.group && html`<span class="dkprojgroup">${block.group}</span>`}
             <${HeadActs} block=${block} profile=${entry} sessions=${sessions} exec=${exec} wait=${wait} />
         </div>

@@ -90,6 +90,10 @@ type deskCard struct {
 	WithPanel         deskCardHead     `json:"withPanel"`
 	WithoutPanel      deskCardHead     `json:"withoutPanel"`
 	PhoneWhen         string           `json:"phoneWhen"`
+	ProjectHead       struct {
+		Name string `json:"name"`
+		Tip  string `json:"tip"`
+	} `json:"projectHead"`
 }
 
 // The page is run once for all the tests below: each of them reads its own
@@ -116,6 +120,14 @@ func runDeskCard(t *testing.T) deskCard {
 		t.Fatal("deskcard.html failed under Chrome — its error is reported by the test that ran it")
 	}
 	return deskCardRun.got
+}
+
+func TestTheProjectHeadingKeepsItsFullNameInATip(t *testing.T) {
+	got := runDeskCard(t).ProjectHead
+	const name = "browser-extension-release-automation"
+	if got.Name != name || got.Tip != name {
+		t.Errorf("the project heading reads %q with tip %q, want its full name %q in both", got.Name, got.Tip, name)
+	}
 }
 
 // The live sessions of a contour keep their places whatever they do: they

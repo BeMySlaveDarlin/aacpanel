@@ -142,8 +142,8 @@ const picked = [];
 const orders = [];
 let archiveOpened = 0;
 // The column stands under the host of the pies, as in the shell of the desk.
-const column = (sessions, current, currentId = "") => {
-    const snapshot = { at: now / 1000, sessions, profileMap, limits, profiles: accounts, host: { home: "/home/u" } };
+const column = (sessions, current, currentId = "", map = profileMap) => {
+    const snapshot = { at: now / 1000, sessions, profileMap: map, limits, profiles: accounts, host: { home: "/home/u" } };
     render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec, wait }, h(SessionColumn, {
         snapshot, limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
         onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait,
@@ -347,6 +347,14 @@ window.done = (async () => {
         document.getElementById("phone"));
     await sleep(50);
     out.phoneWhen = text(document.querySelector("#phone .sctime"));
+
+    const longName = "browser-extension-release-automation";
+    column([first[1]], "aacpanel", "", [{ ...profileMap[0], groups: [
+        { name: "Frontend", projects: [{ ...projects[11], name: longName }] },
+    ] }]);
+    await until(() => text(root().querySelector(".dkprojname")) === longName, "the long project's heading");
+    const projectName = root().querySelector(".dkprojname");
+    out.projectHead = { name: text(projectName), tip: projectName.getAttribute("data-tip") || "" };
     return out;
 })();
 </script>
