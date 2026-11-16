@@ -42,7 +42,7 @@ const old = [
     { role: "secret", title: "Release token", name: "release.env", pos: 12, at },
     { role: "call", text: "CI needs your choice", pos: 13, at },
 ];
-old.push({ role: "ai", text: "Shall I publish? The checks passed.", pos: 16, at });
+old.push({ role: "ai", text: "The checks passed. Shall I publish or wait?\n\nClean the unused images too? Yes or no?", pos: 16, at });
 const tail = Array.from({ length: 40 }, (_, i) => ({ role: "ai", pos: 1000 + i, text: `Later answer ${i}: the session kept working on the independent part of its task.`, at }));
 const all = [...old, ...tail];
 const sent = [];
@@ -190,10 +190,13 @@ window.done = (async () => {
     }
     out.loadedOlderWindow = windows.includes("before") && windows.includes("after");
     out.questionSummary = document.querySelector(".mquestionwhat")?.textContent === "Shall I publish?";
-    out.questionFullText = document.querySelector(".mquestionwhat")?.parentElement.textContent.includes("The checks passed.");
+    const questionMessage = document.querySelector(".mquestionwhat")?.parentElement;
+    out.questionFullText = questionMessage?.textContent.includes("Shall I publish or wait?")
+        && questionMessage.textContent.includes("Clean the unused images too? Yes or no?");
     const quick = () => document.querySelector(".mquestionanswers");
     const choices = candidates.find(item => item.kind === "question");
-    out.quickButtons = [...quick().querySelectorAll("button")].map(b => b.textContent).join("|") === "Publish|Wait";
+    const noReplies = () => !quick() && !document.querySelector('.feedrow[data-pos="16"] .requestnote, .feedrow[data-pos="16"] .requestanswer');
+    out.proseRepliesAbsent = noReplies();
     // The host says the question again without its replies, then with none:
     // each snapshot brings the session and what waits in it anew.
     const asked = session;
@@ -205,37 +208,44 @@ window.done = (async () => {
     };
     offer(undefined);
     redraw(); await quiet();
-    out.quickMissing = !quick();
+    out.repliesMissing = noReplies();
     offer([]);
     redraw(); await quiet();
-    out.quickEmpty = !quick();
+    out.repliesEmpty = noReplies();
     session = asked;
     snapshot.sessions = [session];
     const kinds = exec.kinds;
     exec.kinds = [];
     redraw(); await quiet();
-    out.quickUnavailable = !quick();
+    out.repliesUnavailable = noReplies();
     exec.kinds = kinds;
     session.outside = true;
     redraw(); await quiet();
-    out.quickOutside = !quick();
+    out.repliesOutside = noReplies();
     session.outside = false;
     redraw(); await quiet();
-    const beforeQuick = sent.length;
+    const sendReply = async (text) => {
+        const field = document.querySelector(".composer textarea");
+        field.value = text;
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        await quiet();
+        const send = document.querySelector(".composer .sendbtn");
+        send.click(); send.click();
+    };
+    const beforeReply = sent.length;
     holdQuestion = true;
-    const firstReply = quick().querySelector("button");
-    firstReply.click(); firstReply.click();
-    await until(() => releaseQuestion && [...quick().querySelectorAll("button, textarea")].every(b => b.disabled));
-    out.quickBusy = sent.length === beforeQuick + 1 && queueCount() === 4;
-    out.quickPlain = sent.at(-1)?.kind === "session.send" && sent.at(-1)?.target === "work" && sent.at(-1)?.params?.text === "Publish";
+    await sendReply("Publish it.");
+    await until(() => releaseQuestion && document.querySelector(".composer textarea").disabled);
+    out.replyBusy = sent.length === beforeReply + 1 && queueCount() === 4;
+    out.replyPlain = sent.at(-1)?.kind === "session.send" && sent.at(-1)?.target === "work" && sent.at(-1)?.params?.text === "Publish it.";
     document.querySelector(".feedjump").click();
-    await until(() => [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Publish")));
-    out.quickLocalSending = document.querySelector(".chatfeed").textContent.includes("going out");
+    await until(() => [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Publish it.")));
+    out.replyLocalSending = document.querySelector(".chatfeed").textContent.includes("going out");
     releaseQuestion(); releaseQuestion = null;
     await quiet();
-    out.quickFailedRow = [...document.querySelectorAll(".msg.me.failed")].some(row => row.textContent.includes("Publish") && row.textContent.includes("Delivery refused"));
+    out.replyFailedRow = [...document.querySelectorAll(".msg.me.failed")].some(row => row.textContent.includes("Publish it.") && row.textContent.includes("Delivery refused"));
     await pick("Shall I publish?");
-    out.quickFailureKeeps = Boolean(quick()) && queueCount() === 4;
+    out.replyFailureKeeps = Boolean(document.querySelector(".mquestionwhat")) && queueCount() === 4 && noReplies();
     await pick("Restart the router");
     card = requestSheet()?.querySelector(".mrequest");
     const field = card.querySelector("textarea");
@@ -258,37 +268,23 @@ window.done = (async () => {
     out.requestGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes(record.title));
     out.questionHighlightKept = Boolean(feed.querySelector(".r-ai.waitingtarget"));
     await pick("Shall I publish?");
-    const note = quick().querySelector("textarea");
-    note.value = "  Hold for CI.\nKeep logs.  ";
-    note.dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
+    const replyText = "Wait for CI.\n\nYes, clean the unused images.\nKeep logs.";
     holdQuestion = true;
-    quick().querySelectorAll("button")[1].click();
+    await sendReply(replyText);
     await until(() => releaseQuestion);
-    const quickSent = sent.at(-1);
-    out.quickNote = quickSent?.params?.text === "Wait\n\nHold for CI.\nKeep logs.";
-    out.quickMessageId = /^[0-9a-f-]{36}$/.test(quickSent?.params?.messageId || "");
+    const replySent = sent.at(-1);
+    out.replyText = replySent?.params?.text === replyText;
+    out.replyMessageId = /^[0-9a-f-]{36}$/.test(replySent?.params?.messageId || "");
     releaseQuestion(); releaseQuestion = null;
     await quiet();
-    out.quickGone = Boolean(document.querySelector('.feedrow[data-pos="16"]')) && !quick() && queueCount() === 2;
-    document.querySelector(".feedjump").click();
-    await quiet();
-    out.quickLocalQueued = [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Wait"))
-        && document.querySelector(".chatfeed").textContent.includes("queued");
-    // A composer reply settles a fresh question through the same send gate.
-    choices.id = "composer-question";
-    redraw(); await quiet();
-    await pick("Shall I publish?");
-    const reply = document.querySelector(".composer textarea");
-    reply.value = "Publish it.";
-    reply.dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
-    document.querySelector(".composer .sendbtn").click();
-    await until(() => sent.at(-1)?.params?.text === "Publish it.");
-    await quiet();
+    out.replyGone = noReplies() && queueCount() === 2;
     out.countAfterReply = queueCount();
     out.questionSummaryGone = !document.querySelector(".mquestionwhat");
     out.questionHighlightGone = !feed.querySelector(".waitingtarget");
+    document.querySelector(".feedjump").click();
+    await quiet();
+    out.replyLocalQueued = [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Yes, clean the unused images."))
+        && document.querySelector(".chatfeed").textContent.includes("queued");
     await pick("Release token");
     out.hostHighlightBefore = Boolean(feed.querySelector(".r-secret.waitingtarget"));
     const waitingSession = session;
@@ -309,7 +305,7 @@ window.done = (async () => {
     openCard();
     await until(() => queue() && document.querySelector(".feedrow"));
     await pick("Shall I publish?");
-    out.quickCodex = Boolean(document.querySelector(".mquestionwhat")) && !quick();
+    out.repliesCodex = Boolean(document.querySelector(".mquestionwhat")) && noReplies();
     return out;
 })();
 </script>

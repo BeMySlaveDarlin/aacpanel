@@ -337,7 +337,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // What the rows of the feed are handed, and what the feed lends them,
     // keeps one identity across renders, each hand running what the latest
     // render made of it: a handler made anew by every render would draw every
-    // row again (see FeedRow). The two made further down are reached by late.
+    // row again (see FeedRow). The handler made further down is reached by late.
     const late = useRef({});
     const onPage = useCallback((card) => setLook({ kind: "artifact", card }), []);
     const onFile = useCallback((file) => setLook({ kind: "file", ...file }), []);
@@ -348,7 +348,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ? openAgent({ id: task.id, name: task.name, kind: "background" })
         : setLook({ kind: "task", id: task.id, text: task.name })));
     const steadyAnswerRequest = useSteady(answerRequest);
-    const steadyAnswerQuestion = useSteady((value, note) => late.current.answerQuestion(value, note));
     const steadyQuote = useSteady(takeQuote);
     const steadyEdit = useSteady(putBack);
     const steadyQueueOf = useSteady(queueOf);
@@ -424,17 +423,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         if (patch.state !== "queued") return;
         for (const item of waitingItems) if (item.kind === "question") settleWaiting(live, "question", item.id);
     };
-    const answerQuestion = async (value, note) => {
-        const text = note.trim() ? `${value}\n\n${note.trim()}` : value;
-        const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const messageId = messageID(composer.ids, []);
-        onLocal({ role: "me", key, at: new Date().toISOString(), text, sent: text, state: "sending", messageId,
-            from: { name, text, files: 0 }, done: (patch) => onSent(key, patch) });
-        const result = await deliver(run, name, { text, messageId });
-        onSent(key, outcome(result));
-    };
     late.current = {
-        answerQuestion,
         onRun: (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
                                                      onLocal, onLocalDone, confirm: true }),
     };
@@ -451,7 +440,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const asksTurn = Boolean(ask && !closed(state.items, ask.toolUseId) && !hidesAsk(answer, ask.toolUseId)
         && !(goesOn && (permits || pending.some((row) => row.asked === ask.toolUseId))));
     const onRequestAnswer = live && !live.outside && !asksTurn && !permits && knows(exec, "session.send") ? steadyAnswerRequest : null;
-    const onQuestionAnswer = onRequestAnswer && !isCodex(live) ? steadyAnswerQuestion : null;
     const requestUnavailable = asksTurn || permits ? REQUEST_HELD : "This session cannot receive an answer.";
     // An answer to it goes as a message of the person, and stands as one on
     // its way: the card of the round answered (see panelsaid.js).
@@ -580,7 +568,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         requests=${requests}
                         requestError=${requestError}
                         onRequestAnswer=${onRequestAnswer}
-                        onQuestionAnswer=${onQuestionAnswer}
                         requestUnavailable=${requestUnavailable}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}
