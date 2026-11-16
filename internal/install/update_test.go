@@ -101,3 +101,30 @@ func TestAnUpdateOfABranchPullsWithoutAMerge(t *testing.T) {
 		t.Errorf("a clone with changes: %v", err)
 	}
 }
+
+func TestAnUpdateOfABranchExplainsWhyItCannotPull(t *testing.T) {
+	for _, c := range []struct {
+		name, diagnosis, fix string
+		upstream             Reply
+	}{
+		{"no upstream", "the branch main tracks no remote", "git -C " + clone + " branch --set-upstream-to=origin/main", fails("There is no tracking information for the current branch")},
+		{"diverged", "the branch went apart from its remote", "./install.sh update pulls once it goes forward only", ok("origin/main")},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			machine := healthy()
+			machine.Cmds[key("git", "-C", clone, "status", "--porcelain", "--untracked-files=no")] = ok("")
+			machine.Cmds[key("git", "-C", clone, "rev-parse", "HEAD")] = ok("abc123")
+			machine.Cmds[key("git", "-C", clone, "symbolic-ref", "-q", "--short", "HEAD")] = ok("main")
+			machine.Cmds[key("git", "-C", clone, "rev-parse", "--abbrev-ref", "@{u}")] = c.upstream
+			machine.Cmds[key("git", "-C", clone, "pull", "--ff-only")] = fails("Not possible to fast-forward, aborting.")
+			_, err := MoveClone(&Run{Shell: machine}, clone, -1)
+			failure, ok := err.(*Failed)
+			if !ok || !strings.Contains(failure.Diagnosis, c.diagnosis) || !strings.Contains(strings.Join(failure.Fix, "\n"), c.fix) {
+				t.Fatalf("the refusal must explain %s and its fix: %v", c.name, err)
+			}
+			if c.name == "no upstream" && strings.Contains(err.Error(), "went apart") {
+				t.Errorf("a branch with no upstream was reported as diverged: %v", err)
+			}
+		})
+	}
+}

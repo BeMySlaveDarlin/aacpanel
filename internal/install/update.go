@@ -55,6 +55,10 @@ func MoveClone(r *Run, clone string, paradigm int) (Moved, error) {
 			return m, &Failed{Diagnosis: "--to moves a clone that is on a release, and this one is on the branch " + branch,
 				Fix: []string{"./install.sh update pulls " + branch + "; git -C " + clone + " checkout vP.M.m puts it on a release."}}
 		}
+		if _, err := git(r, clone, "rev-parse", "--abbrev-ref", "@{u}"); err != nil {
+			return m, fail("the branch "+branch+" tracks no remote", err,
+				"git -C "+clone+" branch --set-upstream-to=origin/"+branch+", then ./install.sh update.")
+		}
 		if _, err := git(r, clone, "pull", "--ff-only"); err != nil {
 			return m, fail("git pull --ff-only fails on "+branch+": the branch went apart from its remote", err,
 				"git -C "+clone+" status and git log say how; ./install.sh update pulls once it goes forward only.")
