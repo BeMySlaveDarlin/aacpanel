@@ -120,3 +120,24 @@ func TestTheStatusLineNeedsNoExternalProgramAndHonoursPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestTheStatusLineSnapshotsEveryWindowItReceives(t *testing.T) {
+	for _, c := range []struct{ name, limits, windows string }{
+		{"week only", `"seven_day":{"used_percentage":62,"resets_at":1788450000}`, `"sevenDay":{"pct":62,"resetsAt":1788450000}`},
+		{"both windows", `"five_hour":{"used_percentage":11,"resets_at":1788190000},"seven_day":{"used_percentage":62,"resets_at":1788450000}`,
+			`"fiveHour":{"pct":11,"resetsAt":1788190000},"sevenDay":{"pct":62,"resetsAt":1788450000}`},
+		{"five hours only", `"five_hour":{"used_percentage":0}`, `"fiveHour":{"pct":0,"resetsAt":null}`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "limits.json")
+			t.Setenv("AACP_RATE_SNAPSHOT", path)
+			t.Setenv("AACP_RATE_THROTTLE", "20")
+			now := time.Unix(1790000000, 0)
+			snapshot([]byte(`{"rate_limits":{`+c.limits+`}}`), now)
+			want := fmt.Sprintf("{\"at\":%d,%s}\n", now.Unix(), c.windows)
+			if got, err := os.ReadFile(path); err != nil || string(got) != want {
+				t.Fatalf("snapshot %q, want %q: %v", got, want, err)
+			}
+		})
+	}
+}

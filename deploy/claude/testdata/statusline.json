@@ -12,7 +12,7 @@
     "name": "zero limits",
     "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":0}}}\n",
     "want": {
-      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":0,\"resetsAt\":null},\"sevenDay\":{\"pct\":null,\"resetsAt\":null}}\n",
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":0,\"resetsAt\":null}}\n",
       "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
     },
     "stdout": ""
@@ -377,8 +377,16 @@
     "name": "empty strings are absent limits",
     "payload": "{\"session_id\": \"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\", \"model\": {\"id\": \"claude-fable-5-1\", \"display_name\": \"Fable 5.1\"}, \"effort\": {\"level\": \"xhigh\"}, \"context_window\": {\"context_window_size\": 1000000}, \"rate_limits\": {\"five_hour\": {\"used_percentage\": 0, \"resets_at\": \"\"}, \"seven_day\": {\"used_percentage\": \"\", \"resets_at\": \"\"}}}\n",
     "want": {
-      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":0,\"resetsAt\":null},\"sevenDay\":{\"pct\":null,\"resetsAt\":null}}\n",
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":0,\"resetsAt\":null}}\n",
       "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "weekly limits without a five-hour window",
+    "payload": "{\"rate_limits\":{\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n"
     },
     "stdout": ""
   }

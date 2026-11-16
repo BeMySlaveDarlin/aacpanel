@@ -126,6 +126,7 @@ func snapshot(raw []byte, now time.Time) {
 	config := env("CLAUDE_CONFIG_DIR", filepath.Join(os.Getenv("HOME"), ".claude"))
 	path := env("AACP_RATE_SNAPSHOT", filepath.Join(config, "rate-limits.json"))
 	five := rawValue(field(v, "rate_limits", "five_hour", "used_percentage"), "")
+	seven := rawValue(field(v, "rate_limits", "seven_day", "used_percentage"), "")
 	throttle, err := strconv.ParseInt(env("AACP_RATE_THROTTLE", "20"), 10, 64)
 	if err != nil {
 		throttle = 20
@@ -134,12 +135,15 @@ func snapshot(raw []byte, now time.Time) {
 	if st, err := os.Stat(path); err == nil {
 		was = st.ModTime().Unix()
 	}
-	if five != "" && now.Unix()-was >= throttle {
-		value := func(window, key string) string {
-			return rawValue(field(v, "rate_limits", window, key), "null")
+	if (five != "" || seven != "") && now.Unix()-was >= throttle {
+		parts := []string{fmt.Sprintf(`"at":%d`, now.Unix())}
+		for _, w := range []struct{ window, key, pct string }{{"five_hour", "fiveHour", five}, {"seven_day", "sevenDay", seven}} {
+			if w.pct != "" {
+				reset := rawValue(field(v, "rate_limits", w.window, "resets_at"), "null")
+				parts = append(parts, fmt.Sprintf(`"%s":{"pct":%s,"resetsAt":%s}`, w.key, w.pct, reset))
+			}
 		}
-		replace(path, fmt.Sprintf(`{"at":%d,"fiveHour":{"pct":%s,"resetsAt":%s},"sevenDay":{"pct":%s,"resetsAt":%s}}`,
-			now.Unix(), five, value("five_hour", "resets_at"), value("seven_day", "used_percentage"), value("seven_day", "resets_at")))
+		replace(path, "{"+strings.Join(parts, ",")+"}")
 	}
 
 	sid := rawValue(field(v, "session_id"), "")
