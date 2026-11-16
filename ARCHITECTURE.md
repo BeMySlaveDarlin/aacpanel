@@ -2095,6 +2095,12 @@ its path adds the former path without duplicates and removes the new current
 path from that list; the API can replace the list with absolute paths. Current
 project paths take precedence over all former paths, including for worktrees.
 Archive rows, live sessions and other directory lookups use the same rule.
+An archive row left unplaced by these directories and its transcript slug
+uses the last project recorded for its conversation in `session_living`, if
+that project is still in the map. The lookup is one query for all unplaced
+conversations on the page, scoped to the host, and applies to Claude and Codex
+alike. It needs no worktree left on disk. The census has no expiry; without a
+saved row, the conversation stays outside the map.
 The archive of one project sends its current and former paths to the collector,
 along with the current paths of other projects, so filtering precedes pagination
 and respects current ownership. Its string `under` stays alongside `underPaths`

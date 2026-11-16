@@ -672,6 +672,35 @@ func (s *Server) placeArchive(ctx context.Context, rows []chat.ArchiveRow) {
 		return
 	}
 	placeRows(rows, list, s.worktrees(), s.db.ProjectRoots())
+	var conversations []string
+	for _, row := range rows {
+		if row.Project == nil && row.SessionID != "" {
+			conversations = append(conversations, row.SessionID)
+		}
+	}
+	if len(conversations) == 0 {
+		return
+	}
+	hostID, err := s.db.HostID(ctx, s.hostName)
+	if err != nil {
+		log.Printf("session archive: the host of the saved projects is unavailable: %v", err)
+		return
+	}
+	projects, err := s.db.LivingProjects(ctx, hostID, conversations)
+	if err != nil {
+		log.Printf("session archive: the saved projects are unavailable: %v", err)
+		return
+	}
+	// A removed worktree leaves no directory to resolve. Its saved project is
+	// only a fallback: current ownership and transcript slugs still win.
+	for i := range rows {
+		if rows[i].Project != nil {
+			continue
+		}
+		if found, ok := projectByID(list, projects[rows[i].SessionID]); ok {
+			rows[i].Project = found.ref()
+		}
+	}
 }
 
 // placeRows gives every archived conversation the project it ran in, found

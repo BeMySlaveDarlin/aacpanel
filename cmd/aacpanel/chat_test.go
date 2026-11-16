@@ -664,6 +664,106 @@ func TestArchiveThreadOfCodexGoesIntoItsProject(t *testing.T) {
 	}
 }
 
+func TestArchiveRowsFallBackToLivingProjectPG(t *testing.T) {
+	srv, root := profilesServer(t)
+	srv.hostName = t.Name()
+	name := "archive"
+	profile, err := srv.db.CreateProfile(t.Context(), store.ProfileEdit{Name: &name, ConfigDir: &root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := srv.db.CreateGroup(t.Context(), profile.ID, store.GroupEdit{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := func(name string, previous []string) store.ProfileProject {
+		t.Helper()
+		path := filepath.Join(root, name)
+		p, err := srv.db.CreateProject(t.Context(), group.ID, store.ProjectEdit{Name: &name, Path: &path, PreviousPaths: &previous})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	remembered := project("service", nil)
+	current := project("current", []string{filepath.Join(root, "former")})
+	deleted := project("deleted", nil)
+	hostID, err := srv.db.HostID(t.Context(), srv.hostName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherHost, err := srv.db.HostID(t.Context(), t.Name()+"-other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []chat.ArchiveRow
+	var saved, newer, foreign []store.LivingSession
+	want := make(map[string]int)
+	for _, agent := range []string{"claude", "codex"} {
+		for _, tc := range []struct {
+			name, cwd, slug string
+			saved, want     int
+		}{
+			{"removed worktree", root + "/marker/worktrees/removed", "", remembered.ID, remembered.ID},
+			{"no record", root + "/unknown", "", 0, 0},
+			{"deleted project", deleted.Path + "/worktree", "", deleted.ID, 0},
+			{"current directory wins", current.Path + "/subdir", "", remembered.ID, current.ID},
+			{"former directory wins", root + "/former/subdir", "", remembered.ID, current.ID},
+			{"slug wins", root + "/unknown", archiveSlug(current.Path), remembered.ID, current.ID},
+			{"latest boot wins", root + "/unknown", "", remembered.ID, current.ID},
+			{"latest census has no project", root + "/unknown", "", remembered.ID, 0},
+			{"another host only", root + "/unknown", "", 0, 0},
+		} {
+			id := agent + "/" + tc.name
+			rows = append(rows, chat.ArchiveRow{SessionID: id, Agent: agent, CWD: tc.cwd, Slug: tc.slug})
+			want[id] = tc.want
+			item := store.LivingSession{Conversation: id, Session: "session", ProjectID: tc.saved, CWD: tc.cwd, Agent: agent}
+			if tc.saved != 0 {
+				saved = append(saved, item)
+			}
+			switch tc.name {
+			case "latest boot wins", "latest census has no project":
+				item.ProjectID = tc.want
+				newer = append(newer, item)
+			case "another host only":
+				item.ProjectID = remembered.ID
+				foreign = append(foreign, item)
+			}
+		}
+	}
+	at := time.Now()
+	for _, census := range []struct {
+		host int
+		boot string
+		at   time.Time
+		rows []store.LivingSession
+	}{
+		{hostID, "old", at.Add(-2 * time.Hour), saved},
+		{hostID, "old", at.Add(-time.Hour), nil},
+		{hostID, "new", at, newer},
+		{otherHost, "other", at, foreign},
+	} {
+		if err := srv.db.KeepLiving(t.Context(), census.host, census.boot, census.at, census.rows); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := srv.db.DeleteProject(t.Context(), deleted.ID); err != nil {
+		t.Fatal(err)
+	}
+	srv.placeArchive(t.Context(), rows)
+	for _, row := range rows {
+		t.Run(row.SessionID, func(t *testing.T) {
+			got := 0
+			if row.Project != nil {
+				got = row.Project.ID
+			}
+			if got != want[row.SessionID] {
+				t.Errorf("archive project = %d, want %d", got, want[row.SessionID])
+			}
+		})
+	}
+}
+
 func TestArchiveSlugMatchesHowClaudeNamesDirs(t *testing.T) {
 	cases := map[string]string{
 		"/home/u":                         "-home-u",

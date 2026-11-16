@@ -135,3 +135,26 @@ func (s *Store) LivingConversation(ctx context.Context, host int, conversation s
 	}
 	return &row, err
 }
+
+// LivingProjects returns the last project recorded for each conversation,
+// across boots and including conversations no longer live.
+func (s *Store) LivingProjects(ctx context.Context, host int, conversations []string) (map[string]int, error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := pool.Query(ctx, `SELECT DISTINCT ON (conversation) conversation,project_id
+		FROM session_living WHERE host_id=$1 AND conversation=ANY($2)
+		ORDER BY conversation,seen_at DESC`, host, conversations)
+	if err != nil {
+		return nil, err
+	}
+	projects := make(map[string]int)
+	var conversation string
+	var project int
+	_, err = pgx.ForEachRow(rows, []any{&conversation, &project}, func() error {
+		projects[conversation] = project
+		return nil
+	})
+	return projects, err
+}
