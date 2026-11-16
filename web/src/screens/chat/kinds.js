@@ -13,6 +13,10 @@ export const PAGE_WHOLE = 8 << 20;
 // reads. Every other file is read by the default window, a press at a time.
 export const PAGE_WINDOW = 1 << 20;
 
+// DOWNLOAD_CAP mirrors downloadCap in cmd/aacpanel/chat.go: pictures and PDFs
+// fetched by address are refused past it; inline audio and video stream instead.
+export const DOWNLOAD_CAP = 128 << 20;
+
 // isPage reports whether a file is a page the panel draws as a document.
 export function isPage(name) {
     return PAGE.test(String(name || ""));
@@ -35,13 +39,15 @@ const DRAWN = new Set([
 ]);
 
 // pickView returns the name of the view to show a file with. A sound, a clip,
-// a PDF and a picture a browser draws are shown whatever their size: what the
-// viewer does not bring whole, the view asks for at the file's address.
+// a PDF and a picture a browser draws use the file's address past the viewer's
+// ceiling. Pictures and PDFs still have to fit the service's download cap.
 export function pickView(state, name) {
     if (!state) return "code";
     if (isExec(state)) return "exec";
     const form = state.form || "";
-    if (form === "video" || form === "audio" || form === "pdf") return form;
+    if (form === "video" || form === "audio") return form;
+    if ((form === "image" || form === "pdf") && state.size > DOWNLOAD_CAP) return "toobig";
+    if (form === "pdf") return form;
     if (state.tooBig && !(form === "image" && DRAWN.has(state.media))) return "toobig";
     if (form === "image") return form;
     if (form === "binary" || state.binary) return "binary";
