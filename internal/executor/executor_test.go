@@ -813,6 +813,15 @@ func TestFindProjectKeepsNamesWithDashes(t *testing.T) {
 }
 
 func TestSessionOpen(t *testing.T) {
+	for _, kv := range os.Environ() {
+		key, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(key, "AACP_") {
+			t.Setenv(key, "")
+			if err := os.Unsetenv(key); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	ctx := context.Background()
 
 	ok := launcher.Report{Session: "aacpanel", Konsole: 1234, Agent: 1235}
@@ -844,6 +853,7 @@ func TestSessionOpen(t *testing.T) {
 	})
 
 	t.Run("the session comes up in a clean namespace", func(t *testing.T) {
+		t.Setenv("GITLAB_TOKEN", "test-secret")
 		trustFile(t, map[string]bool{dir: true})
 		t.Setenv(hostcfg.DisplayEnv, ":9")
 		fakeLauncher(t, ok)
