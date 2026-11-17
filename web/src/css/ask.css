@@ -35,10 +35,11 @@
 .asklabel { color: var(--ink-faint); font-size: var(--t-xs); font-weight: 500; }
 .askwhy { color: var(--ink-faint); font-size: var(--t-xs); }
 
-.asksteps { display: flex; gap: 4px; margin-bottom: .7rem; }
-.asksteps i { flex: 1; height: 3px; border-radius: 2px; background: rgba(var(--tint), .12); }
-.asksteps i.done { background: var(--ok); }
-.asksteps i.now { background: var(--warn); }
+/* The steps of a round: a thin strip a question, the one on screen lit. */
+.asksteps { display: flex; gap: 4px; }
+.asksteps i { flex: 1; height: 3px; border-radius: 2px; background: rgba(var(--tint), .12); transition: background .14s; }
+.asksteps i.done { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.asksteps i.now { background: var(--accent); }
 
 .askone + .askone { margin-top: .8rem; padding-top: .7rem; border-top: var(--hair) solid var(--edge); }
 .asktext {
@@ -61,14 +62,15 @@
 .askopt {
     display: flex; align-items: stretch;
     background: none;
-    border: var(--hair) solid var(--line);
+    border: 0;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     border-radius: var(--r-card);
-    transition: background .14s, border-color .14s;
+    transition: background .14s, box-shadow .14s;
 }
 .askopt:hover { background: var(--glass); }
 .askopt.on {
     background: var(--accent-bg);
-    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .askopt.off { opacity: .55; }
 
@@ -94,6 +96,9 @@
     font-size: var(--t-xs); color: var(--on-accent);
     border: 1px solid color-mix(in srgb, var(--ink-faint) 70%, transparent); border-radius: 50%;
 }
+/* An answer is picked by its highlight; an empty ring before it is noise. The
+   ring of a permission keeps the number the terminal gives it (permit.css). */
+.asktick:empty { display: none; }
 .askopt.on .asktick { background: var(--accent); border-color: var(--accent); }
 /* The tick is drawn into an empty ring: the ring of a permission's answer
    holds the number the terminal gives it (permit.css). */
@@ -102,30 +107,40 @@
 .askname { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.3; }
 .askdesc { display: block; margin-top: .1rem; color: var(--ink-faint); font-size: var(--t-sm); line-height: 1.35; }
 
+/* The way to the drawing is a quiet icon at the end of the row, not a cell of
+   its own: a line or a fill beside the answer reads as a seam through it. */
 .askinfo {
     flex: 0 0 auto;
     width: 44px;
     color: var(--ink-faint); background: none;
-    border: 0; border-left: var(--hair) solid var(--line);
-    border-radius: 0 var(--r-card) var(--r-card) 0;
+    border: 0;
+    border-radius: var(--r-card);
     cursor: pointer;
 }
-.askinfo:hover { color: var(--ink); background: var(--glass-2); }
+.askinfo[aria-expanded="true"] { color: var(--accent); }
+@media (hover: hover) { .askinfo:hover { color: var(--ink); } }
 .askinfo svg { width: var(--i-md); height: var(--i-md); }
 
-.askfoot { display: flex; gap: .4rem; margin-top: .8rem; }
-.askfoot .btn { padding-block: .7rem; }
-.askfoot .btn.primary { flex: 1; }
+/* The count at the left, the way back and the main button at the right: one
+   row of one height. */
+.askfoot { display: flex; align-items: center; gap: .4rem; margin-top: .2rem; }
+.askfoot > :first-child { margin-right: auto; }
+.askfoot .btn { height: 2.5rem; padding-block: 0; }
+.askfoot .btn.primary { flex: 0 0 auto; min-width: 7.5rem; }
+.askfoot .askback { flex: 0 0 auto; }
 .askfoot .btn:disabled { opacity: .45; cursor: default; }
 
-.askreview { display: flex; flex-direction: column; gap: .45rem; margin-top: .7rem; }
+.askreview { display: flex; flex-direction: column; gap: .45rem; }
+/* A line of the review: the question small over its answer, and the way back
+   to it at the right; a long answer wraps under its question. */
 .askrow {
-    display: flex; align-items: baseline; gap: .5rem;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: .5rem; row-gap: .1rem;
     padding: .55rem .6rem;
     background: var(--glass); border-radius: var(--r-card);
 }
-.askrowq { flex: 1; min-width: 0; color: var(--ink-faint); font-size: var(--t-xs); }
-.askrowa { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+.askrowq { grid-column: 1; min-width: 0; color: var(--ink-faint); font-size: var(--t-xs); }
+.askrowa { grid-column: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+.askrow .askedit { grid-column: 2; grid-row: 1 / span 2; }
 .askrowa.skip { color: var(--ink-faint); font-weight: 400; }
 .askedit { color: var(--accent); background: none; border: 0; font: inherit; font-size: var(--t-xs); cursor: pointer; }
 
@@ -134,12 +149,13 @@
 
 /* A preview is read at the same scale as the answer it explains. */
 .askshow { min-width: 0; width: 100%; }
-.askdrawing { flex: 0 0 100%; max-height: 7rem; overflow: hidden; }
-.askdrawing.expanded { max-height: none; }
+/* The drawing stands inside its option, inset from the option's edge. */
+.askdrawing { flex: 0 0 100%; box-sizing: border-box; padding: 0 .55rem .55rem; }
+.askdrawing:not(.expanded) .askpreview { max-height: 6.5rem; overflow: hidden; }
 .askopt:has(.askdrawing) { flex-wrap: wrap; }
 .askopt:has(.askdrawing) .askpick { min-width: 0; flex: 1; }
 .askround { display: flex; flex-direction: column; gap: .6rem; }
-.askcount { color: var(--ink-faint); font-size: var(--t-sm); }
+.askcount { display: inline-flex; align-items: center; height: 2.5rem; box-sizing: border-box; padding: 0 .85rem; border-radius: var(--r-pill); box-shadow: inset 0 0 0 var(--hair) var(--edge); color: var(--ink-dim); font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
 
 .askpreview {
     margin: 0;
@@ -154,7 +170,8 @@
     overflow-wrap: anywhere;
     color: var(--ink-dim);
     background: rgba(0, 0, 0, .3);
-    border: var(--hair) solid var(--line); border-radius: var(--r-card);
+    border: 0; border-radius: var(--r-small);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
 }
 
 /* Free words are an answer of another kind: no edge, a dashed circle. */

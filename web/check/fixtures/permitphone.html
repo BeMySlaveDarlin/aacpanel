@@ -81,14 +81,10 @@ window.done = (async () => {
         request: dock.querySelector(".permitaction").textContent.includes("no side discussions in private chats"),
         note: dock.querySelector(".permitnote").textContent.includes("confirmed by a person before it goes out"),
     };
-    // What the fold hides is one press away.
-    const unfold = dock.querySelector("[aria-expanded='false']");
-    result.fold = Boolean(unfold);
-    if (unfold) {
-        unfold.click();
-        await quiet();
-        result.unfolded = Boolean(dock.querySelector("[aria-expanded='true']"));
-    }
+    // The note is read whole and stands before the command; the command is
+    // there whole, in a box of its own that scrolls.
+    result.noteFirst = Boolean(dock.querySelector(".permitnote + .permitaction"));
+    result.scrolls = getComputedStyle(dock.querySelector(".permitaction")).overflowY === "auto";
     return result;
 })();
 </script>

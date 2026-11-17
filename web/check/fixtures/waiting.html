@@ -70,11 +70,16 @@ window.done = (async () => {
     draw(); await until(() => form()?.querySelector(".requestanswer")); await quiet();
     out.auto = count() === 2 && form().textContent.includes(req.title) && !document.querySelector(".sheet.on, .waitingqueue");
     out.waitTime = document.querySelector(".movepill").textContent.includes("5 min ago");
-    out.markers = document.querySelectorAll(".chatfeed .actmark").length === 2 && !document.querySelector(".chatfeed .requeststeps, .chatfeed .skpad");
+    out.markers = document.querySelectorAll(".chatfeed .actmark").length === 2 && !document.querySelector(".chatfeed .actmark .requeststeps, .chatfeed .actmark .skpad");
     out.head = document.querySelector('.talkword, .dkword[data-tone="waiting"]')?.textContent === "your move";
     out.noteQuiet = !form().querySelector("textarea");
+    // A tap on the marker of an open act shows it in the form; the field stays.
+    document.querySelector(".chatfeed .actmarker").click(); await quiet();
+    out.markerKeeps = Boolean(document.querySelector(".composer > textarea")) && Boolean(form()?.textContent.includes(req.title));
     await next();
-    out.next = Boolean(form().querySelector(".skpad") && document.querySelector('.r-secret.waitingtarget')) && count() === 2;
+    out.next = Boolean(form().querySelector(".skpad")) && count() === 2;
+    // The form is the last message of the feed, not a part of the composer.
+    out.inFeed = Boolean(document.querySelector(".chatfeed .actform")) && !document.querySelector(".composer .actform");
     await next();
     refuse = false;
     form().querySelector(".mdrun").click();
@@ -85,9 +90,19 @@ window.done = (async () => {
 
     const area = document.querySelector(".composer > textarea");
     area.focus(); await quiet();
-    out.focus = getComputedStyle(document.querySelector(".cstrip")).display === (innerWidth < 1100 ? "none" : "flex")
-        && getComputedStyle(document.querySelector(".deck")).display === (innerWidth < 1100 ? "none" : "flex")
-        && (getComputedStyle(document.querySelector(".composeclip")).display !== "none") === (innerWidth < 1100);
+    // Focus alone is no keyboard: the strips stay. A window shorter by a
+    // keyboard hides them on a phone, and they come back when it closes even
+    // with the field still focused.
+    const strips = () => getComputedStyle(document.querySelector(".cstrip")).display !== "none"
+        && getComputedStyle(document.querySelector(".deck")).display !== "none";
+    const clip = () => getComputedStyle(document.querySelector(".composeclip")).display !== "none";
+    const narrow = innerWidth < 1100, tall = innerHeight;
+    const keyboard = async (h) => { Object.defineProperty(window, "innerHeight", { value: h, configurable: true }); window.dispatchEvent(new Event("resize")); await quiet(); };
+    const focusOnly = strips() && !clip();
+    await keyboard(tall - 300);
+    const hidden = strips() === !narrow && clip() === narrow;
+    await keyboard(tall);
+    out.focus = focusOnly && hidden && strips() && !clip();
     await type(area, "I am checking it.");
     refuse = false;
     document.querySelector(".composer .sendbtn").click(); await quiet();
@@ -120,22 +135,35 @@ window.done = (async () => {
     out.quietReply = document.querySelector(".actreply summary")?.textContent.startsWith("to the agent: Different wording") && ![...document.querySelectorAll(".msg.me")].some(el => el.textContent.includes("Different wording"));
     const panel = document.querySelector(".actreply"); panel.open = true;
     out.fullReply = panel.querySelector("p").textContent.includes(req.id);
-    // A round keeps two questions together; change edits a folded answer.
+    // A round goes a question at a time under strips of its steps; Back
+    // returns to an answered step, and a review comes before the answer goes.
     state = { ask: { toolUseId: "round", at, questions: [
         { header: "Plan", text: "Choose the plan", options: [{ label: "A" }, { label: "B" }] },
         { header: "Region", text: "Choose the region", options: [{ label: "West" }, { label: "East" }] },
     ] } };
     await publish();
+    const stepsOf = () => [...form().querySelectorAll(".asksteps i")].map((i) => i.className);
+    out.oneStep = form().querySelectorAll(".askone").length === 1 && form().textContent.includes("Choose the plan")
+        && !form().textContent.includes("Choose the region") && JSON.stringify(stepsOf()) === '["now",""]';
     form().querySelectorAll(".askpick")[0].click(); await quiet();
-    out.fold = form().querySelector(".askrow")?.textContent.includes("A") && form().textContent.includes("1 of 2 answered");
-    form().querySelector(".askedit").click(); await quiet();
-    out.change = Boolean(form().querySelector(".askone .askpick"));
-    form().querySelectorAll(".askone")[0].querySelectorAll(".askpick")[1].click(); await quiet();
-    form().querySelector(".askone .askpick").click(); await quiet();
-    button("Send answers").click(); await quiet();
+    out.steps = form().textContent.includes("Choose the region") && !form().textContent.includes("Choose the plan")
+        && JSON.stringify(stepsOf()) === '["done","now"]' && form().querySelector(".askcount")?.textContent === "1/2";
+    button("Back").click(); await quiet();
+    out.back = form().textContent.includes("Choose the plan") && form().querySelectorAll(".askopt.on").length === 1;
+    form().querySelectorAll(".askpick")[1].click(); await quiet();
+    form().querySelectorAll(".askpick")[0].click(); await quiet();
+    const rows = [...form().querySelectorAll(".askreview .askrow")].map((row) => row.querySelector(".askrowa").textContent.trim());
+    out.review = JSON.stringify(rows) === '["B","West"]' && !form().querySelector(".askone");
+    button("Send").click(); await quiet();
     out.round = sent.at(-1).kind === "session.answer" && JSON.stringify(sent.at(-1).params.picks) === "[[2],[1]]" && count() === 0;
+    // The answer stays on screen, quiet, until the transcript brings its card.
+    out.sentStays = document.querySelector(".chatfeed .actsent")?.textContent.includes("B") === true
+        && document.querySelector(".chatfeed .actsent")?.textContent.includes("West") === true
+        && Boolean(document.querySelector(".chatfeed .actsent .spin"));
     state = { ask: { toolUseId: "discussion", at, questions: [{ text: "What next?", options: [{ label: "Proceed" }] }] } };
     await publish();
+    // The field under the form dismisses the question: the form does not draw a second way to.
+    out.oneWay = Boolean(form()?.querySelector(".askpick")) && !form().querySelector(".askdrop");
     const start = sent.length;
     await type(document.querySelector(".composer > textarea"), "Let's discuss.");
     out.dismissHint = document.querySelector(".composer > textarea").placeholder === "your words dismiss the question";

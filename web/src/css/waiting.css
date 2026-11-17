@@ -6,7 +6,8 @@
 .requeststeps > :first-child { margin-top: 0; }
 .requeststeps > :last-child { margin-bottom: 0; }
 .requestnote { display: grid; gap: .35rem; color: var(--ink-dim); font-size: var(--t-sm); }
-.requestnote textarea { width: 100%; min-height: 48px; resize: vertical; background: var(--surface); border: var(--hair) solid var(--line); border-radius: var(--r-small); padding: .5rem .6rem; font: inherit; color: var(--ink); }
+.requestnote textarea { width: 100%; box-sizing: border-box; min-height: 48px; resize: vertical; background: var(--glass); border: 0; box-shadow: inset 0 0 0 var(--hair) var(--edge); border-radius: var(--r-small); padding: .5rem .6rem; font: inherit; color: var(--ink); }
+.requestnote textarea:focus { outline: none; box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent); }
 .requestanswer { margin-top: .3rem; }
 .requestanswer .btn { min-height: 44px; }
 .requeststate { margin: .2rem 0; color: var(--ink-dim); font-size: var(--t-sm); }
@@ -26,12 +27,18 @@
 
 /* The form and the message share one frame; only the form gives up height. */
 .composer:has(.actform) { row-gap: 0; }
-.actgrip { flex: 0 0 100%; height: 3px; margin: .35rem 0 .65rem; background: linear-gradient(var(--ink-faint), var(--ink-faint)) center / 36px 3px no-repeat; }
-.actform { flex: 0 0 100%; min-width: 0; max-height: 42dvh; overflow-y: auto; overscroll-behavior: contain; padding: 0 .45rem .6rem 0; border-bottom: var(--hair) solid var(--line); }
+/* The form of the act stands in the feed as its last message: the feed above
+   scrolls as ever, and the field and its strips under it stay whole. */
+.actform { min-width: 0; margin: .6rem 0; padding: .75rem .85rem .8rem; border-radius: var(--r-card); background: var(--glass); box-shadow: var(--hairline); }
 .actform .sent, .actform .cmdsheet { margin: 0; padding: 0; background: none; box-shadow: none; border: 0; }
 .actform .senthead, .actform .sentico, .actform .sentlabel { color: var(--ink-dim); }
-.actform .requestanswer { display: flex; }
-.actform .requestanswer .btn { flex: 1; }
+/* The foot of a form is one row: a quiet note at the left, the other answer
+   and the main one at the right, of one height with the foot of a question. */
+.actform .actfoot { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; margin-top: .6rem; }
+.actform .actfoot > .btn { flex: 0 0 auto; height: 2.5rem; min-height: 0; padding-block: 0; }
+.actform .actfoot > .btn.primary { min-width: 7.5rem; }
+.actform .actfoot > .actnote { margin-right: auto; }
+.actform .requestnote { margin-top: .6rem; }
 .actnote, .actbrief { border: 0; padding: .4rem 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--t-sm); cursor: pointer; }
 .composeclip { display: none; }
 .movepill { display: flex; align-items: center; flex-wrap: wrap; gap: .15rem .4rem; min-height: 36px; padding: .35rem .6rem; border: var(--hair) solid color-mix(in srgb, var(--wait) 35%, transparent); border-radius: var(--r-pill); background: color-mix(in srgb, var(--wait) 8%, transparent); color: var(--wait); font: inherit; font-size: var(--t-sm); cursor: pointer; }
@@ -47,11 +54,14 @@
 .actreply p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .cstrip .deckuse { font-size: var(--t-xs); padding: 0 .3rem; gap: .25rem; box-shadow: none; }
 @media (max-width: 1099px) {
-    .composerbox:focus-within .cstrip, .composerbox:focus-within + :is(.deck) { display: none; }
-    .composer:focus-within .composeclip { display: flex; order: 0; }
+    [data-keyboard="open"] .composerbox .cstrip, [data-keyboard="open"] .composerbox + :is(.deck) { display: none; }
+    [data-keyboard="open"] .composer:focus-within .composeclip { display: flex; order: 0; align-self: flex-start; margin: .2rem .45rem .2rem -.45rem; }
+    /* In the field the clip mirrors the send button: its frame and size, without the fill. */
+    .composeclip .pickfile { width: 38px; height: 38px; border-radius: var(--r-small); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
 }
 
-@media (min-width: 1100px) {
-    .actform :is(.btnrow, .askfoot) > .btn { flex: 0 0 auto; }
-    .actform .actnote { display: block; margin: 0 auto 0 0; }
-}
+/* An answer on its way: quiet until the transcript brings its own card. */
+.actsent { opacity: .85; }
+.actsent .senthead { gap: .45rem; }
+.actspin { width: 12px; height: 12px; margin-left: auto; }
+.actsentline { margin: .25rem 0 0; color: var(--ink); overflow-wrap: anywhere; }

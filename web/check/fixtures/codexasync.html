@@ -245,7 +245,9 @@ window.done = (async () => {
     if (!await until(() => sheet() && one(".chatfeed .msg"))) throw new Error("codex's question did not come");
     await settled();
     const go = () => sheet().querySelector(".askfoot .btn.primary");
-    out.codex = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), skeleton: skeleton(sheet(), ".askfoot"),
+    // The way to put it away is codex's own: for claude the field under the
+    // form dismisses the question, and it is read on its own below.
+    out.codex = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), skeleton: skeleton(sheet(), ".askfoot, .askdrop"),
                   send: text(go()), sendOff: Boolean(go() && go().disabled),
                   drop: text(sheet().querySelector(".askdropwhy")), ...screen() };
     out.codexAsks = stands("codex-0000abcd");
@@ -296,7 +298,7 @@ window.done = (async () => {
     await show(two);
     if (!await until(() => sheet() && sheet().querySelector(".askdrop"))) throw new Error("the two questions did not come");
     await settled();
-    out.two = { steps: sheet().querySelectorAll(".askone").length, label: sheet().querySelector(".askhead").getAttribute("aria-label") };
+    out.two = { steps: sheet().querySelectorAll(".asksteps i").length, label: sheet().querySelector(".askhead").getAttribute("aria-label") };
     sheet().querySelector(".askdrop").click();
     if (!await until(() => sentTo("codex-0000ef01").length > 0 && lastCard())) {
         throw new Error("putting the questions away sent nothing");

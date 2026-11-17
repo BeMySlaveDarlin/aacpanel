@@ -124,8 +124,9 @@ async function round() {
     const out = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), prose: readQuestion(sheet()) };
     const own = sheet().querySelector(".askown .askpick");
     out.own = Boolean(own && !own.disabled);
-    const drop = sheet().querySelector(".askdrop");
-    out.drop = Boolean(drop && !drop.disabled);
+    // Dismissing is open, and it is the field under the form that does it.
+    out.drop = !sheet().querySelector(".askdrop")
+        && root.querySelector(".composer > textarea")?.placeholder === "your words dismiss the question";
 
     sheet().querySelectorAll(".askopts .askopt:not(.askown) .askpick")[1].click();
     if (!await until(() => /Paste the token/.test(text(sheet().querySelector(".asktext"))))) throw new Error("no second step");
@@ -139,12 +140,22 @@ async function round() {
     type(field, "s3cret-token");
     await settled();
     out.secondButton = text(primary());
-    sheet().querySelector('.askone .askedit').click();
-    await until(() => sheet().querySelectorAll('.askrow').length === 2);
-    out.review = text(sheet());
-    sheet().querySelectorAll('.askedit')[0].click();
-    await until(() => sheet().querySelector('.asknote'));
-    type(sheet().querySelector('.asknote'), "and keep the old helper");
+    primary().click();
+    if (!await until(() => sheet().querySelector(".askreview"))) throw new Error("no review");
+    await settled();
+    out.review = text(sheet().querySelector(".askreview"));
+
+    // Back to the first question for a note beside the pick.
+    sheet().querySelectorAll(".askedit")[0].click();
+    if (!await until(() => sheet().querySelector(".asknote"))) throw new Error("no field for a note beside the pick");
+    await settled();
+    type(sheet().querySelector(".asknote"), "and keep the old helper");
+    await settled();
+    primary().click();
+    if (!await until(() => /Paste the token/.test(text(sheet().querySelector(".asktext"))))) throw new Error("no way forward");
+    await settled();
+    primary().click();
+    if (!await until(() => sheet().querySelector(".askreview"))) throw new Error("no review the second time");
     await settled();
     out.sendLabel = text(primary());
     primary().click();
@@ -186,7 +197,7 @@ async function closedRound() {
     sheet().querySelectorAll(".askopts .askopt:not(.askown) .askpick")[0].click();
     if (!await until(() => /Paste the token/.test(text(sheet().querySelector(".asktext"))))) throw new Error("no second step again");
     await settled();
-    sheet().querySelector(".askedit").click();
+    sheet().querySelector(".askfoot .askback").click();
     out.noteInTmux = Boolean(await until(() => sheet().querySelector(".asknote")));
     render(null, root);
     return out;

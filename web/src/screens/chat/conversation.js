@@ -20,6 +20,7 @@ import { ContextBar } from "../../ui/bar.js";
 import { Ask } from "../ask.js";
 import { Permit } from "./permit.js";
 import { ago, tokens } from "../../format.js";
+import { Icon } from "../../ui/icons.js";
 import { closed, lastPos, outboxRows, queuedLocal, queuedRows, rows, runCalls, turnCalls, unarrived, weld } from "./feed.js";
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { FindBar, useFeedFind } from "./find.js";
@@ -149,6 +150,16 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         } catch (err) { toast("Could not open the card", String(err.message || err), true); }
     };
     const [selected, setSelected] = useState("");
+    // An answer to a question of claude, from the moment it went until the
+    // transcript draws its card; a minute at most, if the card never comes.
+    const [sentAsk, setSentAsk] = useState(null);
+    const sentShown = Boolean(sentAsk && !closed(state.items, sentAsk.use));
+    useEffect(() => {
+        if (!sentAsk) return undefined;
+        if (!sentShown) { setSentAsk(null); return undefined; }
+        const t = setTimeout(() => setSentAsk(null), 60000);
+        return () => clearTimeout(t);
+    }, [sentAsk, sentShown]);
     const [files, setFiles] = useState([]);
     const [asking, setAsking] = useState(false);
 
@@ -419,10 +430,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         const next = moves[(moves.findIndex((item) => moveKey(item) === currentKey) + 1) % moves.length];
         if (!next) return;
         setSelected(moveKey(next));
-        pickWaiting(next);
+        toEnd();
     };
-    const nativeAnswered = (use, text) => {
+    const nativeAnswered = (use, text, summary) => {
         if (goesOn) sentAnswer(use, text);
+        else if (summary && summary.length) setSentAsk({ use, summary });
         mark(answered(live, use, Date.now(), ask.at, goesOn));
     };
     const dismissBeforeSend = asksTurn && !goesOn && !(isCodex(live) && (ask.server || ask.message)) ? async () => {
@@ -443,7 +455,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         loadSecrets();
     };
     const form = !current ? null : current.kind === "asked"
-        ? html`<${Ask} key=${currentKey} ask=${ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)} onAnswered=${nativeAnswered} />`
+        ? html`<${Ask} key=${currentKey} ask=${ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
+            field=${Boolean(dismissBeforeSend)} onAnswered=${nativeAnswered} />`
         : current.kind === "permit"
         ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)} onAnswered=${() => mark(answered(live, ""))} />`
         : current.kind === "request"
@@ -625,7 +638,14 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     tail=${away ? [] : waiting.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
                         <${FeedRow} item=${row} />
                         ${queueTools(row)}
-                    ` }))}
+                    ` })).concat(form && live && !live.outside ? [{ key: "act-form", role: "act", node: html`
+                        <section class="actform" aria-label="Your move">${form}</section>
+                    ` }] : []).concat(sentShown && live && !live.outside ? [{ key: `sent-${sentAsk.use}`, role: "act", node: html`
+                        <section class="actform actsent" aria-label="Your answer, on its way">
+                            <div class="senthead"><span class="sentico">${Icon.ask()}</span><span class="sentlabel">answer accepted · the session reads it</span><span class="spin actspin" aria-hidden="true"></span></div>
+                            ${sentAsk.summary.map((line) => html`<p class="actsentline">${line}</p>`)}
+                        </section>
+                    ` }] : [])}
                 />
             <//>
             ${later && html`<div class="mlater" ref=${bottomRef}>there is more below</div>`}
@@ -662,7 +682,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                      onLocal=${onLocal}
                                      onLocalDone=${onSent}
                                      insert=${insert}
-                                     form=${form} beforeSend=${dismissBeforeSend}
+                                     beforeSend=${dismissBeforeSend}
                                      hint=${dismissBeforeSend ? "your words dismiss the question" : ""}
                                      strip=${html`${parts.strip(ctx)}
                                          ${live.tokensIn > 0 && html`<button class="deckuse" type="button"

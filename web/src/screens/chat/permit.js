@@ -1,5 +1,5 @@
 // A session permission: the “Do you want to proceed?” dialog from the phone.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -195,36 +195,27 @@ export function Permit({ name, exec, waitingFor, codex, onAnswered }) {
 // hides something, and opened, the request scrolls in a box of its own. What
 // the fold hides is measured again when the screen turns: text that fit across
 // a phone held sideways does not fit across one held upright.
+// NOTE_FOLD is the length of a note that is still read whole: the reason the
+// confirmation was asked for is what the person decides by.
+const NOTE_FOLD = 500;
+
 function Request({ lines, note }) {
     const [open, setOpen] = useState(false);
-    const [hides, setHides] = useState({ request: false, note: false });
-    const box = useRef(null);
     const text = lines.join("\n");
     const why = note.join("\n");
-
-    useLayoutEffect(() => {
-        const el = box.current;
-        if (!el || open) return undefined;
-        const over = (pre) => Boolean(pre) && pre.scrollHeight > pre.clientHeight + 1;
-        const measure = () => setHides({
-            request: over(el.querySelector(".permitaction")),
-            note: over(el.querySelector(".permitnote")),
-        });
-        measure();
-        window.addEventListener("resize", measure);
-        return () => window.removeEventListener("resize", measure);
-    }, [text, why, open]);
-
+    const long = why.length > NOTE_FOLD;
+    // The reason stands first and the command under it, in a low box of its
+    // own that scrolls: the answers stay within reach of the thumb.
     return html`
-        <div ref=${box} class=${`permitsaid${open ? " open" : hides.request ? " hides" : ""}`}>
-            <pre class="permitaction">${text}</pre>
+        <div class=${`permitsaid${long ? " long" : ""}${open ? " open" : ""}`}>
             ${why && html`<pre class="permitnote">${why}</pre>`}
-            ${(hides.request || hides.note || open) && html`
+            ${long && html`
                 <button class="mfmore" type="button" aria-expanded=${open ? "true" : "false"}
                         onClick=${() => setOpen(!open)}>
                     ${open ? "collapse" : "show all"}
                 </button>
             `}
+            <pre class="permitaction">${text}</pre>
         </div>
     `;
 }

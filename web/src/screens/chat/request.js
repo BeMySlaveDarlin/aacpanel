@@ -5,7 +5,8 @@ import { render } from "../../md.js";
 import { Icon } from "../../ui/icons.js";
 import { stampText } from "./labels.js";
 
-// RequestCard keeps the answer with its steps in the composer.
+// RequestCard keeps the answer with its steps in the form of the feed: a
+// note or a reason above one row of what can be answered.
 // Opening it does not answer it, and an unavailable state offers no send.
 export function RequestCard({ item, record, onAnswer, onRun, error = "", unavailable = "" }) {
     const [note, setNote] = useState("");
@@ -29,11 +30,13 @@ export function RequestCard({ item, record, onAnswer, onRun, error = "", unavail
         <h3 class="requesttitle">${record ? record.title : item.title}</h3>
         <div class="msg requeststeps">${render(record ? record.steps : item.steps || "", { onRun })}</div>
         ${open && onAnswer ? html`
-            <div class="btnrow requestanswer"><button class="btn primary" disabled=${busy} onClick=${() => answer("done")}>${busy ? "Sending…" : "Done"}</button>
-                <button class="btn" disabled=${busy} onClick=${() => cant ? answer("cant") : setCant(true)}>Can't</button></div>
-            ${!writing && !cant && html`<button class="actnote" type="button" onClick=${() => setWriting(true)}>note</button>`}
             ${(writing || cant) && html`<label class="requestnote">${cant ? "Reason (optional)" : "Note (optional)"}<textarea rows="2" maxLength="2000"
-                value=${note} disabled=${busy} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>`}`
+                value=${note} disabled=${busy} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>`}
+            <div class="btnrow requestanswer actfoot">
+                ${!writing && !cant && html`<button class="actnote" type="button" onClick=${() => setWriting(true)}>note</button>`}
+                <button class="btn" disabled=${busy} onClick=${() => cant ? answer("cant") : setCant(true)}>Can't</button>
+                <button class="btn primary" disabled=${busy} onClick=${() => answer("done")}>${busy ? "Sending…" : "Done"}</button>
+            </div>`
             : html`<p class="requeststate" role="status">${open && unavailable ? unavailable : word}</p>`}
         ${record && record.answered && record.note && html`<div class="requestreply">${record.note}</div>`}
     </article>`;

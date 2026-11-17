@@ -624,8 +624,11 @@ available for an image rollback, but the service neither reads nor writes them.
 The counter in both session lists opens the conversation. Its lower strip
 counts open acts and briefs together with the native question or permission.
 The oldest blocking item opens first, then the oldest item; a new arrival does
-not replace the form the person is filling in. The form shares the composer's
-frame above the message field on both phone and desktop. A press on the counter
+not replace the form the person is filling in. The form stands at the end of
+the feed as its last message on both phone and desktop: the feed above it
+scrolls as ever, and the message field and its strips stay whole under it.
+Sessions outside the panel get no form, since nothing could deliver the answer.
+A press on the counter
 cycles the items and reveals their markers in the feed. Opening the session
 settles its call through `acts`, on every device, and none of the other items.
 The service adds the summary to the host snapshot: the collector supplies card
@@ -635,7 +638,9 @@ keeps no second copy of the whole feed.
 
 The form renders a request's Markdown with the feed's copy and Run buttons.
 Done sends immediately; Can't opens an optional reason. A note stays folded
-until requested. `session.send` accepts an act id and answer; the service
+until requested. The foot of a request or a secret is one row: the note link
+at the left, the second answer and the main one at the right; a note or a
+reason opens above that row. `session.send` accepts an act id and answer; the service
 builds the message from the stored title and the person's answer, checks its
 conversation, and locks the row while the executor accepts the message. Only
 then is it marked answered. A failed send leaves it open. A retry keeps the
@@ -882,8 +887,14 @@ confirmation.
 
 **A question on the stream is answered with structure, not with keys**, so the
 limits a terminal dialog puts on a layout do not hold there: a free answer and
-"discuss" are open whatever the layout, a note can go beside a pick, and a
-permission shows the tool's whole input rather than what fits a screen. A note
+dismissing the question are open whatever the layout, a note can go beside a
+pick, and a permission shows the tool's whole input rather than what fits a
+screen. A round of several questions goes one question at a time under thin
+strips of its steps, a single pick moving on by itself, and ends in a review
+of every answer before it is sent. The message field under the form dismisses
+the question with the words typed into it, so the form draws no second way to
+dismiss; a question codex asked without waiting keeps its own, which tells
+codex the person will answer in the conversation. A note
 sent to a terminal session is refused with the answer: its dialog has no field
 for one, and an answer that silently lost it would say less than the person did.
 
@@ -2875,8 +2886,13 @@ goes through the same confirmation. A session in tmux is offered only what
 works there. Pages, with the number still unread, and Workflows open from this
 list. The deck keeps the move counter, commands, terminal, background work,
 agents and briefs; usage opens from the end of the model strip. On a narrow
-screen, focus inside the composer hides both strips and puts the paperclip
-beside the message field. A message typed while a native question is open first
+screen an open keyboard hides both strips and puts the paperclip beside the
+message field. Focus does not say the keyboard is open: a tapped button keeps
+it, and so does a field after the keyboard was closed by the back gesture. The
+page is laid out with `interactive-widget=resizes-content`, so the keyboard is
+a window at least 150 px shorter than the tallest one seen at the same width
+while the field is typed into. The send button does not take the focus from
+the field, so a send with the keyboard open lands at the first tap. A message typed while a native question is open first
 dismisses that question through its normal gate, then sends the message.
 
 **A session on the stream is renamed from the panel** (`session.rename`, the

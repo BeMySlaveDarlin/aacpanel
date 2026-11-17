@@ -97,15 +97,15 @@ export function SecretPad({ item, session, exec, shelf, onSaved, onDone }) {
             <p class="cmdnote">goes to a file, 0600: the agent gets <code class="skpath">${known ? path : item.name}</code></p>
             ${!can && html`<p class="cmdnote">${whyNot(exec, "secret.put")}</p>`}
             ${error && html`<p class="cmdnote stpwarn skerr">${error}</p>`}
-            <div class="btnrow">
+            ${declining && html`<label class="requestnote">Reason (optional)<textarea rows="2" maxLength="2000"
+                value=${note} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>`}
+            <div class="btnrow actfoot">
+                <button class="btn" type="button" disabled=${busy || !item.id || !knows(exec, "session.send")}
+                        title=${whyNot(exec, "session.send")} onClick=${decline}>Won't give</button>
                 <button class="btn primary" type="button" disabled=${!ready} onClick=${save}>
                     ${busy ? "Saving…" : "Fill in"}
                 </button>
-                <button class="btn" type="button" disabled=${busy || !item.id || !knows(exec, "session.send")}
-                        title=${whyNot(exec, "session.send")} onClick=${decline}>Won't give</button>
             </div>
-            ${declining && html`<label class="requestnote">Reason (optional)<textarea rows="2" maxLength="2000"
-                value=${note} onInput=${(e) => setNote(e.currentTarget.value)}></textarea></label>`}
         </div>
     `;
 }

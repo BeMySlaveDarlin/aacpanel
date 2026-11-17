@@ -28,7 +28,7 @@ func TestAStreamQuestionOpensWhatATerminalCannot(t *testing.T) {
 		t.Error("the free answer is shut for a stream session: the limit of a terminal dialog was carried over")
 	}
 	if !got.Drop {
-		t.Error("the discuss item is shut for a stream session")
+		t.Error("the field does not dismiss the question of a stream session, or the form draws a second way to dismiss it")
 	}
 	if !reflect.DeepEqual(got.Swap, []bool{false, false}) {
 		t.Errorf("a single choice kept the pick under words of one's own, or the words under a pick: %v", got.Swap)

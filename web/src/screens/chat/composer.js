@@ -12,6 +12,7 @@ import { dictation, HOLD_MS, join, listen, speech } from "./dictate.js";
 import { clipName, FILES_MAX, intake, mb, pickedAttachments, PickFile } from "./tools.js";
 import { withQuote } from "./quote.js";
 import { canRunShell, sendShell, shellOf } from "./shell.js";
+import { watchKeyboard } from "../../ui/keyboard.js";
 
 const MAX_COMPOSER = 112;
 
@@ -234,7 +235,8 @@ export function asksSend(e, wide) {
 // list, a command for the shell after a leading "!", a name on each message
 // it can be taken back from the queue by, and what the field says while a
 // busy session would only queue it. Without them the words go as they are.
-export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip, form, beforeSend, hint: askedHint = "" }) {
+export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip, beforeSend, hint: askedHint = "" }) {
+    watchKeyboard();
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -467,12 +469,6 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
 
     return html`
         <div class="composer">
-            ${form && html`<div class="actgrip" aria-hidden="true"></div><section class="actform" aria-label="Your move"
-                onFocusIn=${(e) => {
-                    const box = e.currentTarget;
-                    const field = e.target;
-                    box.scrollTop += field.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom + 12;
-                }}>${form}</section>`}
             ${hints.length > 0 && html`<${SlashList} hints=${hints} hot=${Math.min(hot, hints.length - 1)}
                                                    theirs=${Boolean(stream && theirs)} wide=${wideNow}
                                                    onHot=${setHot} onPick=${pick} />`}
@@ -522,7 +518,13 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
                         title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang, busy ? waits : "")}
                         disabled=${cantSend}
                         onClick=${() => { if (!hear.tap(asMic)) send(); }}
-                        onPointerDown=${(e) => hear.down(e, asMic)}
+                        onPointerDown=${(e) => {
+                            // The field keeps the focus: taking it would close the
+                            // phone's keyboard, the composer would drop under the
+                            // finger, and the tap would land beside the button.
+                            e.preventDefault();
+                            hear.down(e, asMic);
+                        }}
                         onPointerUp=${hear.up}
                         onPointerCancel=${hear.up}
                         onContextMenu=${(e) => hear.on && e.preventDefault()}

@@ -66,8 +66,10 @@ window.done = (async () => {
     for (let i = 0; i < 80 && !document.querySelector(".askpick"); i += 1) await sleep(50);
     await quiet();
     const own = document.querySelector(".askown .askpick");
-    const drop = document.querySelector(".askdrop");
-    const result = { own: Boolean(own && !own.disabled), drop: Boolean(drop && !drop.disabled), prose: readQuestion(document) };
+    // Dismissing is open, and it is the field under the form that does it.
+    const field = document.querySelector(".composer > textarea");
+    const drop = !document.querySelector(".actform .askdrop") && field?.placeholder === "your words dismiss the question";
+    const result = { own: Boolean(own && !own.disabled), drop, prose: readQuestion(document) };
     if (preview === "short" || preview === "long") return result;
     // A single choice takes a pick or words of one's own: each takes the
     // other's place.

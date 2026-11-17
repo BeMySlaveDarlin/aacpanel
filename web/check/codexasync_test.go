@@ -159,7 +159,7 @@ func TestACodexQuestionItDidNotWaitForIsClaudesQuestion(t *testing.T) {
 	if !reflect.DeepEqual(c.Skeleton, got.Claude.Skeleton) {
 		t.Errorf("codex's question is built otherwise than claude's:\n%q\nwant\n%q", c.Skeleton, got.Claude.Skeleton)
 	}
-	if c.Label != "codex asks" || c.Send != "Send answers" || !c.SendOff {
+	if c.Label != "codex asks" || c.Send != "Send" || !c.SendOff {
 		t.Errorf("codex's sheet is headed %q with %q under it (off %v)", c.Label, c.Send, c.SendOff)
 	}
 	if c.Drop != "codex hears that you will answer in the conversation" {
@@ -171,7 +171,7 @@ func TestACodexQuestionItDidNotWaitForIsClaudesQuestion(t *testing.T) {
 	}
 
 	p := got.Picked
-	if p.Posted != 0 || !reflect.DeepEqual(p.On, []bool{false, true}) || p.Send != "Send answers" || p.SendOff {
+	if p.Posted != 0 || !reflect.DeepEqual(p.On, []bool{false, true}) || p.Send != "Send" || p.SendOff {
 		t.Errorf("after a tap on Dark: %+v — the pick stands, nothing goes until Send", p)
 	}
 

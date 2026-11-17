@@ -48,7 +48,7 @@ func TestACodexRoundIsAnsweredByItsProtocolInTmux(t *testing.T) {
 		t.Error("the free answer is shut for a codex thread in tmux: the limits of a terminal dialog were carried over")
 	}
 	if !r.Drop {
-		t.Error("the discuss item is shut for a codex thread")
+		t.Error("the field does not dismiss the question of a codex thread, or the form draws a second way to dismiss it")
 	}
 	if r.Second.Tag != "input" || r.Second.Type != "password" {
 		t.Errorf("the secret question is answered in a %s of type %q: its words are shown as they are typed",
@@ -60,10 +60,13 @@ func TestACodexRoundIsAnsweredByItsProtocolInTmux(t *testing.T) {
 	if r.Second.Label != "Token" {
 		t.Errorf("the second question is headed %q", r.Second.Label)
 	}
+	if r.SecondButton != "Review" {
+		t.Errorf("the last step, answered, goes on with %q", r.SecondButton)
+	}
 	if strings.Contains(r.Review, "s3cret-token") || !strings.Contains(r.Review, "hidden") {
 		t.Errorf("the review shows the secret words: %q", r.Review)
 	}
-	if r.SendLabel != "Send answers" {
+	if r.SendLabel != "Send" {
 		t.Errorf("the button of the review reads %q", r.SendLabel)
 	}
 	if len(r.Sent) != 1 || r.Sent[0].Kind != "session.answer" || r.Sent[0].Target != "shop-checkout" {

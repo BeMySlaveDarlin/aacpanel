@@ -53,14 +53,12 @@
    answers stay on the screen with the start of what they answer. Code is cut
    by a fade, as a capped list of attachments is, and not by an ellipsis that
    reads as three dots of the code; the note is prose and takes the ellipsis. */
-.permitsaid:not(.open) .permitaction {
-    max-height: calc(8 * 1.5em + .9rem);
-    overflow: hidden;
+.permitaction {
+    max-height: calc(3 * 1.5em + .9rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
-.permitsaid.hides .permitaction {
-    mask-image: linear-gradient(180deg, #000 calc(100% - 26px), rgba(0, 0, 0, .18));
-}
-.permitsaid:not(.open) .permitnote {
+.permitsaid.long:not(.open) .permitnote {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -70,11 +68,6 @@
 /* Opened, a whole edit can be hundreds of lines: it scrolls in its own box, as
    an opened list of attachments does, and the answer under it stays within
    reach of the thumb. */
-.permitsaid.open .permitaction {
-    max-height: max(40dvh, 150px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-}
 
 /* A warning about what is shown stands apart from what it warns about. */
 .permitsaid + .hint { margin-top: .45rem; }
