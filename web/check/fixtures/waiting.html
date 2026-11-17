@@ -56,7 +56,7 @@ window.EventSource = class {
 };
 const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport: "stream", status: "idle", model: "claude-opus-5-5",
     waiting: [{ kind: "request", id: req.id, title: req.title, pos: 10, at, blocking: true }, { kind: "secret", id: sec.id, title: sec.title, pos: 11, at }] };
-const exec = { available: true, kinds: ["session.send", "session.answer", "session.dismiss", "session.shell", "secret.put"] };
+const exec = { available: true, kinds: ["session.send", "session.answer", "session.dismiss", "session.shell", "secret.put", "session.file"] };
 const root = document.querySelector("#root");
 const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
 const count = () => Number(document.querySelector(".movepill")?.textContent.match(/· (\d+)/)?.[1] || 0);
@@ -103,6 +103,20 @@ window.done = (async () => {
     const hidden = strips() === !narrow && clip() === narrow;
     await keyboard(tall);
     out.focus = focusOnly && hidden && strips() && !clip();
+    // The paperclip in the field does not take the focus at the press, or the
+    // keyboard would close and take the paperclip away before the tap lands;
+    // the tap opens the sheet and lets the keyboard go.
+    area.focus(); await keyboard(tall - 300);
+    const kept = JSON.stringify(history.state);
+    const paperclip = document.querySelector(narrow ? ".composeclip .pickfile" : ".cstrip .pickfile");
+    const press = new PointerEvent("pointerdown", { bubbles: true, cancelable: true });
+    paperclip.dispatchEvent(press);
+    paperclip.click(); await quiet();
+    out.clipTap = press.defaultPrevented && !paperclip.disabled && document.activeElement !== area
+        && Boolean(document.querySelector('.sheet.on[aria-label="attach"]'));
+    document.querySelector('.sheet.on[aria-label="attach"] .sheetclose').click();
+    await until(() => !document.querySelector('.sheet.on[aria-label="attach"]') && JSON.stringify(history.state) === kept);
+    await keyboard(tall); await quiet();
     await type(area, "I am checking it.");
     refuse = false;
     document.querySelector(".composer .sendbtn").click(); await quiet();

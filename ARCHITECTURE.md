@@ -2891,8 +2891,10 @@ message field. Focus does not say the keyboard is open: a tapped button keeps
 it, and so does a field after the keyboard was closed by the back gesture. The
 page is laid out with `interactive-widget=resizes-content`, so the keyboard is
 a window at least 150 px shorter than the tallest one seen at the same width
-while the field is typed into. The send button does not take the focus from
-the field, so a send with the keyboard open lands at the first tap. A message typed while a native question is open first
+while the field is typed into. Neither the send button nor the paperclip
+takes the focus from the field at the press, so a tap with the keyboard open
+lands where it was aimed; the sheet of attachment targets lets the keyboard go
+as it opens. A message typed while a native question is open first
 dismisses that question through its normal gate, then sends the message.
 
 **A session on the stream is renamed from the panel** (`session.rename`, the

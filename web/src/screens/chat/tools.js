@@ -1,5 +1,7 @@
 // The composer paperclip with its target sheet.
 
+import { useEffect } from "preact/hooks";
+
 import { html } from "../../html.js";
 import { Sheet } from "../../ui/sheet.js";
 import { knows, whyNot } from "../../exec.js";
@@ -53,6 +55,10 @@ const TARGETS = [
 ];
 
 // PickFile renders the paperclip in the composer.
+//
+// The press leaves the focus in the field: taking it would close the phone's
+// keyboard, and with it the paperclip that stands in the field only while the
+// keyboard is open, before the tap lands.
 export function PickFile({ exec, onAsk }) {
     const canSend = knows(exec, "session.file");
     const fileWhy = whyNot(exec, "session.file");
@@ -63,6 +69,7 @@ export function PickFile({ exec, onAsk }) {
             disabled=${!canSend}
             aria-label="attach files"
             title=${canSend ? "attach files" : fileWhy}
+            onPointerDown=${(e) => e.preventDefault()}
             onClick=${onAsk}
         >${Icon.clip()}</button>
     `;
@@ -74,6 +81,12 @@ export function AttachSheet({ open, onClose, exec, files, onFiles }) {
 
     const canSend = knows(exec, "session.file");
     const have = files || [];
+
+    // The targets are read without the phone's keyboard: the paperclip in the
+    // field left the focus there, and the sheet lets it go as it opens.
+    useEffect(() => {
+        if (open && document.documentElement.dataset.keyboard === "open") document.activeElement.blur();
+    }, [open]);
 
     const take = async (event) => {
         const picked = Array.from(event.target.files || []);
