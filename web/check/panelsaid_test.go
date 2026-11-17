@@ -247,6 +247,7 @@ func panelEachKindIsACard(t *testing.T, s panelSamples, got panelSaidRun) {
 	for range s.Request {
 		want = append(want, "request")
 	}
+	want = append(want, "secret", "secret")
 	if !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("the feed drew the cards %v, want %v", kinds, want)
 	}
@@ -256,6 +257,11 @@ func panelEachKindIsACard(t *testing.T, s panelSamples, got panelSaidRun) {
 		}
 	}
 
+	for _, card := range got.Cards[len(got.Cards)-2:] {
+		if card.Label != "secret declined" || !strings.Contains(card.Title, "won't give") {
+			t.Errorf("secret refusal card: %+v", card)
+		}
+	}
 	secret := got.Cards[0]
 	if secret.Label != "secret saved" || secret.Title != "aacpanel-live-check" {
 		t.Errorf("the secret card reads %+v", secret)

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"aacpanel/internal/act"
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
@@ -43,6 +44,7 @@ func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
+		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1 AND kind='ask'", requestConversation)
 		pool.Exec(context.Background(), "DELETE FROM push_prefs")
 	})
 	q := &questionExecutor{}
@@ -109,7 +111,11 @@ func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
 			if got[requestConversation][0].Title != "Publish?" || got[requestConversation][0].Text != card.Text {
 				t.Fatalf("the question lost its summary or full message: %+v", got)
 			}
-			items := waitingFor(nil, "", got[requestConversation], nil, nil, nil)
+			acts, err := p.db.OpenActs(t.Context(), []string{requestConversation})
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := waitingFor(acts, got[requestConversation], nil, nil)
 			if len(items) != 1 || items[0].Kind != "question" || items[0].Title != "Publish?" || !slices.Equal(items[0].Answers, []string{"Publish", "Wait"}) || items[0].Pos == nil || *items[0].Pos != 42 {
 				t.Errorf("the feed anchor was lost: %v", items)
 			}
@@ -161,6 +167,7 @@ func TestQuestionClaimsSurviveRestartAndExpiredWorkIsVisiblePG(t *testing.T) {
 	conversation := "question-claims"
 	t.Cleanup(func() {
 		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", conversation)
+		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1 AND kind='ask'", conversation)
 	})
 	claimed := make(chan bool, 8)
 	failed := make(chan error, 8)
@@ -242,7 +249,7 @@ func TestQuestionClaimsSurviveRestartAndExpiredWorkIsVisiblePG(t *testing.T) {
 
 func TestWaitingQuestionWithoutRepliesSendsAnEmptyList(t *testing.T) {
 	for _, answers := range [][]string{nil, {}} {
-		items := waitingFor(nil, "", []chat.Item{{Role: "question", BriefID: "message", Title: "Name?", Answers: answers}}, nil, nil, nil)
+		items := waitingFor([]act.Record{{ID: "act", Kind: "ask", State: "open", Title: "Name?", Body: act.Body{Message: "message", Answers: answers}}}, []chat.Item{{Role: "question", BriefID: "message"}}, nil, nil)
 		wire, err := json.Marshal(items)
 		if err != nil || !strings.Contains(string(wire), `"answers":[]`) {
 			t.Fatalf("empty replies disappeared: %s, %v", wire, err)

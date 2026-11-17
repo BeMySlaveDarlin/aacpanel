@@ -583,15 +583,14 @@ goes stale there, because a push is for now.
 A call also stays where the person looks next. The feed draws it as a card
 from the call itself, the line the phone got, and a refusal of the tool marks
 the card with its reason, as a letter that reached nobody is marked. The panel
-keeps the last call of each conversation in `session_calls` and marks the
+keeps the last open call of each conversation in `acts` and marks the
 session in the lists until the person opens its feed on any device: the call
 was for the person, not for a device, and the mark does not go stale. Opening
 is the view mark a poll of the host carries, and a screen polls the moment a
 feed opens, so a glance shorter than the gap between polls still counts; until
 that poll answers, the device that opened the feed hides the mark itself. A
 call made while some device has the session on screen sets no mark, as it
-sends that device no push. The price is a row per conversation that called,
-kept for a month.
+sends that device no push. A new call withdraws the previous open call; closed calls are kept for a month.
 
 A call does not travel in the snapshot. The panel keeps a request for the calls
 waiting on the chat socket, and the collector answers it the moment it takes
@@ -607,26 +606,34 @@ by `AACP_PANEL_URL`, for Claude and Codex alike. Its caller supplies the
 conversation through the MCP binding; the service finds its live session
 name in the snapshot. The public listener cannot create or withdraw these
 tasks. The title (120 characters), Markdown steps (2000 characters), blocking
-flag and lifecycle live in `session_requests`. This short, explicit task is
+flag and lifecycle live in a `do` act. This short, explicit task is
 kept by the service; the transcript remains on the host. An agent can withdraw
 only its own open request. Every new request pushes with its title, regardless
 of push preferences; delivery skips devices already showing that session.
 
+`acts` owns the waiting lifecycle: `do`, `secret`, `ask` and `call` share open,
+answered, declined and withdrawn states. The classifier queue keeps its claims,
+verdicts and push bookkeeping; a yes verdict creates an ask act in the same
+transaction. Actual human input or a delivered parent letter answers that act,
+with the parent name recorded separately; a vanished candidate withdraws it.
+A new call withdraws its open predecessor, and closed calls expire after thirty
+days. The local `/api/requests` endpoint adapts request calls to acts for MCP
+servers that have not reconnected. The old request and call tables remain
+available for an image rollback, but the service neither reads nor writes them.
+
 The counter in both session lists opens the conversation. Its collapsible
 queue over the composer holds open requests, the unseen call, briefs with
-questions whose answers have not been sent, and secrets not saved after they
-were asked for. Questions and permission prompts keep their own docks and do
-not enter this count. Opening the session settles its call through
-`session_calls`, on every device, and none of the other items. The service
+questions whose answers have not been sent, open secrets, and classified questions
+in prose. Native questions and permission prompts keep their own docks. Opening the session settles its call through
+`acts`, on every device, and none of the other items. The service
 adds this summary to the host snapshot: the collector supplies card anchors,
-the database supplies request and brief state, and the executor supplies secret
-file times. The collector indexes only these cards and reads new transcript
+the database supplies open acts and brief state. The collector indexes only these cards and reads new transcript
 records after the first listing; it keeps no second copy of the whole feed.
 
 A queue item opens the feed window around its card and collapses the queue to
 leave room to read. The request card renders its Markdown with the feed's copy
 buttons and sends Done or Can't with an optional note through the same action
-gate as the composer. `session.send` accepts a request id and answer; the service
+gate as the composer. `session.send` accepts an act id and answer; the service
 builds the message from the stored title and the person's answer, checks its
 conversation, and locks the row while the executor accepts the message. Only
 then is it marked answered. A failed send leaves it open. A retry keeps the
@@ -648,10 +655,9 @@ transcript, in the feed and in whatever the phone keeps of the feed. The tool
 takes a name, a title and the notepad to start from — `KEY=` lines with a
 comment on where each value is found — calls the phone through `notify.sock`,
 and answers with the name first. The feed draws a card from the call and that
-answer, as it draws the card of a brief, and the panel keeps nothing of the
-request: the transcript is the only record that it was made. A brief is no
-model for it — its answers are drafts in the database, and a secret has no
-place there.
+answer, as it draws the card of a brief. The tool first records a `secret`
+act through the local `/api/acts` endpoint, then calls the phone. The template
+is a description of the requested values, not a place for those values.
 
 The person fills the notepad in on a sheet of the panel and saves it. The text
 travels in the body of `secret.put` and nowhere else: the service journals the
@@ -665,6 +671,10 @@ directory of 0700 — outside the state directory of the panel, which is mounted
 into the container, and outside the directory of files sent from the phone,
 which the feed opens. A save under a name already there replaces the file
 through a temporary one beside it and a rename: that is how a token is rotated.
+The act holds the name, title and template, never the secret values. Saving
+with an act settles that act; saving from Secrets settles every open secret act
+with the same name. A refusal is a person's message with the act id, delivered
+through `session.send`. The id also names the answer message in the transport.
 Then the session is told the path the way any message of the panel reaches it —
 typed, sent on the stream, or queued behind a busy composer — with the names of
 the keys and of the ones left empty, never a value; a session that could not be

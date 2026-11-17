@@ -87,7 +87,11 @@ func Reply(r Record, answer, note string) string {
 	}
 	text := "The person answered your request “" + r.Title + "” (" + r.ID + "): " + word + "."
 	if note = strings.TrimSpace(note); note != "" {
-		text += "\n\nTheir note:\n" + note
+		label := "note"
+		if answer == "cant" {
+			label = "reason"
+		}
+		text += "\n\nTheir " + label + ":\n" + note
 	}
 	return text
 }

@@ -32,6 +32,9 @@ type Response struct {
 
 	Detail string `json:"detail,omitempty"`
 
+	// SecretPath survives a notification failure after the file was saved.
+	SecretPath string `json:"secretPath,omitempty"`
+
 	// Session names the session a New or a resume of codex brought up, where
 	// the executor knows it: a codex thread is named by its id, which nobody
 	// knows before.
@@ -78,6 +81,10 @@ type Response struct {
 // Failed builds a refusal response.
 func Failed(id string, err error, took time.Duration) Response {
 	resp := Response{ID: id, OK: false, Error: err.Error(), DurationMs: took.Milliseconds()}
+	var saved *SavedSecretError
+	if errors.As(err, &saved) {
+		resp.SecretPath = saved.Path
+	}
 	switch {
 	case errors.Is(err, ErrSessionNotFound):
 		resp.Code = SessionNotFound

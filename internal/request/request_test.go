@@ -41,7 +41,7 @@ func TestRequestTakesItsConversationOnlyFromTheCaller(t *testing.T) {
 	const id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	var got []map[string]any
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/requests" || r.Method != http.MethodPost {
+		if r.URL.Path != "/api/acts" || r.Method != http.MethodPost {
 			t.Errorf("wrong destination: %s %s", r.Method, r.URL.Path)
 		}
 		var body map[string]any
@@ -74,6 +74,12 @@ func TestRequestTakesItsConversationOnlyFromTheCaller(t *testing.T) {
 		t.Fatalf("%d calls, want 4", len(got))
 	}
 	for _, body := range got {
+		if body["withdraw"] != true {
+			content, ok := body["body"].(map[string]any)
+			if body["kind"] != "do" || !ok || content["steps"] != "Run the command" || body["blocking"] != true {
+				t.Errorf("act payload: %+v", body)
+			}
+		}
 		if body["conversation"] != "caller-conversation" || body["session"] != nil {
 			t.Errorf("caller changed: %v", body)
 		}

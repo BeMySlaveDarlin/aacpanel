@@ -42,7 +42,7 @@ export function SecretPad({ item, session, exec, shelf, onSaved, onDone }) {
         if (!ready) return;
         setBusy(true);
         setError("");
-        const result = await run("secret.put", session, { name: item.name, text });
+        const result = await run("secret.put", session, { name: item.name, text, ...(item.id ? { act: item.id } : {}) });
         setBusy(false);
         if (!result || !result.ok) {
             setError((result && result.error) || "the host did not save it");

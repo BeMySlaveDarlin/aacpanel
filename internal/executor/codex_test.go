@@ -406,7 +406,7 @@ func TestASecretOfACodexSessionIsSavedAndTheThreadToldItsPath(t *testing.T) {
 	text := "GH_TOKEN=" + marker + "\n"
 
 	detail, err := e.Execute(context.Background(), action.Request{ID: "1", Kind: action.SecretPut, Target: codexName,
-		Secret: &action.Secret{Name: "github-token", Text: text}})
+		Secret: &action.Secret{Name: "github-token", Text: text, Act: strings.Repeat("a", 32)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +416,7 @@ func TestASecretOfACodexSessionIsSavedAndTheThreadToldItsPath(t *testing.T) {
 	}
 	turns := srv.Calls("turn/start")
 	if len(turns) != 1 || !strings.Contains(string(turns[0]), `The secret \"github-token\" is saved: `+path) ||
-		!strings.Contains(string(turns[0]), "Keys: GH_TOKEN.") {
+		!strings.Contains(string(turns[0]), "Keys: GH_TOKEN.") || !strings.Contains(string(turns[0]), "(act "+strings.Repeat("a", 32)+")") {
 		t.Fatalf("the thread was told %s", turns)
 	}
 	if strings.Contains(string(turns[0]), marker) || strings.Contains(detail, marker) ||

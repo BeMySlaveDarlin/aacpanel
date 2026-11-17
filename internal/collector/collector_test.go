@@ -117,7 +117,7 @@ func nowhere(t *testing.T) string {
 // any client to keep whole.
 func TestTheToolsAreListedAllowedWithALineOfTheirOwn(t *testing.T) {
 	for _, tool := range []mcp.Tool{BriefPublish("/nowhere", ""), BriefDelete("/nowhere"), Notify("/nowhere"),
-		SecretAsk("/nowhere")} {
+		SecretAsk("/nowhere", "")} {
 		if !tool.Allowed || tool.Title == "" || tool.InputSchema["type"] != "object" {
 			t.Errorf("%s is listed as %+v", tool.Name, tool)
 		}
@@ -128,7 +128,7 @@ func TestTheToolsAreListedAllowedWithALineOfTheirOwn(t *testing.T) {
 			t.Errorf("the line of %s is %d bytes: %q", tool.Name, len(tool.Instructions), tool.Instructions)
 		}
 	}
-	for _, tool := range []mcp.Tool{BriefPublish("/nowhere", ""), Notify("/nowhere"), SecretAsk("/nowhere")} {
+	for _, tool := range []mcp.Tool{BriefPublish("/nowhere", ""), Notify("/nowhere"), SecretAsk("/nowhere", "")} {
 		russian := false
 		for _, r := range tool.Instructions {
 			russian = russian || unicode.Is(unicode.Cyrillic, r)
@@ -170,7 +170,7 @@ func TestAConversationNotWrittenDownYetIsToldToComeAgain(t *testing.T) {
 		{BriefPublish(f.path, ""), `{"doc":{"id":"a","title":"A"}}`},
 		{BriefDelete(f.path), `{"id":"a"}`},
 		{Notify(f.path), `{"text":"stuck"}`},
-		{SecretAsk(f.path), `{"name":"github-token","title":"GitHub token"}`},
+		{SecretAsk(f.path, ""), `{"name":"github-token","title":"GitHub token"}`},
 	} {
 		said, failed := callTool(t, c.tool, bound(""), c.args)
 		if !failed || !strings.Contains(said, "Try again in a moment") {

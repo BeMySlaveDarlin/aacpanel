@@ -36,6 +36,15 @@ func (s *Server) waitingCards(ctx context.Context, ids []string) (map[string][]c
 		if got.Waiting == nil {
 			return nil, errors.New("the collector returned no waiting snapshot")
 		}
+		if s.db != nil {
+			for id, messages := range got.AnsweredQuestions {
+				if len(messages) > 0 {
+					if err := s.db.AnswerTextQuestions(ctx, id, messages, "person"); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
 		for id, list := range got.Waiting {
 			cards[id] = list
 		}
@@ -129,7 +138,7 @@ func (s *Server) scanTextQuestions(ctx context.Context, schedule func(string, st
 	}
 	ids := []string{}
 	for _, row := range snap.Sessions {
-		if id := textField(row, "sessionId"); id != "" && questionSession(row) {
+		if id := textField(row, "sessionId"); id != "" {
 			ids = append(ids, id)
 		}
 	}
@@ -240,7 +249,7 @@ func (s *Server) classifyTextQuestion(ctx context.Context, conversation, session
 	// cancellation cannot leave an uncertain question hidden until recovery.
 	save, stop := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer stop()
-	if err := s.db.SetQuestionVerdict(save, conversation, card.BriefID, verdict, what, answers); err != nil {
+	if err := s.db.SetQuestionVerdict(save, conversation, session, card.BriefID, verdict, what, answers); err != nil {
 		log.Printf("the question verdict was not kept: %v", err)
 	}
 }

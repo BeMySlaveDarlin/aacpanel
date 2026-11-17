@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/act"
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
 	"aacpanel/internal/chat"
-	personrequest "aacpanel/internal/request"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
@@ -277,19 +277,24 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			params["line"] = work.Line
 		}
 	}
-	var requestAnswer *requestReply
+	var actAnswer *actReply
+	secretActs := false
 	if req.Kind == action.SessionSend {
-		if _, present := body.Params["request"]; present {
+		if _, present := body.Params["act"]; present {
 			var err error
-			requestAnswer, err = s.prepareRequestAnswer(r, req.Target, body.Params)
+			actAnswer, err = s.prepareActAnswer(r, req.Target, body.Params)
 			if err != nil {
-				requestError(w, err)
+				actError(w, err)
 				return
 			}
-			defer requestAnswer.close()
-			row := requestAnswer.lease.Record
-			body.Params["text"] = personrequest.Reply(row, requestAnswer.answer, requestAnswer.note)
-			body.Params["messageId"] = requestMessageID(row.ID)
+			defer actAnswer.close()
+			if err := actAnswer.lease.Record.ValidateAnswer(actAnswer.answer, actAnswer.note); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			row := actAnswer.lease.Record
+			body.Params["text"] = row.Reply(actAnswer.answer, actAnswer.note)
+			body.Params["messageId"] = act.MessageID(row.ID)
 		}
 		if voice, _ := r.Context().Value(voiceKey{}).(bool); voice {
 			req.Origin = action.OriginVoice
@@ -343,6 +348,30 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		name, _ := body.Params["name"].(string)
 		text, _ := body.Params["text"].(string)
 		req.Secret = &action.Secret{Name: name, Text: text}
+		if s.db != nil {
+			open, err := s.db.OpenSecretActs(r.Context(), name)
+			if err != nil {
+				actError(w, err)
+				return
+			}
+			secretActs = len(open) > 0
+		}
+		if _, present := body.Params["act"]; present {
+			var err error
+			actAnswer, err = s.prepareActAnswer(r, req.Target, body.Params)
+			if err != nil {
+				actError(w, err)
+				return
+			}
+			defer actAnswer.close()
+			row := actAnswer.lease.Record
+			if row.Kind != "secret" || row.Body.Name != name {
+				http.Error(w, "the act asks for another secret", http.StatusBadRequest)
+				return
+			}
+			req.Secret.Act = row.ID
+			secretActs = true
+		}
 		params = map[string]any{"name": name, "chars": len([]rune(text))}
 	}
 	if req.Kind == action.SecretDrop {
@@ -672,7 +701,25 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 
-	parentQuestions := s.parentReplyQuestions(r.Context(), &req)
+	parentQuestions, parentAnswerer := s.parentReplyQuestions(r.Context(), &req)
+	if req.Kind == action.SessionSend && s.db != nil && s.host != nil {
+		if live, ok := s.host.LiveSession(req.Target); ok {
+			rows, err := s.db.OpenActs(r.Context(), []string{live.SessionID})
+			if err != nil {
+				actError(w, err)
+				return
+			}
+			for _, row := range rows {
+				if row.Kind == "ask" {
+					parentQuestions = append(parentQuestions, row.Body.Message)
+				}
+			}
+			if len(parentQuestions) > 0 {
+				req.Conversation = live.SessionID
+				parentAnswerer = "person"
+			}
+		}
+	}
 	answeredConversation := ""
 	if req.Kind == action.SessionAnswer && s.host != nil {
 		if child, ok := s.host.LiveSession(req.Target); ok {
@@ -759,9 +806,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		outcome.Result, outcome.Error = store.ActionFailed, resp.Error
 	}
 	if outcome.Result == store.ActionOK && len(parentQuestions) > 0 {
-		if err := s.db.AnswerTextQuestions(ctx, req.Conversation, parentQuestions); err != nil {
-			log.Printf("the parent's letter was delivered but its question mark was not saved: %v", err)
-			resp.Detail += "; the letter was delivered but the question mark was not saved; do not resend the letter blindly"
+		if err := s.db.AnswerTextQuestions(ctx, req.Conversation, parentQuestions, parentAnswerer); err != nil {
+			log.Printf("the reply was delivered but its question mark was not saved: %v", err)
+			resp.Detail += "; the reply was delivered but the question mark was not saved; do not resend it blindly"
 			outcome.Detail = resp.Detail
 		}
 	}
@@ -784,6 +831,31 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	log.Printf("%s: %s %s — %s%s", auth.ClientIP(r), body.Kind, body.Target, outcome.Result,
 		note(outcome.Error))
 
+	if req.Kind == action.SecretPut && s.db != nil && secretActs && (outcome.Result == store.ActionOK || resp.SecretPath != "") {
+		path := resp.SecretPath
+		if path == "" {
+			files, err := s.exec.Secrets(ctx)
+			if err == nil && files != nil && files.Dir != "" {
+				path = filepath.Join(files.Dir, req.Secret.Name)
+			}
+		}
+		if path == "" {
+			http.Error(w, "the secret was saved but its path was not read; do not resend it blindly", http.StatusServiceUnavailable)
+			return
+		}
+		var saved error
+		if actAnswer != nil {
+			saved = actAnswer.lease.SaveSecret(ctx, path)
+		}
+		// The file serves every session that asked for this name, not only the one the pad was opened from.
+		if saved == nil {
+			saved = s.db.AnswerSecrets(ctx, req.Secret.Name, path)
+		}
+		if saved != nil {
+			http.Error(w, "the secret was saved but its mark was not saved; do not resend it blindly", http.StatusServiceUnavailable)
+			return
+		}
+	}
 	if outcome.Result != store.ActionOK {
 		status := http.StatusBadGateway
 		if outcome.Result == store.ActionRejected {
@@ -802,12 +874,13 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		writeStatusJSON(w, status, out)
 		return
 	}
-	if requestAnswer != nil {
-		if err := requestAnswer.lease.Finish(ctx, requestAnswer.answer, requestAnswer.note); err != nil {
+	if actAnswer != nil && req.Kind != action.SecretPut {
+		if err := actAnswer.lease.Finish(ctx, actAnswer.answer, actAnswer.note); err != nil {
 			http.Error(w, "the answer was delivered but its mark was not saved; do not resend it blindly", http.StatusServiceUnavailable)
 			return
 		}
 	}
+
 	out := map[string]any{"ok": true, "detail": resp.Detail, "logged": logged}
 	if req.Kind == action.TermStart {
 		out["id"] = req.Target

@@ -413,7 +413,7 @@ function PanelCard({ said, item, onBrief }) {
         <div class=${`sent pnm k-${said.kind}${wait && !gone ? " queued" : ""}${gone ? " withdrawn" : ""}`}>
             <div class="senthead">
                 <span class="sentico">${card.icon()}</span>
-                <span class="sentlabel">${card.label}</span>
+                <span class="sentlabel">${said.declined ? "secret declined" : card.label}</span>
                 ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
             </div>
             <${card.Gist} said=${said} />
@@ -460,6 +460,8 @@ function PathText({ path }) {
 // SecretGist is the file the notepad became: its name, the variables it sets
 // with the empty ones marked, its size and where it lies. A value never is.
 function SecretGist({ said }) {
+    if (said.declined) return html`<div class="pnmtitle">${`You won't give the secret “${said.name}”`}</div>
+        ${said.note && html`<div class="pnmnote">${said.note}</div>`}`;
     const empty = new Set(said.empty);
     return html`
         <div class="pnmtitle pnmcode">${said.name}</div>

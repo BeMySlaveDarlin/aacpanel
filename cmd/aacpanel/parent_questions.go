@@ -186,21 +186,21 @@ func (s *Server) deferAskQuestions(ctx context.Context, cur notify.World, report
 
 // Capture the candidate ids before delivery: a later question from the same
 // child must not disappear because an earlier letter finished sending late.
-func (s *Server) parentReplyQuestions(ctx context.Context, req *action.Request) []string {
+func (s *Server) parentReplyQuestions(ctx context.Context, req *action.Request) ([]string, string) {
 	if s.db == nil || s.exec == nil || req.Kind != action.SessionLetter || req.From == "" {
-		return nil
+		return nil, ""
 	}
 	child, ok := s.host.LiveSession(req.Target)
 	if !ok || child.SessionID == "" {
-		return nil
+		return nil, ""
 	}
 	opening, err := s.exec.Opening(ctx, req.Target, child.SessionID)
 	if err != nil || opening == nil || opening.Conversation != req.From {
-		return nil
+		return nil, ""
 	}
 	cards, err := s.waitingCards(ctx, []string{child.SessionID})
 	if err != nil {
-		return nil
+		return nil, ""
 	}
 	var ids []string
 	for _, card := range cards[child.SessionID] {
@@ -211,7 +211,7 @@ func (s *Server) parentReplyQuestions(ctx context.Context, req *action.Request) 
 	if len(ids) > 0 {
 		req.Caller, req.Conversation = req.From, child.SessionID
 	}
-	return ids
+	return ids, opening.Name
 }
 
 func textQuestionSession(row map[string]json.RawMessage) notify.Session {

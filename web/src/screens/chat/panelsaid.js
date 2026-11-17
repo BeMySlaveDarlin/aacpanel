@@ -20,6 +20,7 @@ const KEYS = `${KEY}(?:, ${KEY})*`;
 
 const SECRET = new RegExp(
     '^The secret "([a-z0-9][a-z0-9._-]{0,63})" is saved: (/.+?) \\(0600, (\\d+) (lines?)\\)\\.'
+    + '(?: \\(act ([a-f0-9]{32})\\)\\.)?'
     + `(?: Keys: (${KEYS})(?:; left empty: (${KEYS}))?\\.)?`
     + " Use it by its path and never read or print it: whatever you read goes into the transcript\\.$",
 );
@@ -36,7 +37,8 @@ const QUESTION = /^(\S*) (.+)$/;
 const PICK = /^ {3}(\S+) · (.*)$/;
 const NOTE = "   note: ";
 
-const REQUEST = /^The person answered your request “([\s\S]+?)” \([a-f0-9]{32}\): (Done|Can't)\.(?:\n\nTheir note:\n([\s\S]+))?$/;
+const REQUEST = /^The person answered your request “([\s\S]+?)” \(([a-f0-9]{32})\): (Done|Can't)\.(?:\n\nTheir (?:note|reason):\n([\s\S]+))?$/;
+const DECLINE = /^The person won't give the secret "([a-z0-9][a-z0-9._-]{0,63})" \(act ([a-f0-9]{32})\)\.(?:\n\nTheir reason:\n([\s\S]+))?\n\nDo not ask for it again; go on without it or say what it blocks\.$/;
 
 // A reading is fetched back by the name of its file.
 const READING_ID = /^([A-Za-z0-9_-]{1,120})\.json$/;
@@ -47,13 +49,13 @@ const one = (n, word) => (n === 1) === !word.endsWith("s");
 function secret(text) {
     const m = SECRET.exec(text);
     if (!m) return null;
-    const [, name, path, count, unit, keyList, emptyList] = m;
+    const [, name, path, count, unit, act, keyList, emptyList] = m;
     const lines = Number(count);
     const keys = keyList ? keyList.split(", ") : [];
     const empty = emptyList ? emptyList.split(", ") : [];
     if (!one(lines, unit) || !path.endsWith(`/${name}`)) return null;
     if (empty.some((key) => !keys.includes(key))) return null;
-    return { kind: "secret", name, path, dir: path.slice(0, -name.length), lines, keys, empty };
+    return { kind: "secret", name, path, dir: path.slice(0, -name.length), lines, keys, empty, ...(act ? { act } : {}) };
 }
 
 function reading(text) {
@@ -67,8 +69,8 @@ function reading(text) {
 
 function request(text) {
     const m = REQUEST.exec(text);
-    if (!m || !m[1].trim() || (m[3] !== undefined && m[3] !== m[3].trim())) return null;
-    return { kind: "request", title: m[1], answer: m[2], note: m[3] || "" };
+    if (!m || !m[1].trim() || (m[4] !== undefined && m[4] !== m[4].trim())) return null;
+    return { kind: "request", title: m[1], act: m[2], answer: m[3], note: m[4] || "" };
 }
 
 // unquote reads the title the way Go wrote it with %q. JSON reads the same
@@ -240,6 +242,10 @@ function asked(text) {
 // it, or null when it is the person's own.
 export function panelSaid(text) {
     const said = String(text || "").trim();
+    if (said.startsWith("The person won't give the secret ")) {
+        const m = DECLINE.exec(said);
+        return m ? { kind: "secret", name: m[1], act: m[2], declined: true, note: m[3] || "" } : null;
+    }
     if (said.startsWith('The secret "')) return secret(said);
     if (said.startsWith('Brief "')) return brief(said);
     if (said.startsWith("A reading of this branch ")) return reading(said);

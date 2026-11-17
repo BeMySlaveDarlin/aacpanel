@@ -1927,6 +1927,14 @@ class Secrets(unittest.TestCase):
                                 "at": "2026-10-09T10:00:04Z", "pos": 0}])
         self.assertEqual(waiting, {}, "the call stays waiting after its answer")
 
+    def test_a_secret_card_carries_its_act_id(self):
+        waiting = {}
+        self.parse(self.tool(), waiting)
+        got = self.parse(self.tool_answer("Asked as github-token (act " + "a" * 32 + ")."), waiting)
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0].get("id"), "a" * 32)
+        self.assertEqual(got[0]["name"], "github-token")
+
     def test_the_name_is_the_one_the_answer_gives(self):
         waiting = {}
         self.parse(self.tool(dict(self.ARGS, name="forged")), waiting)

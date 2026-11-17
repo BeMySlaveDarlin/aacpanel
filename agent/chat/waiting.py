@@ -40,11 +40,14 @@ class Index:
         self.piece = Piece(path, 0, 0)
         self.items = {}
         self.question = None
+        self.answered = set()
 
     def inspect(self, record, items):
         # The feed already distinguishes a person's input from tool results,
         # letters and harness inserts. Those must not settle a question.
         if any(item.get("role") == "me" for item in items):
+            if self.question:
+                self.answered.add(self.question["id"])
             self.question = None
         if record.get("type") != "assistant" or record.get("isSidechain") or record.get("isMeta"):
             return
@@ -72,6 +75,11 @@ class Index:
 
 def cards(path):
     """Returns the latest card of each task, brief and secret, and the last call."""
+    return snapshot(path)[0]
+
+
+def snapshot(path):
+    """Carries human replies separately so a missing candidate is not an answer."""
     with _lock:
         size = os.path.getsize(path)
         index = _indexes.pop(path, None)
@@ -81,4 +89,5 @@ def cards(path):
         _indexes[path] = index
         while len(_indexes) > MAX_INDEXES:
             _indexes.popitem(last=False)
-        return [dict(item) for item in index.items.values()] + ([dict(index.question)] if index.question else [])
+        return ([dict(item) for item in index.items.values()] + ([dict(index.question)] if index.question else []),
+                sorted(index.answered))

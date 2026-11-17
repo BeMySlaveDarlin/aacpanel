@@ -66,12 +66,14 @@ window.fetch = counted(async (input, options) => {
         if (p.has("after")) { windows.push("after"); items = all.filter(i => i.pos > Number(p.get("after"))).slice(0, Number(p.get("limit"))); }
         return json({ items, first: items[0]?.pos, last: items.at(-1)?.pos, total: items.length, moreBefore: !p.has("before"), state: null });
     }
-    if (url.pathname === "/api/requests") {
+    if (url.pathname === "/api/acts") {
         if (holdRequests) {
             holdRequests = false;
             await new Promise(resolve => { releaseRequests = resolve; });
         }
-        return json({ requests: [record] });
+        return json({ acts: [{ ...record, kind: "do", body: { steps: record.steps },
+            state: record.withdrawn ? "withdrawn" : record.answered ? (record.answer === "cant" ? "declined" : "answered") : "open",
+            closed: record.withdrawn || record.answered, answer: { outcome: record.answer, note: record.note } }] });
     }
     if (url.pathname === "/api/briefs") return json({ briefs: [{ id: "rotation", sessionId: id, cwd: session.cwd, title: "Token rotation", questions: 6 }] });
     if (url.pathname === "/api/secrets") return json({ secrets: [] });

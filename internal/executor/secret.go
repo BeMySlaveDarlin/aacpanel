@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"aacpanel/internal/act"
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	"aacpanel/internal/sessionfile"
@@ -51,14 +52,10 @@ func secretsHome() (string, error) {
 // error carries a byte of the notepad.
 func (e *Executor) secretPut(ctx context.Context, target string, secret *action.Secret) (string, error) {
 	return saveSecret(secret, func(text string) (string, error) {
-		s, err := findOneLiveSession(target)
-		if err != nil {
+		if _, err := e.sessionSend(ctx, target, text, secretMessageID(secret), ""); err != nil {
 			return "", err
 		}
-		if _, err := deliverText(ctx, s, senderName, text, ""); err != nil {
-			return "", err
-		}
-		return s.Name, nil
+		return target, nil
 	})
 }
 
@@ -67,7 +64,7 @@ func (e *Executor) secretPut(ctx context.Context, target string, secret *action.
 // the turn that runs on a busy one.
 func codexSecretPut(ctx context.Context, th codex.Thread, secret *action.Secret) (string, error) {
 	return saveSecret(secret, func(text string) (string, error) {
-		if _, err := codexSend(ctx, th, codex.Message{Text: text}); err != nil {
+		if _, err := codexSend(ctx, th, codex.Message{Text: text, ID: secretMessageID(secret)}); err != nil {
 			return "", err
 		}
 		return th.Name, nil
@@ -84,11 +81,18 @@ func saveSecret(secret *action.Secret, tell func(text string) (string, error)) (
 	if err != nil {
 		return "", err
 	}
-	told, err := tell(secretMessage(secret.Name, path, secret.Text))
+	told, err := tell(secretMessage(secret.Name, path, secret.Text, secret.Act))
 	if err != nil {
-		return "", fmt.Errorf("saved to %s, but the session was not told: %w", path, err)
+		return "", &action.SavedSecretError{Path: path, Err: err}
 	}
 	return fmt.Sprintf("saved %s (%d bytes) and told %s", secret.Name, len(secret.Text), told), nil
+}
+
+func secretMessageID(secret *action.Secret) string {
+	if secret.Act == "" {
+		return ""
+	}
+	return act.MessageID(secret.Act)
 }
 
 // writeSecret replaces the file of the secret whole: the notepad goes into a
@@ -143,7 +147,7 @@ var secretKey = regexp.MustCompile(`^\s*(export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=
 // secretMessage is what the session is told of a saved secret: where it lies,
 // how long it is, which variables it sets and which of them the person left
 // empty — the names, never a value — and how a secret is used.
-func secretMessage(name, path, text string) string {
+func secretMessage(name, path, text string, acts ...string) string {
 	lines := strings.Count(text, "\n")
 	if !strings.HasSuffix(text, "\n") {
 		lines++
@@ -153,6 +157,9 @@ func secretMessage(name, path, text string) string {
 		unit = "line"
 	}
 	msg := fmt.Sprintf(`The secret "%s" is saved: %s (0600, %d %s).`, name, path, lines, unit)
+	if len(acts) > 0 && acts[0] != "" {
+		msg += " (act " + acts[0] + ")."
+	}
 	keys, empty := secretKeys(text)
 	if len(keys) > 0 {
 		msg += " Keys: " + strings.Join(keys, ", ")

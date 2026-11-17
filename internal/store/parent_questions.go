@@ -114,13 +114,26 @@ func (s *Store) AnswerParentQuestion(ctx context.Context, conversation, question
 // Parent mail is not human input in the transcript. Its successful delivery
 // settles only the prose questions present before that send, in the same
 // verdict store that decides their visibility throughout the panel.
-func (s *Store) AnswerTextQuestions(ctx context.Context, conversation string, messages []string) error {
+func (s *Store) AnswerTextQuestions(ctx context.Context, conversation string, messages []string, answeredBy string) error {
 	pool, err := s.Pool()
 	if err != nil {
 		return err
 	}
-	_, err = pool.Exec(ctx, `INSERT INTO text_questions (conversation,message,answered)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `INSERT INTO text_questions (conversation,message,answered)
  SELECT $1,unnest($2::text[]),true ON CONFLICT (conversation,message)
  DO UPDATE SET answered=true,closed=text_questions.pushed`, conversation, messages)
-	return err
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE acts SET state='answered',closed_at=now(),answered_by=$3
+ WHERE conversation=$1 AND kind='ask' AND state IN ('open','withdrawn') AND body->>'message'=ANY($2)`, conversation, messages, answeredBy)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

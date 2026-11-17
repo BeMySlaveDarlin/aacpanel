@@ -10,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"aacpanel/internal/act"
 	"aacpanel/internal/action"
+	"aacpanel/internal/stream"
+	"errors"
 )
 
 // marker stands for the value of a credential: it may land in the file and
@@ -187,6 +190,13 @@ func TestASecretSavedForASessionThatIsGoneStays(t *testing.T) {
 	if err == nil || !strings.HasPrefix(err.Error(), "saved to "+path+", but the session was not told: ") {
 		t.Fatalf("the refusal is %v", err)
 	}
+	var saved *action.SavedSecretError
+	if !errors.As(err, &saved) || saved.Path != path {
+		t.Fatalf("saved write lost its metadata: %v", err)
+	}
+	if response := action.Failed("1", err, 0); response.SecretPath != path {
+		t.Fatalf("saved path lost on socket: %+v", response)
+	}
 	if strings.Contains(err.Error(), marker) {
 		t.Errorf("the refusal quotes the notepad: %v", err)
 	}
@@ -231,9 +241,12 @@ func TestTheSecretMessageIsTheOneTheFeedReads(t *testing.T) {
 	var samples struct {
 		Secret []struct {
 			Input struct {
-				Name string `json:"name"`
-				Path string `json:"path"`
-				Text string `json:"text"`
+				Name   string `json:"name"`
+				Act    string `json:"act"`
+				Answer string `json:"answer"`
+				Note   string `json:"note"`
+				Path   string `json:"path"`
+				Text   string `json:"text"`
 			} `json:"input"`
 			Text string `json:"text"`
 		} `json:"secret"`
@@ -245,7 +258,11 @@ func TestTheSecretMessageIsTheOneTheFeedReads(t *testing.T) {
 		t.Fatal("no samples of a secret message: the check compares nothing")
 	}
 	for _, s := range samples.Secret {
-		if got := secretMessage(s.Input.Name, s.Input.Path, s.Input.Text); got != s.Text {
+		got := secretMessage(s.Input.Name, s.Input.Path, s.Input.Text, s.Input.Act)
+		if s.Input.Answer == "decline" {
+			got = (act.Record{ID: s.Input.Act, Kind: "secret", Body: act.Body{Name: s.Input.Name}}).Reply("decline", s.Input.Note)
+		}
+		if got != s.Text {
 			t.Errorf("the secret %s is told as\n%q\nand the feed reads\n%q", s.Input.Name, got, s.Text)
 		}
 	}
@@ -334,5 +351,19 @@ func TestSecretsWithoutTmux(t *testing.T) {
 	}
 	if !hasKind(got, action.SecretDrop) {
 		t.Error("secret.drop went away with the sessions")
+	}
+}
+
+func TestSavedSecretCarriesTheActInTheTextAndMessageID(t *testing.T) {
+	secretsHere(t)
+	holder := onTheStream(t, false)
+	id := strings.Repeat("a", 32)
+	_, err := (&Executor{}).Execute(t.Context(), action.Request{ID: "1", Kind: action.SecretPut, Target: "demo", Secret: &action.Secret{Name: "github-token", Text: "TOKEN=private", Act: id}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sent := only(t, holder)
+	if sent.Op != stream.OpSend || sent.UUID != act.MessageID(id) || !strings.Contains(sent.Text, "(act "+id+")") {
+		t.Fatalf("secret message: %+v", sent)
 	}
 }

@@ -281,6 +281,7 @@ func collectorSocket(t *testing.T, env string) <-chan map[string]any {
 func TestEveryToolOfTheCollectorReachesItsOwnSocket(t *testing.T) {
 	briefs := collectorSocket(t, "AACP_BRIEF_SOCKET")
 	calls := collectorSocket(t, "AACP_NOTIFY_SOCKET")
+	acts := actsPanel(t)
 	bind := func() (mcp.Binding, error) {
 		return mcp.Binding{Place: mcp.Place{ConfigDir: "/home/u/.claude", Dir: "/srv/proj"},
 			SessionID: "567f4d24-cd5f-48fa-bdc1-04c89d203494", PID: 4242}, nil
@@ -307,6 +308,14 @@ func TestEveryToolOfTheCollectorReachesItsOwnSocket(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Errorf("%s did not reach its socket", c.tool)
 		}
+	}
+	select {
+	case kept := <-acts:
+		if kept["kind"] != "secret" || kept["conversation"] != "567f4d24-cd5f-48fa-bdc1-04c89d203494" {
+			t.Errorf("secret_ask kept the act %v", kept)
+		}
+	default:
+		t.Error("secret_ask called the phone without an act in the panel")
 	}
 	select {
 	case stray := <-briefs:
@@ -424,7 +433,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
-	t.Setenv("AACP_PANEL_URL", "http://127.0.0.1:1")
+	secretActs := actsPanel(t)
 	briefs := collectorSocket(t, "AACP_BRIEF_SOCKET")
 	calls := collectorSocket(t, "AACP_NOTIFY_SOCKET")
 	acts := []struct{ tool, args string }{
@@ -457,6 +466,8 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 		t.Errorf("a call of no thread reached the shelf of briefs: %v", stray)
 	case stray := <-calls:
 		t.Errorf("a call of no thread reached the socket of calls: %v", stray)
+	case stray := <-secretActs:
+		t.Errorf("a call of no thread kept an act: %v", stray)
 	default:
 	}
 	if entries, _ := os.ReadDir(filepath.Join(state, "aacpanel", "checklists")); len(entries) != 0 {
@@ -487,6 +498,35 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 			t.Fatal("a call of the thread did not reach its socket")
 		}
 	}
+	select {
+	case act := <-secretActs:
+		if act["conversation"] != codexThread {
+			t.Errorf("the secret act was kept for another conversation: %v", act)
+		}
+	default:
+		t.Error("secret_ask of the thread kept no act")
+	}
+}
+
+// actsPanel stands in for the panel's act endpoint: secret_ask keeps its act
+// there before it calls the phone. Every other path is not found, so a tool
+// that should reach no panel fails loudly.
+func actsPanel(t *testing.T) <-chan map[string]any {
+	t.Helper()
+	got := make(chan map[string]any, 8)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/acts" {
+			http.NotFound(w, r)
+			return
+		}
+		var asked map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&asked)
+		got <- asked
+		_, _ = w.Write([]byte(`{"id":"0123456789abcdef0123456789abcdef"}`))
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("AACP_PANEL_URL", srv.URL)
+	return got
 }
 
 // fakePanel stands in for the panel's local listener, named to the tools by

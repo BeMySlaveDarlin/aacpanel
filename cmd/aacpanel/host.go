@@ -57,7 +57,7 @@ func (s *Server) noteViewing(r *http.Request) {
 	if live, ok := s.host.LiveSession(name); ok {
 		conversation = live.SessionID
 	}
-	if err := s.db.SessionCalls().Seen(ctx, name, conversation); err != nil {
+	if err := s.db.SeeCalls(ctx, name, conversation); err != nil {
 		log.Printf("the calls of %s are not marked seen: %v", name, err)
 	}
 	// Every poll with the conversation on screen moves the mark on, so a

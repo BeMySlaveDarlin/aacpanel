@@ -127,7 +127,7 @@ func (s *Server) sessionsCalled(ctx context.Context, payload []byte) []byte {
 	if s.db == nil {
 		return payload
 	}
-	unseen, err := s.db.SessionCalls().Unseen(ctx)
+	unseen, err := s.db.UnseenCalls(ctx)
 	if err != nil {
 		log.Printf("the calls of the sessions: %v", err)
 		return payload

@@ -91,7 +91,7 @@ def brief_card(text, by, shelf, use, at, pos):
 # when it asked: a refusal says what was wrong and names nothing.
 SECRET_TOOL = "mcp__aacpanel__secret_ask"
 
-SECRET_ASKED = re.compile(r"Asked as ([a-z0-9][a-z0-9._-]{0,63})\.").match
+SECRET_ASKED = re.compile(r"Asked as ([a-z0-9][a-z0-9._-]{0,63})(?: \(act ([a-f0-9]{32})\))?\.").match
 
 
 def secret_call(data):
@@ -104,13 +104,13 @@ def secret_card(text, call, use, at, pos):
     """Returns a card for a secret the session asked for, or None when it asked nothing.
 
     The name comes from the answer, the title and the notepad from the call:
-    a call the tool refused gives no card, and the panel keeps nothing of the
-    request but this transcript.
+    a call the tool refused gives no card. New cards carry the durable act id.
     """
     found = SECRET_ASKED(text or "")
     if not found:
         return None
     return {"role": "secret", "use": use or "", "name": found.group(1),
+            **({"id": found.group(2)} if found.group(2) else {}),
             "title": call.get("title", ""), "template": call.get("template", ""),
             "at": at, "pos": pos}
 

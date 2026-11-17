@@ -189,7 +189,7 @@ func (w *watcher) markCalls(ctx context.Context, board []chat.SessionNote, sessi
 			names[s.ID] = s.Name
 		}
 	}
-	calls, views := w.srv.db.SessionCalls(), w.srv.db.SessionViews()
+	views := w.srv.db.SessionViews()
 	for _, n := range board {
 		name, ok := names[n.SessionID]
 		if !ok || name == "" {
@@ -204,7 +204,7 @@ func (w *watcher) markCalls(ctx context.Context, board []chat.SessionNote, sessi
 		if err != nil {
 			log.Printf("notify: who is looking at %s is unknown, its call is marked: %v", name, err)
 		}
-		if err := calls.Called(ctx, n.SessionID, name, at, len(watching) > 0); err != nil {
+		if err := w.srv.db.CallAct(ctx, n.SessionID, name, at, len(watching) > 0); err != nil {
 			log.Printf("notify: the call of %s is not marked in the lists: %v", name, err)
 		}
 	}

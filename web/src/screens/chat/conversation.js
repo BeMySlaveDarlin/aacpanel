@@ -136,7 +136,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     };
     const run = useAction();
     const answerRequest = async (request, answer, note) => {
-        const result = await deliver(run, name, { request, answer, note });
+        const result = await deliver(run, name, { act: request, answer, note });
         if (!result.ok) return;
         setRequests((was) => ({ ...was, [request]: { ...was[request], answered: new Date().toISOString(), answer, note } }));
         settleWaiting(live, "request", request);
@@ -695,7 +695,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 </div>`
                 : look.kind === "secret"
                 ? (live ? html`<${SecretPad} key=${look.item.use || look.item.name} item=${look.item} session=${name}
-                                             exec=${exec} shelf=${secrets} onSaved=${() => { loadSecrets(); settleWaiting(live, "secret", look.item.name); }}
+                                             exec=${exec} shelf=${secrets} onSaved=${() => { loadSecrets(); settleWaiting(live, "secret", look.item.id || look.item.name); }}
                                              onDone=${() => setLook(null)} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to hand the secret to.</p>`)
                 : look.kind === "parent"

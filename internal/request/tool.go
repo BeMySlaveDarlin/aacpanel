@@ -59,16 +59,17 @@ func Tool(panel string) mcp.Tool {
 			if caller.SessionID == "" {
 				return "Nothing was requested: the conversation of this session is not known yet.", true
 			}
-			body, err := json.Marshal(struct {
-				Conversation string `json:"conversation"`
-				Input
-			}{caller.SessionID, input})
+			payload := map[string]any{"conversation": caller.SessionID, "kind": "do", "title": input.Title, "body": map[string]string{"steps": input.Steps}, "blocking": input.Blocking}
+			if input.Withdraw {
+				payload = map[string]any{"conversation": caller.SessionID, "id": input.ID, "withdraw": true}
+			}
+			body, err := json.Marshal(payload)
 			if err != nil {
 				return "Nothing was requested: " + err.Error(), true
 			}
 			ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(panel, "/")+"/api/requests", bytes.NewReader(body))
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(panel, "/")+"/api/acts", bytes.NewReader(body))
 			if err != nil {
 				return "Nothing was requested: " + err.Error(), true
 			}

@@ -58,7 +58,7 @@ type waitingResult struct {
 	Sent                  struct {
 		Kind   string
 		Target string
-		Params struct{ Request, Answer, Note string }
+		Params struct{ Act, Answer, Note string }
 	}
 }
 
@@ -102,7 +102,7 @@ func TestWaitingQueueOnPhoneAndDesktop(t *testing.T) {
 			if !got.HostHighlightBefore || !got.HostHighlightGone {
 				t.Errorf("host highlight before update: %v, gone after update: %v — a card dropped by the host leaves no contour", got.HostHighlightBefore, got.HostHighlightGone)
 			}
-			if got.Sent.Kind != "session.send" || got.Sent.Target != "work" || got.Sent.Params.Request != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" || got.Sent.Params.Answer != "done" || got.Sent.Params.Note != "Wi-Fi is back." {
+			if got.Sent.Kind != "session.send" || got.Sent.Target != "work" || got.Sent.Params.Act != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" || got.Sent.Params.Answer != "done" || got.Sent.Params.Note != "Wi-Fi is back." {
 				t.Errorf("answer bypassed the action gate: %+v", got.Sent)
 			}
 		})

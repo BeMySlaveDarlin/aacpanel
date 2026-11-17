@@ -7,9 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"aacpanel/internal/action"
+	"aacpanel/internal/act"
 	"aacpanel/internal/chat"
-	personrequest "aacpanel/internal/request"
 )
 
 // waitingItem is one outstanding thing, with the exact feed row it opens.
@@ -26,7 +25,7 @@ type waitingItem struct {
 	Answers  []string `json:"answers"`
 }
 
-func waitingFor(requests []personrequest.Record, called string, cards []chat.Item, briefs []chat.BriefCard, sent map[string]bool, secrets []action.SecretFile) []waitingItem {
+func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, sent map[string]bool) []waitingItem {
 	out := []waitingItem{}
 	anchor := func(kind, id string) *chat.Item {
 		for i := range cards {
@@ -47,17 +46,30 @@ func waitingFor(requests []personrequest.Record, called string, cards []chat.Ite
 		}
 		out = append(out, item)
 	}
-	for _, row := range requests {
-		if row.Open() {
-			add(waitingItem{Kind: "request", ID: row.ID, Title: row.Title, Blocking: row.Blocking,
-				At: row.Created.Format(time.RFC3339Nano)}, anchor("request", row.ID))
+	for _, row := range acts {
+		if !row.Open() {
+			continue
 		}
-	}
-	if called != "" {
-		item := waitingItem{Kind: "call", Title: "Called you", At: called}
-		card := anchor("call", "")
-		if card != nil && card.Text != "" {
-			item.Title = card.Text
+		kind := map[string]string{"do": "request", "secret": "secret", "ask": "question", "call": "call"}[row.Kind]
+		item := waitingItem{Kind: kind, ID: row.ID, Title: row.Title, Blocking: row.Blocking, At: row.Created.Format(time.RFC3339Nano)}
+		card := anchor(kind, row.ID)
+		if row.Kind == "ask" {
+			card = anchor(kind, row.Body.Message)
+			item.Answers = row.Body.Answers
+		}
+		if row.Kind == "call" {
+			card = nil
+			for i := range cards {
+				candidate := &cards[i]
+				at, err := time.Parse(time.RFC3339Nano, candidate.At)
+				if candidate.Role == "call" && err == nil && at.Equal(row.Created) {
+					card = candidate
+					break
+				}
+			}
+			if card != nil && card.Text != "" {
+				item.Title = card.Text
+			}
 		}
 		add(item, card)
 	}
@@ -66,28 +78,7 @@ func waitingFor(requests []personrequest.Record, called string, cards []chat.Ite
 			add(waitingItem{Kind: "brief", ID: brief.ID, Title: brief.Title, At: brief.At}, anchor("brief", brief.ID))
 		}
 	}
-	for _, card := range cards {
-		if card.Role == "question" && card.BriefID != "" {
-			add(waitingItem{Kind: "question", ID: card.BriefID, Title: card.Title, At: card.At, Answers: card.Answers}, &card)
-			continue
-		}
-		// Tool questions and permissions have their own visible turn stops.
-		if card.Role != "secret" {
-			continue
-		}
-		asked, _ := time.Parse(time.RFC3339Nano, card.At)
-		saved := false
-		for _, file := range secrets {
-			at, err := time.Parse(time.RFC3339Nano, file.At)
-			if file.Name == card.Name && err == nil && at.After(asked) {
-				saved = true
-				break
-			}
-		}
-		if !saved {
-			add(waitingItem{Kind: "secret", ID: card.Name, Title: card.Title, At: card.At}, &card)
-		}
-	}
+
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Blocking != out[j].Blocking {
 			return out[i].Blocking
@@ -112,18 +103,18 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 	if len(ids) == 0 {
 		return payload
 	}
-	requests := map[string][]personrequest.Record{}
+	waiting, _ := s.waitingCards(ctx, ids)
+	acts := map[string][]act.Record{}
 	if s.db != nil {
-		got, err := s.db.Requests(ctx, ids)
+		got, err := s.db.OpenActs(ctx, ids)
 		if err != nil {
-			log.Printf("the waiting requests: %v", err)
+			log.Printf("the waiting acts: %v", err)
 		}
 		for _, row := range got {
-			requests[row.Conversation] = append(requests[row.Conversation], row)
+			acts[row.Conversation] = append(acts[row.Conversation], row)
 		}
 	}
-	waiting, _ := s.waitingCards(ctx, ids)
-	cards := s.questionCards(ctx, rows, waiting)
+	cards := waiting
 	var briefs []chat.BriefCard
 	if s.chat != nil && s.chat.Available() {
 		var err error
@@ -145,23 +136,6 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 			log.Printf("the sent briefs: %v", err)
 		}
 	}
-	var secrets []action.SecretFile
-	hasSecret := false
-	for _, list := range cards {
-		for _, c := range list {
-			if c.Role == "secret" {
-				hasSecret = true
-			}
-		}
-	}
-	if hasSecret && s.exec != nil {
-		got, err := s.exec.Secrets(ctx)
-		if err == nil {
-			secrets = got.Secrets
-		} else {
-			log.Printf("the saved secrets: %v", err)
-		}
-	}
 	for _, row := range rows {
 		id := textField(row, "sessionId")
 		var mine []chat.BriefCard
@@ -170,7 +144,7 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 				mine = append(mine, b)
 			}
 		}
-		items := waitingFor(requests[id], textField(row, "called"), cards[id], mine, sent, secrets)
+		items := waitingFor(acts[id], cards[id], mine, sent)
 		row["waiting"], _ = json.Marshal(items)
 	}
 	snapshot["sessions"], _ = json.Marshal(rows)

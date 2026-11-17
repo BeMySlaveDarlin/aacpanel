@@ -55,7 +55,8 @@ const feed = (samples) => [
     { role: "me", text: samples.brief[1].text, at: "2026-01-01T09:13:00Z", pos: 8, state: "queued" },
     { role: "me", text: samples.reading[1].text, at: "2026-01-01T09:14:00Z", pos: 9, state: "withdrawn" },
     ...samples.request.map((s, i) => ({ role: "me", text: s.text, at: "2026-01-01T09:15:00Z", pos: 10 + i })),
-    ...samples.bubbles.slice(1).map((s, i) => ({ role: "me", text: s.text, at: "2026-01-01T09:16:00Z", pos: 10 + samples.request.length + i })),
+    ...samples.secret.filter((s) => s.input.answer === "decline").map((s, i) => ({ role: "me", text: s.text, at: "2026-01-01T09:15:30Z", pos: 10 + samples.request.length + i })),
+    ...samples.bubbles.slice(1).map((s, i) => ({ role: "me", text: s.text, at: "2026-01-01T09:16:00Z", pos: 10 + samples.request.length + samples.secret.filter((s) => s.input.answer === "decline").length + i })),
 ];
 const requests = [];
 let items = [];
@@ -137,7 +138,7 @@ window.done = (async () => {
 
         render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${session}
             snapshot=${{ at: 1, sessions: [session] }} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
-        await until(() => cards().length === 5 + samples.request.length && root.querySelector(".msecret .sksaved")
+        await until(() => cards().length === 7 + samples.request.length && root.querySelector(".msecret .sksaved")
             && root.querySelector(".mbrief .brstate"));
         await quiet();
 

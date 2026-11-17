@@ -57,7 +57,7 @@ func (s *Store) ClaimQuestion(ctx context.Context, conversation, message string)
 	return tag.RowsAffected() > 0, err
 }
 
-func (s *Store) SetQuestionVerdict(ctx context.Context, conversation, message, verdict, what string, answers []string) error {
+func (s *Store) SetQuestionVerdict(ctx context.Context, conversation, session, message, verdict, what string, answers []string) error {
 	pool, err := s.Pool()
 	if err != nil {
 		return err
@@ -65,8 +65,27 @@ func (s *Store) SetQuestionVerdict(ctx context.Context, conversation, message, v
 	if answers == nil {
 		answers = []string{}
 	}
-	_, err = pool.Exec(ctx, `UPDATE text_questions SET verdict=$3, what=$4, answers=$5 WHERE conversation=$1 AND message=$2`, conversation, message, verdict, what, answers)
-	return err
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `UPDATE text_questions SET verdict=$3,what=$4,answers=$5 WHERE conversation=$1 AND message=$2`, conversation, message, verdict, what, answers)
+	if err != nil {
+		return err
+	}
+	if verdict == "yes" {
+		_, err = tx.Exec(ctx, `INSERT INTO acts(id,conversation,session,kind,title,body,state,created_at,closed_at,answered_by)
+ SELECT md5(conversation||message),conversation,$3,'ask',coalesce(nullif(left(btrim(what),120),''),'Asks in text'),
+ jsonb_build_object('source','prose','message',message,'what',what,'answers',answers),
+ CASE WHEN answered THEN 'answered' WHEN closed THEN 'withdrawn' ELSE 'open' END,coalesce(started_at,now()),
+ CASE WHEN answered OR closed THEN now() END,CASE WHEN answered THEN 'person' ELSE '' END
+ FROM text_questions WHERE conversation=$1 AND message=$2 ON CONFLICT(id) DO NOTHING`, conversation, message, session)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // PushQuestion claims the news independently of classification: switching
@@ -93,9 +112,21 @@ func (s *Store) CloseQuestions(ctx context.Context, active []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = pool.Exec(ctx, `UPDATE text_questions SET closed=true
- WHERE pushed AND NOT closed AND NOT (conversation || ':' || message = ANY($1))`, active)
-	return err
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `UPDATE text_questions SET closed=true WHERE NOT closed AND NOT (conversation||':'||message=ANY($1))`, active)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE acts SET state='withdrawn',closed_at=now()
+ WHERE kind='ask' AND state='open' AND NOT (conversation||':'||(body->>'message')=ANY($1))`, active)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // ClaimQuestionClosures leaves room in the encrypted payload for the news.

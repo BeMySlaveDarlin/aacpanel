@@ -2,6 +2,7 @@ package action
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -16,6 +17,8 @@ const SecretTextMax = 64 << 10
 // secretName is the name of a secret: a file of its directory that is neither
 // hidden nor a way out of it, and that the temporary file of a write, which
 // starts with a dot, never looks like.
+var secretActID = regexp.MustCompile(`^[a-f0-9]{32}$`)
+
 var secretName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 // SecretName reports whether s names a secret.
@@ -27,6 +30,7 @@ func SecretName(s string) bool { return secretName.MatchString(s) }
 type Secret struct {
 	Name string `json:"name"`
 	Text string `json:"text"`
+	Act  string `json:"act,omitempty"`
 }
 
 // SecretFile is one secret on the host, as the list shows it: what the file
@@ -72,6 +76,9 @@ func validateSecret(r Request) error {
 	if !SecretName(r.Secret.Name) {
 		return errSecretName
 	}
+	if r.Secret.Act != "" && !secretActID.MatchString(r.Secret.Act) {
+		return badRequest("the secret act id is not valid")
+	}
 	text := r.Secret.Text
 	switch {
 	case strings.TrimSpace(text) == "":
@@ -83,3 +90,15 @@ func validateSecret(r Request) error {
 	}
 	return nil
 }
+
+// SavedSecretError distinguishes a failed notification from a failed write.
+// The service can settle the act without reading the file or parsing an error.
+type SavedSecretError struct {
+	Path string
+	Err  error
+}
+
+func (e *SavedSecretError) Error() string {
+	return fmt.Sprintf("saved to %s, but the session was not told: %v", e.Path, e.Err)
+}
+func (e *SavedSecretError) Unwrap() error { return e.Err }

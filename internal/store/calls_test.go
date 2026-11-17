@@ -8,7 +8,7 @@ import (
 	"aacpanel/internal/testdb"
 )
 
-func openCalls(t *testing.T, ctx context.Context, conversations ...string) *SessionCalls {
+func openCalls(t *testing.T, ctx context.Context, conversations ...string) *Store {
 	t.Helper()
 	s, err := New(testdb.DSN(t))
 	if err != nil {
@@ -23,18 +23,18 @@ func openCalls(t *testing.T, ctx context.Context, conversations ...string) *Sess
 		t.Fatal(err)
 	}
 	forget := func() {
-		if _, err := pool.Exec(context.Background(), `DELETE FROM session_calls WHERE conversation = ANY($1)`, conversations); err != nil {
+		if _, err := pool.Exec(context.Background(), `DELETE FROM acts WHERE conversation = ANY($1)`, conversations); err != nil {
 			t.Fatalf("clearing the calls of the probe: %v", err)
 		}
 	}
 	forget()
 	t.Cleanup(forget)
-	return s.SessionCalls()
+	return s
 }
 
-func unseenCall(t *testing.T, ctx context.Context, calls *SessionCalls, conversation string) (time.Time, bool) {
+func unseenCall(t *testing.T, ctx context.Context, calls *Store, conversation string) (time.Time, bool) {
 	t.Helper()
-	got, err := calls.Unseen(ctx)
+	got, err := calls.UnseenCalls(ctx)
 	if err != nil {
 		t.Fatalf("the calls not seen: %v", err)
 	}
@@ -42,9 +42,9 @@ func unseenCall(t *testing.T, ctx context.Context, calls *SessionCalls, conversa
 	return at, ok
 }
 
-func called(t *testing.T, ctx context.Context, calls *SessionCalls, conversation, session string, at time.Time, seen bool) {
+func called(t *testing.T, ctx context.Context, calls *Store, conversation, session string, at time.Time, seen bool) {
 	t.Helper()
-	if err := calls.Called(ctx, conversation, session, at, seen); err != nil {
+	if err := calls.CallAct(ctx, conversation, session, at, seen); err != nil {
 		t.Fatalf("the call of %s: %v", conversation, err)
 	}
 }
@@ -68,13 +68,13 @@ func TestSessionCallStandsUntilTheSessionIsOpenedPG(t *testing.T) {
 		t.Fatal("a second listing of the call took its mark away")
 	}
 
-	if err := calls.Seen(ctx, "refactor", ""); err != nil {
+	if err := calls.SeeCalls(ctx, "refactor", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := unseenCall(t, ctx, calls, conv); !ok {
 		t.Fatal("opening another session took the mark of this one away")
 	}
-	if err := calls.Seen(ctx, "aacpanel", ""); err != nil {
+	if err := calls.SeeCalls(ctx, "aacpanel", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := unseenCall(t, ctx, calls, conv); ok {
@@ -94,9 +94,16 @@ func TestSessionCallStandsUntilTheSessionIsOpenedPG(t *testing.T) {
 		t.Fatalf("two calls before the visit stand as %v %v, wanted one mark at the later %v", at, ok, third)
 	}
 
+	rows, err := calls.ActsOf(ctx, conv)
+	if err != nil || len(rows) != 3 {
+		t.Fatalf("call history: %+v %v", rows, err)
+	}
+	if rows[0].State != "answered" || rows[1].State != "withdrawn" || rows[2].State != "open" {
+		t.Fatalf("replaced call stayed open: %+v", rows)
+	}
 	// A session renamed after the call is still opened under its
 	// conversation.
-	if err := calls.Seen(ctx, "aacpanel-renamed", conv); err != nil {
+	if err := calls.SeeCalls(ctx, "aacpanel-renamed", conv); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := unseenCall(t, ctx, calls, conv); ok {
@@ -122,7 +129,11 @@ func TestSessionCallSeenAsItComesPG(t *testing.T) {
 		t.Fatal("a later listing of a call seen as it came marked it")
 	}
 
-	called(t, ctx, calls, old, "blog", now.Add(-31*24*time.Hour), false)
+	called(t, ctx, calls, old, "blog", now.Add(-31*24*time.Hour), true)
+	rows, err := calls.ActsOf(ctx, old)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("closed old calls were not purged: %+v %v", rows, err)
+	}
 	if _, ok := unseenCall(t, ctx, calls, old); ok {
 		t.Fatal("a call of a month ago is still kept")
 	}

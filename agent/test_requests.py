@@ -5,7 +5,7 @@ import unittest
 
 import test_barrier  # noqa: F401
 import chat
-from chat.waiting import Index, cards
+from chat.waiting import Index, cards, snapshot
 from test_codex import mcp_call
 
 
@@ -107,6 +107,7 @@ class TextQuestions(unittest.TestCase):
             self.assertEqual(cards(path), found, "a tool result settled the question")
             append({"type": "user", "message": {"content": "Yes, publish."}})
             self.assertEqual(cards(path), [])
+            self.assertEqual(snapshot(path)[1], ["message-one"])
             append({"type": "assistant", "uuid": "message-two", "message": {"content": [
                 {"type": "text", "text": "Another question?"}]}})
             self.assertEqual(cards(path)[0]["id"], "message-two")

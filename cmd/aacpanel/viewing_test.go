@@ -134,7 +134,7 @@ func TestACallMarksItsSessionUntilTheSessionIsOpenedPG(t *testing.T) {
 		t.Fatal(err)
 	}
 	forget := func() {
-		pool.Exec(context.Background(), `DELETE FROM session_calls WHERE conversation = $1`, sentinelID)
+		pool.Exec(context.Background(), `DELETE FROM acts WHERE conversation = $1 AND kind='call'`, sentinelID)
 	}
 	forget()
 	t.Cleanup(forget)

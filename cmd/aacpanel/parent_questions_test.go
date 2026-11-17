@@ -143,6 +143,7 @@ func TestProseQuestionPushWaitsAndAQuestionClearedBeforeItsDeadlineStaysSilentPG
 	t.Cleanup(func() {
 		pool.Exec(context.Background(), "DELETE FROM parent_questions WHERE conversation=$1", requestConversation)
 		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
+		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1 AND kind='ask'", requestConversation)
 	})
 	e := parentQuestionClient(t, p.srv, &action.Opening{Name: "parent", Conversation: questionParentID, Letters: true})
 	p.srv.push = notify.New(nil, "")
@@ -165,7 +166,7 @@ func TestProseQuestionPushWaitsAndAQuestionClearedBeforeItsDeadlineStaysSilentPG
 		if message == "cleared" {
 			what = ""
 		}
-		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, message, "yes", what, []string{"Yes", "No"}); err != nil {
+		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", what, []string{"Yes", "No"}); err != nil {
 			t.Fatal(err)
 		}
 		card := chat.Item{Role: "question", BriefID: message, Text: "Publish?", Title: "Asks in text"}
@@ -215,6 +216,7 @@ func TestAParentsOrdinaryLetterSettlesOnlyItsChildsCurrentProseQuestionPG(t *tes
 	pool, _ := p.db.Pool()
 	t.Cleanup(func() {
 		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
+		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1 AND kind='ask'", requestConversation)
 	})
 	e := parentQuestionClient(t, p.srv, &action.Opening{Name: "parent", Conversation: questionParentID, Letters: true})
 	card := chat.Item{Role: "question", BriefID: "parent-reply", Text: "Use this path?", Title: "Asks in text"}
@@ -223,7 +225,7 @@ func TestAParentsOrdinaryLetterSettlesOnlyItsChildsCurrentProseQuestionPG(t *tes
 	if _, err := p.db.ClaimQuestion(t.Context(), requestConversation, card.BriefID); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, card.BriefID, "yes", card.Text, nil); err != nil {
+	if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", card.BriefID, "yes", card.Text, nil); err != nil {
 		t.Fatal(err)
 	}
 	var rows []map[string]json.RawMessage
@@ -236,6 +238,15 @@ func TestAParentsOrdinaryLetterSettlesOnlyItsChildsCurrentProseQuestionPG(t *tes
 		visible := p.srv.questionCards(t.Context(), rows, map[string][]chat.Item{requestConversation: {card}})
 		if (len(visible[requestConversation]) == 0) != (from == questionParentID) {
 			t.Fatalf("a sibling settled the question, or the parent did not: %v", visible)
+		}
+	}
+	acts, err := p.db.ActsOf(t.Context(), requestConversation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range acts {
+		if row.Kind == "ask" && (row.State != "answered" || row.AnsweredBy != "parent") {
+			t.Fatalf("parent answer act: %+v", row)
 		}
 	}
 	sent := e.sent()

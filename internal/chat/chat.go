@@ -544,19 +544,20 @@ type WorkPhase struct {
 // Reply is a window of the feed and its bounds.
 type Reply struct {
 	// Waiting carries only the anchors and titles of cards that can need the person.
-	Waiting    map[string][]Item `json:"waiting,omitempty"`
-	OK         bool              `json:"ok"`
-	Error      string            `json:"error,omitempty"`
-	Session    string            `json:"session,omitempty"`
-	Subagent   string            `json:"subagent,omitempty"`
-	Items      []Item            `json:"items"`
-	Total      int               `json:"total"`
-	MoreBefore bool              `json:"moreBefore"`
-	First      *int64            `json:"first"`
-	Last       *int64            `json:"last"`
-	Size       int64             `json:"size,omitempty"`
-	Media      string            `json:"media,omitempty"`
-	Data       string            `json:"data,omitempty"`
+	Waiting           map[string][]Item   `json:"waiting,omitempty"`
+	AnsweredQuestions map[string][]string `json:"answeredQuestions,omitempty"`
+	OK                bool                `json:"ok"`
+	Error             string              `json:"error,omitempty"`
+	Session           string              `json:"session,omitempty"`
+	Subagent          string              `json:"subagent,omitempty"`
+	Items             []Item              `json:"items"`
+	Total             int                 `json:"total"`
+	MoreBefore        bool                `json:"moreBefore"`
+	First             *int64              `json:"first"`
+	Last              *int64              `json:"last"`
+	Size              int64               `json:"size,omitempty"`
+	Media             string              `json:"media,omitempty"`
+	Data              string              `json:"data,omitempty"`
 	Call
 	Archive *ArchivePage `json:"archive,omitempty"`
 	Briefs  []BriefCard  `json:"briefs,omitempty"`

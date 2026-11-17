@@ -51,6 +51,59 @@
         "keys": [],
         "empty": []
       }
+    },
+    {
+      "input": {
+        "name": "github-token",
+        "path": "/home/u/.local/state/aacpanel/secrets/github-token",
+        "text": "GH_TOKEN=not-a-real-token\n",
+        "act": "dddddddddddddddddddddddddddddddd"
+      },
+      "text": "The secret \"github-token\" is saved: /home/u/.local/state/aacpanel/secrets/github-token (0600, 1 line). (act dddddddddddddddddddddddddddddddd). Keys: GH_TOKEN. Use it by its path and never read or print it: whatever you read goes into the transcript.",
+      "said": {
+        "kind": "secret",
+        "name": "github-token",
+        "path": "/home/u/.local/state/aacpanel/secrets/github-token",
+        "dir": "/home/u/.local/state/aacpanel/secrets/",
+        "lines": 1,
+        "keys": [
+          "GH_TOKEN"
+        ],
+        "empty": [],
+        "act": "dddddddddddddddddddddddddddddddd"
+      }
+    },
+    {
+      "input": {
+        "name": "github-token",
+        "act": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "answer": "decline",
+        "note": ""
+      },
+      "text": "The person won't give the secret \"github-token\" (act eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee).\n\nDo not ask for it again; go on without it or say what it blocks.",
+      "said": {
+        "kind": "secret",
+        "name": "github-token",
+        "act": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "declined": true,
+        "note": ""
+      }
+    },
+    {
+      "input": {
+        "name": "github-token",
+        "act": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "answer": "decline",
+        "note": "The credential cannot be shared."
+      },
+      "text": "The person won't give the secret \"github-token\" (act eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee).\n\nTheir reason:\nThe credential cannot be shared.\n\nDo not ask for it again; go on without it or say what it blocks.",
+      "said": {
+        "kind": "secret",
+        "name": "github-token",
+        "act": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "declined": true,
+        "note": "The credential cannot be shared."
+      }
     }
   ],
   "brief": [
@@ -199,6 +252,7 @@
       "said": {
         "kind": "request",
         "title": "Restart the router",
+        "act": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "answer": "Done",
         "note": ""
       }
@@ -210,10 +264,11 @@
         "answer": "cant",
         "note": "  The sign-in page is unavailable.  "
       },
-      "text": "The person answered your request “Sign in to the dashboard” (bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb): Can't.\n\nTheir note:\nThe sign-in page is unavailable.",
+      "text": "The person answered your request “Sign in to the dashboard” (bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb): Can't.\n\nTheir reason:\nThe sign-in page is unavailable.",
       "said": {
         "kind": "request",
         "title": "Sign in to the dashboard",
+        "act": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "answer": "Can't",
         "note": "The sign-in page is unavailable."
       }
@@ -229,6 +284,7 @@
       "said": {
         "kind": "request",
         "title": "Check “ready”\nand reconnect",
+        "act": "cccccccccccccccccccccccccccccccc",
         "answer": "Done",
         "note": "The light is green.\n\nThe panel says “ready”."
       }
@@ -244,6 +300,7 @@
       "said": {
         "kind": "request",
         "title": "Open the cabinet",
+        "act": "dddddddddddddddddddddddddddddddd",
         "answer": "Can't",
         "note": ""
       }
@@ -259,6 +316,7 @@
       "said": {
         "kind": "request",
         "title": "Check the connection",
+        "act": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "answer": "Done",
         "note": "The router reports “online” (ffffffffffffffffffffffffffffffff): Done."
       }
@@ -364,6 +422,10 @@
     {
       "why": "a sentence added after the request reply",
       "text": "The person answered your request “Restart the router” (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa): Done. Then deploy."
+    },
+    {
+      "why": "the secret refusal has no act id",
+      "text": "The person won't give the secret \"github-token\".\n\nDo not ask for it again; go on without it or say what it blocks."
     }
   ]
 }

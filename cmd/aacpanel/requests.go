@@ -5,19 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
+	"aacpanel/internal/act"
 	"aacpanel/internal/notify"
 	personrequest "aacpanel/internal/request"
 	"aacpanel/internal/store"
 )
 
-// Only the local listener accepts a model's task. The MCP server supplies
-// the conversation from its binding; the snapshot supplies its current name.
+// Existing MCP servers keep the request endpoint until they reconnect.
 func (s *Server) apiRequest(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil || s.host == nil {
-		http.Error(w, "requests need the database and the host snapshot", http.StatusServiceUnavailable)
+		http.Error(w, "acts need the database and the host snapshot", http.StatusServiceUnavailable)
 		return
 	}
 	var body struct {
@@ -34,41 +33,79 @@ func (s *Server) apiRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	live, ok := s.host.LiveSessionOf(body.Conversation)
+	input := act.Input{Kind: "do", Title: body.Title, Body: act.Body{Steps: body.Steps}, Blocking: body.Blocking, ID: body.ID, Withdraw: body.Withdraw}
+	if input.Withdraw {
+		input.Kind = ""
+	}
+	s.createAct(w, r, body.Conversation, input)
+}
+
+func (s *Server) apiAct(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil || s.host == nil {
+		http.Error(w, "acts need the database and the host snapshot", http.StatusServiceUnavailable)
+		return
+	}
+	var body struct {
+		Conversation string `json:"conversation"`
+		act.Input
+	}
+	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&body); err != nil {
+		http.Error(w, "the act was not parsed", http.StatusBadRequest)
+		return
+	}
+	if err := body.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !body.Withdraw && body.Kind != "do" && body.Kind != "secret" {
+		http.Error(w, "only do and secret acts can be created here", http.StatusBadRequest)
+		return
+	}
+	s.createAct(w, r, body.Conversation, body.Input)
+}
+
+// The caller supplies a conversation, never a target session chosen by the model.
+func (s *Server) createAct(w http.ResponseWriter, r *http.Request, conversation string, input act.Input) {
+	if s.db == nil || s.host == nil {
+		http.Error(w, "acts need the database and the host snapshot", http.StatusServiceUnavailable)
+		return
+	}
+	live, ok := s.host.LiveSessionOf(conversation)
 	if !ok || live.Outside || live.Name == "" {
 		http.Error(w, "the caller has no live session the panel can answer", http.StatusConflict)
 		return
 	}
-	if body.Withdraw {
-		if err := s.db.WithdrawRequest(r.Context(), live.SessionID, body.ID); err != nil {
-			requestError(w, err)
+	if input.Withdraw {
+		if err := s.db.WithdrawAct(r.Context(), live.SessionID, live.Name, input.ID); err != nil {
+			actError(w, err)
 			return
 		}
-		writeJSON(w, map[string]string{"id": body.ID})
+		writeJSON(w, map[string]string{"id": input.ID})
 		return
 	}
-	row, err := s.db.CreateRequest(r.Context(), live.SessionID, live.Name, body.Input)
+	row, err := s.db.CreateAct(r.Context(), live.SessionID, live.Name, input)
 	if err != nil {
-		requestError(w, err)
+		actError(w, err)
 		return
 	}
-	if s.push != nil {
+	// secret_ask calls the phone after it has a durable act.
+	if row.Kind == "do" && s.push != nil {
 		s.push.Send(notify.Requested(notify.Session{ID: live.SessionID, Name: live.Name, CWD: live.CWD}, row.ID, row.Title))
 	}
 	writeJSON(w, map[string]string{"id": row.ID})
 }
-
-func requestError(w http.ResponseWriter, err error) {
+func actError(w http.ResponseWriter, err error) {
 	code := http.StatusServiceUnavailable
-	if errors.Is(err, store.ErrRequestClosed) {
+	if errors.Is(err, store.ErrActClosed) {
 		code = http.StatusConflict
 	}
 	http.Error(w, err.Error(), code)
 }
-
-func (s *Server) apiRequests(w http.ResponseWriter, r *http.Request) {
+func (s *Server) apiActs(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil {
-		http.Error(w, "requests need the database", http.StatusServiceUnavailable)
+		http.Error(w, "acts need the database", http.StatusServiceUnavailable)
 		return
 	}
 	id := r.URL.Query().Get("session")
@@ -76,43 +113,36 @@ func (s *Server) apiRequests(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the conversation id does not look like an id", http.StatusBadRequest)
 		return
 	}
-	rows, err := s.db.Requests(r.Context(), []string{id})
+	rows, err := s.db.ActsOf(r.Context(), id)
 	if err != nil {
-		requestError(w, err)
+		actError(w, err)
 		return
 	}
 	if rows == nil {
-		rows = []personrequest.Record{}
+		rows = []act.Record{}
 	}
-	writeJSON(w, map[string]any{"requests": rows})
+	writeJSON(w, map[string]any{"acts": rows})
 }
 
-type requestReply struct {
-	lease        *store.RequestAnswer
+type actReply struct {
+	lease        *store.ActAnswer
 	answer, note string
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
 
-func (a *requestReply) close() { a.lease.Close(a.ctx); a.cancel() }
-
-func (s *Server) prepareRequestAnswer(r *http.Request, target string, params map[string]any) (*requestReply, error) {
-	id, _ := params["request"].(string)
-	answer, _ := params["answer"].(string)
-	note, _ := params["note"].(string)
+func (a *actReply) close() { a.lease.Close(a.ctx); a.cancel() }
+func (s *Server) prepareActAnswer(r *http.Request, target string, params map[string]any) (*actReply, error) {
+	id, _ := params["act"].(string)
 	if !personrequest.ValidID(id) {
-		return nil, errors.New("the request id is not valid")
-	}
-	if err := personrequest.ValidateAnswer(answer, note); err != nil {
-		return nil, err
+		return nil, errors.New("the act id is not valid")
 	}
 	if s.db == nil || s.host == nil {
-		return nil, errors.New("requests need the database and the host snapshot")
+		return nil, errors.New("acts need the database and the host snapshot")
 	}
-	// Closing the page must not release the row while the executor still
-	// takes the message: a second device would then send another answer.
+	// Closing a page must not unlock a row while the executor still takes it.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), execTimeout+5*time.Second)
-	lease, err := s.db.LockRequest(ctx, id)
+	lease, err := s.db.LockAct(ctx, id)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -121,12 +151,11 @@ func (s *Server) prepareRequestAnswer(r *http.Request, target string, params map
 	if !ok || live.Outside || live.Name != target {
 		lease.Close(ctx)
 		cancel()
-		return nil, errors.New("the request belongs to another conversation or its session has ended")
+		return nil, errors.New("the act belongs to another conversation or its session has ended")
 	}
-	return &requestReply{lease: lease, answer: answer, note: strings.TrimSpace(note), ctx: ctx, cancel: cancel}, nil
+	answer, _ := params["answer"].(string)
+	note, _ := params["note"].(string)
+	return &actReply{lease: lease, answer: answer, note: note, ctx: ctx, cancel: cancel}, nil
 }
 
-// A retry keeps its identity in transports whose queues know message ids.
-func requestMessageID(id string) string {
-	return id[:8] + "-" + id[8:12] + "-" + id[12:16] + "-" + id[16:20] + "-" + id[20:]
-}
+func requestMessageID(id string) string { return act.MessageID(id) }
