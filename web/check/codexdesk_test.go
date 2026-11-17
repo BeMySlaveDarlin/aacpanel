@@ -52,7 +52,7 @@ func TestTheBandOfACodexThreadOpensMenusAtADesk(t *testing.T) {
 	if got.PlanWord != "Plan · gpt-6-astra · High" {
 		t.Errorf("the word of a planning thread at a desk reads %q, expected the plan, the model and the effort", got.PlanWord)
 	}
-	if strings.Join(got.Band, ",") != "clip,think,perm,thread,cwork" {
+	if strings.Join(got.Band, ",") != "clip,think,perm,thread" {
 		t.Errorf("the band at a desk holds %v, expected the paperclip, the three words and the work at its end", got.Band)
 	}
 	if strings.Join(got.Procs, "|") != "background processes: 3 running|subagents: none" {

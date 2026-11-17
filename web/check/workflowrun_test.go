@@ -46,11 +46,11 @@ type flowShot struct {
 // and the subagents. Ninety agents of one run in the list of subagents bury
 // the two the session started itself; one line in the list of background jobs
 // says that something is running and nothing else.
-func TestWorkflowRunsGetAChipOfTheirOwn(t *testing.T) {
+func TestWorkflowRunsOpenFromCommands(t *testing.T) {
 	var got flowShot
 	runFixture(t, "workflowrun.html", &got)
 
-	if got.Before.Chips != 3 {
+	if got.Before.Chips != 2 {
 		t.Fatalf("chips under the composer: %d, the runs have no button of their own", got.Before.Chips)
 	}
 	if !got.Before.Icon {
@@ -59,7 +59,7 @@ func TestWorkflowRunsGetAChipOfTheirOwn(t *testing.T) {
 	if got.Before.Num != "1" {
 		t.Errorf("the chip counts %q running, one of the two runs is going", got.Before.Num)
 	}
-	if !strings.Contains(got.Before.Label, "workflow") {
+	if !strings.Contains(got.Before.Label, "Workflows") {
 		t.Errorf("the chip does not name what it opens: %q", got.Before.Label)
 	}
 	for _, chip := range []string{got.Before.TaskChip, got.Before.AgentChip} {

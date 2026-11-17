@@ -19,6 +19,7 @@ import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const sent = [];
+let used = 0;
 window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
@@ -45,12 +46,12 @@ const stream = { prepareAvailable: true, status: "idle", transport: "stream", pc
     model: "claude-opus-5-5", effort: "xhigh", mode: "auto", tokensIn: 5000, tokensOut: 900 };
 const root = document.getElementById("root");
 const show = (live, ex = exec) => render(h(ToastHost, null, h(GateHost, null,
-    html`<${Chat} name="helios" id="s1" live=${live} exec=${ex} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    html`<${Chat} name="helios" id="s1" live=${live} exec=${ex} onBack=${() => {}} onUsage=${() => { used += 1; }} />`)), root);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());
 const chip = async () => {
-    document.querySelector(".cstrip .pkcmds").click();
+    document.querySelector(".deck .pkcmds").click();
     await quiet();
 };
 const row = async (line) => {
@@ -71,6 +72,8 @@ const close = async () => {
     try {
         show(stream);
         await quiet();
+        document.querySelector('.cstrip .deckuse').click();
+        out.usage = used === 1;
         const deck = document.querySelector(".deck");
         out.inStrip = Boolean(document.querySelector(".cstrip .pkcmds"));
         out.inDeck = Boolean(deck.querySelector(".pkcmds"));
@@ -78,7 +81,7 @@ const close = async () => {
         const buttons = Array.from(strip.querySelectorAll("button"));
         out.order = buttons.map((b) => b.dataset.pick
             || (b.classList.contains("pkcmds") ? "commands" : b.classList.contains("pickfile") ? "file" : b.className));
-        const cmds = strip.querySelector(".pkcmds");
+        const cmds = deck.querySelector(".pkcmds");
         out.cmdsIcon = Boolean(cmds.querySelector("svg")) && cmds.textContent.trim() === "";
 
         await chip();
@@ -90,6 +93,11 @@ const close = async () => {
             + Array.from(s.querySelectorAll(".cmdname")).map((n) => n.textContent.trim()).join(" "));
         out.modelNote = text(".sheet.on .mcprow").find((r) => r.startsWith("/model")) || "";
 
+        await row("Pages");
+        out.pages = document.querySelector(".sheet.on .worklist")?.textContent.includes("No artifacts were published in this conversation.");
+        await close(); await chip(); await row("Workflows");
+        out.workflows = document.querySelector(".sheet.on .worklist")?.textContent.includes("This conversation launched no workflows.");
+        await close(); await chip();
         await row("/hooks");
         out.hooksTitle = text(".sheet.on .cmdhead")[0] || "";
         await close();

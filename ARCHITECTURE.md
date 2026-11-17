@@ -621,19 +621,21 @@ days. The local `/api/requests` endpoint adapts request calls to acts for MCP
 servers that have not reconnected. The old request and call tables remain
 available for an image rollback, but the service neither reads nor writes them.
 
-The counter in both session lists opens the conversation. Its collapsible
-queue over the composer holds open requests, the unseen call, briefs with
-questions whose answers have not been sent, open secrets, and classified questions
-in prose. Native questions and permission prompts keep their own docks. Opening the session settles its call through
-`acts`, on every device, and none of the other items. The service
-adds this summary to the host snapshot: the collector supplies card anchors,
-the database supplies open acts and brief state. The collector indexes only these cards and reads new transcript
-records after the first listing; it keeps no second copy of the whole feed.
+The counter in both session lists opens the conversation. Its lower strip
+counts open acts and briefs together with the native question or permission.
+The oldest blocking item opens first, then the oldest item; a new arrival does
+not replace the form the person is filling in. The form shares the composer's
+frame above the message field on both phone and desktop. A press on the counter
+cycles the items and reveals their markers in the feed. Opening the session
+settles its call through `acts`, on every device, and none of the other items.
+The service adds the summary to the host snapshot: the collector supplies card
+anchors, the database supplies open acts and brief state. The collector indexes
+only these cards and reads new transcript records after the first listing; it
+keeps no second copy of the whole feed.
 
-A queue item opens the feed window around its card and collapses the queue to
-leave room to read. The request card renders its Markdown with the feed's copy
-buttons and sends Done or Can't with an optional note through the same action
-gate as the composer. `session.send` accepts an act id and answer; the service
+The form renders a request's Markdown with the feed's copy and Run buttons.
+Done sends immediately; Can't opens an optional reason. A note stays folded
+until requested. `session.send` accepts an act id and answer; the service
 builds the message from the stored title and the person's answer, checks its
 conversation, and locks the row while the executor accepts the message. Only
 then is it marked answered. A failed send leaves it open. A retry keeps the
@@ -641,10 +643,10 @@ message id for transports whose queues know it. A database failure after deliver
 is reported as delivered but not marked, rather than inviting a blind resend. There is
 no new executor action or host right.
 
-The feed recognises that reply by its whole text and draws a panel card with
-the title, Done or Can't, and the note. The request id stays in the folded text
-the session got. Shared samples check both `request.Reply` and the feed's
-reader; a text that only resembles the reply stays the person's bubble.
+Request and secret cards are markers in the feed. A reply carrying an id in
+`GET /api/acts` folds into a quiet line under its act and opens in full on a
+press. Matching by stored id keeps the reply independent of its wording. The
+whole-text parsers remain for history without act data.
 The time over the composer and in the desktop graph says "last reply" so it
 does not read as the time of a task for the person's hands.
 
@@ -659,12 +661,12 @@ answer, as it draws the card of a brief. The tool first records a `secret`
 act through the local `/api/acts` endpoint, then calls the phone. The template
 is a description of the requested values, not a place for those values.
 
-The person fills the notepad in on a sheet of the panel and saves it. The text
+The person fills the notepad in the composer form and saves it. The text
 travels in the body of `secret.put` and nowhere else: the service journals the
 name and the length, the executor writes the file and answers with the name
 and the size, and no journal, audit line, log, snapshot, socket answer or
-refusal carries a byte of it. The sheet holds the text in memory until it
-closes, never in a draft or in the storage of the browser, and the service
+refusal carries a byte of it. The form holds the text in memory until it
+leaves, never in a draft or in the storage of the browser, and the service
 worker keeps only answers to GET, which never carry it. The file is
 `~/.local/state/aacpanel/secrets/<name>` (`$XDG_STATE_HOME` moves it), 0600 in a
 directory of 0700 — outside the state directory of the panel, which is mounted
@@ -2870,7 +2872,12 @@ plugins and skills (`/reload-plugins`, `/reload-skills`), which leave the
 conversation alone and ask the model nothing. The list is read from the same
 registry the composer reads, and each row does what typing it does: a command
 goes through the same confirmation. A session in tmux is offered only what
-works there.
+works there. Pages, with the number still unread, and Workflows open from this
+list. The deck keeps the move counter, commands, terminal, background work,
+agents and briefs; usage opens from the end of the model strip. On a narrow
+screen, focus inside the composer hides both strips and puts the paperclip
+beside the message field. A message typed while a native question is open first
+dismisses that question through its normal gate, then sends the message.
 
 **A session on the stream is renamed from the panel** (`session.rename`, the
 sheet of `/rename`). Claude takes the name with a request of its own and

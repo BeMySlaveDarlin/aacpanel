@@ -16,6 +16,7 @@
     gap: .4rem;
     margin-top: calc(var(--deck-gap) - var(--body-gap));
 }
+.deck > .pkcmds { margin-left: auto; min-width: 30px; min-height: 0; height: 30px; box-shadow: inset 0 0 0 var(--hair) var(--edge); }
 .deck > .wchips { flex: 0 1 auto; min-width: 0; }
 
 /* What the session has spent so far, in and out: a chip like the others in
@@ -25,7 +26,7 @@
 .deckuse {
     flex: none;
     align-self: center;
-    margin-right: auto;
+    margin-left: auto;
     border: 0;
     background: none;
     font: inherit;
@@ -302,7 +303,7 @@
 }
 .composer:focus-within { --field-edge: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent), var(--gloss), var(--glow); }
 
-.composer textarea {
+.composer > textarea {
     flex: 1;
     max-height: 7rem;
     resize: none;
@@ -363,8 +364,8 @@
     .composer .iconbtn.accent.hearing { animation: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--crit) 18%, transparent); }
 }
 
-.composer textarea::placeholder { color: var(--ink-faint); }
-.composer textarea:disabled { color: var(--ink-faint); }
+.composer > textarea::placeholder { color: var(--ink-faint); }
+.composer > textarea:disabled { color: var(--ink-faint); }
 
 .pickfile { cursor: pointer; }
 .pickfile.off { opacity: .4; cursor: default; }

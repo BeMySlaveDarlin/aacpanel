@@ -107,22 +107,22 @@ func TestAnAnsweredSessionStopsWaitingAtOnce(t *testing.T) {
 	var got codexAsyncRun
 	runFixture(t, "codexasync.html", &got)
 
-	stands := func(what string, s standing, word, tone string) {
+	stands := func(what string, s standing, head, word, tone string) {
 		t.Helper()
-		if s.Word != word || s.Row == nil || s.Row.Tone != tone {
-			t.Errorf("%s: the head says %q and the row stands %+v, want %q and the tone %s", what, s.Word, s.Row, word, tone)
+		if s.Word != head || s.Row == nil || s.Row.Tone != tone || s.Row.Said != word {
+			t.Errorf("%s: the head says %q and the row stands %+v, want head %q, row %q and tone %s", what, s.Word, s.Row, head, word, tone)
 		}
 	}
-	// The head says the state in the words of the session's card.
-	stands("claude asks", got.ClaudeAsks, "asks Theme", "wait")
+	// The head names the person's move; the list keeps the question and its tone.
+	stands("claude asks", got.ClaudeAsks, "your move", "asks Theme", "wait")
 	want := []sentAction{{Kind: "session.answer", Target: "site",
 		Params: map[string]any{"ask": "toolu_theme", "picks": []any{[]any{2.0}}}}}
 	if !reflect.DeepEqual(got.ClaudeSent, want) {
 		t.Fatalf("claude's question was answered with %+v, want %+v", got.ClaudeSent, want)
 	}
-	stands("claude answered", got.ClaudeAnswered, "working", "busy")
-	stands("codex asks", got.CodexAsks, "asks a question · works on", "wait")
-	stands("codex answered", got.Going.Stands, "working", "busy")
+	stands("claude answered", got.ClaudeAnswered, "working", "working", "busy")
+	stands("codex asks", got.CodexAsks, "your move", "asks a question · works on", "wait")
+	stands("codex answered", got.Going.Stands, "working", "working", "busy")
 }
 
 const (
@@ -159,19 +159,19 @@ func TestACodexQuestionItDidNotWaitForIsClaudesQuestion(t *testing.T) {
 	if !reflect.DeepEqual(c.Skeleton, got.Claude.Skeleton) {
 		t.Errorf("codex's question is built otherwise than claude's:\n%q\nwant\n%q", c.Skeleton, got.Claude.Skeleton)
 	}
-	if c.Label != "codex asks" || c.Send != "Pick an option" || !c.SendOff {
+	if c.Label != "codex asks" || c.Send != "Send answers" || !c.SendOff {
 		t.Errorf("codex's sheet is headed %q with %q under it (off %v)", c.Label, c.Send, c.SendOff)
 	}
 	if c.Drop != "codex hears that you will answer in the conversation" {
 		t.Errorf("putting codex's question away says %q", c.Drop)
 	}
-	if !c.Sheet || c.Composer || c.Cards != 0 || c.Word != "asks a question · works on" {
-		t.Errorf("a question above the end of the feed: %+v — the sheet stands in the composer's place, "+
+	if !c.Sheet || !c.Composer || c.Cards != 0 || c.Word != "your move" {
+		t.Errorf("a question above the end of the feed: %+v — the form stands above the composer, "+
 			"the head says the thread asks and works on", c.askScreen)
 	}
 
 	p := got.Picked
-	if p.Posted != 0 || !reflect.DeepEqual(p.On, []bool{false, true}) || p.Send != "Send" || p.SendOff {
+	if p.Posted != 0 || !reflect.DeepEqual(p.On, []bool{false, true}) || p.Send != "Send answers" || p.SendOff {
 		t.Errorf("after a tap on Dark: %+v — the pick stands, nothing goes until Send", p)
 	}
 

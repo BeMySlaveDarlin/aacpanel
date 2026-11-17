@@ -115,9 +115,7 @@ function briefRow(card) {
 
 export function Work({ work, onOpen }) {
     const tasks = (work && work.tasks) || [];
-    const flows = (work && work.workflows) || [];
     const liveTasks = running(tasks).length + heldLive(work);
-    const liveFlows = flows.filter((f) => f.status === "running");
 
     return html`
         <div class="wchips">
@@ -127,11 +125,6 @@ export function Work({ work, onOpen }) {
                 ${Icon.clock()}${liveTasks > 0 && html`<span class="wnum">${liveTasks}</span>`}
             </button>
             <${AgentsChip} work=${work} onOpen=${onOpen} />
-            <button class=${`wchip${liveFlows.length > 0 ? "" : " idle"}`} type="button"
-                    onClick=${() => onOpen({ kind: "workflows" })}
-                    aria-label=${flowLabel(flows, liveFlows)}>
-                ${Icon.flow()}${liveFlows.length > 0 && html`<span class="wnum">${liveFlows.length}</span>`}
-            </button>
         </div>
     `;
 }
@@ -149,11 +142,6 @@ export function AgentsChip({ work, onOpen }) {
             ${Icon.robot()}${live.length > 0 && html`<span class="wnum">${live.length}</span>`}
         </button>
     `;
-}
-
-function flowLabel(flows, live) {
-    if (!flows.length) return "workflow runs: none";
-    return `workflow runs: ${flows.length}, ${live.length || "none"} running`;
 }
 
 function taskLabel(tasks, work) {
@@ -182,29 +170,16 @@ function agentLabel(agents, live) {
     return live.length > 0 ? `subagents: ${live.length} working` : "subagents: none working";
 }
 
-// WorkRefs renders the right half of the row: the artifacts. An artifact has no
-// "over" — what the session made stays made, and a file it sent stays sent —
-// so the number counts them all and, like the other chips, is absent rather
-// than 0.
-// WorkRefs renders the right half of the row: two chips, because the two things
-// behind them are not the same kind of thing. A page is made and stays made,
-// and its number counts the ones this device has not opened yet — it goes down
-// as they are read. A brief asks, and its number counts the ones still waiting
-// for an answer.
+// The brief counter stays in the deck; pages open from the commands list.
+export function freshPages(work, pages) {
+    return unopened(merge((work && work.artifacts) || [], pages || []).map(pageKey));
+}
+
 export function WorkRefs({ work, pages, briefs, onOpen }) {
-    const made = merge((work && work.artifacts) || [], pages || []);
-    const fresh = unopened(made.map(pageKey));
     const wants = waiting(briefs || []);
 
     return html`
-        <button class=${`wchip${fresh > 0 ? "" : " idle"}`} type="button"
-                onClick=${() => onOpen({ kind: "arts" })}
-                aria-label=${fresh > 0
-                    ? `pages this conversation published and you have not opened: ${fresh}`
-                    : "pages this conversation published: all opened"}>
-            ${Icon.artifact()}${fresh > 0 && html`<span class="wnum">${fresh}</span>`}
-        </button>
-        <button class=${`wchip${wants > 0 ? " wants" : " idle"}`} type="button"
+        <button class=${`wchip${wants > 0 ? "" : " idle"}`} type="button"
                 onClick=${() => onOpen({ kind: "briefs" })}
                 aria-label=${wants > 0
                     ? `briefs waiting for your answer: ${wants}`

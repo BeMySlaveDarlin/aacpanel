@@ -10,46 +10,47 @@ import (
 // what typing it does.
 func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	var got struct {
-		InStrip       bool     `json:"inStrip"`
-		InDeck        bool     `json:"inDeck"`
-		Order         []string `json:"order"`
-		CmdsIcon      bool     `json:"cmdsIcon"`
-		Title         string   `json:"title"`
-		Groups        []string `json:"groups"`
-		Lines         []string `json:"lines"`
-		Sections      []string `json:"sections"`
-		ModelNote     string   `json:"modelNote"`
-		HooksTitle    string   `json:"hooksTitle"`
-		Picker        string   `json:"picker"`
-		Btw           string   `json:"btw"`
-		SheetAfterBtw bool     `json:"sheetAfterBtw"`
-		Confirm       string   `json:"confirm"`
-		SentBefore    int      `json:"sentBefore"`
-		Sent          []string `json:"sent"`
-		SheetAfter    bool     `json:"sheetAfterSend"`
-		ReloadConfirm string   `json:"reloadConfirm"`
-		ReloadDanger  bool     `json:"reloadDanger"`
-		ReloadSent    []string `json:"reloadSent"`
-		ConsoleLines  []string `json:"consoleLines"`
-		OldHostOff    bool     `json:"oldHostOff"`
-		OldHostNote   string   `json:"oldHostNote"`
-		Error         string   `json:"error"`
+		Pages, Workflows, Usage bool
+		InStrip                 bool     `json:"inStrip"`
+		InDeck                  bool     `json:"inDeck"`
+		Order                   []string `json:"order"`
+		CmdsIcon                bool     `json:"cmdsIcon"`
+		Title                   string   `json:"title"`
+		Groups                  []string `json:"groups"`
+		Lines                   []string `json:"lines"`
+		Sections                []string `json:"sections"`
+		ModelNote               string   `json:"modelNote"`
+		HooksTitle              string   `json:"hooksTitle"`
+		Picker                  string   `json:"picker"`
+		Btw                     string   `json:"btw"`
+		SheetAfterBtw           bool     `json:"sheetAfterBtw"`
+		Confirm                 string   `json:"confirm"`
+		SentBefore              int      `json:"sentBefore"`
+		Sent                    []string `json:"sent"`
+		SheetAfter              bool     `json:"sheetAfterSend"`
+		ReloadConfirm           string   `json:"reloadConfirm"`
+		ReloadDanger            bool     `json:"reloadDanger"`
+		ReloadSent              []string `json:"reloadSent"`
+		ConsoleLines            []string `json:"consoleLines"`
+		OldHostOff              bool     `json:"oldHostOff"`
+		OldHostNote             string   `json:"oldHostNote"`
+		Error                   string   `json:"error"`
 	}
 	runFixture(t, "commandsheet.html", &got)
 	if got.Error != "" {
 		t.Fatalf("the fixture broke: %s", got.Error)
 	}
-	if !got.InStrip || got.InDeck {
+	if got.InStrip || !got.InDeck || !got.Pages || !got.Workflows || !got.Usage {
 		t.Errorf("the commands button stands in the strip of the composer: %v, in the row under it: %v — "+
-			"it belongs after the paperclip", got.InStrip, got.InDeck)
+			"it belongs in the deck and opens pages and workflows", got.InStrip, got.InDeck)
 	}
-	if strings.Join(got.Order, ",") != "file,commands,model,mode" {
+	if strings.Join(got.Order, ",") != "file,model,mode,deckuse" {
 		t.Errorf("the strip reads %v: the paperclip, the commands, then the model with its effort and the mode", got.Order)
 	}
 	if !got.CmdsIcon {
 		t.Errorf("the commands button is not an icon: a slash in a row of words reads poorly")
 	}
-	if got.Title != "Commands" || strings.Join(got.Groups, ",") != "Screens,How the session runs,The conversation,Plugins and skills" {
+	if got.Title != "Commands" || strings.Join(got.Groups, ",") != "Work,Screens,How the session runs,The conversation,Plugins and skills" {
 		t.Errorf("the list is %q with groups %v", got.Title, got.Groups)
 	}
 	for _, want := range []string{"/mcp", "/status", "/hooks", "/memory", "/skills", "/agents", "/config",

@@ -3,7 +3,8 @@ package check
 import "testing"
 
 type askShown struct {
-	Open bool `json:"open"`
+	Open   bool `json:"open"`
+	Inline bool `json:"inline"`
 }
 
 // A question whose options carry a drawing, read on a phone: the button
@@ -23,7 +24,7 @@ func TestADrawingOfAnOptionOpensBesideItAndTheCardStillAnswers(t *testing.T) {
 	}
 	runFixture(t, "askpreview.html", &got)
 
-	if !got.Wide.Open || !got.Narrow.Open {
+	if !got.Wide.Open || !got.Narrow.Open || !got.Wide.Inline || !got.Narrow.Inline {
 		t.Fatalf("the drawings of the options did not open (first %v, second %v): the button beside them leads nowhere",
 			got.Wide.Open, got.Narrow.Open)
 	}

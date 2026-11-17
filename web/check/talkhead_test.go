@@ -66,7 +66,8 @@ func TestThePhoneHeaderKeepsTheToolsBehindOneButton(t *testing.T) {
 	if off := got.Offline; off.Desk != "as of 22:41" || !strings.Contains(off.DeskDot, "dkoff") {
 		t.Errorf("the wide header without a link reads %q with its dot %q", off.Desk, off.DeskDot)
 	}
-	if got.Dot != "waiting" || got.Word != "asks Next" {
+	// The dialog keeps its waiting tone while the head names the person's move.
+	if got.Dot != "waiting" || got.Word != "your move" {
 		t.Errorf("a session waiting on a question stands as %q, saying %q", got.Dot, got.Word)
 	}
 	if got.Label != "acme-fingerprint-rotation-review-2" {

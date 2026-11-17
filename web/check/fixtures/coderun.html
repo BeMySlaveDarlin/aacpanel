@@ -40,6 +40,8 @@ const json = (value) => new Response(JSON.stringify(value), { status: 200, heade
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: items.at(-1).pos, total: items.length, moreBefore: false, state: null });
+    if (u.startsWith("/api/acts?")) return json({ acts: [{ id: base[1].id, kind: "do", title: base[1].title,
+        state: "open", created: "2026-01-01T00:00:00Z", body: { steps: base[1].steps } }] });
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u === "/api/actions") {
         sent.push(JSON.parse(init.body));
@@ -79,9 +81,9 @@ async function mount(session = live, executor = exec) {
         <${Chat} name="demo" id=${`demo-code-${mountId++}`} live=${session} exec=${executor} onBack=${() => {}} onUsage=${() => {}} />
         <div id="outside" class="msg">${md(markdown)}</div>
     <//><//>`, root);
-    await until(() => all(".chatfeed .mdcode").length === blocks.length + 1);
+    await until(() => codeBlocks().length === blocks.length + (session && !session.outside ? 1 : 0));
 }
-const codeBlocks = () => all(".chatfeed .mdcode");
+const codeBlocks = () => all(".chatfeed .mdcode, .actform .mdcode");
 const cards = () => all(".chatfeed .mshell");
 const preview = () => q(".sheet.on .gtpreview");
 // The bar above the composer that says where the last command stands.
@@ -165,7 +167,7 @@ window.done = (async () => {
             ["archive", null, exec],
         ]) {
             await mount(session, executor);
-            out.absent[key] = all(".chatfeed .mdrun").length;
+            out.absent[key] = all(".chatfeed .mdrun, .actform .mdrun").length;
         }
         out.codex = {};
         for (const transport of ["stream", "tmux"]) {

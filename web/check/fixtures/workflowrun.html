@@ -8,6 +8,7 @@
 // under the composer, the list behind it and the screen of one run.
 import { render } from "preact";
 import { html } from "/src/html.js";
+import { CommandsSheet } from "/src/screens/chat/commands.js";
 import { Work, WorkList } from "/src/screens/chat/work.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -48,6 +49,7 @@ let look = null;
 const draw = () => render(html`
     <${ToastHost}><${GateHost}>
         <div class="deck"><${Work} work=${work} onOpen=${(what) => { look = what; draw(); }} /></div>
+        <${CommandsSheet} work=${work} exec=${{}} onWork=${(what) => { look = what; draw(); }} />
         ${look && html`<${WorkList} session="lab" id="s1" kind=${look.kind} work=${work}
                                     exec=${{ available: true }} pages=${[]} briefs=${[]} />`}
     <//><//>
@@ -61,11 +63,11 @@ window.done = (async () => {
     await quiet();
     // The chip stands in the row of its own, with the number of runs still going.
     const chips = Array.from(document.querySelectorAll(".wchip"));
-    const chip = chips[chips.length - 1];
+    const chip = [...document.querySelectorAll(".mcprow")].find(b => b.querySelector(".cmdname")?.textContent === "Workflows");
     const before = {
         chips: chips.length,
-        label: chip.getAttribute("aria-label"),
-        num: (chip.querySelector(".wnum") || {}).textContent || "",
+        label: chip.textContent,
+        num: chip.querySelector(".cmdrownote").textContent.match(/\d+/)?.[0] || "",
         icon: Boolean(chip.querySelector("svg")),
         // The runs are nowhere in the two lists beside them.
         taskChip: chips[0].getAttribute("aria-label"),

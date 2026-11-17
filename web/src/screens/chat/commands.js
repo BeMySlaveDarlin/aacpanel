@@ -11,6 +11,8 @@ import { knows, whyNot } from "../../exec.js";
 import { COMMANDS, SCREENS } from "../../actions/registry.js";
 import { Icon } from "../../ui/icons.js";
 import { modelTitle } from "./head.js";
+import { isCodex } from "../../agent.js";
+import { freshPages } from "./work.js";
 import { effortName, modeName } from "./picker.js";
 
 // SENT are the commands of the list that go to the session about its
@@ -53,8 +55,7 @@ export function panelCommands({ stream, live, pick, side }) {
     ].filter((g) => g.rows.length);
 }
 
-// CommandsChip opens the list from the composer's strip, right after the
-// paperclip and ahead of the model, the effort and the mode.
+// CommandsChip opens the list from the deck under the composer.
 export function CommandsChip({ onOpen }) {
     return html`
         <button class="pkcmds" type="button" aria-label="commands of the panel" onClick=${onOpen}>
@@ -67,13 +68,18 @@ export function CommandsChip({ onOpen }) {
 // a question aside in front of what is typed, or sends its command through the
 // same confirmation the composer's would pass. A host whose executor cannot
 // send commands shows those rows with the reason instead.
-export function CommandsSheet({ name, live, exec, onScreen, onPicker, onSide, onDone }) {
+export function CommandsSheet({ name, live, exec, onScreen, onPicker, onSide, onDone, work, pages, onWork }) {
     const run = useAction();
     const stream = Boolean(live) && live.transport === "stream";
     const canSend = knows(exec, "session.command");
     const why = canSend ? "" : whyNot(exec, "session.command");
-    const groups = panelCommands({ stream, live, pick: Boolean(onPicker), side: Boolean(onSide) });
+    const fresh = freshPages(work, pages);
+    const groups = isCodex(live) ? [] : panelCommands({ stream, live, pick: Boolean(onPicker), side: Boolean(onSide) });
 
+    if (onWork) groups.unshift({ title: "Work", rows: [
+        { id: "arts", line: "Pages", note: fresh ? `${fresh} unread` : "All opened", kind: "work" },
+        { id: "workflows", line: "Workflows", note: `${(work?.workflows || []).filter((flow) => flow.status === "running").length} running`, kind: "work" },
+    ] });
     const canFinalize = knows(exec, "session.finalize") && Boolean(live?.prepareAvailable);
     const finalizeWhy = !live?.prepareAvailable ? "preparation needs a mapped Claude session with panel tools" : whyNot(exec, "session.finalize");
 
@@ -84,6 +90,7 @@ export function CommandsSheet({ name, live, exec, onScreen, onPicker, onSide, on
             if (result?.ok) onDone();
             return undefined;
         }
+        if (row.kind === "work") return onWork({ kind: row.id });
         if (row.kind === "screen") return onScreen(row.id);
         if (row.kind === "command" && !canSend) return undefined;
         if (row.kind === "pick") return onPicker(row.id);

@@ -1,313 +1,158 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<div id="root"></div>
-<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
 import { render } from "preact";
-import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
-import { Sessions } from "/src/screens/sessions.js";
-import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
-import { quiet, counted } from "/check/fixtures/quiet.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+import { movesOf, withActReplies } from "/src/screens/chat/actform.js";
 
 const until = async (ready) => {
-    const deadline = performance.now() + 5000;
-    while (!ready() && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
-    if (!ready()) throw new Error("The waiting UI did not become ready");
+    const end = performance.now() + 5000;
+    while (!ready() && performance.now() < end) await new Promise(resolve => requestAnimationFrame(resolve));
+    if (!ready()) throw new Error("The form did not reach its expected state");
 };
-const wide = innerWidth >= 1100;
-const id = "01234567-1234-4321-aaaa-123456789012";
-const requestID = "a".repeat(32);
-const at = new Date(Date.now() - 10000).toISOString();
-let record = { id: requestID, title: "Restart the router", steps: "Run this from the laptop:\n```sh\nssh root@192.168.1.1 reboot\n```\nWait for Wi-Fi to return.", blocking: true, created: at };
-const candidates = [
-    { kind: "request", id: requestID, title: record.title, at, pos: 10, blocking: true },
-    { kind: "brief", id: "rotation", title: "Token rotation", at, pos: 11 },
-    { kind: "secret", id: "release.env", title: "Release token", at, pos: 12 },
-    { kind: "call", title: "CI needs your choice", at, pos: 13 },
-    { kind: "question", id: "message-question", title: "Shall I publish?", answers: ["Publish", "Wait"], at, pos: 16 },
-    { kind: "asked", title: "A blocking question", at, pos: 14 },
-    { kind: "permit", title: "Permission", at, pos: 15 },
+const at = new Date(Date.now() - 5 * 60000).toISOString();
+const req = { id: "a".repeat(32), kind: "do", title: "Restart the router", state: "open", blocking: true, created: at,
+    body: { steps: "Run this:\n```sh\nprintf ready\n```\nWait for Wi-Fi." } };
+const sec = { id: "b".repeat(32), kind: "secret", title: "Release token", state: "open", created: at,
+    body: { name: "release.env", template: "TOKEN=" } };
+let acts = [req, sec];
+let items = [
+    { role: "request", id: req.id, title: req.title, steps: req.body.steps, pos: 10, at },
+    { role: "secret", id: sec.id, title: sec.title, name: sec.body.name, pos: 11, at },
+    ...Array.from({ length: 20 }, (_, n) => ({ role: "ai", pos: 20 + n, text: `Independent work ${n}\n\nMore work to read above the form.`, at })),
 ];
-let session = { session: "work", sessionId: id, cwd: "/srv/proj", profile: "personal", contour: 1, status: "idle", transport: "stream", called: at, waiting: candidates, model: "claude-opus-4-6", pct: 12 };
-const snapshot = { at: 1, sessions: [session], profileMap: [{ id: 1, profile: "personal", name: "personal", groups: [] }, { id: 2, profile: "work", name: "work", groups: [] }] };
-const exec = { available: true, kinds: ["session.send", "session.shell", "secret.put"] };
-const old = [
-    { role: "request", id: requestID, title: record.title, steps: record.steps, blocking: true, pos: 10, at },
-    { role: "brief", id: "rotation", title: "Token rotation", questions: 6, pos: 11, at },
-    { role: "secret", title: "Release token", name: "release.env", pos: 12, at },
-    { role: "call", text: "CI needs your choice", pos: 13, at },
-];
-old.push({ role: "ai", text: "The checks passed. Shall I publish or wait?\n\nClean the unused images too? Yes or no?", pos: 16, at });
-const tail = Array.from({ length: 40 }, (_, i) => ({ role: "ai", pos: 1000 + i, text: `Later answer ${i}: the session kept working on the independent part of its task.`, at }));
-const all = [...old, ...tail];
+let state = {};
 const sent = [];
-const windows = [];
-let copied = "";
-Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
-    writeText: async (text) => { copied = text; },
-} });
 let refuse = true;
-let holdRequests = true;
-let releaseRequests;
-let holdQuestion = false;
-let releaseQuestion;
-const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+let hold = false, release;
+let stream;
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (input, options) => {
-    const url = new URL(String(input), location.href);
-    if (url.pathname === "/api/chat") {
-        const p = url.searchParams;
-        let items = tail;
-        if (p.has("before")) { windows.push("before"); items = all.filter(i => i.pos < Number(p.get("before"))).slice(-Number(p.get("limit"))); }
-        if (p.has("after")) { windows.push("after"); items = all.filter(i => i.pos > Number(p.get("after"))).slice(0, Number(p.get("limit"))); }
-        return json({ items, first: items[0]?.pos, last: items.at(-1)?.pos, total: items.length, moreBefore: !p.has("before"), state: null });
-    }
-    if (url.pathname === "/api/acts") {
-        if (holdRequests) {
-            holdRequests = false;
-            await new Promise(resolve => { releaseRequests = resolve; });
-        }
-        return json({ acts: [{ ...record, kind: "do", body: { steps: record.steps },
-            state: record.withdrawn ? "withdrawn" : record.answered ? (record.answer === "cant" ? "declined" : "answered") : "open",
-            closed: record.withdrawn || record.answered, answer: { outcome: record.answer, note: record.note } }] });
-    }
-    if (url.pathname === "/api/briefs") return json({ briefs: [{ id: "rotation", sessionId: id, cwd: session.cwd, title: "Token rotation", questions: 6 }] });
-    if (url.pathname === "/api/secrets") return json({ secrets: [] });
-    if (url.pathname === "/api/actions") {
-        const body = JSON.parse(options.body);
-        sent.push(body);
-        if (body.kind === "session.shell") return json({ ok: true, detail: "running" });
-        if (holdQuestion && body.params.text) {
-            holdQuestion = false;
-            await new Promise(resolve => { releaseQuestion = resolve; });
-        }
+    const u = new URL(String(input), location.href);
+    if (u.pathname === "/api/chat") return json({ items, first: 10, last: 39, total: items.length, moreBefore: false, state });
+    if (u.pathname === "/api/acts") return json({ acts });
+    if (u.pathname === "/api/secrets") return json({ dir: "/srv/secrets", secrets: [] });
+    if (u.pathname === "/api/actions") {
+        const body = JSON.parse(options.body); sent.push(body);
+        if (hold) { hold = false; await new Promise(resolve => { release = resolve; }); }
         if (refuse) return json({ error: "Delivery refused" }, 502);
-        record = { ...record, answer: body.params.answer, note: body.params.note, answered: new Date().toISOString() };
-        return json({ ok: true, detail: "queued" });
+        if (body.params.act) acts = acts.map(a => a.id === body.params.act ? { ...a, state: body.params.answer === "decline" ? "declined" : "answered", closed: new Date().toISOString(), answer: { outcome: body.params.answer, note: body.params.note } } : a);
+        return json({ ok: true });
     }
-    if (url.pathname === "/api/sessions/archive") return json({ archive: { rows: [] } });
-    if (url.pathname.startsWith("/api/term")) return json({ available: false });
-    if (url.pathname.startsWith("/api/session/window")) return json({ state: "none" });
-    if (url.pathname.startsWith("/api/session/")) return json({ to: "" });
+    if (u.pathname.startsWith("/api/term")) return json({ available: false });
     return json({});
 });
-window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() { this.readyState = 2; } };
-
-let back, redraw, refresh;
-function App() {
-    const [opened, setOpened] = useState(false);
-    const [, setRevision] = useState(0);
-    redraw = () => setRevision(n => n + 1);
-    refresh = redraw;
-    back = () => setOpened(false);
-    const chat = opened && html`<${Chat} name="work" id=${id} live=${session} snapshot=${snapshot} exec=${exec} onBack=${back} onUsage=${() => {}} />`;
-    return wide ? html`<div class="deskshell"><div class="dkbody"><${SessionColumn} snapshot=${snapshot} exec=${exec} limits=${{}} picks=${[]} setPicks=${() => {}}
-        current=${opened ? "work" : ""} onPick=${() => setOpened(true)} /><section class="dkcenter dkchat">${chat}</section></div></div>`
-        : html`<div class="shell no-nav"><main class="body">${opened ? chat : html`<${Sessions} snapshot=${snapshot} ageSec=${0} exec=${exec} wait=${{ opening: () => [], of: () => null }} pick=${() => setOpened(true)} />`}</main></div>`;
-}
-// The card of the session says the first of what waits for the person and
-// how many more there are; a press on it opens the conversation.
-const sessionCard = () => document.querySelector(".sc:not(.scpast)");
-const cardCount = () => {
-    const c = sessionCard();
-    if (!c || c.dataset.tone !== "wait") return 0;
-    const more = (c.querySelector(".scaside")?.textContent || "").match(/(\d+) more/);
-    return 1 + (more ? Number(more[1]) : 0);
+window.EventSource = class {
+    constructor() { stream = this; this.listeners = {}; }
+    addEventListener(type, fn) { this.listeners[type] = fn; }
+    close() {}
 };
-const openCard = () => sessionCard().querySelector(".scopen").click();
-const queue = () => document.querySelector(".waitingqueue");
-const queueCount = () => Number(document.querySelector(".waitinghead")?.textContent.match(/·\s*(\d+)/)?.[1] || 0);
-const requestSheet = () => document.querySelector('.sheet.on[aria-label="request"]');
-const depth = () => history.state?.depth || 0;
-const pick = async (title, settle = true) => {
-    const head = document.querySelector(".waitinghead");
-    if (head.getAttribute("aria-expanded") !== "true") { head.click(); await quiet(); }
-    [...document.querySelectorAll(".waitingitem")].find(b => b.textContent.includes(title)).click();
-    if (settle) await quiet();
-};
+const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport: "stream", status: "idle", model: "claude-opus-5-5",
+    waiting: [{ kind: "request", id: req.id, title: req.title, pos: 10, at, blocking: true }, { kind: "secret", id: sec.id, title: sec.title, pos: 11, at }] };
+const exec = { available: true, kinds: ["session.send", "session.answer", "session.dismiss", "session.shell", "secret.put"] };
+const root = document.querySelector("#root");
+const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
+const count = () => Number(document.querySelector(".movepill")?.textContent.match(/· (\d+)/)?.[1] || 0);
+const form = () => document.querySelector(".actform");
+const button = (word) => [...form().querySelectorAll("button")].find(b => b.textContent.trim() === word);
+const type = async (el, text) => { el.value = text; el.dispatchEvent(new Event("input", { bubbles: true })); await quiet(); };
+const next = async () => { document.querySelector(".movepill").click(); await quiet(); };
+const publish = async () => { stream.listeners.state({ data: JSON.stringify(state) }); await quiet(); };
 window.done = (async () => {
-    render(html`<${ToastHost}><${GateHost}><${App} /></${GateHost}></${ToastHost}>`, document.getElementById("root"));
-    await document.fonts.ready;
-    await quiet();
-    const out = { wide, countBefore: cardCount() };
-    out.needsYou = wide ? sessionCard()?.textContent.includes("Shall I publish?")
-        : Boolean(document.querySelector(".pjwaits")?.textContent.includes("needs you") && sessionCard()?.textContent.includes("Shall I publish?"));
-    out.contourMark = wide ? document.querySelector(".dkwaitn")?.textContent.trim() === "1"
-        : document.querySelector('.pftab .waitn')?.getAttribute("aria-label") === "1 waiting for you";
-    // At a desk the picker of contours says it too: how many sessions of a
-    // contour are open, and a dot where one waits.
-    out.contourPick = wide ? [...document.querySelectorAll(".dkleft .dkpickbtn")].map((b) => [
-        b.querySelector(".dkpickname")?.textContent, b.querySelector(".dkpickn")?.textContent, Boolean(b.querySelector(".waitn")),
-    ].join(":")).join("|") : "";
-    if (new URLSearchParams(location.search).has("screenshot")) return out;
-    openCard();
-    await until(() => queue() && document.querySelector(".feedrow"));
-    await until(() => releaseRequests);
-    out.opened = Boolean(queue() && document.querySelector(".composer"));
-    out.countAfterOpening = queueCount();
-    out.callGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes("CI needs"));
-    const baseDepth = depth();
-    await pick("Restart the router", false);
-    await until(() => document.querySelector(".mrequest .requeststate"));
-    out.readingState = requestSheet()?.querySelector(".requeststate")?.textContent === "Reading request state…";
-    releaseRequests();
-    await quiet();
-    out.oneHistoryEntry = depth() === baseDepth + 1;
-    history.back();
-    await until(() => !requestSheet() && depth() === baseDepth);
-    await quiet();
-    out.backCloses = Boolean(document.querySelector(".composer"));
-
-    const feed = document.querySelector(".chatfeed");
-    feed.scrollTop = (feed.scrollHeight - feed.clientHeight) / 2;
-    feed.dispatchEvent(new Event("scroll"));
-    await quiet();
-    const scrollBefore = feed.scrollTop, windowsBefore = windows.length;
-    await pick("Restart the router");
-    let card = requestSheet()?.querySelector(".mrequest");
-    out.feedUnmoved = scrollBefore > 0 && feed.scrollTop === scrollBefore;
-    out.noWindowLoad = windows.length === windowsBefore;
-    out.requestVisible = card?.querySelector(".requesttitle")?.textContent === record.title
-        && card?.querySelector(".requeststeps")?.textContent.includes("Wait for Wi-Fi to return.");
-    out.sheetShape = Boolean(requestSheet()?.classList.contains(wide ? "win" : "draggable"));
-    out.collapsedOnPick = document.querySelector(".waitinghead").getAttribute("aria-expanded") === "false";
-    card.querySelector(".mdcopy").click();
-    out.commandCopies = copied === "ssh root@192.168.1.1 reboot";
-    card.querySelector(".mdrun").click();
-    await until(() => document.querySelector(".sheet.on .gtpreview"));
-    out.runConfirms = document.querySelector(".sheet.on .gtpreview").textContent === "ssh root@192.168.1.1 reboot" && sent.length === 0;
-    document.querySelector(".sheet.on .gtpreview").closest(".sheet").querySelector(".btn.primary").click();
-    await quiet();
-    out.runSent = sent.at(-1)?.kind === "session.shell" && sent.at(-1)?.target === "work"
-        && sent.at(-1)?.params?.text === "ssh root@192.168.1.1 reboot" && Boolean(requestSheet());
-    requestSheet().querySelector(".sheetclose").click();
-    await quiet();
-    for (const [title, kind] of [["Token rotation", "brief"], ["Release token", "secret"], ["Shall I publish?", "ai"]]) {
-        await pick(title);
-        out[kind + "Highlighted"] = Boolean(document.querySelector(`.r-${kind}.waitingtarget`));
-    }
-    out.loadedOlderWindow = windows.includes("before") && windows.includes("after");
-    out.questionSummary = document.querySelector(".mquestionwhat")?.textContent === "Shall I publish?";
-    const questionMessage = document.querySelector(".mquestionwhat")?.parentElement;
-    out.questionFullText = questionMessage?.textContent.includes("Shall I publish or wait?")
-        && questionMessage.textContent.includes("Clean the unused images too? Yes or no?");
-    const quick = () => document.querySelector(".mquestionanswers");
-    const choices = candidates.find(item => item.kind === "question");
-    const noReplies = () => !quick() && !document.querySelector('.feedrow[data-pos="16"] .requestnote, .feedrow[data-pos="16"] .requestanswer');
-    out.proseRepliesAbsent = noReplies();
-    // The host says the question again without its replies, then with none:
-    // each snapshot brings the session and what waits in it anew.
-    const asked = session;
-    const offer = (answers) => {
-        const { answers: _, ...bare } = choices;
-        const next = answers ? { ...bare, answers } : bare;
-        session = { ...asked, waiting: asked.waiting.map((item) => (item === choices ? next : item)) };
-        snapshot.sessions = [session];
-    };
-    offer(undefined);
-    redraw(); await quiet();
-    out.repliesMissing = noReplies();
-    offer([]);
-    redraw(); await quiet();
-    out.repliesEmpty = noReplies();
-    session = asked;
-    snapshot.sessions = [session];
-    const kinds = exec.kinds;
-    exec.kinds = [];
-    redraw(); await quiet();
-    out.repliesUnavailable = noReplies();
-    exec.kinds = kinds;
-    session.outside = true;
-    redraw(); await quiet();
-    out.repliesOutside = noReplies();
-    session.outside = false;
-    redraw(); await quiet();
-    const sendReply = async (text) => {
-        const field = document.querySelector(".composer textarea");
-        field.value = text;
-        field.dispatchEvent(new Event("input", { bubbles: true }));
-        await quiet();
-        const send = document.querySelector(".composer .sendbtn");
-        send.click(); send.click();
-    };
-    const beforeReply = sent.length;
-    holdQuestion = true;
-    await sendReply("Publish it.");
-    await until(() => releaseQuestion && document.querySelector(".composer textarea").disabled);
-    out.replyBusy = sent.length === beforeReply + 1 && queueCount() === 4;
-    out.replyPlain = sent.at(-1)?.kind === "session.send" && sent.at(-1)?.target === "work" && sent.at(-1)?.params?.text === "Publish it.";
-    document.querySelector(".feedjump").click();
-    await until(() => [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Publish it.")));
-    out.replyLocalSending = document.querySelector(".chatfeed").textContent.includes("going out");
-    releaseQuestion(); releaseQuestion = null;
-    await quiet();
-    out.replyFailedRow = [...document.querySelectorAll(".msg.me.failed")].some(row => row.textContent.includes("Publish it.") && row.textContent.includes("Delivery refused"));
-    await pick("Shall I publish?");
-    out.replyFailureKeeps = Boolean(document.querySelector(".mquestionwhat")) && queueCount() === 4 && noReplies();
-    await pick("Restart the router");
-    card = requestSheet()?.querySelector(".mrequest");
-    const field = card.querySelector("textarea");
-    field.value = "Wi-Fi is back.";
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
-    card.querySelector(".requestanswer .primary").click();
-    await quiet();
-    out.failureKeepsTask = queueCount() === 4 && Boolean(requestSheet()?.querySelector(".requestanswer")) && field.value === "Wi-Fi is back.";
+    const out = {};
+    draw(); await until(() => form()?.querySelector(".requestanswer")); await quiet();
+    out.auto = count() === 2 && form().textContent.includes(req.title) && !document.querySelector(".sheet.on, .waitingqueue");
+    out.waitTime = document.querySelector(".movepill").textContent.includes("5 min ago");
+    out.markers = document.querySelectorAll(".chatfeed .actmark").length === 2 && !document.querySelector(".chatfeed .requeststeps, .chatfeed .skpad");
+    out.head = document.querySelector('.talkword, .dkword[data-tone="waiting"]')?.textContent === "your move";
+    out.noteQuiet = !form().querySelector("textarea");
+    await next();
+    out.next = Boolean(form().querySelector(".skpad") && document.querySelector('.r-secret.waitingtarget')) && count() === 2;
+    await next();
     refuse = false;
-    card.querySelector(".requestanswer .primary").click();
-    await quiet();
-    out.sent = sent.at(-1);
-    out.countAfterAnswer = queueCount();
-    out.answerCloses = !requestSheet() && depth() === baseDepth;
-    const feedCard = feed.querySelector(".mrequest");
-    out.answerVisible = feedCard?.querySelector(".requeststate")?.textContent === "Done" && feedCard?.querySelector(".requestreply")?.textContent === "Wi-Fi is back.";
-    document.querySelector(".waitinghead").click();
-    await quiet();
-    out.requestGone = ![...document.querySelectorAll(".waitingitem")].some(b => b.textContent.includes(record.title));
-    out.questionHighlightKept = Boolean(feed.querySelector(".r-ai.waitingtarget"));
-    await pick("Shall I publish?");
-    const replyText = "Wait for CI.\n\nYes, clean the unused images.\nKeep logs.";
-    holdQuestion = true;
-    await sendReply(replyText);
-    await until(() => releaseQuestion);
-    const replySent = sent.at(-1);
-    out.replyText = replySent?.params?.text === replyText;
-    out.replyMessageId = /^[0-9a-f-]{36}$/.test(replySent?.params?.messageId || "");
-    releaseQuestion(); releaseQuestion = null;
-    await quiet();
-    out.replyGone = noReplies() && queueCount() === 2;
-    out.countAfterReply = queueCount();
-    out.questionSummaryGone = !document.querySelector(".mquestionwhat");
-    out.questionHighlightGone = !feed.querySelector(".waitingtarget");
-    document.querySelector(".feedjump").click();
-    await quiet();
-    out.replyLocalQueued = [...document.querySelectorAll(".msg.me.queued")].some(row => row.textContent.includes("Yes, clean the unused images."))
-        && document.querySelector(".chatfeed").textContent.includes("queued");
-    await pick("Release token");
-    out.hostHighlightBefore = Boolean(feed.querySelector(".r-secret.waitingtarget"));
-    const waitingSession = session;
-    session = { ...session, waiting: session.waiting.filter((item) => item.kind !== "secret") };
-    snapshot.sessions = [session];
-    refresh();
-    await quiet();
-    out.hostHighlightGone = !feed.querySelector(".waitingtarget");
-    session = waitingSession;
-    snapshot.sessions = [session];
-    refresh();
-    await quiet();
-    back();
-    await quiet();
-    out.countBackInList = cardCount();
-    session.agent = "codex";
-    choices.id = "codex-question";
-    openCard();
-    await until(() => queue() && document.querySelector(".feedrow"));
-    await pick("Shall I publish?");
-    out.repliesCodex = Boolean(document.querySelector(".mquestionwhat")) && noReplies();
+    form().querySelector(".mdrun").click();
+    await until(() => document.querySelector('.sheet.on .gtpreview'));
+    out.runConfirms = sent.length === 0 && document.querySelector('.sheet.on .gtpreview').textContent === "printf ready";
+    document.querySelector('.sheet.on .btn.primary').click(); await quiet();
+    out.run = sent.at(-1).kind === "session.shell" && sent.at(-1).params.text === "printf ready" && Boolean(form().querySelector('.requeststeps'));
+
+    const area = document.querySelector(".composer > textarea");
+    area.focus(); await quiet();
+    out.focus = getComputedStyle(document.querySelector(".cstrip")).display === (innerWidth < 1100 ? "none" : "flex")
+        && getComputedStyle(document.querySelector(".deck")).display === (innerWidth < 1100 ? "none" : "flex")
+        && (getComputedStyle(document.querySelector(".composeclip")).display !== "none") === (innerWidth < 1100);
+    await type(area, "I am checking it.");
+    refuse = false;
+    document.querySelector(".composer .sendbtn").click(); await quiet();
+    out.replyKeeps = sent.at(-1)?.params.text === "I am checking it." && form().textContent.includes(req.title) && count() === 2;
+    area.blur();
+    const added = { id: "c".repeat(32), kind: "do", title: "A new blocking act", blocking: true, state: "open", created: new Date().toISOString(), body: { steps: "Keep waiting." } };
+    acts = [...acts, added]; session.waiting = [...session.waiting, { kind: "request", id: added.id, title: added.title, at: added.created }];
+    draw(); await quiet();
+    out.keepsCurrent = count() === 3 && form().textContent.includes(req.title);
+    const beforeCant = sent.length;
+    button("Can't").click(); await quiet();
+    out.cantReason = Boolean(form().querySelector("textarea")) && sent.length === beforeCant;
+    await type(form().querySelector("textarea"), "No power.");
+    refuse = true; button("Can't").click(); await quiet();
+    out.failureKeeps = count() === 3 && form().querySelector("textarea")?.value === "No power.";
+    refuse = false; button("Can't").click(); await quiet();
+    out.cant = sent.at(-1).kind === "session.send" && sent.at(-1).params.act === req.id && sent.at(-1).params.answer === "cant" && sent.at(-1).params.note === "No power." && count() === 2;
+    // The oldest blocking act is next; Done uses the same gate immediately.
+    button("Done").click(); await quiet();
+    out.done = sent.at(-1).params.act === added.id && sent.at(-1).params.answer === "done" && count() === 1;
+    out.nextForm = Boolean(form()?.querySelector(".skpad"));
+    out.secretPath = form().textContent.includes("goes to a file, 0600: the agent gets /srv/secrets/release.env");
+    button("Won't give").click(); await quiet();
+    await type(form().querySelector(".requestnote textarea"), "No access.");
+    button("Won't give").click(); await quiet();
+    out.decline = sent.at(-1).kind === "session.send" && sent.at(-1).params.act === sec.id && sent.at(-1).params.answer === "decline" && sent.at(-1).params.note === "No access." && count() === 0 && !form();
+    // Changed reply wording still folds under the act identified by the API.
+    items = [...items, { role: "me", pos: 40, text: `Different wording for act ${req.id}: unavailable`, at }];
+    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 40, total: items.length }) }); await quiet();
+    out.quietReply = document.querySelector(".actreply summary")?.textContent.startsWith("to the agent: Different wording") && ![...document.querySelectorAll(".msg.me")].some(el => el.textContent.includes("Different wording"));
+    const panel = document.querySelector(".actreply"); panel.open = true;
+    out.fullReply = panel.querySelector("p").textContent.includes(req.id);
+    // A round keeps two questions together; change edits a folded answer.
+    state = { ask: { toolUseId: "round", at, questions: [
+        { header: "Plan", text: "Choose the plan", options: [{ label: "A" }, { label: "B" }] },
+        { header: "Region", text: "Choose the region", options: [{ label: "West" }, { label: "East" }] },
+    ] } };
+    await publish();
+    form().querySelectorAll(".askpick")[0].click(); await quiet();
+    out.fold = form().querySelector(".askrow")?.textContent.includes("A") && form().textContent.includes("1 of 2 answered");
+    form().querySelector(".askedit").click(); await quiet();
+    out.change = Boolean(form().querySelector(".askone .askpick"));
+    form().querySelectorAll(".askone")[0].querySelectorAll(".askpick")[1].click(); await quiet();
+    form().querySelector(".askone .askpick").click(); await quiet();
+    button("Send answers").click(); await quiet();
+    out.round = sent.at(-1).kind === "session.answer" && JSON.stringify(sent.at(-1).params.picks) === "[[2],[1]]" && count() === 0;
+    state = { ask: { toolUseId: "discussion", at, questions: [{ text: "What next?", options: [{ label: "Proceed" }] }] } };
+    await publish();
+    const start = sent.length;
+    await type(document.querySelector(".composer > textarea"), "Let's discuss.");
+    out.dismissHint = document.querySelector(".composer > textarea").placeholder === "your words dismiss the question";
+    hold = true; document.querySelector(".composer .sendbtn").click();
+    await until(() => document.querySelector('.sheet.on[aria-label="action confirmation"] .btn.primary'));
+    document.querySelector('.sheet.on[aria-label="action confirmation"] .btn.primary').click();
+    await until(() => release);
+    out.dismissFirst = sent.length === start + 1 && sent.at(-1).kind === "session.dismiss";
+    release(); await quiet();
+    out.discussion = sent.length === start + 2 && sent.at(-1).kind === "session.send" && sent.at(-1).params.text === "Let's discuss.";
+    // Both sources agree that only an open act counts; a closed API row wins.
+    const normalized = Object.fromEntries(acts.map(a => [a.id, a]));
+    const ordered = movesOf({ [req.id]: { ...req, state: "open" } }, [{ kind: "brief", id: "review", at }],
+        [{ kind: "permit", blocking: true, at: Date.now() }]);
+    out.order = ordered.map(item => item.kind).join(",") === "request,permit,brief";
+    out.closedWins = movesOf(normalized, session.waiting, []).length === 0;
+    out.detachedReply = withActReplies([items.at(-1)], normalized)[0]?.actReply === true;
     return out;
 })();
 </script>

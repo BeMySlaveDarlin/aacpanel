@@ -280,14 +280,15 @@ window.done = (async () => {
     const path = head && head.querySelector(".chatpath");
     out.headPath = path ? path.textContent.trim() : "";
     out.deck = Boolean(document.querySelector(".deck"));
-    const use = document.querySelector(".deck .deckuse");
+    const use = document.querySelector(".cstrip .deckuse");
     out.deckUse = Boolean(use);
-    out.deckUseFirst = Boolean(use) && document.querySelector(".deck").firstElementChild === use;
+    out.deckUseFirst = Boolean(use) && document.querySelector(".cstrip").lastElementChild === use;
     // On a wide screen the chips of what is in flight stand in the composer's
     // band.
     const band = document.querySelector(".composer .cstrip");
     const work = band && band.querySelector(".cwork");
-    out.stripChips = work ? work.querySelectorAll(".wchip").length : 0;
+    out.stripChips = document.querySelectorAll(".deck .wchip").length;
+    out.cwork = Boolean(work);
     const more = document.querySelector(".phead .pmore");
     if (more) {
         more.click();

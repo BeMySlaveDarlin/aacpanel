@@ -57,13 +57,13 @@ func TestACodexRoundIsAnsweredByItsProtocolInTmux(t *testing.T) {
 	if r.Second.Options != 0 {
 		t.Errorf("a question with no options shows %d rows to pick", r.Second.Options)
 	}
-	if r.Second.Label != "Token · codex asks" {
+	if r.Second.Label != "Token" {
 		t.Errorf("the second question is headed %q", r.Second.Label)
 	}
 	if strings.Contains(r.Review, "s3cret-token") || !strings.Contains(r.Review, "hidden") {
 		t.Errorf("the review shows the secret words: %q", r.Review)
 	}
-	if r.SendLabel != "Send" {
+	if r.SendLabel != "Send answers" {
 		t.Errorf("the button of the review reads %q", r.SendLabel)
 	}
 	if len(r.Sent) != 1 || r.Sent[0].Kind != "session.answer" || r.Sent[0].Target != "shop-checkout" {

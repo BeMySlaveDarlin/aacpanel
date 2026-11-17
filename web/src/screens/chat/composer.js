@@ -188,7 +188,11 @@ function saved(id) {
 }
 
 // deliver sends a message into a session, with files or without them.
-export function deliver(run, name, { text, files, messageId, act, answer, note }) {
+export function deliver(run, name, { text, files, messageId, act, answer, note, dismiss, exec }) {
+    if (dismiss) {
+        if (!knows(exec, "session.dismiss")) return { ok: false, error: whyNot(exec, "session.dismiss") };
+        return run("session.dismiss", name, { ask: dismiss });
+    }
     // The service builds the reply to an act from its stored title, so the
     // browser sends the answer instead of another copy of that message template.
     if (act) return run("session.send", name, { act, answer, note });
@@ -230,7 +234,7 @@ export function asksSend(e, wide) {
 // list, a command for the shell after a leading "!", a name on each message
 // it can be taken back from the queue by, and what the field says while a
 // busy session would only queue it. Without them the words go as they are.
-export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
+export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip, form, beforeSend, hint: askedHint = "" }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -313,7 +317,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const cantSend = !ready || sending
         || (side ? false : bang ? !bang.command : cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
     const stopping = busy && !text.trim() && !pack.length;
-    const hint = placeholder(ready, why, name, pack, busy ? waits : "");
+    const hint = askedHint || placeholder(ready, why, name, pack, busy ? waits : "");
 
     // The field fits its words whichever way they changed — typed, cleared by
     // a send, dictated, put back from the queue, picked from the list, the
@@ -400,6 +404,12 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             return;
         }
         taken.current = true;
+        if (beforeSend) {
+            setSending(true);
+            const allowed = await beforeSend();
+            setSending(false);
+            if (!allowed) { taken.current = false; return; }
+        }
         if (cmd) return sendCommand();
         if (bang) return sendBang(body);
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -457,6 +467,12 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
 
     return html`
         <div class="composer">
+            ${form && html`<div class="actgrip" aria-hidden="true"></div><section class="actform" aria-label="Your move"
+                onFocusIn=${(e) => {
+                    const box = e.currentTarget;
+                    const field = e.target;
+                    box.scrollTop += field.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom + 12;
+                }}>${form}</section>`}
             ${hints.length > 0 && html`<${SlashList} hints=${hints} hot=${Math.min(hot, hints.length - 1)}
                                                    theirs=${Boolean(stream && theirs)} wide=${wideNow}
                                                    onHot=${setHot} onPick=${pick} />`}
@@ -475,6 +491,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
                     `)}
                 </div>
             `}
+            ${strip && pack.length < FILES_MAX && html`<span class="composeclip"><${PickFile} exec=${exec} onAsk=${onAsk} /></span>`}
             <textarea
                 rows="1"
                 ref=${area}

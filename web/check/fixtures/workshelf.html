@@ -9,6 +9,7 @@
 // copies remembers the rest.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
+import { CommandsSheet } from "/src/screens/chat/commands.js";
 import { WorkList, WorkRefs } from "/src/screens/chat/work.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -54,6 +55,7 @@ const opened = { pages: [], briefs: [] };
 // has been opened and see the chip count anew.
 const draw = () => render(html`
     <${ToastHost}><${GateHost}>
+        <div id="commands"><${CommandsSheet} work=${work} pages=${onShelf} onWork=${() => {}} exec=${{}} /></div>
         <div id="chip"><${WorkRefs} work=${work} pages=${onShelf} briefs=${briefs} onOpen=${() => {}} /></div>
         <div id="pages">
             <${WorkList} session="lab" id="1" kind="arts" work=${work} exec=${{ available: true, kinds: [] }}
@@ -80,10 +82,10 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     const button = {
         // Two chips: the pages this device has not opened, and the briefs that
         // are still waiting for an answer.
-        pages: (chips[0].querySelector(".wnum") || {}).textContent || "",
-        briefs: (chips[1].querySelector(".wnum") || {}).textContent || "",
-        wants: chips[1].classList.contains("wants"),
-        said: chips.map((c) => c.getAttribute("aria-label") || ""),
+        pages: document.querySelector("#commands .cmdrownote").textContent.match(/\d+/)?.[0] || "",
+        briefs: (chips[0].querySelector(".wnum") || {}).textContent || "",
+        wants: !chips[0].classList.contains("idle"),
+        said: ["Pages", ...chips.map((c) => c.getAttribute("aria-label") || "")],
     };
 
     const first = {
@@ -124,7 +126,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     draw();
     await quiet();
     const afterOpening = {
-        pages: (document.querySelector("#chip .wchip .wnum") || {}).textContent || "",
+        pages: document.querySelector("#commands .cmdrownote").textContent.match(/\d+/)?.[0] || "",
     };
 
     window.done = { first, after, onBriefs, opened, button, afterOpening };

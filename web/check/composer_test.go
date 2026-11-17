@@ -132,8 +132,8 @@ func TestWorkRowKeepsEveryButtonWithNothingToShow(t *testing.T) {
 	// Every chip has to have a list of its own behind it, and a list that would
 	// always be empty is a counter with nothing to count: the client ships no
 	// tool that fills it.
-	if n := strings.Count(left, "<button") + strings.Count(right, "<button"); n != 5 {
-		t.Errorf("%s: the row under the composer holds %d buttons instead of five — a chip "+
+	if n := strings.Count(left, "<button") + strings.Count(right, "<button"); n != 3 {
+		t.Errorf("%s: the row under the composer holds %d buttons instead of three — a chip "+
 			"that is not in the list below is either a counter nobody guards or one that "+
 			"nothing feeds", workFile, n)
 	}
@@ -141,8 +141,6 @@ func TestWorkRowKeepsEveryButtonWithNothingToShow(t *testing.T) {
 	for _, chip := range []struct{ block, kind, what string }{
 		{left, "tasks", "background work"},
 		{left, "agents", "the subagents"},
-		{left, "workflows", "the workflow runs"},
-		{right, "arts", "the published pages"},
 		{right, "briefs", "the briefs"},
 	} {
 		tag := chipTag(t, workFile, chip.block, chip.kind)

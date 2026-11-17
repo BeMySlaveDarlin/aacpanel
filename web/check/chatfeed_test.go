@@ -161,7 +161,7 @@ func TestWorkChipsOpenTheirOwnSection(t *testing.T) {
 		}
 	}
 
-	for _, kind := range []string{"tasks", "agents", "arts", "briefs"} {
+	for _, kind := range []string{"tasks", "agents", "briefs"} {
 		call := `onOpen({ kind: "` + kind + `" })`
 		if n := strings.Count(work, call); n != 1 {
 			t.Errorf("%s: the row under the composer holds %d occurrences of %q — every counter "+
@@ -170,6 +170,16 @@ func TestWorkChipsOpenTheirOwnSection(t *testing.T) {
 		if !strings.Contains(body, `"`+kind+`"`) {
 			t.Errorf("%s: section %q opens from nowhere", chatFile, kind)
 		}
+	}
+
+	commands := jsBlock(t, chatFile, body, "function CommandsSheet(")
+	for _, kind := range []string{"arts", "workflows"} {
+		if strings.Count(commands, `id: "`+kind+`"`) != 1 {
+			t.Errorf("%s: commands do not name the %q section once", chatFile, kind)
+		}
+	}
+	if !strings.Contains(commands, `if (row.kind === "work") return onWork({ kind: row.id })`) {
+		t.Errorf("%s: a work command does not open its own section", chatFile)
 	}
 
 	for _, want := range []string{
@@ -417,6 +427,10 @@ func TestARowIsDrawnAgainOnlyWhenItChanges(t *testing.T) {
 			Value  string
 			Fitted int
 		} `json:"cleared"`
+		ActRows struct {
+			Arrival, Changed int
+			Title            string
+		}
 		Rewritten struct {
 			Said string
 			Rows int
@@ -438,6 +452,9 @@ func TestARowIsDrawnAgainOnlyWhenItChanges(t *testing.T) {
 	}
 	if got.Rewritten.Rows != 1 {
 		t.Errorf("an answer brought again drew %d rows, want the one that changed", got.Rewritten.Rows)
+	}
+	if got.ActRows.Arrival != 0 || got.ActRows.Changed != 1 || got.ActRows.Title != "Read the router label" {
+		t.Errorf("an act update drew unrelated rows or missed its marker: %+v", got.ActRows)
 	}
 	if got.Cleared.Value != "" || got.Cleared.Fitted == 0 {
 		t.Errorf("after a send the field holds %q and was fitted %d times — the cleared field keeps the height of what was sent",

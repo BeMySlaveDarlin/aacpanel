@@ -95,14 +95,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // show opens the drawing of one option and says whether it came up.
 async function show(n) {
-    const back = document.querySelector(".askover .sheetclose");
-    if (back) {
-        back.click();
-        await quiet();
-    }
     document.querySelectorAll(".askinfo")[n].click();
     await quiet();
-    return { open: Boolean(document.querySelector(".askpreview")) };
+    return { open: document.querySelectorAll(".askdrawing")[n]?.classList.contains("expanded") && document.querySelectorAll(".askdrawing")[n]?.textContent.includes(n ? "51820" : "HEADER") || false, inline: !document.querySelector(".askover, .sheet.on") };
 }
 
 window.done = (async () => {
@@ -112,11 +107,6 @@ window.done = (async () => {
     const wide = await show(0);
     const narrow = await show(1);
 
-    const back = document.querySelector(".askover .sheetclose");
-    if (back) {
-        back.click();
-        await quiet();
-    }
     document.querySelectorAll(".askpick")[1].click();
     await quiet();
     const button = document.querySelector(".askfoot .btn.primary");

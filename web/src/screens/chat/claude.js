@@ -15,7 +15,7 @@ import { LOOK_NAMES } from "./look.js";
 import { McpSheet } from "./mcp.js";
 import { StatusSheet } from "./status.js";
 import { SetupSheet, SETUP_TITLES } from "./setup.js";
-import { CommandsChip, CommandsSheet } from "./commands.js";
+import { CommandsSheet } from "./commands.js";
 import { RenameSheet, takenNames } from "./rename.js";
 import { IntentSheet } from "./intent.js";
 import { RoleSheet } from "./role.js";
@@ -65,7 +65,7 @@ export function ClaudeChat(props) {
     // A command the panel answers with a screen opens it in the sheet; the
     // screens of settings share one view, told apart by their part.
     const screenLook = (setLook) => (what) => setLook(SETUP_TITLES[what] ? { kind: "setup", part: what } : { kind: what });
-    const commandsChip = (setLook) => html`<${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />`;
+
 
     const parts = {
         term,
@@ -88,9 +88,9 @@ export function ClaudeChat(props) {
             onSide: asksAside ? sideChat.ask : null,
         }),
         strip: ({ wide: desk, setLook }) => (desk
-            ? html`<${PickBar} name=${name} live=${live} exec=${exec} lead=${commandsChip(setLook)} />`
-            : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} lead=${commandsChip(setLook)} />`),
-        look: (look, { setLook, setInsert }) => {
+            ? html`<${PickBar} name=${name} live=${live} exec=${exec} />`
+            : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} />`),
+        look: (look, { setLook, setInsert, work, pages }) => {
             if (!OWN_LOOKS.has(look.kind)) return null;
             const label = look.kind === "setup" ? SETUP_TITLES[look.part] : LOOK_NAMES[look.kind];
             const node = look.kind === "mcp"
@@ -99,7 +99,7 @@ export function ClaudeChat(props) {
                 ? (live ? html`<${StatusSheet} name=${name} live=${live} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)
                 : look.kind === "commands"
-                ? html`<${CommandsSheet} name=${name} live=${live} exec=${exec} onScreen=${screenLook(setLook)}
+                ? html`<${CommandsSheet} name=${name} live=${live} exec=${exec} work=${work} pages=${pages} onWork=${setLook} onScreen=${screenLook(setLook)}
                                          onPicker=${onPicker ? (what) => { setLook(null); setPicking(what); } : null}
                                          onSide=${asksAside ? () => { setLook(null); setInsert({ key: Date.now(), text: "/btw ", command: true }); } : null}
                                          onDone=${() => setLook(null)} />`

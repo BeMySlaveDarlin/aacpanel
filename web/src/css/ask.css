@@ -31,6 +31,7 @@
 .waitbar.bad .askdot { background: var(--crit); }
 
 .askhead { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .5rem; }
+.askhead.senthead { align-items: center; margin-bottom: 0; }
 .asklabel { color: var(--ink-faint); font-size: var(--t-xs); font-weight: 500; }
 .askwhy { color: var(--ink-faint); font-size: var(--t-xs); }
 
@@ -131,22 +132,14 @@
 .askover .sheet { z-index: 21; }
 .askover .scrim { z-index: 20; }
 
-/* The drawing an option carries. Its width is not a matter of taste: it was
-   drawn at so many columns, and the box a phone gives it is narrower than most
-   of them. Cut at the right edge a drawing stops being a drawing — the half
-   that says what the option costs is the half that goes. So the box measures
-   itself and fits the type to the columns it has to hold.
-
-   This size is not a step of the type scale and does not pretend to be one: a
-   drawing is a picture, and a picture is the size its box allows. It never
-   rises above the smallest step, and it stops shrinking where characters stop
-   being characters — a drawing wider than that is scrolled instead. A
-   monospaced character is .6em wide; the .61 is the rounding of the glyph
-   advance. */
-.askshow {
-    container-type: inline-size;
-    --askfit: clamp(6px, calc((100cqi - 1.4rem) / (var(--cols, 80) * .61)), var(--t-xs));
-}
+/* A preview is read at the same scale as the answer it explains. */
+.askshow { min-width: 0; width: 100%; }
+.askdrawing { flex: 0 0 100%; max-height: 7rem; overflow: hidden; }
+.askdrawing.expanded { max-height: none; }
+.askopt:has(.askdrawing) { flex-wrap: wrap; }
+.askopt:has(.askdrawing) .askpick { min-width: 0; flex: 1; }
+.askround { display: flex; flex-direction: column; gap: .6rem; }
+.askcount { color: var(--ink-faint); font-size: var(--t-sm); }
 
 .askpreview {
     margin: 0;
@@ -155,9 +148,10 @@
     box-sizing: border-box;
     overflow: auto;
     font-family: var(--code);
-    font-size: var(--askfit);
+    font-size: var(--t-base);
     line-height: 1.4;
-    white-space: pre;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
     color: var(--ink-dim);
     background: rgba(0, 0, 0, .3);
     border: var(--hair) solid var(--line); border-radius: var(--r-card);

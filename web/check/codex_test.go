@@ -174,7 +174,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the session button says %q — the thread lives on the daemon", got.Place)
 	}
 	for tool, shown := range got.ClaudeTools {
-		if shown {
+		if shown && tool != "commands" {
 			t.Errorf("the conversation of a codex thread shows claude's %s", tool)
 		}
 	}
@@ -356,8 +356,8 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if got.Permit.Tool != "Bash" || got.Permit.Action != "touch late.txt" {
 		t.Errorf("the card asks about %q with %q", got.Permit.Tool, got.Permit.Action)
 	}
-	if got.ComposerUnder {
-		t.Errorf("the composer stands under the card of a waiting thread")
+	if !got.ComposerUnder {
+		t.Errorf("the composer is missing under the permission form")
 	}
 	if len(got.PermitSent) != 1 || got.PermitSent[0].Target != "codex-5afc361b" ||
 		got.PermitSent[0].Params["option"] != float64(2) || got.PermitSent[0].Params["dialog"] != "req-7" {

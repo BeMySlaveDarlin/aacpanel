@@ -646,9 +646,7 @@ export const ACTIONS = {
                 : `File sent to ${target}`;
         },
     },
-    // The notepad of a secret is filled in and saved on a sheet of its own:
-    // the press of Save there is the decision, and the same name saved again
-    // replaces the file, which is how a token is rotated.
+    // The form's own button is the decision; another confirmation hides it.
     "secret.put": {
         instant: true,
         effect: "The host writes the text into a file of its secrets directory that only its user can read, "

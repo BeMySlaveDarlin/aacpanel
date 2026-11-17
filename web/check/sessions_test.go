@@ -192,24 +192,21 @@ func TestSessionArtifactsOpenTheirOwnWay(t *testing.T) {
 	const chatFile = "src/screens/chat.js"
 	body := screenSrc(t, chatFile)
 
-	// The chip of pages counts what this device has not opened, and the chip of
-	// briefs counts what still waits for an answer. Each number is counted once
-	// and drawn once: two numbers for one thing part on the first kind added.
+	// Pages count unread entries in the commands list; briefs count unanswered
+	// entries in the deck. Both use the same shelves as their lists.
 	work := jsBlock(t, chatFile, body, "function WorkRefs(")
-	for _, count := range []string{"const fresh = unopened(", "const wants = waiting("} {
-		if !strings.Contains(work, count) {
-			t.Errorf("%s: the row under the composer has no %q — a chip that counts for itself "+
-				"drifts from the list under it", chatFile, count)
-		}
+	if !strings.Contains(work, "const wants = waiting(") ||
+		!strings.Contains(work, "wants > 0 && html`<span class=\"wnum\">${wants}</span>`") {
+		t.Errorf("%s: the brief chip does not draw its count of unanswered briefs", chatFile)
 	}
-	for _, drawn := range []string{
-		"fresh > 0 && html`<span class=\"wnum\">${fresh}</span>`",
-		"wants > 0 && html`<span class=\"wnum\">${wants}</span>`",
-	} {
-		if !strings.Contains(work, drawn) {
-			t.Errorf("%s: a chip draws a number of its own instead of the one counted for it, "+
-				"or draws a 0 where the other chips draw nothing", chatFile)
-		}
+	pages := jsBlock(t, chatFile, body, "function freshPages(")
+	if !strings.Contains(pages, "return unopened(merge(") || !strings.Contains(pages, ".map(pageKey)") {
+		t.Errorf("%s: unread pages are not counted from the merged shelf by page key", chatFile)
+	}
+	commands := jsBlock(t, chatFile, body, "function CommandsSheet(")
+	if !strings.Contains(commands, "const fresh = freshPages(work, pages)") ||
+		!strings.Contains(commands, "note: fresh ? `${fresh} unread` : \"All opened\"") {
+		t.Errorf("%s: the Pages command does not draw that unread count or name the empty state", chatFile)
 	}
 
 	// A document of the project is tapped in the run — on the path in a tool

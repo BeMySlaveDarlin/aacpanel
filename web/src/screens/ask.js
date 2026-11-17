@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { html } from "../html.js";
 import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
-import { Sheet } from "../ui/sheet.js";
 import { Icon } from "../ui/icons.js";
 import { asyncAnswer, asyncPutAway } from "./chat/panelsaid.js";
+import { stampText } from "./chat/labels.js";
 import { AskText } from "./asktext.js";
 
 const OWN_MAX = 4000;
 
-// Ask renders the whole bottom of the screen while the session is asking.
+// Ask renders the open question inside the composer.
 // On the stream an answer is structure rather than keys, so the limits a
 // terminal dialog puts on a layout do not hold there, and a note can go beside
 // a pick. A codex thread is answered by its protocol wherever it lives, and
@@ -34,6 +34,15 @@ function askLabel(q, name, codex, goesOn) {
     if (codex && goesOn) return q.header ? `${q.header} · codex asks` : "codex asks";
     if (codex) return `${q.header || "Plan"} · codex asks`;
     return q.header || `${name} asks`;
+}
+
+function AskHead({ ask, label, why = "" }) {
+    const count = (ask.questions || []).length;
+    return html`<div class="askhead senthead" aria-label=${label}>
+        <span class="sentico">${Icon.ask()}</span><span class="sentlabel">ask · ${count} ${count === 1 ? "question" : "questions"}</span>
+        ${why && html`<span class="askwhy">${why}</span>`}
+        ${ask.at && html`<span class="sentat">${stampText(ask.at)}</span>`}
+    </div>`;
 }
 
 // useAnswer keeps an answer as the inputs leave it. Two inputs can come before
@@ -87,30 +96,12 @@ function blankAnswer(questions) {
     };
 }
 
-// Round is a round of questions: one at a time when there are several, an
-// option picked or words of the person's own.
-//
-// A question of codex says itself whether it takes words beside its options
-// (other), and one without options takes nothing else; words it asks to keep
-// out of sight (secret) are typed into a field that hides them.
-//
-// A question codex asked without waiting (async) holds nothing: codex goes
-// on, and nothing in its protocol takes the answer but a message of the
-// person. So Send writes the answer as words — each question with what was
-// picked or written and the note beside a pick — and sends them as a message
-// naming the question, which the host gives to the turn that runs, or starts
-// a turn with on a free thread; putting it away sends that the person will
-// answer in the conversation. onAnswered gets the words that went. Such a
-// question does not go at the tap of an option even alone: the words go into
-// codex's work, and the note beside a pick is as much of the answer as the
-// pick.
+// Each question keeps its answer in the round until the whole round is sent.
 function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const run = useAction();
-    const [step, setStep] = useState(0);
-    const [review, setReview] = useState(false);
+    const [complete, setComplete] = useState([]);
     const { sending, begin, end } = useSending();
     const [open, setOpen] = useState(true);
-    const [preview, setPreview] = useState(null);
     const [fail, setFail] = useState("");
 
     const id = ask && ask.toolUseId;
@@ -123,11 +114,9 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
 
     useEffect(() => {
         reset(blankAnswer(questions));
-        setStep(0);
-        setReview(false);
+        setComplete([]);
         end();
         setOpen(true);
-        setPreview(null);
         setFail("");
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
@@ -140,7 +129,6 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
     // putting it away.
     const goesOn = Boolean(codex && ask.async);
     const many = questions.length;
-    const stepped = many > 1;
     const free = (n) => !(questions[n].options || []).length;
     const hasPreview = questions.some((q) => (q.options || []).some((o) => o.preview));
     const instant = !goesOn && many === 1 && !questions[0].multi && !hasPreview && !free(0);
@@ -252,158 +240,51 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
         else list.splice(0, list.length, k + 1);
         change((a) => ({ picks: one(a.picks, n, list, []) }));
 
-        if (stepped && !questions[n].multi && list.length) {
-            setTimeout(() => {
-                if (n < many - 1) setStep(n + 1);
-                else setReview(true);
-            }, 180);
-        }
+        if (!questions[n].multi && list.length) setComplete((was) => [...was.filter((i) => i !== n), n]);
     };
-
-    const forward = () => {
-        if (step < many - 1) setStep(step + 1);
-        else setReview(true);
-    };
-    const backward = () => {
-        if (review) setReview(false);
-        else if (step > 0) setStep(step - 1);
-    };
-
     const nothing = !questions.some((_, n) => answered(n));
-    const shown = stepped && !review ? [step] : questions.map((_, n) => n);
+    const count = questions.filter((_, n) => answered(n)).length;
 
     return html`
-        ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)}
-                                    waits=${goesOn ? "codex asked a question and works on" : undefined} />`}
-
-        <${Sheet} open=${open} onClose=${() => setOpen(false)} label="session question" inner>
-            <div class="askhead">
-                <span class="asklabel">
-                    ${review ? "almost done" : askLabel(questions[shown[0]], name, codex, goesOn)}
-                </span>
-                ${!ready && html`<span class="askwhy">${why}</span>`}
-            </div>
-
-            ${stepped && html`
-                <div class="asksteps">
-                    ${questions.map((_, n) => html`
-                        <i key=${n} class=${!review && n === step ? "now" : chosen(n).length ? "done" : ""}></i>
-                    `)}
-                </div>
-            `}
-
-            ${review
-                ? html`<${Review}
-                    questions=${questions}
-                    picks=${picks}
-                    texts=${texts}
-                    onEdit=${(n) => { setReview(false); setStep(n); }}
-                />`
-                : shown.map((n) => html`
-                    <div class="askone" key=${n}>
-                        ${!stepped && many > 1 && html`
-                            <span class="asklabel">${questions[n].header || "question"}</span>
-                        `}
-                        <${AskText} text=${questions[n].text} />
-                        ${questions[n].multi && html`<p class="askhint">several can be picked</p>`}
-                        ${free(n) ? html`
-                            <${Words}
-                                text=${own(n)}
-                                secret=${Boolean(questions[n].secret)}
-                                disabled=${Boolean(ownBlocked(n)) || sending}
-                                why=${ownBlocked(n)}
-                                onText=${(text) => words(n, text)}
-                            />
-                        ` : html`
-                        <div class="askopts">
-                            ${(questions[n].options || []).map((opt, k) => html`
-                                <${Option}
-                                    key=${k}
-                                    opt=${opt}
-                                    on=${chosen(n).includes(k + 1)}
-                                    disabled=${!ready || sending}
-                                    onPick=${() => pick(n, k)}
-                                    onPreview=${() => setPreview([n, k])}
-                                />
-                            `)}
-
-                            ${offersOwn(n) && html`
-                                <${OwnWords}
-                                    open=${writing === n}
-                                    text=${own(n)}
-                                    stepped=${stepped}
-                                    multi=${Boolean(questions[n].multi)}
-                                    secret=${Boolean(questions[n].secret)}
-                                    disabled=${Boolean(ownBlocked(n)) || sending}
-                                    why=${ownBlocked(n)}
-                                    onOpen=${() => openOwn(n)}
-                                    onText=${(text) => words(n, text)}
-                                />
-                            `}
-                        </div>
-                        `}
-                        ${proto && !instant && chosen(n).length > 0 && html`
-                            <textarea
-                                class="askinput asknote"
-                                rows="2"
-                                maxLength=${OWN_MAX}
-                                placeholder="a note beside your pick — optional, the session reads it with the answer"
-                                value=${notes[n] || ""}
-                                disabled=${sending}
-                                onInput=${(e) => setNote(n, e.target.value)}
-                            ></textarea>
-                        `}
-                    </div>
-                `)}
-
-            <button
-                class="askdrop"
-                type="button"
-                disabled=${!dropReady || Boolean(dropBlocked) || sending}
-                onClick=${drop}
-            >
+        ${!open ? html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)} />` : html`
+        <div class="askround">
+            <${AskHead} ask=${ask} label=${askLabel(questions[0], name, codex, goesOn)} why=${!ready ? why : ""} />
+            ${questions.map((q, n) => many > 1 && complete.includes(n) && answered(n) && !instant ? html`
+                <div class="askrow" key=${n}>
+                    <span class="askrowq">${q.header || q.text}</span>
+                    <span class="askrowa">${q.secret ? "•••••• (hidden)" : [...chosen(n).map((k) => q.options[k - 1].label), own(n)].filter(Boolean).join(", ")}</span>
+                    <button class="askedit" type="button" onClick=${() => setComplete((was) => was.filter((i) => i !== n))}>change</button>
+                </div>` : html`
+                <div class="askone" key=${n}>
+                    ${many > 1 && html`<span class="asklabel">${q.header || `Question ${n + 1}`}</span>`}
+                    <${AskText} text=${q.text} />
+                    ${q.multi && html`<p class="askhint">several can be picked</p>`}
+                    ${free(n) ? html`<${Words} text=${own(n)} secret=${Boolean(q.secret)}
+                        disabled=${Boolean(ownBlocked(n)) || sending} why=${ownBlocked(n)} onText=${(text) => words(n, text)} />`
+                    : html`<div class="askopts">
+                        ${(q.options || []).map((opt, k) => html`<${Option} key=${k} opt=${opt} on=${chosen(n).includes(k + 1)}
+                            disabled=${!ready || sending} onPick=${() => pick(n, k)} />`)}
+                        ${offersOwn(n) && html`<${OwnWords} open=${writing === n} text=${own(n)} stepped=${many > 1}
+                            multi=${Boolean(q.multi)} secret=${Boolean(q.secret)} disabled=${Boolean(ownBlocked(n)) || sending}
+                            why=${ownBlocked(n)} onOpen=${() => openOwn(n)} onText=${(text) => words(n, text)} />`}
+                    </div>`}
+                    ${proto && !instant && chosen(n).length > 0 && html`<textarea class="askinput asknote" rows="2" maxLength=${OWN_MAX}
+                        placeholder="a note beside your pick — optional, the session reads it with the answer" value=${notes[n] || ""}
+                        disabled=${sending} onInput=${(e) => setNote(n, e.target.value)}></textarea>`}
+                    ${many > 1 && answered(n) && html`<button class="askedit" type="button"
+                        onClick=${() => setComplete((was) => [...was, n])}>Done with this question</button>`}
+                </div>`)}
+            <button class="askdrop" type="button" disabled=${!dropReady || Boolean(dropBlocked) || sending} onClick=${drop}>
                 <span class="askdropname">Dismiss the question and discuss</span>
-                <span class="askdropwhy">
-                    ${sending
-                        ? "dismissing the question…"
-                        : dropBlocked || (!dropReady ? dropWhy
-                            : goesOn ? "codex hears that you will answer in the conversation"
-                            : "the session will wait for an ordinary message")}
-                </span>
+                <span class="askdropwhy">${dropBlocked || (!dropReady ? dropWhy : goesOn ? "codex hears that you will answer in the conversation" : "the session will wait for an ordinary message")}</span>
             </button>
-
-            ${fail && html`
-                <p class="askfail">${fail}</p>
-            `}
-
-            ${(!instant || writing >= 0) && html`
-                <div class="askfoot">
-                    ${stepped && (step > 0 || review) && html`
-                        <button class="btn" type="button" onClick=${backward}>Back</button>
-                    `}
-                    <button
-                        class="btn primary"
-                        type="button"
-                        disabled=${!ready || sending || (!stepped ? nothing : false) || (review && nothing)}
-                        onClick=${stepped && !review ? forward : sendAll}
-                    >
-                        ${label({ sending, stepped, review, step, many, nothing, writing, answered,
-                                  wordsOnly: questions.every((_, i) => free(i)) })}
-                    </button>
-                </div>
-            `}
-        <//>
-
-        ${preview && html`
-            <div class="askover">
-                <${Sheet} open onClose=${() => setPreview(null)} label="what it looks like" inner>
-                    <div class="askhead">
-                        <span class="asklabel">${questions[preview[0]].options[preview[1]].label}</span>
-                    </div>
-                    <${Mockup} text=${questions[preview[0]].options[preview[1]].preview} />
-                <//>
-            </div>
-        `}
+            ${fail && html`<p class="askfail">${fail}</p>`}
+            ${(!instant || writing >= 0) && html`<div class="askfoot">
+                <span class="askcount">${count} of ${many} answered</span>
+                <button class="btn primary" type="button" disabled=${!ready || sending || nothing} onClick=${sendAll}>
+                    ${sending ? "Sending…" : "Send answers"}</button>
+            </div>`}
+        </div>`}
     `;
 }
 
@@ -422,37 +303,13 @@ function WaitBar({ sending, fail, onOpen, waits = "The session is waiting for an
     `;
 }
 
-function label({ sending, stepped, review, step, many, nothing, writing, answered, wordsOnly }) {
-    if (sending) return "Sending…";
-    if (writing >= 0 && !answered(writing)) return "Write the answer";
-    if (!stepped || review) return nothing ? (wordsOnly ? "Write the answer" : "Pick an option") : "Send";
-    if (!answered(step)) return "Skip";
-    return step === many - 1 ? "To the review" : "Next";
-}
-
-// columns is the width of a drawing: the longest of its lines, in characters.
-function columns(text) {
-    let most = 0;
-    for (const line of String(text || "").split("\n")) {
-        most = Math.max(most, [...line].length);
-    }
-    return most || 1;
-}
-
-// Mockup shows the drawing an option carries. A drawing is made of characters
-// standing in columns and is read whole: a column past the right edge takes the
-// shape with it, and the box it is dropped into is the width of a phone. So the
-// box is told how many columns it has to hold and fits its type to them; only a
-// drawing too wide to stay readable at all is left to be scrolled.
+// Previews wrap at the reading size and expand beside the option they explain.
 function Mockup({ text }) {
-    return html`
-        <div class="askshow" style=${`--cols:${columns(text)}`}>
-            <pre class="askpreview">${text}</pre>
-        </div>
-    `;
+    return html`<div class="askshow"><pre class="askpreview">${text}</pre></div>`;
 }
 
-function Option({ opt, on, disabled, onPick, onPreview }) {
+function Option({ opt, on, disabled, onPick }) {
+    const [expanded, setExpanded] = useState(false);
     return html`
         <div class=${`askopt${on ? " on" : ""}${disabled ? " off" : ""}`}>
             <button class="askpick" type="button" disabled=${disabled} onClick=${onPick}>
@@ -463,10 +320,11 @@ function Option({ opt, on, disabled, onPick, onPreview }) {
                 </span>
             </button>
             ${opt.preview && html`
-                <button class="askinfo" type="button" aria-label="show the mockup" onClick=${onPreview}>
+                <button class="askinfo" type="button" aria-label="show the mockup" aria-expanded=${expanded} onClick=${() => setExpanded(!expanded)}>
                     ${Icon.info()}
                 </button>
             `}
+            ${opt.preview && html`<div class=${`askdrawing${expanded ? " expanded" : ""}`}><${Mockup} text=${opt.preview} /></div>`}
         </div>
     `;
 }
@@ -531,28 +389,6 @@ function Field({ text, secret, disabled, onText, focus }) {
             disabled=${disabled}
             onInput=${(e) => onText(e.target.value)}
         ></textarea>
-    `;
-}
-
-function Review({ questions, picks, texts, onEdit }) {
-    return html`
-        <p class="asktext">Check and send</p>
-        <div class="askreview">
-            ${questions.map((q, n) => {
-                const labels = (picks[n] || []).map((pick) => (q.options[pick - 1] || {}).label).filter(Boolean);
-                const said = (texts[n] || "").trim();
-                const shown = said && q.secret ? "•••••• (hidden)" : said;
-                return html`
-                    <div class="askrow" key=${n}>
-                        <span class="askrowq">${q.header || q.text}</span>
-                        <span class=${`askrowa${labels.length || said ? "" : " skip"}`}>
-                            ${[...labels, shown].filter(Boolean).join(", ") || "skipped"}
-                        </span>
-                        <button class="askedit" type="button" onClick=${() => onEdit(n)}>change</button>
-                    </div>
-                `;
-            })}
-        </div>
     `;
 }
 
@@ -652,11 +488,8 @@ function Form({ ask, name, exec, onAnswered }) {
     return html`
         ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)} />`}
 
-        <${Sheet} open=${open} onClose=${() => setOpen(false)} label="a form from an MCP server" inner>
-            <div class="askhead">
-                <span class="asklabel">${ask.server ? `${ask.server} · MCP server asks` : "An MCP server asks"}</span>
-                ${!ready && html`<span class="askwhy">${why}</span>`}
-            </div>
+        <div class="askserverform" hidden=${!open}>
+            <${AskHead} ask=${ask} label=${ask.server ? `${ask.server} · MCP server asks` : "An MCP server asks"} why=${!ready ? why : ""} />
             <${AskText} text=${ask.message || "Fill in the form"} />
 
             ${fields.map((q, n) => html`
@@ -687,7 +520,7 @@ function Form({ ask, name, exec, onAnswered }) {
                     ${sending ? "Sending…" : "Send"}
                 </button>
             </div>
-        <//>
+        </div>
     `;
 }
 
@@ -759,7 +592,6 @@ function FormField({ q, picks, text, disabled, onPick, onText }) {
                         on=${picks.includes(k + 1)}
                         disabled=${disabled}
                         onPick=${() => onPick((was) => (was.includes(k + 1) ? was.filter((p) => p !== k + 1) : [...was, k + 1]))}
-                        onPreview=${() => {}}
                     />
                 `)}
             </div>

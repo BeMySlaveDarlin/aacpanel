@@ -654,7 +654,7 @@
     /* At work, but not answering: an empty ring in the accent of work. */
     .dkdot.dkbg { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
 
-    .dkdot.dkwaiting { background: var(--warn); box-shadow: 0 0 .35rem var(--warn); }
+    .dkdot.dkwaiting { background: var(--ink-dim); }
     .dkdot.dklimit { background: var(--warn); box-shadow: 0 0 .35rem var(--warn); }
 
     .dkdot.dkidle, .dkdot.dkok { background: var(--ok); }

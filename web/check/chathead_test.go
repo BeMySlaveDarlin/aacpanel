@@ -71,6 +71,7 @@ func TestLimitStoppedSessionsShowTheirResetAndWaitAfterIt(t *testing.T) {
 }
 
 type chatHeadSeen struct {
+	Cwork        bool
 	Deck         bool   `json:"deck"`
 	HeadUse      bool   `json:"headUse"`
 	HeadPath     string `json:"headPath"`
@@ -185,7 +186,7 @@ func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
 		t.Error("the tokens in and out are in the header again")
 	}
 	if !got.DeckUse || !got.DeckUseFirst {
-		t.Errorf("the tokens in and out do not lead the row under the composer: shown %v, first %v", got.DeckUse, got.DeckUseFirst)
+		t.Errorf("the tokens in and out do not end the model strip: shown %v, first %v", got.DeckUse, got.DeckUseFirst)
 	}
 	if got.PathText != "~/Projects/Side/service/a-rather-long-group/and-a-subgroup/aacpanel" {
 		t.Errorf("the tools say the session works in %q — the home is meant to be a tilde", got.PathText)
@@ -195,16 +196,10 @@ func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
 // A wide screen keeps what the session has in flight in the composer's band
 // rather than in a row of its own under the frame; the tokens in and out stay
 // in the session info its panel opens.
-func TestTheWideScreenKeepsTheWorkInTheComposerBand(t *testing.T) {
+func TestTheWideScreenKeepsTheWorkUnderTheComposer(t *testing.T) {
 	var got chatHeadSeen
 	runWideFixture(t, "chathead.html", &got)
-	if got.Deck {
-		t.Error("the wide screen still draws a row under the composer — the work chips belong in its band")
-	}
-	if got.StripChips != 5 {
-		t.Fatalf("the composer band holds %d work chips, expected the five: background, agents, workflows, pages, briefs", got.StripChips)
-	}
-	if got.DeckUse {
-		t.Error("the tokens in and out came back on the wide screen, where the session info holds them")
+	if !got.Deck || got.Cwork || got.StripChips != 3 || !got.DeckUse || !got.DeckUseFirst {
+		t.Errorf("the wide conversation lost its deck or usage in the model strip: %+v", got)
 	}
 }

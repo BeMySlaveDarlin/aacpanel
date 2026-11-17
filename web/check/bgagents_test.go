@@ -40,7 +40,8 @@ func TestABackgroundAgentStandsAmongTheAgents(t *testing.T) {
 	var got bgAgentsShot
 	runFixture(t, "bgagents.html", &got)
 
-	if len(got.Chips) != 3 || got.Chips[0].Num != "1" || got.Chips[1].Num != "1" {
+	if len(got.Chips) != 2 || got.Chips[0].Num != "1" || got.Chips[1].Num != "1" ||
+		got.Chips[0].Label != "background work: 1, 1 running" || got.Chips[1].Label != "subagents: 1 working" {
 		t.Errorf("the chips read %+v: one command and one agent at work", got.Chips)
 	}
 	if len(got.Rows) != 4 {

@@ -62,13 +62,8 @@ func TestTerminalIsItsOwnComposer(t *testing.T) {
 		t.Errorf("%s: what stands under the feed is not asked from the view and the move together — "+
 			"it stays under a terminal or under a session between its sides", chatFile)
 	}
-	composer := strings.Count(body, `live && feedShown && html`)
-	deck := strings.Count(body, `live && feedShown && !wide && html`)
-	band := strings.Count(body, "view !== \"term\" && html`<div class=\"cwork\">")
-	if composer != 1 || deck != 1 || band != 1 {
-		t.Errorf("%s: the composer (%d), the deck under it (%d) and the work in its band (%d) are not all drawn "+
-			"under the feed view alone — they have to leave together: the first becomes a second input field "+
-			"into the same session, the others repeat with counters what the TUI lists by name", chatFile, composer, deck, band)
+	if strings.Count(body, `live && feedShown && html`) != 2 || strings.Contains(body, `class="cwork"`) {
+		t.Errorf("%s: the composer and deck must leave together with the feed", chatFile)
 	}
 	if strings.Contains(body, "chatterm") {
 		t.Errorf("%s: something is drawn under the terminal again — the chatterm class exists "+

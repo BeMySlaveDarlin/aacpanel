@@ -20,8 +20,8 @@ import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { alarmTime } from "../sessions/alarms.js";
-import { RequestCard } from "./request.js";
 import { savedAfter } from "../../data/secrets.js";
+import { ActMarker, ActReply } from "./actform.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
@@ -39,7 +39,7 @@ export const FeedWrites = createContext(null);
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, question, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, requests, requestError, requestUnavailable, onRequestAnswer }) {
+export function Row({ item, question, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -89,17 +89,15 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
         return html`<${PageCard} item=${item} copy=${copies && copies.of(item)} onOpen=${onPage} />`;
     }
 
-    if (item.role === "request") {
-        return html`<${RequestCard} item=${item} record=${requests && requests[item.id]} error=${requestError}
-                                  onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${writes.onRun} />`;
+    if (item.role === "secret" && !item.id) {
+        return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
+    }
+    if (item.role === "request" || item.role === "secret") {
+        return html`<${ActMarker} item=${item} record=${act} onOpen=${onAct} />`;
     }
     if (item.role === "brief") {
         const card = (briefs || []).find((c) => c.id === item.id) || null;
         return html`<${BriefDoc} item=${item} card=${card} onOpen=${onBrief} />`;
-    }
-
-    if (item.role === "secret") {
-        return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
     }
 
     if (item.role === "call") {
@@ -155,6 +153,7 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
     // A message the panel wrote on the person's behalf is drawn as what it
     // says. One that did not go out stays a bubble, since sending it again is
     // the bubble's, and so does one cut short: it is not the whole text.
+    if (item.actReply) return html`<${ActReply} text=${item.text} />`;
     const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
     // The answer to a question codex asked without waiting is the card of the
     // round answered, as claude's answer is, standing where it was sent; on

@@ -162,10 +162,7 @@ const one = (sel) => root.querySelector(sel);
 const count = (sel) => root.querySelectorAll(sel).length;
 
 // The sheet of the question and the last card of an answered round.
-const sheet = () => {
-    const head = root.querySelector(".sheet.on .askhead");
-    return head ? head.closest(".sheet") : null;
-};
+const sheet = () => root.querySelector(".askround, .askserverform:not([hidden])");
 const lastCard = () => {
     const all = root.querySelectorAll(".chatfeed .sent.asked");
     return all.length ? all[all.length - 1] : null;
@@ -230,7 +227,7 @@ window.done = (async () => {
     await show(claude);
     if (!await until(() => sheet() && one(".chatfeed .msg"))) throw new Error("claude's question did not come");
     await settled();
-    out.claude = { label: text(sheet().querySelector(".asklabel")), skeleton: skeleton(sheet()),
+    out.claude = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), skeleton: skeleton(sheet()),
                    foot: Boolean(sheet().querySelector(".askfoot")) };
     if (mode === "claude") return {};
 
@@ -248,7 +245,7 @@ window.done = (async () => {
     if (!await until(() => sheet() && one(".chatfeed .msg"))) throw new Error("codex's question did not come");
     await settled();
     const go = () => sheet().querySelector(".askfoot .btn.primary");
-    out.codex = { label: text(sheet().querySelector(".asklabel")), skeleton: skeleton(sheet(), ".askfoot"),
+    out.codex = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), skeleton: skeleton(sheet(), ".askfoot"),
                   send: text(go()), sendOff: Boolean(go() && go().disabled),
                   drop: text(sheet().querySelector(".askdropwhy")), ...screen() };
     out.codexAsks = stands("codex-0000abcd");
@@ -299,7 +296,7 @@ window.done = (async () => {
     await show(two);
     if (!await until(() => sheet() && sheet().querySelector(".askdrop"))) throw new Error("the two questions did not come");
     await settled();
-    out.two = { steps: sheet().querySelectorAll(".asksteps i").length, label: text(sheet().querySelector(".asklabel")) };
+    out.two = { steps: sheet().querySelectorAll(".askone").length, label: sheet().querySelector(".askhead").getAttribute("aria-label") };
     sheet().querySelector(".askdrop").click();
     if (!await until(() => sentTo("codex-0000ef01").length > 0 && lastCard())) {
         throw new Error("putting the questions away sent nothing");

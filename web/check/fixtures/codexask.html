@@ -98,7 +98,7 @@ const until = async (ok) => {
 // before anything is pressed.
 const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const sheet = () => root.querySelector(".sheet.on");
+const sheet = () => root.querySelector(".askround, .askserverform:not([hidden])");
 const primary = () => sheet().querySelector(".askfoot .btn.primary");
 const type = (el, value) => {
     const proto = el.tagName === "INPUT" ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
@@ -121,7 +121,7 @@ async function round() {
                               onBack=${() => {}} onUsage=${() => {}} />`), root);
     if (!await until(() => sheet() && sheet().querySelector(".askopt .askpick"))) throw new Error("the round did not show");
     await settled();
-    const out = { label: text(sheet().querySelector(".askhead .asklabel")), prose: readQuestion(sheet()) };
+    const out = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), prose: readQuestion(sheet()) };
     const own = sheet().querySelector(".askown .askpick");
     out.own = Boolean(own && !own.disabled);
     const drop = sheet().querySelector(".askdrop");
@@ -134,27 +134,17 @@ async function round() {
     out.second = {
         tag: field ? field.tagName.toLowerCase() : "", type: field ? field.type : "",
         options: sheet().querySelectorAll(".askone .askopt").length,
-        label: text(sheet().querySelector(".askhead .asklabel")),
+        label: text(sheet().querySelector(".askone .asklabel")),
     };
     type(field, "s3cret-token");
     await settled();
     out.secondButton = text(primary());
-    primary().click();
-    if (!await until(() => sheet().querySelector(".askreview"))) throw new Error("no review");
-    await settled();
-    out.review = text(sheet().querySelector(".askreview"));
-
-    // Back to the first question for a note beside the pick.
-    sheet().querySelectorAll(".askedit")[0].click();
-    if (!await until(() => sheet().querySelector(".asknote"))) throw new Error("no field for a note beside the pick");
-    await settled();
-    type(sheet().querySelector(".asknote"), "and keep the old helper");
-    await settled();
-    primary().click();
-    if (!await until(() => /Paste the token/.test(text(sheet().querySelector(".asktext"))))) throw new Error("no way forward");
-    await settled();
-    primary().click();
-    if (!await until(() => sheet().querySelector(".askreview"))) throw new Error("no review the second time");
+    sheet().querySelector('.askone .askedit').click();
+    await until(() => sheet().querySelectorAll('.askrow').length === 2);
+    out.review = text(sheet());
+    sheet().querySelectorAll('.askedit')[0].click();
+    await until(() => sheet().querySelector('.asknote'));
+    type(sheet().querySelector('.asknote'), "and keep the old helper");
     await settled();
     out.sendLabel = text(primary());
     primary().click();
@@ -196,7 +186,7 @@ async function closedRound() {
     sheet().querySelectorAll(".askopts .askopt:not(.askown) .askpick")[0].click();
     if (!await until(() => /Paste the token/.test(text(sheet().querySelector(".asktext"))))) throw new Error("no second step again");
     await settled();
-    sheet().querySelector(".askfoot .btn:not(.primary)").click();
+    sheet().querySelector(".askedit").click();
     out.noteInTmux = Boolean(await until(() => sheet().querySelector(".asknote")));
     render(null, root);
     return out;
@@ -209,7 +199,7 @@ async function filled() {
     await settled();
     const s = sheet();
     const out = {
-        label: text(s.querySelector(".askhead .asklabel")),
+        label: s.querySelector(".askhead").getAttribute("aria-label"),
         message: text(s.querySelector(".asktext")),
         prose: readQuestion(s),
         notes: s.querySelectorAll(".asknote").length,

@@ -34,13 +34,13 @@
     border-radius: 50%;
     background: var(--ink-faint);
 }
-.talkdot[data-tone="busy"] { background: var(--accent); box-shadow: 0 0 9px var(--accent); }
-.talkdot[data-tone="waiting"] { background: var(--wait); box-shadow: 0 0 9px var(--wait); }
+.talkdot[data-tone="busy"] { background: var(--accent); box-shadow: none; }
+.talkdot[data-tone="waiting"] { background: var(--wait); box-shadow: none; }
 .talkdot[data-tone="bg"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
-.talkdot[data-tone="idle"] { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+.talkdot[data-tone="idle"] { background: var(--ok); box-shadow: none; }
 .talkdot[data-tone="off"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
 .talkword[data-tone="waiting"] { color: var(--wait); }
-.talkdot[data-tone="limit"] { background: var(--warn); box-shadow: 0 0 9px var(--warn); }
+.talkdot[data-tone="limit"] { background: var(--warn); box-shadow: none; }
 .talkword[data-tone="limit"] { color: var(--warn); }
 .talkword[data-tone="bg"] { color: var(--accent); }
 
