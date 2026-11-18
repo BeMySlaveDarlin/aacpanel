@@ -866,3 +866,85 @@ type tmuxOtherOwner struct {
 }
 
 func (s tmuxOtherOwner) Sys() any { return s.stat }
+
+func TestLiveCommandTerminalKeepsExitOutputAndPrivateLog(t *testing.T) {
+	ownPanelTmux(t)
+	place := t.TempDir()
+	// The log writer resolves HOME at the executor, independently of XDG state.
+	t.Setenv("HOME", place)
+	for _, code := range []int{0, 3} {
+		id := fmt.Sprintf("t-%08x", code+1)
+		command := fmt.Sprintf("i=1; while [ $i -le 45 ]; do echo line-$i; i=$((i+1)); done; echo failure-detail >&2; exit %d", code)
+		if _, err := launcher.Term(launcher.TermSpec{Dir: place, Session: id, Socket: string(panelTmux), Command: command}); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(place, ".local", "state", "aacpanel", "acts", strings.Repeat("a", 32), "1.log")
+		var peek action.TermPeekResult
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			raw, err := (&Executor{}).termPeek(t.Context(), id, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(raw), &peek); err != nil {
+				t.Fatal(err)
+			}
+			if peek.Dead {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("the command did not exit")
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		if peek.Status != code || !strings.Contains(peek.Tail, "failure-detail") || strings.Contains(peek.Tail, "line-1\n") || len(strings.Split(peek.Tail, "\n")) > 40 {
+			t.Fatalf("capture: %+v", peek)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "line-1\n") || !strings.Contains(string(data), "failure-detail") {
+			t.Fatal(string(data))
+		}
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm() != 0600 {
+			t.Fatalf("log permissions: %v %v", info, err)
+		}
+		if _, err := (&Executor{}).termClose(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestCommandTerminalPassesItsCommandToTheLauncher(t *testing.T) {
+	stub := newTmuxStub(t, nil, "")
+	stub.reply("list-sessions", "")
+	place := t.TempDir()
+	t.Setenv(projectRootsEnv, place)
+	path := fakeLauncher(t, launcher.Report{Session: "t-1a2b3c4d"})
+	e, _ := newTest(t, "")
+	const command = "printf 'one; two\\n'; exit 3"
+	if _, err := e.Execute(t.Context(), action.Request{ID: "command-start", Kind: action.TermStart, Target: "t-1a2b3c4d", Place: place, TermCommand: command}); err != nil {
+		t.Fatal(err)
+	}
+	var spec launcher.TermSpec
+	if !launcherTask(t, path, &spec) || spec.Command != command || spec.Dir != place {
+		t.Fatalf("launch: %+v", spec)
+	}
+}
+
+func TestActLogAppendsCapturesWithoutRepeatingScrollback(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, ".local", "state", "aacpanel", "acts", strings.Repeat("a", 32), "1.log")
+	for _, capture := range []string{"first\nsecond\n", "second\nthird\n", "second\nthird\n", "fourth\n"} {
+		if err := saveActLog(path, capture); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "first\nsecond\nthird\nfourth\n" {
+		t.Fatalf("log: %q %v", data, err)
+	}
+}

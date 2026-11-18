@@ -90,3 +90,24 @@ func TestTermRequestsAreValidated(t *testing.T) {
 		}
 	}
 }
+
+func TestCommandTerminalFieldsStayOnTheirActions(t *testing.T) {
+	for name, r := range map[string]Request{
+		"command": {ID: "start", Kind: TermStart, Target: "t-1a2b3c4d", Place: "/srv/proj", TermCommand: "printf 'hi\\n'; exit 3"},
+		"peek":    {ID: "peek", Kind: TermPeek, Target: "t-1a2b3c4d", Log: "/home/u/.local/state/aacpanel/acts/" + strings.Repeat("a", 32) + "/1.log"},
+	} {
+		if err := r.Validate(); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	for name, r := range map[string]Request{
+		"command on close": {ID: "close", Kind: TermClose, Target: "t-1a2b3c4d", TermCommand: "run"},
+		"log on close":     {ID: "close", Kind: TermClose, Target: "t-1a2b3c4d", Log: "/tmp/log"},
+		"long command":     {ID: "start", Kind: TermStart, Target: "t-1a2b3c4d", Place: "/srv/proj", TermCommand: strings.Repeat("x", 2001)},
+		"NUL in command":   {ID: "start", Kind: TermStart, Target: "t-1a2b3c4d", Place: "/srv/proj", TermCommand: "hi\x00"},
+	} {
+		if err := r.Validate(); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}

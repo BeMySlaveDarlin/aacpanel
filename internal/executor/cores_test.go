@@ -33,7 +33,7 @@ func TestEveryUnitRunsOnTheCoresOfTheDescription(t *testing.T) {
 			return err
 		},
 		"a terminal of the panel": func(e *Executor) error {
-			_, err := e.runTermStarter(ctx, "/srv/proj", "t-0123abcd")
+			_, err := e.runTermStarter(ctx, "/srv/proj", "t-0123abcd", "")
 			return err
 		},
 		"codex in tmux": func(e *Executor) error {

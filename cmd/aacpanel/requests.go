@@ -21,7 +21,11 @@ func (s *Server) apiRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Conversation string `json:"conversation"`
-		personrequest.Input
+		Title        string `json:"title"`
+		Steps        string `json:"steps"`
+		Blocking     *bool  `json:"blocking"`
+		ID           string `json:"id"`
+		Withdraw     bool   `json:"withdraw"`
 	}
 	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384))
 	d.DisallowUnknownFields()
@@ -29,13 +33,13 @@ func (s *Server) apiRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the request was not parsed", http.StatusBadRequest)
 		return
 	}
-	if err := body.Validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	input := act.Input{Kind: "do", Title: body.Title, Body: act.Body{Steps: body.Steps}, Blocking: body.Blocking, ID: body.ID, Withdraw: body.Withdraw}
 	if input.Withdraw {
 		input.Kind = ""
+	}
+	if err := input.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	s.createAct(w, r, body.Conversation, input)
 }
@@ -59,8 +63,12 @@ func (s *Server) apiAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if !body.Withdraw && body.Kind != "do" && body.Kind != "secret" {
+	if body.ID == "" && body.Kind != "do" && body.Kind != "secret" {
 		http.Error(w, "only do and secret acts can be created here", http.StatusBadRequest)
+		return
+	}
+	if body.Kind == "do" && body.Body.Chain == nil {
+		http.Error(w, "steps must be a chain", http.StatusBadRequest)
 		return
 	}
 	s.createAct(w, r, body.Conversation, body.Input)
@@ -77,12 +85,8 @@ func (s *Server) createAct(w http.ResponseWriter, r *http.Request, conversation 
 		http.Error(w, "the caller has no live session the panel can answer", http.StatusConflict)
 		return
 	}
-	if input.Withdraw {
-		if err := s.db.WithdrawAct(r.Context(), live.SessionID, live.Name, input.ID); err != nil {
-			actError(w, err)
-			return
-		}
-		writeJSON(w, map[string]string{"id": input.ID})
+	if input.ID != "" {
+		s.operateChain(w, r, live.SessionID, live.Name, input)
 		return
 	}
 	row, err := s.db.CreateAct(r.Context(), live.SessionID, live.Name, input)

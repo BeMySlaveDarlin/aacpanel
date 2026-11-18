@@ -154,6 +154,7 @@ func (s *Server) termRequest(ctx context.Context, req *action.Request, target st
 				"a terminal opens only there", asked)
 		}
 		req.Target, req.Place = newTermID(), place
+		req.TermCommand, _ = params["command"].(string)
 		return map[string]any{"place": place}, nil
 	}
 

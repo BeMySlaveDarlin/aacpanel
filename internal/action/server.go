@@ -463,6 +463,15 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 	} else {
 		cur.resp = Done(req.ID, detail, took)
 		cur.resp.Session = session
+		if req.Kind == TermPeek {
+			var peek TermPeekResult
+			if err := json.Unmarshal([]byte(detail), &peek); err != nil {
+				cur.resp = Failed(req.ID, fmt.Errorf("the terminal capture was not parsed: %w", err), took)
+			} else {
+				cur.resp.TermPeek = &peek
+				cur.resp.Detail = "terminal captured"
+			}
+		}
 		log.Printf("aacpanel-exec: %s %s done in %s", req.Kind, req.Target, took.Round(time.Millisecond))
 	}
 	cur.resp.Ownership = ownership

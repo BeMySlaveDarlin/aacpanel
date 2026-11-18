@@ -57,7 +57,7 @@ func TestEveryUnitForTheAgentsLivesInTheirSlice(t *testing.T) {
 			return err
 		}, nil},
 		{"a terminal of the panel", func(e *Executor) error {
-			_, err := e.runTermStarter(ctx, "/srv/proj", "t-0123abcd")
+			_, err := e.runTermStarter(ctx, "/srv/proj", "t-0123abcd", "")
 			return err
 		}, nil},
 		{"codex in tmux", func(e *Executor) error {

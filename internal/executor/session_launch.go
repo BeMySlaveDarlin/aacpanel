@@ -55,13 +55,13 @@ func (e *Executor) runWindowOpener(ctx context.Context, srv tmuxServer, dir, ses
 // runTermStarter starts a terminal of the panel. The first one starts the
 // tmux server of them all in its unit, so the unit gets the slice alone, as a
 // session in tmux does.
-func (e *Executor) runTermStarter(ctx context.Context, dir, id string) (launcher.Report, error) {
+func (e *Executor) runTermStarter(ctx context.Context, dir, id, command string) (launcher.Report, error) {
 	bin, err := launcherPath()
 	if err != nil {
 		return launcher.Report{}, err
 	}
 	return e.runInUnit(ctx, bin, termFlag, "starting the terminal", hostcfg.Ceilings{},
-		launcher.TermSpec{Dir: dir, Session: id, Socket: string(panelTmux)})
+		launcher.TermSpec{Dir: dir, Session: id, Socket: string(panelTmux), Command: command})
 }
 
 func (e *Executor) runInUnit(ctx context.Context, bin, mode, what string, held hostcfg.Ceilings, spec any) (launcher.Report, error) {

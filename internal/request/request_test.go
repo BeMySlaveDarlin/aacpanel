@@ -10,30 +10,44 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"aacpanel/internal/mcp"
 )
 
-func TestRequestValidatesBothOperations(t *testing.T) {
+func TestRequestValidatesChainOperations(t *testing.T) {
 	blocking := false
-	valid := Input{Title: strings.Repeat("界", TitleMax), Steps: strings.Repeat("界", StepsMax), Blocking: &blocking}
+	valid := Input{Title: strings.Repeat("界", TitleMax), Steps: []Step{{Who: "you", Text: strings.Repeat("界", TextMax), Command: strings.Repeat("x", CommandMax)}}, Blocking: &blocking}
 	if err := valid.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	for name, input := range map[string]Input{
 		"empty": {}, "no steps": {Title: "Do it", Blocking: &blocking},
-		"no blocking": {Title: "Do it", Steps: "Run it"},
-		"long title":  {Title: valid.Title + "x", Steps: "Run", Blocking: &blocking},
-		"long steps":  {Title: "Run", Steps: valid.Steps + "x", Blocking: &blocking},
-		"id alone":    {ID: strings.Repeat("a", 32)}, "bad id": {ID: "../other", Withdraw: true},
-		"mixed": {ID: strings.Repeat("a", 32), Withdraw: true, Title: "Other"},
+		"no blocking":   {Title: "Do it", Steps: valid.Steps},
+		"long title":    {Title: valid.Title + "x", Steps: valid.Steps, Blocking: &blocking},
+		"agent first":   {Title: "Run", Steps: []Step{{Who: "agent", Text: "Check"}}, Blocking: &blocking},
+		"agent command": {Title: "Run", Steps: []Step{{Who: "you", Text: "Run"}, {Who: "agent", Text: "Check", Command: "test"}}, Blocking: &blocking},
+		"long text":     {Title: "Run", Steps: []Step{{Who: "you", Text: strings.Repeat("x", TextMax+1)}}, Blocking: &blocking},
+		"long command":  {Title: "Run", Steps: []Step{{Who: "you", Text: "Run", Command: strings.Repeat("x", CommandMax+1)}}, Blocking: &blocking},
+		"too many":      {Title: "Run", Steps: make([]Step, StepsMax+1), Blocking: &blocking},
+		"unknown who":   {Title: "Run", Steps: []Step{{Who: "you", Text: "Run"}, {Who: "other", Text: "Check"}}, Blocking: &blocking},
+		"id alone":      {ID: strings.Repeat("a", 32)}, "bad id": {ID: "../other", Withdraw: true},
+		"mixed create":     {ID: strings.Repeat("a", 32), Withdraw: true, Title: "Other"},
+		"mixed operations": {ID: strings.Repeat("a", 32), Withdraw: true, Reopen: 1},
+		"no outcome":       {ID: strings.Repeat("a", 32), Step: 1},
+		"bad outcome":      {ID: strings.Repeat("a", 32), Step: 1, Outcome: "cant"},
+		"long note":        {ID: strings.Repeat("a", 32), Step: 1, Outcome: "done", Note: strings.Repeat("x", NoteMax+1)},
+		"negative reopen":  {ID: strings.Repeat("a", 32), Reopen: -1},
 	} {
 		if err := input.Validate(); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}
-	if err := (Input{ID: strings.Repeat("a", 32), Withdraw: true}).Validate(); err != nil {
-		t.Fatal(err)
+	for _, input := range []Input{{ID: strings.Repeat("a", 32), Withdraw: true}, {ID: strings.Repeat("a", 32), Reopen: 1}, {ID: strings.Repeat("a", 32), Step: 2, Outcome: "done", Note: "Checked"}, {ID: strings.Repeat("a", 32), Step: 2, Outcome: "failed"}} {
+		if err := input.Validate(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -56,7 +70,7 @@ func TestRequestTakesItsConversationOnlyFromTheCaller(t *testing.T) {
 	for _, codex := range []bool{false, true} {
 		caller := mcp.Binding{SessionID: "caller-conversation", Name: "caller-name", Codex: codex}
 		bind := func() (mcp.Binding, error) { return caller, nil }
-		text, failed := tool.Call(context.Background(), bind, json.RawMessage(`{"title":"Restart the router","steps":"Run the command","blocking":true}`))
+		text, failed := tool.Call(context.Background(), bind, json.RawMessage(`{"title":"Restart the router","steps":[{"who":"you","text":"Run the command"}],"blocking":true}`))
 		if failed || !strings.HasPrefix(text, "Requested as "+id+".") || !strings.Contains(text, "End the turn") {
 			t.Fatalf("request: %s", text)
 		}
@@ -76,7 +90,7 @@ func TestRequestTakesItsConversationOnlyFromTheCaller(t *testing.T) {
 	for _, body := range got {
 		if body["withdraw"] != true {
 			content, ok := body["body"].(map[string]any)
-			if body["kind"] != "do" || !ok || content["steps"] != "Run the command" || body["blocking"] != true {
+			if body["kind"] != "do" || !ok || len(content["steps"].([]any)) != 1 || content["steps"].([]any)[0].(map[string]any)["text"] != "Run the command" || body["blocking"] != true {
 				t.Errorf("act payload: %+v", body)
 			}
 		}
@@ -134,6 +148,62 @@ func TestTheRequestReplyIsTheOneTheFeedReads(t *testing.T) {
 		r := Record{ID: s.Input.ID, Title: s.Input.Title}
 		if got := Reply(r, s.Input.Answer, s.Input.Note); got != s.Text {
 			t.Errorf("the request %q is answered as\n%q\nand the feed reads\n%q", r.Title, got, s.Text)
+		}
+	}
+}
+
+func TestChainSummaryCarriesOnlyUsefulOutput(t *testing.T) {
+	start := time.Unix(100, 0)
+	end := start.Add(31 * time.Second)
+	zero, three := 0, 3
+	steps := []Step{{Who: "you", Text: "Login"}, {Who: "agent", Text: "Check access"}, {Who: "you", Text: "Deploy"}}
+	outs := []*Output{{State: "done", Exit: &zero, Started: &start, Ended: &end, Tail: "old output", Log: "/logs/1"}, {State: "done", Note: "Access confirmed"}, {State: "failed", Exit: &three, Tail: "deploy error", Log: "/logs/3"}}
+	text := Summary(strings.Repeat("a", 32), "Release", steps, outs, 3, 1, "failed")
+	for _, want := range []string{"The chain “Release”", "2 agent", "Access confirmed", "exit 3", "deploy error", "Full log: /logs/3", "reopen, withdraw"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing %q: %s", want, text)
+		}
+	}
+	if strings.Contains(text, "old output") || strings.Contains(text, "1 you") {
+		t.Fatal(text)
+	}
+	text = Summary("id", "Release", steps, outs, 2, 0, "open")
+	if !strings.Contains(text, "Step 2 is yours") || !strings.Contains(text, "request {id:") {
+		t.Fatal(text)
+	}
+	if got := Tail(strings.Repeat("line\n", 50)); len(strings.Split(got, "\n")) != 40 {
+		t.Fatal(got)
+	}
+	if got := Tail(strings.Repeat("界", 4100)); utf8.RuneCountInString(got) != 4000 {
+		t.Fatal("tail exceeds its character bound")
+	}
+}
+
+func TestRequestSchemaAndOperationReplies(t *testing.T) {
+	id := strings.Repeat("a", 32)
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["conversation"] != "caller" {
+			t.Error(body)
+		}
+		message := "Step 2 closed. Step 3 is the person's — end the turn."
+		if body["reopen"] != nil {
+			message = "Step 1 is the person's — end the turn."
+		}
+		json.NewEncoder(w).Encode(map[string]string{"id": id, "message": message})
+	}))
+	defer panel.Close()
+	tool := Tool(panel.URL)
+	properties := tool.InputSchema["properties"].(map[string]any)
+	if properties["steps"].(map[string]any)["type"] != "array" || len(tool.InputSchema["oneOf"].([]any)) != 3 {
+		t.Fatal(tool.InputSchema)
+	}
+	bind := func() (mcp.Binding, error) { return mcp.Binding{SessionID: "caller"}, nil }
+	for _, raw := range []string{`{"id":"` + id + `","step":2,"outcome":"done","note":"Checked"}`, `{"id":"` + id + `","reopen":1}`} {
+		text, failed := tool.Call(t.Context(), bind, json.RawMessage(raw))
+		if failed || !strings.Contains(text, "end the turn") {
+			t.Fatal(text)
 		}
 	}
 }

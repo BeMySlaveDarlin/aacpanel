@@ -221,7 +221,7 @@ func TestRequestsOfBothAgentsCarryTheirBoundConversation(t *testing.T) {
 		{Server(func() (mcp.Binding, error) { return here, nil }), "", here.SessionID},
 		{CodexServer(codexCaller), `{"threadId":"` + codexThread + `"}`, codexThread},
 	} {
-		replies := exchange(t, test.server, toolCall(1, "request", `{"title":"Sign in","steps":"Open the browser","blocking":false}`, test.meta))
+		replies := exchange(t, test.server, toolCall(1, "request", `{"title":"Sign in","steps":[{"who":"you","text":"Open the browser"}],"blocking":false}`, test.meta))
 		result, _ := replies[1]["result"].(map[string]any)
 		if result == nil || result["isError"] == true {
 			t.Fatalf("request failed: %v", replies)
@@ -231,7 +231,7 @@ func TestRequestsOfBothAgentsCarryTheirBoundConversation(t *testing.T) {
 		}
 	}
 	before := len(conversations)
-	replies := exchange(t, CodexServer(codexCaller), toolCall(1, "request", `{"title":"Sign in","steps":"Open the browser","blocking":false}`, ""))
+	replies := exchange(t, CodexServer(codexCaller), toolCall(1, "request", `{"title":"Sign in","steps":[{"who":"you","text":"Open the browser"}],"blocking":false}`, ""))
 	result, _ := replies[1]["result"].(map[string]any)
 	if result == nil || result["isError"] != true || len(conversations) != before {
 		t.Fatal("an unbound codex requested a task")

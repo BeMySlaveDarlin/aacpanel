@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -114,6 +115,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 	req := action.Request{Kind: action.Kind(body.Kind), Target: body.Target}
+	if req.Kind == action.TermPeek {
+		http.Error(w, "only the panel captures chain terminals", http.StatusForbidden)
+		return
+	}
+	if req.Kind == action.ActRun || req.Kind == action.ActStop {
+		s.runChainAction(w, r, req.Kind, req.Target, body.Params, term)
+		return
+	}
 	if req.Kind == action.SessionFreeze || req.Kind == action.SessionThaw {
 		if internal, _ := r.Context().Value(sleepActionKey{}).(bool); !internal {
 			http.Error(w, "only the panel's sleeper freezes or thaws sessions", http.StatusForbidden)
@@ -288,6 +297,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				return
 			}
 			defer actAnswer.close()
+			if actAnswer.lease.Record.Chain() {
+				s.chainHumanAction(w, r, req.Kind, req.Target, body.Params, func(out http.ResponseWriter) { s.answerChain(out, r, actAnswer, body.Params) })
+				return
+			}
 			if err := actAnswer.lease.Record.ValidateAnswer(actAnswer.answer, actAnswer.note); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -1526,6 +1539,9 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
+	}
+	if slices.Contains(kinds, action.TermStart) && slices.Contains(kinds, action.TermClose) && slices.Contains(kinds, action.TermPeek) {
+		kinds = append(kinds, action.ActRun, action.ActStop)
 	}
 	writeJSON(w, map[string]any{"available": true, "kinds": kinds})
 }

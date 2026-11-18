@@ -621,21 +621,54 @@ still asked when the push is sent.
 by `AACP_PANEL_URL`, for Claude and Codex alike. Its caller supplies the
 conversation through the MCP binding; the service finds its live session
 name in the snapshot. The public listener cannot create or withdraw these
-tasks. The title (120 characters), Markdown steps (2000 characters), blocking
-flag and lifecycle live in a `do` act. This short, explicit task is
-kept by the service; the transcript remains on the host. An agent can withdraw
-only its own open request. Every new request pushes with its title, regardless
-of push preferences; delivery skips devices already showing that session.
+tasks. A `do` act holds a title (120 characters), a blocking flag and one to
+ten steps. Each step names its executor (`you` or `agent`) and Markdown text
+(500 characters); only a person's step may carry a command (2000 characters).
+The first step belongs to the person. Commands run in individual panel
+terminals in the live conversation's cwd, including a worktree. Their output
+stays in the act, outside the conversation. Done applies only to a human step
+without a command; a successful command closes its step by exit status.
+
+`act.run` and `act.stop` pass the action gate on the listeners that serve
+terminals. The service takes the command from the act, locks its row and saves
+an assigned terminal before starting it. Retries use that terminal and the same
+executor request id, so a second press or a service restart cannot run a second
+command. The executor checks the real directory against home and project roots;
+the human terminal-place menu does not limit a chain's cwd. Stop captures the
+output, closes the terminal and leaves the step stopped, ready for another Run,
+without waking the agent.
+
+The service polls running command steps every two seconds through its private
+`term.peek` action. Exit zero advances the chain. A nonzero exit pauses it in
+`failed`, with its current step unchanged and no closing time. The agent can
+reopen that failed human step, withdraw the chain, or replace it. Can't declines
+the chain with the person's reason. Withdrawal, reopening and a completed chain
+close their terminals. An agent reports only its own current step through
+`request {id, step, outcome, note?}`; it cannot mark a human step done.
+
+A following human step pushes with the title without waking the model. A
+following agent step, a failure and the end of a chain each deliver one summary
+through `session.send`, for Claude and Codex alike. The summary names the act,
+steps since the preceding wake, exit codes, durations and log paths; only the
+failed step and the last step with output include their tails. Each tail is
+bounded to forty lines and four thousand characters. The full terminal capture
+is kept on the host under `~/.local/state/aacpanel/acts/<id>/<step>.log`, mode
+0600. Neither capture nor command text enters the action journal. A pending
+summary is saved in the same transaction as the step and retried with its own
+message identity after a failed delivery or a service restart.
 
 `acts` owns the waiting lifecycle: `do`, `secret`, `ask` and `call` share open,
-answered, declined and withdrawn states. The classifier queue keeps its claims,
-verdicts and push bookkeeping; a yes verdict creates an ask act in the same
-transaction. Actual human input or a delivered parent letter answers that act,
-with the parent name recorded separately; a vanished candidate withdraws it.
-A new call withdraws its open predecessor, and closed calls expire after thirty
-days. The local `/api/requests` endpoint adapts request calls to acts for MCP
-servers that have not reconnected. The old request and call tables remain
-available for an image rollback, but the service neither reads nor writes them.
+answered, declined and withdrawn states; a chain also has the paused `failed`
+state. Its current step is numbered from one and its output array has one slot
+per step, null until used. Markdown requests in stored history keep their
+string-shaped body and rendering. The local `/api/requests` endpoint adapts
+string requests for MCP servers that have not reconnected. The old request and
+call tables remain available for an image rollback; the service neither reads
+nor writes them. The classifier queue keeps its claims, verdicts and push
+bookkeeping; a yes verdict creates an ask act in the same transaction. Actual
+human input or a delivered parent letter answers it, with the parent recorded
+separately; a vanished candidate withdraws it. A new call withdraws its open
+predecessor, and closed calls expire after thirty days.
 
 The counter in both session lists opens the conversation. Its lower strip
 counts open acts and briefs together with the native question or permission.
@@ -652,17 +685,15 @@ anchors, the database supplies open acts and brief state. The collector indexes
 only these cards and reads new transcript records after the first listing; it
 keeps no second copy of the whole feed.
 
-The form renders a request's Markdown with the feed's copy and Run buttons.
-Done sends immediately; Can't opens an optional reason. A note stays folded
-until requested. The foot of a request or a secret is one row: the note link
-at the left, the second answer and the main one at the right; a note or a
-reason opens above that row. `session.send` accepts an act id and answer; the service
-builds the message from the stored title and the person's answer, checks its
-conversation, and locks the row while the executor accepts the message. Only
-then is it marked answered. A failed send leaves it open. A retry keeps the
-message id for transports whose queues know it. A database failure after delivery
-is reported as delivered but not marked, rather than inviting a blind resend. There is
-no new executor action or host right.
+The form renders a chain with its current step expanded. Human command steps
+have Run, terminal access and Stop; human steps without a command have Done
+and Can't, with a note or reason above the answer row. Agent steps show their
+status and reported note. Archived Markdown requests retain the feed's copy
+and Run buttons. For those requests and secret refusals, `session.send`
+accepts the act id and answer; the service builds the message from the stored
+title, checks its conversation and locks the row while the executor accepts
+it. Only then is it marked answered. A failed delivery leaves it open, and a
+retry preserves the message id where the transport deduplicates messages.
 
 Request and secret cards are markers in the feed. A reply carrying an id in
 `GET /api/acts` folds into a quiet line under its act and opens in full on a
@@ -1883,10 +1914,10 @@ The list of actions is closed.
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |
-| terminals | `term.start`, `term.close`, `term.rename`, `term.console`, `tmux.close` |
+| terminals | `term.start`, `term.peek`, `term.close`, `term.rename`, `term.console`, `tmux.close` |
 | secrets | `secret.put`, `secret.drop` |
 
-`session.ready` belongs to the service alone: it records readiness in the
+`act.run`, `act.stop` and `session.ready` belong to the service alone: it records readiness in the
 database, appears in the journal and grants the executor no new action.
 
 What is deliberately not on the list: removing containers, images and volumes,
@@ -1900,13 +1931,15 @@ panel starts. Its id and place distinguish it from other sessions on that
 server. It opens only in a place: the home directory or the
 directory of a project of the map. The service takes the place from that list,
 never from a string on the phone, and the executor checks again that it is a
-directory whose real path lies inside the home directory or a project root. The
-session is started with no command line — it runs the default shell and nothing
-else — so nothing sent from the phone is ever run as a command: it reaches the
-shell as keystrokes, over the same bridge as the session terminal, and on the
-same listeners only. The first terminal starts the server from a unit of its
-own, as a session does: started inside the executor, every shell would inherit
-its sandbox and die with its restart.
+directory whose real path lies inside the home directory or a project root.
+An ordinary terminal runs the default shell; typed input reaches it as
+keystrokes through the terminal bridge on the same listeners. A chain's terminal
+runs its assigned command through `sh -c`. Its tmux command queue also sets
+`remain-on-exit` before the exited pane can be reaped. Only the service may call
+`term.peek`: it reads dead status, exit code and the full joined pane history,
+and may save that capture into the act's private log. Browsers cannot call it.
+The first terminal starts the tmux server from a unit of its own: started inside
+the executor, every shell would inherit its sandbox and die with its restart.
 
 **Terminals lists every live tmux server of the user.** The executor reads
 `tmux-<uid>` under `TMUX_TMPDIR` or `/tmp`, accepts only sockets owned by the

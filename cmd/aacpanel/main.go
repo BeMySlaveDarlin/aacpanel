@@ -362,6 +362,7 @@ func run() error {
 		go srv.runRestarts(ctx)
 		go srv.runSessionLast(ctx)
 		go srv.runTextQuestions(ctx)
+		go srv.runChains(ctx)
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

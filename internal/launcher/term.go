@@ -16,6 +16,7 @@ const TermPlaceOption = "@aacp_place"
 // TermSpec is a request to start a terminal of the panel.
 type TermSpec struct {
 	Dir     string `json:"dir"`
+	Command string `json:"command,omitempty"`
 	Session string `json:"session"`
 	// Socket names the tmux server of the panel's terminals, kept apart from
 	// the user's own, where the sessions of claude live.
@@ -23,10 +24,8 @@ type TermSpec struct {
 }
 
 // Term starts a terminal of the panel: a tmux session on the server of its
-// own socket, in the given directory, running the user's default shell. It is
-// given no command line, so the shell is all that runs, and what the shell
-// does is what the person types into it. The window names itself after what
-// runs in it.
+// own socket, in the given directory, running the user's default shell or the
+// command of a human step. A command keeps its dead pane so the service can read its status and final output.
 //
 // It runs from a unit of its own, as a session does: the first terminal starts
 // the server, and a server started inside the executor would hand every shell
@@ -65,10 +64,16 @@ func Term(spec TermSpec) (Report, error) {
 // list of the terminals never shows one without its place.
 func termArgv(spec TermSpec) []string {
 	target := "=" + spec.Session + ":"
-	return []string{
-		"-L", spec.Socket,
-		"new-session", "-d", "-s", spec.Session, "-c", spec.Dir,
+	args := []string{"-L", spec.Socket, "new-session", "-d", "-s", spec.Session, "-c", spec.Dir}
+	if spec.Command != "" {
+		args = append(args, "sh", "-c", spec.Command)
+	}
+	// tmux processes this command queue before reaping an exited pane.
+	if spec.Command != "" {
+		args = append(args, ";", "set-option", "-w", "-t", target, "remain-on-exit", "on")
+	}
+	return append(args, []string{
 		";", "set-option", "-t", target, TermPlaceOption, spec.Dir,
 		";", "set-option", "-w", "-t", target, "automatic-rename", "on",
-	}
+	}...)
 }

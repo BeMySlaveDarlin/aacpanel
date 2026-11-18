@@ -2,6 +2,8 @@
 package act
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -12,13 +14,52 @@ import (
 )
 
 type Body struct {
-	Steps    string   `json:"steps,omitempty"`
-	Name     string   `json:"name,omitempty"`
-	Template string   `json:"template,omitempty"`
-	Source   string   `json:"source,omitempty"`
-	Message  string   `json:"message,omitempty"`
-	What     string   `json:"what,omitempty"`
-	Answers  []string `json:"answers,omitempty"`
+	Steps    string         `json:"-"`
+	Chain    []request.Step `json:"-"`
+	Name     string         `json:"name,omitempty"`
+	Template string         `json:"template,omitempty"`
+	Source   string         `json:"source,omitempty"`
+	Message  string         `json:"message,omitempty"`
+	What     string         `json:"what,omitempty"`
+	Answers  []string       `json:"answers,omitempty"`
+}
+
+// Stored Markdown and structured steps share one wire key. Keeping the two
+// representations explicit lets archived acts retain their original rendering.
+func (b Body) MarshalJSON() ([]byte, error) {
+	type fields Body
+	var steps any
+	if b.Chain != nil {
+		steps = b.Chain
+	} else if b.Steps != "" {
+		steps = b.Steps
+	}
+	return json.Marshal(struct {
+		fields
+		Steps any `json:"steps,omitempty"`
+	}{fields(b), steps})
+}
+func (b *Body) UnmarshalJSON(data []byte) error {
+	type fields Body
+	var raw struct {
+		fields
+		Steps json.RawMessage `json:"steps"`
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&raw); err != nil {
+		return err
+	}
+	*b = Body(raw.fields)
+	if len(raw.Steps) == 0 || string(raw.Steps) == "null" {
+		return nil
+	}
+	if raw.Steps[0] == '"' {
+		return json.Unmarshal(raw.Steps, &b.Steps)
+	}
+	d = json.NewDecoder(bytes.NewReader(raw.Steps))
+	d.DisallowUnknownFields()
+	return d.Decode(&b.Chain)
 }
 
 type Answer struct {
@@ -34,14 +75,18 @@ type Input struct {
 	Blocking *bool  `json:"blocking,omitempty"`
 	ID       string `json:"id,omitempty"`
 	Withdraw bool   `json:"withdraw,omitempty"`
+	Reopen   int    `json:"reopen,omitempty"`
+	Step     int    `json:"step,omitempty"`
+	Outcome  string `json:"outcome,omitempty"`
+	Note     string `json:"note,omitempty"`
 }
 
 func (i Input) Validate() error {
-	if i.Withdraw || i.ID != "" {
-		if !i.Withdraw || !request.ValidID(i.ID) || i.Kind != "" || i.Title != "" || i.Blocking != nil || (i.Body.Steps != "" || i.Body.Name != "" || i.Body.Template != "" || i.Body.Source != "" || i.Body.Message != "" || i.Body.What != "" || len(i.Body.Answers) > 0) {
-			return errors.New("withdraw needs only an id and withdraw: true")
+	if i.Withdraw || i.ID != "" || i.Reopen != 0 || i.Step != 0 || i.Outcome != "" || i.Note != "" {
+		if i.Kind != "" || i.Title != "" || i.Blocking != nil || i.Body.Steps != "" || i.Body.Chain != nil || i.Body.Name != "" || i.Body.Template != "" || i.Body.Source != "" || i.Body.Message != "" || i.Body.What != "" || len(i.Body.Answers) > 0 {
+			return errors.New("a chain operation carries no act body")
 		}
-		return nil
+		return (request.Input{ID: i.ID, Withdraw: i.Withdraw, Reopen: i.Reopen, Step: i.Step, Outcome: i.Outcome, Note: i.Note}).Validate()
 	}
 	if strings.TrimSpace(i.Title) == "" || utf8.RuneCountInString(i.Title) > request.TitleMax {
 		return errors.New("title needs 1 to 120 characters")
@@ -51,7 +96,12 @@ func (i Input) Validate() error {
 	}
 	switch i.Kind {
 	case "do":
-		return (request.Input{Title: i.Title, Steps: i.Body.Steps, Blocking: i.Blocking}).Validate()
+		if i.Body.Chain != nil {
+			return request.ValidateSteps(i.Body.Chain)
+		}
+		if strings.TrimSpace(i.Body.Steps) == "" || utf8.RuneCountInString(i.Body.Steps) > 2000 {
+			return errors.New("steps needs 1 to 2000 characters")
+		}
 	case "secret":
 		if !action.SecretName(i.Body.Name) {
 			return errors.New("the secret name is not valid")
@@ -67,21 +117,25 @@ func (i Input) Validate() error {
 }
 
 type Record struct {
-	ID           string     `json:"id"`
-	Conversation string     `json:"conversation"`
-	Session      string     `json:"session"`
-	Kind         string     `json:"kind"`
-	Blocking     bool       `json:"blocking"`
-	Title        string     `json:"title"`
-	Body         Body       `json:"body"`
-	State        string     `json:"state"`
-	Created      time.Time  `json:"created"`
-	Closed       *time.Time `json:"closed,omitempty"`
-	Answer       *Answer    `json:"answer,omitempty"`
-	AnsweredBy   string     `json:"answeredBy"`
+	ID           string            `json:"id"`
+	Conversation string            `json:"conversation"`
+	Session      string            `json:"session"`
+	Kind         string            `json:"kind"`
+	Blocking     bool              `json:"blocking"`
+	Title        string            `json:"title"`
+	Body         Body              `json:"body"`
+	State        string            `json:"state"`
+	Created      time.Time         `json:"created"`
+	Closed       *time.Time        `json:"closed,omitempty"`
+	Answer       *Answer           `json:"answer,omitempty"`
+	AnsweredBy   string            `json:"answeredBy"`
+	Step         *int              `json:"step,omitempty"`
+	Outputs      []*request.Output `json:"outputs,omitempty"`
+	Notified     int               `json:"-"`
+	Notice       *Notice           `json:"-"`
 }
 
-func (r Record) Open() bool { return r.State == "open" }
+func (r Record) Open() bool { return r.State == "open" || r.State == "failed" }
 
 func (r Record) ValidateAnswer(answer, note string) error {
 	if utf8.RuneCountInString(note) > request.NoteMax {

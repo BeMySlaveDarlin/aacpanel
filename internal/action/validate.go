@@ -397,6 +397,12 @@ func (r Request) Validate() error {
 	case r.Rename != "":
 		return badRequest("action %s renames no session", r.Kind)
 	}
+	if r.TermCommand != "" && (r.Kind != TermStart || len([]rune(r.TermCommand)) > 2000 || strings.IndexByte(r.TermCommand, 0) >= 0) {
+		return badRequest("only term.start accepts a command, up to 2000 characters without NUL")
+	}
+	if r.Log != "" && (r.Kind != TermPeek || !filepath.IsAbs(r.Log)) {
+		return badRequest("only term.peek accepts an absolute log path")
+	}
 	if r.Place != "" && r.Kind != TermStart {
 		return badRequest("action %s opens nothing in a place", r.Kind)
 	}

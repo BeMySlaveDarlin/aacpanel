@@ -56,6 +56,13 @@ func TestActsMigrationPreservesEveryOutstandingTurnPG(t *testing.T) {
 	if _, err := tx.Exec(t.Context(), string(body)); err != nil {
 		t.Fatal(err)
 	}
+	chain, err := migrations.FS.ReadFile("074_act_chain.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), string(chain)); err != nil {
+		t.Fatal(err)
+	}
 	rows, err := tx.Query(t.Context(), `SELECT `+actColumns+` FROM acts ORDER BY kind,title`)
 	if err != nil {
 		t.Fatal(err)

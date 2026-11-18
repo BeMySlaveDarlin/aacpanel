@@ -106,7 +106,9 @@ type Request struct {
 	Rename string `json:"rename,omitempty"`
 
 	// Place is the directory term.start opens its terminal in.
-	Place string `json:"place,omitempty"`
+	Place       string `json:"place,omitempty"`
+	TermCommand string `json:"termCommand,omitempty"`
+	Log         string `json:"log,omitempty"`
 
 	// Remote is whether session.remote switches Remote Control on or off.
 	Remote *bool `json:"remote,omitempty"`

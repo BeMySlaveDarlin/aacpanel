@@ -124,8 +124,11 @@ def request_card(text, data, use, at, pos):
     found = REQUEST_ASKED(text or "")
     if not found or not isinstance(data, dict) or data.get("withdraw"):
         return None
+    # A chain gives its steps as a list, kept as it came; a request of one text
+    # keeps its text.
+    steps = data.get("steps")
     return {"role": "request", "id": found.group(1), "title": str(data.get("title") or ""),
-            "steps": str(data.get("steps") or ""), "blocking": data.get("blocking") is True,
+            "steps": steps if isinstance(steps, list) else str(steps or ""), "blocking": data.get("blocking") is True,
             "use": use or "", "at": at, "pos": pos}
 
 

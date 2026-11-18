@@ -718,8 +718,13 @@ func (a audited) audit(req action.Request, run func() (string, string, error)) (
 			req.Kind, req.Target, req.Device, req.ID, took, err.Error())
 		return detail, session, err
 	}
+	loggedDetail := detail
+	// A terminal capture is conversation data, not an action description.
+	if req.Kind == action.TermPeek {
+		loggedDetail = "terminal captured"
+	}
 	log.Printf("audit phase=done action=%s target=%s device=%q request=%s result=ok duration_ms=%d detail=%q",
-		req.Kind, req.Target, req.Device, req.ID, took, detail)
+		req.Kind, req.Target, req.Device, req.ID, took, loggedDetail)
 	executor.WakeSessions(req.Kind)
 	return detail, session, nil
 }

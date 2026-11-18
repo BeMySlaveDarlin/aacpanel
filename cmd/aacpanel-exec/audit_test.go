@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -290,5 +292,21 @@ func TestAuditedPassesTheRestartOwnershipResult(t *testing.T) {
 	detail, ownership, err := audited{next: passingRestartExec{}}.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: "parent"})
 	if err != nil || detail != "restarted" || ownership == nil || ownership.Conversation != "22222222-2222-4222-8222-222222222222" {
 		t.Fatalf("restart through the audit wrapper lost its transfer: %q %+v %v", detail, ownership, err)
+	}
+}
+
+func TestTerminalCaptureStaysOutOfAudit(t *testing.T) {
+	var journal bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&journal)
+	t.Cleanup(func() { log.SetOutput(previous) })
+	const capture = `{"dead":true,"status":0,"tail":"private-terminal-output","lines":1}`
+	wrapped := audited{next: action.ExecutorFunc(func(context.Context, action.Request) (string, error) { return capture, nil })}
+	got, err := wrapped.Execute(t.Context(), action.Request{ID: "peek-1", Kind: action.TermPeek, Target: "t-1a2b3c4d"})
+	if err != nil || got != capture {
+		t.Fatalf("capture changed: %s %v", got, err)
+	}
+	if strings.Contains(journal.String(), "private-terminal-output") || !strings.Contains(journal.String(), "terminal captured") {
+		t.Fatalf("audit: %s", journal.String())
 	}
 }

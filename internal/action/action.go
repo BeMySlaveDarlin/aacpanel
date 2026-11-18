@@ -139,6 +139,7 @@ const (
 	// tmux session on the panel's socket, in a place from the map. The
 	// target is the id the service gives it.
 	TermStart Kind = "term.start"
+	TermPeek  Kind = "term.peek"
 	// TermClose kills a terminal of the panel with whatever runs in it.
 	TermClose Kind = "term.close"
 	// TmuxClose closes a foreign terminal found again by its opaque id.
@@ -166,13 +167,19 @@ const (
 	ClaudeUpdate Kind = "claude.update"
 )
 
+// Service actions orchestrate terminals; they never reach the executor.
+const (
+	ActRun  Kind = "act.run"
+	ActStop Kind = "act.stop"
+)
+
 // Kinds is the full list of what the executor can do.
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown, CodexUpdate, ClaudeUpdate,
 	SessionOpen, SessionResume, SessionClose, SessionFreeze, SessionThaw, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionRole, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
-	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent, SessionPin, TaskSummary,
+	WindowClose, ProjectCreate, ProjectMove, TermStart, TermPeek, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent, SessionPin, TaskSummary,
 }
 
 // Valid reports whether the executor knows this kind of action.

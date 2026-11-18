@@ -276,7 +276,9 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.ProjectMove:
 		return e.projectMove(ctx, req)
 	case action.TermStart:
-		return e.termStart(ctx, req.Target, req.Place)
+		return e.termStart(ctx, req.Target, req.Place, req.TermCommand)
+	case action.TermPeek:
+		return e.termPeek(ctx, req.Target, req.Log)
 	case action.TermClose:
 		return e.termClose(ctx, req.Target)
 	case action.TmuxClose:

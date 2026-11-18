@@ -171,7 +171,7 @@ func findPanelTerm(ctx context.Context, id string) (action.Term, error) {
 			return t, nil
 		}
 	}
-	return action.Term{}, fmt.Errorf("there is no terminal %s among those of the panel", id)
+	return action.Term{}, fmt.Errorf("%w: %s", action.ErrTermNotFound, id)
 }
 
 // termPlace checks the directory a terminal of the panel opens in: an existing
@@ -190,7 +190,7 @@ func termPlace(place string) (string, error) {
 	return dirInside(place, roots)
 }
 
-func (e *Executor) termStart(ctx context.Context, id, place string) (string, error) {
+func (e *Executor) termStart(ctx context.Context, id, place, command string) (string, error) {
 	if !action.TermID(id) {
 		return "", fmt.Errorf("%q is not the id of a terminal of the panel", id)
 	}
@@ -198,7 +198,14 @@ func (e *Executor) termStart(ctx context.Context, id, place string) (string, err
 	if err != nil {
 		return "", err
 	}
-	rep, err := e.runTermStarter(ctx, dir, id)
+	if command != "" {
+		if _, err := findPanelTerm(ctx, id); err == nil {
+			return "terminal " + id + " is already started", nil
+		} else if !errors.Is(err, action.ErrTermNotFound) {
+			return "", err
+		}
+	}
+	rep, err := e.runTermStarter(ctx, dir, id, command)
 	if err != nil {
 		return "", err
 	}

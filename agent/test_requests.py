@@ -36,6 +36,17 @@ class Requests(unittest.TestCase):
             chat.parse(tool(args), 30, briefs=pending)
             self.assertFalse(any(r["role"] == "request" for r in chat.parse(result(text), 40, briefs=pending)))
 
+    def test_a_chain_keeps_its_steps_and_a_step_report_draws_nothing(self):
+        chain = {"title": "Restart the API", "blocking": True, "steps": [
+            {"who": "you", "text": "Log in", "command": "tsh login"}, {"who": "agent", "text": "Check the access"}]}
+        pending = {}
+        chat.parse(tool(chain), 0, briefs=pending)
+        got = chat.parse(result("Requested as " + REQUEST_ID + ". Step 1 is the person's. End the turn."), 20, briefs=pending)
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0]["steps"], chain["steps"])
+        chat.parse(tool({"id": REQUEST_ID, "step": 2, "outcome": "done"}), 30, briefs=pending)
+        self.assertFalse(any(r["role"] == "request" for r in chat.parse(result("Step 2 closed. The chain is done."), 40, briefs=pending)))
+
     def test_codex_draws_the_same_request_card(self):
         rows = chat.parse(mcp_call("aacpanel", "request", ARGS, text=RESULT), 4)
         self.assertEqual(len(rows), 1)

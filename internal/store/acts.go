@@ -6,18 +6,20 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
+	"time"
 
 	"aacpanel/internal/act"
+	"aacpanel/internal/request"
 	"github.com/jackc/pgx/v5"
 )
 
 var ErrActClosed = errors.New("the act has already been answered or withdrawn")
 
-const actColumns = `id, conversation, session, kind, blocking, title, body, state, created_at, closed_at, answer, answered_by`
+const actColumns = `id, conversation, session, kind, blocking, title, body, state, created_at, closed_at, answer, answered_by, step, outputs, notice, notified`
 
 func readAct(row pgx.Row) (act.Record, error) {
 	var r act.Record
-	err := row.Scan(&r.ID, &r.Conversation, &r.Session, &r.Kind, &r.Blocking, &r.Title, &r.Body, &r.State, &r.Created, &r.Closed, &r.Answer, &r.AnsweredBy)
+	err := row.Scan(&r.ID, &r.Conversation, &r.Session, &r.Kind, &r.Blocking, &r.Title, &r.Body, &r.State, &r.Created, &r.Closed, &r.Answer, &r.AnsweredBy, &r.Step, &r.Outputs, &r.Notice, &r.Notified)
 	return r, err
 }
 
@@ -25,7 +27,7 @@ func (s *Store) CreateAct(ctx context.Context, conversation, session string, inp
 	if err := input.Validate(); err != nil {
 		return act.Record{}, err
 	}
-	if input.Withdraw {
+	if input.ID != "" {
 		return act.Record{}, errors.New("a withdrawal creates no act")
 	}
 	pool, err := s.Pool()
@@ -36,7 +38,14 @@ func (s *Store) CreateAct(ctx context.Context, conversation, session string, inp
 	if _, err := rand.Read(id[:]); err != nil {
 		return act.Record{}, err
 	}
-	return readAct(pool.QueryRow(ctx, `INSERT INTO acts (id,conversation,session,kind,blocking,title,body) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING `+actColumns, hex.EncodeToString(id[:]), conversation, session, input.Kind, *input.Blocking, input.Title, input.Body))
+	var step *int
+	var outputs []*request.Output
+	if input.Body.Chain != nil {
+		n := 1
+		step = &n
+		outputs = make([]*request.Output, len(input.Body.Chain))
+	}
+	return readAct(pool.QueryRow(ctx, `INSERT INTO acts (id,conversation,session,kind,blocking,title,body,step,outputs) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING `+actColumns, hex.EncodeToString(id[:]), conversation, session, input.Kind, *input.Blocking, input.Title, input.Body, step, outputs))
 }
 
 func (s *Store) acts(ctx context.Context, conversations []string, open bool) ([]act.Record, error) {
@@ -44,7 +53,7 @@ func (s *Store) acts(ctx context.Context, conversations []string, open bool) ([]
 	if err != nil {
 		return nil, err
 	}
-	rows, err := pool.Query(ctx, `SELECT `+actColumns+` FROM acts WHERE conversation=ANY($1) AND (NOT $2 OR state='open') ORDER BY created_at,id`, conversations, open)
+	rows, err := pool.Query(ctx, `SELECT `+actColumns+` FROM acts WHERE conversation=ANY($1) AND (NOT $2 OR state IN ('open','failed')) ORDER BY created_at,id`, conversations, open)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +72,7 @@ func (s *Store) WithdrawAct(ctx context.Context, conversation, session, id strin
 	if err != nil {
 		return err
 	}
-	tag, err := pool.Exec(ctx, `UPDATE acts SET state='withdrawn',closed_at=now(),answered_by=$3 WHERE id=$1 AND conversation=$2 AND state='open'`, id, conversation, session)
+	tag, err := pool.Exec(ctx, `UPDATE acts SET state='withdrawn',closed_at=now(),answered_by=$3 WHERE id=$1 AND conversation=$2 AND state IN ('open','failed')`, id, conversation, session)
 	if err != nil {
 		return err
 	}
@@ -89,7 +98,7 @@ func (s *Store) LockAct(ctx context.Context, id string) (*ActAnswer, error) {
 	if err != nil {
 		return nil, err
 	}
-	r, err := readAct(tx.QueryRow(ctx, `SELECT `+actColumns+` FROM acts WHERE id=$1 AND state='open' FOR UPDATE`, id))
+	r, err := readAct(tx.QueryRow(ctx, `SELECT `+actColumns+` FROM acts WHERE id=$1 AND state IN ('open','failed') FOR UPDATE`, id))
 	if err != nil {
 		_ = tx.Rollback(ctx)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -147,4 +156,62 @@ func (s *Store) OpenSecretActs(ctx context.Context, name string) ([]act.Record, 
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (act.Record, error) { return readAct(row) })
+}
+
+// LockChain also admits a closed chain with an undelivered notice or terminals.
+func (s *Store) LockChain(ctx context.Context, id string) (*ActAnswer, error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	r, err := readAct(tx.QueryRow(ctx, `SELECT `+actColumns+` FROM acts WHERE id=$1 AND step IS NOT NULL FOR UPDATE`, id))
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = ErrActClosed
+		}
+		return nil, err
+	}
+	return &ActAnswer{Record: r, tx: tx}, nil
+}
+
+func (a *ActAnswer) SaveChain(ctx context.Context) error {
+	r := a.Record
+	_, err := a.tx.Exec(ctx, `UPDATE acts SET step=$2,outputs=$3,state=$4,closed_at=$5,notice=$6,notified=$7,answered_by=$8 WHERE id=$1`, r.ID, r.Step, r.Outputs, r.State, r.Closed, r.Notice, r.Notified, r.AnsweredBy)
+	if err != nil {
+		return err
+	}
+	return a.tx.Commit(ctx)
+}
+
+func (s *Store) ActiveChains(ctx context.Context) ([]act.Record, error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := pool.Query(ctx, `SELECT `+actColumns+` FROM acts WHERE step IS NOT NULL AND ((state='open' AND outputs @? '$[*] ? (@.state == "running" || (@.state == "pending" && @.term != ""))') OR notice IS NOT NULL OR (state NOT IN ('open','failed') AND outputs @? '$[*].term')) ORDER BY created_at,id`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (act.Record, error) { return readAct(row) })
+}
+
+// QueueNotice is saved in the same transaction as the step it describes.
+func (a *ActAnswer) QueueNotice() {
+	r := &a.Record
+	var id [16]byte
+	rand.Read(id[:])
+	r.Notice = &act.Notice{ID: act.MessageID(hex.EncodeToString(id[:])), Text: request.Summary(r.ID, r.Title, r.Body.Chain, r.Outputs, *r.Step, r.Notified, r.State)}
+	r.Notified = *r.Step - 1
+	if !r.Open() {
+		r.Notified = *r.Step
+	}
+}
+
+func (a *ActAnswer) WithdrawChain(now time.Time, session string) {
+	a.Record.State, a.Record.Closed, a.Record.AnsweredBy, a.Record.Notice = "withdrawn", &now, session, nil
 }

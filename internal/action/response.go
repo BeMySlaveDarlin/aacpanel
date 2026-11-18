@@ -9,11 +9,13 @@ import (
 )
 
 var (
+	ErrTermNotFound     = errors.New("there is no panel terminal")
 	ErrSessionNotFound  = errors.New("there is no live session")
 	ErrSessionAmbiguous = errors.New("the session name is ambiguous")
 )
 
 const (
+	TermNotFound     = "term_not_found"
 	SessionNotFound  = "session_not_found"
 	SessionAmbiguous = "session_ambiguous"
 )
@@ -67,6 +69,8 @@ type Response struct {
 
 	Commands *SessionCommands `json:"commands,omitempty"`
 
+	TermPeek *TermPeekResult `json:"termPeek,omitempty"`
+
 	Terms []Term `json:"terms,omitempty"`
 
 	Secrets *Secrets `json:"secrets,omitempty"`
@@ -86,6 +90,8 @@ func Failed(id string, err error, took time.Duration) Response {
 		resp.SecretPath = saved.Path
 	}
 	switch {
+	case errors.Is(err, ErrTermNotFound):
+		resp.Code = TermNotFound
 	case errors.Is(err, ErrSessionNotFound):
 		resp.Code = SessionNotFound
 	case errors.Is(err, ErrSessionAmbiguous):

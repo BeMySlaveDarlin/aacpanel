@@ -42,7 +42,7 @@ type TermsAsker interface {
 // are raw input into a shell of the machine, so they live only where the
 // terminal does.
 func TermKind(k Kind) bool {
-	return k == TermStart || k == TermClose || k == TermRename || k == TermConsole || k == TmuxClose
+	return k == TermPeek || k == TermStart || k == TermClose || k == TermRename || k == TermConsole || k == TmuxClose
 }
 
 // TermID reports whether s is the id of a terminal of the panel: "t-" and
@@ -112,4 +112,11 @@ func validateTerm(r Request) error {
 		return badRequest("the place %q is not absolute", r.Place)
 	}
 	return safePath(r.Place)
+}
+
+type TermPeekResult struct {
+	Dead   bool   `json:"dead"`
+	Status int    `json:"status"`
+	Tail   string `json:"tail"`
+	Lines  int    `json:"lines"`
 }
