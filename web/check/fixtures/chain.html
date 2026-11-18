@@ -1,0 +1,212 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const until = async (ready) => {
+    const end = performance.now() + 5000;
+    while (!ready() && performance.now() < end) await new Promise(resolve => requestAnimationFrame(resolve));
+    if (!ready()) throw new Error("The chain did not reach its expected state");
+};
+const wall = Date.now.bind(Date);
+let offset = 0;
+Date.now = () => wall() + offset;
+// Polls are driven explicitly: the fixture checks their cadence without
+// spending two seconds on every state of the same chain.
+const intervals = new Map();
+const plainSet = window.setInterval.bind(window), plainClear = window.clearInterval.bind(window);
+let pollID = -1;
+window.setInterval = (fn, ms, ...args) => {
+    const id = ms === 2000 ? pollID-- : plainSet(fn, ms, ...args);
+    intervals.set(id, { fn, ms });
+    return id;
+};
+window.clearInterval = (id) => { intervals.delete(id); if (id >= 0) plainClear(id); };
+const polls = () => [...intervals.values()].filter(timer => timer.ms === 2000);
+const poll = async () => { polls().forEach(timer => timer.fn()); await quiet(); };
+const at = new Date(Date.now() - 120000).toISOString();
+const started = new Date(Date.now() - 14000).toISOString();
+const ended = new Date(Date.parse(started) + 31000).toISOString();
+const steps = [
+    { who: "you", text: "Log in to Teleport. Open the SSO link and confirm with your security key.", command: "tsh login --proxy=tp.example.test --auth=okta" },
+    { who: "agent", text: "Check access to the cluster." },
+    { who: "you", text: "Restart the API on stage.", command: "kubectl -n stage rollout restart deploy/api" },
+    { who: "you", text: "Open **stage.example.test** and check that you can sign in." },
+];
+const req = { id: "a".repeat(32), kind: "do", title: "Log in to Teleport and restart the API", state: "open", blocking: true,
+    created: at, step: 1, body: { steps }, outputs: [null, null, null, null] };
+const done = { state: "done", term: "t-1234abcd", exit: 0, started, ended, tail: "Logged in successfully.", log: "/home/u/.local/state/aacpanel/acts/step.log" };
+const running = { state: "running", term: "t-1234abcd", started, tail: "Open the SSO link:\nhttps://tp.example.test/login\nWaiting for the security key…" };
+let acts = [req], actReads = 0;
+let items = [
+    { role: "ai", pos: 1, at, text: "We will go step by step: sign in, check access, restart the API and check sign-in." },
+    { role: "request", pos: 2, at, id: req.id, title: req.title, steps },
+];
+const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport: "stream", status: "idle", model: "claude-opus-5-5",
+    waiting: [{ kind: "request", id: req.id, title: req.title, at, pos: 2, blocking: true }] };
+const exec = { available: true, kinds: ["act.run", "act.stop", "session.send", "session.shell"] };
+let stream, refuse = false, hold = false, release;
+const sent = [], terms = [];
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (input, options) => {
+    const u = new URL(String(input), location.href);
+    if (u.pathname === "/api/chat") return json({ items, first: 1, last: items.at(-1).pos, total: items.length, moreBefore: false, state: {} });
+    if (u.pathname === "/api/acts") { actReads++; return json({ acts }); }
+    if (u.pathname === "/api/actions") {
+        const body = JSON.parse(options.body); sent.push(body);
+        if (hold) { hold = false; await new Promise(resolve => { release = resolve; }); }
+        if (refuse) return json({ error: "The command could not start" }, 502);
+        if (body.kind === "act.run") req.outputs[req.step - 1] = { ...running };
+        if (body.kind === "act.stop") req.outputs[req.step - 1] = { ...running, state: "stopped", ended: new Date().toISOString() };
+        if (body.kind === "session.send" && body.params.act === req.id) {
+            const cant = body.params.answer === "cant";
+            req.outputs[req.step - 1] = { state: cant ? "cant" : "done", note: body.params.note };
+            req.state = cant ? "declined" : "answered";
+            req.closed = new Date().toISOString();
+        }
+        return json({ ok: true });
+    }
+    if (u.pathname.startsWith("/api/term")) return json({ available: false });
+    return json({});
+});
+window.EventSource = class {
+    constructor() { stream = this; this.listeners = {}; }
+    addEventListener(type, fn) { this.listeners[type] = fn; }
+    close() {}
+};
+const root = document.querySelector("#root");
+const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec}
+    onTerm=${term => terms.push(term)} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
+const form = () => document.querySelector(".actform .mchain");
+const step = n => form()?.querySelector(`[data-step="${n}"]`);
+const button = word => [...(form()?.querySelectorAll("button") || [])].find(b => b.textContent.trim() === word);
+const marker = () => document.querySelector('.actmark[data-act="' + req.id + '"]')?.textContent.replace(/\s+/g, " ");
+const type = async (el, value) => { el.value = value; el.dispatchEvent(new Event("input", { bubbles: true })); await quiet(); };
+const publish = async () => {
+    session.waiting = [...session.waiting];
+    draw(); await quiet();
+};
+const scene = new URLSearchParams(location.search).get("scene");
+function showScene(name) {
+    req.state = name === "failed" ? "failed" : "open";
+    req.step = name === "manual" ? 4 : name === "agent" ? 2 : name === "failed" ? 3 : 1;
+    req.outputs = [name === "running" ? { ...running } : { ...done },
+        req.step > 2 ? { state: "done", note: "Access confirmed: role stage-deployer." } : null,
+        name === "failed" ? { ...done, state: "failed", exit: 3, tail: "Error from server (Forbidden): deployments.apps is forbidden" }
+            : name === "manual" ? { ...done, tail: "deployment.apps/api restarted" } : null, null];
+}
+window.done = (async () => {
+    if (scene) showScene(scene);
+    draw(); await until(form); await quiet();
+    if (scene) { await document.fonts.ready; return { scene }; }
+    const out = {};
+    out.pending = form().querySelector(".sentlabel").textContent === "chain · step 1 of 4"
+        && step(1).classList.contains("current") && Boolean(button("Run")) && !button("Done") && !button("note")
+        && !step(2).querySelector(".chainbody") && !step(3).querySelector(".chainbody") && !polls().length;
+    out.markerPending = marker().includes("chain") && marker().includes("4 steps · step 1 is yours · below");
+    step(3).querySelector(".chainicon").click(); await quiet();
+    out.future = Boolean(step(3).querySelector(".mdcode")) && !step(3).querySelector(".requestanswer") && !step(3).querySelector(".chainstatus");
+    step(3).querySelector(".chainicon").click(); await quiet();
+    exec.kinds = exec.kinds.filter(kind => kind !== "act.run"); draw(); await quiet();
+    out.capabilities = !button("Run");
+    exec.kinds = [...exec.kinds, "act.run"]; draw(); await quiet();
+    // Markdown in a step has no second execution path, even for a shell fence.
+    req.body.steps[0] = { ...steps[0], text: steps[0].text + "\n```sh\nprintf do-not-run\n```" };
+    await publish();
+    out.noMarkdownRun = !form().querySelector(".mdrun") && form().textContent.includes("printf do-not-run");
+    req.body.steps[0] = steps[0] = { ...steps[0], text: "Log in to Teleport. Open the SSO link and confirm with your security key." };
+    refuse = true; button("Run").click(); await quiet();
+    out.refused = Boolean(button("Run")) && !polls().length && document.querySelector(".toast")?.textContent.includes("could not start");
+    refuse = false; hold = true;
+    const before = sent.length;
+    button("Run").click(); await until(() => release);
+    button("Run").click();
+    out.singleRun = sent.length === before + 1;
+    release(); release = null; await until(() => step(1)?.classList.contains("running")); await quiet();
+    out.run = sent.at(-1).kind === "act.run" && sent.at(-1).target === "work"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, step: 1 });
+    out.running = !button("Run") && !button("Done") && !button("Can't") && Boolean(button("Stop"))
+        && /running · \d+:\d\d/.test(step(1).textContent) && step(1).querySelector(".chainout").textContent === running.tail
+        && step(1).querySelector(".chainout a")?.href === "https://tp.example.test/login";
+    out.markerRunning = marker().includes("4 steps · step 1 runs · below");
+    exec.kinds = exec.kinds.filter(kind => kind !== "act.stop"); draw(); await quiet();
+    out.capabilities = out.capabilities && !button("Stop");
+    exec.kinds = [...exec.kinds, "act.stop"]; draw(); await quiet();
+    const oldTime = step(1).querySelector(".chainstatus span").textContent;
+    offset += 1000;
+    [...intervals.values()].filter(timer => timer.ms === 1000).forEach(timer => timer.fn());
+    await quiet();
+    out.timer = step(1).querySelector(".chainstatus span").textContent !== oldTime;
+    step(1).querySelector(".chainterm").click(); await quiet();
+    out.terminal = JSON.stringify(terms) === JSON.stringify([{ id: "t-1234abcd", place: "/srv/proj" }]);
+    out.polls = polls().length === 1;
+    const reads = actReads;
+    await poll();
+    out.polls = out.polls && actReads === reads + 1;
+    button("Stop").click(); await until(() => step(1)?.classList.contains("stopped")); await quiet();
+    out.stop = sent.at(-1).kind === "act.stop" && sent.at(-1).target === "work"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, step: 1 })
+        && step(1).querySelector(".chainout").textContent === running.tail && Boolean(button("Run")) && !polls().length;
+    button("Can't").click(); await quiet();
+    await type(step(1).querySelector("textarea"), "No security key.");
+    button("Can't").click(); await until(() => !form()); await quiet();
+    out.commandCant = sent.at(-1).kind === "session.send"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, answer: "cant", note: "No security key.", step: 1 });
+    req.state = "open"; req.closed = null; req.outputs[0] = { ...running, state: "stopped" };
+    await publish(); await until(form);
+    button("Run").click(); await until(() => polls().length);
+    req.outputs[0] = { ...done }; req.step = 2;
+    await poll(); await until(() => step(2)?.classList.contains("current")); await quiet();
+    out.agent = step(2).textContent.includes("the session works on it") && !button("Done") && !button("Run") && !button("Can't")
+        && step(1).textContent.includes("exit 0 · 31 s") && !step(1).querySelector(".chainbody") && !polls().length;
+    out.markerAgent = marker().includes("1 of 4 done · step 2 is the agent's · below");
+    step(1).querySelector(".chainicon").click(); await quiet();
+    out.pastOutput = step(1).querySelector(".chainout")?.textContent === done.tail;
+    items = [...items, { role: "me", pos: 3, at, text: `The chain summary for ${req.id}: step 2 is yours.` }];
+    stream.listeners.chat({ data: JSON.stringify({ items, state: {}, first: 1, last: 3, total: items.length }) }); await quiet();
+    out.openReply = document.querySelector(".actreply summary")?.textContent.includes("The chain summary")
+        && ![...document.querySelectorAll(".msg.me")].some(node => node.textContent.includes(req.id));
+    showScene("failed"); await publish();
+    out.failed = Boolean(form()) && step(3).classList.contains("current") && step(3).textContent.includes("exit 3 · 31 s")
+        && step(3).querySelector(".chainout").textContent.includes("Forbidden") && !button("Run") && !button("Done") && !button("Can't");
+    out.markerFailed = marker().includes("failed at step 3 · below");
+    showScene("manual"); await publish();
+    out.manual = Boolean(button("Done")) && Boolean(button("Can't")) && !button("Run") && !step(4).querySelector(".mdcode")
+        && !step(2).querySelector(".chainbody");
+    step(2).querySelector(".chainicon").click(); await quiet();
+    out.agentNote = step(2).textContent.includes("Access confirmed: role stage-deployer.");
+    req.outputs[1].note = ""; await publish();
+    out.agentClosed = !step(2).textContent.includes("waits for the session") && !step(2).textContent.includes("the session works on it");
+    button("note").click(); await quiet();
+    await type(step(4).querySelector("textarea"), "Sign-in works.");
+    button("Done").click(); await until(() => !form()); await quiet();
+    out.done = sent.at(-1).kind === "session.send" && sent.at(-1).target === "work"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, answer: "done", note: "Sign-in works.", step: 4 })
+        && marker().includes("4 of 4 done");
+    showScene("manual"); await publish(); await until(form);
+    const sends = sent.length;
+    button("Can't").click(); await quiet();
+    out.reasonFirst = Boolean(step(4).querySelector("textarea")) && sent.length === sends;
+    await type(step(4).querySelector("textarea"), "No account.");
+    button("Can't").click(); await until(() => !form()); await quiet();
+    out.cant = sent.at(-1).kind === "session.send"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, answer: "cant", note: "No account.", step: 4 })
+        && marker().includes("3 of 4 done · Can't");
+    const legacy = { id: "b".repeat(32), kind: "do", title: "Legacy request", state: "open", created: at, body: { steps: "Run this:\n```sh\nprintf legacy\n```" } };
+    acts = [req, legacy];
+    items = [...items, { role: "request", pos: 4, at, id: legacy.id, title: legacy.title, steps: legacy.body.steps }];
+    stream.listeners.chat({ data: JSON.stringify({ items, state: {}, first: 1, last: 4, total: items.length }) });
+    await until(() => document.querySelector(".actform .requeststeps .mdrun")); await quiet();
+    out.legacy = document.querySelector(".actform .requeststeps").textContent.includes("printf legacy")
+        && !document.querySelector(".actform .mchain") && !polls().length;
+    return out;
+})();
+</script>

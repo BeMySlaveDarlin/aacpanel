@@ -70,7 +70,7 @@ export function inline(text) {
     return out.flatMap((node) => (typeof node === "string" ? autolink(node) : node));
 }
 
-function autolink(text) {
+export function autolink(text) {
     const out = [];
     let last = 0;
     for (const m of text.matchAll(BARE_URL)) {

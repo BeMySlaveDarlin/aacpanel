@@ -1,6 +1,7 @@
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
+import { actOpen, chainSummary, isChain } from "./chain.js";
 
 const kindOf = { do: "request", ask: "question" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -12,11 +13,11 @@ export function movesOf(acts, waiting, native) {
     const moves = new Map();
     for (const item of waiting) {
         const act = acts[item.id];
-        if (act && act.state !== "open") continue;
+        if (act && !actOpen(act)) continue;
         moves.set(moveKey(item), { ...item, ...act, kind: item.kind, at: item.at || act?.created });
     }
     for (const act of Object.values(acts)) {
-        if (act.state !== "open") continue;
+        if (!actOpen(act)) continue;
         const kind = kindOf[act.kind] || act.kind;
         const key = moveKey({ ...act, kind });
         moves.set(key, { ...moves.get(key), ...act, kind, at: act.created });
@@ -36,13 +37,14 @@ export function MovePill({ items, onNext }) {
 
 export function ActMarker({ item, record, onOpen }) {
     const kind = item.role;
-    const open = record ? record.state === "open" : true;
-    const outcome = record?.withdrawn ? "Withdrawn" : record?.outcome === "done" ? "Done"
+    const open = record ? actOpen(record) : true;
+    const chain = isChain(record || item);
+    const outcome = chain ? chainSummary(record || item) : record?.withdrawn ? "Withdrawn" : record?.outcome === "done" ? "Done"
         : record?.outcome === "cant" ? "Can't" : record?.state === "declined" ? "Won't give"
         : record?.answered ? "Filled in" : "yours · below";
     return html`<div class=${`actmark${open ? " open" : " done"}`} data-act=${item.id}>
         <button type="button" class="actmarker" onClick=${() => onOpen && onOpen(item)} disabled=${!open || !onOpen}>
-            ${kind === "secret" ? Icon.key() : Icon.list()}<span class="actkind">${kind}</span>
+            ${kind === "secret" ? Icon.key() : Icon.list()}<span class="actkind">${chain ? "chain" : kind}</span>
             <span class="acttitle">${record?.title || item.title}</span><small>${outcome}</small>
         </button>
         ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} />`)}
@@ -57,7 +59,7 @@ export function ActReply({ text }) {
 // without changing how the feed groups it. Legacy replies keep their parser.
 export function withActReplies(items, acts) {
     const markers = new Set(items.filter((item) => ["request", "secret"].includes(item.role)).map((item) => item.id));
-    const known = Object.values(acts).filter((act) => ["do", "secret"].includes(act.kind) && act.state !== "open");
+    const known = Object.values(acts).filter((act) => ["do", "secret"].includes(act.kind) && (isChain(act) || act.state !== "open"));
     const replies = new Map();
     const rest = [];
     for (const item of items) {

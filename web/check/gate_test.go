@@ -164,6 +164,8 @@ var instantActions = map[string]bool{
 	"project.pause":  true,
 	"alert.ack":      true,
 	"session.send":   true,
+	"act.run":        true,
+	"act.stop":       true,
 	"session.answer": true,
 	"session.stop":   true,
 	"session.file":   true,
@@ -244,6 +246,8 @@ var instantActions = map[string]bool{
 var instantExecActions = map[string]bool{
 	"project.pause":      true,
 	"session.send":       true,
+	"act.run":            true,
+	"act.stop":           true,
 	"session.shell":      true,
 	"session.answer":     true,
 	"session.stop":       true,
@@ -325,6 +329,7 @@ var entailed = regexp.MustCompile(`entails:\s*"([a-z]+\.[a-zA-Z]+)"`)
 var askedOffScreen = map[string]string{
 	"session.freeze": "the panel after a paused session finishes its work",
 	"session.thaw":   "the panel when a sleeping session wakes",
+	"term.peek":      "the service while a step of a request chain runs",
 	"session.letter": "a session, with the send_to_session tool",
 	"session.ready":  "a session replying to the panel's request to save",
 	"observer.start": "a session after its private observer start",
@@ -425,8 +430,10 @@ func TestEveryActionButtonChecksHostKnowsIt(t *testing.T) {
 	call := regexp.MustCompile(`run\("([a-z]+\.[a-zA-Z]+)"`)
 	check := regexp.MustCompile(`knows\(exec, "([a-z]+\.[a-zA-Z]+)"\)`)
 
-	// A project pause is coordinated and journaled by the service.
-	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true}
+	// A project pause and a step of a request chain are coordinated and
+	// journaled by the service.
+	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true,
+		string(action.ActRun): true, string(action.ActStop): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}
@@ -647,8 +654,10 @@ func TestJournalClaimOnlyForJournaledActions(t *testing.T) {
 	}
 	body := actionsBlock(t, registry)
 
-	// A project pause is coordinated and journaled by the service.
-	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true}
+	// A project pause and a step of a request chain are coordinated and
+	// journaled by the service.
+	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true,
+		string(action.ActRun): true, string(action.ActStop): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}

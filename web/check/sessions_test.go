@@ -380,20 +380,21 @@ func TestCatchUpHasOneOwner(t *testing.T) {
 	}
 
 	allowed := map[string]string{
-		"src/app.js":                     "the ordinary snapshot poll every fifteen seconds and a recheck of the base for requests",
-		"src/api.js":                     "reissuing the bearer once an hour for requests through another address of the panel",
-		"src/catchup.js":                 "the catch-up poll under a wait",
-		"src/alerts.js":                  "alerts at a rate of their own",
-		"src/exec.js":                    "whether the executor is alive",
-		"src/faults.js":                  "what from the snapshot does not reach the history",
-		"src/screens/chat/feedwindow.js": "the feed of a session that has not said anything yet",
-		"src/screens/chat/look.js":       "the output of a background command while it writes",
-		"src/screens/chat/term.js":       "the key repeat while a finger holds it",
-		"src/screens/chat/switch.js":     "the seconds of a move, redrawn by the second and asking nothing",
-		"src/screens/chat/work.js":       "the clock of a compaction, redrawn by the second and asking nothing",
-		"src/screens/chat/now.js":        "the clock of the call going out, redrawn by the second and asking nothing",
-		"src/data/usage.js":              "the progress of usage collection, one for the monitor and the phone",
-		"src/data/terms.js":              "the terminals of places while their screen is open: a tab renames itself after what runs in it",
+		"src/app.js":                       "the ordinary snapshot poll every fifteen seconds and a recheck of the base for requests",
+		"src/api.js":                       "reissuing the bearer once an hour for requests through another address of the panel",
+		"src/catchup.js":                   "the catch-up poll under a wait",
+		"src/alerts.js":                    "alerts at a rate of their own",
+		"src/exec.js":                      "whether the executor is alive",
+		"src/faults.js":                    "what from the snapshot does not reach the history",
+		"src/screens/chat/feedwindow.js":   "the feed of a session that has not said anything yet",
+		"src/screens/chat/look.js":         "the output of a background command while it writes",
+		"src/screens/chat/conversation.js": "the acts of a request chain while one of its steps runs",
+		"src/screens/chat/term.js":         "the key repeat while a finger holds it",
+		"src/screens/chat/switch.js":       "the seconds of a move, redrawn by the second and asking nothing",
+		"src/screens/chat/work.js":         "the clock of a compaction, redrawn by the second and asking nothing",
+		"src/screens/chat/now.js":          "the clock of the call going out, redrawn by the second and asking nothing",
+		"src/data/usage.js":                "the progress of usage collection, one for the monitor and the phone",
+		"src/data/terms.js":                "the terminals of places while their screen is open: a tab renames itself after what runs in it",
 	}
 	for _, path := range sortedKeys(files) {
 		if !strings.Contains(stripComments(files[path]), "setInterval(") {

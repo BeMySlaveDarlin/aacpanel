@@ -206,6 +206,8 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.switch":  "switch",
 		"session.kill":    "close",
 		"session.send":    "",
+		"act.run":         "",
+		"act.stop":        "",
 		"session.answer":  "",
 		"session.permit":  "",
 		"session.dismiss": "",

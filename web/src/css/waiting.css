@@ -12,6 +12,35 @@
 .requestanswer .btn { min-height: 44px; }
 .requeststate { margin: .2rem 0; color: var(--ink-dim); font-size: var(--t-sm); }
 .requestreply { white-space: pre-wrap; color: var(--ink-dim); font-size: var(--t-md); }
+/* The sequence is the structure: quiet rows around the one step at hand. */
+.chainsteps { min-width: 0; }
+.chainstep { padding: .7rem 0; border-bottom: var(--hair) solid var(--line); }
+.chainstep:last-child { border-bottom: 0; padding-bottom: 0; }
+.chainhead { display: flex; align-items: baseline; gap: .55rem; min-width: 0; }
+.chainicon { flex: 0 0 1rem; width: 1rem; height: 1rem; align-self: flex-start; margin-top: .2rem; padding: 0; border: 0; background: none; text-align: center; color: var(--ink-faint); font-size: var(--t-sm); line-height: 1rem; cursor: pointer; }
+.chainicon:disabled { cursor: default; opacity: 1; }
+.chainicon.spin { box-sizing: border-box; }
+.chainstep.current .chainicon, .chainstep.current .chainwho { color: var(--wait); }
+.chainstep.running .chainicon, .chainstatus.running { color: var(--accent); }
+.chainstep.done .chainicon, .chainresult.done, .chainstatus.done { color: var(--ok); }
+.chainstep.failed .chainicon, .chainresult.failed, .chainstatus.failed { color: var(--crit); }
+.chainlead { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .45rem; flex: 1; min-width: 0; color: var(--ink); }
+.chainwho { flex: none; color: var(--ink-faint); font: var(--t-sm) var(--mono); }
+.chaintext { flex: 1 1 12rem; min-width: 0; margin: 0; padding: 0; font-size: var(--t-base); }
+.chaintext > :first-child { margin-top: 0; }
+.chaintext > :last-child { margin-bottom: 0; }
+.chainstep:not(.current):not(.expanded) .chaintext { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.chainresult { color: var(--ink-dim); font-size: var(--t-sm); }
+.chainbody { min-width: 0; margin: .5rem 0 0 1.55rem; }
+.chaincommand .mdcode { margin: .4rem 0; }
+.chaincommand .mdcode pre { padding-right: 2.8rem; }
+.chaincommand .mdcode code { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+.chainout { max-height: 12rem; overflow: auto; margin: .4rem 0; padding: .6rem; border-radius: var(--r-small); background: var(--void); box-shadow: inset 0 0 0 var(--hair) var(--line); color: var(--ink-dim); font: var(--t-sm)/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chainout a { color: var(--accent); }
+.chainstatus { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .5rem; color: var(--ink-dim); font-size: var(--t-sm); }
+.chainstatus .btn { margin-left: auto; }
+.chainterm { padding: .25rem 0; border: 0; background: none; color: var(--ink-faint); font: inherit; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; }
+.chainnote { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-dim); font-size: var(--t-base); }
 /* The contour stands outside the row, and the feed's box clips whatever
    reaches past its left edge, where the prose starts: the row gives up as much
    room on its left as the contour takes, and the contour stays whole. */

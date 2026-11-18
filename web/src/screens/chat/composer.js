@@ -189,14 +189,14 @@ function saved(id) {
 }
 
 // deliver sends a message into a session, with files or without them.
-export function deliver(run, name, { text, files, messageId, act, answer, note, dismiss, exec }) {
+export function deliver(run, name, { text, files, messageId, act, step, answer, note, dismiss, exec }) {
     if (dismiss) {
         if (!knows(exec, "session.dismiss")) return { ok: false, error: whyNot(exec, "session.dismiss") };
         return run("session.dismiss", name, { ask: dismiss });
     }
     // The service builds the reply to an act from its stored title, so the
     // browser sends the answer instead of another copy of that message template.
-    if (act) return run("session.send", name, { act, answer, note });
+    if (act) return run("session.send", name, { act, answer, note, ...(step ? { step } : {}) });
     const pack = files || [];
     return pack.length
         ? run("session.file", name, {

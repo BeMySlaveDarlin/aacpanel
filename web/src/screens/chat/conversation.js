@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { list as actList } from "../../data/acts.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
 import { clearWaitingTargets, RequestCard, revealWaiting } from "./request.js";
+import { actOpen } from "./chain.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -115,6 +116,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const [secrets, setSecrets] = useState(null);
     const [acts, setActs] = useState({});
     const [actError, setActError] = useState("");
+    const [actRefresh, refreshActs] = useState(0);
+    const actRunning = Object.values(acts).some((act) => act.state === "open" && act.outputs?.some((out) => out?.state === "running"));
     const waitingItems = useWaiting(live, true);
     useEffect(() => clearWaitingTargets(waitingItems, feedRef.current), [waitingItems]);
     const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret"].includes(item.role)).map((item) => item.id).join("|");
@@ -125,10 +128,15 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             if (!active) return;
             setActs(Object.fromEntries(list.map((row) => [row.id, row])));
             setActError("");
-            for (const row of list) if (row.state !== "open") settleWaiting(live, row.kind === "do" ? "request" : row.kind === "ask" ? "question" : row.kind, row.id);
+            for (const row of list) if (!actOpen(row)) settleWaiting(live, row.kind === "do" ? "request" : row.kind === "ask" ? "question" : row.kind, row.id);
         }).catch((err) => { if (active) setActError(String(err.message || err)); });
         return () => { active = false; };
-    }, [id, actCards, live && live.waiting]);
+    }, [id, actCards, live && live.waiting, actRefresh]);
+    useEffect(() => {
+        if (!actRunning) return;
+        const timer = setInterval(() => refreshActs((n) => n + 1), 2000);
+        return () => clearInterval(timer);
+    }, [id, actRunning]);
     const [local, setLocal] = useState([]);
     const [taken, setTaken] = useState(new Set());
     const [, redraw] = useState(0);
@@ -138,11 +146,16 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         redraw((n) => n + 1);
     };
     const run = useAction();
-    const answerRequest = async (request, answer, note) => {
-        const result = await deliver(run, name, { act: request, answer, note });
+    const answerRequest = async (request, answer, note, step) => {
+        const result = await deliver(run, name, { act: request, answer, note, ...(step ? { step } : {}) });
         if (!result.ok) return;
+        if (step) { refreshActs((n) => n + 1); return; }
         setActs((was) => ({ ...was, [request]: { ...was[request], state: "answered", answered: new Date().toISOString(), outcome: answer, note } }));
         settleWaiting(live, "request", request);
+    };
+    const runChain = async (kind, act, step) => {
+        const result = await run(kind, name, { act, step });
+        if (result.ok) refreshActs((n) => n + 1);
     };
     const pickWaiting = async (item) => {
         try {
@@ -461,7 +474,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)} onAnswered=${() => mark(answered(live, ""))} />`
         : current.kind === "request"
         ? html`<div onClick=${(event) => codecopy.fromClick(event, toast)}><${RequestCard} key=${currentKey} item=${current} record=${acts[current.id]}
-            error=${actError} onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${lent.onRun} /></div>`
+            error=${actError} onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${lent.onRun}
+            onChainRun=${writable && knows(exec, "act.run") ? (act, step) => runChain("act.run", act, step) : null}
+            onChainStop=${writable && knows(exec, "act.stop") ? (act, step) => runChain("act.stop", act, step) : null}
+            onTerm=${onTerm ? (id) => onTerm({ id, place: live?.cwd || "" }) : null} /></div>`
         : current.kind === "secret"
         ? html`<${SecretPad} key=${currentKey} item=${current} session=${name} exec=${exec} shelf=${secrets}
             onSaved=${(state) => finishSecret(current, state)} onDone=${() => {}} />`

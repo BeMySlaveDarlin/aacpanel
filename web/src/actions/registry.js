@@ -498,6 +498,16 @@ export const ACTIONS = {
         instant: true,
         done: (target) => `Sent to ${target}`,
     },
+    // The command is read in its step before Run; Stop returns that same step
+    // to the person without waking the session.
+    "act.run": {
+        instant: true,
+        done: (target) => `Step running in ${target}`,
+    },
+    "act.stop": {
+        instant: true,
+        done: (target) => `Step stopped in ${target}`,
+    },
     // A command after "!" is typed and run with no sheet in between, as in
     // the composer of a terminal: the press is the decision.
     "session.shell": {
@@ -1139,6 +1149,8 @@ const NAMES = {
     "session.resume": "Resume session",
     "session.switch": "Move between the stream and tmux",
     "session.send": "Write to session",
+    "act.run": "Run a chain step",
+    "act.stop": "Stop a chain step",
     "session.shell": "Run a shell command",
     // No screen sends a letter: a session writes one to another with a tool
     // of the panel's server, and the journal names it here.
@@ -1159,6 +1171,7 @@ const NAMES = {
     "session.ready": "Ready for restart",
     "session.freeze": "Put session to sleep",
     "session.thaw": "Wake session",
+    "term.peek": "Read a chain step's terminal",
     "project.pause": "Pause sessions",
     "observer.start": "Start an observer",
     "alarm.set": "Set an alarm",
