@@ -42,9 +42,10 @@
 .asksteps i.now { background: var(--accent); }
 
 .askone + .askone { margin-top: .8rem; padding-top: .7rem; border-top: var(--hair) solid var(--edge); }
+/* The words of a form are no larger than the text of the feed it stands in. */
 .asktext {
     margin: 0 0 .1rem;
-    font-size: var(--t-lg); font-weight: 600; line-height: 1.35; letter-spacing: -.01em;
+    font-size: var(--t-base); font-weight: 600; line-height: 1.4;
     text-wrap: pretty;
 }
 /* Permission tools and the answer review keep their short heading style. */
@@ -147,7 +148,7 @@
 .askover .sheet { z-index: 21; }
 .askover .scrim { z-index: 20; }
 
-/* A preview is read at the same scale as the answer it explains. */
+/* A preview is code, read at the step the feed gives its blocks of code. */
 .askshow { min-width: 0; width: 100%; }
 /* The drawing stands inside its option, inset from the option's edge. */
 .askdrawing { flex: 0 0 100%; box-sizing: border-box; padding: 0 .55rem .55rem; }
@@ -164,7 +165,7 @@
     box-sizing: border-box;
     overflow: auto;
     font-family: var(--code);
-    font-size: var(--t-base);
+    font-size: var(--t-sm);
     line-height: 1.4;
     white-space: pre-wrap;
     overflow-wrap: anywhere;

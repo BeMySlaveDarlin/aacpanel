@@ -13,8 +13,8 @@
     margin-top: .5rem;
 }
 
-/* The request is a tool's input, and it is drawn the way the sheet of a call
-   draws the arguments of one: the code face at the smallest step. */
+/* The request is a tool's input, and it is drawn the way the feed draws a
+   block of code: the code face a step under the text of the feed. */
 .permitaction {
     margin: 0;
     padding: .45rem .6rem;
@@ -24,7 +24,7 @@
     background: var(--code-bg);
     box-shadow: inset 0 0 0 var(--hair) var(--line);
     font-family: var(--code);
-    font-size: var(--t-base);
+    font-size: var(--t-sm);
     line-height: 1.5;
     color: var(--ink);
     white-space: pre-wrap;
