@@ -211,10 +211,10 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
         },
         s.pauseAlarm ? {
             key: "pause", icon: Icon.play, word: "Continue", title: "Continue now", note: "before its pause ends",
-            off: pauseWhy, stay: true, stand: pause.activate,
+            off: pauseWhy, stay: true, pick: pause.activate,
         } : {
             key: "pause", icon: Icon.pause, word: "Pause", title: "Pause…", note: "pick its end on the dial, then confirm below",
-            off: pauseWhy, stay: true, stand: pause.activate,
+            off: pauseWhy, stay: true, pick: pause.activate,
         },
         {
             key: "pin", icon: Icon.thumbtack, word: pin.on ? "Unpin" : "Pin", title: pin.label, note: pin.tip, on: pin.on,

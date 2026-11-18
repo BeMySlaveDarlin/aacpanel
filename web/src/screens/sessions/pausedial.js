@@ -138,7 +138,7 @@ export function usePauseDial({ project, profile, sessions = [], session = null, 
         icon: markOther ? null : Icon.clock, inner: true }] : [])];
     const note = view ? sleepingOpened.length ? `${joinedNames(sleepingOpened)} sleep with it` : "Continue it, or change when its pause ends"
         : `${joinedNames(rows)} ${rows.length > 1 ? "finish their step" : "finishes its step"}, then ${rows.length > 1 ? "sleep" : "sleeps"}`;
-    const crown = active ? { ...dial, words, zones, label: days ? "Hour of the selected day" : "End of the pause",
+    const crown = active ? { ...dial, words, zones, item: session ? "pause" : whole ? "group" : "project", label: days ? "Hour of the selected day" : "End of the pause",
         off: view || (days && day == null), value: selected, mark,
         change: setSelected,
         read: (value, zone) => [view ? until ? `Sleeps ${pauseEnd(until, { now })} · ${pauseAway(until, now)} left` : "Sleeps until lifted"
@@ -157,26 +157,33 @@ export function usePauseDial({ project, profile, sessions = [], session = null, 
             <b>${busy ? "Sending…" : view ? "Continue" : !selected ? "Pick when it ends" : `${moving ? "Move the end of" : "Pause"} ${title}`}</b>
             ${view ? html`<small>${title}</small>` : selected && html`<small>${pauseEnd(selected.value, { now })}</small>`}
         </button>` : null;
-    const layer = days ? { key: "days", className: "pausedays", hubLabel: "Back to the dial", hubWord: "to the dial",
+    const pickDay = (n) => {
+        const next = day === n ? null : n;
+        setDay(next);
+        // A day carries the chosen wall-clock hour until that hour is outside
+        // the allowed range; moving the pointer never changes either choice.
+        setSelected(next != null && selected ? dayScale(now, next).segments[0].stops.find((stop) => stop.at === selected.at && !stop.off) || null : null);
+    };
+    const layer = active && days ? { key: "days", className: "pausedays", hubLabel: "Back to the dial", hubWord: "to the dial",
         back: () => { setDays(false); setDay(null); setSelected(null); },
         items: [...Array.from({ length: 7 }, (_, i) => {
             const n = i + 1;
             const date = dateAt(now, n, 0);
             return { key: `day-${n}`, icon: () => null, word: pauseDay(date), lines: [pauseDay(date), html`<b>${date.getDate()}</b>`],
-                title: `${pauseDay(date)} ${date.getDate()}`, stay: true,
-                stand: () => { if (day !== n) { setDay(n); setSelected(null); } } };
+                title: `${pauseDay(date)} ${date.getDate()}`, stay: true, selected: day === n,
+                pick: () => pickDay(n) };
         }), { key: "next-week", icon: Icon.clock, word: "Next week", title: "Next week", short: "over 7 d", off: "over 7 d" }] } : null;
     const scopes = project ? [false, ...(group?.projects.length > 1 ? [true] : [])].map((grouped) => {
         const list = pauseRows(project, profile, sessions, grouped);
         return { key: grouped ? "group" : "project", icon: grouped ? Icon.flow : Icon.pause,
             word: grouped ? `group ${group.name} · ${list.length}` : `${project.name} · ${list.length}`,
             title: grouped ? `Pause group ${group.name}` : `Pause project ${project.name}`,
-            off: !list.length ? "No sessions in this scope" : why, stay: true, stand: () => setWhole(grouped) };
+            off: !list.length ? "No sessions in this scope" : why, stay: true, selected: whole === grouped, pick: () => setWhole(grouped) };
     }) : [];
     const paused = rows.filter((row) => row.pauseAlarm).length;
     if (paused) scopes.push({ key: "continue", icon: Icon.play, word: `Continue ${paused}`, title: `Continue ${paused}`, off: why,
         stay: true, pick: () => send(true) });
-    return { activate: () => setActive(true), crown, bar, layer, scopes };
+    return { activate: () => setActive((was) => !was), crown, bar, layer, scopes };
 }
 
 // The project heading and desktop menus open the same dial as the card.
@@ -184,6 +191,6 @@ export function PausePie({ project, profile, sessions, session = null, exec, spo
     const pause = usePauseDial({ project, profile, sessions, session, exec, onClose, initial: true });
     return html`<${Pie} label="pause sessions" name=${session ? shownName(session) : project.name}
         items=${session ? [{ key: "pause", icon: session.pauseAlarm ? Icon.play : Icon.pause,
-            word: session.pauseAlarm ? "Continue" : "Pause", title: session.pauseAlarm ? "Continue" : "Pause", stay: true }] : pause.scopes}
+            word: session.pauseAlarm ? "Continue" : "Pause", title: session.pauseAlarm ? "Continue" : "Pause", stay: true, pick: pause.activate }] : pause.scopes}
         crown=${pause.crown} bar=${pause.bar} layer=${pause.layer} spot=${spot} onClose=${onClose} />`;
 }

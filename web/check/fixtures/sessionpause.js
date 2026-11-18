@@ -82,6 +82,14 @@ export async function sessionPause() {
     const slider = () => pie()?.querySelector('[role="slider"]');
     const apply = () => pie().querySelector(".pauseapply");
     const toggle = () => pie().querySelector('[role="switch"]');
+    const picked = () => [...pie().querySelectorAll('.piesec[aria-checked="true"].pieon')].map((el) => el.dataset.key);
+    const choice = () => ({ disabled: apply().disabled, off: slider().getAttribute("aria-disabled") === "true",
+        value: slider().getAttribute("aria-valuetext"), picked: picked() });
+    const hoverSector = (key) => {
+        const point = middle(key);
+        sector(key).dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse", clientX: point.x, clientY: point.y }));
+    };
+    const crownGone = () => !slider() && !pie().querySelector(".piebar");
     const crownPoint = (fraction) => {
         const box = slider().getBoundingClientRect();
         const radius = (box.width / 2 - 16) * .86;
@@ -89,13 +97,17 @@ export async function sessionPause() {
         return { x: box.left + box.width / 2 + radius * Math.cos(angle), y: box.top + box.height / 2 + radius * Math.sin(angle) };
     };
     const clickAt = (el, point) => el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1, clientX: point.x, clientY: point.y }));
-    const choose = async (fraction) => {
+    const choose = async (fraction, changes = true) => {
         const face = slider();
+        const before = face.getAttribute("aria-valuetext");
+        const hadDays = Boolean(sector("day-1"));
+        const enabled = face.getAttribute("aria-disabled") !== "true";
         const point = crownPoint(fraction);
         press("pointerdown", face, point, 2);
         press("pointerup", face, point, 2);
         clickAt(face, point);
-        await quiet();
+        if (changes && enabled) await until(() => Boolean(sector("day-1")) !== hadDays || slider().getAttribute("aria-valuetext") !== before, "the dial choice");
+        else await quiet();
     };
     const open = async (name = "evirma-api") => {
         await openPie(mount.querySelector(`.sc[data-name="${name}"]`));
@@ -110,9 +122,11 @@ export async function sessionPause() {
         return sent.at(-1);
     };
     const pickDay = async (n) => {
-        sector(`day-${n}`).focus();
-        sector(`day-${n}`).click();
-        await quiet();
+        const key = `day-${n}`;
+        const before = sector(key).getAttribute("aria-checked");
+        sector(key).focus();
+        sector(key).click();
+        await until(() => sector(key).getAttribute("aria-checked") !== before, "the clicked day");
     };
     const openDays = async () => { await choose(.81); await until(() => sector("day-1"), "the days ring"); };
     try {
@@ -144,24 +158,59 @@ export async function sessionPause() {
         });
         out.noEndWords = pauseEnd(null);
         await show();
-        if (wide) await open();
-        else {
-            const card = mount.querySelector('.sc[data-name="evirma-api"]');
+        const interaction = out.interaction = {};
+        const card = mount.querySelector('.sc[data-name="evirma-api"]');
+        if (wide) {
+            await openPie(card);
+            press("pointerdown", sector("restart"), middle("restart"), 1);
+        } else {
             press("pointerdown", card, null, 1);
             card.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
             await until(() => pie() && pie().contains(document.activeElement), "the held pie");
-            press("pointermove", sector("pause"), middle("pause"), 1);
-            await until(slider, "the held pause sector's crown");
-            press("pointerup", sector("pause"), middle("pause"), 1);
         }
+        sector("pause").focus();
+        await quiet();
+        interaction.focusClosed = crownGone();
+        if (!interaction.focusClosed) throw new Error("Focusing Pause opened its crown");
+        press("pointermove", sector("pause"), middle("pause"), 1);
+        await quiet();
+        interaction.passClosed = crownGone();
+        if (!interaction.passClosed) throw new Error("Passing over Pause opened its crown");
+        press("pointerup", sector("pause"), middle("pause"), 1);
+        await until(slider, "the pause crown after release");
+        interaction.releaseOpened = Boolean(slider());
+        sector("pause").click();
+        await until(crownGone, "the closed pause crown");
+        interaction.repeatClosed = crownGone();
+        if (!interaction.repeatClosed) throw new Error("Pressing Pause again kept its crown open");
+        hoverSector("pause");
+        await quiet();
+        interaction.hoverClosed = crownGone();
+        if (!interaction.hoverClosed) throw new Error("Hovering Pause opened its crown");
+        sector("pause").click();
+        await until(slider, "the clicked pause crown");
+        interaction.clickOpened = Boolean(slider());
         out.initial = { disabled: apply().disabled, toggle: toggle()?.getAttribute("aria-checked"), words: text(apply()) };
         await choose(.21);
         out.twoHours = { plate: plate(), button: text(apply()) };
-        // Hover reads back a value without moving the committed selection.
         const p4 = crownPoint(.42);
         slider().dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse", clientX: p4.x, clientY: p4.y }));
-        await until(() => plate().includes("19:20"), "hover readback");
+        await quiet();
         out.hover = { plate: plate(), button: text(apply()) };
+        if (out.hover.plate !== out.twoHours.plate) throw new Error("Hovering the crown replaced the chosen end's readback");
+        hoverSector("restart");
+        await quiet();
+        interaction.otherPlate = plate();
+        if (!interaction.otherPlate.startsWith("Restart the session")) throw new Error("Another sector kept the pause readback instead of its hint");
+        // Returning to the crown restores the chosen end, without reading
+        // the unpressed pointer's position as another choice.
+        slider().dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse", clientX: p4.x, clientY: p4.y }));
+        await quiet();
+        interaction.returnPlate = plate();
+        await choose(.21);
+        interaction.dialRepeat = choice();
+        if (!interaction.dialRepeat.disabled) throw new Error("Clicking the selected hour did not clear it");
+        await choose(.21);
         out.sent.alone = await commit();
         out.toast = text(mount.querySelector(".toast.on"));
         mount.querySelector(".toast.on .tact").click();
@@ -177,11 +226,20 @@ export async function sessionPause() {
         const point = crownPoint(.21);
         press("pointerdown", sector("pause"), middle("pause"), 3);
         press("pointermove", face, point, 3);
+        await until(() => plate().includes("until 17:20"), "the drag readback");
+        interaction.livePlate = plate();
         press("pointerup", face, point, 3);
         clickAt(face, point);
         await quiet();
         if (!pie() || sent.length !== 2) throw new Error("Releasing on the crown sent a pause before confirmation");
         out.release = { requests: sent.length, button: text(apply()) };
+        press("pointerdown", face, crownPoint(.42), 8);
+        press("pointermove", face, point, 8);
+        press("pointerup", face, point, 8);
+        clickAt(face, point);
+        await quiet();
+        interaction.dragRepeat = !apply().disabled && slider().getAttribute("aria-valuetext").includes("17:20");
+        if (!interaction.dragRepeat) throw new Error("Dragging onto the selected hour cleared it");
         // The bar rejects a release whose down belonged to a sector.
         const button = apply();
         press("pointerdown", sector("pause"), middle("pause"), 4);
@@ -208,29 +266,51 @@ export async function sessionPause() {
         out.sent.together = await commit();
         await open();
         await choose(.962);
+        await choose(.962);
+        interaction.noEndRepeat = choice();
+        if (!interaction.noEndRepeat.disabled) throw new Error("Clicking no end again did not clear it");
+        await choose(.962);
         out.sent.noEnd = await commit();
         await open();
         await openDays();
         out.days = ring();
         out.dayOff = slider().getAttribute("aria-disabled") === "true";
-        // Day and hour share the held gesture, without a second tap.
-        const friday = sector("day-2");
-        press("pointerdown", friday, middle("day-2"), 5);
-        await until(() => slider().getAttribute("aria-disabled") !== "true", "Friday's hours");
-        const ten = crownPoint(3 / 16);
-        press("pointermove", slider(), ten, 5);
-        press("pointerup", slider(), ten, 5);
-        clickAt(slider(), ten);
+        hoverSector("day-2");
+        sector("day-2").focus();
         await quiet();
+        interaction.dayBefore = choice();
+        if (!interaction.dayBefore.off || picked().length) throw new Error("Hover or focus selected a day");
+        await pickDay(2);
+        interaction.dayPicked = choice();
+        await choose(3 / 16);
+        hoverSector("day-3");
+        sector("day-3").focus();
+        await quiet();
+        interaction.dayHover = choice();
+        interaction.dayHint = plate();
+        if (picked().join() !== "day-2" || !interaction.dayHover.value.includes("Fri 20 Nov, 10:00")) throw new Error("Hover or focus changed the chosen day or hour");
+        await pickDay(3);
+        interaction.dayCarry = choice();
+        await pickDay(2);
+        await pickDay(2);
+        interaction.dayRepeat = choice();
+        if (!interaction.dayRepeat.off || !interaction.dayRepeat.disabled || picked().length) throw new Error("Clicking the selected day did not clear it and its hour");
+        await pickDay(2);
+        await choose(3 / 16);
         out.friday = plate();
         out.sent.friday = await commit();
         await open();
         await openDays();
         await pickDay(7);
-        await choose((16 - 7) / 16);
+        await choose((16 - 7) / 16, false);
         out.overLimit = { disabled: apply().disabled, value: slider().getAttribute("aria-valuetext") };
         await choose((15 - 7) / 16);
         out.withinLimit = text(apply());
+        await pickDay(2);
+        await choose((20 - 7) / 16);
+        await pickDay(7);
+        interaction.dayLimit = choice();
+        await choose((15 - 7) / 16);
         pie().querySelector(".piehub").click();
         await until(() => !sector("day-1"), "the dial after Back");
         out.back = { disabled: apply().disabled, value: slider().getAttribute("aria-valuetext") };
@@ -239,9 +319,14 @@ export async function sessionPause() {
         await until(() => sector("day-1") === document.activeElement, "keyboard entry to the days");
         sector("day-2").focus();
         await quiet();
+        interaction.keyboardFocusOff = slider().getAttribute("aria-disabled") === "true";
+        sector("day-2").click();
+        await until(() => slider().getAttribute("aria-disabled") !== "true", "the clicked keyboard day");
         slider().focus();
         slider().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
         await until(() => slider().getAttribute("aria-valuetext").includes("7:00"), "the day's first keyboard step");
+        slider().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true }));
+        await quiet();
         out.keyboardDay = slider().getAttribute("aria-valuetext");
         await closePie();
         await open("evirma-billing");
@@ -255,6 +340,12 @@ export async function sessionPause() {
         await open();
         out.sleep = { plate: plate(), mark: pie().querySelector(".piecrown").getAttribute("data-mark"),
             toggle: toggle().getAttribute("aria-checked"), controls: ring() };
+        sector("pause").click();
+        await until(crownGone, "the closed viewing crown");
+        interaction.continueClosed = crownGone();
+        if (!interaction.continueClosed) throw new Error("Pressing Continue again kept its crown open");
+        sector("pause").click();
+        await until(slider, "the continued viewing dial");
         await choose(.21);
         out.sleep.readOnly = slider().getAttribute("aria-valuetext");
         out.sent.resume = await commit();
@@ -278,7 +369,20 @@ export async function sessionPause() {
         heading().click();
         await until(slider, "the project dial");
         out.project = { toggle: Boolean(toggle()), sectors: ring() };
+        interaction.scopeBefore = picked();
+        hoverSector("group");
+        sector("group").focus();
+        await until(() => plate().startsWith("Pause group backend"), "the group scope hint");
+        interaction.scopeHover = picked();
+        if (picked().join() !== "project") throw new Error("Hover or focus changed the project scope");
         sector("group").click();
+        await until(() => picked().join() === "group", "the clicked group scope");
+        interaction.scopeClick = picked();
+        hoverSector("project");
+        sector("project").focus();
+        await until(() => plate().startsWith("Pause project evirma"), "the project scope hint");
+        interaction.scopeKept = picked();
+        if (picked().join() !== "group") throw new Error("The clicked group scope did not persist");
         await choose(.21);
         out.sent.group = await commit();
         heading().click();
@@ -314,6 +418,10 @@ export async function sessionPause() {
         out.restart = [];
         for (let i = 0; i < 3; i += 1) {
             await openPie(mount.querySelector('.sc[data-name="evirma-billing"]'));
+            if (i === 0) {
+                sector("pause").click();
+                await until(slider, "the crown before another action");
+            }
             sector("restart").click();
             await until(() => mount.querySelector('.sheet.on[aria-label="action confirmation"]'), "restart choices");
             const gate = mount.querySelector('.sheet.on[aria-label="action confirmation"]');

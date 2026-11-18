@@ -278,9 +278,16 @@ marked; Continue includes its paused opened sessions by default, and the
 toggle can leave them asleep. Change the end edits the same scope. The journal
 records the scope and delivery failures. The pie's crown selects an end,
 including a day from its second ring, within seven days or until lifted.
-Only its bar confirms the pause; a release from a sliding gesture cannot
-press that bar. The project heading and desktop menus share this dial, with
-project and map-group scope sectors; once every live session under a heading
+Pause and Continue toggle the crown by a press, including a release from
+the opening gesture; hover and focus only read sector hints. The crown reads
+live during a drag and keeps its chosen value otherwise. A click on the
+chosen value clears it; a drag release and keyboard arrows choose it.
+Days and project scopes are selected by a press and keep their marks across
+hover. Pressing the chosen day clears its hour too; another day carries the
+hour only while it fits the seven-day limit. Only the bar confirms the pause;
+a release from a sliding gesture cannot press that bar. The project heading
+and desktop menus share this dial, with project and map-group scope sectors;
+once every live session under a heading
 sleeps, the heading continues them all at a tap. Undo lifts the requested pause in the
 same scope. Claude receives an instruction to
 finish at a clean stopping point, start no new work and end its turn. The

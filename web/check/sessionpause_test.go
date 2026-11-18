@@ -20,6 +20,11 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 				Key, Label, Why string
 				Off             bool
 			}
+			type choiceState struct {
+				Disabled, Off bool
+				Value         string
+				Picked        []string
+			}
 			var got struct {
 				Pause struct {
 					State, Header, Toast, Together, Friday, Move, NoEndWords, DistantMark, KeyboardDay string
@@ -29,6 +34,12 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 					Initial                                                                            struct {
 						Disabled      bool
 						Toggle, Words string
+					}
+					Interaction struct {
+						FocusClosed, PassClosed, ReleaseOpened, RepeatClosed, HoverClosed, ClickOpened, ContinueClosed, KeyboardFocusOff, DragRepeat bool
+						OtherPlate, ReturnPlate, LivePlate, DayHint                                                                                  string
+						DialRepeat, NoEndRepeat, DayBefore, DayPicked, DayHover, DayCarry, DayRepeat, DayLimit                                       choiceState
+						ScopeBefore, ScopeHover, ScopeClick, ScopeKept                                                                               []string
 					}
 					TwoHours, Hover struct{ Plate, Button string }
 					Release         struct {
@@ -85,8 +96,41 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			if !strings.HasPrefix(p.TwoHours.Plate, "until 17:20 · in 2 h") || p.TwoHours.Button != "Pause evirma-apiuntil 17:20" {
 				t.Errorf("two hours readback: %+v", p.TwoHours)
 			}
-			if !strings.HasPrefix(p.Hover.Plate, "until 19:20 · in 4 h") || p.Hover.Button != p.TwoHours.Button {
+			if p.Hover.Plate != p.TwoHours.Plate || p.Hover.Button != p.TwoHours.Button {
 				t.Errorf("hover changed the selection: %+v", p.Hover)
+			}
+			i := p.Interaction
+			if !i.FocusClosed || !i.PassClosed || !i.HoverClosed || !i.ReleaseOpened || !i.RepeatClosed || !i.ClickOpened || !i.ContinueClosed {
+				t.Errorf("pause activation needs a press, and a repeated press closes it: %+v", i)
+			}
+			if !strings.HasPrefix(i.OtherPlate, "Restart the session") || i.ReturnPlate != p.TwoHours.Plate {
+				t.Errorf("the sector's own hint and the committed end: %q / %q", i.OtherPlate, i.ReturnPlate)
+			}
+			for name, state := range map[string]choiceState{"hour": i.DialRepeat, "no end": i.NoEndRepeat} {
+				if !state.Disabled || state.Value != "No value selected" {
+					t.Errorf("pressing the selected %s did not clear it: %+v", name, state)
+				}
+			}
+			if !strings.HasPrefix(i.LivePlate, "until 17:20 · in 2 h") || !i.DragRepeat {
+				t.Errorf("a drag must read live and choose even the same end: %q, %v", i.LivePlate, i.DragRepeat)
+			}
+			if !i.DayBefore.Off || len(i.DayBefore.Picked) != 0 || !i.KeyboardFocusOff {
+				t.Errorf("hover or focus chose a day: %+v, keyboard off %v", i.DayBefore, i.KeyboardFocusOff)
+			}
+			if i.DayPicked.Off || strings.Join(i.DayPicked.Picked, ",") != "day-2" || strings.Join(i.DayHover.Picked, ",") != "day-2" || !strings.HasPrefix(i.DayHover.Value, "until Fri 20 Nov, 10:00") || !strings.HasPrefix(i.DayHint, "Sat 21") {
+				t.Errorf("the clicked day did not keep its mark and hour: %+v / %+v", i.DayPicked, i.DayHover)
+			}
+			if !strings.HasPrefix(i.DayCarry.Value, "until Sat 21 Nov, 10:00") || i.DayCarry.Disabled || strings.Join(i.DayCarry.Picked, ",") != "day-3" {
+				t.Errorf("changing the day lost its hour: %+v", i.DayCarry)
+			}
+			if !i.DayRepeat.Off || !i.DayRepeat.Disabled || len(i.DayRepeat.Picked) != 0 || i.DayRepeat.Value != "No value selected" {
+				t.Errorf("pressing the selected day did not clear it and its hour: %+v", i.DayRepeat)
+			}
+			if !i.DayLimit.Disabled || i.DayLimit.Off || i.DayLimit.Value != "No value selected" || strings.Join(i.DayLimit.Picked, ",") != "day-7" {
+				t.Errorf("moving to the final day retained an unavailable hour: %+v", i.DayLimit)
+			}
+			if strings.Join(i.ScopeBefore, ",") != "project" || strings.Join(i.ScopeHover, ",") != "project" || strings.Join(i.ScopeClick, ",") != "group" || strings.Join(i.ScopeKept, ",") != "group" {
+				t.Errorf("the project scope needs a click and keeps its mark: %+v / %+v / %+v / %+v", i.ScopeBefore, i.ScopeHover, i.ScopeClick, i.ScopeKept)
 			}
 			if p.Release.Requests != 2 || !strings.Contains(p.Release.Button, "17:20") || p.ForeignRelease != 2 {
 				t.Errorf("a release sent a request: crown %+v, bar %d", p.Release, p.ForeignRelease)
