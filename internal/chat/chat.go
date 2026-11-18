@@ -65,9 +65,11 @@ type Item struct {
 	// A card of a secret asked for: the notepad the person starts from. The
 	// secret is named in Name and said in Title.
 	Template string `json:"template,omitempty"`
-	// A task for the person's hands, with the steps the model wrote.
-	Steps    string `json:"steps,omitempty"`
-	Blocking bool   `json:"blocking,omitempty"`
+	// A task for the person's hands, with the steps the model wrote: one text,
+	// or the steps of a chain as the request gave them. The feed passes them on
+	// to the screen as they came.
+	Steps    json.RawMessage `json:"steps,omitempty"`
+	Blocking bool            `json:"blocking,omitempty"`
 	// A card of permissions: each call a person was asked about and the answer.
 	Rows  []Permitted `json:"rows,omitempty"`
 	Files []FileRef   `json:"files,omitempty"`

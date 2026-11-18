@@ -168,7 +168,12 @@ func TestChainSummaryCarriesOnlyUsefulOutput(t *testing.T) {
 		t.Fatal(text)
 	}
 	text = Summary("id", "Release", steps, outs, 2, 0, "open")
-	if !strings.Contains(text, "Step 2 is yours") || !strings.Contains(text, "request {id:") {
+	if !strings.Contains(text, "Step 2 is yours: Check access. Report") || !strings.Contains(text, "request {id:") {
+		t.Fatal(text)
+	}
+	// A step written as a sentence keeps its own full stop.
+	steps[1].Text = "Check the access."
+	if text = Summary("id", "Release", steps, outs, 2, 0, "open"); !strings.Contains(text, "Step 2 is yours: Check the access. Report") {
 		t.Fatal(text)
 	}
 	if got := Tail(strings.Repeat("line\n", 50)); len(strings.Split(got, "\n")) != 40 {

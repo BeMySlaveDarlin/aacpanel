@@ -2,6 +2,7 @@ package chat
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -429,4 +430,29 @@ func TestRepoBlameAndCommitKeepEveryField(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing(t, "", was, now)
+}
+
+// A request card comes with its steps as the request gave them: one text, or
+// the steps of a chain. Neither may break the reply the feed decodes, and the
+// screen gets them as they came.
+func TestARequestCardKeepsItsStepsInEitherForm(t *testing.T) {
+	const fromAgent = `{"ok": true, "session": "567f4d24-cd5f-48fa-bdc1-04c89d203494", "items": [
+		{"role": "request", "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "title": "Restart", "steps": "Run this:\n` + "```sh\\nreboot\\n```" + `", "pos": 10},
+		{"role": "request", "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "title": "Chain", "blocking": true, "pos": 20,
+		 "steps": [{"who": "you", "text": "Log in", "command": "tsh login"}, {"who": "agent", "text": "Check"}]}]}`
+	var reply Reply
+	if err := json.Unmarshal([]byte(fromAgent), &reply); err != nil {
+		t.Fatalf("a reply with a chain did not decode: %v", err)
+	}
+	if len(reply.Items) != 2 {
+		t.Fatalf("items: %+v", reply.Items)
+	}
+	var text string
+	if err := json.Unmarshal(reply.Items[0].Steps, &text); err != nil || !strings.Contains(text, "reboot") {
+		t.Errorf("the steps of one text read %q (%v)", text, err)
+	}
+	var chain []map[string]string
+	if err := json.Unmarshal(reply.Items[1].Steps, &chain); err != nil || len(chain) != 2 || chain[0]["command"] != "tsh login" {
+		t.Errorf("the steps of a chain read %+v (%v)", chain, err)
+	}
 }

@@ -70,7 +70,17 @@ func Summary(id, title string, steps []Step, outputs []*Output, step, from int, 
 	case "declined":
 		b.WriteString("The person can't continue. The chain is declined.")
 	default:
-		fmt.Fprintf(&b, "Step %d is yours: %s. Report it with request {id: %q, step: %d, outcome}.", step, steps[step-1].Text, id, step)
+		fmt.Fprintf(&b, "Step %d is yours: %s Report it with request {id: %q, step: %d, outcome}.", step, Sentence(steps[step-1].Text), id, step)
 	}
 	return b.String()
+}
+
+// Sentence ends the text of a step as a sentence: a step written with its own
+// full stop keeps it, and one written without gets one.
+func Sentence(text string) string {
+	text = strings.TrimSpace(text)
+	if strings.HasSuffix(text, ".") || strings.HasSuffix(text, "!") || strings.HasSuffix(text, "?") || strings.HasSuffix(text, "…") {
+		return text
+	}
+	return text + "."
 }

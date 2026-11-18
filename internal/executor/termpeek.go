@@ -46,7 +46,7 @@ func (e *Executor) termPeek(ctx context.Context, id, logPath string) (string, er
 	if err != nil {
 		return "", err
 	}
-	capture = strings.TrimRight(capture, "\n")
+	capture = printed(capture, peek.Dead)
 	peek.Tail, peek.Lines = request.Tail(capture), len(strings.Split(capture, "\n"))
 	if logPath != "" {
 		if err := saveActLog(logPath, capture+"\n"); err != nil {
@@ -55,6 +55,25 @@ func (e *Executor) termPeek(ctx context.Context, id, logPath string) (string, er
 	}
 	data, err := json.Marshal(peek)
 	return string(data), err
+}
+
+// printed is what the command of a step wrote. A pane is captured whole: the
+// empty rows of the screen under the output come with it, and tmux keeps the
+// pane of a finished command with a line of its own about the exit at its
+// foot. Neither was printed by the command.
+func printed(capture string, dead bool) string {
+	lines := strings.Split(capture, "\n")
+	trim := func() {
+		for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+			lines = lines[:len(lines)-1]
+		}
+	}
+	trim()
+	if dead && len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "Pane is dead (") {
+		lines = lines[:len(lines)-1]
+		trim()
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Only act logs may be written through the capture action. O_NOFOLLOW keeps

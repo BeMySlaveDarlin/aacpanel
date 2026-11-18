@@ -60,7 +60,7 @@ func (r Record) NextMessage(closed int) string {
 	}
 	s := r.Body.Chain[*r.Step-1]
 	if s.Who == "agent" {
-		return fmt.Sprintf("Step %d is yours: %s.", *r.Step, s.Text)
+		return fmt.Sprintf("Step %d is yours: %s", *r.Step, request.Sentence(s.Text))
 	}
 	return fmt.Sprintf("Step %d closed. Step %d is the person's — end the turn.", closed, *r.Step)
 }
