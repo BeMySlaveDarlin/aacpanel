@@ -198,7 +198,7 @@ func (s *Server) applyPause(r *http.Request, p action.Pause, targets []pauseSess
 		if claude {
 			text = action.SleepMessage(until)
 		}
-		if claude && !p.Resume && row.Pause != nil && !strings.HasPrefix(row.Pause.ID, "panel:") {
+		if !p.Resume && row.Pause != nil && !strings.HasPrefix(row.Pause.ID, "panel:") {
 			err = call(action.Request{Kind: action.AlarmCancel, Target: row.Name, Work: &action.Work{ID: row.Pause.ID}})
 		}
 		if p.Resume {

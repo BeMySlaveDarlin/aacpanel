@@ -1,9 +1,5 @@
-// Pause and restart controls share the pages that already exercise sessions:
-// the pause of a project from the heading over its cards, the pause and the
-// continue of one session from its card's pie — opened by a right click at a
-// desk, by a long press on the phone — and the restart choices. lab-docs had the panel open a helper
-// in the other project; a scope of its own includes that helper. The quick
-// choices are pressed on a clock set by the fixture.
+// Both screens reuse their session page and one open pie for the dial's
+// selections, gestures and limits. Only the bar commits a chosen deadline.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { ProjectBlock } from "/src/screens/sessions/blocks.js";
@@ -13,40 +9,38 @@ import { Chat } from "/src/screens/chat.js";
 import { Row } from "/src/screens/chat/rows.js";
 import { stateOf as listState } from "/src/screens/sessions/blocks.js";
 import { stateOf as headState } from "/src/screens/chat/head.js";
+import { todayScale } from "/src/screens/sessions/pausedial.js";
+import { pauseEnd, pauseRows } from "/src/screens/sessions/pause.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { MenuHost } from "/src/desktop/menu.js";
+import { SessionMenu } from "/src/desktop/sessionmenu.js";
+import { useMenu } from "/src/ui/menu.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
-import { openPie, ring, sector, settled, underPies } from "/check/fixtures/pie.js";
-
-const until = async (ready, what) => {
-    const end = performance.now() + 4000;
-    while (!ready() && performance.now() < end) await new Promise(requestAnimationFrame);
-    if (!ready()) throw new Error(`the screen did not reach ${what}`);
-};
+import { closePie, middle, openPie, pie, plate, press, ring, sector, settled, underPies, until } from "/check/fixtures/pie.js";
 
 export async function sessionPause() {
+    const clock = Date.now;
+    const now = new Date(2026, 10, 18, 15, 20).getTime();
+    Date.now = () => now;
+    const at = (day, hour, minute = 0) => new Date(2026, 10, 18 + day, hour, minute);
     const wide = matchMedia("(min-width:1100px)").matches;
     const mount = document.createElement("div");
     document.body.append(mount);
-    mount.id = "pausepreview";
-    const project = { id: 501, name: "lab", session: "lab", path: "/srv/lab" };
+    const project = { id: 501, name: "evirma", session: "evirma", path: "/srv/evirma" };
     const peer = { id: 502, name: "peer", session: "peer", path: "/srv/peer" };
-    const profile = { id: 50, profile: "Work", groups: [{ name: "Services", projects: [project, peer] }, { name: "Other", projects: [] }] };
-    const next = new Date(Date.now() + 7200000).toISOString();
-    const pause = { id: "0123456789abcdef", name: "pause", next };
-    const alarm = { id: "fedcba9876543210", name: "review", next: new Date(Date.now()+3600000).toISOString() };
+    const profile = { id: 50, profile: "Work", groups: [{ name: "backend", projects: [project, peer] }] };
+    const pause = { id: "0123456789abcdef", name: "pause", next: at(0, 18).toISOString() };
     const sessions = [
-        { session: "lab", sessionId: "lab-id", project, contour: 50, status: "idle", transport: "stream", pct: 35,
-            pauseAlarm: pause, nextAlarm: alarm, work: { alarms: 2 }, checklist: { items: [{ text: "Review the implementation", status: "active" }] } },
-        { session: "lab-docs", sessionId: "docs-id", project, contour: 50, status: "idle", transport: "stream", pct: 12 },
-        { session: "thread", sessionId: "thread-id", project: peer, agent: "codex", contour: 50, status: "idle", pct: 10, transport: "stream" },
-        { session: "quiet", sessionId: "quiet-id", project: peer, contour: 50, status: "idle", pct: 5, transport: "stream" },
+        { session: "evirma-api", sessionId: "api-id", project, contour: 50, status: "idle", transport: "stream", pct: 35 },
+        { session: "review", sessionId: "review-id", project: peer, parent: { session: "evirma-api" }, contour: 50, status: "idle", transport: "stream", pct: 12 },
+        { session: "tests", sessionId: "tests-id", project: peer, parent: { session: "evirma-api" }, contour: 50, status: "idle", transport: "stream", pct: 10 },
+        { session: "grandchild", sessionId: "grand-id", project: peer, parent: { session: "review" }, contour: 50, status: "idle", transport: "stream", pct: 5 },
+        { session: "evirma-billing", sessionId: "bill-id", project, contour: 50, status: "idle", transport: "stream", pct: 5 },
         { session: "outside", sessionId: "outside-id", project, contour: 50, outside: true, status: "idle", pct: 5 },
-        { session: "helper", sessionId: "helper-id", project: peer, parent: { session: "lab-docs" }, contour: 50, status: "idle", pct: 3, transport: "stream", pauseAlarm: pause },
     ];
-    const snapshot = { at: Date.now()/1000, sessions, profileMap: [profile] };
+    const snapshot = { at: now / 1000, sessions, profileMap: [profile] };
     const exec = { available: true, kinds: ["project.pause", "session.open", "session.close", "session.restart", "session.pin", "session.send"] };
     const fetch = window.fetch;
     const sent = [];
@@ -57,196 +51,286 @@ export async function sessionPause() {
         if (String(url).startsWith("/api/sessions/archive")) return json({ rows: [], total: 0 });
         return new Response("", { status: 404 });
     });
-    const block = (p, list) => ({ key: p.id, name:p.name, project:p, group:"Services", live:list, ghosts:[] });
+    const text = (el) => el?.textContent.replace(/\s+/g, " ").trim() || "";
     const messages = [
-        { role:"mail", source:"panel", from:"pause", until:next, text:"Words without a date.", pos:1 },
-        { role:"mail", source:"panel", from:"pause over", text:"Lifted.", pos:2 },
-        { role:"mail", source:"alarm", from:"pause", text:"Rang.", pos:3 },
-        { role:"mail", source:"panel", from:"pause with no end", text:"Words without an end.", pos:4 },
+        { role: "mail", source: "panel", from: "pause", until: at(2, 10).toISOString(), text: "Pause instruction.", pos: 1 },
+        { role: "mail", source: "panel", from: "pause over", text: "Lifted.", pos: 2 },
+        { role: "mail", source: "alarm", from: "pause", text: "Rang.", pos: 3 },
+        { role: "mail", source: "panel", from: "pause with no end", text: "No deadline.", pos: 4 },
     ];
-    const show = (snapshot, chat = false) => {
-        const live = snapshot.sessions;
+    // The list's card uses its pie; the graph's context menu shares the
+    // desktop menu host and supplies the other route to the same dial.
+    function MenuProbe({ live }) {
+        const menu = useMenu();
+        return html`<button class="pausemenuprobe" onContextMenu=${menu(SessionMenu, { s: live[0], exec, snapshot: { ...snapshot, sessions: live }, profile }, "session menu")}>Session menu</button>`;
+    }
+    const show = async (live = sessions, chat = false) => {
         setLiveSessions(live);
-        render(html`<${ToastHost}><${GateHost}><${MenuHost}>
-            ${wide ? html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="deskshell" style="position:static;height:650px"><div class="dkbody">
-                <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
-            </div></div><//>` : html`<${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}><div class="page">
-                <${ProjectBlock} block=${block(project, live.filter((s) => !s.outside && s.project?.id === project.id))} profile=${profile} live=${live} exec=${exec} />
-            </div><//>`}
+        const snap = { ...snapshot, sessions: live };
+        const block = { key: 501, name: project.name, project, group: "backend", live: live.filter((s) => !s.outside && s.project.id === project.id), ghosts: [] };
+        render(html`<${ToastHost}><${GateHost}><${MenuHost}><${CardPieHost} snapshot=${snap} exec=${exec}>
+            ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
+                <${SessionColumn} snapshot=${snap} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
+            </div></div><${MenuProbe} live=${live} />` : html`<div class="page"><${ProjectBlock} block=${block} profile=${profile} live=${live} exec=${exec} /></div>`}
             ${chat && html`<div class="pausechat" style="height:500px;display:flex;flex-direction:column">
-                <${Chat} name="lab" id="lab-id" live=${live[0]} snapshot=${snapshot} exec=${exec} onBack=${() => {}} />
-            </div>
-            <div class="chatfeed pausefeed">${messages.map((item) => html`<${Row} key=${item.pos} item=${item} />`)}</div>`}
-        <//><//><//>`, mount);
-    };
-    show(snapshot, true);
-    const text = (el) => el?.textContent.replace(/\s+/g," ").trim() || "";
-    // The page's clock at a time of today, and what the field of a moment
-    // reads, built apart from the sheet's own arithmetic.
-    const clock = Date.now;
-    const today = new Date();
-    const at = (day, h, m = 0) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + day, h, m);
-    const local = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-    const field = () => sheet().querySelector(".pauseuntil");
-    const choose = async (name) => {
-        [...sheet().querySelectorAll(".pausechips .chip")].find((b) => text(b) === name).click();
+                <${Chat} name="evirma-api" id="api-id" live=${live[0]} snapshot=${snap} exec=${exec} onBack=${() => {}} />
+            </div><div class="chatfeed pausefeed">${messages.map((item) => html`<${Row} key=${item.pos} item=${item} />`)}</div>`}
+        <//><//><//><//>`, mount);
         await quiet();
-        return { value: field().value, pressed: [...sheet().querySelectorAll('.pausechips .chip[aria-pressed="true"]')].map(text) };
-    };
-    const pauseButton = () => mount.querySelector('[aria-label="pause sessions in project lab"]');
-    const sheet = () => mount.querySelector('.sheet.on[aria-label="pause sessions"]');
-    const gate = () => mount.querySelector('.sheet.on[aria-label="action confirmation"]');
-    const recipients = () => [...sheet().querySelectorAll(".pauserecipients li")].map(text);
-    const scopeOptions = () => [...sheet().querySelectorAll(".pausescope option")].map((o) => ({ value: o.value, label: text(o) }));
-    const scopeCount = () => [...sheet().querySelectorAll(".cmdnote")].map(text).find((t) => /sessions? in this scope:/.test(t));
-    const selectScope = async (value) => {
-        sheet().querySelector(".pausescope").value = value;
-        sheet().querySelector(".pausescope").dispatchEvent(new Event("change", { bubbles: true }));
-        await quiet();
-    };
-    // A control of a card: the sector of its pie, Continue in the place of
-    // Pause on a paused card.
-    const press = async (kind, name) => {
-        await openPie(mount.querySelector(`.sc[data-name="${name}"]`));
-        sector(kind === "continue" ? "pause" : kind).click();
-    };
-    try {
-        await until(() => pauseButton() && mount.querySelector(".pausechat .talkword, .pausechat .dkword"), "session controls");
-        await quiet();
-        // The conversation beside the list is a layer of its own under the
-        // pies of the cards.
         underPies();
-        const card = mount.querySelector('.sc[data-name="lab"]');
-        const out = {
-            state: text(card.querySelector(".scsay")),
-            ends: text(card.querySelector(".sctime")),
-            awakeEdge: card.querySelector(".scedge").className,
-            header: text(mount.querySelector(".pausechat .talkword, .pausechat .dkword")),
-            feed: [...mount.querySelectorAll(".pausecard .sentlabel")].map(text),
-            letters: mount.querySelectorAll(".pausefeed .mletter").length,
-            priority: [
-                { ...sessions[0], status:"busy" }, { ...sessions[0], status:"waiting" },
-                { ...sessions[0], work:{agents:1} }, { ...sessions[0], pauseAlarm:undefined },
-                { ...sessions[0], restarting:true },
-            ].map((s) => [listState(s).tone, headState(s).tone]),
-            expect: { nineToday: local(at(0, 9)), nineTomorrow: local(at(1, 9)), twoHours: local(at(0, 11, 30)),
-                nineTodayAt: at(0, 9).toISOString(), nineTomorrowAt: at(1, 9).toISOString() },
-        };
-        pauseButton().click();
-        await until(() => sheet(), "pause sheet");
-        out.projectRecipients = recipients();
-        await selectScope("group");
-        out.groupRecipients = recipients();
-        out.opened = { value: field().value, pressed: [...sheet().querySelectorAll('.pausechips .chip[aria-pressed="true"]')].map(text),
-            ahead: (new Date(field().value).getTime() - Date.now()) / 60000 };
-        out.choices = [...sheet().querySelectorAll(".pausepreset")].map((row) => [...row.querySelectorAll(".pauselabel, .chip")].map(text));
-        // Half past eight: until 9 is nine today.
-        Date.now = () => at(0, 8, 30).getTime();
-        try {
-            out.beforeNine = await choose("9:00");
-            sheet().querySelector(".pauseapply").click();
-            await until(() => sent.length===1 && !sheet(), "pause request");
-        } finally {
-            Date.now = clock;
+    };
+    const slider = () => pie()?.querySelector('[role="slider"]');
+    const apply = () => pie().querySelector(".pauseapply");
+    const toggle = () => pie().querySelector('[role="switch"]');
+    const crownPoint = (fraction) => {
+        const box = slider().getBoundingClientRect();
+        const radius = (box.width / 2 - 16) * .86;
+        const angle = (-150 + fraction * 120) * Math.PI / 180;
+        return { x: box.left + box.width / 2 + radius * Math.cos(angle), y: box.top + box.height / 2 + radius * Math.sin(angle) };
+    };
+    const clickAt = (el, point) => el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1, clientX: point.x, clientY: point.y }));
+    const choose = async (fraction) => {
+        const face = slider();
+        const point = crownPoint(fraction);
+        press("pointerdown", face, point, 2);
+        press("pointerup", face, point, 2);
+        clickAt(face, point);
+        await quiet();
+    };
+    const open = async (name = "evirma-api") => {
+        await openPie(mount.querySelector(`.sc[data-name="${name}"]`));
+        sector("pause").click();
+        await until(slider, "the pause crown");
+    };
+    const commit = async () => {
+        const before = sent.length;
+        apply().click();
+        await until(() => sent.length === before + 1 && !pie(), "the pause action");
+        await settled();
+        return sent.at(-1);
+    };
+    const pickDay = async (n) => {
+        sector(`day-${n}`).focus();
+        sector(`day-${n}`).click();
+        await quiet();
+    };
+    const openDays = async () => { await choose(.81); await until(() => sector("day-1"), "the days ring"); };
+    try {
+        const sleeping = sessions.map((s, i) => i < 3 ? { ...s, sleeping: true, pauseAlarm: pause } : s);
+        await show([{ ...sleeping[0], pauseAlarm: { ...pause, next: at(2, 10).toISOString() } }, ...sleeping.slice(1)], true);
+        const out = { sent: {}, expect: { twoHours: at(0, 17, 20).toISOString(), friday: at(2, 10).toISOString(), six: at(0, 18).toISOString() } };
+        out.state = text(mount.querySelector('.sc[data-name="evirma-api"] .scsay'));
+        out.header = text(mount.querySelector(".pausechat .talkword, .pausechat .dkword"));
+        out.feed = [...mount.querySelectorAll(".pausecard .sentlabel")].map(text);
+        // The pause letters of the panel stand as pause cards, not as letters.
+        out.letters = mount.querySelectorAll(".pausefeed .mletter").length;
+        // A sleeping session holds its context without spending it: its bar
+        // is grey, an awake one's keeps the colour of its fill.
+        out.edges = { asleep: mount.querySelector('.sc[data-name="evirma-api"] .scedge')?.className || "",
+            awake: mount.querySelector('.sc[data-name="evirma-billing"] .scedge')?.className || "" };
+        await open();
+        out.distantMark = pie().querySelector(".piecrown").getAttribute("data-mark");
+        await closePie();
+        out.priority = [
+            { ...sessions[0], pauseAlarm: pause, status: "busy" }, { ...sessions[0], pauseAlarm: pause, status: "waiting" },
+            { ...sessions[0], pauseAlarm: pause, work: { agents: 1 } }, sessions[0], { ...sessions[0], pauseAlarm: pause, restarting: true },
+        ].map((s) => [listState(s).tone, headState(s).tone]);
+        out.scope = pauseRows(project, profile, sessions, false, sessions[0]).map((s) => s.session);
+        out.groupScope = pauseRows(project, profile, sessions, true).map((s) => s.session);
+        // Morning stays strictly past +4h, including the early-morning edge.
+        out.mornings = [at(0, 4, 50), at(0, 5), at(0, 23)].map((date) => {
+            const scale = todayScale(date.getTime());
+            return new Date(scale.segments[1].stops.at(-1).value).toISOString();
+        });
+        out.noEndWords = pauseEnd(null);
+        await show();
+        if (wide) await open();
+        else {
+            const card = mount.querySelector('.sc[data-name="evirma-api"]');
+            press("pointerdown", card, null, 1);
+            card.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+            await until(() => pie() && pie().contains(document.activeElement), "the held pie");
+            press("pointermove", sector("pause"), middle("pause"), 1);
+            await until(slider, "the held pause sector's crown");
+            press("pointerup", sector("pause"), middle("pause"), 1);
         }
-        pauseButton().click();
-        await until(() => sheet(), "resume sheet");
-        sheet().querySelector(".pauseresume").click();
-        await until(() => sent.length===2 && !sheet(), "resume request");
-        out.pauseSent = sent.slice();
-        out.noConfirmation = !gate();
+        out.initial = { disabled: apply().disabled, toggle: toggle()?.getAttribute("aria-checked"), words: text(apply()) };
+        await choose(.21);
+        out.twoHours = { plate: plate(), button: text(apply()) };
+        // Hover reads back a value without moving the committed selection.
+        const p4 = crownPoint(.42);
+        slider().dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse", clientX: p4.x, clientY: p4.y }));
+        await until(() => plate().includes("19:20"), "hover readback");
+        out.hover = { plate: plate(), button: text(apply()) };
+        out.sent.alone = await commit();
+        out.toast = text(mount.querySelector(".toast.on"));
+        mount.querySelector(".toast.on .tact").click();
+        await until(() => sent.length === 2, "Undo");
+        out.sent.undo = sent.at(-1);
+        await open();
+        toggle().click();
+        await quiet();
+        out.together = toggle().getAttribute("aria-checked");
+        // Release on the crown selects only. A click ending that drag is
+        // consumed even if the release happened over another control.
+        const face = slider();
+        const point = crownPoint(.21);
+        press("pointerdown", sector("pause"), middle("pause"), 3);
+        press("pointermove", face, point, 3);
+        press("pointerup", face, point, 3);
+        clickAt(face, point);
+        await quiet();
+        if (!pie() || sent.length !== 2) throw new Error("Releasing on the crown sent a pause before confirmation");
+        out.release = { requests: sent.length, button: text(apply()) };
+        // The bar rejects a release whose down belonged to a sector.
+        const button = apply();
+        press("pointerdown", sector("pause"), middle("pause"), 4);
+        press("pointerup", button, null, 4);
+        clickAt(button, { x: 0, y: 0 });
+        await quiet();
+        if (!pie() || sent.length !== 2) throw new Error("A release from a sector pressed the pause bar");
+        const barPoint = { x: button.getBoundingClientRect().left + 10, y: button.getBoundingClientRect().top + 10 };
+        press("pointerdown", sector("pause"), middle("pause"), 6);
+        press("pointermove", button, barPoint, 6);
+        press("pointerup", button, barPoint, 6);
+        clickAt(button, barPoint);
+        await quiet();
+        if (!pie() || sent.length !== 2) throw new Error("A release from a sector pressed the pause bar");
+        // Touch capture keeps the original card as the event target even
+        // when the finger has travelled over the bar.
+        const captured = mount.querySelector('.sc[data-name="evirma-api"]');
+        press("pointerdown", sector("pause"), middle("pause"), 7);
+        press("pointermove", captured, barPoint, 7);
+        press("pointerup", captured, barPoint, 7);
+        await quiet();
+        if (!pie() || sent.length !== 2) throw new Error("A captured release over the bar selected a sector");
+        out.foreignRelease = sent.length;
+        out.sent.together = await commit();
+        await open();
+        await choose(.962);
+        out.sent.noEnd = await commit();
+        await open();
+        await openDays();
+        out.days = ring();
+        out.dayOff = slider().getAttribute("aria-disabled") === "true";
+        // Day and hour share the held gesture, without a second tap.
+        const friday = sector("day-2");
+        press("pointerdown", friday, middle("day-2"), 5);
+        await until(() => slider().getAttribute("aria-disabled") !== "true", "Friday's hours");
+        const ten = crownPoint(3 / 16);
+        press("pointermove", slider(), ten, 5);
+        press("pointerup", slider(), ten, 5);
+        clickAt(slider(), ten);
+        await quiet();
+        out.friday = plate();
+        out.sent.friday = await commit();
+        await open();
+        await openDays();
+        await pickDay(7);
+        await choose((16 - 7) / 16);
+        out.overLimit = { disabled: apply().disabled, value: slider().getAttribute("aria-valuetext") };
+        await choose((15 - 7) / 16);
+        out.withinLimit = text(apply());
+        pie().querySelector(".piehub").click();
+        await until(() => !sector("day-1"), "the dial after Back");
+        out.back = { disabled: apply().disabled, value: slider().getAttribute("aria-valuetext") };
+        pie().querySelector(".piecrownzone").focus();
+        pie().querySelector(".piecrownzone").click();
+        await until(() => sector("day-1") === document.activeElement, "keyboard entry to the days");
+        sector("day-2").focus();
+        await quiet();
+        slider().focus();
+        slider().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+        await until(() => slider().getAttribute("aria-valuetext").includes("7:00"), "the day's first keyboard step");
+        out.keyboardDay = slider().getAttribute("aria-valuetext");
+        await closePie();
+        await open("evirma-billing");
+        out.noOpened = !toggle();
+        await closePie();
+        await show(sessions.map((s) => s.session === "evirma-billing" ? { ...s, sleeping: true, pauseAlarm: pause } : s));
+        await open("evirma-billing");
+        out.sleepingAlone = !toggle();
+        out.sent.soloResume = await commit();
+        await show(sleeping);
+        await open();
+        out.sleep = { plate: plate(), mark: pie().querySelector(".piecrown").getAttribute("data-mark"),
+            toggle: toggle().getAttribute("aria-checked"), controls: ring() };
+        await choose(.21);
+        out.sleep.readOnly = slider().getAttribute("aria-valuetext");
+        out.sent.resume = await commit();
+        await open();
+        pie().querySelector(".pausechange").click();
+        await until(() => !pie().querySelector(".pausechange"), "the editable end");
+        const scale = todayScale(now);
+        await choose(scale.fraction(at(0, 18).getTime()));
+        out.move = text(apply());
+        out.sent.move = await commit();
+        await open();
+        toggle().click();
+        await quiet();
+        out.sent.resumeAlone = await commit();
+        await show(sessions.map((s, i) => i === 0 ? { ...s, pauseAlarm: { id: "no-end", name: "pause-no-end" }, sleeping: true } : s));
+        await open();
+        out.indefinite = { mark: pie().querySelector(".piecrown").getAttribute("data-mark"), plate: plate() };
+        await closePie();
+        // The heading chooses scope on the ring, with no opened toggle.
+        const heading = () => mount.querySelector('[aria-label="pause sessions in project evirma"]');
+        heading().click();
+        await until(slider, "the project dial");
+        out.project = { toggle: Boolean(toggle()), sectors: ring() };
+        sector("group").click();
+        await choose(.21);
+        out.sent.group = await commit();
+        heading().click();
+        await until(slider, "the project dial");
+        sector("project").click();
+        await choose(.21);
+        out.sent.project = await commit();
+        if (wide) {
+            mount.querySelector(".dkproj").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 50, clientY: 100 }));
+            await until(() => mount.querySelector(".ctxmenu"), "the project menu");
+            [...mount.querySelectorAll(".ctxmenu .pkrow")].find((b) => text(b.querySelector(".pkname")) === "Pause…").click();
+            await until(slider, "the project's menu dial");
+            out.projectMenu = true;
+            await closePie();
+            mount.querySelector(".pausemenuprobe").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 50, clientY: 150 }));
+            await until(() => mount.querySelector(".ctxmenu"), "the session menu");
+            [...mount.querySelectorAll(".ctxmenu .pkrow")].find((b) => text(b.querySelector(".pkname")) === "Continue now").click();
+            await until(slider, "the session menu's viewing dial");
+            out.sessionMenu = slider().getAttribute("aria-disabled") === "true";
+            pie().querySelector(".pausechange").click();
+            await until(() => !pie().querySelector(".pausechange"), "the menu's editable dial");
+            await choose(.21);
+            slider().focus();
+            slider().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+            await until(() => text(apply()).includes("17:30"), "the next ten-minute step");
+            slider().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+            await until(() => !pie(), "Enter's pause request");
+            await settled();
+            out.sent.keyboard = sent.at(-1);
+        }
+        out.noConfirmation = !mount.querySelector('.sheet.on[aria-label="action confirmation"]');
+        // The restart gate remains independent of the pause dial.
         out.restart = [];
-        for (let i=0;i<3;i++) {
-            await press("restart", "lab");
-            await until(() => gate(), "restart choices");
-            const options = [...gate().querySelectorAll('[role="radio"]')];
-            if (i===0) out.options=options.map(text);
+        for (let i = 0; i < 3; i += 1) {
+            await openPie(mount.querySelector('.sc[data-name="evirma-billing"]'));
+            sector("restart").click();
+            await until(() => mount.querySelector('.sheet.on[aria-label="action confirmation"]'), "restart choices");
+            const gate = mount.querySelector('.sheet.on[aria-label="action confirmation"]');
+            const options = [...gate.querySelectorAll('[role="radio"]')];
+            if (i === 0) out.options = options.map(text);
             options[i].click();
             await quiet();
-            gate().querySelector(".btnrow .btn:last-child").click();
-            await until(() => sent.length===3+i && !gate(), "restart request");
+            gate.querySelector(".btnrow .btn:last-child").click();
+            await until(() => !mount.querySelector('.sheet.on[aria-label="action confirmation"]'), "restart request");
+            await settled();
             out.restart.push(sent.at(-1));
         }
-        // One session: the paused card continues it at once, the pause of
-        // another opens the sheet with that session as its scope.
-        await press("continue", "lab");
-        await until(() => sent.length===6, "continue request");
-        await press("pause", "lab-docs");
-        await until(() => sheet(), "pause sheet of one session");
-        out.sessionScope = sheet().querySelector(".pausescope").value;
-        out.sessionScopes = scopeOptions();
-        out.sessionRecipients = recipients();
-        out.sessionCount = scopeCount();
-        out.aloneResumeAbsent = !sheet().querySelector(".pauseresume");
-        await selectScope("opened");
-        out.openedRecipients = recipients();
-        out.openedCount = scopeCount();
-        out.openedResume = text(sheet().querySelector(".pauseresume"));
-        await selectScope("session");
-        // Half past nine: two hours is half past eleven, and until 9 is nine
-        // tomorrow.
-        Date.now = () => at(0, 9, 30).getTime();
-        try {
-            out.forTwo = await choose("2 h");
-            out.afterNine = await choose("9:00");
-            sheet().querySelector(".pauseapply").click();
-            await until(() => sent.length===7 && !sheet(), "pause request of one session");
-        } finally {
-            Date.now = clock;
-        }
-        await press("pause", "lab-docs");
-        await until(() => sheet(), "pause sheet with no end");
-        await selectScope("opened");
-        out.noEnd = { ...(await choose("No end")), off: field().disabled, note: text(sheet().querySelector(".pausenoend")) };
-        sheet().querySelector(".pauseapply").click();
-        await until(() => sent.length===8 && !sheet(), "pause request with no end");
-        await press("pause", "lab-docs");
-        await until(() => sheet(), "resume sheet of opened sessions");
-        await selectScope("opened");
-        sheet().querySelector(".pauseresume").click();
-        await until(() => sent.length===9 && !sheet(), "resume request of opened sessions");
-        out.oneSent = sent.slice(5);
-        if (wide) {
-            mount.querySelector(".dkproj").dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:50,clientY:100}));
-            await until(() => mount.querySelector(".pkrow"), "project menu");
-            const pauseItem=[...mount.querySelectorAll(".pkrow")].find((b)=>text(b.querySelector(".pkname"))==="Pause…");
-            out.menu=Boolean(pauseItem) && pauseItem.getAttribute("aria-disabled")!=="true";
-            pauseItem.click();
-            await until(() => sheet(), "pause from the menu");
-            sheet().querySelector(".sheetclose").click();
-        }
-        await quiet();
-        show({ ...snapshot, sessions: [sessions[1]] });
-        await quiet();
-        underPies();
-        await press("pause", "lab-docs");
-        await until(() => sheet(), "pause sheet without opened sessions");
-        out.noOpenedScopes = scopeOptions();
-        sheet().querySelector(".sheetclose").click();
-        await quiet();
-        const sleepers = [{ ...sessions[0], sleeping: true },
-            { ...sessions[1], sleeping: true, pauseAlarm: { id: "panel:docs-id", name: "pause-no-end", next: "" } }];
-        const sleeping = { ...snapshot, sessions: sleepers };
-        show(sleeping);
-        await quiet();
-        underPies();
-        const sleepingCard = mount.querySelector('.sc[data-name="lab"]');
-        out.sleep = { states: [...mount.querySelectorAll(".sc .scsay")].map(text),
-            edges: [...mount.querySelectorAll(".sc:not(.scpast) .scedge")].map((e) => e.className) };
-        await openPie(sleepingCard);
-        out.sleep.controls = ring();
-        sector("pause").click();
-        await until(() => sent.length === 10, "sleeping Continue");
-        out.sleep.continue = sent.at(-1);
-        await settled();
-        await press("close", "lab");
-        await until(() => gate(), "sleeping Close confirmation");
-        gate().querySelector(".btnrow .btn:last-child").click();
-        await until(() => sent.length === 11 && !gate(), "sleeping Close");
-        out.sleep.close = sent.at(-1);
-        await settled();
         return out;
     } finally {
-        render(null,mount); mount.remove(); window.fetch=fetch;
+        render(null, mount);
+        mount.remove();
+        window.fetch = fetch;
+        Date.now = clock;
     }
 }

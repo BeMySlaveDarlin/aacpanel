@@ -19,7 +19,7 @@ import { bare } from "./feed.js";
 import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
-import { alarmTime } from "../sessions/alarms.js";
+import { pauseEnd } from "../sessions/pause.js";
 import { savedAfter } from "../../data/secrets.js";
 import { ActMarker, ActReply } from "./actform.js";
 import { state as briefState } from "../../data/briefs.js";
@@ -318,7 +318,7 @@ function PauseCard({ item }) {
     const open = item.source === "panel" && item.from === "pause with no end";
     const paused = open || (item.source === "panel" && item.from === "pause");
     const title = open ? "Pause with no end"
-        : paused ? `Pause${item.until ? ` until ${alarmTime(item.until, true)}` : " requested"}`
+        : paused ? `Pause${item.until ? ` ${pauseEnd(item.until, { full: true })}` : " requested"}`
         : item.source === "alarm" ? "Pause over" : "Pause lifted";
     return html`<div class="sent pausecard">
         <div class="senthead"><span class="sentico">${paused ? Icon.pause() : Icon.play()}</span>

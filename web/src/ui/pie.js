@@ -16,7 +16,8 @@
 // what the plate says of it, why it cannot be done now (off) and the word
 // under a dimmed one (short), whether only a tap does it, whether it is on,
 // whether it ends something, the second ring it opens (items) or what it does
-// (pick). A slot left empty (null) keeps the places of the others.
+// (pick). A slot left empty (null) keeps the places of the others. A stay
+// item keeps the pie open; stand runs as the pointer or focus reaches it.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../html.js";
@@ -77,21 +78,24 @@ function wedge(x, y, r0, r1, a0, a1) {
 // at a desk (spot, the point of the click) it is larger and stands at the
 // height of the pointer, beside what was clicked (from, its right edge) so it
 // stays in sight, held inside the screen with its plate over it.
-function placeOf(w, h, spot = null) {
+function placeOf(w, h, spot = null, crown = false, bar = false, plateHeight = PLATE_LINE) {
     const room = 8 + PUSH + GROW;
     const ring = spot
-        ? Math.max(96, Math.min(RING_DESK, w / 2 - room, (h - PLATE_GAP - PLATE_LINE - 24) / 2 - room))
+        ? Math.max(72, Math.min(RING_DESK, w / 2 - room,
+            (h - PLATE_GAP - plateHeight - 20 - (bar ? 78 : 35)) / (crown ? 2.42 : 2)))
         : Math.max(96, Math.min(RING, w / 2 - room));
     const hub = Math.round((HUB * Math.max(ring, RING)) / RING);
     const side = 2 * (ring + PUSH + GROW + 12);
     const within = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
     const x = spot ? within(spot.from == null ? spot.x : spot.from + side / 2 - 12, side / 2 + 8, w - side / 2 - 8) : w / 2;
+    const r1 = ring * (spot ? 1.42 : 202 / 140);
     const y = spot
-        ? within(spot.y, ring + PLATE_GAP + PLATE_LINE + 16, h - side / 2 - 8)
+        ? within(spot.y, (crown ? r1 + 4 : ring) + PLATE_GAP + plateHeight + 16, h - ring - (bar ? 78 : PUSH + GROW + 20))
         : Math.max(ring + PLATE_GAP + PLATE_LINE + 24, h - LOW - ring);
-    const plate = y - ring - PLATE_GAP;
+    const plate = y - (crown ? r1 + 4 : ring) - PLATE_GAP;
     return { w, h, x, y, ring, hub, side, left: x - side / 2, top: y - side / 2, plate, clear: plate - PLATE_LINE - LIFT_GAP,
-        desk: Boolean(spot), beside: Boolean(spot) && spot.from != null };
+        desk: Boolean(spot), beside: Boolean(spot) && spot.from != null,
+        crown0: ring * (spot ? 1.07 : 146 / 140), crown1: r1 };
 }
 
 // sectorsOf draws the slots of a ring in its box, clockwise from the top: the
@@ -166,13 +170,13 @@ function Lift({ el, box }) {
 // Plate says what the chosen item does, why it cannot be done now, or — with
 // nothing chosen — whose menu it is and how it is used. A finger held over an
 // item lifting does not do, or lifted over one, is told so.
-function Plate({ at, item, name, lifting, node }) {
+function Plate({ at, item, name, lifting, node, readback = null }) {
     const why = item && item.off ? item.off : "";
     const tap = Boolean(item) && !why && lifting && item.tap;
-    const words = !item ? [name, at.desk ? DESK_HINT : HINT]
+    const words = readback || (!item ? [name, at.desk ? DESK_HINT : HINT]
         : why ? [item.title, lifting ? `${why} — lifting here does nothing` : why]
         : tap ? [item.title, `${item.note ? `${item.note} · ` : ""}tap it: lifting here does nothing`]
-        : [item.title, item.note || ""];
+        : [item.title, item.note || ""]);
     return html`
         <div class=${`pieplate${why ? " pieoff" : ""}${item && item.danger && !why ? " piedanger" : ""}`} ref=${node}
              style=${`bottom:${f1(at.h - at.plate)}px${at.desk ? `;left:${f1(at.x)}px` : ""}`} aria-live="polite">
@@ -286,17 +290,123 @@ function Ring({ at, sectors }) {
     `;
 }
 
+// A crown's segments give their stops as fractions of its arc; the caller
+// owns their values and spacing. Zones are actions between those segments.
+// Neither hit testing nor drawing knows what a value measures.
+function crownAt(at, crown, x, y) {
+    if (!crown) return null;
+    const dx = x - at.x;
+    const dy = y - at.y;
+    const radius = Math.hypot(dx, dy);
+    if (radius < at.crown0 || radius > at.crown1 + 14) return null;
+    const fraction = (Math.atan2(dy, dx) / RAD + 150) / 120;
+    if (fraction < 0 || fraction > 1) return null;
+    const zone = (crown.zones || []).find((z) => fraction >= z.from && fraction <= z.to);
+    if (zone) return { zone };
+    const segment = crown.segments.find((s) => fraction >= s.from - 1e-9 && fraction <= s.to + 1e-9);
+    if (!segment) return null;
+    const stop = segment.stops.reduce((best, next) => !best || Math.abs(next.at - fraction) < Math.abs(best.at - fraction) ? next : best, null);
+    return stop ? { stop } : null;
+}
+
+function Crown({ at, scale, hover, dragging, onPick }) {
+    const ref = useRef(null);
+    const selected = !scale.off && dragging && hover?.stop && !hover.stop.off ? hover.stop : scale.value;
+    const c = at.crown1 + 16;
+    const side = c * 2;
+    const left = at.x - c;
+    const top = at.y - c;
+    const angle = (t) => -150 + 120 * t;
+    const shape = wedge(c, c, at.crown0, at.crown1, -150, -30);
+    useLayoutEffect(() => {
+        const canvas = ref.current;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(side * dpr);
+        canvas.height = Math.round(side * dpr);
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const css = getComputedStyle(canvas);
+        const token = (name) => css.getPropertyValue(name).trim();
+        const ink = token("--ink");
+        const accent = token("--accent");
+        const path = new Path2D(shape);
+        const light = ctx.createLinearGradient(0, c - at.crown1, 0, c - at.crown0 / 2);
+        light.addColorStop(0, token("--pie-top"));
+        light.addColorStop(1, token("--pie-foot"));
+        ctx.fillStyle = light;
+        ctx.fill(path);
+        ctx.strokeStyle = token("--pie-edge");
+        ctx.lineWidth = .75;
+        ctx.stroke(path);
+        for (const zone of scale.zones || []) {
+            ctx.fillStyle = tint(ink, .05);
+            ctx.fill(new Path2D(wedge(c, c, at.crown0 + 3, at.crown1 - 3, angle(zone.from), angle(zone.to))));
+            ctx.save();
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = tint(ink, .45);
+            for (const t of [zone.from, zone.to]) {
+                const p = point(c, c, at.crown0 + 4, angle(t));
+                const q = point(c, c, at.crown1 - 4, angle(t));
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+            }
+            ctx.restore();
+        }
+        if (selected) {
+            ctx.fillStyle = tint(accent, .3);
+            ctx.fill(new Path2D(wedge(c, c, at.crown0 + 3, at.crown1 - 3, -149.4, angle(Math.max(.006, selected.at)))));
+        }
+        for (const tick of scale.ticks || []) {
+            const p = point(c, c, at.crown1 - (tick.major ? 10 : 6), angle(tick.at));
+            const q = point(c, c, at.crown1 - 3, angle(tick.at));
+            ctx.strokeStyle = tint(ink, tick.off ? .12 : tick.major ? .6 : .3);
+            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+        }
+        const radius = at.crown0 + (at.crown1 - at.crown0) * .23;
+        for (const [stop, filled] of [[scale.mark, false], [selected, true]]) {
+            if (!stop) continue;
+            const p = point(c, c, radius, angle(stop.at));
+            ctx.beginPath(); ctx.arc(p.x, p.y, (filled ? 7 : 8) * at.ring / 140, 0, 2 * Math.PI);
+            if (filled) { ctx.fillStyle = ink; ctx.fill(); }
+            else { ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.stroke(); }
+        }
+    }, [at.x, at.y, at.ring, scale, selected]);
+    const word = (w) => {
+        const radius = w.inner ? at.crown0 + (at.crown1 - at.crown0) * .5 : at.crown1 - (at.desk ? 25 : 20);
+        const p = point(c, c, radius, angle(w.at));
+        return html`<span class=${`piecrownword${w.inner ? " piecrownend" : ""}${w.off ? " piecrowndim" : ""}`}
+                          style=${`left:${f1(p.x)}px;top:${f1(p.y)}px`}>${w.icon && w.icon()}${w.word}</span>`;
+    };
+    return html`<div class="piecrown" data-mark=${scale.mark ? scale.mark.label : undefined}>
+        <div class="pieglass" style=${`left:${f1(left)}px;top:${f1(top)}px;width:${side}px;height:${side}px;clip-path:path('${shape}')`}></div>
+        <canvas class="piering" ref=${ref} aria-hidden="true" style=${`left:${f1(left)}px;top:${f1(top)}px;width:${side}px;height:${side}px`}></canvas>
+        <div class="piecrownface" style=${`left:${f1(left)}px;top:${f1(top)}px;width:${side}px;height:${side}px;clip-path:path('${shape}')`}
+             role="slider" tabindex="0" aria-label=${scale.label} aria-disabled=${scale.off ? "true" : undefined}
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round((scale.value?.at ?? scale.mark?.at ?? 0) * 100)}
+             aria-valuetext=${scale.value?.label || scale.mark?.label || "No value selected"}
+             onClick=${onPick}></div>
+        ${(scale.zones || []).map((zone) => html`<button type="button" class="piecrownzone" aria-label=${zone.label} disabled=${scale.off}
+            style=${`left:${f1(left)}px;top:${f1(top)}px;width:${side}px;height:${side}px;clip-path:path('${wedge(c, c, at.crown0, at.crown1, angle(zone.from), angle(zone.to))}')`}
+            onClick=${(event) => onPick(event, zone)}></button>`)}
+        <div class="piecrownwords" style=${`left:${f1(left)}px;top:${f1(top)}px;width:${side}px;height:${side}px`} aria-hidden="true">
+            ${(scale.words || []).map(word)}
+        </div>
+    </div>`;
+}
+
 // Pie is the menu. label names it for a reader, name is what the hub and the
 // plate call the thing it is for, lift the element pressed, press the pointer
 // still held from the press that opened it and where it went down (null when
 // the keyboard or a reader opened it), onClose takes it down.
-export function Pie({ label, name, items, lift = null, press = null, spot = null, onClose }) {
+export function Pie({ label, name, items, lift = null, press = null, spot = null, crown = null, bar = null, layer = null, onClose }) {
     const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
     const [more, setMore] = useState(false);
     const [sel, setSel] = useState("");
     const [held, setHeld] = useState(Boolean(press));
     // The item the press lifted over without doing it.
     const [lifted, setLifted] = useState("");
+    const [hover, setHover] = useState(null);
+    const gesture = useRef(press ? { ...press, slid: false } : null);
+    const suppress = useRef(false);
     // At a desk the ring stands beside what was clicked, measured once as it
     // opens.
     const [anchor] = useState(() => (spot && lift && lift.isConnected ? { ...spot, from: lift.getBoundingClientRect().right } : spot));
@@ -306,37 +416,40 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
     // back down, so it does not jump while sectors are tried.
     const plateNode = useRef(null);
     const [plateTop, setPlateTop] = useState(null);
+    const [plateHeight, setPlateHeight] = useState(PLATE_LINE);
     useLayoutEffect(() => {
         const el = plateNode.current;
-        if (!el || !raised) return undefined;
+        if (!el) return undefined;
         const read = () => {
-            const top = el.getBoundingClientRect().top;
-            setPlateTop((was) => (was == null ? top : Math.min(was, top)));
+            const box = el.getBoundingClientRect();
+            setPlateHeight(box.height);
+            setPlateTop((was) => (was == null ? box.top : Math.min(was, box.top)));
         };
         read();
         const seen = new ResizeObserver(read);
         seen.observe(el);
         return () => seen.disconnect();
-    }, []);
+    }, [Boolean(crown), Boolean(layer), size.w, size.h]);
     const over = raised && !anchor && plateTop != null && raised.box.top + raised.box.height > plateTop - LIFT_GAP;
     const shown = over
         ? { box: { ...raised.box, top: Math.max(8, plateTop - LIFT_GAP - raised.box.height) }, from: raised.from || raised.box }
         : raised;
     const menu = useRef(null);
+    const barNode = useRef(null);
     // The element a press on the pie went down on: a click counts only where
     // its press went down, so the click that ends the press opening the pie
     // chooses nothing.
     const armed = useRef(null);
 
-    const at = placeOf(size.w, size.h, anchor);
+    const at = placeOf(size.w, size.h, anchor, Boolean(crown), Boolean(bar), crown ? plateHeight : PLATE_LINE);
     const parent = items.find((it) => it && it.items);
-    const ring = more && parent ? parent.items : items;
+    const ring = layer ? layer.items : more && parent ? parent.items : items;
     const sectors = sectorsOf(ring, sel, at);
     const chosen = ring.find((it) => it && it.key === sel) || null;
 
     // What the listeners of the held press read: the pie as it is drawn now.
     const now = useRef(null);
-    now.current = { ring, at, more };
+
 
     const closer = useBackClose(true, onClose);
 
@@ -349,6 +462,12 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
             setSel(it.key);
             return;
         }
+        if (it.stand) it.stand();
+        if (it.stay) {
+            setSel(it.key);
+            if (it.pick) it.pick();
+            return;
+        }
         if (it.items) {
             setMore(true);
             setSel("");
@@ -359,6 +478,13 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
         it.pick();
     };
     const hub = (keys = false) => {
+        if (layer) {
+            layer.back();
+            setSel("");
+            setHover(null);
+            requestAnimationFrame(() => focusFirst(keys));
+            return;
+        }
         if (!more) {
             closer();
             return;
@@ -393,48 +519,76 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
         };
     }, []);
 
-    // The press that opened the pie is followed until it lifts: once it has
-    // slid off the place it went down, the sector under it is chosen as it
-    // goes, and lifting over one does it, unless it asks for a tap or cannot
-    // be done. A press that lifts where it went down chooses nothing, though
-    // the pie may stand over that place.
+    const pointAt = (event) => {
+        // The bar can stand inside the sector's gesture reach, but a release
+        // over it belongs to neither the sector nor the bar. Touch capture
+        // can still name the opener as the event target at those coordinates.
+        const box = barNode.current?.getBoundingClientRect();
+        if (event.target.closest?.(".piebar") || (box && event.clientX >= box.left && event.clientX <= box.right
+            && event.clientY >= box.top && event.clientY <= box.bottom)) return {};
+        const hit = crownAt(at, crown, event.clientX, event.clientY);
+        if (hit) return hit;
+        const slot = slotAt(at, ring.length, event.clientX, event.clientY);
+        return { item: typeof slot === "number" && slot >= 0 ? ring[slot] : null };
+    };
+    const standOn = (it) => {
+        setSel(it ? it.key : "");
+        if (it && !it.off && it.stand) it.stand();
+    };
+    const pickCrown = (hit, keys = false) => {
+        if (!crown || crown.off || !hit) return;
+        if (hit.zone) {
+            hit.zone.pick();
+            if (keys) requestAnimationFrame(() => focusFirst(true));
+        }
+        else if (hit.stop && !hit.stop.off) crown.change(hit.stop);
+        setHover(null);
+    };
+    now.current = { pointAt, standOn, choose, pickCrown };
+
+    // The held opener and a press on a sector use the same gesture. The
+    // crown consumes its release as a selection, never as the bar's click.
     useEffect(() => {
-        if (!press) return undefined;
-        let slid = false;
-        const over = (event) => {
-            const { ring: list, at: place } = now.current;
-            const slot = slotAt(place, list.length, event.clientX, event.clientY);
-            return typeof slot === "number" && slot >= 0 ? list[slot] : null;
-        };
         const move = (event) => {
-            if (event.pointerId !== press.pointerId) return;
-            slid = slid || Math.hypot(event.clientX - press.x, event.clientY - press.y) > HOLD_SLOP;
-            if (!slid) return;
-            const it = over(event);
-            setSel(it ? it.key : "");
+            const g = gesture.current;
+            if (g && event.pointerId !== g.pointerId) return;
+            const hit = now.current.pointAt(event);
+            if (g) {
+                g.slid ||= Math.hypot(event.clientX - g.x, event.clientY - g.y) > HOLD_SLOP;
+                if (!g.slid) return;
+                setHeld(true);
+                if (hit.item) now.current.standOn(hit.item);
+            } else if (!event.target.closest?.(".pie")) return;
+            else if (event.pointerType === "mouse" && hit.item) now.current.standOn(hit.item);
+            setHover(hit.stop || hit.zone ? hit : null);
         };
         const up = (event) => {
-            if (event.pointerId !== press.pointerId) return;
-            stop();
+            const g = gesture.current;
+            if (!g || event.pointerId !== g.pointerId) return;
+            gesture.current = null;
             setHeld(false);
-            const it = event.type === "pointerup" && slid ? over(event) : null;
-            if (!it) {
-                setSel("");
+            if (!g.slid || event.type !== "pointerup") return;
+            suppress.current = true;
+            armed.current = null;
+            const hit = now.current.pointAt(event);
+            if (hit.stop || hit.zone) {
+                now.current.pickCrown(hit);
                 return;
             }
-            setSel(it.key);
+            const it = hit.item;
+            if (!it) return;
+            now.current.standOn(it);
             if (it.off || it.tap) setLifted(it.key);
-            else choose(it);
-        };
-        const stop = () => {
-            document.removeEventListener("pointermove", move, true);
-            document.removeEventListener("pointerup", up, true);
-            document.removeEventListener("pointercancel", up, true);
+            else now.current.choose(it);
         };
         document.addEventListener("pointermove", move, true);
         document.addEventListener("pointerup", up, true);
         document.addEventListener("pointercancel", up, true);
-        return stop;
+        return () => {
+            document.removeEventListener("pointermove", move, true);
+            document.removeEventListener("pointerup", up, true);
+            document.removeEventListener("pointercancel", up, true);
+        };
     }, []);
 
     const under = (event) => Boolean(armed.current) && event.currentTarget.contains(armed.current);
@@ -448,12 +602,29 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
     // its press, and the focus its press brings chooses nothing: a sector
     // chosen moves out, and could move out from under the press.
     const stand = (key) => (event) => {
-        if (!under(event)) setSel(key);
+        if (!under(event)) standOn(ring.find((it) => it && it.key === key));
     };
 
     // The arrows go round the ring, Home and End to its ends; Enter and Space
     // are the buttons' own, Tab leaves the pie.
     const onKey = (event) => {
+        if (event.target.closest?.(".piebar, .piecrownzone")) return;
+        if (crown && event.key === "Tab") return;
+        if (crown && !event.target.closest?.(".piebar")) {
+            const direction = ["ArrowRight", "ArrowUp"].includes(event.key) ? 1 : ["ArrowLeft", "ArrowDown"].includes(event.key) ? -1 : 0;
+            if (event.key === "Enter") {
+                document.querySelector(".pie .piebar [data-primary]")?.click();
+            } else if (direction && !crown.off) {
+                const stops = crown.segments.flatMap((part) => part.stops).filter((stop) => !stop.off);
+                const current = stops.findIndex((stop) => stop.at === crown.value?.at);
+                const next = current < 0 ? (direction > 0 ? 0 : stops.length - 1) : Math.max(0, Math.min(stops.length - 1, current + direction));
+                if (stops[next]) crown.change(stops[next]);
+                setHover(null);
+            } else return;
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
         const list = [...menu.current.querySelectorAll(".piesec, .piehub")];
         const here = list.indexOf(document.activeElement);
         const go = (i) => list[(i + list.length) % list.length].focus({ preventScroll: true });
@@ -470,16 +641,34 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
     const many = ring.length > MANY;
     const reach = at.ring + PUSH + GROW;
     return html`
-        <div class=${`pie${spot ? " piedesk" : ""}`} onPointerDownCapture=${(event) => { armed.current = event.target; }}
+        <div class=${`pie${spot ? " piedesk" : ""}${crown ? " piehascrown" : ""}${layer ? ` pielayer ${layer.className || ""}` : ""}`}
+             onPointerDownCapture=${(event) => {
+                 armed.current = event.target;
+                 suppress.current = false;
+                 if (event.button === 0 && event.target.closest?.(".piesec, .piecrownface, .piecrownzone")) {
+                     gesture.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, slid: false };
+                     const hit = pointAt(event);
+                     if (hit.item) standOn(hit.item);
+                 }
+             }}
+             onClickCapture=${(event) => {
+                 if (suppress.current && event.detail > 0) {
+                     suppress.current = false;
+                     event.preventDefault();
+                     event.stopPropagation();
+                 }
+             }}
+             onKeyDown=${onKey}
              onContextMenu=${(event) => event.preventDefault()}>
             <div class="piescrim" onClick=${pressed(() => closer())}></div>
             ${shown && shown.from && html`<div class="piewas" style=${px(shown.from)}></div>`}
             ${shown && html`<${Lift} el=${lift} box=${shown.box} />`}
-            <${Plate} at=${at} item=${chosen} name=${name} lifting=${held || (Boolean(sel) && lifted === sel)} node=${plateNode} />
+            <${Plate} at=${at} item=${chosen} name=${name} lifting=${held || (Boolean(sel) && lifted === sel)} node=${plateNode}
+                     readback=${crown ? crown.read(!crown.off && hover?.stop && !hover.stop.off ? hover.stop : crown.value, hover?.zone) : null} />
             <${Ring} at=${at} sectors=${sectors} />
             <div class=${`piemenu${many ? " piemany" : ""}`} role="menu" aria-label=${label} tabindex="-1" ref=${menu}
                  style=${`left:${f1(at.left)}px;top:${f1(at.top)}px;width:${at.side}px;height:${at.side}px;clip-path:circle(${reach}px)`}
-                 onKeyDown=${onKey}>
+                 >
                 ${sectors.map((s) => s && html`
                     <button key=${s.it.key} type="button" role=${s.it.on === undefined ? "menuitem" : "menuitemcheckbox"}
                             class=${`piesec${s.on ? " pieon" : ""}${s.it.danger ? " piedanger" : ""}`}
@@ -496,14 +685,20 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
                         </span>
                     </button>
                 `)}
-                <button type="button" role="menuitem" class=${`piehub${more ? " pieback" : ""}`}
+                <button type="button" role="menuitem" class=${`piehub${more || layer ? " pieback" : ""}`}
                         style=${`left:${f1(at.side / 2 - at.hub)}px;top:${f1(at.side / 2 - at.hub)}px;width:${2 * at.hub}px;height:${2 * at.hub}px`}
-                        aria-label=${more ? "Back to the first ring" : "Close the menu"}
+                        aria-label=${layer ? layer.hubLabel : more ? "Back to the first ring" : "Close the menu"}
                         onFocus=${stand("")} onClick=${pressed((event) => hub(event.detail === 0))}>
-                    <b aria-hidden="true">${more ? "Back" : name}</b>
-                    <span aria-hidden="true">${more ? "to the first ring" : at.desk ? "click here to close" : "tap here to close"}</span>
+                    <b aria-hidden="true">${more || layer ? "Back" : name}</b>
+                    <span aria-hidden="true">${layer ? layer.hubWord : more ? "to the first ring" : at.desk ? "click here to close" : "tap here to close"}</span>
                 </button>
             </div>
+            ${crown && html`<${Crown} at=${at} scale=${crown} hover=${hover} dragging=${held}
+                onPick=${(event, zone) => pressed(() => pickCrown(zone ? { zone } : pointAt(event), event.detail === 0))(event)} />`}
+            ${bar && html`<div class="piebar" ref=${barNode} style=${at.desk ? `left:${f1(at.x)}px;top:${f1(at.y + at.ring + 18)}px` : ""}
+                 onClickCapture=${(event) => {
+                     if (!fair(event)) { event.preventDefault(); event.stopPropagation(); }
+                 }}>${bar}</div>`}
         </div>
     `;
 }

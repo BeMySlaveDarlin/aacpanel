@@ -271,11 +271,18 @@ conversation and needs no mark on the one it replaces.
 resolves a project, its map group or one session. Project and group scopes
 include the sessions those sessions had the panel open one step down,
 wherever they run. A session card defaults to that session alone and offers
-its directly opened sessions as a separate scope when any are reachable.
-The request's `alone` flag requires a session; without it, that session's
-scope includes the sessions it opened. Pause and resume use the same selected
-scope; Continue on a card lifts only that session's pause. The journal
-records the scope and delivery failures. Claude receives an instruction to
+its directly opened sessions through an initially off toggle. The request's
+`alone` flag requires a session; without it, that session's scope includes the
+sessions it opened. A paused card opens a viewing dial with its current end
+marked; Continue includes its paused opened sessions by default, and the
+toggle can leave them asleep. Change the end edits the same scope. The journal
+records the scope and delivery failures. The pie's crown selects an end,
+including a day from its second ring, within seven days or until lifted.
+Only its bar confirms the pause; a release from a sliding gesture cannot
+press that bar. The project heading and desktop menus share this dial, with
+project and map-group scope sectors; once every live session under a heading
+sleeps, the heading continues them all at a tap. Undo lifts the requested pause in the
+same scope. Claude receives an instruction to
 finish at a clean stopping point, start no new work and end its turn. The
 panel keeps the conversation, name, project, contour, directory, transport,
 parent conversation and deadline in `session_pauses`; a null deadline never
@@ -355,7 +362,9 @@ to the panel; a sleeping pause is never put to sleep again by a later census tic
 Context-cap restarts wait while the conversation is paused.
 
 Codex keeps its pause inside its process. Its instruction sets `pause`, or a
-weekly `pause-no-end` alarm for a pause with no end, and ends its turn. Continue
+weekly `pause-no-end` alarm for a pause with no end, and ends its turn. A
+replacement pause cancels its existing process alarm before sending the new
+instruction. Continue
 cancels that alarm before sending the continuation; a failed cancellation sends
 nothing. Its `pauseAlarm` remains the collector's proof of a pause. Claude's
 `pauseAlarm` in the service response is derived from the database. Both carry

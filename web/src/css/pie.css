@@ -1,7 +1,7 @@
 /* The pie (ui/pie.js): over the whole screen, a dimmed and blurred scrim,
    the thing pressed raised over it, the plate that says what the chosen
    sector does, and the ring of glass sectors with the hub in its middle.
-   The shapes are drawn in SVG, the words and the presses are HTML. */
+   The shapes are drawn on canvas, the words and the presses are HTML. */
 .pie {
     --pie-top: rgba(40, 45, 80, .93);
     --pie-foot: rgba(13, 15, 30, .96);
@@ -147,3 +147,19 @@
 
 /* The pie stands over the bar of the tabs, as a sheet does. */
 .shell:has(.pie) .body { z-index: 3; }
+
+/* A crown keeps its own glass and canvas, beyond the ring's hit area. The
+   plate follows its upper edge and the bar never belongs to a sliding press. */
+.piehascrown .pieplate { max-width: min(30rem, calc(100% - 1.5rem)); }
+.piecrownface, .piecrownzone { position: absolute; border: 0; padding: 0; background: none; cursor: pointer; outline: none; }
+.piecrownface:focus-visible, .piecrownzone:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.piecrownface[aria-disabled="true"] { cursor: default; }
+.piecrownword { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: .2rem;
+    font-size: var(--t-xs); font-weight: 600; color: var(--ink-dim); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.piecrownword svg { width: var(--i-sm); height: var(--i-sm); }
+.piecrownend { flex-direction: column; gap: 0; color: var(--ink); line-height: 1.1; }
+.piecrowndim { opacity: .3; }
+.piebar { position: absolute; left: 10px; right: 10px; bottom: max(14px, env(safe-area-inset-bottom)); min-height: 48px; display: flex; gap: 6px; }
+.piedesk .piebar { right: auto; bottom: auto; transform: translateX(-50%); gap: 10px; width: max-content; max-width: calc(100% - 20px); }
+
+.piecrownwords { position: absolute; pointer-events: none; }

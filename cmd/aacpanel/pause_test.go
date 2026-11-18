@@ -336,3 +336,44 @@ func TestProjectPauseGoesOneStepDownPG(t *testing.T) {
 	}
 	nothingMore(t, fake)
 }
+
+// A new Codex deadline replaces its process-owned alarm before the new
+// instruction, including a move from an indefinite pause.
+func TestProjectPauseReplacesCodexAlarmPG(t *testing.T) {
+	for _, alarm := range []string{action.PauseAlarm, action.PauseNoEndAlarm} {
+		t.Run(alarm, func(t *testing.T) {
+			srv, fake, _, until := pauseServer(t, func(other string) []map[string]any {
+				return []map[string]any{{"session": "paused-thread", "sessionId": "12121212-1212-4212-8212-121212121212", "cwd": other, "agent": "codex",
+					"pauseAlarm": pauseAlarm{ID: "1234567890abcdef", Name: alarm, Next: time.Now().Add(time.Hour).Format(time.RFC3339)}}}
+			})
+			profiles, err := srv.db.Profiles(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var project int
+			for _, p := range profiles[0].Groups[0].Projects {
+				if p.Name == "other" {
+					project = p.ID
+				}
+			}
+			sendPause(t, srv, action.Pause{Project: project, Session: "paused-thread", Alone: true, Until: until.Format(time.RFC3339)}, 1)
+			select {
+			case req := <-fake.got:
+				if req.Kind != action.AlarmCancel || req.Target != "paused-thread" || req.Work == nil || req.Work.ID != "1234567890abcdef" {
+					t.Fatalf("the replacement did not cancel the old Codex alarm first: %+v", req)
+				}
+			default:
+				t.Fatal("the old Codex alarm was not cancelled")
+			}
+			select {
+			case req := <-fake.got:
+				if req.Kind != action.SessionSend || req.Target != "paused-thread" || !strings.Contains(req.Text, until.Format(time.RFC3339)) {
+					t.Fatalf("the replacement instruction: %+v", req)
+				}
+			default:
+				t.Fatal("the replacement instruction was not sent")
+			}
+			nothingMore(t, fake)
+		})
+	}
+}

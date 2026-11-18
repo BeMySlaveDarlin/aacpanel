@@ -10,7 +10,7 @@ import { knows, whyNot } from "../exec.js";
 import { useAction } from "../actions/gate.js";
 import { hostLabel } from "../actions/registry.js";
 import { useToast } from "../ui/toasts.js";
-import { MenuItem, MenuList, useMenuSheet } from "../ui/menu.js";
+import { MenuItem, MenuList, useMenuLayer, useMenuSheet } from "../ui/menu.js";
 import { CODEX_CLOSE, CODEX_RESTART, codexRestartWhy, isCodex, noTurn, shownName } from "../agent.js";
 import { codexResumeOf, copyId, copyResume, DETACH, detach, detachWhy, renameWhy, resumeOf } from "../screens/chat/sessiontools.js";
 import { LOOK_NAMES } from "../screens/chat/look.js";
@@ -24,7 +24,8 @@ import { useWindow, windowOf } from "../screens/chat/window.js";
 import { useTermJump } from "../screens/terms/jump.js";
 import { projectOf, resume, startIn } from "../screens/sessions/actions.js";
 import { stopsOf } from "../screens/sessions/blocks.js";
-import { PauseSheet, pauseWhy, continueSession, sessionPauseWhy } from "../screens/sessions/pause.js";
+import { pauseWhy, sessionPauseWhy } from "../screens/sessions/pause.js";
+import { PausePie } from "../screens/sessions/pausedial.js";
 import { pinOf } from "../screens/sessions/pin.js";
 import { openedBy } from "../screens/sessions/kin.js";
 
@@ -60,11 +61,11 @@ export function SessionMenu(props) {
     return html`<${ClaudeMenu} ...${props} />`;
 }
 
-function SleepingMenu({ s, exec }) {
+function SleepingMenu({ s, exec, snapshot, profile }) {
     const run = useAction();
+    const layer = useMenuLayer();
     return html`<${MenuList} groups=${[
-        [html`<${MenuItem} key="pause" label="Continue now" off=${sessionPauseWhy(s, s.project, exec)}
-            onPick=${() => continueSession(run, s.project, s)} />`],
+        [pauseItem(s, { exec, snapshot, profile, layer })],
         ["Rename…", "Role…", "Session messages…", "Stop the turn", "Move", "Remote Control", "Detach from parent", "Stand under", "Pin", "Restart the session"]
             .map((label) => html`<${MenuItem} key=${label} label=${label} off="sleeping" />`),
         [html`<${MenuItem} key="close" label="Close the session" off=${whyNot(exec, "session.close")}
@@ -125,23 +126,20 @@ function endsOf(exec, closing, restarting) {
     };
 }
 
-// pauseItem is the pause of the one session, as on its pie: the sheet of the
-// pause with the session as its scope, and on a paused session the continue.
-function pauseItem(s, { exec, snapshot, profile, run, sheet }) {
+// Pause and Continue open the card's dial in place of this menu item.
+function pauseItem(s, { exec, snapshot, profile, layer }) {
     const project = s.project && s.project.id ? s.project : null;
     const why = sessionPauseWhy(s, project, exec);
-    if (s.pauseAlarm) {
-        return html`<${MenuItem} key="pause" label="Continue now" off=${why} onPick=${() => continueSession(run, project, s)} />`;
-    }
-    return html`<${MenuItem} key="pause" label="Pause…" off=${why}
-        onPick=${() => sheet("pause sessions", (close) => html`
-            <${PauseSheet} project=${project} profile=${profile} sessions=${(snapshot && snapshot.sessions) || [s]}
-                           session=${s} exec=${exec} onDone=${close} />`)} />`;
+    return html`<${MenuItem} key="pause" label=${s.pauseAlarm ? "Continue now" : "Pause…"} off=${why}
+        onPick=${(event) => layer((close, spot) => html`
+            <${PausePie} project=${project} profile=${profile} sessions=${snapshot?.sessions || [s]}
+                         session=${s} exec=${exec} spot=${spot} onClose=${close} />`, event)} />`;
 }
 
 function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting, profile }) {
     const run = useAction();
     const sheet = useMenuSheet();
+    const layer = useMenuLayer();
     const toast = useToast();
     const { closeWhy, restartWhy } = endsOf(exec, closing, restarting);
     const stopWhy = noTurn(s) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
@@ -160,7 +158,7 @@ function ThreadMenu({ s, exec, snapshot, wait, onOpen, closing, restarting, prof
         [
             s.status === "busy" && html`<${MenuItem} key="stop" label="Stop the turn" off=${stopWhy}
                                                      onPick=${() => run("session.stop", s.session, {})} />`,
-            pauseItem(s, { exec, snapshot, profile, run, sheet }),
+            pauseItem(s, { exec, snapshot, profile, layer }),
             html`<${MenuItem} key="restart" label="Restart the session" off=${codexRestartWhy(s) || restartWhy} tip=${CODEX_RESTART}
                               onPick=${() => run("session.restart", s.session, {})} />`,
             html`<${MenuItem} key="close" label="Close the session" off=${closeWhy} tip=${CODEX_CLOSE}
@@ -174,6 +172,7 @@ function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarti
     const { closeWhy, restartWhy } = endsOf(exec, closing, restarting);
     const toast = useToast();
     const sheet = useMenuSheet();
+    const layer = useMenuLayer();
     const way = useSwitchWay(s.session, s.transport);
     const [win, askWindow] = useWindow(s.session, s.transport);
     const rc = useRemote({ name: s.session, live: s, exec, snapshot });
@@ -226,7 +225,7 @@ function ClaudeMenu({ s, exec, snapshot, wait, onOpen, onTerm, closing, restarti
         ],
         copies(s, toast, snapshot),
         [
-            pauseItem(s, { exec, snapshot, profile, run, sheet }),
+            pauseItem(s, { exec, snapshot, profile, layer }),
             html`<${MenuItem} key="restart" label="Restart the session" note=${stops} off=${restartWhy}
                               onPick=${() => run("session.restart", s.session, {})} />`,
             !s.home && html`<${MenuItem} key="close" label="Close the session" note=${stops} off=${closeWhy}
@@ -260,11 +259,11 @@ export function ClosedMenu({ row, exec, onOpen, snapshot }) {
 // terminal, and its page in the settings of the map.
 export function ProjectMenu({ project, profile, sessions, exec, onNew, onTerm, onSettings }) {
     const jump = useTermJump(project.path, exec, onTerm);
-    const sheet = useMenuSheet();
+    const layer = useMenuLayer();
     return html`<${MenuList} groups=${[
         [
             html`<${MenuItem} key="pause" label="Pause…" off=${pauseWhy(project, profile, sessions, exec)}
-                onPick=${() => sheet("pause sessions", (close) => html`<${PauseSheet} project=${project} profile=${profile} sessions=${sessions} exec=${exec} onDone=${close} />`)} />`,
+                onPick=${(event) => layer((close, spot) => html`<${PausePie} project=${project} profile=${profile} sessions=${sessions} exec=${exec} spot=${spot} onClose=${close} />`, event)} />`,
             onNew && html`<${MenuItem} key="new" label="New session" off=${whyNot(exec, "session.open")} onPick=${onNew} />`,
             onTerm && project.path && html`
                 <${MenuItem} key="term" label="Terminal of the project" off=${whyNot(exec, "term.start")} onPick=${jump.press} />`,

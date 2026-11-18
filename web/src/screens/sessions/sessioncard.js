@@ -22,7 +22,6 @@ import { useRef, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { useHold } from "../../ui/pie.js";
-import { Sheet } from "../../ui/sheet.js";
 import { alarmTime, bytes, fill, pct, tokens } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
@@ -34,7 +33,8 @@ import { useCardPie } from "./cardpie.js";
 import { busyOf } from "./controls.js";
 import { placeOf } from "./kin.js";
 import { stamp } from "./card.js";
-import { PauseSheet, continueProject, pauseWhy } from "./pause.js";
+import { continueProject, pauseWhy } from "./pause.js";
+import { PausePie } from "./pausedial.js";
 import { runsOf, shortText, stateOf, timeOf } from "./state.js";
 
 // The glyph of each kind of state; a kind with none draws a shape of its own
@@ -277,7 +277,7 @@ function Act({ label, tip, off, on = false, pressed, busy = false, onPress, chil
         <button class=${`scact${on ? " scon" : ""}`} type="button" aria-label=${label} title=${tip || undefined}
                 data-tip=${tip || undefined} data-tipside="left" aria-disabled=${off ? "true" : undefined}
                 aria-pressed=${pressed === undefined ? undefined : String(pressed)} aria-busy=${busy ? "true" : undefined}
-                onClick=${(e) => { e.stopPropagation(); if (!off) onPress(); }}>${children}</button>
+                onClick=${(e) => { e.stopPropagation(); if (!off) onPress(e); }}>${children}</button>
     `;
 }
 
@@ -438,12 +438,12 @@ export function HeadActs({ block, profile, sessions, exec, wait }) {
     `;
 }
 
-// GroupPause is the pause of a project's heading: the sheet of the pause for
-// the project, or, once every live session under the heading is paused, the
-// continue of them all.
+// A heading chooses its project or group on the ring; its dial and confirm
+// are the same controls as the session's pause. Once every live session under
+// the heading sleeps, the heading continues them all at a tap.
 function GroupPause({ project, profile, sessions, rows, exec }) {
     const run = useAction();
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(null);
     const why = pauseWhy(project, profile, sessions, exec);
     const reached = rows.filter((s) => !s.outside && s.sessionId);
     if (reached.length > 0 && reached.every((s) => s.pauseAlarm)) {
@@ -456,9 +456,11 @@ function GroupPause({ project, profile, sessions, rows, exec }) {
     }
     return html`
         <${Act} label=${`pause sessions in project ${project.name}`} tip=${why || "Pause sessions…"} off=${why}
-                onPress=${() => setOpen(true)}>${Icon.pause()}<//>
-        ${open && html`<${Sheet} open tall onClose=${() => setOpen(false)} label="pause sessions">
-            <${PauseSheet} project=${project} profile=${profile} sessions=${sessions} exec=${exec} onDone=${() => setOpen(false)} />
-        <//>`}
+                onPress=${(event) => {
+                    const box = event.currentTarget.getBoundingClientRect();
+                    setOpen({ spot: matchMedia("(min-width:1100px)").matches ? { x: box.right, y: box.bottom } : null });
+                }}>${Icon.pause()}<//>
+        ${open && html`<${PausePie} project=${project} profile=${profile} sessions=${sessions} exec=${exec}
+            spot=${open.spot} onClose=${() => setOpen(null)} />`}
     `;
 }

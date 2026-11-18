@@ -17,6 +17,7 @@ import { waitWords } from "../../ui/waits.js";
 import { seenAt as seenHere } from "../../viewing.js";
 import { shown } from "../chat/answered.js";
 import { checklistOf } from "../chat/checklist.js";
+import { pauseEnd } from "./pause.js";
 
 // PAUSE_NO_END is the alarm a session keeps through a pause with no end: it
 // repeats only to keep the mark of the pause, and its ring is not the end.
@@ -133,8 +134,8 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     };
 
     if (s.sleeping) {
-        const until = Date.parse(s.pauseAlarm?.next || "") || 0;
-        return make("paused", "paused", "sleeping", { subject: until ? `until ${pauseAt(until)}` : "" });
+        const until = s.pauseAlarm?.name === PAUSE_NO_END ? 0 : Date.parse(s.pauseAlarm?.next || "") || 0;
+        return make("paused", "paused", "sleeping", { subject: until ? pauseEnd(until) : "" });
     }
     const phase = s.restartPhase;
     if (phase && phase.phase === "saving") {
@@ -196,7 +197,7 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     if (s.pauseAlarm) {
         if (s.pauseAlarm.name === PAUSE_NO_END) return make("paused", "paused", "paused", { subject: "with no end" });
         const until = Date.parse(s.pauseAlarm.next || "") || 0;
-        return make("paused", "paused", "paused", { subject: until ? `until ${pauseAt(until)}` : "" });
+        return make("paused", "paused", "paused", { subject: until ? pauseEnd(until) : "" });
     }
     const list = checklistOf(s.checklist);
     const unseen = unseenOf(s, viewed);
@@ -234,15 +235,6 @@ function leftText(ms) {
 
 // clockText names a moment by the time of day while it is within the day
 // ahead, and by its weekday past that.
-// pauseAt is when a pause ends, beside its word: the time of day, with the
-// date when it is not today.
-function pauseAt(ms) {
-    const at = new Date(ms);
-    if (at.toDateString() === new Date().toDateString()) return alarmTime(ms);
-    const day = `${String(at.getDate()).padStart(2, "0")}.${String(at.getMonth() + 1).padStart(2, "0")}`;
-    return `${day} ${alarmTime(ms)}`;
-}
-
 function clockText(ms) {
     if (ms - Date.now() > 20 * 3600e3) return new Date(ms).toLocaleDateString("en-GB", { weekday: "short" });
     return alarmTime(ms);

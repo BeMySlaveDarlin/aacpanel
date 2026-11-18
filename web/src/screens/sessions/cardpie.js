@@ -35,7 +35,8 @@ import { useWindow } from "../chat/window.js";
 import { useTermJump } from "../terms/jump.js";
 import { busyOf, closeSession, endsOf, pinGroup, restartSession } from "./controls.js";
 import { openedBy } from "./kin.js";
-import { PauseSheet, continueSession, sessionPauseWhy } from "./pause.js";
+import { sessionPauseWhy } from "./pause.js";
+import { usePauseDial } from "./pausedial.js";
 import { pinOf } from "./pin.js";
 
 const CardPieContext = createContext(null);
@@ -66,10 +67,6 @@ const SECTORS = {
 function sheetOf(kind, { s, profile, snapshot, exec, onDone }) {
     const name = s.session;
     switch (kind) {
-    case "pause":
-        return { label: "pause sessions", tall: true, node: html`
-            <${PauseSheet} project=${s.project} profile=${profile} sessions=${(snapshot && snapshot.sessions) || [s]}
-                           session=${s} exec=${exec} onDone=${onDone} />` };
     case "rename":
         return { label: LOOK_NAMES.rename, node: html`<${RenameSheet} name=${name} exec=${exec} taken=${takenNames(snapshot)} onDone=${onDone} />` };
     case "role":
@@ -156,6 +153,7 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
     const ends = endsOf({ s, exec, pin, busy: Boolean(busyOf(s, wait) || s.restarting) });
     const project = s.project && s.project.id ? s.project : null;
     const pauseWhy = sessionPauseWhy(s, project, exec);
+    const pause = usePauseDial({ project, profile, sessions, session: s, exec, onClose });
     const turn = codex ? noTurn(s) : s.status === "busy" ? "" : "No turn is running";
     const stopWhy = turn || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
 
@@ -213,10 +211,10 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
         },
         s.pauseAlarm ? {
             key: "pause", icon: Icon.play, word: "Continue", title: "Continue now", note: "before its pause ends",
-            off: pauseWhy, pick: () => continueSession(run, project, s),
+            off: pauseWhy, stay: true, stand: pause.activate,
         } : {
-            key: "pause", icon: Icon.pause, word: "Pause", title: "Pause…", note: "until a time or a word, on its sheet",
-            off: pauseWhy, pick: () => onSheet("pause"),
+            key: "pause", icon: Icon.pause, word: "Pause", title: "Pause…", note: "pick its end on the dial, then confirm below",
+            off: pauseWhy, stay: true, stand: pause.activate,
         },
         {
             key: "pin", icon: Icon.thumbtack, word: pin.on ? "Unpin" : "Pin", title: pin.label, note: pin.tip, on: pin.on,
@@ -233,5 +231,5 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
     const items = s.sleeping ? first.map((item) => item && !["close", "pause"].includes(item.key)
         ? { ...item, off: "sleeping", items: item.items?.map((sub) => ({ ...sub, off: "sleeping" })) } : item) : first;
     return html`<${Pie} label=${`session ${shownName(s)}`} name=${shownName(s)} items=${items} lift=${card} press=${press}
-                        spot=${spot} onClose=${onClose} />`;
+                        spot=${spot} crown=${pause.crown} bar=${pause.bar} layer=${pause.layer} onClose=${onClose} />`;
 }

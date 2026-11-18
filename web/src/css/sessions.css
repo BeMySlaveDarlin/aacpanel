@@ -827,15 +827,27 @@ button.scstub { cursor: pointer; }
 .pjlink .chev { margin-left: auto; }
 .pjempty { margin: 0; padding: .6rem .75rem; border-top: var(--hair) solid var(--line); font-size: var(--t-sm); color: var(--ink-faint); }
 
-/* The quick choices of a pause: a row of chips beside each word of when, the
-   words in a column of their own so the chips of every row start together. */
-.pausepresets { display: grid; grid-template-columns: max-content 1fr; gap: .45rem .7rem; align-items: baseline; }
-.pausepreset { display: contents; }
-.pauselabel { font-size: var(--t-xs); color: var(--ink-faint); }
-.pausechips { display: flex; flex-wrap: wrap; gap: .3rem; }
-.pausechips .chip { padding: .25rem .6rem; font-size: var(--t-xs); }
-.pausesheet .cxfield { display: block; width: 100%; margin-top: .3rem; }
-/* Who a pause reaches, held to a few lines however many it is, and what the
-   service said it could not reach. */
-.pauserecipients { max-height: 8rem; overflow: auto; font-size: var(--t-sm); }
-.pauseresult { color: var(--warn); }
+
+/* The pause bar shares the pie's glass; only the confirm carries its accent. */
+.piebar .pausetoggle { flex: none; width: auto; min-height: 0; gap: .5rem; padding: .3rem .65rem .3rem .5rem;
+    border-radius: var(--r-card); background: var(--toast-bg); box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--toast-drop); }
+.pausetogglewords { display: flex; flex-direction: column; gap: .05rem; min-width: 0; text-align: left; }
+.pausetoggle b { font-size: var(--t-sm); font-weight: 600; color: var(--ink); white-space: nowrap; }
+.pausetoggle small { max-width: 7rem; overflow: hidden; text-overflow: ellipsis; font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; }
+.pausetoggle[aria-checked="false"] b { color: var(--ink-dim); font-weight: 500; }
+.piebar .pauseapply, .piebar .pausechange { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem;
+    min-width: 0; padding: .3rem .6rem; border-radius: var(--r-card); line-height: 1.2; }
+.piebar .pauseapply { flex: 1; position: relative; background: var(--toast-bg); }
+.piebar .pauseapply::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--accent-bg); }
+.piebar .pauseapply > * { position: relative; }
+.piebar .pauseapply b { font-size: var(--t-md); font-weight: 600; }
+.piebar .pauseapply small, .piebar .pausechange small { font-size: var(--t-xs); font-weight: 500; color: var(--ink-dim); }
+.piebar .pausechange { flex: none; max-width: 5rem; background: var(--toast-bg); font-size: var(--t-sm);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--toast-drop); }
+.piebar .pauseapply:disabled { opacity: 1; background: var(--toast-bg); border-color: var(--line); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
+.piebar .pauseapply:disabled::before { display: none; }
+.piebar .pauseapply:disabled b { color: var(--ink-faint); font-weight: 500; }
+.pausedays .pieword { gap: 0; }
+.pausedays .pieword b { display: inline-block; font-size: var(--t-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+.piedesk .piebar .pauseapply { flex: none; padding: .3rem 1.2rem; }
+.piedesk .piebar .pausechange { max-width: none; padding: .3rem 1rem; }

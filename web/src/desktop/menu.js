@@ -58,6 +58,7 @@ function available(item) {
 export function MenuHost({ children }) {
     const [menu, setMenu] = useState(null);
     const [sheet, setSheet] = useState(null);
+    const [layer, setLayer] = useState(null);
     const [spot, setSpot] = useState(null);
     const node = useRef(null);
     // What the menu was opened from, the focus goes back to as it closes: a
@@ -99,7 +100,12 @@ export function MenuHost({ children }) {
         back();
     }, [back]);
 
-    const host = useMemo(() => ({ menuOf, done: close, sheet: showSheet }), [menuOf, close, showSheet]);
+    const showLayer = useCallback((draw, event) => {
+        const box = event.currentTarget.getBoundingClientRect();
+        setLayer({ draw, spot: { x: box.right, y: box.top + box.height / 2 } });
+    }, []);
+    const closeLayer = useCallback(() => { setLayer(null); back(); }, [back]);
+    const host = useMemo(() => ({ menuOf, done: close, sheet: showSheet, layer: showLayer }), [menuOf, close, showSheet, showLayer]);
 
     // The menu is measured and placed before it is first painted, and again
     // when what it holds changes size — an item that waited on the host goes
@@ -196,6 +202,7 @@ export function MenuHost({ children }) {
             <${Sheet} open=${Boolean(sheet)} onClose=${closeSheet} label=${sheet ? sheet.label : ""}>
                 ${sheet && sheet.draw(closeSheet)}
             <//>
+            ${layer && layer.draw(closeLayer, layer.spot)}
         <//>
     `;
 }

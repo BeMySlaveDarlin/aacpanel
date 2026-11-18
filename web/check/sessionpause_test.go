@@ -1,7 +1,6 @@
 package check
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -11,138 +10,163 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 	for _, screen := range []struct {
 		name, file string
 		run        func(*testing.T, string, any)
-	}{
-		{"phone", "sessionstops.html", runFixture}, {"desk", "sessiongroups.html", runWideFixture},
-	} {
+	}{{"phone", "sessionstops.html", runFixture}, {"desk", "sessiongroups.html", runWideFixture}} {
 		t.Run(screen.name, func(t *testing.T) {
-			type choice struct {
-				Value   string
-				Pressed []string
+			type request struct {
+				Kind, Target string
+				Params       map[string]any
+			}
+			type item struct {
+				Key, Label, Why string
+				Off             bool
 			}
 			var got struct {
 				Pause struct {
-					Sleep struct {
-						States, Edges []string
-						Controls      []struct {
-							Key, Label, Why string
-							Off             bool
-						}
-						Continue, Close struct {
-							Kind, Target string
-							Params       map[string]any
-						}
+					State, Header, Toast, Together, Friday, Move, NoEndWords, DistantMark, KeyboardDay string
+					Feed, Scope, GroupScope, Mornings, Options                                         []string
+					Priority                                                                           [][]string
+					Sent                                                                               map[string]request
+					Initial                                                                            struct {
+						Disabled      bool
+						Toggle, Words string
 					}
-					State, Ends, Header, SessionScope, SessionCount, OpenedCount, OpenedResume, AwakeEdge  string
-					Feed, ProjectRecipients, GroupRecipients, Options, SessionRecipients, OpenedRecipients []string
-					SessionScopes, NoOpenedScopes                                                          []struct{ Value, Label string }
-					AloneResumeAbsent                                                                      bool
-					Letters                                                                                int
-					Priority, Choices                                                                      [][]string
-					PauseSent, Restart, OneSent                                                            []struct {
-						Kind, Target string
-						Params       map[string]any
+					TwoHours, Hover struct{ Plate, Button string }
+					Release         struct {
+						Requests int
+						Button   string
 					}
-					NoConfirmation, Menu          bool
-					BeforeNine, ForTwo, AfterNine choice
-					Opened                        struct {
-						choice
-						Ahead float64
+					ForeignRelease                                                            int
+					Days                                                                      []item
+					DayOff, NoOpened, NoConfirmation, ProjectMenu, SessionMenu, SleepingAlone bool
+					OverLimit, Back                                                           struct {
+						Disabled bool
+						Value    string
 					}
-					NoEnd struct {
-						choice
-						Off  bool
-						Note string
+					WithinLimit string
+					Sleep       struct {
+						Plate, Mark, Toggle, ReadOnly string
+						Controls                      []item
 					}
-					Expect struct{ NineToday, NineTomorrow, TwoHours, NineTodayAt, NineTomorrowAt string }
+					Indefinite struct{ Mark, Plate string }
+					Project    struct {
+						Toggle  bool
+						Sectors []item
+					}
+					Restart []request
+					Letters int
+					Edges   struct{ Asleep, Awake string }
+					Expect  struct{ TwoHours, Friday, Six string }
 				}
 			}
 			screen.run(t, screen.file, &got)
 			p := got.Pause
-			if len(p.Sleep.States) != 2 || !strings.HasPrefix(p.Sleep.States[0], "sleeping until ") || p.Sleep.States[1] != "sleeping" {
-				t.Errorf("sleeping states: %v", p.Sleep.States)
+			if p.State != "sleeping until Fri 10:00" || p.Header != "sleeping until Fri 20 Nov, 10:00 · in 1 d 18 h" {
+				t.Errorf("the shared words of the end: card %q, conversation %q", p.State, p.Header)
+			}
+			if strings.Join(p.Feed, "|") != "Pause until Fri 20 Nov, 10:00|Pause lifted|Pause over|Pause with no end" || p.NoEndWords != "until lifted" || p.Letters != 0 {
+				t.Errorf("the feed's pause words: %v, no end %q, %d drawn as letters", p.Feed, p.NoEndWords, p.Letters)
 			}
 			// A sleeping session holds its context without spending it: its
 			// bar is grey, an awake one's keeps the colour of its fill.
-			if len(p.Sleep.Edges) != 2 || !strings.Contains(p.Sleep.Edges[0], "scsleep") || !strings.Contains(p.Sleep.Edges[1], "scsleep") ||
-				strings.Contains(p.AwakeEdge, "scsleep") {
-				t.Errorf("the context bars of sleeping sessions are %v, of an awake one %q: want grey only while asleep", p.Sleep.Edges, p.AwakeEdge)
+			if !strings.Contains(p.Edges.Asleep, "scsleep") || p.Edges.Awake == "" || strings.Contains(p.Edges.Awake, "scsleep") {
+				t.Errorf("the context bar of a sleeping card is %q, of an awake one %q: want grey only while asleep", p.Edges.Asleep, p.Edges.Awake)
+			}
+			for i, want := range []string{"busy,busy", "wait,waiting", "bg,bg", "idle,idle", "busy,busy"} {
+				if len(p.Priority) != 5 || strings.Join(p.Priority[i], ",") != want {
+					t.Fatalf("pause overrode activity: %v", p.Priority)
+				}
+			}
+			if strings.Join(p.Scope, ",") != "evirma-api,review,tests" || strings.Join(p.GroupScope, ",") != "evirma-api,review,tests,grandchild,evirma-billing" {
+				t.Errorf("the one-level session and map-group scope: %v / %v", p.Scope, p.GroupScope)
+			}
+			if !p.Initial.Disabled || p.Initial.Toggle != "false" || p.Initial.Words != "Pick when it ends" || p.Together != "true" || !p.NoOpened {
+				t.Errorf("the initial bar or opened toggle: %+v, together %s, absent without opened %v", p.Initial, p.Together, p.NoOpened)
+			}
+			if !strings.HasPrefix(p.TwoHours.Plate, "until 17:20 · in 2 h") || p.TwoHours.Button != "Pause evirma-apiuntil 17:20" {
+				t.Errorf("two hours readback: %+v", p.TwoHours)
+			}
+			if !strings.HasPrefix(p.Hover.Plate, "until 19:20 · in 4 h") || p.Hover.Button != p.TwoHours.Button {
+				t.Errorf("hover changed the selection: %+v", p.Hover)
+			}
+			if p.Release.Requests != 2 || !strings.Contains(p.Release.Button, "17:20") || p.ForeignRelease != 2 {
+				t.Errorf("a release sent a request: crown %+v, bar %d", p.Release, p.ForeignRelease)
+			}
+			if len(p.Days) != 8 || p.Days[0].Label != "Thu 19" || p.Days[6].Label != "Wed 25" || !p.Days[7].Off || p.Days[7].Why != "over 7 d" || !p.DayOff {
+				t.Errorf("the days ring and unselected hours: %+v, hours off %v", p.Days, p.DayOff)
+			}
+			if !strings.HasPrefix(p.Friday, "until Fri 20 Nov, 10:00 · in 1 d 18 h") || !p.OverLimit.Disabled || p.OverLimit.Value != "No value selected" || !strings.Contains(p.WithinLimit, "Wed 15:00") {
+				t.Errorf("the other day or seven-day limit: %q, %+v, %q", p.Friday, p.OverLimit, p.WithinLimit)
+			}
+			if !strings.HasPrefix(p.KeyboardDay, "until Fri 20 Nov, 7:00") {
+				t.Errorf("the keyboard's day and hour: %q", p.KeyboardDay)
+			}
+			if !p.Back.Disabled || p.Back.Value != "No value selected" {
+				t.Errorf("Back retained a selected end: %+v", p.Back)
+			}
+			if p.DistantMark != "until Fri 10:00" || p.Sleep.Mark != "until 18:00" || !strings.HasPrefix(p.Sleep.Plate, "Sleeps until 18:00 · 2 h 40 min left") ||
+				!strings.Contains(p.Sleep.Plate, "review and tests sleep with it") || p.Sleep.Toggle != "true" || p.Sleep.ReadOnly != "until 18:00" {
+				t.Errorf("the sleeping session's viewing dial: %+v", p.Sleep)
 			}
 			for _, control := range p.Sleep.Controls {
-				allowed := control.Key == "pause" || control.Key == "close" || strings.HasPrefix(control.Label, "continue session ") || strings.HasPrefix(control.Label, "close session ")
+				allowed := control.Key == "pause" || control.Key == "close"
 				if allowed && control.Off || !allowed && (!control.Off || control.Why != "sleeping") {
 					t.Errorf("sleeping control: %+v", control)
 				}
 			}
-			if len(p.Sleep.Controls) == 0 {
-				t.Error("the pie of a sleeping card is absent")
+			if len(p.Sleep.Controls) == 0 || !strings.HasPrefix(p.Move, "Move the end of evirma-api + 2") || p.Indefinite.Mark != "until lifted" || !strings.HasPrefix(p.Indefinite.Plate, "Sleeps until lifted") {
+				t.Errorf("sleeping pause controls: move %q, indefinite %+v", p.Move, p.Indefinite)
 			}
-			if c := p.Sleep.Continue; c.Kind != "project.pause" || c.Target != "lab" || c.Params["session"] != "lab" || c.Params["project"] != float64(501) || c.Params["alone"] != true || c.Params["resume"] != true {
-				t.Errorf("sleeping Continue: %+v", c)
+			if p.Project.Toggle || len(p.Project.Sectors) != 3 || p.Project.Sectors[0].Key != "project" || p.Project.Sectors[1].Key != "group" || p.Project.Sectors[2].Key != "continue" {
+				t.Errorf("the project scope ring: %+v", p.Project)
 			}
-			if c := p.Sleep.Close; c.Kind != "session.close" || c.Target != "lab" {
-				t.Errorf("sleeping Close: %+v", c)
-			}
-			// The card says paused and when the pause ends beside it; the head
-			// of the conversation says both too.
-			if !strings.HasPrefix(p.State, "paused until ") || strings.HasPrefix(p.Ends, "→") || !strings.Contains(p.Header, "paused until ") {
-				t.Errorf("pause state or its end absent: %+v", p)
-			}
-			if len(p.Feed) != 4 || !strings.HasPrefix(p.Feed[0], "Pause until") || p.Feed[1] != "Pause lifted" || p.Feed[2] != "Pause over" ||
-				p.Feed[3] != "Pause with no end" || p.Letters != 0 {
-				t.Errorf("pause letters lost their cards: %v", p.Feed)
-			}
-			for i, want := range []string{"busy", "wait", "bg", "idle", "busy"} {
-				head := want
-				if head == "wait" {
-					head = "waiting"
+			sessionRequest := func(name string, alone bool, end string, noEnd, resume bool) {
+				t.Helper()
+				r, ok := p.Sent[name]
+				if !ok || r.Kind != "project.pause" || r.Target != "evirma" || r.Params["project"] != float64(501) || r.Params["session"] != "evirma-api" || r.Params["alone"] != alone || r.Params["group"] != nil ||
+					(r.Params["noEnd"] == true) != noEnd || (r.Params["resume"] == true) != resume {
+					t.Errorf("%s scope: %+v", name, r)
 				}
-				if len(p.Priority) != 5 || strings.Join(p.Priority[i], ",") != want+","+head {
-					t.Fatalf("pause overrode activity: %v", p.Priority)
+				if end != "" {
+					value, _ := r.Params["until"].(string)
+					if strings.HasSuffix(value, "Z") {
+						t.Errorf("%s lost the local offset: %s", name, value)
+					}
+				}
+				if end != "" && !sameMoment(r.Params["until"], end) || end == "" && r.Params["until"] != nil {
+					t.Errorf("%s end: %+v, want %s", name, r, end)
 				}
 			}
-			// A pause reaches the sessions its sessions had the panel open, the
-			// helper of lab-docs in the other project among them.
-			if strings.Join(p.ProjectRecipients, ",") != "lab · paused,lab-docs,helper · paused" || strings.Join(p.GroupRecipients, ",") != "lab · paused,lab-docs,peer,quiet,helper · paused" {
-				t.Errorf("pause scope: %v / %v", p.ProjectRecipients, p.GroupRecipients)
+			sessionRequest("alone", true, p.Expect.TwoHours, false, false)
+			sessionRequest("undo", true, "", false, true)
+			sessionRequest("together", false, p.Expect.TwoHours, false, false)
+			sessionRequest("noEnd", true, "", true, false)
+			sessionRequest("friday", true, p.Expect.Friday, false, false)
+			sessionRequest("resume", false, "", false, true)
+			sessionRequest("move", false, p.Expect.Six, false, false)
+			sessionRequest("resumeAlone", true, "", false, true)
+			solo := p.Sent["soloResume"]
+			if !p.SleepingAlone || solo.Kind != "project.pause" || solo.Params["session"] != "evirma-billing" || solo.Params["alone"] != true || solo.Params["resume"] != true {
+				t.Errorf("the sleeping session without opened sessions: %v, %+v", p.SleepingAlone, solo)
 			}
-			wantChoices := [][]string{{"For", "1 h", "2 h", "4 h", "6 h", "12 h"}, {"Until the morning", "8:00", "9:00", "10:00"},
-				{"Until lunch", "12:00", "13:00", "14:00"}, {"Until the evening", "17:00", "18:00", "19:00"}, {"Until lifted", "No end"}}
-			if fmt.Sprint(p.Choices) != fmt.Sprint(wantChoices) {
-				t.Errorf("the quick choices: %v", p.Choices)
-			}
-			// A quick choice puts its moment into the field: the sheet opens an
-			// hour ahead with that choice pressed, until 9 is today's nine at
-			// half past eight and tomorrow's at half past nine, and two hours
-			// from half past nine is half past eleven. No end empties the field
-			// and turns it off.
-			for _, c := range []struct {
-				name string
-				got  choice
-				want string
-				on   string
-			}{
-				{"before nine", p.BeforeNine, p.Expect.NineToday, "9:00"}, {"after nine", p.AfterNine, p.Expect.NineTomorrow, "9:00"},
-				{"two hours", p.ForTwo, p.Expect.TwoHours, "2 h"}, {"no end", p.NoEnd.choice, "", "No end"},
-			} {
-				if c.got.Value != c.want || strings.Join(c.got.Pressed, ",") != c.on {
-					t.Errorf("%s: the field reads %q with %v pressed, want %q with %s", c.name, c.got.Value, c.got.Pressed, c.want, c.on)
+			for _, name := range []string{"project", "group"} {
+				r := p.Sent[name]
+				if r.Kind != "project.pause" || r.Params["project"] != float64(501) || r.Params["group"] != (name == "group") || r.Params["session"] != nil || !sameMoment(r.Params["until"], p.Expect.TwoHours) {
+					t.Errorf("%s scope: %+v", name, r)
 				}
 			}
-			if strings.Join(p.Opened.Pressed, ",") != "1 h" || p.Opened.Ahead < 55 || p.Opened.Ahead > 61 {
-				t.Errorf("the sheet opens on %+v", p.Opened)
+			if !strings.Contains(p.Toast, "Pause requested") || !strings.Contains(p.Toast, "Undo") || !p.NoConfirmation {
+				t.Errorf("pause confirmation or Undo: %q, %v", p.Toast, p.NoConfirmation)
 			}
-			if !p.NoEnd.Off || !strings.HasPrefix(p.NoEnd.Note, "No end") {
-				t.Errorf("the field of a pause with no end: %+v", p.NoEnd)
+			if len(p.Mornings) != 3 {
+				t.Fatalf("morning samples: %v", p.Mornings)
 			}
-			if len(p.PauseSent) != 2 || !p.NoConfirmation {
-				t.Fatalf("pause actions: %+v", p.PauseSent)
-			}
-			first, second := p.PauseSent[0], p.PauseSent[1]
-			if first.Kind != "project.pause" || first.Params["project"] != float64(501) || first.Params["group"] != true || !sameMoment(first.Params["until"], p.Expect.NineTodayAt) {
-				t.Errorf("pause request: %+v, want until %s", first, p.Expect.NineTodayAt)
-			}
-			if second.Kind != "project.pause" || second.Params["group"] != false || second.Params["resume"] != true || second.Params["until"] != nil {
-				t.Errorf("resume request: %+v", second)
+			for i, delta := range []time.Duration{-8*time.Hour - 20*time.Minute, 15*time.Hour + 40*time.Minute, 15*time.Hour + 40*time.Minute} {
+				// Compare against the fixture's local-clock sample, so the
+				// run is independent of the machine's timezone.
+				two, _ := time.Parse(time.RFC3339, p.Expect.TwoHours)
+				if !sameMoment(p.Mornings[i], two.Add(delta).Format(time.RFC3339)) {
+					t.Errorf("morning %d: %s", i, p.Mornings[i])
+				}
 			}
 			if len(p.Options) != 3 || !strings.HasPrefix(p.Options[0], "Clean restart") || !strings.Contains(p.Options[0], "no first message") || !strings.HasPrefix(p.Options[1], "Restart and continue") || !strings.HasPrefix(p.Options[2], "Restart as auto-restart") {
 				t.Errorf("restart choices: %v", p.Options)
@@ -152,60 +176,29 @@ func TestSessionPauseAndRestartChoices(t *testing.T) {
 			}
 			for i, key := range []string{"clean", "resume", "prepare"} {
 				r := p.Restart[i]
-				if r.Kind != "session.restart" || r.Target != "lab" || len(r.Params) != 1 || r.Params[key] != true {
+				if r.Kind != "session.restart" || r.Target != "evirma-billing" || len(r.Params) != 1 || r.Params[key] != true {
 					t.Errorf("restart %s: %+v", key, r)
 				}
 			}
-			if screen.name == "desk" && !p.Menu {
-				t.Errorf("pause entry availability: %+v", p)
-			}
-			// The card defaults to one session; the sessions it opened belong
-			// to a scope of their own, available only when it reaches some.
-			if p.SessionScope != "session" || strings.Join(p.SessionRecipients, ",") != "lab-docs" || p.SessionCount != "1 session in this scope:" {
-				t.Errorf("the pause of one session opens on %q for %v", p.SessionScope, p.SessionRecipients)
-			}
-			if strings.Join(p.OpenedRecipients, ",") != "lab-docs,helper · paused" || p.OpenedCount != "2 sessions in this scope:" || p.OpenedResume != "Resume 1" || !p.AloneResumeAbsent {
-				t.Errorf("the scope of opened sessions: recipients %v, count %q, resume %q, alone resume absent %v", p.OpenedRecipients, p.OpenedCount, p.OpenedResume, p.AloneResumeAbsent)
-			}
-			for _, c := range []struct {
-				name string
-				got  []struct{ Value, Label string }
-				want string
-			}{
-				{"with opened sessions", p.SessionScopes, "session:This session · lab-docs,opened:With the 1 it opened · lab-docs,project:This project · lab,group:Whole group · Services"},
-				{"without opened sessions", p.NoOpenedScopes, "session:This session · lab-docs,project:This project · lab,group:Whole group · Services"},
-			} {
-				var options []string
-				for _, o := range c.got {
-					options = append(options, o.Value+":"+o.Label)
+			if screen.name == "desk" {
+				if !p.ProjectMenu || !p.SessionMenu {
+					t.Errorf("desktop menu routes: project %v, session %v", p.ProjectMenu, p.SessionMenu)
 				}
-				if strings.Join(options, ",") != c.want {
-					t.Errorf("the scopes %s: %+v", c.name, c.got)
+				r := p.Sent["keyboard"]
+				end, err := time.Parse(time.RFC3339, p.Expect.TwoHours)
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-			if len(p.OneSent) != 4 {
-				t.Fatalf("the pause of one session sent %+v", p.OneSent)
-			}
-			if c := p.OneSent[0]; c.Kind != "project.pause" || c.Params["project"] != float64(501) || c.Params["session"] != "lab" ||
-				c.Params["alone"] != true || c.Params["resume"] != true || c.Params["group"] != nil {
-				t.Errorf("the continue of the paused card sent %+v", c)
-			}
-			if c := p.OneSent[1]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || !sameMoment(c.Params["until"], p.Expect.NineTomorrowAt) ||
-				c.Params["alone"] != true || c.Params["group"] != nil || c.Params["noEnd"] != nil {
-				t.Errorf("the pause of one session sent %+v, want until %s", c, p.Expect.NineTomorrowAt)
-			}
-			if c := p.OneSent[2]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || c.Params["alone"] != false || c.Params["noEnd"] != true || c.Params["until"] != nil {
-				t.Errorf("the pause with no end sent %+v", c)
-			}
-			if c := p.OneSent[3]; c.Kind != "project.pause" || c.Params["session"] != "lab-docs" || c.Params["alone"] != false || c.Params["resume"] != true || c.Params["group"] != nil || c.Params["until"] != nil {
-				t.Errorf("the resume of opened sessions sent %+v", c)
+				sessionRequest("keyboard", true, end.Add(10*time.Minute).Format(time.RFC3339), false, false)
+				if r.Params["resume"] != nil {
+					t.Errorf("Enter continued instead of moving the end: %+v", r)
+				}
 			}
 		})
 	}
 }
 
-// sameMoment says whether the end a request carries, RFC 3339 with the
-// person's offset, is the moment the fixture meant.
+// sameMoment compares RFC 3339 ends with the offset of the person's clock.
 func sameMoment(until any, want string) bool {
 	text, _ := until.(string)
 	got, err := time.Parse(time.RFC3339, text)

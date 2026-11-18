@@ -32,6 +32,13 @@ export function useMenuSheet() {
     return host ? host.sheet : null;
 }
 
+// A ring or other self-contained layer outlives the menu without gaining a
+// sheet around it. Its anchor is the menu item that opened it.
+export function useMenuLayer() {
+    const host = useContext(MenuContext);
+    return host ? host.layer : null;
+}
+
 // MenuItem is one thing the menu does. One that cannot be done now stays in
 // its place, dimmed, and says why on its tip, as the buttons of the panel
 // do: aria-disabled rather than disabled, since a disabled button takes
@@ -42,10 +49,10 @@ export function MenuItem({ label, note = "", tip = "", off = "", onPick }) {
     return html`
         <button type="button" role="menuitem" class="pkrow" aria-disabled=${off ? "true" : undefined}
                 data-tip=${off || tip || undefined} data-tipside="left"
-                onClick=${() => {
+                onClick=${(event) => {
                     if (off) return;
                     host.done();
-                    onPick();
+                    onPick(event);
                 }}>
             <span class="pkbody">
                 <span class="pkname">${label}</span>

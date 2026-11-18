@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { plural } from "../../format.js";
+import { pauseEnd } from "../sessions/pause.js";
 import { alarmsOf, backgroundOf, stateOf as cardState, timeOf } from "../sessions/state.js";
 
 // Marquee renders a heading that does not fit as a running line.
@@ -89,7 +90,9 @@ export function stateOf(row, still = null, move = null, limits = null) {
     }
     if (!row.status && state.tone === "idle") return { tone: "", say: "the session state is unknown", word: "" };
     const time = timeOf(state);
-    const word = state.until && time.text ? `${state.text} · ${state.clock ? "until" : "in"} ${time.text}` : state.text;
+    const word = state.kind === "paused" && row.pauseAlarm?.name !== "pause-no-end" && row.pauseAlarm?.next
+        ? `${state.word} ${pauseEnd(row.pauseAlarm.next, { full: true, distance: true })}`
+        : state.until && time.text ? `${state.text} · ${state.clock ? "until" : "in"} ${time.text}` : state.text;
     return { tone: HEAD_TONE[state.tone] || "", say: state.work ? `${word} · ${state.work}` : word, word };
 }
 
