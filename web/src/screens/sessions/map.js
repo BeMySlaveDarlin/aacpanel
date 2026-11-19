@@ -16,7 +16,7 @@ import { inOrder, sessionsOf } from "./of.js";
 
 export { sessionsOf };
 import { LiveLines, aboutOf } from "./blocks.js";
-import { GhostCard, PastCard } from "./sessioncard.js";
+import { GhostCard, PastCard, namesOf } from "./sessioncard.js";
 import { useArchiveSearch, useSessionsArchive } from "../../history.js";
 import { spoke } from "../../agent.js";
 import { ProjectDoor } from "../profiles/door.js";
@@ -235,8 +235,8 @@ export function Project({ project, profile, profiles, sessions, notes, exec, wai
         <section class="pjblock">
             <div class="pjhead"><span class="pjname">live</span><span class="pjgroup">${own.length || ""}</span></div>
             <${LiveLines} limits=${limits} list=${own} live=${sessions} notes=${notes} wait=${wait} onOpen=${onChat}
-                          exec=${exec} profile=${profile} profiles=${profiles} known=${project.session} />
-            ${opening && html`<${GhostCard} task=${opening} known=${project.session} />`}
+                          exec=${exec} profile=${profile} profiles=${profiles} known=${namesOf(project)} />
+            ${opening && html`<${GhostCard} task=${opening} known=${namesOf(project)} />`}
             ${own.length === 0 && !opening && html`<p class="pjempty">There are no sessions of this project right now.</p>`}
         </section>
 
@@ -248,7 +248,7 @@ export function Project({ project, profile, profiles, sessions, notes, exec, wai
             ${(past.kind === "failed" || past.kind === "unavailable") && html`<p class="pjempty">${past.error}</p>`}
             ${archive && earlier.length === 0 && html`<p class="pjempty">${search.q ? "No conversations match this name." : "No conversation of this project is kept on disk."}</p>`}
             ${earlier.map((row) => html`<${PastCard} key=${row.sessionId} row=${row} about=${aboutOf(row, project)} exec=${exec}
-                                                    known=${project.session} onOpen=${(r) => onChat(r.name, r.sessionId)} />`)}
+                                                    known=${namesOf(project)} onOpen=${(r) => onChat(r.name, r.sessionId)} />`)}
             ${archive && archive.total > shown && html`
                 <button class="pjlink" type="button" onClick=${() => setShown(shown + PROJECT_PAGE)}>
                     ${Math.min(PROJECT_PAGE, archive.total - shown)} more

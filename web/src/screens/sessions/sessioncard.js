@@ -66,12 +66,20 @@ export function Glyph({ state }) {
 // first: a session opened by another and named after the project, not after
 // its parent, still drops the project's part.
 export function nameOf(name, known = "") {
-    for (const line of [].concat(known)) {
+    for (const line of [known].flat(2)) {
         if (line && name.length > line.length && name.startsWith(line) && /[-_.]/.test(name[line.length])) {
             return name.slice(line.length + 1);
         }
     }
     return name;
+}
+
+// namesOf is what the heading of a project says of the names of its cards:
+// its session and its name, which differ for a project whose session is
+// called otherwise ("Admin" over the "infra-…" sessions of infra).
+export function namesOf(project) {
+    if (!project) return "";
+    return [...new Set([project.session, project.name].filter(Boolean))];
 }
 
 // Name is the name of a card, its own part on the screen and whole for a

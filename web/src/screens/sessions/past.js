@@ -13,7 +13,7 @@ import { area, Chart } from "../../chart.js";
 import { bucketText, PERIODS, useArchiveSearch, useSessionsArchive, useSessionsHistory } from "../../history.js";
 import { Chips } from "../../ui/chips.js";
 import { aboutOf } from "./blocks.js";
-import { PastCard } from "./sessioncard.js";
+import { PastCard, namesOf } from "./sessioncard.js";
 import { Groups } from "./map.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
@@ -144,7 +144,7 @@ function ArchiveBlock({ block, map, exec, onOpen, onProject }) {
                 `}
             </div>
             ${shown.map((row) => html`<${PastCard} key=${row.sessionId} row=${row} about=${aboutOf(row, own && own.project)} exec=${exec}
-                                                   known=${own ? own.project.session : ""} onOpen=${(r) => onOpen(r.name, r.sessionId)} />`)}
+                                                   known=${own ? namesOf(own.project) : ""} onOpen=${(r) => onOpen(r.name, r.sessionId)} />`)}
             ${rest > 0 && html`
                 <button class="pjlink" type="button" disabled=${!(own && onProject)}
                         onClick=${() => own && onProject({ ...own.project, profile: map.profile, contour: map.id, group: own.group })}>

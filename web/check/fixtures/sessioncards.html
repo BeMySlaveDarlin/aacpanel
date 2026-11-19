@@ -38,7 +38,8 @@ const ms = (min) => now - min * 60e3;
 const P = (id, name, path = `/srv/${name}`) => ({ id, name, session: name, path });
 const pj = {
     aacpanel: P(1, "aacpanel"), person: P(2, "person"), tg: P(3, "tg-ai-shadow"), kkam: P(4, "kkam-smart-home", "/srv/kkam"),
-    watchdog: P(5, "watchdog"), llm: P(6, "llm-ops"), notes: P(7, "notes-bot"), nightly: P(8, "nightly"), shelf: P(9, "old-shelf"),
+    // A project whose session is called otherwise than the project.
+    watchdog: { ...P(5, "watchdog"), session: "watch-lead" }, llm: P(6, "llm-ops"), notes: P(7, "notes-bot"), nightly: P(8, "nightly"), shelf: P(9, "old-shelf"),
 };
 const profileMap = [{ id: 1, profile: "personal", name: "personal", groups: [
     { name: "Infra", projects: [pj.aacpanel] },
@@ -74,7 +75,8 @@ const sessions = [
     // nothing.
     S(pj.watchdog, { session: "watchdog-review", agent: "codex", model: "gpt-6.1-sol", effort: "medium", cap: null,
         statusUpdatedAt: ms(6), seenAt: iso(1), pct: 21, nextAlarm: { id: "w1", name: "check the run", next: ahead(90) } }),
-    // Opened by another, but named after the project rather than its parent.
+    // Opened by another, named after the project rather than its parent or
+    // the project's session.
     S(pj.watchdog, { session: "watchdog-patch", parent: { session: "watchdog-review" }, startedAt: iso(30), statusUpdatedAt: ms(4), seenAt: iso(1), pct: 5 }),
     S(pj.llm, { session: "llm-ops-nightly", pauseAlarm: { id: "p1", next: ahead(300) },
         checklist: steps(["Pull", "Rotate eval set", "Run", "Report"], 1, false), pct: 9, res: { mem: 64 * 1024**2 } }),

@@ -16,7 +16,7 @@ import { shownName } from "../../agent.js";
 import { listen } from "../chat/answered.js";
 import { stamp, when } from "./card.js";
 import { stateOf } from "./state.js";
-import { GhostCard, Glyph, HeadActs, PastCard, SessionCard, nameOf } from "./sessioncard.js";
+import { GhostCard, Glyph, HeadActs, PastCard, SessionCard, nameOf, namesOf } from "./sessioncard.js";
 import { comparePins, pinAt } from "./pin.js";
 
 // The most pressing state of a block: who waits for the person, who works —
@@ -235,7 +235,7 @@ export function headed(block) {
 // already: the session of its project, which they drop. A heading over cards
 // no project holds says nothing of their names.
 export function knownOf(block) {
-    return block.project ? block.project.session || block.project.name : "";
+    return namesOf(block.project);
 }
 
 // ProjectBlock is one project: a heading with its name, its group and its
