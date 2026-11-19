@@ -227,6 +227,7 @@ function Choice({ prefs, sources, change }) {
                         <${Kind} title="A question" on=${heard("ask")} onFlip=${kind("ask")} />
                         <${Kind} title="Waits for a permission" on=${heard("wait")} onFlip=${kind("wait")} />
                         <${Kind} title="A brief is ready" on=${heard("brief")} onFlip=${kind("brief")} />
+                        <${Kind} title="A claim is overdue" on=${heard("claim")} onFlip=${kind("claim")} />
                     </section>
                 </div>
 

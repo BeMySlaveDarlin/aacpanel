@@ -18,6 +18,7 @@ type prefsRow struct {
 
 type prefsShot struct {
 	CheckDefault, CheckOff, CheckOn bool
+	ClaimKind, ClaimBack            bool
 	Alerts                          struct {
 		Door     string   `json:"door"`
 		Heads    []string `json:"heads"`
@@ -149,6 +150,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		{Title: "A question", Role: "switch", On: "true"},
 		{Title: "Waits for a permission", Role: "switch", On: "true"},
 		{Title: "A brief is ready", Role: "switch", On: "true"},
+		{Title: "A claim is overdue", Role: "switch", On: "true"},
 		{Title: "A long turn finished", Sub: "10 min and longer", Role: "switch", On: "true"},
 		{Title: "A session closed by itself", Sub: "from the same places", Role: "switch", On: "false"},
 		{Title: "A stack went down", Sub: "one push for the stack, not one per container", Role: "switch", On: "true"},
@@ -161,6 +163,9 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		{Title: "A new release of the panel", Sub: "once a release, from GitHub", Role: "switch", On: "true"},
 		{Title: "Sessions after a host reboot", Sub: "one report after automatic recovery", Role: "switch", On: "true"},
 		{Title: "The panel went blind", Sub: "otherwise a failure passes in silence", Role: "switch", On: "true", Disabled: true, Lock: "always"},
+	}
+	if !got.ClaimKind || !got.ClaimBack {
+		t.Errorf("the overdue claim kind did not save its choice: off=%v back=%v", got.ClaimKind, got.ClaimBack)
 	}
 	if !got.CheckDefault || !got.CheckOff || !got.CheckOn {
 		t.Errorf("question classifier switch: %+v", got)

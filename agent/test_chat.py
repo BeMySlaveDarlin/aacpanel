@@ -916,6 +916,76 @@ class OutgoingMail(unittest.TestCase):
         self.assertEqual(self.sent("researcher")[0]["source"], "agent")
 
 
+class Claims(unittest.TestCase):
+    ID = "0123456789abcdef" * 2
+
+    def incoming(self, head, body="First paragraph.\n\nSecond paragraph."):
+        text = f'<cross-session-message from-name="review">{head}\n\n{body}</cross-session-message>'
+        return chat.parse(json.loads(user(text)), 0)[0]
+
+    def test_a_claim_header_becomes_fields_and_leaves_its_words_out(self):
+        for expects, words in (("reply", "a reply"), ("done", "the work done")):
+            for due in ("due in 30 min", "no due"):
+                with self.subTest(expects=expects, due=due):
+                    head = (f"Claim {self.ID} from lead: expects {words}, {due}. Answer with send_to_session "
+                            f"re={self.ID} (outcome done when the work is done, cant if you cannot do it).")
+                    row = self.incoming(head)
+                    self.assertEqual((row.get("claim"), row.get("expects"), row["text"]),
+                                     (self.ID, expects, "First paragraph.\n\nSecond paragraph."))
+
+    def test_a_reply_header_keeps_its_identity_and_outcome(self):
+        for outcome in ("reply", "done", "cant", "withdraw"):
+            with self.subTest(outcome=outcome):
+                row = self.incoming(f"Re claim {self.ID} ({outcome}):")
+                self.assertEqual((row.get("re"), row.get("outcome"), row["text"]),
+                                 (self.ID, outcome, "First paragraph.\n\nSecond paragraph."))
+
+    def test_a_quoted_or_malformed_header_stays_in_the_letter(self):
+        head = f"Re claim {self.ID} (done):"
+        for text in ("Quoted:\n" + head, head.replace(self.ID, "invalid"), head + " not the envelope"):
+            with self.subTest(text=text):
+                row = self.incoming(text)
+                self.assertNotIn("re", row)
+                self.assertTrue(row["text"].startswith(text))
+
+    def test_the_claim_identity_reaches_the_letter_when_its_result_arrives(self):
+        root = test_barrier.tmp_dir()
+        self.addCleanup(root.cleanup)
+        path = os.path.join(root.name, f"{UUID}.jsonl")
+        call = assistant({"type": "tool_use", "id": "claim-use", "name": "mcp__aacpanel__send_to_session",
+                          "input": {"to": "review", "text": "Check the parser.", "expects": "reply"}})
+        with open(path, "w", encoding="utf-8") as stream:
+            stream.write(call)
+        self.assertNotIn("claim", chat.feed(path)["items"][0])
+        result = {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "claim-use",
+                  "content": f"Sent as claim {self.ID}: a letter to review. It has no due."}]}}
+        with open(path, "a", encoding="utf-8") as stream:
+            stream.write(line(result))
+        row = chat.feed(path)["items"][0]
+        self.assertEqual((row.get("claim"), row["text"]), (self.ID, "Check the parser."))
+        self.assertNotIn("open", row)
+
+    def test_equal_words_of_different_claims_stay_separate(self):
+        root = test_barrier.tmp_dir()
+        self.addCleanup(root.cleanup)
+        path = os.path.join(root.name, f"{UUID}.jsonl")
+        first = f'<cross-session-message from-name="review">Re claim {self.ID} (done):\n\nChecked.</cross-session-message>'
+        second = first.replace(self.ID, "f" * 32)
+        with open(path, "w", encoding="utf-8") as stream:
+            stream.write(user(first) + user(second) + user(first))
+        rows = chat.feed(path)["items"]
+        self.assertEqual([row.get("re") for row in rows], [self.ID, "f" * 32])
+
+    def test_an_outgoing_reply_takes_its_reference_from_the_call(self):
+        for outcome in (None, "done", "cant", "withdraw"):
+            args = {"re": self.ID, "text": "The parser is checked."}
+            if outcome:
+                args["outcome"] = outcome
+            record = assistant({"type": "tool_use", "id": "reply-use", "name": "mcp__aacpanel__send_to_session", "input": args})
+            row = chat.parse(json.loads(record), 0)[0]
+            self.assertEqual((row.get("re"), row.get("outcome")), (self.ID, outcome or "reply"))
+
+
 class DeliveryNotice(unittest.TestCase):
     HELD = ("[Cross-session delivery notice] Your message to another session was held "
             "for the recipient user's approval (recipient: uds:/run/user/1000/cc-socks/17.sock). "

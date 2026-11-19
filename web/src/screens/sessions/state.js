@@ -18,6 +18,7 @@ import { seenAt as seenHere } from "../../viewing.js";
 import { shown } from "../chat/answered.js";
 import { checklistOf } from "../chat/checklist.js";
 import { pauseEnd } from "./pause.js";
+import { overdueMinutes } from "../../data/acts.js";
 
 // PAUSE_NO_END is the alarm a session keeps through a pause with no end: it
 // repeats only to keep the mark of the pause, and its ring is not the end.
@@ -197,6 +198,18 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     const agentSteps = agentStepsOf(s);
     if (agentSteps.length > 0) {
         return make("bg", "agentstep", "agent's step", { subject: agentSteps[0].title || "", since: agentSteps[0].at || "" });
+    }
+    const incoming = (s.claims?.in || []).find((claim) => overdueMinutes(claim) !== null);
+    if (incoming) return make("idle", "claim", "owes", {
+        subject: incoming.from, note: `overdue ${overdueMinutes(incoming)}m`, since: incoming.at,
+    });
+    const outgoing = s.claims?.out || [];
+    if (outgoing.length > 0) {
+        const late = outgoing.find((claim) => overdueMinutes(claim) !== null);
+        return make("idle", "claim", "waits for", {
+            subject: `${outgoing[0].peer}${outgoing.length > 1 ? ` +${outgoing.length - 1}` : ""}`,
+            note: late ? `overdue ${overdueMinutes(late)}m` : "", since: outgoing[0].at,
+        });
     }
     if (s.noRequests) return make("idle", "fresh", "no replies yet");
     if (s.pauseAlarm) {

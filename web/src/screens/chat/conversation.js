@@ -122,7 +122,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const actRunning = Object.values(acts).some((act) => act.state === "open" && act.outputs?.some((out) => out?.state === "running"));
     const waitingItems = useWaiting(live, true);
     useEffect(() => clearWaitingTargets(waitingItems, feedRef.current), [waitingItems]);
-    const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret", "ask", "question"].includes(item.role)).map((item) => item.id).join("|");
+    const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret", "ask", "question"].includes(item.role) || item.claim || item.re).map((item) => item.id || item.claim || item.re).join("|");
     useEffect(() => {
         if (!id) return;
         let active = true;
@@ -133,7 +133,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             for (const row of list) if (!actOpen(row)) settleWaiting(live, row.kind === "do" ? "request" : row.kind === "ask" ? "question" : row.kind, row.id);
         }).catch((err) => { if (active) setActError(String(err.message || err)); });
         return () => { active = false; };
-    }, [id, actCards, live && live.waiting, actRefresh]);
+    }, [id, actCards, live && live.waiting, live && live.claims, actRefresh]);
     useEffect(() => {
         if (!actRunning) return;
         const timer = setInterval(() => refreshActs((n) => n + 1), 2000);
@@ -159,6 +159,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         const result = await run(kind, name, { act, step });
         if (result.ok) refreshActs((n) => n + 1);
     };
+    const withdrawClaim = useSteady(async (act) => {
+        const result = await run("act.withdraw", act.session, { act: act.id });
+        if (result.ok) setActs((was) => ({ ...was, [act.id]: { ...was[act.id], state: "withdrawn", withdrawn: new Date().toISOString() } }));
+    });
     const pickWaiting = async (item) => {
         try {
             if (!await revealWaiting(item, show, feedRef.current)) toast("The card is not in the transcript yet");
@@ -668,7 +672,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         onFile=${onFile}
                         onBrief=${openBrief}
                         briefs=${briefs}
-                        act=${acts[item.actReplyID || item.id]}
+                        act=${acts[item.claim || item.re || item.actReplyID || item.id]}
+                        onClaimWithdraw=${knows(exec, "act.withdraw") ? withdrawClaim : null}
                         onAct=${selectAct}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}

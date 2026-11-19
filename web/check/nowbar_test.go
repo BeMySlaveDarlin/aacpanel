@@ -285,20 +285,33 @@ func TestTheBarOfATurnThatEndedSaysTheAgentsAtWork(t *testing.T) {
 		Clock string   `json:"clock"`
 	}
 	var got struct {
-		WaitTop     string    `json:"waitTop"`
-		WaitAll     string    `json:"waitAll"`
-		WaitButton  bool      `json:"waitIsButton"`
-		Wait        waitShape `json:"wait"`
-		FlowsTop    string    `json:"flowsTop"`
-		Opened      []string  `json:"opened"`
-		None        string    `json:"none"`
-		GoingTop    string    `json:"goingTop"`
-		HeadOver    string    `json:"headOver"`
-		HeadBusy    string    `json:"headBusy"`
-		HeadWaiting string    `json:"headWaiting"`
-		Error       string    `json:"error"`
+		WaitTop      string    `json:"waitTop"`
+		WaitAll      string    `json:"waitAll"`
+		WaitButton   bool      `json:"waitIsButton"`
+		Wait         waitShape `json:"wait"`
+		FlowsTop     string    `json:"flowsTop"`
+		Opened       []string  `json:"opened"`
+		None         string    `json:"none"`
+		GoingTop     string    `json:"goingTop"`
+		HeadOver     string    `json:"headOver"`
+		HeadBusy     string    `json:"headBusy"`
+		HeadWaiting  string    `json:"headWaiting"`
+		ClaimWait    string    `json:"claimWait"`
+		ClaimSeveral string    `json:"claimSeveral"`
+		ClaimOwes    string    `json:"claimOwes"`
+		ClaimQuiet   bool      `json:"claimQuiet"`
+		ClaimWorking bool      `json:"claimWorking"`
+		ClaimFuture  bool      `json:"claimFuture"`
+		Error        string    `json:"error"`
 	}
 	runFixture(t, "waitbar.html", &got)
+	if got.ClaimWait != "waits for review" || got.ClaimSeveral != "waits for review +1 · overdue 7m" || got.ClaimOwes != "owes lead · overdue 3m" {
+		t.Errorf("claims say %q, %q, %q", got.ClaimWait, got.ClaimSeveral, got.ClaimOwes)
+	}
+	if !got.ClaimQuiet || !got.ClaimWorking || !got.ClaimFuture {
+		t.Errorf("claim priority: quiet=%v working=%v future=%v", got.ClaimQuiet, got.ClaimWorking, got.ClaimFuture)
+	}
+
 	if got.Error != "" {
 		t.Fatalf("the fixture broke: %s", got.Error)
 	}

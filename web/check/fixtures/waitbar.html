@@ -16,6 +16,12 @@ import { render } from "preact";
 import { html } from "/src/html.js";
 import { WorkStatus } from "/src/screens/chat/work.js";
 import { stateOf } from "/src/screens/chat/head.js";
+import { stateOf as sessionState } from "/src/screens/sessions/state.js";
+const until = async (ready) => {
+    const end = performance.now() + 5000;
+    while (!ready() && performance.now() < end) await new Promise(resolve => requestAnimationFrame(resolve));
+    if (!ready()) throw new Error("The bar did not reach its expected state");
+};
 
 const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
 const feed = [
@@ -40,7 +46,6 @@ put("flows", { work: { tasks: [], agents: [agent("audit", "stopped", 900)],
 put("none", { work: { tasks: [], agents: [agent("audit", "stopped", 900)], workflows: [] }, turnOver: true });
 put("going", { work, turnOver: false });
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 // The bar of the agents read as the bar of a turn is: its parts in order,
@@ -58,7 +63,7 @@ const shape = (id) => {
 window.done = (async () => {
     const out = {};
     try {
-        for (let i = 0; i < 50 && !document.querySelector("#wait .nowbar"); i++) await sleep(20);
+        await until(() => document.querySelector("#wait .nowbar"));
         const wait = document.getElementById("wait");
         out.waitTop = text(wait.querySelector(".nowtop"));
         out.waitAll = text(wait);
@@ -76,6 +81,18 @@ window.done = (async () => {
         out.headOver = stateOf({ status: "busy", turnOver: true }).word;
         out.headBusy = stateOf({ status: "busy" }).word;
         out.headWaiting = stateOf({ status: "waiting", turnOver: true, waitingFor: "dialog open" }).word;
+        const claim = (peer, due) => ({ peer, from: peer, at: ago(1000), due });
+        const idle = { status: "idle", claims: { out: [claim("review", null)], in: [] } };
+        out.claimWait = sessionState(idle).text;
+        const several = { ...idle, claims: { out: [claim("review", ago(420)), claim("build", null)], in: [] } };
+        out.claimSeveral = sessionState(several).text;
+        const owed = { ...idle, claims: { out: [], in: [claim("lead", ago(180))] } };
+        out.claimOwes = sessionState(owed).text;
+        out.claimQuiet = [idle, several, owed].every(row => sessionState(row).tone === "idle");
+        out.claimWorking = sessionState({ ...owed, status: "busy" }).word === "working"
+            && sessionState({ ...idle, status: "waiting", waitingFor: "dialog open" }).tone === "wait";
+        out.claimFuture = sessionState({ ...idle, claims: { out: [], in: [claim("lead", new Date(Date.now() + 60000).toISOString())] } }).word === "idle";
+
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

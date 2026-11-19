@@ -95,6 +95,24 @@ IDLE_SAYS_RE = re.compile(r"Its harness reports:\s*«(.*?)»", re.S)
 HOOK_MARK = "Stop hook feedback:"
 HOOK_TAG_RE = re.compile(r"^\[([^\]]+)\]\s*")
 
+CLAIM_RE = re.compile(
+    r"Claim ([0-9a-f]{32}) from [^\n]+: expects (a reply|the work done), "
+    r"(?:due in [1-9]\d* min|no due)\. Answer with send_to_session re=\1 "
+    r"\(outcome done when the work is done, cant if you cannot do it\)\.")
+CLAIM_REPLY_RE = re.compile(r"Re claim ([0-9a-f]{32}) \((reply|done|cant|withdraw)\):")
+
+
+def claim_letter(text):
+    """Separates the panel's first line from the words of a claim or its answer."""
+    head, _, body = text.partition("\n")
+    found = CLAIM_RE.fullmatch(head)
+    if found:
+        return {"claim": found.group(1), "expects": "reply" if found.group(2) == "a reply" else "done"}, body.lstrip("\n")
+    found = CLAIM_REPLY_RE.fullmatch(head)
+    if found:
+        return {"re": found.group(1), "outcome": found.group(2)}, body.lstrip("\n")
+    return {}, text
+
 
 def idle_notice(text):
     """Returns a neighbour session going idle as (its name, what its harness said)."""
@@ -150,9 +168,10 @@ def service(text, at, pos):
             or "<agent-message" in text):
         out = []
         for who, source, said in mails(text):
+            fields, said = claim_letter(said)
             body, trimmed = cut(said, MAX_TEXT)
             out.append({"role": "mail", "from": who, "source": source,
-                        "text": body, "cut": trimmed, "at": at, "pos": pos})
+                        "text": body, "cut": trimmed, "at": at, "pos": pos, **fields})
         return out
 
     if "<task-notification>" in text:

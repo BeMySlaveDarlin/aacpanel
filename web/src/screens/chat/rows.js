@@ -6,7 +6,8 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { dedent, leadOf, render } from "../../md.js";
-import { plural, stopwatch } from "../../format.js";
+import { alarmTime, plural, stopwatch } from "../../format.js";
+import { overdueMinutes } from "../../data/acts.js";
 import { resend, useSendAgain } from "./again.js";
 import { MessageMenu, LetterMenu } from "./feedmenu.js";
 import { saverOf } from "./look.js";
@@ -28,6 +29,7 @@ import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
 import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
 import { pure } from "../../ui/pure.js";
+import { useTick } from "./now.js";
 
 // FeedWrites is what the screen of a feed lends its messages for their
 // menus: quote(text) and edit(text) put words into the composer, where
@@ -40,7 +42,7 @@ export const FeedWrites = createContext(null);
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, question, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct }) {
+export function Row({ item, question, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onClaimWithdraw }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -73,7 +75,7 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
     if (item.role === "mail") {
         if ((item.source === "panel" && ["pause", "pause with no end", "pause over"].includes(item.from)) ||
             (item.source === "alarm" && item.from === "pause")) return html`<${PauseCard} item=${item} />`;
-        return html`<${Letter} item=${item} />`;
+        return html`<${Letter} item=${item} record=${act} onWithdraw=${onClaimWithdraw} />`;
     }
 
     if (item.role === "wake") {
@@ -334,7 +336,29 @@ function PauseCard({ item }) {
     </div>`;
 }
 
-function Letter({ item }) {
+function ClaimMark({ item, record, onWithdraw }) {
+    useTick();
+    const sending = useRef(false);
+    const [busy, setBusy] = useState(false);
+    const open = record?.state === "open";
+    const overdue = open ? overdueMinutes(record) : null;
+    const outcome = record?.outcome || record?.answer?.outcome;
+    const status = record?.state === "answered" ? outcome === "done" ? "done" : "answered"
+        : record?.state === "declined" ? "can't" : record?.state === "withdrawn" ? "withdrawn" : "";
+    const due = record?.due ? `due ${alarmTime(Date.parse(record.due))}` : "no due";
+    const text = ["claim", record?.expects || record?.body?.expects || item.expects,
+        record && due, status || (overdue !== null ? `overdue ${overdue}m` : "")].filter(Boolean).join(" · ");
+    const withdraw = async () => {
+        if (sending.current) return;
+        sending.current = true; setBusy(true);
+        try { await onWithdraw(record); } finally { sending.current = false; setBusy(false); }
+    };
+    return html`<span class="claimmark" data-claim=${item.claim}>${text}</span>
+        ${open && item.dir === "out" && !record.incoming && onWithdraw && html`
+            <button class="claimwithdraw" type="button" disabled=${busy} onClick=${withdraw}>Withdraw</button>`}`;
+}
+
+function Letter({ item, record, onWithdraw }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     const [open, setOpen] = useState(false);
@@ -353,7 +377,8 @@ function Letter({ item }) {
     }, [text, open]);
     // A letter that went nowhere always opens: its reason is inside.
     const more = text.trim() !== lead.trim() || clamped || Boolean(lost);
-    const who = kind === "hook" || kind === "wake" || kind === "task" ? "" : (item.whoName || item.from || MAIL_WHO[kind]);
+    const peer = item.re && (record?.incoming ? record.session : record?.peer);
+    const who = kind === "hook" || kind === "wake" || kind === "task" ? "" : (item.whoName || item.from || peer || MAIL_WHO[kind]);
     const word = MAIL_WORD[kind];
     const copies = item.role === "mail" && Boolean(item.text && item.text.trim());
     return html`
@@ -362,12 +387,14 @@ function Letter({ item }) {
             <div class="senthead">
                 <span class="sentico">${MAIL_ICONS[kind]()}</span>
                 <span class="sentlabel">${MAIL_LABEL[kind][out ? 1 : 0]}</span>
+                ${item.claim && html`<${ClaimMark} item=${item} record=${record} onWithdraw=${onWithdraw} />`}
                 ${lost && html`<span class="mletterlost" title=${item.undelivered}>not delivered</span>`}
                 ${copies && html`
                     <button class="cmdcopy msgcopy" type="button" aria-label="copy the letter"
                             data-md=${item.text}>${Icon.copy()}</button>`}
                 ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
             </div>
+            ${item.re && html`<div class="claimreply">re: ${record?.title || item.re} · ${item.outcome || "reply"}</div>`}
             ${who && html`<div class="mletterwho" title=${item.from || ""}>${who}</div>`}
             ${open && lost && html`<p class="hint warn mletterwhy">${item.undelivered}</p>`}
             <div class=${`sentcap mletterbody${open ? "" : " closed"}`} ref=${cap}>${render(open ? text : lead, { onRun: writes.onRun })}</div>

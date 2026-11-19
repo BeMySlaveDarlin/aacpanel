@@ -5,7 +5,13 @@ export async function list(session) {
     const data = await response.json();
     return (data.acts || []).map((row) => ({
         ...row, ...row.body, answered: ["answered", "declined"].includes(row.state) ? row.closed : null,
+        ...(row.kind === "claim" ? { due: row.due } : {}),
         withdrawn: row.state === "withdrawn" ? row.closed : null,
         outcome: row.answer && row.answer.outcome, note: row.answer && row.answer.note || "",
     }));
+}
+
+export function overdueMinutes(claim) {
+    const due = Date.parse(claim?.due || "");
+    return Number.isFinite(due) && due <= Date.now() ? Math.floor((Date.now() - due) / 60000) : null;
 }

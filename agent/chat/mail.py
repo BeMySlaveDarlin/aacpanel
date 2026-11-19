@@ -167,6 +167,13 @@ def peer_pid(address):
 # The panel's tool that writes to a live session of any account on the
 # machine: a letter as SendMessage writes one, to a session by its name.
 LETTER_TOOL = "mcp__aacpanel__send_to_session"
+SENT_CLAIM_RE = re.compile(r"\ASent as claim ([0-9a-f]{32}):")
+
+
+def sent_claim(said):
+    """Returns the identity the panel assigned to an outgoing claim."""
+    found = SENT_CLAIM_RE.match(said or "")
+    return found.group(1) if found else ""
 
 
 def peer_name(address):

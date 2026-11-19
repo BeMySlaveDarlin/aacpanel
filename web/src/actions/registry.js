@@ -508,6 +508,10 @@ export const ACTIONS = {
         instant: true,
         done: (target) => `Step stopped in ${target}`,
     },
+    "act.withdraw": {
+        instant: true,
+        done: (target) => `Claim withdrawn in ${target}`,
+    },
     // A command after "!" is typed and run with no sheet in between, as in
     // the composer of a terminal: the press is the decision.
     "session.shell": {
@@ -1151,6 +1155,7 @@ const NAMES = {
     "session.send": "Write to session",
     "act.run": "Run a chain step",
     "act.stop": "Stop a chain step",
+    "act.withdraw": "Withdraw a claim",
     "session.shell": "Run a shell command",
     // No screen sends a letter: a session writes one to another with a tool
     // of the panel's server, and the journal names it here.

@@ -11,7 +11,7 @@ from .cards import (BRIEF_TOOL, NOTIFY_TOOL, SECRET_TOOL, REQUEST_TOOL, request_
                     permit_card, permit_row, secret_call, secret_card, sent_card, wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
                       service, strip_panel_note, unwrap_pasted)
-from .mail import LETTER_TOOL, panel_message, peer_name, peer_pid, undelivered
+from .mail import LETTER_TOOL, panel_message, peer_name, peer_pid, sent_claim, undelivered
 from .notices import hook_call, system_notice
 from .limits import MAX_NOTE, MAX_TEXT, cut
 from .queue import delivered, withdrawn
@@ -364,6 +364,10 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                             lost = undelivered(sesstate.result_text(b), b.get("is_error"))
                             if lost:
                                 mark["undelivered"] = lost
+                            elif call.get("claiming"):
+                                claim = sent_claim(sesstate.result_text(b))
+                                if claim:
+                                    mark["claim"] = claim
                         settled.append(mark)
                     if permits and use in permits:
                         allowed.append(permit_row(permits[use], call))
@@ -644,11 +648,14 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                                   "text": body, "cut": trimmed,
                                   "use": block.get("id") or "",
                                   "at": at, "pos": pos}
+                        if name == LETTER_TOOL and data.get("re"):
+                            letter.update(re=data["re"], outcome=data.get("outcome") or "reply")
                         # Whether the letter reached anyone is known only
                         # from the answer: the letter waits for it as a call
                         # does, and the fold marks it when it comes.
                         if calls is not None and letter["use"]:
                             calls[letter["use"]]["letter"] = True
+                            calls[letter["use"]]["claiming"] = name == LETTER_TOOL and bool(data.get("expects"))
                             letter["open"] = True
                         out.append(letter)
                         continue

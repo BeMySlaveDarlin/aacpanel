@@ -13,10 +13,12 @@ export function movesOf(acts, waiting, native) {
     const moves = new Map();
     for (const item of waiting) {
         const act = acts[item.id];
+        if (item.kind === "claim" || act?.kind === "claim") continue;
         if (act && !actOpen(act)) continue;
         moves.set(moveKey(item), { ...item, ...act, kind: item.kind, at: item.at || act?.created });
     }
     for (const act of Object.values(acts)) {
+        if (act.kind === "claim") continue;
         if (!actOpen(act)) continue;
         const kind = kindOf[act.kind] || act.kind;
         const key = moveKey({ ...act, kind });

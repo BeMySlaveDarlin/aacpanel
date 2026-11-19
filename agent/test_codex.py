@@ -637,6 +637,24 @@ class McpCalls(Runtime):
         self.assertEqual((got["result"], got["failed"]),
                          ("MCP tool call requires approval, but approval policy is never", True))
 
+    def test_claims_and_replies_keep_the_same_fields_as_claude(self):
+        claim = "0123456789abcdef" * 2
+        row = chat.parse(mcp_call("aacpanel", "send_to_session", {"to": "lab", "text": "Check it.", "expects": "done"},
+                                 text=f"Sent as claim {claim}: sent."), 4)[0]
+        self.assertEqual((row.get("claim"), row["text"]), (claim, "Check it."))
+        for outcome in (None, "done", "cant", "withdraw"):
+            args = {"re": claim, "text": "Checked."}
+            if outcome:
+                args["outcome"] = outcome
+            row = chat.parse(mcp_call("aacpanel", "send_to_session", args, text="Sent."), 4)[0]
+            self.assertEqual((row.get("re"), row.get("outcome")), (claim, outcome or "reply"))
+        for head, fields in ((f"Claim {claim} from lead: expects a reply, due in 30 min. Answer with send_to_session "
+                             f"re={claim} (outcome done when the work is done, cant if you cannot do it).", {"claim": claim, "expects": "reply"}),
+                             (f"Re claim {claim} (done):", {"re": claim, "outcome": "done"})):
+            row = chat.parse(message(f'<cross-session-message from-name="lead">{head}\n\nCheck it.</cross-session-message>'), 4)[0]
+            self.assertEqual({key: row.get(key) for key in fields}, fields)
+            self.assertEqual(row["text"], "Check it.")
+
     def test_a_letter_of_the_thread_is_an_outgoing_letter(self):
         rows = chat.parse(mcp_call("aacpanel", "send_to_session", {"to": "lab", "text": "The review is done."},
                                    text="Sent: a letter from codex-0000abcd to lab."), 4)

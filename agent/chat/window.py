@@ -137,6 +137,8 @@ def fold(rows, limit, before, after):
             call["shots"] = [dict(shot) for shot in mark["shots"]]
         if mark.get("undelivered"):
             call["undelivered"] = mark["undelivered"]
+        if mark.get("claim"):
+            call["claim"] = mark["claim"]
         touch(group, rows_of)
 
     def open_calls():
@@ -187,6 +189,7 @@ def fold(rows, limit, before, after):
             # two calls, however alike their words.
             if any(was["role"] == "mail" and was["from"] == item["from"]
                    and was["text"] == item["text"] and was.get("use") == item.get("use")
+                   and all(was.get(key) == item.get(key) for key in ("claim", "re", "outcome"))
                    for was in window):
                 return
         if item["role"] == "think":

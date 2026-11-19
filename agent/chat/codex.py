@@ -30,11 +30,11 @@ import contours
 import held
 import sesstate
 
-from .harness import COMPACTED, STOPPED
+from .harness import COMPACTED, STOPPED, claim_letter
 from .cards import (BRIEF_TOOL, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT, NOTIFY_TOOL, SECRET_TOOL,
                     brief_card, call_card, secret_call, secret_card, sent_card, REQUEST_TOOL, request_card)
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
-from .mail import LETTER_TOOL, mails, peer_name, undelivered
+from .mail import LETTER_TOOL, mails, peer_name, sent_claim, undelivered
 from .tools import one_line, tool_arg, tool_kind, tool_label
 
 KINDS = ("session_meta", "world_state", "turn_context", "response_item",
@@ -430,9 +430,10 @@ def _letters(text, at, pos):
         return []
     out = []
     for who, source, said in mails(text):
+        fields, said = claim_letter(said)
         body, trimmed = cut(said, MAX_TEXT)
         out.append({"role": "mail", "from": who, "source": source, "text": body, "cut": trimmed,
-                    "at": at, "pos": pos})
+                    "at": at, "pos": pos, **fields})
     return out
 
 
@@ -509,6 +510,12 @@ def _mcp_call(item, use, at, pos, shelf=None):
         lost = undelivered(_mcp_said(item), _failed(item))
         if lost:
             letter["undelivered"] = lost
+        elif args.get("expects"):
+            claim = sent_claim(_mcp_said(item))
+            if claim:
+                letter["claim"] = claim
+        if args.get("re"):
+            letter.update(re=args["re"], outcome=args.get("outcome") or "reply")
         return [letter]
     return _call(tool_label(name, args), tool_arg(args, name), use, 0, _failed(item), at, pos,
                  kind=tool_kind(name))

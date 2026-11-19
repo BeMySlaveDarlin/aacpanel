@@ -99,13 +99,12 @@ const alerts = { kind: "ready", alerts: [], older: [], more: () => {} };
 render(h(ToastHost, null, h(GateHost, null, h(Alerts, { alerts, onAction: () => {}, onBack: () => {} }))),
     document.getElementById("root"));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms = 4000) => {
     const end = Date.now() + ms;
     while (Date.now() < end) {
         const got = fn();
         if (got) return got;
-        await sleep(25);
+        await new Promise(resolve => requestAnimationFrame(resolve));
     }
     return fn();
 };
@@ -149,7 +148,7 @@ window.done = (async () => {
 
     door.click();
     await until(() => row("A question"));
-    await sleep(60);
+    await until(() => row("A claim is overdue") && text(root.querySelector(".nfdevice .nfsub")).startsWith("phone ·"));
     out.head = text(root.querySelector(".phead h2"));
     out.heads = all(".grouphead").map(text);
     const device = root.querySelector(".nfdevice");
@@ -169,6 +168,9 @@ window.done = (async () => {
     out.question = (await press(row("A question"))).off;
     out.questionShown = row("A question").getAttribute("aria-checked");
     out.questionBack = (await press(row("A question"))).off;
+    out.claimKind = (await press(row("A claim is overdue"))).off.includes("claim")
+        && row("A claim is overdue").getAttribute("aria-checked") === "false";
+    out.claimBack = !(await press(row("A claim is overdue"))).off.includes("claim");
     // Closed sessions come back; recoveries stay off.
     out.gone = (await press(row("A session closed by itself"))).off;
 

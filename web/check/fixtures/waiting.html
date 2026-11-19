@@ -46,7 +46,7 @@ window.fetch = counted(async (input, options) => {
         const body = JSON.parse(options.body); sent.push(body);
         if (hold) { hold = false; await new Promise(resolve => { release = resolve; }); }
         if (refuse) return json({ error: "Delivery refused" }, 502);
-        if (body.params.act) acts = acts.map(a => a.id === body.params.act ? { ...a, state: body.params.answer === "decline" ? "declined" : "answered", closed: new Date().toISOString(), answer: body.params.answers ? { answers: body.params.answers } : { outcome: body.params.answer, note: body.params.note } } : a);
+        if (body.params.act) acts = acts.map(a => a.id === body.params.act ? { ...a, state: body.kind === "act.withdraw" ? "withdrawn" : body.params.answer === "decline" ? "declined" : "answered", closed: new Date().toISOString(), answer: body.params.answers ? { answers: body.params.answers } : { outcome: body.params.answer, note: body.params.note } } : a);
         if (body.kind === "session.send" && body.params.text) acts = acts.map(a => a.kind === "ask" && a.body.source === "prose" && a.state === "open" ? { ...a, state: "answered", closed: new Date().toISOString() } : a);
         return json({ ok: true });
     }
@@ -62,7 +62,7 @@ const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport:
     waiting: [{ kind: "request", id: req.id, title: req.title, pos: 10, at, blocking: true }, { kind: "secret", id: sec.id, title: sec.title, pos: 11, at }] };
 const exec = { available: true, kinds: ["session.send", "session.answer", "session.dismiss", "session.shell", "secret.put", "session.file"] };
 const root = document.querySelector("#root");
-const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
+const draw = (live = session) => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${live} exec=${exec} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
 const count = () => Number(document.querySelector(".movepill .movecount")?.textContent || 0);
 const form = () => document.querySelector(".actform:not(.actsent)");
 const button = (word) => [...form().querySelectorAll("button")].find(b => b.textContent.trim() === word);
@@ -356,6 +356,57 @@ window.done = (async () => {
     out.askPutAway = out.askPutAway && sent.at(-1).kind === "session.send"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: independent.id, answer: "decline" })
         && card(independent.id)?.querySelector(".sentlabel").textContent === "question · declined" && !form();
+    const claim = (id, title, more = {}) => ({ id: id.repeat(32), kind: "claim", session: "work", peer: "review", title,
+        state: "open", created: at, body: { expects: "reply", due: 15 }, due: new Date(Date.now() + 15 * 60000).toISOString(), rung: 0, overdue: false, ...more });
+    const outgoing = claim("1", "Check the parser");
+    const answered = claim("2", "Build the bundle", { state: "answered", answer: { outcome: "done" } });
+    const replyAnswered = claim("7", "Read the findings", { state: "answered", answer: { outcome: "reply" } });
+    const incoming = claim("3", "Review the migration", { incoming: true, session: "review", peer: "work", body: { expects: "done", due: null }, due: null });
+    const overdue = claim("4", "Check the release", { session: "saved-sender", due: new Date(Date.now() - 7 * 60000).toISOString(), overdue: true, rung: 1 });
+    const claimDeclined = claim("5", "Check the host", { state: "declined", answer: { outcome: "cant" } });
+    const claimWithdrawn = claim("6", "Check the archive", { state: "withdrawn" });
+    const claims = [outgoing, answered, incoming, overdue, claimDeclined, claimWithdrawn, replyAnswered];
+    acts = [...acts, ...claims];
+    items = [...items, ...claims.map((act, n) => ({ role: "mail", source: "session", claim: act.id,
+        ...(act.incoming ? {} : { dir: "out" }), from: "review", text: act.title, pos: 60 + n, at })),
+        { role: "mail", source: "session", dir: "out", from: "review", re: incoming.id, outcome: "reply", text: "I am checking it.", pos: 67, at }];
+    exec.kinds = [...exec.kinds, "act.withdraw"];
+    session.claims = { out: [outgoing, overdue], in: [incoming] };
+    draw();
+    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 67, total: items.length }) });
+    const letter = (id) => document.querySelector(`[data-claim="${id}"]`)?.closest(".mletter");
+    const badge = (id) => letter(id)?.querySelector(".claimmark")?.textContent || "";
+    await until(() => letter(outgoing.id)?.querySelector(".claimwithdraw") && badge(answered.id).includes("done"));
+    out.claimOut = badge(outgoing.id).startsWith("claim · reply · due ") && Boolean(letter(outgoing.id)?.querySelector(".senthead .claimmark"));
+    out.claimAnswered = badge(answered.id).endsWith(" · done") && badge(replyAnswered.id).endsWith(" · answered")
+        && !letter(replyAnswered.id)?.querySelector(".claimwithdraw") && !letter(answered.id)?.querySelector(".claimwithdraw");
+    out.claimIncoming = badge(incoming.id) === "claim · done · no due" && !letter(incoming.id)?.querySelector(".claimwithdraw");
+    out.claimOverdue = badge(overdue.id).includes("overdue 7m");
+    out.claimClosed = badge(claimDeclined.id).endsWith(" · can't") && badge(claimWithdrawn.id).endsWith(" · withdrawn")
+        && !letter(claimDeclined.id)?.querySelector("button.claimwithdraw") && !letter(claimWithdrawn.id)?.querySelector("button.claimwithdraw");
+    out.claimReply = document.querySelector(".claimreply")?.textContent === "re: Review the migration · reply";
+    out.claimNotMove = count() === 0 && !form() && movesOf(Object.fromEntries(claims.map(a => [a.id, a])), [], []).length === 0
+        && movesOf({ [incoming.id]: incoming }, [{ kind: "claim", id: incoming.id, at }], []).length === 0;
+    exec.kinds = exec.kinds.filter(kind => kind !== "act.withdraw"); draw();
+    await until(() => !letter(outgoing.id)?.querySelector(".claimwithdraw"));
+    out.claimCapability = !letter(outgoing.id)?.querySelector(".claimwithdraw");
+    exec.kinds = [...exec.kinds, "act.withdraw"]; draw();
+    await until(() => letter(outgoing.id)?.querySelector(".claimwithdraw"));
+    const claimStart = sent.length;
+    refuse = true; letter(outgoing.id).querySelector(".claimwithdraw").click(); await quiet();
+    out.claimRefused = Boolean(letter(outgoing.id).querySelector(".claimwithdraw")) && !badge(outgoing.id).includes("withdrawn");
+    refuse = false; hold = true;
+    const withdraw = letter(outgoing.id).querySelector(".claimwithdraw"); withdraw.click(); withdraw.click();
+    await until(() => sent.length === claimStart + 2 && release);
+    release(); await until(() => badge(outgoing.id).endsWith(" · withdrawn"));
+    out.claimWithdraw = sent.length === claimStart + 2 && sent.at(-1).kind === "act.withdraw" && sent.at(-1).target === "work"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: outgoing.id }) && !letter(outgoing.id).querySelector(".claimwithdraw");
+    draw(null);
+    await until(() => letter(overdue.id)?.querySelector(".claimwithdraw"));
+    letter(overdue.id).querySelector(".claimwithdraw").click();
+    await until(() => badge(overdue.id).endsWith(" · withdrawn"));
+    out.claimArchive = sent.at(-1).kind === "act.withdraw" && sent.at(-1).target === "saved-sender"
+        && sent.at(-1).params.act === overdue.id;
     return out;
 })();
 </script>
