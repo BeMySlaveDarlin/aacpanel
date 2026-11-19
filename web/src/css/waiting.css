@@ -26,7 +26,7 @@
 .chainstep.failed .chainicon, .chainresult.failed, .chainstatus.failed { color: var(--crit); }
 .chainlead { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .45rem; flex: 1; min-width: 0; color: var(--ink); }
 .chainwho { flex: none; color: var(--ink-faint); font: var(--t-sm) var(--mono); }
-.chaintext { flex: 1 1 12rem; min-width: 0; margin: 0; padding: 0; font-size: var(--t-base); }
+.chaintext { flex: 1 1 100%; min-width: 0; margin: 0; padding: 0; font-size: var(--t-base); }
 .chaintext > :first-child { margin-top: 0; }
 .chaintext > :last-child { margin-bottom: 0; }
 .chainstep:not(.current):not(.expanded) .chaintext { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
