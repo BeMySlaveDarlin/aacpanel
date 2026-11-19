@@ -237,10 +237,9 @@ func (r Request) Validate() error {
 				if err := safeText(text); err != nil {
 					return err
 				}
-				if len(r.Answer.Picks[i]) > 0 {
-					return badRequest(
-						"question %d got both a pick and words of your own — in the dialog these are different items", i+1)
-				}
+				// A pick beside words of one's own is the question's to refuse:
+				// a multiple choice takes both, a single one and a terminal
+				// dialog do not, and only the executor holds the question.
 			}
 		}
 		if len(r.Answer.Notes) > 0 {

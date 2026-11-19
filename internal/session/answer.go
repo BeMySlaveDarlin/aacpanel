@@ -90,6 +90,9 @@ func Answer(h Host) mcp.Tool {
 				if !questions[i].Multi && len(answer.Picks) > 1 {
 					return fmt.Sprintf("Nothing was answered: question %d takes one option.", i+1), true
 				}
+				if !questions[i].Multi && len(answer.Picks) > 0 && strings.TrimSpace(answer.Text) != "" {
+					return fmt.Sprintf("Nothing was answered: question %d takes one option or words of your own, not both.", i+1), true
+				}
 				for _, label := range answer.Picks {
 					found := 0
 					for n, option := range questions[i].Options {

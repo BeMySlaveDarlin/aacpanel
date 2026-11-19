@@ -366,12 +366,16 @@ func TestAnswerRequestChecksOwnWords(t *testing.T) {
 	if err := ask(&Answer{AskID: "toolu_42", Picks: [][]int{{1}}}).Validate(); err != nil {
 		t.Fatalf("a plain pick is rejected: %v", err)
 	}
+	// Every option of a multiple choice and words of one's own beside them:
+	// whether the question takes both is the executor's, which holds it.
+	if err := ask(&Answer{AskID: "toolu_42", Picks: [][]int{{1, 2, 3}}, Texts: []string{"and the rest of it"}}).Validate(); err != nil {
+		t.Fatalf("picks beside words of one's own are rejected before the question is seen: %v", err)
+	}
 
 	bad := map[string]*Answer{
 		"nothing but spaces":        {AskID: "toolu_42", Picks: [][]int{{}}, Texts: []string{"   \n  "}},
 		"control character":         {AskID: "toolu_42", Picks: [][]int{{}}, Texts: []string{"my \x1b[31mwords"}},
 		"over the ceiling":          {AskID: "toolu_42", Picks: [][]int{{}}, Texts: []string{strings.Repeat("a", AskTextMax+1)}},
-		"both a pick and words":     {AskID: "toolu_42", Picks: [][]int{{1}}, Texts: []string{"can I answer differently"}},
 		"more words than questions": {AskID: "toolu_42", Picks: [][]int{{1}}, Texts: []string{"", "extra"}},
 		"without an id":             {AskID: "", Picks: [][]int{{}}, Texts: []string{"words of my own"}},
 	}

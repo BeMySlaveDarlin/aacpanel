@@ -55,6 +55,32 @@ func TestAParentAnswersTheChildsQuestionByOptionLabelsAndOwnWords(t *testing.T) 
 	}
 }
 
+// A multiple choice takes every option and words of one's own beside them.
+func TestAParentAnswersAMultipleChoiceWithPicksAndOwnWords(t *testing.T) {
+	var params map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/chat" {
+			_, _ = w.Write([]byte(`{"state":{"ask":{"toolUseId":"q","questions":[{"text":"Choose","multi":true,"options":[{"label":"First"},{"label":"Second"}]}]}}}`))
+			return
+		}
+		var request map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&request)
+		params, _ = request["params"].(map[string]any)
+		_, _ = w.Write([]byte(`{"detail":"question answered"}`))
+	}))
+	t.Cleanup(server.Close)
+	said, failed := Answer(Host{Panel: server.URL}).Call(t.Context(), bound(mine),
+		[]byte(`{"name":"child","ask":"q","answers":[{"picks":["First","Second"],"text":"and a third"}]}`))
+	if failed {
+		t.Fatalf("the multiple choice was refused: %s", said)
+	}
+	picks, _ := json.Marshal(params["picks"])
+	texts, _ := json.Marshal(params["texts"])
+	if string(picks) != `[[1,2]]` || string(texts) != `["and a third"]` {
+		t.Fatalf("the picks or own words were lost: %s %s", picks, texts)
+	}
+}
+
 func TestAParentAnswerRefusesPermissionsFormsAndStaleQuestions(t *testing.T) {
 	var response string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
