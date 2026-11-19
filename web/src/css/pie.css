@@ -163,3 +163,12 @@
 .piedesk .piebar { right: auto; bottom: auto; transform: translateX(-50%); gap: 10px; width: max-content; max-width: calc(100% - 20px); }
 
 .piecrownwords { position: absolute; pointer-events: none; }
+
+.pieactions { position: absolute; }
+.pieactions .pieword { max-width: 8rem; white-space: normal; }
+.pieactions .piesec[data-key="report"] .pieword { flex-direction: row; max-width: none; white-space: nowrap; }
+.pieactions .piesec[data-key="report"] svg { width: var(--i-md); height: var(--i-md); flex: none; }
+.piequick .piemenu .pieword { width: 6.1rem; white-space: normal; overflow-wrap: anywhere; }
+.piequick .piemenu .pieword > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.piequick .piesec.piedanger, .pieplate.piedanger b { color: var(--crit); }
+.piequick .pieplate b { overflow-wrap: anywhere; }

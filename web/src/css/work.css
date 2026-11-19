@@ -5,19 +5,20 @@
     padding-bottom: var(--deck-gap);
 }
 
-/* The row fills from the right edge and grows leftwards: the thumb reaches that
-   side, and the composer keeps its own buttons there. The space it leaves on the
-   left holds the spend of the session. */
+/* The opener stays under the middle of its ring even as work counters appear. */
 .deck {
     flex: 0 0 auto;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: flex-start;
     justify-content: flex-end;
     gap: .4rem;
     margin-top: calc(var(--deck-gap) - var(--body-gap));
 }
-.deck > .pkcmds { margin-left: auto; min-width: 30px; min-height: 0; height: 30px; box-shadow: inset 0 0 0 var(--hair) var(--edge); }
-.deck > .wchips { flex: 0 1 auto; min-width: 0; }
+.deck > .movepill { grid-column: 1; grid-row: 1; justify-self: start; max-width: 100%; }
+.deck > .pkcmds { grid-column: 2; grid-row: 1; min-width: 30px; min-height: 0; height: 30px; box-shadow: inset 0 0 0 var(--hair) var(--edge); }
+.decktools { grid-column: 3; grid-row: 1; display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: .4rem; min-width: 0; }
+.decktools > .wchips { flex: 0 1 auto; min-width: 0; }
 
 /* What the session has spent so far, in and out: a chip like the others in
    the row, but a figure to glance at rather than a control — no press, an

@@ -16,6 +16,7 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { sector, until } from "/check/fixtures/pie.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const sent = [];
@@ -52,6 +53,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());
 const chip = async () => {
     document.querySelector(".deck .pkcmds").click();
+    await until(() => sector("commands"), "the quick commands");
+    sector("commands").click();
     await quiet();
 };
 const row = async (line) => {

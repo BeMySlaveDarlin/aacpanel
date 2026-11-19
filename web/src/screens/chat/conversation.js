@@ -44,6 +44,7 @@ import { list as secretShelf } from "../../data/secrets.js";
 import { hasWork, WorkList, WorkRefs, WorkStatus } from "./work.js";
 import { ChecklistSheet } from "./checklist.js";
 import { CommandsChip, CommandsSheet } from "./commands.js";
+import { QuickCommands } from "./quick.js";
 import { moveKey, movesOf, MovePill, withActReplies } from "./actform.js";
 import { Composer, deliver, messageID, outcome } from "./composer.js";
 import { knows, whyNot } from "../../exec.js";
@@ -104,6 +105,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     } = useFeedWindow({ name, id, live: live && !sub });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
+    const [quick, setQuick] = useState(null);
     // The pages this conversation published and the panel kept a copy of. The
     // shelf is asked for once: a card looks itself up in it rather than asking
     // per artifact.
@@ -409,6 +411,19 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         for (const item of waitingItems) if (item.kind === "question" && acts[item.id]?.body?.source === "prose") settleWaiting(live, "question", item.id);
         setActs((was) => Object.fromEntries(Object.entries(was).map(([id, act]) => [id,
             act.kind === "ask" && act.body?.source === "prose" && act.state === "open" ? { ...act, state: "answered" } : act])));
+    };
+    const sendQuick = async (text) => {
+        if (dismissBeforeSend && !await dismissBeforeSend()) return;
+        const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const messageId = messageID(composer.ids, []);
+        const row = { role: "me", key, at: new Date().toISOString(), text, sent: text,
+            from: { name, text, files: 0 }, messageId, done: (patch) => onLocalDone(key, patch) };
+        if (holding) {
+            onLocal({ ...row, state: "held", hold: { text, messageId } });
+            return;
+        }
+        onLocal({ ...row, state: "sending" });
+        onSent(key, outcome(await deliver(run, name, { text, messageId })));
     };
     late.current = {
         onRun: (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
@@ -721,14 +736,19 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ${live && feedShown && html`
             <div class="deck">
                 <${MovePill} items=${moves} onNext=${nextAct} />
-                <${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />
-                ${termJump}
-                ${work}
-                <div class="deckright"><${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${setLook} /></div>
+                <${CommandsChip} onOpen=${setQuick} />
+                <div class="decktools">
+                    ${termJump}
+                    ${work}
+                    <div class="deckright"><${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${setLook} /></div>
+                </div>
             </div>
         `}
 
         ${live && parts.sheets(ctx)}
+        ${live && quick && html`<${QuickCommands} name=${name} live=${live} exec=${exec} ...${quick}
+            onClose=${() => { setQuick(null); quick.lift?.focus({ preventScroll: true }); }}
+            onCommands=${() => setLook({ kind: "commands" })} onSend=${sendQuick} />`}
 
         ${live && html`<${AttachSheet}
             open=${asking}

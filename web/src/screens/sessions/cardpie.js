@@ -231,5 +231,5 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
     const items = s.sleeping ? first.map((item) => item && !["close", "pause"].includes(item.key)
         ? { ...item, off: "sleeping", items: item.items?.map((sub) => ({ ...sub, off: "sleeping" })) } : item) : first;
     return html`<${Pie} label=${`session ${shownName(s)}`} name=${shownName(s)} items=${items} lift=${card} press=${press}
-                        spot=${spot} crown=${pause.crown} bar=${pause.bar} layer=${pause.layer} onClose=${onClose} />`;
+                        spot=${spot} focusFirst=${!press && !spot} crown=${pause.crown} bar=${pause.bar} layer=${pause.layer} onClose=${onClose} />`;
 }

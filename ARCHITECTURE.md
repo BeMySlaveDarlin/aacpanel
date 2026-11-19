@@ -687,6 +687,20 @@ survive that scan because it does not index requests without question marks.
 A new call withdraws its open predecessor, and closed calls expire after thirty
 days.
 
+The quick commands are the person's acts towards the session, opened from ⌘ in
+the strip under the composer as a ring rather than a sheet. Its sectors are
+phrases: each goes to the session through `session.send` exactly as written,
+as if typed, and wakes it like any message. The phrases are the `quick`
+session message, one per line and at most five, inherited from session to
+project to contour like the restart message, with an English default when
+nothing above sets them; a person keeps their own words there. The crown over
+the ring holds what the panel does itself: Restart through `session.restart`,
+Pause of this session alone on the dial, and Report & close, which is a fixed
+phrase asking the session to report to its opener, or to the person when none
+opened it, and close itself. Restart and Report & close take a tap only, since
+a slide that ends over them by accident ends work. A tap on ⌘ opens the ring
+with nothing chosen; the first sector is chosen only for the keyboard.
+
 The counter in both session lists opens the conversation. Its lower strip
 counts open acts and briefs together with the native question or permission.
 The oldest blocking item opens first, then the oldest item; a new arrival does

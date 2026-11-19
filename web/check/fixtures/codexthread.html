@@ -129,7 +129,7 @@ window.done = (async () => {
     const strip = root.querySelector(".composer .cstrip");
     out.band = Array.from(strip.children).map((el) => el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : el.className));
     const deck = root.querySelector(".deck");
-    out.deck = Array.from(deck.querySelectorAll(":scope > .wchips .wchip")).map((b) => b.getAttribute("aria-label"));
+    out.deck = Array.from(deck.querySelectorAll(".wchips .wchip")).map((b) => b.getAttribute("aria-label"));
 
     // The thread and its compaction.
     root.querySelector("[data-pick=thread]").click();

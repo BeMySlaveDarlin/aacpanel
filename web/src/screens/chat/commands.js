@@ -5,11 +5,15 @@
 // the list is read from the same registry the composer reads, so it cannot
 // offer what the composer would refuse.
 
+import { useRef } from "preact/hooks";
+
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { COMMANDS, SCREENS } from "../../actions/registry.js";
 import { Icon } from "../../ui/icons.js";
+import { useHold } from "../../ui/pie.js";
+import { WIDE } from "../../ui/wide.js";
 import { modelTitle } from "./head.js";
 import { isCodex } from "../../agent.js";
 import { freshPages } from "./work.js";
@@ -55,10 +59,18 @@ export function panelCommands({ stream, live, pick, side }) {
     ].filter((g) => g.rows.length);
 }
 
-// CommandsChip opens the list from the deck under the composer.
+// A held press keeps its pointer so the ring can take its release.
 export function CommandsChip({ onOpen }) {
+    const ref = useRef(null);
+    const open = (press, keyboard = false) => {
+        const el = ref.current;
+        const r = el.getBoundingClientRect();
+        onOpen({ lift: el, press, keyboard, spot: matchMedia(WIDE).matches ? { x: r.left + r.width / 2, y: r.top, centered: true } : null });
+    };
+    const hold = useHold(ref, (press, event) => open(press, Boolean(event && !event.clientX && !event.clientY)));
     return html`
-        <button class="pkcmds" type="button" aria-label="commands of the panel" onClick=${onOpen}>
+        <button class="pkcmds" type="button" aria-label="commands of the panel" aria-haspopup="menu" ref=${ref}
+                ...${hold} onClick=${(event) => open(null, event.detail === 0)}>
             ${Icon.command()}
         </button>
     `;
