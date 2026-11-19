@@ -8,10 +8,12 @@ import { counted, quiet } from "/check/fixtures/quiet.js";
 import { press, tap, until } from "/check/fixtures/pie.js";
 
 export async function callPlaces(root) {
+    const started = performance.now();
     const at = new Date().toISOString();
     const heading = "> [Bash · make check · failed · use u40 · pos 40.2]";
     const output = `discard\n\nfirst\n${"x".repeat(170)}\nlast\n\n`;
     const goodArg = "read\n " + "y".repeat(90);
+    const own = "Explain this\nKeep this line\nAnd this one";
     const calls = [
         { name: "Bash", arg: "make check", use: "u40", pos: 40, index: 2, at, failed: true },
         { name: "Read", arg: goodArg, use: "u41", pos: 41, index: 0, at },
@@ -19,10 +21,13 @@ export async function callPlaces(root) {
         { name: "Read", arg: "", use: "", pos: 43, index: 0, at },
     ];
     const items = [
-        { role: "me", pos: 10, at, text: `${heading}\n> history\n\nExplain this` },
-        { role: "me", pos: 20, at, text: `${heading} trailing\n\nLeave this as words` },
+        { role: "me", pos: 10, at, text: `${heading}\n> history\n\n${own}` },
+        { role: "me", pos: 20, at, text: `${heading} trailing\n\nLeave this\nas words` },
         { role: "me", pos: 21, at, text: `An example\n${heading}` },
-        { role: "ai", pos: 30, at, text: "Here is the file", files: [{ path: "/srv/proj/notes.txt", name: "notes.txt" }] },
+        { role: "ai", pos: 30, at, text: "Here is the file", files: [
+            { path: "/srv/proj/notes.txt", name: "notes.txt" },
+            { path: "/srv/proj/private.txt", name: "private.txt", outside: true },
+        ] },
         { role: "tools", kind: "bash", run: 40, pos: 40, at, calls },
         { role: "ai", pos: 50, at, text: "The calls are over" },
     ];
@@ -59,19 +64,23 @@ export async function callPlaces(root) {
     const sheet = () => one('.sheet.on[aria-label="tool calls"]');
     const area = () => one(".composer textarea");
     const chip = () => one(".placedraft");
+    const depth = () => history.state?.depth || 0;
     const write = async (text) => {
         area().value = text;
         area().dispatchEvent(new Event("input", { bubbles: true }));
-        await quiet();
+        await until(() => text || chip() ? one(".composer .sendbtn") && !one(".composer .sendbtn").disabled
+            : !one(".composer .sendbtn"), "the composer's send state");
     };
     const choose = async (label) => {
         const item = [...menu().querySelectorAll('[role="menuitem"]')].find((el) => words(el.querySelector(".pkname")) === label);
         if (!item) throw new Error(`No item ${label}`);
         item.click();
         await until(() => !menu(), "the menu to close");
-        await quiet();
     };
     const openMenu = async (el, timer = false) => {
+        // The feed follows a resized composer; moving the source row closes
+        // its menu, so only a menu opened from the feed waits for that motion.
+        if (el.closest(".chatfeed")) await quiet();
         if (innerWidth >= 1100) {
             el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 }));
         } else {
@@ -83,37 +92,46 @@ export async function callPlaces(root) {
             press("pointerup", el);
             el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
         }
-        await quiet();
     };
     const openCalls = async () => {
         const badge = one(".railbadge, .tlentry");
         if (!badge) throw new Error("The feed has no call badge");
         badge.click();
-        await until(() => sheet()?.querySelector(".callnode"), "the calls list");
-        await quiet();
+        await until(() => sheet()?.querySelector(".callnode") && depth() === 2, "the calls list");
     };
     const shutSheet = async () => {
         sheet().querySelector(".sheetclose").click();
-        await until(() => !sheet(), "the calls sheet to close");
-        await quiet();
+        await until(() => !sheet() && depth() === 1, "the calls sheet to close");
     };
     const send = async () => {
         const before = sent.length;
         one(".composer .sendbtn").click();
-        await until(() => sent.length > before && !chip(), "the message to go out");
-        await quiet();
+        await until(() => sent.length > before && !chip() && one(".chatfeed .msg.me.queued") && !area().disabled,
+            "the message to go out");
         return sent.at(-1);
     };
     await until(() => area() && one(".chatfeed .placecard") && one(".railbadge, .tlentry"), "the feed and composer");
-    await quiet();
     const out = { cards: all(".chatfeed .placecard").length,
+        placedBreaks: all(".chatfeed .msg.me")[0].querySelectorAll("p br").length,
+        plainBreaks: all(".chatfeed .msg.me")[1].querySelectorAll("p br").length,
         malformed: all(".chatfeed .msg.me").filter((el) => !el.querySelector(".placecard")).map(words) };
+    const outside = one(".mfile.outside");
+    tap(outside);
+    const outsideMenu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    outside.dispatchEvent(outsideMenu);
+    await quiet();
+    out.outsideFile = outside.tagName === "DIV" && (!menu()
+        || ![...menu().querySelectorAll(".pkname")].some((el) => words(el) === "Open"));
+    if (menu()) {
+        window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+        await until(() => !menu(), "the enclosing message's menu to close");
+    }
     if (innerWidth >= 1100) {
         await openMenu(one(".chatfeed .msg.me"));
         await choose("Edit");
         await until(chip, "the edited place");
         out.edited = words(chip().querySelector(".placehead")) === "Bash · make check · failed"
-            && chip().querySelector("pre")?.textContent === "history" && area().value === "Explain this";
+            && chip().querySelector("pre")?.textContent === "history" && area().value === own;
         chip().querySelector(".clipoff").click();
         await write("");
     } else {
@@ -125,6 +143,7 @@ export async function callPlaces(root) {
     await until(() => requested.length > 0 && sheet()?.querySelector(".callpre"), "the historical call");
     out.history = requested.at(-1);
     await shutSheet();
+    out.outsideFile = out.outsideFile && files.length === 0;
 
     await openCalls();
     const row = sheet().querySelector(".callnode");
@@ -143,6 +162,7 @@ export async function callPlaces(root) {
     await quiet();
     await openMenu(row);
     await choose("Copy the output");
+    await until(() => copied.length > 0, "the copied output");
     out.copied = copied.at(-1);
     out.copyRequest = requested.at(-1);
     tap(row);
@@ -178,7 +198,7 @@ export async function callPlaces(root) {
     await until(() => files.length > 0 && one('.sheet.on[aria-label="project file"] [data-file] .callpre'), "the quoted file");
     out.fileRequest = files.at(-1);
     one('.sheet.on[aria-label="project file"] .sheetclose').click();
-    await quiet();
+    await until(() => !one('.sheet.on[aria-label="project file"]') && depth() === 1, "the file viewer to close");
 
     await openCalls();
     await openMenu(sheet().querySelectorAll(".callnode")[1]);
@@ -222,8 +242,10 @@ export async function callPlaces(root) {
     refuse = true;
     await openMenu(sheet().querySelector(".callnode"));
     await choose("Ask about this");
+    await until(() => root.textContent.includes("call unavailable"), "the refused call");
     out.refused = !chip() && root.textContent.includes("call unavailable");
     await shutSheet();
     render(null, root);
+    out.elapsed = performance.now() - started;
     return out;
 }

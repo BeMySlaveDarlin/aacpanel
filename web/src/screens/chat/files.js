@@ -71,11 +71,7 @@ export function fileTag(file) {
 // knows its conversation.
 export function FileCard({ file, onOpen, onSave, tag }) {
     const ref = useRef(null);
-    const places = useContext(PlaceContext);
-    const ask = places && places.ask && file.path && file.path.startsWith("/")
-        ? () => places.ask(filePlace(file)) : null;
-    const menu = useHoldMenu(ref, !file.outside && onOpen ? FileMenu : null,
-        { file, onOpen, onSave, onAsk: ask }, `file ${file.name}`);
+    const menu = useFileMenu(ref, file, onOpen, onSave);
     const image = isImage(file);
     const mark = tag
         ? html`<span class="mftag">${tag}</span>`
@@ -103,6 +99,15 @@ export function FileCard({ file, onOpen, onSave, tag }) {
             ${file.size > 0 && html`<span class="mfsize">${bytes(file.size)}</span>`}
         </button>
     `;
+}
+
+function useFileMenu(ref, file, onOpen, onSave) {
+    const places = useContext(PlaceContext);
+    const ask = places && places.ask && file.path && file.path.startsWith("/")
+        ? () => places.ask(filePlace(file)) : null;
+    const open = file.outside ? null : onOpen;
+    return useHoldMenu(ref, open ? FileMenu : null,
+        { file, onOpen: open, onSave, onAsk: ask }, `file ${file.name}`);
 }
 
 // SentCard renders the files a call delivered to the human: the caption the

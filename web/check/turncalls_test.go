@@ -32,6 +32,10 @@ type placeSend struct {
 }
 
 type placesShot struct {
+	PlacedBreaks int          `json:"placedBreaks"`
+	PlainBreaks  int          `json:"plainBreaks"`
+	OutsideFile  bool         `json:"outsideFile"`
+	Elapsed      float64      `json:"elapsed"`
 	Edited       bool         `json:"edited"`
 	Native       bool         `json:"native"`
 	Cards        int          `json:"cards"`
@@ -86,6 +90,10 @@ func TestACallOrFileCanBeAskedAboutFromItsPlace(t *testing.T) {
 				runFixture(t, "turncalls.html", &page)
 			}
 			got := page.Places
+			t.Logf("place scenario: %.3f s", got.Elapsed/1000)
+			if got.PlacedBreaks != 2 || got.PlainBreaks != 1 || !got.OutsideFile {
+				t.Errorf("own message breaks: with a place %d, plain %d; outside file refuses opening %v", got.PlacedBreaks, got.PlainBreaks, got.OutsideFile)
+			}
 			if (wide && !got.Edited) || (!wide && !got.Native) {
 				t.Errorf("the edited message lost its place or the phone claimed text selection: edit %v, native %v", got.Edited, got.Native)
 			}

@@ -208,7 +208,8 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
                                         data-md=${copied}>${Icon.copy()}</button>`}
                 ${question && html`<div class="mquestionwhat" title=${question.title}>${question.title}</div>`}
                 ${placed && html`<${PlaceCard} place=${placed.place} />`}
-                ${render(placed ? placed.text : said, { breaks: mine, onRun: writes.onRun })}
+                ${placed ? render(placed.text, { breaks: mine, onRun: writes.onRun })
+                    : render(said, { breaks: mine, onRun: writes.onRun })}
                 ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} onSave=${save} />`}
                 ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
                 ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}
