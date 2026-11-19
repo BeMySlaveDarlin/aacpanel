@@ -11,11 +11,17 @@ const keyOf = (session, item) => `${session.sessionId}|${item.kind}|${item.id ||
 
 // waitingOf returns only outstanding work; questions and permissions have
 // their own visible docks, and opening a conversation settles its call only.
+// A chain on the agent's turn waits on the session, not on the person.
 export function waitingOf(session, viewed = false) {
     if (!session) return [];
     const items = session.waiting || (session.called ? [{ kind: "call", title: "Called you", at: session.called }] : []);
-    return items.filter((item) => kinds.has(item.kind) && !settled.has(keyOf(session, item))
+    return items.filter((item) => kinds.has(item.kind) && !item.agent && !settled.has(keyOf(session, item))
         && (item.kind !== "call" || (!viewed && calledMark({ ...session, called: item.at }))));
+}
+
+// agentStepsOf returns the chains that stand on the agent's turn.
+export function agentStepsOf(session) {
+    return (session?.waiting || []).filter((item) => item.agent && !settled.has(keyOf(session, item)));
 }
 
 // settleWaiting hides an item after its successful answer, never after a tap.

@@ -47,6 +47,20 @@ func (r *Record) Advance(outcome, note string, now time.Time) {
 	r.Step = &next
 }
 
+// AgentsMove reports whether an open chain stands on the agent's turn: a step
+// of the agent's, or a step that failed and that the session reviews. The
+// person's move it is not.
+func (r Record) AgentsMove() bool {
+	if !r.Chain() || !r.Open() {
+		return false
+	}
+	if r.State == "failed" {
+		return true
+	}
+	step := *r.Step
+	return step >= 1 && step <= len(r.Body.Chain) && r.Body.Chain[step-1].Who == "agent"
+}
+
 func (r Record) WakesAgent() bool {
 	return r.State != "open" || r.Body.Chain[*r.Step-1].Who == "agent"
 }

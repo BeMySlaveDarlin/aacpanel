@@ -16,11 +16,14 @@ import (
 // A task can reach the service before its tool result reaches the transcript;
 // until then it still counts, but has no position to promise a jump to.
 type waitingItem struct {
-	Kind      string              `json:"kind"`
-	ID        string              `json:"id,omitempty"`
-	Title     string              `json:"title"`
-	At        string              `json:"at,omitempty"`
-	Blocking  bool                `json:"blocking,omitempty"`
+	Kind     string `json:"kind"`
+	ID       string `json:"id,omitempty"`
+	Title    string `json:"title"`
+	At       string `json:"at,omitempty"`
+	Blocking bool   `json:"blocking,omitempty"`
+	// Agent marks a chain standing on the agent's turn: open, but not the
+	// person's move.
+	Agent     bool                `json:"agent,omitempty"`
 	Pos       *int64              `json:"pos,omitempty"`
 	Nth       int                 `json:"nth,omitempty"`
 	What      string              `json:"what,omitempty"`
@@ -50,7 +53,7 @@ func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, s
 			continue
 		}
 		kind := map[string]string{"do": "request", "secret": "secret", "ask": "question", "call": "call"}[row.Kind]
-		item := waitingItem{Kind: kind, ID: row.ID, Title: row.Title, Blocking: row.Blocking, At: row.Created.Format(time.RFC3339Nano)}
+		item := waitingItem{Kind: kind, ID: row.ID, Title: row.Title, Blocking: row.Blocking, Agent: row.AgentsMove(), At: row.Created.Format(time.RFC3339Nano)}
 		card := anchor(kind, row.ID)
 		if row.Kind == "ask" {
 			if row.Body.Source == "prose" {

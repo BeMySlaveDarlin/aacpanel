@@ -9,6 +9,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { Row } from "/src/screens/chat/rows.js";
 import { withActReplies } from "/src/screens/chat/actform.js";
+import { stateOf } from "/src/screens/sessions/state.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -116,6 +117,9 @@ window.done = (async () => {
     out.pending = form().querySelector(".sentlabel").textContent === "chain · step 1 of 4"
         && step(1).classList.contains("current") && Boolean(button("Run")) && !button("Done") && !button("note")
         && [1, 2, 3, 4].every(n => step(n).querySelector(".chainbody")) && !polls().length;
+    // The person's step is the person's move: the head says so, the square is the request's.
+    const waits = () => Boolean(document.querySelector('.talkword[data-tone="waiting"], .dkword[data-tone="waiting"]'));
+    out.yourMove = document.querySelector(".movepill")?.dataset.kind === "request" && waits();
     out.markerPending = marker().includes("chain") && marker().includes("4 steps · step 1 is yours · below");
     // Every step stands open: a press on its text or its number closes nothing.
     step(1).querySelector(".chaintext").click(); step(3).querySelector(".chainwho").click(); await quiet();
@@ -174,6 +178,13 @@ window.done = (async () => {
     out.agent = step(2).textContent.includes("the session works on it") && !button("Done") && !button("Run") && !button("Can't")
         && step(1).textContent.includes("exit 0 · 31 s") && Boolean(step(1).querySelector(".chainbody")) && !polls().length;
     out.markerAgent = marker().includes("1 of 4 done · step 2 is the agent's · below");
+    // On the agent's step no move is the person's: the square is the agent's and the head waits on no one.
+    out.agentsMove = document.querySelector(".movepill")?.dataset.kind === "agent"
+        && document.querySelector(".movepill").getAttribute("aria-label").startsWith("agent's step") && !waits();
+    // The card of the session in a list says the same from the waiting summary alone.
+    // An item of its own: the act of this page was settled once already.
+    const card = (agent) => stateOf({ ...session, status: "idle", waiting: [{ kind: "request", id: "9".repeat(32), title: req.title, at, agent }] });
+    out.agentsCard = card(true).kind === "agentstep" && card(true).tone === "bg" && card(false).kind === "request" && card(false).tone === "wait";
     await until(() => step(1).querySelector(".chainout"));
     out.pastOutput = step(1).querySelector(".chainout")?.textContent === done.tail;
     items = [...items, { role: "me", pos: 3, at, text: `The chain “Release” (${req.id}):\n1 you · Login · exit 0\nFull log: /logs/1\nStep 2 is yours.` }];

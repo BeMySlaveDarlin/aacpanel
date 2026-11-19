@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { list as actList } from "../../data/acts.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
 import { clearWaitingTargets, RequestCard, revealWaiting } from "./request.js";
-import { actOpen } from "./chain.js";
+import { actOpen, agentsMove } from "./chain.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -450,6 +450,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ...(asksTurn ? [{ kind: "asked", id: ask.toolUseId, blocking: !goesOn, at: ask.at || live?.statusUpdatedAt, pos: ask.pos }] : []),
         ...(permits && !asksTurn ? [{ kind: "permit", blocking: true, at: live.statusUpdatedAt, pos: state.items.findLast((row) => row.role === "permitted")?.pos }] : []),
     ]);
+    // A chain on the agent's turn stays in the form, but is no move of the person's.
+    const yourMoves = moves.some((item) => !agentsMove(item));
     const current = moves.find((item) => moveKey(item) === selected) || moves[0];
     const currentKey = current ? moveKey(current) : "";
     // An older render must not undo a newer marker press.
@@ -578,7 +580,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     return html`
         ${wide
             ? html`<${DeskHead} limits=${snapshot && snapshot.limits} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} spent=${spent}
-                                move=${move} yours=${moves.length > 0} tools=${deskTools} exec=${exec} taken=${takenNames(snapshot)} />`
+                                move=${move} yours=${yourMoves} tools=${deskTools} exec=${exec} taken=${takenNames(snapshot)} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
                      foot=${html`<${ContextBar} pct=${pct} peak=${!live} cap=${live && live.cap} autoRestart=${live && live.autoRestart} />`}
@@ -602,7 +604,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         <span class="chatspent">${spent}</span>
                         <span class="sep">·</span>
                     `}
-                    <span class="talkword" data-tone=${moves.length ? "waiting" : stand.tone}>${moves.length ? "your move" : stand.word || (archive ? "peak" : "")}</span>
+                    <span class="talkword" data-tone=${yourMoves ? "waiting" : stand.tone}>${yourMoves ? "your move" : stand.word || (archive ? "peak" : "")}</span>
                 </div>
                 ${here && html`
                     <div class="chatwhere">

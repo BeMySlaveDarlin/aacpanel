@@ -9,6 +9,17 @@ import { clock, useTick } from "./now.js";
 export const isChain = (act) => Array.isArray(act?.steps || act?.body?.steps);
 export const actOpen = (act) => act.state === "open" || act.state === "failed";
 
+// agentsMove says whether an open chain stands on the agent's turn: a step of
+// the agent's, or a failed one the session reviews. No move of the person's,
+// the way the host marks it agent in the waiting summary.
+export function agentsMove(act) {
+    if (!act) return false;
+    if (act.agent) return true;
+    if (!isChain(act) || !actOpen(act)) return false;
+    if (act.state === "failed") return true;
+    return (act.steps || act.body.steps)[(act.step || 1) - 1]?.who === "agent";
+}
+
 export function chainSummary(act) {
     const steps = act.steps || act.body.steps;
     const step = act.step || 1;

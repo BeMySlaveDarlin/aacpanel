@@ -369,3 +369,27 @@ func TestChainSavedPendingRunIsResumedOnceAfterServiceRestartPG(t *testing.T) {
 		t.Fatalf("resume: %+v", starts)
 	}
 }
+
+// A chain on the agent's step, or on a failed step the session reviews, waits
+// on no person: the summary marks it, and keeps the person's steps unmarked.
+func TestWaitingMarksAChainOnTheAgentsTurn(t *testing.T) {
+	chain := []personrequest.Step{{Who: "you", Text: "Merge"}, {Who: "agent", Text: "Wait for the release"}}
+	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	step := func(n int) *int { return &n }
+	rows := []act.Record{
+		{ID: "yours", Kind: "do", State: "open", Step: step(1), Body: act.Body{Chain: chain}, Created: at},
+		{ID: "agents", Kind: "do", State: "open", Step: step(2), Body: act.Body{Chain: chain}, Created: at.Add(time.Second)},
+		{ID: "failed", Kind: "do", State: "failed", Step: step(1), Body: act.Body{Chain: chain}, Created: at.Add(2 * time.Second)},
+		{ID: "plain", Kind: "do", State: "open", Created: at.Add(3 * time.Second)},
+	}
+	want := map[string]bool{"yours": false, "agents": true, "failed": true, "plain": false}
+	got := waitingFor(rows, nil, nil, nil)
+	if len(got) != len(want) {
+		t.Fatalf("waiting summary: %+v", got)
+	}
+	for _, item := range got {
+		if item.Agent != want[item.ID] {
+			t.Errorf("%s marked agent=%v, want %v", item.ID, item.Agent, want[item.ID])
+		}
+	}
+}

@@ -1,7 +1,7 @@
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { actOpen, ChainCard, chainSummary, isChain } from "./chain.js";
+import { actOpen, agentsMove, ChainCard, chainSummary, isChain } from "./chain.js";
 
 const kindOf = { do: "request", ask: "question" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -23,8 +23,9 @@ export function movesOf(acts, waiting, native) {
         moves.set(key, { ...moves.get(key), ...act, kind, at: act.created });
     }
     for (const item of native) moves.set(moveKey(item), item);
-    return [...moves.values()].sort((a, b) => Number(Boolean(b.blocking)) - Number(Boolean(a.blocking))
-        || timeOf(a) - timeOf(b));
+    // The person's moves come before the chains standing on the agent's turn.
+    return [...moves.values()].sort((a, b) => Number(agentsMove(a)) - Number(agentsMove(b))
+        || Number(Boolean(b.blocking)) - Number(Boolean(a.blocking)) || timeOf(a) - timeOf(b));
 }
 
 // The icon of each kind of move; a request and a chain share the list.
@@ -33,14 +34,19 @@ const moveIcon = { asked: Icon.ask, question: Icon.ask, request: Icon.list, secr
 // MovePill is one square of the row, the size of the tools beside it whatever
 // waits: the icon says what the first move is, the corner how many there are,
 // and the words and the time stand in its label. A pill as wide as its words
-// pushed the tools of the row onto a second line.
+// pushed the tools of the row onto a second line. With no move of the
+// person's left, the chains on the agent's turn stand in it as the agent's.
 export function MovePill({ items, onNext }) {
     if (!items.length) return null;
-    const oldest = items.reduce((a, b) => timeOf(a) < timeOf(b) ? a : b);
-    const first = items[0];
-    const label = `your move · ${items.length} · ${ago(oldest.at)}`;
-    return html`<button class="movepill" type="button" data-kind=${first.kind} aria-label=${label} title=${label} onClick=${onNext}>
-        ${(moveIcon[first.kind] || Icon.hand)()}<span class="movecount" aria-hidden="true">${items.length}</span>
+    const yours = items.filter((item) => !agentsMove(item));
+    const agent = yours.length === 0;
+    const shown = agent ? items : yours;
+    const oldest = shown.reduce((a, b) => timeOf(a) < timeOf(b) ? a : b);
+    const first = shown[0];
+    const label = `${agent ? "agent's step" : "your move"} · ${shown.length} · ${ago(oldest.at)}`;
+    return html`<button class=${`movepill${agent ? " agent" : ""}`} type="button" data-kind=${agent ? "agent" : first.kind}
+        aria-label=${label} title=${label} onClick=${onNext}>
+        ${(agent ? Icon.robot : moveIcon[first.kind] || Icon.hand)()}<span class="movecount" aria-hidden="true">${shown.length}</span>
     </button>`;
 }
 
