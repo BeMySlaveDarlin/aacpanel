@@ -736,8 +736,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ${live && feedShown && html`
             <div class="deck">
                 <${MovePill} items=${moves} onNext=${nextAct} />
-                <${CommandsChip} onOpen=${setQuick} />
                 <div class="decktools">
+                    <${CommandsChip} onOpen=${setQuick} />
                     ${termJump}
                     ${work}
                     <div class="deckright"><${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${setLook} /></div>
