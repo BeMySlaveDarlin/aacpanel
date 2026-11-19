@@ -130,10 +130,12 @@ func TestBriefReplyIsTheOneTheFeedReads(t *testing.T) {
 	if len(samples.Brief) == 0 {
 		t.Fatal("no samples of a brief reply: the check compares nothing")
 	}
-	for _, s := range samples.Brief {
-		if got := briefReply(&s.Input.Brief, s.Input.Draft); got != s.Text {
-			t.Errorf("the brief %s is answered as\n%q\nand the feed reads\n%q", s.Input.Brief.ID, got, s.Text)
-		}
+	for i, sample := range samples.Brief {
+		t.Run(fmt.Sprintf("%s/%d", sample.Input.Brief.ID, i), func(t *testing.T) {
+			if got := briefReply(&sample.Input.Brief, sample.Input.Draft); got != sample.Text {
+				t.Errorf("the brief is answered as\n%q\nand the feed reads\n%q", got, sample.Text)
+			}
+		})
 	}
 }
 
@@ -501,7 +503,7 @@ func TestADraftHoldsAnAnswerForEveryQuestionADocumentMayCarry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the ceilings of the collector: %v", err)
 	}
-	found := regexp.MustCompile(`(?m)^MAX_QUESTIONS\s*=\s*(\d+)`).FindSubmatch(raw)
+	found := regexp.MustCompile(`(?m)^MAX_DECISIONS\s*=\s*(\d+)`).FindSubmatch(raw)
 	if found == nil {
 		t.Fatal("the collector names no ceiling for the questions of a document")
 	}
@@ -558,7 +560,7 @@ func startShelf(t *testing.T, doc *chat.Brief) *shelfAgent {
 				switch {
 				case req.Briefs != nil:
 					card := chat.BriefCard{ID: doc.ID, SessionID: doc.SessionID, Title: doc.Title,
-						At: doc.At, FirstAt: doc.FirstAt, Questions: len(doc.Questions)}
+						At: doc.At, FirstAt: doc.FirstAt, Questions: doc.Count(), Decisions: len(doc.Decisions)}
 					reply = map[string]any{"ok": true, "briefs": []chat.BriefCard{card}}
 				case req.Brief == doc.ID:
 					reply = map[string]any{"ok": true, "brief": &doc}

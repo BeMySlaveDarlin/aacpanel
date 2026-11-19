@@ -31,25 +31,21 @@ var rules string
 // publishInstructions is the tool's line in the server's word to every
 // session: the model sees it and the name, so it says when to reach for the
 // tool. publishDescription is read once the tool is looked up.
-const publishInstructions = "Use brief_publish for a long read or questions to answer later " +
-	`("send me a brief"; "бриф", "опросник", "скинь в панель", "отвечу потом"); a blocking choice goes to AskUserQuestion.`
+const publishInstructions = "Use brief_publish for a task with decisions to answer later " +
+	`("send me a brief"; "бриф", "опросник", "скинь в панель", "отвечу потом"); long reading goes through file_send; a blocking choice goes to AskUserQuestion.`
 
-const publishDescription = "Publishes a document the person reads and answers in the panel at their own pace. " +
-	"Use it for several questions, options needing paragraphs or evidence, or a finished analysis with no " +
-	"questions. Before the first publication, call without doc and read the returned rules for fields and " +
-	"limits. Pass the document as doc; a publication is at most 4 MB and 100 questions. check: true with doc " +
-	"previews its title and question counts without publishing or checking all fields. The same doc.id in " +
-	"the same project updates the brief and keeps its answers. Once answers " +
-	"are sent, a reissue does not open it again: new questions need a new brief under a new id. Answers arrive " +
-	"later as a message: continue independent work or end the turn, never poll or wait for them here. " +
-	"When the work stops until they answer, ask with AskUserQuestion instead. Use secret_ask for credentials; " +
-	"notify only calls the person and carries no answers. Do not bury a long questionnaire in the feed. " +
+const publishDescription = "Publishes a task, why it matters, and decisions with options the person answers later in the panel. " +
+	"Each option carries a reason, cost and agent hours; mark the recommended option, or options for multiple choice. " +
+	"Long reading without decisions goes through file_send. Before the first publication, call without doc and read the rules. " +
+	"Pass the document as doc; check: true counts decisions and options without publishing. The document is at most 4 MB. " +
+	"The same doc.id in the same project updates the brief and keeps its answers. Once answers are sent, a reissue " +
+	"does not open it again: new decisions need a new brief under a new id. Answers arrive as one message; " +
+	"continue independent work or end the turn, never poll or wait here. When work stops until they answer, " +
+	"ask with AskUserQuestion instead. Use ask for a question while work continues and secret_ask for credentials. " +
 	"A refusal means nothing was published; report it in the conversation."
 
-// codexPublishInstructions and codexPublishDescription are the same word to
-// a thread of codex, which has no AskUserQuestion by that name.
-const codexPublishInstructions = "Use brief_publish for a long read or questions to answer later " +
-	`("send me a brief"; "бриф", "опросник", "скинь в панель", "отвечу потом"); use the client's question tool for a blocking choice.`
+const codexPublishInstructions = "Use brief_publish for a task with decisions to answer later " +
+	`("send me a brief"; "бриф", "опросник", "скинь в панель", "отвечу потом"); long reading goes through file_send; use the client's question tool for a blocking choice.`
 
 var codexPublishDescription = strings.Replace(publishDescription, "ask with AskUserQuestion instead",
 	"use the client's question tool; if unavailable, ask in the conversation and end the turn", 1)
@@ -177,20 +173,31 @@ func BriefDelete(socket string) mcp.Tool {
 }
 
 func publishSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"doc": map[string]any{
-				"type":        "object",
-				"description": "The brief, as the rules describe it. Left out, the call returns the rules and publishes nothing.",
-			},
-			"check": map[string]any{
-				"type":        "boolean",
-				"description": "Read doc and say what is in it, publishing nothing.",
-			},
-		},
-		"additionalProperties": false,
+	text := func(limit int) map[string]any {
+		return map[string]any{"type": "string", "minLength": 1, "maxLength": limit}
 	}
+	object := func(properties map[string]any, required ...string) map[string]any {
+		return map[string]any{"type": "object", "properties": properties, "required": append([]string{}, required...), "additionalProperties": false}
+	}
+	option := object(map[string]any{
+		"key": text(4), "label": text(120), "reason": text(400), "cost": text(300),
+		"hours":       map[string]any{"type": "number", "minimum": 0.1, "maximum": 1000},
+		"recommended": map[string]any{"type": "boolean"},
+	}, "label", "reason", "cost", "hours")
+	decision := object(map[string]any{
+		"id": text(40), "title": text(120), "ask": text(600), "multi": map[string]any{"type": "boolean"},
+		"options": map[string]any{"type": "array", "minItems": 2, "maxItems": 8, "items": option},
+	}, "title", "options")
+	doc := object(map[string]any{
+		"id":    map[string]any{"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+		"title": text(120), "task": text(400), "why": text(800),
+		"context": map[string]any{"type": "array", "maxItems": 6,
+			"items": object(map[string]any{"title": text(80), "text": text(2000)}, "title", "text")},
+		"decisions": map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": decision},
+	}, "id", "title", "task", "why", "decisions")
+	doc["description"] = "The task and its decisions. Left out, the call returns the rules and publishes nothing."
+	return object(map[string]any{"doc": doc, "check": map[string]any{"type": "boolean",
+		"description": "Count the decisions and options, publishing nothing."}})
 }
 
 func deleteSchema() map[string]any {
@@ -228,10 +235,10 @@ func publish(ctx context.Context, socket string, rules func(context.Context) str
 	if doc == nil {
 		return rules(ctx), false
 	}
-	title, questions, asking := contents(doc)
+	title, decisions, options := contents(doc)
 	if args.Check {
-		return fmt.Sprintf("%s: %d questions, %d of them ask something. Nothing was published; "+
-			"call again without check to publish it.", title, questions, asking), false
+		return fmt.Sprintf("%s: %d decisions, %d options. Nothing was published; "+
+			"call again without check to publish it.", title, decisions, options), false
 	}
 
 	b, err := session(bind)
@@ -259,9 +266,6 @@ func publish(ctx context.Context, socket string, rules func(context.Context) str
 	}
 	// The feed draws the card of the brief from the start of this answer,
 	// "Published as <id>" and a colon or a full stop (agent/chat/cards.py).
-	if asking == 0 {
-		return "Published as " + got.ID + ": the person reads it in the panel.", false
-	}
 	return "Published as " + got.ID + ". The answers arrive in this session as a message when the person " +
 		"sends them, possibly hours from now: do not wait for them.", false
 }
@@ -282,30 +286,57 @@ func document(raw json.RawMessage) (json.RawMessage, error) {
 		raw = bytes.TrimSpace([]byte(text))
 	}
 	if len(raw) == 0 || raw[0] != '{' || !json.Valid(raw) {
-		return nil, errors.New("doc is the brief as a JSON object with a title and, if it asks anything, questions")
+		return nil, errors.New("doc is the brief as a JSON object with title, task, why and decisions")
+	}
+	var value any
+	_ = json.Unmarshal(raw, &value)
+	if oldBriefForm(value) {
+		return nil, errors.New(oldBriefMessage)
 	}
 	return raw, nil
 }
 
-// contents is what a check says of a document: its title, its questions, and
-// how many of them ask something — a question of kind none is a block with a
-// number on it.
-func contents(doc json.RawMessage) (title string, questions, asking int) {
+const oldBriefMessage = "this is the old form of a brief: a brief is a task, why, and decisions with options — call brief_publish without doc for the rules."
+
+func oldBriefForm(value any) bool {
+	switch v := value.(type) {
+	case map[string]any:
+		for key, child := range v {
+			switch key {
+			case "eyebrow", "lede", "summary", "lineage", "sections", "closing", "questions", "facts", "read", "chips", "capture":
+				return true
+			}
+			if oldBriefForm(child) {
+				return true
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if oldBriefForm(child) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// contents counts choices without publishing or requiring a live session.
+func contents(doc json.RawMessage) (title string, decisions, options int) {
 	var d struct {
-		Title     any   `json:"title"`
-		Questions []any `json:"questions"`
+		Title     string `json:"title"`
+		Decisions []struct {
+			Options []json.RawMessage `json:"options"`
+		} `json:"decisions"`
 	}
 	_ = json.Unmarshal(doc, &d)
-	title, _ = d.Title.(string)
+	title = d.Title
 	if title == "" {
 		title = "untitled"
 	}
-	for _, q := range d.Questions {
-		if q, ok := q.(map[string]any); ok && q["kind"] != "none" {
-			asking++
-		}
+	for _, decision := range d.Decisions {
+		options += len(decision.Options)
 	}
-	return title, len(d.Questions), asking
+	return title, len(d.Decisions), options
 }
 
 // drop asks the collector to take a brief off the shelf, held to the

@@ -109,6 +109,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/briefs/{id}", g.page(s.apiBrief))
 	mux.Handle("PUT /api/briefs/{id}", g.page(s.apiBriefDraft))
 	mux.Handle("POST /api/briefs/{id}/sent", g.page(s.apiBriefSent))
+	mux.Handle("POST /api/briefs/{id}/send", g.page(s.apiBriefSend))
 	mux.Handle("DELETE /api/briefs/{id}", g.page(s.apiBriefDrop))
 	mux.Handle("GET /api/secrets", g.page(s.apiSecrets))
 	mux.Handle("GET /api/artifacts", g.page(s.apiPages))

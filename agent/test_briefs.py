@@ -34,130 +34,79 @@ def muted():
 
 
 DOC = {
-    "id": "seven-after-twelve",
-    "title": "Seven questions after twelve",
-    "eyebrow": "after twelve answers",
-    "lede": "Ten of twelve **closed**.",
-    "summary": [{"n": "3", "label": "still open"}],
-    "lineage": [{"from": "did not close", "to": "**07** the configuration directory"}],
-    "sections": [{"title": "Where this came from", "body": "The tail of yesterday."}],
-    "questions": [
-        {
-            "id": "r1",
-            "chips": [{"tone": "stuck", "text": "did not close · decision 07"}],
-            "title": "The configuration directory",
-            "ask": "You picked one directory. **The CLI may not offer that.**",
-            "facts": [
-                {"text": "`--setting-sources user` reads the directory whole", "src": "stack 5"},
-                {"text": "`--restricted` ignores user settings", "src": "help 2.1.270", "flag": True},
-            ],
-            "kind": "pick",
-            "options": [
-                {"key": "A", "label": "Curate through `--settings`", "note": "argv carries the role"},
-                {"key": "B", "label": "A directory per role", "note": "a copy of the token in each"},
-            ],
-            "read": ["Option A is what you described, with argv as the carrier."],
-            "capture": {"note": {"placeholder": "The fallback"}},
-        },
-        {
-            "id": "r2",
-            "title": "Does the pause expire",
-            "kind": "pick",
-            "options": [
-                {"key": "A", "label": "It does not"},
-                {"key": "C", "label": "It does not, but it is visible"},
-            ],
-            "answered": {"pick": "C", "at": "2026-09-15"},
-        },
+    "id": "seven-after-twelve", "title": "Prepare the rollout",
+    "task": "Choose the rollout order.", "why": "The release is ready.",
+    "context": [{"title": "Dependency", "text": "The migration must finish first."}],
+    "decisions": [
+        {"id": "order", "title": "The rollout order", "ask": "Which goes first?",
+         "options": [
+             {"key": "A", "label": "Migration first", "reason": "The code needs it",
+              "cost": "One rebuild", "hours": 0.5, "recommended": True},
+             {"key": "B", "label": "Code first", "reason": "Earlier deployment",
+              "cost": "Temporary downtime", "hours": 1.2}]},
+        {"id": "checks", "title": "Choose checks", "multi": True,
+         "options": [
+             {"label": "API", "reason": "Check the route", "cost": "One run",
+              "hours": 0.1, "recommended": True},
+             {"label": "Browser", "reason": "Check the screen", "cost": "One run",
+              "hours": 0.2, "recommended": True}]},
     ],
-    "closing": ["Ten of twelve closed for good."],
 }
 
 
 def published(**over):
-    return {"sessionId": "s-1", "cwd": "/srv/proj", "doc": dict(DOC, **over)}
+    doc = json.loads(json.dumps(DOC))
+    doc.update(over)
+    return {"sessionId": "s-1", "cwd": "/srv/proj", "doc": doc}
 
 
 class Clean(unittest.TestCase):
     def test_the_document_is_parsed_whole(self):
         got = briefs.clean(published())
-        self.assertEqual(got["id"], "seven-after-twelve")
+        self.assertEqual(got["id"], DOC["id"])
         self.assertEqual(got["sessionId"], "s-1")
         self.assertEqual(got["cwd"], "/srv/proj")
-        self.assertEqual(len(got["questions"]), 2)
-        self.assertEqual(got["summary"], [{"n": "3", "label": "still open"}])
-        self.assertEqual(got["lineage"][0]["from"], "did not close")
-        self.assertEqual(got["sections"][0]["body"], ["The tail of yesterday."])
-        self.assertEqual(got["closing"], ["Ten of twelve closed for good."])
+        self.assertEqual(got["task"], DOC["task"])
+        self.assertEqual(got["why"], DOC["why"])
+        self.assertEqual(got["context"], DOC["context"])
+        self.assertEqual(got["decisions"][0]["options"][0], DOC["decisions"][0]["options"][0])
+        self.assertTrue(got["decisions"][1]["multi"])
+        self.assertEqual([o["key"] for o in got["decisions"][1]["options"]], ["A", "B"])
 
     def test_the_directory_is_the_session_s_own_not_the_caller_s(self):
-        # A publisher started from a shell runs wherever the agent last cd'd
-        # to, and that is often another repository than the project the
-        # conversation is about.
         with live({"sessionId": "s-1", "cwd": "/srv/real-work"}):
-            got = briefs.clean(published())
-        self.assertEqual(got["cwd"], "/srv/real-work")
+            self.assertEqual(briefs.clean(published())["cwd"], "/srv/real-work")
 
     def test_a_codex_thread_is_placed_where_its_executor_says(self):
-        # The server of a thread names the directory by the path the kernel
-        # resolves; the row of the thread, which the conversation finds its
-        # briefs by, names it as the executor does.
         import held
         standing = held.codex_threads
-        held.codex_threads = lambda: [{"sessionId": "s-1", "agent": "codex", "cwd": "/srv/link/proj"}]
+        held.codex_threads = lambda: [{"sessionId": "s-1", "cwd": "/srv/link/proj"}]
         self.addCleanup(setattr, held, "codex_threads", standing)
         with live({"sessionId": "someone-else", "cwd": "/srv/elsewhere"}):
-            got = briefs.clean(published())
-        self.assertEqual(got["cwd"], "/srv/link/proj")
+            self.assertEqual(briefs.clean(published())["cwd"], "/srv/link/proj")
 
     def test_a_session_the_registry_does_not_know_keeps_what_it_sent(self):
         with live({"sessionId": "someone-else", "cwd": "/srv/elsewhere"}):
-            got = briefs.clean(published())
-        self.assertEqual(got["cwd"], "/srv/proj")
+            self.assertEqual(briefs.clean(published())["cwd"], "/srv/proj")
 
-    def test_a_question_keeps_its_facts_options_and_reading(self):
-        q = briefs.clean(published())["questions"][0]
-        self.assertEqual(q["n"], "01")
-        self.assertEqual(q["chips"], [{"tone": "stuck", "text": "did not close · decision 07"}])
-        self.assertEqual(len(q["facts"]), 2)
-        self.assertTrue(q["facts"][1]["flag"])
-        self.assertEqual(q["facts"][0]["src"], "stack 5")
-        self.assertEqual([o["key"] for o in q["options"]], ["A", "B"])
-        self.assertEqual(len(q["read"]), 1)
-        self.assertEqual(q["capture"]["note"]["placeholder"], "The fallback")
+    def test_an_unnamed_decision_gets_its_number(self):
+        payload = published()
+        payload["doc"]["decisions"][0].pop("id")
+        self.assertEqual(briefs.clean(payload)["decisions"][0]["id"], "1")
 
-    def test_an_answer_the_agent_already_knew_survives_a_reissue(self):
-        q = briefs.clean(published())["questions"][1]
-        self.assertEqual(q["answered"]["picks"], ["C"])
-        self.assertEqual(q["answered"]["at"], "2026-09-15")
-
-    def test_a_brief_with_no_questions_is_a_report_and_is_taken(self):
-        got = briefs.clean(published(questions=[]))
-        self.assertEqual(got["questions"], [])
-        self.assertEqual(got["title"], DOC["title"])
-
-    def test_the_seat_number_is_given_when_the_document_names_none(self):
-        got = briefs.clean(published())
-        self.assertEqual([q["n"] for q in got["questions"]], ["01", "02"])
-
-    def test_an_option_with_no_key_is_lettered_in_order(self):
-        doc = json.loads(json.dumps(DOC))
-        for opt in doc["questions"][0]["options"]:
-            opt.pop("key")
-        got = briefs.clean(published(questions=doc["questions"][:1]))
-        self.assertEqual([o["key"] for o in got["questions"][0]["options"]], ["A", "B"])
-
-    def test_long_text_is_cut_rather_than_refused(self):
-        doc = json.loads(json.dumps(DOC))
-        doc["questions"][0]["title"] = "x" * (briefs.MAX_TITLE + 400)
-        doc["questions"][0]["facts"][0]["text"] = "y" * (briefs.MAX_LINE + 400)
-        got = briefs.clean(published(questions=doc["questions"]))
-        self.assertEqual(len(got["questions"][0]["title"]), briefs.MAX_TITLE)
-        self.assertEqual(len(got["questions"][0]["facts"][0]["text"]), briefs.MAX_LINE)
+    def test_long_text_is_cut_at_the_field_ceiling(self):
+        payload = published(title="x" * 500, task="x" * 900, why="x" * 1200)
+        payload["doc"]["decisions"][0]["ask"] = "x" * 900
+        payload["doc"]["decisions"][0]["options"][0]["cost"] = "x" * 500
+        got = briefs.clean(payload)
+        self.assertEqual(len(got["title"]), 120)
+        self.assertEqual(len(got["task"]), 400)
+        self.assertEqual(len(got["why"]), 800)
+        self.assertEqual(len(got["decisions"][0]["ask"]), 600)
+        self.assertEqual(len(got["decisions"][0]["options"][0]["cost"]), 300)
 
     def test_a_paragraph_keeps_its_line_breaks(self):
-        got = briefs.clean(published(lede="first\n\nsecond"))
-        self.assertEqual(got["lede"], "first\n\nsecond")
+        self.assertEqual(briefs.clean(published(why="first\n\nsecond"))["why"], "first\n\nsecond")
 
 
 class Refusals(unittest.TestCase):
@@ -171,52 +120,60 @@ class Refusals(unittest.TestCase):
         payload.pop("sessionId")
         self.assertIn("nowhere to send the answer", self.refuse(payload))
 
-    def test_a_brief_without_a_title_is_refused(self):
-        self.assertIn("a title", self.refuse(published(title="")))
+    def test_required_header_fields(self):
+        for field in ("title", "task", "why"):
+            with self.subTest(field=field):
+                self.assertIn(field, self.refuse(published(**{field: ""})))
 
     def test_an_id_that_is_not_a_slug_is_refused(self):
         self.assertIn("lowercase latin", self.refuse(published(id="Seven Questions")))
 
-    def test_a_choice_question_without_options_is_refused(self):
-        doc = json.loads(json.dumps(DOC))
-        doc["questions"][0]["options"] = []
-        said = self.refuse(published(questions=doc["questions"][:1]))
-        self.assertIn("carries no options", said)
-        self.assertIn("\"text\"", said)
+    def test_old_fields_are_refused_at_every_level(self):
+        for field in briefs.OLD_FIELDS:
+            for place in ("doc", "decision", "option"):
+                with self.subTest(field=field, place=place):
+                    payload = published()
+                    doc = payload["doc"]
+                    at = {"doc": doc, "decision": doc["decisions"][0],
+                          "option": doc["decisions"][0]["options"][0]}[place]
+                    at[field] = []
+                    self.assertEqual(self.refuse(payload), briefs.OLD_FORM)
 
-    def test_a_question_that_asks_nothing_carries_no_options(self):
-        doc = json.loads(json.dumps(DOC))
-        doc["questions"][0]["kind"] = "none"
-        self.assertIn("nowhere to go", self.refuse(published(questions=doc["questions"][:1])))
+    def test_recommendations_are_required_and_single_unless_multi(self):
+        for multi, marks in ((False, [False, False]), (False, [True, True]), (True, [False, False])):
+            payload = published()
+            decision = payload["doc"]["decisions"][0]
+            decision["multi"] = multi
+            for option, mark in zip(decision["options"], marks):
+                option["recommended"] = mark
+            self.assertIn("recommend", self.refuse(payload))
 
-    def test_an_unknown_kind_is_refused(self):
-        doc = json.loads(json.dumps(DOC))
-        doc["questions"][0]["kind"] = "slider"
-        self.assertIn("is unknown", self.refuse(published(questions=doc["questions"][:1])))
+    def test_option_fields_and_hours_are_required(self):
+        for field in ("label", "reason", "cost", "hours"):
+            payload = published()
+            payload["doc"]["decisions"][0]["options"][0].pop(field)
+            self.assertIn(field, self.refuse(payload))
+        for hours in (None, True, "1", 0, 0.09, 1001, 10**400, float("inf"), float("nan")):
+            payload = published()
+            payload["doc"]["decisions"][0]["options"][0]["hours"] = hours
+            self.assertIn("hours", self.refuse(payload))
 
-    def test_two_questions_under_one_id_are_refused(self):
-        doc = json.loads(json.dumps(DOC))
-        doc["questions"][1]["id"] = "r1"
-        self.assertIn("two questions carry the id", self.refuse(published(questions=doc["questions"])))
+    def test_duplicate_decisions_and_option_keys_are_refused(self):
+        payload = published()
+        payload["doc"]["decisions"][1]["id"] = "order"
+        self.assertIn("two decisions", self.refuse(payload))
+        payload = published()
+        payload["doc"]["decisions"][0]["options"][1]["key"] = "A"
+        self.assertIn("two options", self.refuse(payload))
 
-    def test_two_options_under_one_key_are_refused(self):
-        doc = json.loads(json.dumps(DOC))
-        doc["questions"][0]["options"][1]["key"] = "A"
-        self.assertIn("two options carry the key", self.refuse(published(questions=doc["questions"][:1])))
-
-    def test_an_answer_naming_an_option_that_is_not_there_is_refused(self):
-        doc = json.loads(json.dumps(DOC))
-        doc["questions"][1]["answered"] = {"pick": "Z"}
-        said = self.refuse(published(questions=doc["questions"]))
-        self.assertIn("which the question does not offer", said)
-
-    def test_more_questions_than_the_ceiling_are_refused(self):
-        one = DOC["questions"][0]
-        many = [dict(one, id=f"q{i}") for i in range(briefs.MAX_QUESTIONS + 1)]
-        self.assertIn(f"ceiling is {briefs.MAX_QUESTIONS}", self.refuse(published(questions=many)))
-
-    def test_questions_that_are_not_a_list_are_refused(self):
-        self.assertIn("come as a list", self.refuse(published(questions={"r1": {}})))
+    def test_list_bounds_are_enforced(self):
+        for value in (None, {}, [], [dict(DOC["decisions"][0], id=str(i)) for i in range(101)]):
+            self.assertIn("decisions must be", self.refuse(published(decisions=value)))
+        self.assertIn("context must be", self.refuse(published(context=[{}] * 7)))
+        for size in (0, 1, 9):
+            payload = published()
+            payload["doc"]["decisions"][0]["options"] = [{}] * size
+            self.assertIn("options must be", self.refuse(payload))
 
 
 class ShelfStore(unittest.TestCase):
@@ -235,25 +192,25 @@ class ShelfStore(unittest.TestCase):
         self.put()
         got = self.shelf.of("seven-after-twelve")
         self.assertEqual(got["title"], DOC["title"])
-        self.assertEqual(len(got["questions"]), 2)
+        self.assertEqual(len(got["decisions"]), 2)
 
     def test_a_card_says_what_is_inside_without_opening_it(self):
         self.put()
         card = self.shelf.cards()[0]
         self.assertEqual(card["id"], "seven-after-twelve")
         self.assertEqual(card["questions"], 2)
+        self.assertEqual(card["decisions"], 2)
         self.assertEqual(card["sessionId"], "s-1")
         self.assertNotIn("lede", card)
 
     def test_a_card_counts_only_what_asks_something(self):
         """A block of kind "none" is a section with a number on it. Counting it
         promises an answer on the card, on the phone and in the progress."""
-        self.shelf.put(briefs.clean(published(questions=[
-            {"id": "r1", "title": "The directory", "kind": "pick",
-             "options": [{"key": "A", "label": "one"}, {"key": "B", "label": "two"}]},
-            {"id": "r2", "title": "What this rests on", "kind": "none"},
-        ])))
+        old = {"id": "legacy", "title": "Legacy", "questions": [
+            {"id": "one", "kind": "pick"}, {"id": "reading", "kind": "none"}]}
+        self.shelf.put(old)
         self.assertEqual(self.shelf.cards()[0]["questions"], 1)
+        self.assertEqual(self.shelf.of("legacy"), old)
 
     def test_cards_can_be_asked_for_one_session(self):
         self.put()
@@ -362,19 +319,19 @@ class Socket(unittest.TestCase):
     def test_a_refusal_says_what_to_fix(self):
         reply = self.serve(published(title=""))
         self.assertFalse(reply["ok"])
-        self.assertIn("a title", reply["error"])
+        self.assertIn("title", reply["error"])
 
     def test_a_document_arriving_in_several_packets_is_read_whole(self):
         # One recv takes 64 KB; a brief of this size arrives in several and
         # has to be put back together before it is parsed.
-        payload = published(lede="word " * 20000)
+        payload = published(why="word " * 20000)
         self.assertGreater(len(json.dumps(payload)), 64 * 1024)
         self.assertLess(len(json.dumps(payload)), briefs.MAX_REQUEST)
         self.assertEqual(self.serve(payload)["ok"], True)
         self.assertEqual(self.shelf.of("seven-after-twelve")["title"], DOC["title"])
 
     def test_a_document_over_the_request_ceiling_is_refused(self):
-        payload = published(lede="x" * (briefs.MAX_REQUEST + 1024))
+        payload = published(why="x" * (briefs.MAX_REQUEST + 1024))
         reply = self.serve(payload)
         self.assertFalse(reply["ok"])
         self.assertIn("longer than", reply["error"])
@@ -462,7 +419,7 @@ class Handles(unittest.TestCase):
     def test_one_brief_comes_back_whole(self):
         reply = self.server.answer({"brief": "seven-after-twelve"})
         self.assertTrue(reply["ok"])
-        self.assertEqual(len(reply["brief"]["questions"]), 2)
+        self.assertEqual(len(reply["brief"]["decisions"]), 2)
         self.assertEqual(reply["brief"]["title"], DOC["title"])
 
     def test_a_brief_that_is_not_there_says_so(self):

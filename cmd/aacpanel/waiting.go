@@ -78,7 +78,7 @@ func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, s
 		add(item, card)
 	}
 	for _, brief := range briefs {
-		if brief.Questions > 0 && !sent[brief.ID] {
+		if brief.Count() > 0 && !sent[brief.ID] {
 			add(waitingItem{Kind: "brief", ID: brief.ID, Title: brief.Title, At: brief.At}, anchor("brief", brief.ID))
 		}
 	}

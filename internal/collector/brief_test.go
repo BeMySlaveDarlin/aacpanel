@@ -21,12 +21,12 @@ func TestACallWithoutADocumentReturnsTheRules(t *testing.T) {
 			t.Errorf("a call with %q answered %.80q (error %v)", args, said, failed)
 		}
 	}
-	for _, want := range []string{"questions:", "kind", "facts", "Why, What, Choice", "100 questions", "4 MB", "brief_delete"} {
+	for _, want := range []string{"task:", "why:", "decisions:", "reason:", "cost:", "hours:", "recommended:", "4 MB", "brief_delete", "file_send", "AskUserQuestion"} {
 		if !strings.Contains(rules, want) {
 			t.Errorf("the rules do not say %q", want)
 		}
 	}
-	for _, gone := range []string{"brief.py", "--check", "--delete", "SKILL", "STOP"} {
+	for _, gone := range []string{"brief.py", "--check", "--delete", "SKILL", "STOP", "questions:", "facts:", "read:", "chips:", "capture:", "lede:", "eyebrow:"} {
 		if strings.Contains(rules, gone) {
 			t.Errorf("the rules speak of a command line: %q", gone)
 		}
@@ -73,7 +73,8 @@ func TestTheBriefGoesOutUnderTheSessionTheServerServes(t *testing.T) {
 	doc := map[string]any{
 		"id": "seven-questions", "title": "Seven questions",
 		"sessionId": "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e", "cwd": "/srv/other",
-		"questions": []any{map[string]any{"id": "r1", "title": "Which", "kind": "text"}},
+		"task": "Choose the order", "why": "Ready to ship",
+		"decisions": []any{map[string]any{"id": "r1", "title": "Which"}},
 	}
 	args, _ := json.Marshal(map[string]any{"doc": doc, "sessionId": "forged", "cwd": "/srv/forged"})
 
@@ -90,15 +91,18 @@ func TestTheBriefGoesOutUnderTheSessionTheServerServes(t *testing.T) {
 	}
 }
 
-// A brief that asks nothing is a piece of reading: there are no answers to
-// wait for, and the reply does not promise any.
-func TestAReportPromisesNoAnswers(t *testing.T) {
+func TestOldBriefFieldsAreRefusedBeforePublishingOrChecking(t *testing.T) {
 	f := listen(t, answers(map[string]any{"ok": true, "id": "findings"}))
-	said, failed := callTool(t, BriefPublish(f.path, ""), bound(sid),
-		`{"doc":{"id":"findings","title":"Findings","questions":[{"id":"r1","title":"Where it came from","kind":"none"}]}}`)
-	if failed || said != "Published as findings: the person reads it in the panel." {
-		t.Errorf("a report was answered %q (error %v)", said, failed)
+	for _, field := range []string{"eyebrow", "lede", "summary", "lineage", "sections", "closing", "questions", "facts", "read", "chips", "capture"} {
+		for _, check := range []bool{false, true} {
+			raw, _ := json.Marshal(map[string]any{"check": check, "doc": map[string]any{"id": "findings", field: []any{}}})
+			said, failed := callTool(t, BriefPublish(f.path, ""), bound(sid), string(raw))
+			if !failed || !strings.Contains(said, oldBriefMessage) {
+				t.Errorf("%s: %q, failed %v", field, said, failed)
+			}
+		}
 	}
+	f.quiet(t)
 }
 
 // A client that hands a nested object over as a string of JSON is taken at
@@ -121,16 +125,15 @@ func TestADocumentIsAnObject(t *testing.T) {
 	f.quiet(t)
 }
 
-// A check says what is in the document — the title, the questions and how
-// many of them ask something — and publishes nothing.
+// A check counts decisions and their options without writing to the shelf.
 func TestACheckCountsAndPublishesNothing(t *testing.T) {
 	f := listen(t, answers(map[string]any{"ok": true, "id": "a"}))
 	said, failed := callTool(t, BriefPublish(f.path, ""), bound(sid), `{"check":true,"doc":{"id":"a","title":"Three",`+
-		`"questions":[{"id":"r1","title":"x"},{"id":"r2","title":"y","kind":"text"},{"id":"r3","title":"z","kind":"none"}]}}`)
-	if failed || !strings.HasPrefix(said, "Three: 3 questions, 2 of them ask something. Nothing was published") {
+		`"decisions":[{"id":"r1","options":[{},{}]},{"id":"r2","options":[{},{},{}]},{"id":"r3","options":[{},{}]}]}}`)
+	if failed || !strings.HasPrefix(said, "Three: 3 decisions, 7 options. Nothing was published") {
 		t.Errorf("the check answered %q (error %v)", said, failed)
 	}
-	if said, _ := callTool(t, BriefPublish(f.path, ""), bound(sid), `{"check":true,"doc":{"id":"a"}}`); !strings.HasPrefix(said, "untitled: 0 questions") {
+	if said, _ := callTool(t, BriefPublish(f.path, ""), bound(sid), `{"check":true,"doc":{"id":"a"}}`); !strings.HasPrefix(said, "untitled: 0 decisions") {
 		t.Errorf("the check of a document without a title answered %q", said)
 	}
 	f.quiet(t)
@@ -156,7 +159,7 @@ func TestARefusalOfTheCollectorComesBackWithItsReason(t *testing.T) {
 // with nothing said.
 func TestADocumentOverTheCeilingIsRefusedHere(t *testing.T) {
 	f := listen(t, answers(map[string]any{"ok": true, "id": "a"}))
-	big, _ := json.Marshal(map[string]any{"doc": map[string]any{"id": "a", "title": "A", "lede": strings.Repeat("x", maxBrief)}})
+	big, _ := json.Marshal(map[string]any{"doc": map[string]any{"id": "a", "title": "A", "why": strings.Repeat("x", maxBrief)}})
 	said, failed := callTool(t, BriefPublish(f.path, ""), bound(sid), string(big))
 	if !failed || !strings.Contains(said, "longer than 4 MB") {
 		t.Errorf("a document over the ceiling was answered %q", said)
@@ -170,7 +173,7 @@ func TestADocumentOverTheCeilingIsRefusedHere(t *testing.T) {
 func TestABriefNearTheCeilingPassesThroughTheServer(t *testing.T) {
 	f := listen(t, answers(map[string]any{"ok": true, "id": "a"}))
 	srv := &mcp.Server{Tools: []mcp.Tool{BriefPublish(f.path, "")}, Bind: bound(sid)}
-	doc := map[string]any{"id": "a", "title": "A", "lede": strings.Repeat("x", maxBrief-4096)}
+	doc := map[string]any{"id": "a", "title": "A", "why": strings.Repeat("x", maxBrief-4096)}
 	line, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
 		"params": map[string]any{"name": PublishName, "arguments": map[string]any{"doc": doc}}})
 
@@ -181,8 +184,8 @@ func TestABriefNearTheCeilingPassesThroughTheServer(t *testing.T) {
 	if !strings.Contains(out.String(), "Published as a") {
 		t.Errorf("the server answered %.200q", out.String())
 	}
-	if got := f.request(t)["doc"].(map[string]any)["lede"]; len(got.(string)) != maxBrief-4096 {
-		t.Errorf("the collector got a lede of %d bytes", len(got.(string)))
+	if got := f.request(t)["doc"].(map[string]any)["why"]; len(got.(string)) != maxBrief-4096 {
+		t.Errorf("the collector got a why of %d bytes", len(got.(string)))
 	}
 }
 

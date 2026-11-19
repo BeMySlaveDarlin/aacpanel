@@ -493,8 +493,11 @@ not in the state directory: the latter is mounted into the service, and "a
 session's question" would become data the panel accepts from whatever sticks out
 into the internet.
 
-**The brief socket.** A session can publish a brief: a long piece with
-questions the person walks through, kept whole on the host beside the question
+**The brief socket.** A session can publish a brief: a task, why it matters,
+and decisions whose options name a reason, a cost and estimated agent hours.
+Each single choice has one recommendation; multiple choices have at least one.
+Supporting context is folded on the screen. Reading without decisions travels
+through `file_send`. The document stays whole on the host beside the question
 book. It takes the same road as a question and for the same reason — data from
 a session is taken by the host, never by the service that faces the internet —
 but it is a different kind of thing, and the differences are what shape it.
@@ -523,11 +526,29 @@ lock it. The draft names the birth it was typed into, and the collector puts
 the birth on every card of the shelf, so the list tells the two apart without
 opening either.
 
-**The answers travel back as an ordinary message.** The text is built by the
-service, so that what the person reads before sending and what the session
-receives are one text; it goes into the session through `session.send`, the
-action that already exists. No new right, no new kind of action, and a brief
-answered after its session was restarted still reaches it.
+**The answers travel back as an ordinary message.** The person sends the
+saved draft through `POST /api/briefs/{id}/send`. The service locks the draft,
+checks that at least one decision has a pick, builds the message in document
+order, sends it through the existing `session.send` gate and journal, and marks
+it sent before releasing the row. Each decision title has its own numbered line, followed by `picked:` with
+the selected labels and whether they match the recommendation, or `no answer`.
+Separating the lines keeps a colon in a title from being read as the choice.
+Decision notes and the shared task note follow their choices. Saving and a
+second send wait for the same row, and a sent publication is closed.
+
+The message id is derived from the brief id and its birth, so retrying after
+an interrupted acknowledgement uses the same delivery identity. The database
+and the executor cannot commit together: delivery can succeed while saving the
+mark fails. The response says so, and retry uses that identity rather than
+creating another letter. The live author receives it, or a live session in the
+same directory carries the work on. Without either, the send is refused and
+the draft stays open. No new right or action is needed.
+
+The collector accepts only the task-and-decisions form for publication.
+Question documents already on the shelf remain readable, with their question
+answers and sending path, until the shelf's age sweep removes them. Keeping
+both draft shapes costs a decoding branch; it keeps answers to a document
+somebody is still reading from being discarded during a service replacement.
 
 **The shelf of readings.** A review of a branch travels the other way: the
 person writes notes on lines of code, and the session is handed them. The notes

@@ -622,3 +622,14 @@ func TestALongQuestionStillFitsItsPush(t *testing.T) {
 		t.Errorf("the push of a short question reads %q", e.Body)
 	}
 }
+
+func TestBriefPushCountsDecisions(t *testing.T) {
+	for count, want := range map[int]string{1: "one decision to make", 3: "3 decisions to make"} {
+		b := doc
+		b.Decisions, b.Questions = count, 99
+		report := Look(shelf(), shelf(b))
+		if len(report.Raise) != 1 || !strings.Contains(report.Raise[0].Body, want) || strings.Contains(report.Raise[0].Body, "questions") {
+			t.Fatalf("decision push: %+v", report.Raise)
+		}
+	}
+}

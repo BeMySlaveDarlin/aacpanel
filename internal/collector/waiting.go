@@ -41,9 +41,9 @@ func briefStanding(b mcp.Binding) string {
 }
 
 type waitingBrief struct {
-	ID, Title, CWD, At  string
-	Questions, Answered int
-	Sent                bool
+	ID, Title, CWD, At             string
+	Questions, Answered, Decisions int
+	Sent                           bool
 }
 
 func waitingBriefs(cards []json.RawMessage, cwd string) string {
@@ -67,11 +67,16 @@ func waitingBriefs(cards []json.RawMessage, cwd string) string {
 		if title == "" {
 			title = "a brief"
 		}
+		word := "answered"
+		if c.Decisions > 0 {
+			c.Questions = c.Decisions
+			word = "decided"
+		}
 		how := fmt.Sprint(c.Answered)
 		if c.Questions != 0 {
 			how += fmt.Sprintf(" of %d", c.Questions)
 		}
-		parts = append(parts, fmt.Sprintf("«%s» (%s answered)", title, how))
+		parts = append(parts, fmt.Sprintf("«%s» (%s %s)", title, how, word))
 	}
 	if rest := len(waiting) - len(parts); rest > 0 {
 		parts = append(parts, fmt.Sprintf("and %d more", rest))

@@ -71,7 +71,7 @@ func TestTheBriefGuideMovesFromTheHostToSettingsPG(t *testing.T) {
 				continue
 			}
 			got, failed := tool.Call(t.Context(), nil, json.RawMessage(`{}`))
-			if failed || !strings.Contains(got, "questions:") ||
+			if failed || !strings.Contains(got, "decisions:") ||
 				(want != "" && !strings.HasSuffix(got, want+"\n")) ||
 				(want == "" && strings.Contains(got, "## The rules of this machine")) {
 				t.Fatalf("the guide %q did not reach the tool: failed=%v, tail=%q", want, failed, got[max(0, len(got)-250):])
@@ -112,7 +112,7 @@ func TestTheBriefGuideMovesFromTheHostToSettingsPG(t *testing.T) {
 			continue
 		}
 		said, failed := tool.Call(t.Context(), nil, json.RawMessage(`{}`))
-		if failed || !strings.Contains(said, "questions:") || !strings.Contains(said, "not read from the panel this time") || strings.Contains(said, imported) {
+		if failed || !strings.Contains(said, "decisions:") || !strings.Contains(said, "not read from the panel this time") || strings.Contains(said, imported) {
 			t.Fatalf("an unavailable panel did not return shipped rules with a notice: %.160q", said[max(0, len(said)-300):])
 		}
 	}

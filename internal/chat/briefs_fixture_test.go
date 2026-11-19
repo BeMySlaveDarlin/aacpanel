@@ -89,23 +89,23 @@ func TestBriefFixtureIsWorthTheName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if doc.ID == "" || doc.Title == "" || len(doc.Questions) < 2 {
+	if doc.ID == "" || doc.Title == "" || doc.Task == "" || doc.Why == "" || len(doc.Decisions) < 2 {
 		t.Fatalf("the fixture stopped being a brief: %+v", doc)
 	}
-	q := doc.Questions[0]
-	switch {
-	case len(q.Facts) == 0 || q.Facts[len(q.Facts)-1].Src == "":
-		t.Error("the fixture carries no fact with a source, and that is half of what a brief is")
-	case len(q.Options) < 2 || q.Options[0].Note == "":
-		t.Error("the fixture carries no option with a cost")
-	case len(q.Read) == 0:
-		t.Error("the fixture carries no reading of the session")
-	case q.Capture == nil || q.Capture.Note.Placeholder == "":
-		t.Error("the fixture carries no free field")
-	case q.Answered == nil || len(q.Answered.Picks) == 0:
-		t.Error("the fixture carries no answer the session already knew")
+	if len(doc.Context) == 0 || doc.Context[0].Text == "" {
+		t.Error("the fixture carries no context")
 	}
-	if doc.Questions[1].Kind != "none" {
-		t.Error("the fixture has no block that asks nothing, so nothing holds that path")
+	for _, d := range doc.Decisions {
+		if len(d.Options) < 2 {
+			t.Fatal("the fixture carries no choice")
+		}
+		for _, o := range d.Options {
+			if o.Reason == "" || o.Cost == "" || o.Hours == 0 {
+				t.Error("the fixture carries no reason or cost")
+			}
+		}
+	}
+	if !doc.Decisions[1].Multi {
+		t.Error("the fixture carries no multiple choice")
 	}
 }

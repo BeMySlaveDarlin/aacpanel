@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"regexp"
@@ -72,7 +71,7 @@ func (s *Server) apiBriefs(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, map[string]any{
 			"id": card.ID, "sessionId": card.SessionID, "cwd": card.CWD,
 			"title": card.Title, "eyebrow": card.Eyebrow, "at": card.At,
-			"questions": card.Questions, "answered": done[card.ID], "sent": sent[card.ID],
+			"questions": card.Count(), "decisions": card.Decisions, "answered": done[card.ID], "sent": sent[card.ID],
 		})
 	}
 	writeJSON(w, map[string]any{"briefs": rows})
@@ -118,13 +117,16 @@ func (s *Server) apiBrief(w http.ResponseWriter, r *http.Request) {
 	// A brief is readable with no database behind it: the document lives on the
 	// host, and only the answers do not. Refusing the whole screen because the
 	// draft is unavailable would hide what is still there.
-	draft := store.BriefDraft{Answers: map[string]store.BriefAnswer{}}
+	draft := emptyBriefDraft(doc)
 	if s.db != nil {
 		got, err := s.db.BriefDraftOf(r.Context(), doc.ID, doc.Born())
 		if err != nil {
 			log.Printf("the draft of brief %s was not read: %v", doc.ID, err)
 		} else {
 			draft = got
+			if doc.DecisionForm() && draft.DecisionAnswers == nil {
+				draft.DecisionAnswers = emptyBriefDraft(doc).DecisionAnswers
+			}
 		}
 	}
 	writeJSON(w, map[string]any{
@@ -140,16 +142,40 @@ func (s *Server) apiBriefDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Answers map[string]store.BriefAnswer `json:"answers"`
+		Answers json.RawMessage `json:"answers"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 128<<10)).Decode(&body); err != nil {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil {
 		http.Error(w, "the draft did not parse: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	answers, err := cleanBriefAnswers(body.Answers)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	draft := emptyBriefDraft(doc)
+	if doc.DecisionForm() {
+		var answers store.BriefDecisions
+		decoder := json.NewDecoder(strings.NewReader(string(body.Answers)))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&answers); err != nil {
+			http.Error(w, "the decisions did not parse: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		answers, err := cleanBriefDecisions(doc, answers)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		draft.DecisionAnswers = &answers
+	} else {
+		if err := json.Unmarshal(body.Answers, &draft.Answers); err != nil {
+			http.Error(w, "the draft did not parse: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		answers, err := cleanBriefAnswers(draft.Answers)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		draft.Answers = answers
 	}
 	if s.db == nil {
 		http.Error(w, "the draft cannot be saved: the database is not configured", http.StatusServiceUnavailable)
@@ -164,14 +190,24 @@ func (s *Server) apiBriefDraft(w http.ResponseWriter, r *http.Request) {
 			http.StatusConflict)
 		return
 	}
-	if err := s.db.SaveBriefDraft(r.Context(), doc.ID, doc.Born(), answers); err != nil {
-		http.Error(w, "the draft was not saved: "+err.Error(), http.StatusServiceUnavailable)
+	var err error
+	if draft.DecisionAnswers != nil {
+		err = s.db.SaveBriefDecisions(r.Context(), doc.ID, doc.Born(), *draft.DecisionAnswers)
+	} else {
+		err = s.db.SaveBriefDraft(r.Context(), doc.ID, doc.Born(), draft.Answers)
+	}
+	if err != nil {
+		code := http.StatusServiceUnavailable
+		if errors.Is(err, store.ErrBriefSent) {
+			code = http.StatusConflict
+		}
+		http.Error(w, "the draft was not saved: "+err.Error(), code)
 		return
 	}
-	draft, err := s.db.BriefDraftOf(r.Context(), doc.ID, doc.Born())
-	if err != nil {
-		draft = store.BriefDraft{Answers: answers}
+	if saved, err := s.db.BriefDraftOf(r.Context(), doc.ID, doc.Born()); err == nil {
+		draft = saved
 	}
+
 	writeJSON(w, map[string]any{"draft": draft, "reply": briefReply(doc, draft)})
 }
 
@@ -181,6 +217,10 @@ func (s *Server) apiBriefDraft(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiBriefSent(w http.ResponseWriter, r *http.Request) {
 	doc, ok := s.briefDoc(w, r)
 	if !ok {
+		return
+	}
+	if doc.DecisionForm() {
+		http.Error(w, "send decisions through this brief's /send endpoint", http.StatusBadRequest)
 		return
 	}
 	if s.db == nil {
@@ -232,6 +272,9 @@ func cleanBriefAnswers(raw map[string]store.BriefAnswer) (map[string]store.Brief
 func briefReply(doc *chat.Brief, draft store.BriefDraft) string {
 	if doc == nil {
 		return ""
+	}
+	if doc.DecisionForm() {
+		return briefDecisionReply(doc, draft)
 	}
 	done := 0
 	for _, q := range doc.Questions {

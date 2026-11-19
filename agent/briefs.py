@@ -1,4 +1,4 @@
-"""Briefs: a long piece a session publishes and a person walks through.
+"""Briefs: a task and the decisions a person makes about it.
 
 A brief is not a question of a session. A question stops the turn and is
 answered in seconds; a brief is read for as long as it takes and outlives the
@@ -6,9 +6,8 @@ conversation that wrote it. That is why it is kept on disk in full, keyed by
 its own name, and swept by age rather than by whether its session is still
 alive.
 
-Nothing here renders anything. The document is data: every field is text, the
-only markup it may carry is inline markdown, and the panel turns that into
-nodes on its own side.
+Nothing here renders anything. The document is structured data; markdown in
+its text fields is turned into nodes by the panel.
 """
 
 import calendar
@@ -28,37 +27,21 @@ SOCKET_NAME = "brief.sock"
 
 STORE = os.environ.get("AACP_BRIEF_STORE", paths.state("briefs"))
 
-# A brief is written once and read many times, so the ceilings are generous
-# where the reader gains by it and tight where a runaway document would cost
-# the phone its scroll.
-#
-# The count of questions is the owner's number: a hundred is more than anyone
-# answers in one sitting, and a document that asks more than that is two
-# documents. The size of the request follows from it rather than standing on
-# its own — a hundred questions with their facts and options fit inside it with
-# room to spare, and the ceiling is there so a runaway document is refused
-# rather than read into memory whole.
 MAX_REQUEST = 4 * 1024 * 1024
-MAX_QUESTIONS = 100
+MAX_DECISIONS = 100
 MAX_OPTIONS = 8
-MAX_FACTS = 16
-MAX_READ = 6
-MAX_SECTIONS = 12
-MAX_CHIPS = 3
-MAX_SUMMARY = 4
-MAX_LINEAGE = 12
-MAX_CLOSING = 6
-
+MAX_CONTEXT = 6
 MAX_ID = 64
 MAX_KEY = 4
-MAX_TITLE = 200
-MAX_EYEBROW = 120
+MAX_TITLE = 120
 MAX_LINE = 400
-MAX_SRC = 60
-MAX_ASK = 800
-MAX_NOTE = 800
+MAX_ASK = 600
 MAX_BLOCK = 2000
-MAX_PLACEHOLDER = 120
+
+OLD_FIELDS = frozenset(("eyebrow", "lede", "summary", "lineage", "sections", "closing",
+                        "questions", "facts", "read", "chips", "capture"))
+OLD_FORM = ("this is the old form of a brief: a brief is a task, why, and decisions with options "
+            "— call brief_publish without doc for the rules.")
 
 # How many briefs the machine keeps and for how long. A brief is a working
 # document, not an archive: what nobody answered in a month will not be
@@ -69,9 +52,6 @@ MAX_AGE = 30 * 24 * 3600
 STAMP = "%Y-%m-%dT%H:%M:%SZ"
 
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-
-TONES = ("stuck", "born", "plain", "scope")
-KINDS = ("pick", "multi", "text", "none")
 
 
 class Refused(ValueError):
@@ -104,216 +84,82 @@ def _block(text, limit=MAX_BLOCK):
     return raw.strip()[:limit]
 
 
-def _blocks(value, limit, each=MAX_BLOCK):
-    """A list of paragraphs, from a list or from one string."""
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, list):
-        return []
-    out = []
-    for item in value[:limit]:
-        body = _block(item, each)
-        if body:
-            out.append(body)
-    return out
-
-
 def _slug(value, what):
     got = _line(value, MAX_ID).lower()
-    if not SLUG.match(got):
+    if not SLUG.fullmatch(got):
         raise Refused(
             f"{what} must be a name of lowercase latin letters, digits and dashes, "
             f"up to {MAX_ID} characters: got {got!r}")
     return got
 
 
-def _facts(raw):
-    out = []
-    for item in (raw or [])[:MAX_FACTS]:
-        if not isinstance(item, dict):
-            continue
-        text = _line(item.get("text"))
-        if not text:
-            continue
-        fact = {"text": text}
-        src = _line(item.get("src"), MAX_SRC)
-        if src:
-            fact["src"] = src
-        if item.get("flag"):
-            fact["flag"] = True
-        out.append(fact)
-    return out
+def _new_form(value):
+    if isinstance(value, dict):
+        if OLD_FIELDS.intersection(value):
+            raise Refused(OLD_FORM)
+        for child in value.values():
+            _new_form(child)
+    elif isinstance(value, list):
+        for child in value:
+            _new_form(child)
 
 
-def _options(raw, where):
-    out = []
-    seen = set()
-    for item in (raw or [])[:MAX_OPTIONS]:
-        if not isinstance(item, dict):
-            continue
-        label = _line(item.get("label"), MAX_TITLE)
-        if not label:
-            continue
-        key = _line(item.get("key"), MAX_KEY) or chr(ord("A") + len(out))
-        if key in seen:
+def _required(raw, key, limit, where, block=False):
+    value = raw.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise Refused(f"{where}: {key} is required text")
+    return _block(value, limit) if block else _line(value, limit)
+
+
+def _decision(raw, seat, seen):
+    where = f"decision {seat}"
+    if not isinstance(raw, dict):
+        raise Refused(f"{where}: an object was expected")
+    identity = raw.get("id", str(seat))
+    if not isinstance(identity, str) or not identity.strip() or len(identity) > 40:
+        raise Refused(f"{where}: id must be text of at most 40 characters")
+    identity = identity.strip()
+    if identity in seen:
+        raise Refused(f"two decisions carry the id {identity!r}")
+    seen.add(identity)
+    multi = raw.get("multi", False)
+    if not isinstance(multi, bool):
+        raise Refused(f"{where}: multi must be a boolean")
+    options = raw.get("options")
+    if not isinstance(options, list) or not 2 <= len(options) <= MAX_OPTIONS:
+        raise Refused(f"{where}: options must be a list of 2 to {MAX_OPTIONS} options")
+    clean_options = []
+    keys = set()
+    for i, option in enumerate(options):
+        at = f"{where}, option {i + 1}"
+        if not isinstance(option, dict):
+            raise Refused(f"{at}: an object was expected")
+        key = option.get("key", chr(ord("A") + i))
+        if not isinstance(key, str) or not key.strip() or len(key) > MAX_KEY:
+            raise Refused(f"{at}: key must be text of at most {MAX_KEY} characters")
+        key = key.strip()
+        if key in keys:
             raise Refused(f"{where}: two options carry the key {key!r}")
-        seen.add(key)
-        option = {"key": key, "label": label}
-        note = _line(item.get("note"), MAX_NOTE)
-        if note:
-            option["note"] = note
-        out.append(option)
-    return out
-
-
-def _chips(raw):
-    out = []
-    for item in (raw or [])[:MAX_CHIPS]:
-        if isinstance(item, str):
-            item = {"text": item}
-        if not isinstance(item, dict):
-            continue
-        text = _line(item.get("text"), MAX_EYEBROW)
-        if not text:
-            continue
-        tone = _line(item.get("tone"), 16) or "plain"
-        out.append({"tone": tone if tone in TONES else "plain", "text": text})
-    return out
-
-
-def _answered(raw, options, where):
-    """What the agent already knows was decided, so a reissue keeps it."""
-    if not isinstance(raw, dict):
-        return None
-    keys = {o["key"] for o in options}
-    picks = raw.get("picks")
-    if isinstance(picks, str):
-        picks = [picks]
-    if not isinstance(picks, list):
-        picks = [raw.get("pick")] if raw.get("pick") else []
-    got = []
-    for key in picks[:MAX_OPTIONS]:
-        key = _line(key, MAX_KEY)
-        if not key:
-            continue
-        if key not in keys:
-            raise Refused(f"{where}: the answer names option {key!r}, which the question does not offer")
-        got.append(key)
-    out = {}
-    if got:
-        out["picks"] = got
-    note = _line(raw.get("note"), MAX_NOTE)
-    if note:
-        out["note"] = note
-    at = _line(raw.get("at"), 40)
-    if at:
-        out["at"] = at
-    return out or None
-
-
-def _question(raw, seat, seen):
-    if not isinstance(raw, dict):
-        raise Refused(f"question {seat}: an object was expected")
-    qid = _slug(raw.get("id") or f"q{seat}", f"the id of question {seat}")
-    if qid in seen:
-        raise Refused(f"two questions carry the id {qid!r}")
-    seen.add(qid)
-
-    title = _line(raw.get("title"), MAX_TITLE)
-    if not title:
-        raise Refused(f"question {qid}: a title is what the person sees in the list, and it is empty")
-
-    kind = _line(raw.get("kind"), 16) or "pick"
-    if kind not in KINDS:
-        raise Refused(f"question {qid}: kind {kind!r} is unknown, it is one of {', '.join(KINDS)}")
-
-    options = _options(raw.get("options"), f"question {qid}")
-    if kind in ("pick", "multi") and not options:
-        raise Refused(
-            f"question {qid}: a {kind} question is answered by choosing, and it carries no options. "
-            f"A question that only takes words is kind \"text\"; one that asks nothing is kind \"none\"")
-    if kind in ("text", "none") and options:
-        raise Refused(f"question {qid}: kind {kind!r} offers no choice, so options have nowhere to go")
-
-    out = {"id": qid, "title": title, "kind": kind}
-
-    seat_mark = _line(raw.get("n"), 8)
-    out["n"] = seat_mark or f"{seat:02d}"
-
-    chips = _chips(raw.get("chips"))
-    if chips:
-        out["chips"] = chips
-    ask = _block(raw.get("ask"), MAX_ASK)
-    if ask:
-        out["ask"] = ask
-    facts = _facts(raw.get("facts"))
-    if facts:
-        out["facts"] = facts
-    if options:
-        out["options"] = options
-    read = _blocks(raw.get("read"), MAX_READ)
-    if read:
-        out["read"] = read
-
-    capture = raw.get("capture")
-    if capture is not False:
-        note = {}
-        if isinstance(capture, dict):
-            holder = capture.get("note")
-            if isinstance(holder, dict):
-                placeholder = _line(holder.get("placeholder"), MAX_PLACEHOLDER)
-                if placeholder:
-                    note["placeholder"] = placeholder
-        out["capture"] = {"note": note}
-
-    answered = _answered(raw.get("answered"), options, f"question {qid}")
-    if answered:
-        out["answered"] = answered
-    return out
-
-
-def _sections(raw):
-    out = []
-    for item in (raw or [])[:MAX_SECTIONS]:
-        if not isinstance(item, dict):
-            continue
-        body = _blocks(item.get("body"), MAX_READ)
-        title = _line(item.get("title"), MAX_TITLE)
-        if not body and not title:
-            continue
-        section = {}
-        if title:
-            section["title"] = title
-        if body:
-            section["body"] = body
-        out.append(section)
-    return out
-
-
-def _summary(raw):
-    out = []
-    for item in (raw or [])[:MAX_SUMMARY]:
-        if not isinstance(item, dict):
-            continue
-        label = _line(item.get("label"), MAX_EYEBROW)
-        n = _line(item.get("n"), 8)
-        if not label or not n:
-            continue
-        out.append({"n": n, "label": label})
-    return out
-
-
-def _lineage(raw):
-    out = []
-    for item in (raw or [])[:MAX_LINEAGE]:
-        if not isinstance(item, dict):
-            continue
-        src = _line(item.get("from"), MAX_EYEBROW)
-        dst = _line(item.get("to"), MAX_LINE)
-        if not src or not dst:
-            continue
-        out.append({"from": src, "to": dst})
-    return out
+        keys.add(key)
+        hours = option.get("hours")
+        if isinstance(hours, bool) or not isinstance(hours, (int, float)) or not 0.1 <= hours <= 1000:
+            raise Refused(f"{at}: hours must be a number from 0.1 to 1000")
+        recommended = option.get("recommended", False)
+        if not isinstance(recommended, bool):
+            raise Refused(f"{at}: recommended must be a boolean")
+        clean_options.append({
+            "key": key,
+            "label": _required(option, "label", MAX_TITLE, at),
+            "reason": _required(option, "reason", 400, at),
+            "cost": _required(option, "cost", 300, at),
+            "hours": hours,
+            "recommended": recommended,
+        })
+    recommended = sum(option["recommended"] for option in clean_options)
+    if recommended == 0 or (not multi and recommended != 1):
+        raise Refused(f"{where}: recommend {'at least one option' if multi else 'exactly one option'}")
+    return {"id": identity, "title": _required(raw, "title", MAX_TITLE, where),
+            "ask": _block(raw.get("ask"), MAX_ASK), "multi": multi, "options": clean_options}
 
 
 def session_cwd(session_id):
@@ -351,52 +197,33 @@ def clean(payload):
     if not isinstance(doc, dict):
         raise Refused("the document itself is missing")
 
+    _new_form(doc)
     brief_id = _slug(doc.get("id"), "the id of the brief")
-    title = _line(doc.get("title"), MAX_TITLE)
-    if not title:
-        raise Refused("a brief carries a title: it is what the person sees before opening it")
-
-    raw_questions = doc.get("questions")
-    if raw_questions is None:
-        raw_questions = []
-    if not isinstance(raw_questions, list):
-        raise Refused("questions come as a list")
-    if len(raw_questions) > MAX_QUESTIONS:
-        raise Refused(f"{len(raw_questions)} questions, and the ceiling is {MAX_QUESTIONS}")
-
+    title = _required(doc, "title", MAX_TITLE, "the brief")
+    task = _required(doc, "task", 400, "the brief")
+    why = _required(doc, "why", 800, "the brief", block=True)
+    raw_decisions = doc.get("decisions")
+    if not isinstance(raw_decisions, list) or not 1 <= len(raw_decisions) <= MAX_DECISIONS:
+        raise Refused(f"decisions must be a list of 1 to {MAX_DECISIONS} decisions")
     seen = set()
-    questions = [_question(q, i + 1, seen) for i, q in enumerate(raw_questions)]
-
-    # What the session says about its own directory is a fallback, not the
-    # answer: it is the directory of the process that published the brief.
-    out = {
-        "id": brief_id,
-        "sessionId": session,
+    decisions = [_decision(d, i + 1, seen) for i, d in enumerate(raw_decisions)]
+    context = doc.get("context", [])
+    if not isinstance(context, list) or len(context) > MAX_CONTEXT:
+        raise Refused(f"context must be a list of at most {MAX_CONTEXT} blocks")
+    blocks = []
+    for item in context:
+        if not isinstance(item, dict):
+            raise Refused("context: an object was expected")
+        blocks.append({"title": _required(item, "title", 80, "context"),
+                       "text": _required(item, "text", MAX_BLOCK, "context", block=True)})
+    # The publisher's directory can be wherever the agent last ran cd; the
+    # live session's directory is where the person finds this document.
+    return {
+        "id": brief_id, "sessionId": session,
         "cwd": session_cwd(session) or _line(payload.get("cwd"), 400),
-        "title": title,
-        "at": time.strftime(STAMP, time.gmtime()),
-        "questions": questions,
+        "title": title, "task": task, "why": why, "context": blocks,
+        "at": time.strftime(STAMP, time.gmtime()), "decisions": decisions,
     }
-
-    eyebrow = _line(doc.get("eyebrow"), MAX_EYEBROW)
-    if eyebrow:
-        out["eyebrow"] = eyebrow
-    lede = _block(doc.get("lede"))
-    if lede:
-        out["lede"] = lede
-    summary = _summary(doc.get("summary"))
-    if summary:
-        out["summary"] = summary
-    lineage = _lineage(doc.get("lineage"))
-    if lineage:
-        out["lineage"] = lineage
-    sections = _sections(doc.get("sections"))
-    if sections:
-        out["sections"] = sections
-    closing = _blocks(doc.get("closing"), MAX_CLOSING)
-    if closing:
-        out["closing"] = closing
-    return out
 
 
 def _seconds(stamp):
@@ -529,7 +356,8 @@ class Shelf:
                     "eyebrow": doc.get("eyebrow") or "",
                     "at": doc.get("at") or "",
                     "firstAt": doc.get("firstAt") or "",
-                    "questions": len(questions),
+                    "questions": len(doc["decisions"]) if "decisions" in doc else len(questions),
+                    **({"decisions": len(doc["decisions"])} if "decisions" in doc else {}),
                 })
         out.sort(key=lambda c: c["at"], reverse=True)
         return out

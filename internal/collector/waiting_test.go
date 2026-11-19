@@ -99,3 +99,14 @@ func TestAnUnavailableShelfLeavesTheSessionAlone(t *testing.T) {
 		t.Errorf("a panel that is gone said %q after %s", got, time.Since(start))
 	}
 }
+
+func TestBriefStandingCountsDecisions(t *testing.T) {
+	cards := []json.RawMessage{
+		json.RawMessage(`{"id":"rollout","cwd":"/srv/proj","title":"Rollout","questions":99,"decisions":3,"answered":2}`),
+		json.RawMessage(`{"id":"sent","cwd":"/srv/proj","title":"Sent","decisions":2,"answered":2,"sent":true}`),
+	}
+	got := waitingBriefs(cards, "/srv/proj")
+	if !strings.Contains(got, "«Rollout» (2 of 3 decided)") || strings.Contains(got, "Sent") {
+		t.Fatalf("standing: %s", got)
+	}
+}

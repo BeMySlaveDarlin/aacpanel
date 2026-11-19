@@ -477,7 +477,7 @@ func (w *watcher) readBriefs(ctx context.Context, cur *notify.World) {
 	for _, card := range cards {
 		cur.Briefs = append(cur.Briefs, notify.Brief{
 			ID: card.ID, Title: card.Title, At: card.At,
-			Questions: card.Questions, Session: live[card.SessionID],
+			Questions: card.Questions, Decisions: card.Decisions, Session: live[card.SessionID],
 		})
 	}
 }

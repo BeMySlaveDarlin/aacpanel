@@ -1,180 +1,118 @@
-# How a brief is written
+# A brief is a task and its decisions
 
-A brief is a document the person walks through in the panel, on their phone or
-at their desk. Publish it with `brief_publish`, the document in `doc`, and let
-the turn end.
+Use `brief_publish` when the person wants a brief, a questionnaire, or choices
+for later. A brief always asks for decisions about one task. It can wait while
+independent work continues and outlives the conversation that wrote it.
 
-The answers come back **later, as a message in this session** — minutes or hours
-from now, whenever they finish. Nothing waits for them here.
+Use `ask` for a question while work continues. When work stops until the person
+answers, use AskUserQuestion. Long reading without decisions goes through
+`file_send`; credentials go through `secret_ask`. `notify` calls the person and
+carries no answer.
 
-## When it is a brief and when it is a question
+Call `brief_publish` without `doc` before the first publication and read these
+rules and the machine's guide. Then pass `doc` as an object. `check: true` beside
+`doc` counts decisions and options without publishing; the collector validates
+the full document when it is published. A refusal means nothing was published:
+say why in the conversation.
 
-`AskUserQuestion` stops the turn and is answered in seconds. It holds at most
-four questions, two to four options each, and a twelve-character header. Answers
-picked from the panel are pressed into the dialog in tmux as keystrokes, and
-that dialog fits nine items.
+## The document
 
-Take a brief when any of that is in the way:
-
-- **more than four questions**, or more than four options in one;
-- an option that **needs a paragraph** to say what it costs;
-- the choice **rests on facts** the person has to see first, with their sources;
-- the answer is **not due now**: they will read it on a phone, in the evening,
-  in several sittings;
-- there is **nothing to ask at all** and the piece is simply worth reading.
-
-Take a question, not a brief, when the work stops until they answer. A brief
-that blocks the work is a brief nobody asked for.
-
-## What goes in the document
-
-`doc` is a JSON object. It is shown here as YAML, which is easier to read; the
-fields and their nesting are the same.
+This YAML shows the shape; the tool accepts the corresponding JSON object:
 
 ```yaml
-id: seven-questions           # lowercase letters, digits, dashes; a reissue under
-                              # the same id updates the document in place
-title: Seven questions after twelve
-eyebrow: after twelve answers # a line of context above the title
-lede: |
-  What this is and why it exists. Inline **bold**, `code` and *italics* work.
-summary:                      # up to four counters across the top
-  - {n: "3", label: still open}
-lineage:                      # where each question came from
-  - {from: did not close, to: "**07** where the settings live"}
-sections:                     # blocks that ask nothing
-  - {title: Where this came from, body: The tail of yesterday.}
-questions:
-  - id: r1
-    chips: [{tone: stuck, text: "did not close · #412"}]   # task numbers go here only
-    title: Every role needs settings of its own
-    ask: |
-      **Why.** You asked for one settings folder shared by every role. The
-      program reads that folder whole, so a reviewer would get the builder's
-      permissions. A mistake there lets a review edit code it was only meant
-      to read.
-
-      **What.** Each role starts with only its own settings. Done when a
-      reviewer started by hand cannot write to the project.
-
-      **Choice.** Pass the settings at start, or keep a folder per role.
-    facts:                    # what the choice rests on, each with its source
-      - {text: "The program reads the settings folder whole and cannot skip parts of it.", src: "stack 5"}
-      - {text: "The locked-down start mode ignores the settings of the account.", src: "help, 2.1.270", flag: true}
-    kind: pick                # pick · multi · text · none
+id: rollout-order
+title: Prepare the rollout
+task: Choose how to deploy the release without losing incoming work.
+why: The release is ready and the service must stay available during deployment.
+context:
+  - title: Dependency
+    text: The new code needs the database change before it starts.
+decisions:
+  - id: order
+    title: What goes first
+    ask: Which deployment order should we use?
+    multi: false
     options:
-      - {key: A, label: Pass settings at start, note: "One folder stays; the command line of each role grows longer. About a day of work."}
-      - {key: B, label: A folder per role, note: "Simple to read, but the subscription token is copied into every folder and has to be renewed in each."}
-    read:                     # your reading, marked on screen as a proposal
-      - I would take A. It keeps one place for the token and costs a day; B trades that day for a chore every renewal.
-    capture: {note: {placeholder: The fallback}}
-    answered: {pick: C}       # what you already know was decided
-closing:
-  - What closed for good, and where the analysis ends and a guess begins.
+      - key: A
+        label: Apply the database change first
+        reason: Both versions can use the changed database.
+        cost: The old service remains running for one rebuild.
+        hours: 0.5
+        recommended: true
+      - key: B
+        label: Stop the service and deploy both together
+        reason: There is only one version to check.
+        cost: Incoming work waits until the rebuild finishes.
+        hours: 0.3
+        recommended: false
 ```
 
-`kind` decides what the question takes: `pick` one option, `multi` several,
-`text` only words, `none` nothing at all. A `pick` or `multi` question without
-options is refused, and so is a `text` or `none` one carrying them. A question
-without `kind` is a `pick`.
+`id` names the brief: lowercase Latin letters, digits and dashes, at most 64
+characters. `title` is required and at most 120 characters. `task` is required,
+at most 400 characters: name what needs doing and how the person can tell it is
+done. `why` is required, at most 800 characters: say why it matters now and what
+happens if it waits. Do not repeat the title in longer words.
 
-Every question also takes a free note, and the person can skip any of them.
+`context` is optional supporting reading, folded on the screen: up to six blocks
+with `title` (80 characters) and markdown `text` (2000 characters). Keep the
+material needed to choose in the decision itself.
 
-## What makes a brief worth reading
+Each decision has a `title` (120 characters) and an optional markdown `ask`
+(600 characters) saying what is being decided and what follows from it. Its `id`
+is optional, at most 40 characters, unique in the brief; an absent id becomes
+its number starting at 1. `multi` defaults to false. Set it to true only when
+several options may be chosen together. Each decision offers two to eight
+options with unique keys. A missing key becomes A, B, and so on; a key is at
+most four characters.
 
-The half that is not questions is the half that earns it:
+Every option requires:
 
-- **`facts` carry their source.** `stack 5`, `admin-role.md:61`, `checked`,
-  `follows from`. A claim with nowhere to check it is a claim the person has to
-  take on trust, and they will not.
-- **`read` is marked as yours.** The screen prints it under "my reading — a
-  proposal, not a fact". Keep it that way: say what you would pick and why, and
-  do not dress a guess as a finding.
-- **`options` say what each one costs**, not what it is called. "A directory per
-  role" is a name; "a copy of the subscription token in each" is a reason to
-  choose or refuse.
-- **`flag: true`** marks the fact that changes the answer. Two or three in a
-  document, not half of them.
+- `label` (120 characters): the concrete choice;
+- `reason` (400 characters): why someone would choose it;
+- `cost` (300 characters): what it gives up, leaves waiting, or makes harder;
+- `hours`: a number from 0.1 to 1000, the estimated agent hours to do the work.
+  Agent hours measure work by an agent, not a promise about the person's clock.
 
-## How the text reads
+Mark `recommended: true` on exactly one option for a single choice, and at least
+one for multiple choice. The mark lets the person see your judgement before
+reading every alternative and accept the recommendation in one press. Give its
+reason in the option; the mark alone is not an argument.
 
-The person reads a brief on a phone, between other things. They do not keep in
-their head the numbers of decisions, the paths or the names in the code, and a
-brief written in them comes back unanswered.
+Write plain sentences about consequences for people, time and money. Explain
+unavoidable jargon where it first appears. A title names the problem, and an
+option names an action. Avoid filler, chains of nouns and code identifiers that
+the person cannot act on. Before publishing, read each decision with all its
+options and check that every option has a reason, cost and agent hours.
 
-- **No identifiers in the prose.** `title`, `ask`, option notes, `read`,
-  `sections`, `lede` and `closing` carry no numbers of decisions or findings,
-  no requirement codes, no paths or file names, no names of functions and
-  variables, no commit hashes, no names of waves or zones. A task number goes
-  into `chips` and nowhere else; an address goes into `facts[].src`, where it
-  lets the fact be checked.
-- **The thing, not its jargon.** Say what a thing does: not "the hook" but "a
-  command Claude runs itself before every step of an agent". A term that cannot
-  be avoided is explained once, in brackets, where the card first uses it.
-- **Plain sentences.** Short, with verbs and particulars. None of the filler of
-  generated text — "key", "it is worth noting", "it should be stressed",
-  "within the scope of", "the given", "allows", "ensures", "thus", "overall",
-  "critical", "comprehensive", or their counterparts in the language of the
-  brief. No chains of nouns, no arrows or symbols in place of words, no dash
-  where a sentence would do.
-- **Consequences in people, time and money**, not in properties of the code:
-  "the tests spend the subscription", "the agent hangs for three hours", "on the
-  customer's Mac the run fails at the first step".
-- **A title names the problem** the way a person would put it — "New work has
-  to start from the customer's latest code" — not the mechanism behind it.
-- **`ask` reads Why, What, Choice**: three short paragraphs under these bold
-  headings, in the language of the brief. Why the question arose, in three or
-  four sentences; what gets decided and how one tells it is done, in one or
-  two; the choice, in one line. Under 780 characters: the panel cuts at 800.
-  The rest goes into `facts`, at most six to a card, each a whole sentence a
-  person would say.
-- **Each option's `note` is its price on this card**: what we get, how much
-  work it is, what stays broken, what exactly the argument is about.
-- **`read` is two or three plain sentences**: what you would pick and why.
-- **Check before publishing.** Go over the text fields — everything but `src`
-  and `chips` — for identifiers: file extensions, `snake_case` names, hashes of
-  nine hex digits and more, the numbering the project gives its decisions.
-  Nothing should be there. Then read two or three cards whole, as the person
-  will.
+The whole publication is at most 4 MB. Text is cut at its field's ceiling;
+broken structure is refused. The document carries 1–100 decisions. HTML in a
+field is text; the panel renders markdown itself.
 
-## The rules the panel keeps
+## Answers and a closed brief
 
-- **The id names the document, not the conversation.** Publishing the same id
-  from the same project updates it and keeps the answers already given.
-  From another project it is refused rather than overwritten. A brief whose
-  answers the person has sent is closed: a reissue does not open it again, and
-  what it adds cannot be answered. New questions after that go into a new brief
-  under a new id.
-- **Ceilings**: 100 questions, 8 options and 16 facts each, 4 MB for the whole
-  document. Long text is cut rather than refused; a broken structure is refused
-  with the reason.
-- **A brief belongs to the directory the session works in.** The panel takes
-  the session and its directory from the session itself, never from the
-  document: the brief shows up in the conversation of the project the session
-  is working on, and only a session working there may take it off the shelf.
-- **A brief outlives its session.** It is kept for a month, and the answers
-  reach the session even after it has been restarted.
-- **Nothing you write is markup.** Inline markdown is turned into nodes by the
-  panel; html in a field arrives as the characters you typed.
+The person may decide some choices and leave the rest unanswered. At least one
+choice is needed to send. Accept recommended fills only undecided choices and
+keeps choices already made. Each decision has an optional note; the task has
+one shared note. The server sends all decisions as one message, marking the
+brief sent with the same operation. Unanswered decisions say `no answer`.
 
-## Taking one off the shelf
+The same id in the same project updates the document and keeps its answers.
+A brief whose answers were sent is closed: a reissue does not open it again.
+New decisions after sending need a new brief under a new id. Do not overwrite
+a closed document to ask again. Answers arrive as a message when the person
+sends them: continue independent work or end the turn, never poll for them.
 
-`brief_delete` with the id. A session removes only the briefs of the directory
-it works in: the document belongs to the work it was written for, and the
-conversation carrying that work on is the one that may put it down. A brief from
-elsewhere is refused with the directory it belongs to. The answers to the
-document go with it: published again under the same name, it starts empty.
+A brief belongs to the directory its session works in. Its answers reach that
+session or a live session carrying on work in the same directory. The document
+stays on the host for a month even if its author ends.
 
-Remove one when the person asks. A brief nobody answered is swept on its own
-after a month.
+## Taking a brief off the shelf
 
-## What comes back
+Use `brief_delete` with the id when the person asks to remove it. A session can
+remove only briefs of the directory it works in. The answers go with the
+document; publishing a removed id starts a new publication with no answers.
+An unanswered brief is swept after a month.
 
-"Published as" with the id means the panel has it. A refusal says why nothing
-was published — the collector is not listening, the id belongs to another
-project, or the document is malformed. Say the reason in the conversation; a
-refused brief that goes unmentioned leaves them waiting for a document that is
-not there.
-
-`check: true` beside `doc` reads the document and counts what is in it without
-publishing.
+The response starts with `Published as <id>` when the panel has the document.
+If the collector refuses it or is unavailable, report the reason: the person
+must not wait for a brief that was never published.

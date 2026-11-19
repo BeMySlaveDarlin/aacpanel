@@ -32,6 +32,7 @@ type BriefCard struct {
 	At        string `json:"at,omitempty"`
 	FirstAt   string `json:"firstAt,omitempty"`
 	Questions int    `json:"questions"`
+	Decisions int    `json:"decisions,omitempty"`
 }
 
 // Born names the publication the card stands for, as Brief.Born does.
@@ -73,9 +74,13 @@ type BriefFact struct {
 
 // BriefOption is one way to answer, with what it costs.
 type BriefOption struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Note  string `json:"note,omitempty"`
+	Key         string  `json:"key"`
+	Label       string  `json:"label"`
+	Note        string  `json:"note,omitempty"`
+	Reason      string  `json:"reason,omitempty"`
+	Cost        string  `json:"cost,omitempty"`
+	Hours       float64 `json:"hours,omitempty"`
+	Recommended bool    `json:"recommended"`
 }
 
 // BriefNote is the free field under a question.
@@ -111,14 +116,33 @@ type BriefQuestion struct {
 	Answered *BriefAnswered `json:"answered,omitempty"`
 }
 
+// BriefContext is supporting material kept folded until the person opens it.
+type BriefContext struct {
+	Title string `json:"title"`
+	Text  string `json:"text"`
+}
+
+// BriefDecision is a choice whose options name their reasons and costs.
+type BriefDecision struct {
+	ID      string        `json:"id"`
+	Title   string        `json:"title"`
+	Ask     string        `json:"ask"`
+	Multi   bool          `json:"multi"`
+	Options []BriefOption `json:"options"`
+}
+
 // Brief is the whole document as the session published it.
 type Brief struct {
-	ID        string `json:"id"`
-	SessionID string `json:"sessionId"`
-	CWD       string `json:"cwd,omitempty"`
-	Title     string `json:"title"`
-	Eyebrow   string `json:"eyebrow,omitempty"`
-	At        string `json:"at,omitempty"`
+	ID        string          `json:"id"`
+	SessionID string          `json:"sessionId"`
+	CWD       string          `json:"cwd,omitempty"`
+	Title     string          `json:"title"`
+	Task      string          `json:"task,omitempty"`
+	Why       string          `json:"why,omitempty"`
+	Context   []BriefContext  `json:"context,omitempty"`
+	Decisions []BriefDecision `json:"decisions,omitempty"`
+	Eyebrow   string          `json:"eyebrow,omitempty"`
+	At        string          `json:"at,omitempty"`
 	// A document published a second time under the same name: when it was
 	// first published and when it was replaced.
 	FirstAt    string          `json:"firstAt,omitempty"`
@@ -129,6 +153,31 @@ type Brief struct {
 	Sections   []BriefSection  `json:"sections,omitempty"`
 	Questions  []BriefQuestion `json:"questions"`
 	Closing    []string        `json:"closing,omitempty"`
+}
+
+// DecisionForm distinguishes the decision document from documents kept on the shelf.
+func (b *Brief) DecisionForm() bool { return b.Task != "" || b.Decisions != nil }
+
+// Count includes numbered reading blocks only when they ask for an answer.
+func (b *Brief) Count() int {
+	if b.DecisionForm() {
+		return len(b.Decisions)
+	}
+	n := 0
+	for _, q := range b.Questions {
+		if q.Kind != "none" {
+			n++
+		}
+	}
+	return n
+}
+
+// Count is the number of choices the card asks the person to make.
+func (c BriefCard) Count() int {
+	if c.Decisions > 0 {
+		return c.Decisions
+	}
+	return c.Questions
 }
 
 // Born names the publication of a brief: when the document first went on the

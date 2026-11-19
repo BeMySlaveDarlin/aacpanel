@@ -127,6 +127,7 @@ type Brief struct {
 	Session   string
 	At        string
 	Questions int
+	Decisions int
 	Answered  int
 	Sent      bool
 }
@@ -479,6 +480,10 @@ func published(b Brief, again bool) Event {
 	}
 	body := "nothing to answer — a piece to read"
 	switch {
+	case b.Decisions == 1:
+		body = "one decision to make"
+	case b.Decisions > 1:
+		body = fmt.Sprintf("%d decisions to make", b.Decisions)
 	case b.Questions == 1:
 		body = "one question to answer"
 	case b.Questions > 1:
