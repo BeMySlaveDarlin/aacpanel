@@ -63,7 +63,7 @@ const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport:
 const exec = { available: true, kinds: ["session.send", "session.answer", "session.dismiss", "session.shell", "secret.put", "session.file"] };
 const root = document.querySelector("#root");
 const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
-const count = () => Number(document.querySelector(".movepill")?.textContent.match(/· (\d+)/)?.[1] || 0);
+const count = () => Number(document.querySelector(".movepill .movecount")?.textContent || 0);
 const form = () => document.querySelector(".actform:not(.actsent)");
 const button = (word) => [...form().querySelectorAll("button")].find(b => b.textContent.trim() === word);
 const input = (el, text) => { el.value = text; el.dispatchEvent(new Event("input", { bubbles: true })); };
@@ -74,7 +74,10 @@ window.done = (async () => {
     const out = {};
     draw(); await until(() => form()?.querySelector(".requestanswer")); await quiet();
     out.auto = count() === 2 && form().textContent.includes(req.title) && !document.querySelector(".sheet.on, .waitingqueue");
-    out.waitTime = document.querySelector(".movepill").textContent.includes("5 min ago");
+    // One square whatever waits: an icon and the count, the words and the time in its label.
+    out.waitTime = document.querySelector(".movepill").getAttribute("aria-label").includes("5 min ago")
+        && document.querySelector(".movepill").textContent.trim() === String(count())
+        && Boolean(document.querySelector(".movepill svg"));
     out.markers = document.querySelectorAll(".chatfeed .actmark").length === 2 && !document.querySelector(".chatfeed .actmark .requeststeps, .chatfeed .actmark .skpad");
     out.head = document.querySelector('.talkword, .dkword[data-tone="waiting"]')?.textContent === "your move";
     out.noteQuiet = !form().querySelector("textarea");

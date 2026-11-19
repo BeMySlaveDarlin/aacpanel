@@ -27,11 +27,20 @@ export function movesOf(acts, waiting, native) {
         || timeOf(a) - timeOf(b));
 }
 
+// The icon of each kind of move; a request and a chain share the list.
+const moveIcon = { asked: Icon.ask, question: Icon.ask, request: Icon.list, secret: Icon.key, permit: Icon.lock };
+
+// MovePill is one square of the row, the size of the tools beside it whatever
+// waits: the icon says what the first move is, the corner how many there are,
+// and the words and the time stand in its label. A pill as wide as its words
+// pushed the tools of the row onto a second line.
 export function MovePill({ items, onNext }) {
     if (!items.length) return null;
     const oldest = items.reduce((a, b) => timeOf(a) < timeOf(b) ? a : b);
-    return html`<button class="movepill" type="button" onClick=${onNext}>
-        <span>✋ your move · ${items.length}</span><small> · ${ago(oldest.at)}</small>
+    const first = items[0];
+    const label = `your move · ${items.length} · ${ago(oldest.at)}`;
+    return html`<button class="movepill" type="button" data-kind=${first.kind} aria-label=${label} title=${label} onClick=${onNext}>
+        ${(moveIcon[first.kind] || Icon.hand)()}<span class="movecount" aria-hidden="true">${items.length}</span>
     </button>`;
 }
 
