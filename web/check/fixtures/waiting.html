@@ -7,12 +7,14 @@
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
+import { ActAsk } from "/src/screens/ask.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
-import { movesOf, withActReplies } from "/src/screens/chat/actform.js";
+import { ActMarker, movesOf, withActReplies } from "/src/screens/chat/actform.js";
 
 const until = async (ready) => {
+    await Promise.resolve();
     const end = performance.now() + 5000;
     while (!ready() && performance.now() < end) await new Promise(resolve => requestAnimationFrame(resolve));
     if (!ready()) throw new Error("The form did not reach its expected state");
@@ -33,17 +35,19 @@ const sent = [];
 let refuse = true;
 let hold = false, release;
 let stream;
+let actReads = 0;
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (input, options) => {
     const u = new URL(String(input), location.href);
     if (u.pathname === "/api/chat") return json({ items, first: 10, last: 39, total: items.length, moreBefore: false, state });
-    if (u.pathname === "/api/acts") return json({ acts });
+    if (u.pathname === "/api/acts") { actReads += 1; return json({ acts }); }
     if (u.pathname === "/api/secrets") return json({ dir: "/srv/secrets", secrets: [] });
     if (u.pathname === "/api/actions") {
         const body = JSON.parse(options.body); sent.push(body);
         if (hold) { hold = false; await new Promise(resolve => { release = resolve; }); }
         if (refuse) return json({ error: "Delivery refused" }, 502);
-        if (body.params.act) acts = acts.map(a => a.id === body.params.act ? { ...a, state: body.params.answer === "decline" ? "declined" : "answered", closed: new Date().toISOString(), answer: { outcome: body.params.answer, note: body.params.note } } : a);
+        if (body.params.act) acts = acts.map(a => a.id === body.params.act ? { ...a, state: body.params.answer === "decline" ? "declined" : "answered", closed: new Date().toISOString(), answer: body.params.answers ? { answers: body.params.answers } : { outcome: body.params.answer, note: body.params.note } } : a);
+        if (body.kind === "session.send" && body.params.text) acts = acts.map(a => a.kind === "ask" && a.body.source === "prose" && a.state === "open" ? { ...a, state: "answered", closed: new Date().toISOString() } : a);
         return json({ ok: true });
     }
     if (u.pathname.startsWith("/api/term")) return json({ available: false });
@@ -60,9 +64,10 @@ const exec = { available: true, kinds: ["session.send", "session.answer", "sessi
 const root = document.querySelector("#root");
 const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
 const count = () => Number(document.querySelector(".movepill")?.textContent.match(/· (\d+)/)?.[1] || 0);
-const form = () => document.querySelector(".actform");
+const form = () => document.querySelector(".actform:not(.actsent)");
 const button = (word) => [...form().querySelectorAll("button")].find(b => b.textContent.trim() === word);
-const type = async (el, text) => { el.value = text; el.dispatchEvent(new Event("input", { bubbles: true })); await quiet(); };
+const input = (el, text) => { el.value = text; el.dispatchEvent(new Event("input", { bubbles: true })); };
+const type = async (el, text) => { input(el, text); await quiet(); };
 const next = async () => { document.querySelector(".movepill").click(); await quiet(); };
 const publish = async () => { stream.listeners.state({ data: JSON.stringify(state) }); await quiet(); };
 window.done = (async () => {
@@ -159,16 +164,16 @@ window.done = (async () => {
     const stepsOf = () => [...form().querySelectorAll(".asksteps i")].map((i) => i.className);
     out.oneStep = form().querySelectorAll(".askone").length === 1 && form().textContent.includes("Choose the plan")
         && !form().textContent.includes("Choose the region") && JSON.stringify(stepsOf()) === '["now",""]';
-    form().querySelectorAll(".askpick")[0].click(); await quiet();
+    form().querySelectorAll(".askpick")[0].click(); await until(() => form()?.textContent.includes("Choose the region"));
     out.steps = form().textContent.includes("Choose the region") && !form().textContent.includes("Choose the plan")
         && JSON.stringify(stepsOf()) === '["done","now"]' && form().querySelector(".askcount")?.textContent === "1/2";
-    button("Back").click(); await quiet();
+    button("Back").click(); await until(() => form()?.textContent.includes("Choose the plan"));
     out.back = form().textContent.includes("Choose the plan") && form().querySelectorAll(".askopt.on").length === 1;
-    form().querySelectorAll(".askpick")[1].click(); await quiet();
-    form().querySelectorAll(".askpick")[0].click(); await quiet();
+    form().querySelectorAll(".askpick")[1].click(); await until(() => form()?.textContent.includes("Choose the region"));
+    form().querySelectorAll(".askpick")[0].click(); await until(() => form()?.querySelector(".askreview"));
     const rows = [...form().querySelectorAll(".askreview .askrow")].map((row) => row.querySelector(".askrowa").textContent.trim());
     out.review = JSON.stringify(rows) === '["B","West"]' && !form().querySelector(".askone");
-    button("Send").click(); await quiet();
+    button("Send").click(); await until(() => count() === 0 && document.querySelector(".actsent"));
     out.round = sent.at(-1).kind === "session.answer" && JSON.stringify(sent.at(-1).params.picks) === "[[2],[1]]" && count() === 0;
     // The answer stays on screen, quiet, until the transcript brings its card.
     out.sentStays = document.querySelector(".chatfeed .actsent")?.textContent.includes("B") === true
@@ -195,6 +200,107 @@ window.done = (async () => {
     out.order = ordered.map(item => item.kind).join(",") === "request,permit,brief";
     out.closedWins = movesOf(normalized, session.waiting, []).length === 0;
     out.detachedReply = withActReplies([items.at(-1)], normalized)[0]?.actReply === true;
+
+    const prose = { id: "d".repeat(32), kind: "ask", title: "Release plan", state: "open", created: new Date().toISOString(),
+        body: { source: "prose", message: "prose-message", what: "Choose the release plan", questions: [
+            { header: "Plan", question: "Which plan should run?", multi: false, options: [{ label: "Canary", description: "Start with one region" }, { label: "All" }] },
+            { header: "Window", question: "When should it run?", multi: false, options: [] },
+        ] } };
+    exec.kinds = exec.kinds.filter(kind => !["session.answer", "session.dismiss"].includes(kind));
+    acts = [...acts, prose];
+    state = {};
+    items = [...items, { role: "ai", pos: 41, at: prose.created, text: "Which plan should run? When should it run?" }];
+    session.waiting = [...session.waiting, { kind: "question", id: prose.id, what: prose.body.what, questions: prose.body.questions, pos: 41, at: prose.created }];
+    draw();
+    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 41, total: items.length }) });
+    const marker = (id) => document.querySelector(`.actmark[data-act="${id}"]`);
+    await until(() => form()?.textContent.includes("Which plan should run?") && marker(prose.id));
+    out.askMarker = marker(prose.id)?.querySelector(".actkind").textContent === "question"
+        && marker(prose.id)?.textContent.includes("Choose the release plan")
+        && marker(prose.id)?.textContent.includes("2 questions · below");
+    const proseStart = sent.length;
+    out.askRequired = Boolean(button("Next")?.disabled) && Boolean(form().querySelector(".askown .askpick"));
+    form().querySelector(".askopts .askpick").click();
+    await until(() => form()?.textContent.includes("When should it run?"));
+    button("Review").click(); await quiet();
+    out.askEmpty = Boolean(button("Review")?.disabled) && sent.length === proseStart && !form().querySelector(".askreview");
+    input(form().querySelector(".askinput"), "  After midnight.  ");
+    await until(() => !button("Review")?.disabled);
+    button("Review").click(); await until(() => form()?.querySelector(".askreview"));
+    out.askReview = JSON.stringify([...form().querySelectorAll(".askrowa")].map(row => row.textContent.trim())) === '["Canary","After midnight."]';
+    // Losing an earlier answer while reviewing holds the whole message back.
+    form().querySelectorAll(".askedit")[1].click(); await until(() => form()?.querySelector(".askinput"));
+    input(form().querySelector(".askinput"), "");
+    await until(() => button("Review")?.disabled);
+    button("Back").click(); await until(() => form()?.textContent.includes("Which plan should run?"));
+    button("Next").click(); await until(() => form()?.textContent.includes("When should it run?"));
+    out.askEmpty = out.askEmpty && Boolean(button("Review")?.disabled) && sent.length === proseStart;
+    input(form().querySelector(".askinput"), "  After midnight.  ");
+    await until(() => !button("Review")?.disabled);
+    button("Review").click(); await until(() => form()?.querySelector(".askreview"));
+    hold = true;
+    button("Send").click(); button("Send")?.click();
+    await until(() => release && sent.length === proseStart + 1);
+    release(); await until(() => !form() && count() === 0 && marker(prose.id)?.querySelector(".actmarker").disabled);
+    out.askProse = sent.length === proseStart + 1 && sent.at(-1).kind === "session.send" && sent.at(-1).target === "work"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: prose.id, answers: [{ picks: ["Canary"], text: "" }, { picks: [], text: "After midnight." }] });
+    out.askClosed = count() === 0 && !form() && marker(prose.id)?.querySelector(".actmarker").disabled
+        && marker(prose.id)?.textContent.includes("Answered");
+    items = [...items, { role: "me", pos: 42, at: new Date().toISOString(), text: `The person answered the questions of your last message (${prose.id}):\n1. Which plan should run?\n   Canary\n2. When should it run?\n   After midnight.` }];
+    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 42, total: items.length }) });
+    await until(() => marker(prose.id)?.querySelector(".actreply"));
+    out.askReply = marker(prose.id)?.querySelector(".actreply")?.textContent === "→ agent · answered"
+        && !marker(prose.id)?.querySelector("details") && ![...document.querySelectorAll(".msg.me")].some(el => el.textContent.includes("The person answered"));
+
+    const tool = { id: "e".repeat(32), kind: "ask", title: "Release regions", state: "open", created: new Date().toISOString(),
+        body: { source: "tool", what: "Choose the release regions", questions: [
+            { header: "Regions", question: "Which regions should receive it?", multi: true, options: [{ label: "West" }, { label: "East" }, { label: "North" }] },
+        ] } };
+    const dismissed = { ...prose, id: "f".repeat(32), state: "open", created: tool.created, body: { ...prose.body, message: "another-prose-message" } };
+    acts = [...acts, tool, dismissed];
+    session.waiting = [...session.waiting, ...[tool, dismissed].map(act => ({ kind: "question", id: act.id, at: act.created, what: act.body.what, questions: act.body.questions }))];
+    draw(); await until(() => form()?.textContent.includes("Which regions should receive it?") && marker(dismissed.id));
+    marker(dismissed.id).querySelector(".actmarker").click(); await until(() => form()?.textContent.includes("Which plan should run?"));
+    const opened = form()?.textContent.includes("Which plan should run?");
+    marker(tool.id).querySelector(".actmarker").click(); await until(() => form()?.textContent.includes("Which regions should receive it?"));
+    out.askMarker = out.askMarker && opened && form()?.textContent.includes("Which regions should receive it?");
+    const beforeReplyReads = actReads;
+    input(document.querySelector(".composer > textarea"), "I am checking the rollout.");
+    await until(() => !document.querySelector(".composer .sendbtn").disabled);
+    document.querySelector(".composer .sendbtn").click();
+    await until(() => count() === 1 && marker(dismissed.id)?.querySelector(".actmarker").disabled);
+    out.askSources = count() === 1 && form()?.textContent.includes("Which regions should receive it?") === true
+        && marker(dismissed.id)?.querySelector(".actmarker").disabled && actReads === beforeReplyReads;
+    const toolStart = sent.length;
+    button("Send").click(); await quiet();
+    out.askEmpty = out.askEmpty && sent.length === toolStart && Boolean(button("Send")?.disabled);
+    const opts = form().querySelectorAll(".askopts .askopt:not(.askown) .askpick");
+    opts[0].click(); opts[1].click();
+    await until(() => form()?.querySelectorAll(".askopt:not(.askown).on").length === 2);
+    form().querySelector(".askown .askpick").click(); await until(() => form()?.querySelector(".askinput:not(.asknote)"));
+    input(form().querySelector(".askinput:not(.asknote)"), "Keep staging available.");
+    button("Send").click(); await until(() => !form() && count() === 0);
+    out.askTool = sent.length === toolStart + 1 && sent.at(-1).kind === "session.send"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: tool.id, answers: [{ picks: ["West", "East"], text: "Keep staging available." }] })
+        && !form() && count() === 0;
+    const archived = Object.fromEntries(acts.map(a => [a.id, { ...a, ...a.body }]));
+    out.askDetached = withActReplies([items.at(-1)], { [prose.id]: { ...archived[prose.id], created: new Date(Date.parse(at) - 1).toISOString() } })[0]?.actReply === true;
+    out.askClosed = out.askClosed && movesOf(archived, session.waiting, []).length === 0;
+    const independent = { ...tool, id: "g".repeat(32), created: new Date().toISOString() };
+    acts = [...acts, independent];
+    session.waiting = [...session.waiting];
+    draw();
+    await until(() => form()?.textContent.includes("Which regions should receive it?"));
+    out.askWithoutWaiting = count() === 1 && !session.waiting.some(item => item.id === independent.id);
+    const raw = (await (await fetch("/api/acts")).json()).acts.find(act => act.id === independent.id);
+    const direct = document.createElement("div");
+    document.body.append(direct);
+    const move = movesOf({ [raw.id]: raw }, [], [])[0];
+    render(html`<${ToastHost}><${GateHost}><${ActMarker} item=${{ role: "ask", id: raw.id }} record=${raw} />
+        <${ActAsk} item=${move} name="work" exec=${exec} /></${GateHost}></${ToastHost}>`, direct);
+    await until(() => direct.querySelector(".askone"));
+    out.askBody = direct.textContent.includes("Which regions should receive it?")
+        && direct.querySelector(".acttitle").textContent === raw.body.what;
     return out;
 })();
 </script>

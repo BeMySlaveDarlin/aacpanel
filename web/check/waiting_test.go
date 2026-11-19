@@ -12,7 +12,7 @@ func TestMoveFormsOnPhoneAndDesktop(t *testing.T) {
 		t.Run(screen.name, func(t *testing.T) {
 			var got map[string]bool
 			screen.run(t, "waiting.html", &got)
-			for _, key := range []string{"head", "markerKeeps", "next", "inFeed", "sentStays", "runConfirms", "run", "auto", "waitTime", "markers", "noteQuiet", "focus", "clipTap", "replyKeeps", "keepsCurrent", "cantReason", "failureKeeps", "cant", "done", "nextForm", "secretPath", "decline", "quietReply", "fullReply", "oneStep", "steps", "back", "review", "round", "oneWay", "dismissHint", "dismissFirst", "discussion", "order", "closedWins", "detachedReply"} {
+			for _, key := range []string{"head", "markerKeeps", "next", "inFeed", "sentStays", "runConfirms", "run", "auto", "waitTime", "markers", "noteQuiet", "focus", "clipTap", "replyKeeps", "keepsCurrent", "cantReason", "failureKeeps", "cant", "done", "nextForm", "secretPath", "decline", "quietReply", "fullReply", "oneStep", "steps", "back", "review", "round", "oneWay", "dismissHint", "dismissFirst", "discussion", "order", "closedWins", "detachedReply", "askMarker", "askRequired", "askEmpty", "askReview", "askProse", "askClosed", "askReply", "askSources", "askTool", "askDetached", "askWithoutWaiting", "askBody"} {
 				if !got[key] {
 					t.Errorf("%s: %+v", key, got)
 				}

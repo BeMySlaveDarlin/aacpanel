@@ -18,7 +18,7 @@ import { ParentSheet } from "./parent.js";
 import { useToast } from "../../ui/toasts.js";
 import * as codecopy from "./copy.js";
 import { ContextBar } from "../../ui/bar.js";
-import { Ask } from "../ask.js";
+import { ActAsk, Ask } from "../ask.js";
 import { Permit } from "./permit.js";
 import { ago, tokens } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
@@ -120,7 +120,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const actRunning = Object.values(acts).some((act) => act.state === "open" && act.outputs?.some((out) => out?.state === "running"));
     const waitingItems = useWaiting(live, true);
     useEffect(() => clearWaitingTargets(waitingItems, feedRef.current), [waitingItems]);
-    const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret"].includes(item.role)).map((item) => item.id).join("|");
+    const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret", "ask", "question"].includes(item.role)).map((item) => item.id).join("|");
     useEffect(() => {
         if (!id) return;
         let active = true;
@@ -392,7 +392,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const feed = weld(queuedRows(state.items, queue, taken));
     // What the feed draws: the tail, or a window away from the end of the
     // conversation. The work under the feed is always the tail's.
-    const drawn = withActReplies(away ? weld(queuedRows(shown, queue, taken)) : feed, acts);
+    const drawn = withActReplies(away ? weld(queuedRows(shown, queue, taken)) : feed, acts, waitingItems, !away);
     // The checklist of the work: on a phone a line over the composer, at a
     // desk a block at the top of the timeline column, where the room is.
     const checklist = (state.work && state.work.checklist) || null;
@@ -406,9 +406,9 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         onLocalDone(key, patch);
         if (patch.state !== "queued") return;
         if (goesOn && asksTurn) mark(answered(live, ask.toolUseId, Date.now(), ask.at, true));
-        for (const item of waitingItems) if (item.kind === "question") settleWaiting(live, "question", item.id);
+        for (const item of waitingItems) if (item.kind === "question" && acts[item.id]?.body?.source === "prose") settleWaiting(live, "question", item.id);
         setActs((was) => Object.fromEntries(Object.entries(was).map(([id, act]) => [id,
-            act.kind === "ask" && act.state === "open" ? { ...act, state: "answered" } : act])));
+            act.kind === "ask" && act.body?.source === "prose" && act.state === "open" ? { ...act, state: "answered" } : act])));
     };
     late.current = {
         onRun: (text, lang) => sendShell(run, name, { command: blockCommand(text, lang), messageId: messageID(composer.ids, []),
@@ -437,8 +437,9 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     ]);
     const current = moves.find((item) => moveKey(item) === selected) || moves[0];
     const currentKey = current ? moveKey(current) : "";
-    useEffect(() => { setSelected(currentKey); }, [currentKey]);
-    const selectAct = useCallback((item) => setSelected(moveKey({ ...item, kind: item.role || item.kind })), []);
+    // An older render must not undo a newer marker press.
+    useEffect(() => { setSelected((was) => was === selected ? currentKey : was); }, [currentKey, selected]);
+    const selectAct = useCallback((item) => setSelected(moveKey({ ...item, kind: item.role === "ask" ? "question" : item.role || item.kind })), []);
     const nextAct = () => {
         const next = moves[(moves.findIndex((item) => moveKey(item) === currentKey) + 1) % moves.length];
         if (!next) return;
@@ -467,11 +468,17 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         settleWaiting(live, "secret", item.id || item.name);
         loadSecrets();
     };
+    const finishQuestion = (id) => {
+        setActs((was) => ({ ...was, [id]: { ...was[id], state: "answered", answered: new Date().toISOString() } }));
+        settleWaiting(live, "question", id);
+    };
     const form = !current ? null : current.kind === "asked"
         ? html`<${Ask} key=${currentKey} ask=${ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
             field=${Boolean(dismissBeforeSend)} onAnswered=${nativeAnswered} />`
         : current.kind === "permit"
         ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)} onAnswered=${() => mark(answered(live, ""))} />`
+        : current.kind === "question"
+        ? html`<${ActAsk} key=${currentKey} item=${current} name=${name} exec=${exec} onAnswered=${finishQuestion} />`
         : current.kind === "request"
         ? html`<div onClick=${(event) => codecopy.fromClick(event, toast)}><${RequestCard} key=${currentKey} item=${current} record=${acts[current.id]}
             error=${actError} onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${lent.onRun}

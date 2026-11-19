@@ -26,6 +26,20 @@ export function Ask(props) {
         : html`<${Round} ...${props} />`;
 }
 
+export function ActAsk({ item, name, exec, onAnswered }) {
+    const run = useAction();
+    const questions = (item.questions || item.body?.questions || []).map((q) => ({ ...q, text: q.question }));
+    const send = (picks, texts, notes) => run("session.send", name, {
+        act: item.id,
+        answers: questions.map((q, n) => ({
+            picks: picks[n].map((pick) => q.options[pick - 1].label),
+            text: [texts[n].trim(), notes[n]].filter(Boolean).join("\n\n"),
+        })),
+    });
+    return html`<${Round} ask=${{ toolUseId: item.id, at: item.at, questions }} name=${name} exec=${exec}
+        onSend=${send} onAnswered=${onAnswered} />`;
+}
+
 // askLabel names who asks over a question: its header for claude, and for
 // codex the header beside the word that the question is codex's — a question
 // of codex that holds its turn comes from plan mode, and one it asked without
@@ -112,7 +126,7 @@ function blankAnswer(questions) {
 //
 // field says the message field under the form dismisses the question with the
 // words typed into it: a second way to dismiss it in the form is not drawn.
-function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
+function Round({ ask, name, exec, stream, codex, field = false, onSend, onAnswered }) {
     const run = useAction();
     const [step, setStep] = useState(0);
     const [review, setReview] = useState(false);
@@ -140,8 +154,8 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
 
     if (!questions.length) return null;
 
-    // The answer goes as structure: on the stream, and for codex always.
-    const proto = Boolean(stream || codex);
+    // Panel acts, stream sessions and codex take structured answers.
+    const proto = Boolean(onSend || stream || codex);
     // A question codex did not wait for is answered by a message, and so is
     // putting it away.
     const goesOn = Boolean(codex && ask.async);
@@ -150,10 +164,11 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
     const free = (n) => !(questions[n].options || []).length;
     const hasPreview = questions.some((q) => (q.options || []).some((o) => o.preview));
     const instant = !goesOn && many === 1 && !questions[0].multi && !hasPreview && !free(0);
-    const ready = Boolean(id) && (goesOn ? knows(exec, "session.send") : knows(exec, "session.answer"));
+    const action = onSend || goesOn ? "session.send" : "session.answer";
+    const ready = Boolean(id) && knows(exec, action);
     const why = !id
         ? "the question came without an id — there is nothing to match it against on the host"
-        : goesOn ? whyNot(exec, "session.send") : whyNot(exec, "session.answer");
+        : whyNot(exec, action);
 
     const dropReady = Boolean(id) && (goesOn ? knows(exec, "session.send") : knows(exec, "session.dismiss"));
     const dropWhy = !id
@@ -172,6 +187,7 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
     // of the host.
     const offersOwn = (n) => !codex || Boolean(questions[n].other);
     const ownBlocked = (n) => {
+        if (onSend) return ready ? "" : why;
         if (codex) return ready ? "" : why;
         if (proto) return ownReady ? "" : dropWhy;
         if (questions[n].multi) {
@@ -186,6 +202,7 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
     const answered = (n) => chosen(n).length > 0 || own(n).trim() !== "";
 
     const send = async (all, words) => {
+        if (onSend && questions.some((_, n) => !all[n].length && !words[n].trim())) return;
         if (!begin()) return;
         setFail("");
         setOpen(false);
@@ -194,7 +211,7 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
         const noted = all.map((list, n) => (proto && list.length ? (latest.current.notes[n] || "").trim() : ""));
         if (noted.some((note) => note !== "")) params.notes = noted;
         const text = goesOn ? asyncAnswer(questions, all, words, noted) : "";
-        const result = goesOn
+        const result = onSend ? await onSend(all, words, noted) : goesOn
             ? await run("session.send", name, { text, asked: id })
             : await run("session.answer", name, params);
         end();
@@ -283,6 +300,7 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
     };
     const nothing = !questions.some((_, n) => answered(n));
     const count = questions.filter((_, n) => answered(n)).length;
+    const incomplete = onSend && (stepped && !review ? !answered(step) : count < many);
     const shown = stepped && !review ? [step] : review ? [] : [0];
 
     return html`
@@ -315,7 +333,7 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
                         disabled=${sending} onInput=${(e) => setNote(n, e.target.value)}></textarea>`}
                 </div>`;
             })}
-            ${!field && html`<button class="askdrop" type="button" disabled=${!dropReady || Boolean(dropBlocked) || sending} onClick=${drop}>
+            ${!field && !onSend && html`<button class="askdrop" type="button" disabled=${!dropReady || Boolean(dropBlocked) || sending} onClick=${drop}>
                 <span class="askdropname">Dismiss the question and discuss</span>
                 <span class="askdropwhy">${dropBlocked || (!dropReady ? dropWhy : goesOn ? "codex hears that you will answer in the conversation" : "the session will wait for an ordinary message")}</span>
             </button>`}
@@ -324,9 +342,9 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
                 <span class="askcount" aria-label=${`${count} of ${many} answered`}>${count}/${many}</span>
                 ${stepped && (step > 0 || review) && html`<button class="btn askback" type="button" disabled=${sending} onClick=${backward}>Back</button>`}
                 <button class="btn primary" type="button"
-                    disabled=${!ready || sending || ((!stepped || review) && nothing)}
+                    disabled=${!ready || sending || incomplete || ((!stepped || review) && nothing)}
                     onClick=${stepped && !review ? forward : sendAll}>
-                    ${footLabel({ sending, stepped, review, step, many, answered })}</button>
+                    ${footLabel({ sending, stepped, review, step, many, answered, required: Boolean(onSend) })}</button>
             </div>`}
         </div>`}
     `;
@@ -334,10 +352,10 @@ function Round({ ask, name, exec, stream, codex, field = false, onAnswered }) {
 
 // footLabel is what the main button of the round does next: a step goes on
 // or is skipped, and the round itself is sent.
-function footLabel({ sending, stepped, review, step, many, answered }) {
+function footLabel({ sending, stepped, review, step, many, answered, required }) {
     if (sending) return "Sending…";
     if (!stepped || review) return "Send";
-    if (!answered(step)) return "Skip";
+    if (!required && !answered(step)) return "Skip";
     return step === many - 1 ? "Review" : "Next";
 }
 

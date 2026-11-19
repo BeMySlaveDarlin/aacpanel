@@ -38,16 +38,20 @@ export function MovePill({ items, onNext }) {
 }
 
 export function ActMarker({ item, record, onOpen }) {
-    const kind = item.role;
+    const kind = item.role === "ask" ? "question" : item.role;
+    const question = kind === "question";
     const open = record ? actOpen(record) : true;
     const chain = isChain(record || item);
     const outcome = chain ? chainSummary(record || item) : record?.withdrawn ? "Withdrawn" : record?.outcome === "done" ? "Done"
         : record?.outcome === "cant" ? "Can't" : record?.state === "declined" ? "Won't give"
-        : record?.answered ? "Filled in" : "yours · below";
+        : record?.answered || record?.state === "answered" ? (question ? "Answered" : "Filled in") : question ? "below" : "yours · below";
+    const body = record || item;
+    const count = (body.questions || body.body?.questions || []).length;
     return html`<div class=${`actmark${open ? " open" : " done"}`} data-act=${item.id}>
         <button type="button" class="actmarker" onClick=${() => onOpen && onOpen(item)} disabled=${!open || !onOpen}>
-            ${kind === "secret" ? Icon.key() : Icon.list()}<span class="actkind">${chain ? "chain" : kind}</span>
-            <span class="acttitle">${record?.title || item.title}</span><small>${outcome}</small>
+            ${kind === "secret" ? Icon.key() : question ? Icon.ask() : Icon.list()}<span class="actkind">${chain ? "chain" : kind}</span>
+            <span class="acttitle">${question ? body.what || body.body?.what || body.title || item.title : record?.title || item.title}</span>
+            <small>${question ? `${count} ${count === 1 ? "question" : "questions"} · ${outcome}` : outcome}</small>
         </button>
         ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${record} onOpen=${onOpen} />`)}
     </div>`;
@@ -55,6 +59,7 @@ export function ActMarker({ item, record, onOpen }) {
 
 export function ActReply({ text, record, onOpen, detached = false }) {
     const [expanded, setExpanded] = useState(false);
+    if (record?.kind === "ask") return html`<div class="actreply">→ agent · answered</div>`;
     if (!isChain(record)) return html`<details class="actreply"><summary>to the agent: ${text}</summary><p>${text}</p></details>`;
     const open = actOpen(record);
     const press = open && onOpen ? () => onOpen({ ...record, role: "request" })
@@ -67,6 +72,31 @@ export function ActReply({ text, record, onOpen, detached = false }) {
             aria-expanded=${!open ? expanded : undefined}>${line}</button>` : html`<div class="chainreply">${line}</div>`}
     </div>
     ${detached && !open && expanded && html`<${ChainCard} item=${record} record=${record} />`}`;
+}
+
+// Prose has a transcript anchor; tool asks can arrive before their tool
+// result. The act's time places either marker when that anchor is absent.
+function withAskMarkers(items, acts, waiting, tail) {
+    const asks = Object.values(acts).filter((act) => act.kind === "ask");
+    const list = items.map((item) => {
+        if (item.role !== "question") return item;
+        const act = asks.find((act) => act.id === item.id || (act.message || act.body?.message) === item.id);
+        return act ? { ...item, role: "ask", id: act.id } : item;
+    });
+    const first = timeOf(items.find((item) => item.at) || {});
+    const last = timeOf(items.findLast((item) => item.at) || {});
+    for (const act of asks) {
+        if (list.some((item) => item.role === "ask" && item.id === act.id)) continue;
+        const at = act.created;
+        const stamp = timeOf({ at });
+        const anchor = waiting.find((item) => item.kind === "question" && item.id === act.id)?.pos;
+        const anchored = anchor != null && items.some((item) => item.pos === anchor);
+        if (!anchored && (!stamp || stamp < first || !tail && stamp > last)) continue;
+        const n = anchored ? list.findLastIndex((item) => item.pos <= anchor)
+            : list.findLastIndex((item) => timeOf(item) <= stamp);
+        list.splice(n + 1, 0, { role: "ask", id: act.id, title: act.title, at, pos: anchor ?? list[n]?.pos ?? 0 });
+    }
+    return list;
 }
 
 function chainReply(text, act) {
@@ -92,9 +122,10 @@ function chainReply(text, act) {
 
 // Only an id present in the act data identifies a reply; its prose can change
 // without changing how the feed groups it. Legacy replies keep their parser.
-export function withActReplies(items, acts) {
-    const markers = new Set(items.filter((item) => ["request", "secret"].includes(item.role)).map((item) => item.id));
-    const known = Object.values(acts).filter((act) => ["do", "secret"].includes(act.kind) && (isChain(act) || act.state !== "open"));
+export function withActReplies(items, acts, waiting = [], tail = true) {
+    items = withAskMarkers(items, acts, waiting, tail);
+    const markers = new Set(items.filter((item) => ["request", "secret", "ask"].includes(item.role)).map((item) => item.id));
+    const known = Object.values(acts).filter((act) => ["do", "secret", "ask"].includes(act.kind) && (isChain(act) || act.state !== "open"));
     const replies = new Map();
     const rest = [];
     for (const item of items) {

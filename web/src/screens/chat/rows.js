@@ -93,7 +93,7 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
     if (item.role === "secret" && !item.id) {
         return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
     }
-    if (item.role === "request" || item.role === "secret") {
+    if (["request", "secret", "ask"].includes(item.role)) {
         if (item.role === "request" && isChain(act) && !actOpen(act)) return html`
             <${ChainCard} item=${item} record=${act} />
             ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
