@@ -42,6 +42,9 @@ type sessionCardsRun struct {
 	Kid *struct {
 		Own string `json:"own"`
 	} `json:"kid"`
+	ProjectKid *struct {
+		Own string `json:"own"`
+	} `json:"projectKid"`
 	Fold       string   `json:"fold"`
 	Foot       []string `json:"foot"`
 	RestartAll struct {
@@ -262,6 +265,9 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	}
 	if got.Kid == nil || got.Kid.Own != "onvif" {
 		t.Errorf("a session another opened reads %+v, want its name without the part its parent says", got.Kid)
+	}
+	if got.ProjectKid == nil || got.ProjectKid.Own != "patch" {
+		t.Errorf("a session another opened, named after the project, reads %+v, want its name without the project's part", got.ProjectKid)
 	}
 	if got.Fold != "2 openedonvif" {
 		t.Errorf("the fold over the sessions kkam-cameras opened reads %q, want how many and who of them waits", got.Fold)

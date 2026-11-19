@@ -74,6 +74,8 @@ const sessions = [
     // nothing.
     S(pj.watchdog, { session: "watchdog-review", agent: "codex", model: "gpt-6.1-sol", effort: "medium", cap: null,
         statusUpdatedAt: ms(6), seenAt: iso(1), pct: 21, nextAlarm: { id: "w1", name: "check the run", next: ahead(90) } }),
+    // Opened by another, but named after the project rather than its parent.
+    S(pj.watchdog, { session: "watchdog-patch", parent: { session: "watchdog-review" }, startedAt: iso(30), statusUpdatedAt: ms(4), seenAt: iso(1), pct: 5 }),
     S(pj.llm, { session: "llm-ops-nightly", pauseAlarm: { id: "p1", next: ahead(300) },
         checklist: steps(["Pull", "Rotate eval set", "Run", "Report"], 1, false), pct: 9, res: { mem: 64 * 1024**2 } }),
     // A project whose every session is paused: its heading continues them all.
@@ -248,6 +250,7 @@ window.done = (async () => {
         heads,
         lones,
         kid: card("kkam-cameras-onvif") && { own: text(card("kkam-cameras-onvif").querySelector(".scown")) },
+        projectKid: card("watchdog-patch") && { own: text(card("watchdog-patch").querySelector(".scown")) },
         fold: text(document.querySelector(".scfold")),
         foot,
     };

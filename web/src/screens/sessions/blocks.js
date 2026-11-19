@@ -284,7 +284,7 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
     const card = (s, depth = 0, from = "", parent = "") => html`
         <${SessionCard} key=${s.session} s=${s} depth=${depth} from=${from} limits=${limits} wait=${wait} exec=${exec}
                         profile=${profile} profiles=${profiles} notes=${notes && notes.get(s.session)}
-                        known=${parent || known}
+                        known=${parent ? [parent, known] : known}
                         desk=${desk} current=${current === s.session} onMenu=${menuOf ? menuOf(s) : null}
                         onOpen=${(row) => onOpen && onOpen(row.session, row.sessionId)} />
     `;
@@ -293,7 +293,7 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
         switch (e.kind) {
         case "fold":
             return html`<${OpenedFold} limits=${limits} key=${`fold:${e.parent.session}`} kids=${e.kids} hidden=${e.hidden} open=${e.open}
-                                      depth=${e.depth} onToggle=${() => fold(e.parent.session)} />`;
+                                      depth=${e.depth} known=${known} onToggle=${() => fold(e.parent.session)} />`;
         case "runs":
             return html`<${KinFold} limits=${limits} key=${`kin:${e.parent.session}`} kids=${e.kids} depth=${e.depth}
                                    line=${(s) => card(s, e.depth, "", e.parent.session)} />`;
@@ -309,13 +309,14 @@ export function LiveLines({ list, live = null, past = [], notes, wait, exec, onO
 }
 
 // waitsOf says who under a fold waits for the person: the one that does, by
-// its name and the state its glyph is drawn from, or how many do.
-export function waitsOf(kids, limits = null) {
+// its name and the state its glyph is drawn from, or how many do. Its name
+// drops its parent's part, or the project's (known), as its card does.
+export function waitsOf(kids, limits = null, known = "") {
     const waiting = kids.map((s) => ({ s, state: stateOf(s, limits) })).filter((k) => k.state.tone === "wait");
     if (waiting.length === 0) return null;
     if (waiting.length > 1) return { count: waiting.length, name: "", state: waiting[0].state };
     const s = waiting[0].s;
-    return { count: 1, name: nameOf(shownName(s), s.parent ? s.parent.session : ""), state: waiting[0].state };
+    return { count: 1, name: nameOf(shownName(s), s.parent ? [s.parent.session, known] : known), state: waiting[0].state };
 }
 
 // Waits is what waitsOf found, in the colour of waiting: a closed fold does
@@ -336,13 +337,13 @@ export function closedRow(past, name) {
 // OpenedFold heads the sessions a session had the panel open: how many, and
 // who in their subtree waits for the person. Its count names only the
 // children standing directly under it.
-function OpenedFold({ kids, hidden, open, onToggle, limits, depth = 1 }) {
+function OpenedFold({ kids, hidden, open, onToggle, limits, depth = 1, known = "" }) {
     return html`
         <button class="scfold" type="button" aria-expanded=${open ? "true" : "false"} style=${`--depth:${depth}`}
                 onClick=${onToggle}>
             <span class=${`scfoldchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
             <span class="scfoldtext">${openedLabel(kids.length)}</span>
-            <${Waits} waits=${waitsOf(hidden, limits)} />
+            <${Waits} waits=${waitsOf(hidden, limits, known)} />
         </button>
     `;
 }

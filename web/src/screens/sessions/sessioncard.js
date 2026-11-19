@@ -62,11 +62,16 @@ export function Glyph({ state }) {
 // nameOf is the part of a card's name that is its own: a card under the
 // heading of its project, or under the session that opened it, drops what it
 // shares with the name that line says already (known); a card with nothing
-// over it reads by its whole name.
+// over it reads by its whole name. known may name several lines, nearest
+// first: a session opened by another and named after the project, not after
+// its parent, still drops the project's part.
 export function nameOf(name, known = "") {
-    const at = known && name.length > known.length && name.startsWith(known)
-        && /[-_.]/.test(name[known.length]) ? known.length + 1 : 0;
-    return at ? name.slice(at) : name;
+    for (const line of [].concat(known)) {
+        if (line && name.length > line.length && name.startsWith(line) && /[-_.]/.test(name[line.length])) {
+            return name.slice(line.length + 1);
+        }
+    }
+    return name;
 }
 
 // Name is the name of a card, its own part on the screen and whole for a
