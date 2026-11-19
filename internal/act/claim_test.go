@@ -105,3 +105,16 @@ func TestClaimMinutesRoundUpAndKeepAtLeastOne(t *testing.T) {
 		}
 	}
 }
+
+func TestClaimElapsedRoundsDownAndKeepsAtLeastOne(t *testing.T) {
+	for _, c := range []struct {
+		span time.Duration
+		want int
+	}{
+		{0, 1}, {30 * time.Second, 1}, {5*time.Minute + time.Second, 5}, {5*time.Minute + 59*time.Second, 5}, {6 * time.Minute, 6},
+	} {
+		if got := ClaimElapsed(c.span); got != c.want {
+			t.Errorf("%s: %d, want %d", c.span, got, c.want)
+		}
+	}
+}

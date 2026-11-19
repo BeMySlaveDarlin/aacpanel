@@ -424,7 +424,7 @@ func (s *Server) pollClaim(ctx context.Context, id string, now time.Time) error 
 			s.claimPanelLetter(ctx, row, row.Peer, fmt.Sprintf("The panel: claim %s from %s is due — expects %s. Answer with send_to_session re=%s.", id, row.Session, row.Expectation(), id), "peer", 1)
 		} else if row.Rung == 1 {
 			parent, told := "", "now"
-			overdue := act.ClaimMinutes(now.Sub(*row.Due))
+			overdue := act.ClaimElapsed(now.Sub(*row.Due))
 			if opening != nil {
 				parent = "The parent " + opening.Name + " was told. "
 				if remaining := row.Due.Add(2 * wait).Sub(now); remaining > 0 {
@@ -436,7 +436,7 @@ func (s *Server) pollClaim(ctx context.Context, id string, now time.Time) error 
 		}
 		if next == 3 && s.push != nil {
 			s.push.Send(notify.Message{Kind: notify.KindClaim, Tag: "claim:" + id, Severity: notify.Warning,
-				Title: row.Peer + " owes a claim", Body: fmt.Sprintf("%s has not answered %s's claim for %d min: %s", row.Peer, row.Session, act.ClaimMinutes(now.Sub(*row.Due)), row.Title), Session: row.Peer})
+				Title: row.Peer + " owes a claim", Body: fmt.Sprintf("%s has not answered %s's claim for %d min: %s", row.Peer, row.Session, act.ClaimElapsed(now.Sub(*row.Due)), row.Title), Session: row.Peer})
 		}
 		delivery.Close(ctx)
 	}

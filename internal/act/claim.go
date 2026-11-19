@@ -114,8 +114,16 @@ func (r Record) Expectation() string {
 	return "a reply"
 }
 
+// ClaimMinutes is a span still to come, in whole minutes up: a due in half a
+// minute is due in one, never in none.
 func ClaimMinutes(span time.Duration) int {
 	return max(1, int(math.Ceil(span.Minutes())))
+}
+
+// ClaimElapsed is a span gone by, in whole minutes down, at least one: five
+// minutes and a second overdue read five, not six.
+func ClaimElapsed(span time.Duration) int {
+	return max(1, int(span.Minutes()))
 }
 
 func (r Record) ClaimLetter(text string, now time.Time) string {

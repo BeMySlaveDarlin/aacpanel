@@ -234,7 +234,7 @@ func TestClaimLadderWaitsTellsTheParentOnceAndStopsOnClosurePG(t *testing.T) {
 	poll(row.Due.Add(5*time.Minute+time.Second), 3)
 	poll(row.Due.Add(5*time.Minute+time.Second), 3)
 	sent := e.sent()[start:]
-	if sent[0].Target != "claim-peer" || sent[1].Target != "claim-opener" || sent[2].Target != "sentinel" || !strings.Contains(sent[2].Text, "The parent claim-opener was told.") || !strings.Contains(sent[2].Text, "overdue for 6 min;") || !strings.Contains(sent[2].Text, "The person is told in 5 min.") || !strings.Contains(sent[1].Text, "due 6 min ago.") {
+	if sent[0].Target != "claim-peer" || sent[1].Target != "claim-opener" || sent[2].Target != "sentinel" || !strings.Contains(sent[2].Text, "The parent claim-opener was told.") || !strings.Contains(sent[2].Text, "overdue for 5 min;") || !strings.Contains(sent[2].Text, "The person is told in 5 min.") || !strings.Contains(sent[1].Text, "due 5 min ago.") {
 		t.Fatalf("ladder letters: %+v", sent)
 	}
 	for i, letter := range sent {
