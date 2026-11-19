@@ -38,6 +38,11 @@ type Item struct {
 	Fingerprint string `json:"fingerprint,omitempty"`
 	// Undelivered is why a letter sent reached nobody, in claude's words.
 	Undelivered string `json:"undelivered,omitempty"`
+	// A claim a letter carries, or the claim it answers and how.
+	Claim   string `json:"claim,omitempty"`
+	Expects string `json:"expects,omitempty"`
+	Re      string `json:"re,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
 	// How long a turn or a background task took, and how loud a line is.
 	MS int64 `json:"ms,omitempty"`
 	// Agents is how many agents a turn left working in the background.

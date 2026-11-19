@@ -132,7 +132,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	want := []string{"Revive after reboot", "Agent", "First message", "Questions to parent", "Wait for parent", "Quick phrases", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
+	want := []string{"Revive after reboot", "Agent", "First message", "Questions to parent", "Wait for parent", "Claim due", "Quick phrases", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
 		"Context cap", "Auto restart", "Message after a restart", "Environment", "Extra arguments"}
 	if strings.Join(got.Rows, "|") != strings.Join(want, "|") {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)
@@ -274,7 +274,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenAtStart != "Codex" {
 		t.Errorf("the tabs are %v with %q open, meant Codex open — the agent the contour starts", got.Tabs, got.OpenAtStart)
 	}
-	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Quick phrases|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
+	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Claim due|Quick phrases|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
 		t.Errorf("the rows are %v, meant %s", got.Rows, want)
 	}
 	if got.Soon != "New starts a thread in the codex daemon of the contour, with what is chosen below; "+
@@ -302,7 +302,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if got.ApprovalAfter != "what config.toml of the contour's codex home says" {
 		t.Errorf("with the stored never removed the approvals read %q", got.ApprovalAfter)
 	}
-	if len(got.ClaudeRows) != 16 || got.ClaudeRows[6] != "Model" || got.ClaudeRows[15] != "Extra arguments" {
+	if len(got.ClaudeRows) != 17 || got.ClaudeRows[7] != "Model" || got.ClaudeRows[16] != "Extra arguments" {
 		t.Errorf("the Claude tab's rows are %v", got.ClaudeRows)
 	}
 	if len(got.ClaudeDrafted) != 0 {
