@@ -15,9 +15,12 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
-import { counted, quiet } from "/check/fixtures/quiet.js";
-import { sector, until } from "/check/fixtures/pie.js";
+import { counted } from "/check/fixtures/quiet.js";
+import { pie, sector, until } from "/check/fixtures/pie.js";
 
+import { quickCommands } from "/check/fixtures/quickcommands.js";
+
+const messages = { quick: "", inherited: "AskUserQuestion\nGo on\nTidy up the checklist\nStatus\nThat's all for today" };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const sent = [];
 let used = 0;
@@ -29,6 +32,7 @@ window.fetch = counted(async (url, init) => {
         return json({ state: "ok", transport: "stream", hooks: { events: [], hooks: [] } });
     }
     if (u.startsWith("/api/session/models")) return json({ state: "ok", session: { list: [] } });
+    if (u.startsWith("/api/session/intent?")) return json({ own: { quick: messages.quick }, inherited: [{ key: "quick", value: messages.inherited }] });
     if (u.startsWith("/api/session/")) return json({ to: "" });
     if (u === "/api/actions") {
         sent.push(JSON.parse((init && init.body) || "{}"));
@@ -47,122 +51,129 @@ const stream = { prepareAvailable: true, status: "idle", transport: "stream", pc
     model: "claude-opus-5-5", effort: "xhigh", mode: "auto", tokensIn: 5000, tokensOut: 900 };
 const root = document.getElementById("root");
 const show = (live, ex = exec) => render(h(ToastHost, null, h(GateHost, null,
-    html`<${Chat} name="helios" id="s1" live=${live} exec=${ex} onBack=${() => {}} onUsage=${() => { used += 1; }} />`)), root);
+    html`<${Chat} name=${live.session || "helios"} id="s1" live=${live} exec=${ex}
+        snapshot=${live.project ? { sessions: [live, { ...live, session: "child", sessionId: "s2", parent: { session: "lab" } }] } : null} onBack=${() => {}} onUsage=${() => { used += 1; }} />`)), root);
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());
+let floor = 0;
+const depth = () => Number(history.state?.depth) || 0;
+const flat = () => until(() => !document.querySelector(".sheet.on") && !pie() && depth() <= floor, "the closed layers");
 const chip = async () => {
+    await flat();
     document.querySelector(".deck .pkcmds").click();
     await until(() => sector("commands"), "the quick commands");
     sector("commands").click();
-    await quiet();
+    await until(() => document.querySelector(".sheet.on .cmdhead")?.textContent === "Commands", "the commands list");
 };
-const row = async (line) => {
+const row = async (line, ready) => {
     const r = Array.from(document.querySelectorAll(".sheet.on .mcprow"))
         .find((b) => b.querySelector(".cmdname").textContent.trim() === line);
     if (!r) throw new Error(`no row ${line}`);
     r.click();
-    await quiet();
+    await until(ready, `the answer to ${line}`);
 };
 const close = async () => {
     const x = document.querySelector(".sheet.on .sheetclose");
     if (x) x.click();
-    await quiet();
+    await flat();
 };
 
 (async () => {
     const out = {};
     try {
-        show(stream);
-        await quiet();
-        document.querySelector('.cstrip .deckuse').click();
-        out.usage = used === 1;
-        const deck = document.querySelector(".deck");
-        out.inStrip = Boolean(document.querySelector(".cstrip .pkcmds"));
-        out.inDeck = Boolean(deck.querySelector(".pkcmds"));
-        const strip = document.querySelector(".cstrip");
-        const buttons = Array.from(strip.querySelectorAll("button"));
-        out.order = buttons.map((b) => b.dataset.pick
-            || (b.classList.contains("pkcmds") ? "commands" : b.classList.contains("pickfile") ? "file" : b.className));
-        const cmds = deck.querySelector(".pkcmds");
-        out.cmdsIcon = Boolean(cmds.querySelector("svg")) && cmds.textContent.trim() === "";
+        if (innerWidth < 1100) {
+            show(stream);
+            floor = depth();
+            await until(() => document.querySelector(".deck .pkcmds") && document.querySelector(".cstrip .deckuse"), "the composer strip");
+            document.querySelector('.cstrip .deckuse').click();
+            out.usage = used === 1;
+            const deck = document.querySelector(".deck");
+            out.inStrip = Boolean(document.querySelector(".cstrip .pkcmds"));
+            out.inDeck = Boolean(deck.querySelector(".pkcmds"));
+            const strip = document.querySelector(".cstrip");
+            const buttons = Array.from(strip.querySelectorAll("button"));
+            out.order = buttons.map((b) => b.dataset.pick
+                || (b.classList.contains("pkcmds") ? "commands" : b.classList.contains("pickfile") ? "file" : b.className));
+            const cmds = deck.querySelector(".pkcmds");
+            out.cmdsIcon = Boolean(cmds.querySelector("svg")) && cmds.textContent.trim() === "";
 
-        await chip();
-        out.title = text(".sheet.on .cmdhead")[0] || "";
-        out.groups = text(".sheet.on .cmdsechead > span:first-child");
-        out.lines = text(".sheet.on .mcprow .cmdname");
-        out.sections = Array.from(document.querySelectorAll(".sheet.on .cmdsec")).map((s) =>
-            `${s.querySelector(".cmdsechead > span:first-child").textContent.trim()}: `
-            + Array.from(s.querySelectorAll(".cmdname")).map((n) => n.textContent.trim()).join(" "));
-        out.modelNote = text(".sheet.on .mcprow").find((r) => r.startsWith("/model")) || "";
+            await chip();
+            out.title = text(".sheet.on .cmdhead")[0] || "";
+            out.groups = text(".sheet.on .cmdsechead > span:first-child");
+            out.lines = text(".sheet.on .mcprow .cmdname");
+            out.sections = Array.from(document.querySelectorAll(".sheet.on .cmdsec")).map((s) =>
+                `${s.querySelector(".cmdsechead > span:first-child").textContent.trim()}: `
+                + Array.from(s.querySelectorAll(".cmdname")).map((n) => n.textContent.trim()).join(" "));
+            out.modelNote = text(".sheet.on .mcprow").find((r) => r.startsWith("/model")) || "";
 
-        await row("Pages");
-        out.pages = document.querySelector(".sheet.on .worklist")?.textContent.includes("No artifacts were published in this conversation.");
-        await close(); await chip(); await row("Workflows");
-        out.workflows = document.querySelector(".sheet.on .worklist")?.textContent.includes("This conversation launched no workflows.");
-        await close(); await chip();
-        await row("/hooks");
-        out.hooksTitle = text(".sheet.on .cmdhead")[0] || "";
-        await close();
+            await row("Pages", () => document.querySelector(".sheet.on .worklist"));
+            out.pages = document.querySelector(".sheet.on .worklist")?.textContent.includes("No artifacts were published in this conversation.");
+            await close(); await chip(); await row("Workflows", () => document.querySelector(".sheet.on .worklist"));
+            out.workflows = document.querySelector(".sheet.on .worklist")?.textContent.includes("This conversation launched no workflows.");
+            await close(); await chip();
+            await row("/hooks", () => text(".sheet.on .cmdhead")[0] === "Hooks");
+            out.hooksTitle = text(".sheet.on .cmdhead")[0] || "";
+            await close();
 
-        await chip();
-        await row("/model");
-        out.picker = text(".sheet.on .stitle")[0] || "";
-        await close();
+            await chip();
+            await row("/model", () => document.querySelector('.sheet.on[aria-label="select model"] .stitle'));
+            out.picker = text(".sheet.on .stitle")[0] || "";
+            await close();
 
-        const area = document.querySelector("textarea");
-        area.value = "why is the build slow";
-        area.dispatchEvent(new Event("input", { bubbles: true }));
-        await quiet();
-        await chip();
-        await row("/btw");
-        out.btw = document.querySelector("textarea").value;
-        out.sheetAfterBtw = Boolean(document.querySelector(".sheet.on"));
+            const area = document.querySelector("textarea");
+            area.value = "why is the build slow";
+            area.dispatchEvent(new Event("input", { bubbles: true }));
+            await chip();
+            await row("/btw", () => !document.querySelector(".sheet.on") && document.querySelector("textarea").value === "/btw why is the build slow");
+            out.btw = document.querySelector("textarea").value;
+            out.sheetAfterBtw = Boolean(document.querySelector(".sheet.on"));
 
-        area.value = "";
-        area.dispatchEvent(new Event("input", { bubbles: true }));
-        await quiet();
-        await chip();
-        await row("/context");
-        out.confirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
-        out.sentBefore = sent.length;
-        document.querySelector(".sheet.on .btnrow .btn.primary").click();
-        await quiet();
-        out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
-        out.sheetAfterSend = Boolean(document.querySelector(".sheet.on"));
+            area.value = "";
+            area.dispatchEvent(new Event("input", { bubbles: true }));
+            await chip();
+            await row("/context", () => document.querySelector('.sheet.on[aria-label="action confirmation"]'));
+            out.confirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
+            out.sentBefore = sent.length;
+            document.querySelector(".sheet.on .btnrow .btn.primary").click();
+            await until(() => sent.length === 1 && !document.querySelector(".sheet.on"), "the context command");
+            out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
+            out.sheetAfterSend = Boolean(document.querySelector(".sheet.on"));
 
-        // A reload goes the same way, through a confirmation that does not warn.
-        await chip();
-        await row("/reload-plugins");
-        out.reloadConfirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
-        out.reloadDanger = Boolean(document.querySelector(".sheet.on .btnrow .btn.danger"));
-        document.querySelector(".sheet.on .btnrow .btn.primary").click();
-        await quiet();
-        out.reloadSent = sent.slice(1).map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
+            // A reload goes the same way, through a confirmation that does not warn.
+            await chip();
+            await row("/reload-plugins", () => document.querySelector('.sheet.on[aria-label="action confirmation"]'));
+            out.reloadConfirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
+            out.reloadDanger = Boolean(document.querySelector(".sheet.on .btnrow .btn.danger"));
+            document.querySelector(".sheet.on .btnrow .btn.primary").click();
+            await until(() => sent.length === 2 && !document.querySelector(".sheet.on"), "the reload command");
+            out.reloadSent = sent.slice(1).map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
 
-        await chip();
-        await row("Wrap up");
-        out.wrapUpConfirm = text(".sheet.on .stitle")[0] || "";
-        const wrapStart = sent.length;
-        document.querySelector(".sheet.on .btnrow .btn.primary").click();
-        await quiet();
-        out.wrapUpSent = sent.slice(wrapStart);
+            await chip();
+            await row("Wrap up", () => document.querySelector('.sheet.on[aria-label="action confirmation"]'));
+            out.wrapUpConfirm = text(".sheet.on .stitle")[0] || "";
+            const wrapStart = sent.length;
+            document.querySelector(".sheet.on .btnrow .btn.primary").click();
+            await until(() => sent.length === wrapStart + 1 && !document.querySelector(".sheet.on"), "the wrap-up request");
+            out.wrapUpSent = sent.slice(wrapStart);
 
-        show({ ...stream, transport: "" });
-        await quiet();
-        await chip();
-        out.consoleLines = text(".sheet.on .mcprow .cmdname");
-        await close();
+            show({ ...stream, transport: "" });
+            await chip();
+            out.consoleLines = text(".sheet.on .mcprow .cmdname");
+            await close();
 
-        // An executor that cannot send commands: their rows say why and take no press.
-        show(stream, { available: true, kinds: ["session.send", "session.set"] });
-        await quiet();
-        await chip();
-        const ctx = Array.from(document.querySelectorAll(".sheet.on .mcprow"))
-            .find((b) => b.querySelector(".cmdname").textContent.trim() === "/context");
-        out.oldHostOff = Boolean(ctx && ctx.disabled);
-        out.oldHostNote = ctx ? ctx.querySelector(".cmdrownote").textContent.trim() : "";
-        await close();
+            // An executor that cannot send commands: their rows say why and take no press.
+            show(stream, { available: true, kinds: ["session.send", "session.set"] });
+            await chip();
+            const ctx = Array.from(document.querySelectorAll(".sheet.on .mcprow"))
+                .find((b) => b.querySelector(".cmdname").textContent.trim() === "/context");
+            out.oldHostOff = Boolean(ctx && ctx.disabled);
+            out.oldHostNote = ctx ? ctx.querySelector(".cmdrownote").textContent.trim() : "";
+            await close();
+        }
+        sent.length = 0;
+        const live = { ...stream, session: "lab", sessionId: "s1", project: { id: "proj", session: "lab", name: "Project" } };
+        const quickExec = { available: true, kinds: [...exec.kinds, "session.restart", "project.pause"] };
+        out.quick = await quickCommands({ show: (session) => show(session, quickExec), live, sent, messages });
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

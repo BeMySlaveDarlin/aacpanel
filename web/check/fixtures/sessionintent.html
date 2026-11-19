@@ -12,16 +12,20 @@ import { MenuHost } from "/src/desktop/menu.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { whyNot } from "/src/exec.js";
-import { counted, quiet } from "/check/fixtures/quiet.js";
+import { counted } from "/check/fixtures/quiet.js";
 
 const wide = innerWidth > 1000;
 const own = { restartIntent: "Continue" };
 const sent = [];
 let reject = false;
+let conversationReady = false;
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (url, init) => {
     const u = String(url);
-    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false });
+    if (u.startsWith("/api/chat?")) {
+        conversationReady = true;
+        return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false });
+    }
     if (u.startsWith("/api/session/intent")) {
         if (reject) return new Response("The messages could not be read", { status: 503 });
         return json({ own, inherited: [
@@ -59,8 +63,11 @@ const until = async (condition, label) => {
 const sheet = () => document.querySelector(".sheet.on .intentsheet");
 const field = (key) => sheet().querySelector(`#session-${key}`);
 const save = () => sheet().querySelector(".btn.primary");
+const floor = Number(history.state?.depth) || 0;
+const closed = () => until(() => !document.querySelector(".sheet.on, .ctxmenu") && (Number(history.state?.depth) || 0) <= floor, "the closed layers");
 const open = async (label = "Session messages…") => {
-    await quiet();
+    await closed();
+    await until(() => document.querySelector(wide ? ".dkleft .sc" : ".pmore") && (wide || conversationReady), "the initialized session tools");
     if (wide) {
         document.querySelector(".dkleft .sc").dispatchEvent(new MouseEvent("contextmenu", {
             bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
@@ -76,9 +83,11 @@ const open = async (label = "Session messages…") => {
     return labels;
 };
 const type = async (key, value) => {
+    const counter = () => text(field(key).closest(".intentfield").querySelector("p.cmdnote"));
+    const before = counter();
     field(key).value = value;
     field(key).dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
+    await until(() => counter() !== before, "the field count or limit");
 };
 window.done = (async () => {
     const out = { labels: await open() };
@@ -129,6 +138,7 @@ window.done = (async () => {
     out.errorOff = save().disabled;
     out.sent = sent.map((a) => `${a.kind}:${a.target}:${JSON.stringify(a.params)}`);
     out.confirmation = Boolean(document.querySelector(".confirm"));
+    conversationReady = false;
     render(null, document.getElementById("app"));
     live.agent = "codex";
     live.session = "codex-0000abcd";
@@ -143,7 +153,7 @@ window.done = (async () => {
     await until(() => sent.length === firstCall + 1 && !sheet(), "the thread's message saved");
     // Opening the role uses the same entry point, but its sheet has no intent fields.
     const roleOpen = async () => {
-        await quiet();
+        await closed();
         if (wide) document.querySelector(".dkleft .sc").dispatchEvent(new MouseEvent("contextmenu", {
             bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
         }));
@@ -158,14 +168,16 @@ window.done = (async () => {
     out.codex.role = roleField.value;
     roleField.value = "the schema review";
     roleField.dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
+    await until(() => !document.querySelector(".sheet.on .btn.primary").disabled, "the changed role");
     document.querySelector(".sheet.on .btn.primary").click();
     await until(() => sent.length === firstCall + 2, "the thread's role saved");
     out.codex.sent = sent.slice(firstCall).map((a) => `${a.kind}:${a.target}:${JSON.stringify(a.params)}`);
+    conversationReady = false;
     render(null, document.getElementById("app"));
     exec.kinds = exec.kinds.filter((kind) => !["session.role", "session.intent"].includes(kind));
     render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component()))), document.getElementById("app"));
-    await quiet();
+    await closed();
+    await until(() => wide || conversationReady, "the initialized conversation");
     if (wide) document.querySelector(".dkleft .sc").dispatchEvent(new MouseEvent("contextmenu", {
         bubbles: true, cancelable: true, button: 2, clientX: 100, clientY: 80,
     }));

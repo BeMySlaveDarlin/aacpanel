@@ -1,45 +1,6 @@
-<!doctype html>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="/dist/bundle.css">
-<style>html,body{height:100%;margin:0}</style>
-<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
-<div class="shell no-nav"><main class="body" id="root"></main></div>
-<script type="module">
-import { h, render } from "preact";
-import { html } from "/src/html.js";
-import { Chat } from "/src/screens/chat.js";
-import { GateHost } from "/src/actions/gate.js";
-import { ToastHost } from "/src/ui/toasts.js";
-import { counted } from "/check/fixtures/quiet.js";
+// The command list and its ring share the conversation already on the page.
 import { closePie, middle, pie, plate, press, sector, settled, tap, underPies, until } from "/check/fixtures/pie.js";
 
-const json = (body) => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
-const sent = [];
-let quick = "";
-let inherited = "AskUserQuestion\nGo on\nTidy up the checklist\nStatus\nThat's all for today";
-window.fetch = counted(async (url, init) => {
-    const u = String(url);
-    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
-    if (u.startsWith("/api/term")) return json({ available: false });
-    if (u.startsWith("/api/session/intent?")) return json({ own: { quick }, inherited: [{ key: "quick", value: inherited }] });
-    if (u.startsWith("/api/session/")) return json({ to: "" });
-    if (u === "/api/actions") {
-        sent.push(JSON.parse(init.body));
-        return json({ logged: true, ok: true });
-    }
-    return new Response("", { status: 404 });
-});
-window.EventSource = class { addEventListener() {} close() {} };
-
-const root = document.getElementById("root");
-const project = { id: "proj", session: "lab", name: "Project" };
-const live = { session: "lab", sessionId: "s1", status: "idle", transport: "stream", project,
-    cwd: "/srv/proj", model: "claude-opus-5-5", effort: "xhigh", mode: "auto" };
-const child = { ...live, session: "child", sessionId: "s2", parent: { session: "lab" } };
-const exec = { available: true, kinds: ["session.send", "session.command", "session.restart", "project.pause"] };
-const show = (session = live) => render(h(ToastHost, null, h(GateHost, null,
-    html`<${Chat} name="lab" id="s1" live=${session} exec=${exec} snapshot=${{ sessions: [session, child] }}
-        onBack=${() => {}} />`)), root);
 const chip = () => document.querySelector(".deck .pkcmds");
 const frame = () => new Promise((r) => requestAnimationFrame(r));
 const assert = (ok, why) => { if (!ok) throw new Error(why); };
@@ -72,11 +33,11 @@ const confirm = async () => {
     await until(() => !document.querySelector(".sheet.on"), "the gate to close");
 };
 
-(async () => {
+export async function quickCommands({ show, live, sent, messages }) {
     const out = {};
     const started = performance.now();
     try {
-        show();
+        show(live);
         await until(() => chip() && document.querySelector("textarea"), "the composer");
         underPies();
         const area = document.querySelector("textarea");
@@ -146,19 +107,19 @@ const confirm = async () => {
         document.querySelector(".sheet.on .sheetclose").click();
         await settled();
 
-        quick = "First custom\nSecond custom\nThird custom\nFourth custom\nFifth custom";
-        inherited = "Inherited one\nInherited two\nInherited three";
+        messages.quick = "First custom\nSecond custom\nThird custom\nFourth custom\nFifth custom";
+        messages.inherited = "Inherited one\nInherited two\nInherited three";
         await open();
         out.five = letters();
         tap(sector("quick-4"));
         await settled();
         await until(() => sent.at(-1)?.params?.text === "Fifth custom", "the custom phrase");
         out.custom = sent.at(-1);
-        quick = "First custom\nSecond custom\nThird custom";
+        messages.quick = "First custom\nSecond custom\nThird custom";
         await open();
         out.three = letters();
         await closePie();
-        quick = "";
+        messages.quick = "";
         await open();
         out.inherited = letters();
         await closePie();
@@ -173,6 +134,5 @@ const confirm = async () => {
         out.error = String(err.stack || err);
     }
     out.elapsed = (performance.now() - started) / 1000;
-    window.done = out;
-})();
-</script>
+    return out;
+}

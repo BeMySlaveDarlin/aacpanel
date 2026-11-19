@@ -19,18 +19,25 @@ func TestQuickCommandsSendPhrasesAndKeepActionsBehindATap(t *testing.T) {
 					Alone, Group                             bool
 				}
 			}
-			var got struct {
-				Elapsed                            float64
-				Error, Draft, Keyboard, All, Codex string
-				Initial                            struct {
-					Selected bool
-					Phrases  []string
+			var result struct {
+				Error string
+				Quick struct {
+					Elapsed                            float64
+					Error, Draft, Keyboard, All, Codex string
+					Initial                            struct {
+						Selected bool
+						Phrases  []string
+					}
+					Tap, Drag, Restart, Report, Pause, Custom request
+					TapOnly                                   map[string]string
+					Five, Three, Inherited                    []string
 				}
-				Tap, Drag, Restart, Report, Pause, Custom request
-				TapOnly                                   map[string]string
-				Five, Three, Inherited                    []string
 			}
-			screen.run(t, "quickcommands.html", &got)
+			screen.run(t, "commandsheet.html", &result)
+			if result.Error != "" {
+				t.Fatal(result.Error)
+			}
+			got := result.Quick
 			t.Logf("fixture: %.2f s", got.Elapsed)
 			if got.Error != "" {
 				t.Fatal(got.Error)
