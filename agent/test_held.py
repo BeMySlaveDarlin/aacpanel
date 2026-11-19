@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -10,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import test_barrier  # noqa: E402,F401
 import archive  # noqa: E402
+import asked  # noqa: E402
 import chat  # noqa: E402
 import ctx  # noqa: E402
 import held  # noqa: E402
@@ -289,6 +292,18 @@ class OnTheCard(Runtime):
         self.hold(SID, 1, waiting=["mcp__claude-in-chrome__navigate"], waitingUses=["toolu_9"])
         self.assertEqual(self.card()["permission"], {"tool": "claude-in-chrome: navigate", "head": ""},
                          "a session with no transcript read yet, or a call of its agent, still says the tool")
+
+    def test_a_question_the_holder_waits_on_outlives_a_day_in_the_book(self):
+        self.addCleanup(setattr, asked, "BOOK", asked.BOOK)
+        asked.BOOK = asked.Book(os.path.join(self.dir.name, "asks.json"))
+        old = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - asked.MAX_AGE - 3600))
+        for use in ("toolu_held", "toolu_gone"):
+            asked.BOOK.put({"sessionId": SID, "toolUseId": use, "at": old, "questions": [{"question": "Which form?"}]})
+        self.hold(SID, 1, waiting=["AskUserQuestion"], waitingUses=["toolu_held"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.card()
+        self.assertEqual([a["toolUseId"] for a in asked.BOOK._asks.get(SID, [])], ["toolu_held"],
+                         "the question the holder still waits on stays; the one it does not hold goes by age")
 
     def test_a_question_is_no_permission(self):
         self.transcript(("toolu_1", "AskUserQuestion", {"questions": []}))

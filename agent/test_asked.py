@@ -256,6 +256,16 @@ class Store(unittest.TestCase):
             self.assertEqual(self.book.sweep(alive={ask["sessionId"]}), [ask["sessionId"]])
         self.assertIn("older than a day", said.getvalue())
 
+    def test_a_question_the_holder_still_waits_on_is_kept_however_old(self):
+        ask = asked.clean(PROBE)
+        ask["at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - asked.MAX_AGE - 3600))
+        self.book.put(ask)
+        self.assertEqual(self.book.sweep(alive={ask["sessionId"]}, holding={ask["sessionId"]: {ask["toolUseId"]}}), [])
+        self.assertEqual(self.book.of(ask["sessionId"])["toolUseId"], ask["toolUseId"])
+        with muted():
+            self.assertEqual(self.book.sweep(alive={ask["sessionId"]}, holding={ask["sessionId"]: {"toolu_other"}}), [ask["sessionId"]])
+        self.assertIsNone(self.book.of(ask["sessionId"]))
+
     def test_the_age_of_the_question_is_counted_from_utc(self):
         os.environ["TZ"] = "Asia/Bangkok"
         time.tzset()

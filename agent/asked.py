@@ -201,9 +201,15 @@ class Book:
                 self._asks.pop(session, None)
             return self._commit(before)
 
-    def sweep(self, alive):
-        """Forgets the questions of dead sessions and the very old ones."""
+    def sweep(self, alive, holding=None):
+        """Forgets the questions of dead sessions and the very old ones.
+
+        A question the holder of a stream session still waits on is no old
+        one however long it stands: holding names those calls by session.
+        Forgotten, it would leave the session waiting on a question the
+        screen can no longer show or answer."""
         now = time.time()
+        holding = holding or {}
         stale, why = {}, {}
         with self._lock:
             for session, waiting in self._asks.items():
@@ -211,7 +217,7 @@ class Book:
                     stale[session] = []
                     why[session] = f"the session is not among the live ones ({len(alive)} of them)"
                     continue
-                kept, reason = _fresh(waiting, now)
+                kept, reason = _fresh(waiting, now, holding.get(session, ()))
                 if reason:
                     stale[session] = kept
                     why[session] = reason
@@ -247,10 +253,13 @@ def _settled(ask, tool_ids, ended, prompted, heard, now):
             or _outlived(ask.get("at"), ended) or _outlived(ask.get("at"), prompted))
 
 
-def _fresh(waiting, now):
-    """Returns the questions younger than MAX_AGE and why the rest went, if any did."""
+def _fresh(waiting, now, held=()):
+    """Returns the questions younger than MAX_AGE, or still held, and why the rest went, if any did."""
     kept, why = [], ""
     for ask in waiting:
+        if ask.get("toolUseId") and ask["toolUseId"] in held:
+            kept.append(ask)
+            continue
         try:
             born = calendar.timegm(time.strptime(ask.get("at", ""), "%Y-%m-%dT%H:%M:%SZ"))
         except ValueError:

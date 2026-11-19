@@ -317,6 +317,9 @@ def sessions():
     readings = resources.of_sessions(live_files)
     held_by = observers.held_by_conversation()
     seen_transcripts = set()
+    # The questions the holders still wait on, by session: the book keeps them
+    # however old they are.
+    holding = {}
     for s in data.get("sessions", []):
         # A run of codex exec the session started is one of its agents: the
         # card counts it among the agents at work.
@@ -368,6 +371,8 @@ def sessions():
             if stamp:
                 s["statusUpdatedAt"] = stamp
         hold = held.summary(sid) if sid else None
+        if hold and held.asked_uses(hold):
+            holding[sid] = held.asked_uses(hold)
         if hold:
             # On the stream the holder alone knows a person is waited for: a
             # request sits with it until the answer goes through it. claude
@@ -467,7 +472,7 @@ def sessions():
         if checkout:
             s["checkout"] = checkout
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
-    asked.BOOK.sweep(alive)
+    asked.BOOK.sweep(alive, holding)
     notes.BOARD.sweep(alive)
 
     return data

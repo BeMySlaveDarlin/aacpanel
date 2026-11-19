@@ -138,6 +138,15 @@ def waiting_for(data):
     return "input needed" if "AskUserQuestion" in tools else "dialog open"
 
 
+def asked_uses(data):
+    """Returns the ids of the questions a held session waits on; empty when none or unnamed."""
+    tools = data.get("waiting") if isinstance(data, dict) else None
+    uses = data.get("waitingUses") if isinstance(data, dict) else None
+    if not isinstance(tools, list) or not isinstance(uses, list) or len(uses) != len(tools):
+        return set()
+    return {use for tool, use in zip(tools, uses) if tool == "AskUserQuestion" and isinstance(use, str) and use}
+
+
 def permission_of(data):
     """Returns the tool a held session asks a permission for and the id of its call, or None.
 
