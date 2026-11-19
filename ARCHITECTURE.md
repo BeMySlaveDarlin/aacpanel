@@ -3503,6 +3503,15 @@ and the name a screen reader is given.
 kilobytes and is not always needed — in the common bundle every phone would
 download it, and into the service worker precache on top of that.
 
+**A question about a call or a file carries its address in the message.** Ask
+about this holds one place above the composer, replaced by the next pick. A
+call carries its tool-use id, record position and block index with a short tail
+of its output; a file carries its absolute path. An exact heading at the start
+of the message draws a card that opens the same place. The complete text stays
+in the transcript and in local and queued rows: stripping the heading in the
+collector would break the text match that retires a local echo. Only calls and
+files claim a long press on the phone; message text keeps native selection.
+
 **The page has no external domains at all.** The fonts are vendored and lie in
 the precache together with the shell: without them the panel, opened with no
 network, is drawn in a system font — that is, it looks unlike itself exactly

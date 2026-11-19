@@ -1,15 +1,16 @@
 // A file as an attachment: the row in the feed and in the call details, the
 // card of the files a call delivered to the human, and the files the person
 // sent with a message.
-import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useContext, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { bytes } from "../../format.js";
 import { render } from "../../md.js";
-import { useMenu } from "../../ui/menu.js";
+import { useHoldMenu } from "../../ui/menu.js";
 import { FileMenu } from "./feedmenu.js";
 import { stampText } from "./labels.js";
+import { filePlace, PlaceContext } from "./place.js";
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i;
 
@@ -66,9 +67,15 @@ export function fileTag(file) {
 // A file the reader does not open — a secret a session sent, say — is not a
 // button: a tap would end in a refusal. The row says so under the name
 // instead of promising an opening. A file that opens
-// has a menu at a desk; onSave saves it where the row knows its conversation.
+// has a menu at a desk and on a held press; onSave saves it where the row
+// knows its conversation.
 export function FileCard({ file, onOpen, onSave, tag }) {
-    const menu = useMenu();
+    const ref = useRef(null);
+    const places = useContext(PlaceContext);
+    const ask = places && places.ask && file.path && file.path.startsWith("/")
+        ? () => places.ask(filePlace(file)) : null;
+    const menu = useHoldMenu(ref, !file.outside && onOpen ? FileMenu : null,
+        { file, onOpen, onSave, onAsk: ask }, `file ${file.name}`);
     const image = isImage(file);
     const mark = tag
         ? html`<span class="mftag">${tag}</span>`
@@ -86,10 +93,9 @@ export function FileCard({ file, onOpen, onSave, tag }) {
         `;
     }
     return html`
-        <button class=${`mfile${tag ? " tagged" : ""}`} type="button"
+        <button class=${`mfile${tag ? " tagged" : ""}`} type="button" ref=${ref} ...${menu}
                 disabled=${!file.path}
                 onClick=${() => onOpen && onOpen(file)}
-                onContextMenu=${menu && onOpen && menu(FileMenu, { file, onOpen, onSave }, `file ${file.name}`)}
                 data-path=${file.path}
                 aria-label=${`open ${file.name}`}>
             ${mark}

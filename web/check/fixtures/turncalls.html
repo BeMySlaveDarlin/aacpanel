@@ -2,6 +2,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <div class="shell"><div class="body"><div id="turn"></div><div id="empty"></div></div></div>
+<div class="shell"><div class="body" id="places"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // The calls a badge of a turn opens: every run of the turn, none of the turn
@@ -10,6 +11,7 @@ import { render } from "preact";
 import { html } from "/src/html.js";
 import { Calls } from "/src/screens/chat/calls.js";
 import { turnCalls, weld } from "/src/screens/chat/feed.js";
+import { callPlaces } from "/check/fixtures/callplaces.js";
 
 const at = "2026-09-26T10:28:00Z";
 const call = (name, arg, pos) => ({ name, arg, pos, index: 0, use: `u${pos}`, seq: 0, at });
@@ -50,6 +52,7 @@ const until = async (ok, ms = 3000) => {
         emptyHead: text(sheet("empty").querySelector(".chatsub")),
         emptyHint: text(sheet("empty").querySelector(".hint")),
         emptyLeft: sheet("empty").querySelectorAll(".chatsub").length,
+        places: await callPlaces(document.getElementById("places")),
     };
 })();
 </script>

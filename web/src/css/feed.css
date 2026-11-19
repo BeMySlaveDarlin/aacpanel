@@ -913,3 +913,26 @@ div.mtask { cursor: default; }
     .askedrow.pnmq .askeda,
     .askedrow.pnmq .pnmnote { grid-column: 3; }
 }
+.placecard {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: .6rem .7rem;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-card);
+    background: var(--glass);
+    color: var(--ink);
+    text-align: left;
+    font: inherit;
+    overflow-wrap: anywhere;
+}
+button.placecard { cursor: pointer; }
+.placecard.failed { border-left: 2px solid var(--crit); }
+.placehead { display: flex; align-items: baseline; gap: .45rem; font-size: var(--t-sm); }
+.placeico { flex: none; align-self: flex-start; }
+.placeico svg { width: var(--i-sm); height: var(--i-sm); }
+.placeexcerpt { margin: .4rem 0 0; white-space: pre-wrap; font: var(--t-xs)/1.5 var(--mono); color: var(--ink-dim); }
+.msg > .placecard { margin-bottom: .5rem; }
+.msg > .placecard:last-child { margin-bottom: 0; }
+.placedraft { display: flex; align-items: flex-start; gap: .3rem; padding: .3rem 0; }
+.placedraft .placecard { flex: 1; }

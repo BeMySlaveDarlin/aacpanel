@@ -1,6 +1,6 @@
 // The calls sheet: the run of one badge as a list, and one call in full.
 
-import { useEffect, useLayoutEffect, useState } from "preact/hooks";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
@@ -11,6 +11,10 @@ import { idParam } from "./api.js";
 import { Shots, shotSrc, Thumb } from "./shots.js";
 import { countCalls, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
 import { aims, inForeground, ToBackground } from "./tobg.js";
+import { MenuItem, MenuList, useHoldMenu } from "../../ui/menu.js";
+import { useToast } from "../../ui/toasts.js";
+import { copyText } from "./copy.js";
+import { callPlace, PlaceContext } from "./place.js";
 
 // Calls renders the page listing the calls of one badge. Opened from the end
 // of a turn, it lists every call of the turn and says how long it took. With
@@ -49,25 +53,8 @@ export function Calls({ session, id, calls, turn, onFile, to, first }) {
 
     // A row opens its call; a call the turn waits on gets the button under
     // its row, not inside the button the row is.
-    const node = (call, n) => html`
-        <button class=${`callnode${call.shots && call.shots.length ? " pic" : ""}`} type="button"
-                key=${`${call.pos}-${call.index}`} onClick=${() => setPick(n)}>
-            <span class=${`cnmark k-${call.kind || "other"}`}>${kindIcon(call.kind)}</span>
-            <span class="cnbody">
-                <span class="cnname">${call.name}</span>
-                ${call.arg && html`<span class="cnarg">${call.arg}</span>`}
-                ${call.done && html`
-                    <span class=${`cndone ${doneKind(call.done.status)}`}>
-                        ${doneText(call.done)}
-                    </span>
-                `}
-            </span>
-            ${call.shots && call.shots.length > 0 && html`
-                <${Thumb} src=${shotSrc(session, id, call.pos, call.shots[0])} />
-            `}
-            <span class="crgo">${Icon.chevron()}</span>
-        </button>
-    `;
+    const node = (call, n) => html`<${CallNode} key=${`${call.pos}-${call.index}`} call=${call}
+        session=${session} id=${id} onOpen=${() => setPick(n)} />`;
 
     return html`
         <div class="sheethead">
@@ -104,6 +91,31 @@ export function Calls({ session, id, calls, turn, onFile, to, first }) {
     `;
 }
 
+function CallNode({ call, session, id, onOpen }) {
+    const ref = useRef(null);
+    const places = useContext(PlaceContext);
+    const menu = useHoldMenu(ref, CallMenu, { call, session, id, onOpen, onAsk: places && places.ask }, call.name);
+    return html`
+        <button class=${`callnode${call.shots && call.shots.length ? " pic" : ""}`} type="button"
+                ref=${ref} ...${menu} onClick=${onOpen}>
+            <span class=${`cnmark k-${call.kind || "other"}`}>${kindIcon(call.kind)}</span>
+            <span class="cnbody">
+                <span class="cnname">${call.name}</span>
+                ${call.arg && html`<span class="cnarg">${call.arg}</span>`}
+                ${call.done && html`
+                    <span class=${`cndone ${doneKind(call.done.status)}`}>
+                        ${doneText(call.done)}
+                    </span>
+                `}
+            </span>
+            ${call.shots && call.shots.length > 0 && html`
+                <${Thumb} src=${shotSrc(session, id, call.pos, call.shots[0])} />
+            `}
+            <span class="crgo">${Icon.chevron()}</span>
+        </button>
+    `;
+}
+
 function doneKind(status) {
     if (status === "completed") return "ok";
     if (status === "killed") return "warn";
@@ -118,11 +130,29 @@ function doneText(done) {
 }
 
 function fetchCall(session, id, at) {
-    return fetch(`/api/chat/call?session=${encodeURIComponent(session)}${idParam(id)}&pos=${at.pos}&i=${at.index}`)
+    return fetch(`/api/chat/call?session=${encodeURIComponent(session)}${idParam(id)}&pos=${at.pos}&i=${at.index || 0}`)
         .then(async (r) => {
             if (!r.ok) throw new Error((await r.text()).trim() || `response ${r.status}`);
             return r.json();
         });
+}
+
+function CallMenu({ call, session, id, onOpen, onAsk }) {
+    const toast = useToast();
+    const read = async (pick) => {
+        try {
+            pick(await fetchCall(session, id, call));
+        } catch (e) {
+            toast("The call could not be read", String(e.message || e), true);
+        }
+    };
+    const off = !call.use ? "This call has no address to quote" : "";
+    return html`<${MenuList} groups=${[[
+        onAsk && html`<${MenuItem} key="ask" label="Ask about this" off=${off}
+            onPick=${() => read((data) => onAsk(callPlace(call, data)))} />`,
+        html`<${MenuItem} key="copy" label="Copy the output" onPick=${() => read((data) => copyText(data.result || "", toast))} />`,
+        html`<${MenuItem} key="open" label="Open" onPick=${onOpen} />`,
+    ]]} />`;
 }
 
 function CallView({ session, id, call, place, onBack, onFile, to }) {

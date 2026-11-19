@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
+import { MenuHost } from "../desktop/menu.js";
 import { useBackClose } from "../ui/back.js";
 import { Header, HostMenu } from "../ui/header.js";
 import { Chips } from "../ui/chips.js";
@@ -125,7 +126,7 @@ export function MobileShell({
 
 
     return html`
-        <div class=${`shell${updateReady ? " has-update" : ""}${layer || page ? " no-nav" : ""}`}>
+        <${MenuHost}><div class=${`shell${updateReady ? " has-update" : ""}${layer || page ? " no-nav" : ""}`}>
             <${Header}
                 hostName=${(snapshot && snapshot.hostName) || "host"}
                 snapshot=${snapshot}
@@ -239,7 +240,7 @@ export function MobileShell({
                     `}
                 />
             `}
-        </div>
+        </div><//>
     `;
 }
 

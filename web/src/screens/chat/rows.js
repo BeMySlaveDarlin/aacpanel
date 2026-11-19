@@ -30,6 +30,7 @@ import { panelSaid } from "./panelsaid.js";
 import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
 import { pure } from "../../ui/pure.js";
 import { useTick } from "./now.js";
+import { PlaceCard, readPlace } from "./place.js";
 
 // FeedWrites is what the screen of a feed lends its messages for their
 // menus: quote(text) and edit(text) put words into the composer, where
@@ -193,6 +194,7 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
     const handed = mine ? (item.files || []) : [];
     const brought = sent.length > 0 || handed.length > 0;
     const said = brought ? withoutSentPaths(item.text, [...sent, ...handed]) : item.text;
+    const placed = mine ? readPlace(said) : null;
     // A local row may show attachment names while its actual message is empty.
     // Transcript rows carry the harness's image chips and saved file paths.
     const copied = mine ? bare(item.sent ?? said) : "";
@@ -205,7 +207,8 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
                 ${copied !== "" && html`<button class="cmdcopy msgcopy" type="button" aria-label="copy the message"
                                         data-md=${copied}>${Icon.copy()}</button>`}
                 ${question && html`<div class="mquestionwhat" title=${question.title}>${question.title}</div>`}
-                ${render(said, { breaks: mine, onRun: writes.onRun })}
+                ${placed && html`<${PlaceCard} place=${placed.place} />`}
+                ${render(placed ? placed.text : said, { breaks: mine, onRun: writes.onRun })}
                 ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} onSave=${save} />`}
                 ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
                 ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}

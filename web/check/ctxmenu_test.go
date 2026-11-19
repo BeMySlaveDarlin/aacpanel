@@ -6,10 +6,9 @@ import (
 	"testing"
 )
 
-// The menu of the right click has one host, and only the desktop shell
-// mounts it: a component drawn on the phone too asks for its menu all the
-// same and, with no host there, leaves the right click to the browser.
-func TestTheMenuHostStandsInTheDesktopShellAlone(t *testing.T) {
+// The shells own the host so a shared screen never nests another menu host.
+// Phone objects opt into a held press; ordinary context menus stay native.
+func TestOnlyTheShellsMountTheMenuHost(t *testing.T) {
 	files := srcFiles(t)
 	var hosts []string
 	for _, path := range sortedKeys(files) {
@@ -17,8 +16,8 @@ func TestTheMenuHostStandsInTheDesktopShellAlone(t *testing.T) {
 			hosts = append(hosts, path)
 		}
 	}
-	if !reflect.DeepEqual(hosts, []string{"src/desktop/shell.js"}) {
-		t.Errorf("the menu host is mounted in %v — expected the desktop shell alone", hosts)
+	if !reflect.DeepEqual(hosts, []string{"src/desktop/shell.js", "src/mobile/shell.js"}) {
+		t.Errorf("the menu host is mounted in %v — expected the two shells", hosts)
 	}
 }
 

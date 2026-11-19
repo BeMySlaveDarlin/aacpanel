@@ -1,17 +1,14 @@
-// The menu of an object, opened by a right click on the wide screen: what can
-// be done to a session, a conversation, a container, in place of the
-// browser's own menu. An object asks for its menu here and draws nothing of
-// it: the one host the desktop shell mounts opens it, places it and takes it
-// down (desktop/menu.js). Outside that host there is no menu to ask for, and
-// the object leaves the right click to the browser, so a component drawn on
-// both screens asks the same way on either.
+// Objects share one menu host per shell (desktop/menu.js), so placement,
+// focus and dismissal stay the same for a right click and a held press.
 import { createContext } from "preact";
 import { useContext } from "preact/hooks";
 
 import { html } from "../html.js";
+import { useHold } from "./pie.js";
+import { useWide } from "./wide.js";
 
-// MenuContext carries the host: menuOf, which makes the handler of a right
-// click, done, which takes the menu down once an item is chosen, and sheet,
+// MenuContext carries the host: menuOf for a right click, holdOf for an
+// object's long press, done once an item is chosen, and sheet,
 // which shows what an item opens once the menu is down.
 export const MenuContext = createContext(null);
 
@@ -23,6 +20,16 @@ export const MenuContext = createContext(null);
 export function useMenu() {
     const host = useContext(MenuContext);
     return host ? host.menuOf : null;
+}
+
+// Only objects with their own hold gesture opt into a menu on the phone;
+// messages keep the browser's text selection and context menu.
+export function useHoldMenu(ref, Body, props, label) {
+    const host = useContext(MenuContext);
+    const wide = useWide();
+    const hold = useHold(ref, !wide && host && Body
+        ? (press, event) => host.holdOf(Body, props, label, ref.current, press, event) : null);
+    return wide ? { onContextMenu: host && host.menuOf(Body, props, label) } : hold;
 }
 
 // useMenuSheet returns how an item opens a sheet of its own once the menu is

@@ -1,4 +1,4 @@
-// The one menu of the right click on the wide screen. The shell mounts the
+// The menu shared by both shells. Each shell mounts the
 // host once around everything it draws; an object asks for its menu through
 // useMenu (ui/menu.js), and the host decides, in one place for every object,
 // whether the right click is the panel's or stays the browser's, opens the
@@ -16,6 +16,7 @@ import { Sheet } from "../ui/sheet.js";
 import { WIDE } from "../ui/wide.js";
 import { MenuContext } from "../ui/menu.js";
 import { placeMenu } from "./tip.js";
+import { useBackClose } from "../ui/back.js";
 
 // NATIVE is what a right click inside keeps the browser's menu for: a field,
 // where it pastes and spells, and a terminal, which reads the click itself.
@@ -77,6 +78,8 @@ export function MenuHost({ children }) {
         back();
     }, [back]);
 
+    useBackClose(Boolean(menu) && !window.matchMedia(WIDE).matches, close);
+
     // The object is the element whose handler took the click, or the one a
     // handler names: a feed finds the path under the click among the words
     // of a message it draws.
@@ -94,6 +97,16 @@ export function MenuHost({ children }) {
         ? (event, el) => open(event, Body, props, label, el)
         : undefined), [open]);
 
+    const holdOf = useCallback((Body, props, label, el, press, event) => {
+        if (!el) return;
+        from.current = el;
+        seq.current += 1;
+        setSpot(null);
+        const box = el.getBoundingClientRect();
+        const at = press ? { left: press.x, right: press.x, top: press.y, bottom: press.y } : anchorOf(event, el);
+        setMenu({ Body, props, label, at, was: { left: box.left, top: box.top }, key: seq.current });
+    }, []);
+
     const showSheet = useCallback((label, draw) => setSheet({ label, draw }), []);
     const closeSheet = useCallback(() => {
         setSheet(null);
@@ -105,7 +118,7 @@ export function MenuHost({ children }) {
         setLayer({ draw, spot: { x: box.right, y: box.top + box.height / 2 } });
     }, []);
     const closeLayer = useCallback(() => { setLayer(null); back(); }, [back]);
-    const host = useMemo(() => ({ menuOf, done: close, sheet: showSheet, layer: showLayer }), [menuOf, close, showSheet, showLayer]);
+    const host = useMemo(() => ({ menuOf, holdOf, done: close, sheet: showSheet, layer: showLayer }), [menuOf, holdOf, close, showSheet, showLayer]);
 
     // The menu is measured and placed before it is first painted, and again
     // when what it holds changes size — an item that waited on the host goes

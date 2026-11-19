@@ -220,7 +220,7 @@ func TestAPathInsideAMessageTakesTheClickFirst(t *testing.T) {
 // as their viewers save them: the same address under the same name.
 func TestAFileAndAPictureSaveAsTheirViewers(t *testing.T) {
 	got := ctxFeedPage(t)
-	if menuOf(got.File) != "Open · Copy the path · | · Download" {
+	if menuOf(got.File) != "Ask about this · Open · Copy the path · | · Download" {
 		t.Errorf("the menu of a file is %q", menuOf(got.File))
 	}
 	if got.FileSaved == nil || got.ViewerSave == nil || *got.FileSaved != *got.ViewerSave ||

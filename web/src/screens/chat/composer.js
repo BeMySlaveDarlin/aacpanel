@@ -13,6 +13,7 @@ import { clipName, FILES_MAX, intake, mb, pickedAttachments, PickFile } from "./
 import { withQuote } from "./quote.js";
 import { canRunShell, sendShell, shellOf } from "./shell.js";
 import { watchKeyboard } from "../../ui/keyboard.js";
+import { PlaceCard, placeText, readPlace } from "./place.js";
 
 const MAX_COMPOSER = 112;
 
@@ -241,14 +242,21 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const toast = useToast();
     const area = useRef(null);
     const [text, setText] = useDraft(id);
+    const [place, setPlace] = useState(null);
+    useEffect(() => { setPlace(null); }, [name, id]);
     const [sending, setSending] = useState(false);
     useEffect(() => {
-        if (!insert || !insert.text) return;
+        if (!insert || (!insert.text && !insert.place)) return;
         // A message taken back comes as it was written, ahead of whatever the
         // composer already holds; a command goes in front of it, so what is
         // typed becomes what the command is about; a quote comes as a quote.
-        if (insert.message) setText(text.trim() ? `${insert.text}\n\n${text}` : insert.text);
-        else if (insert.command) setText(`${insert.text}${text.trimStart()}`);
+        if (insert.place) setPlace(insert.place);
+        else if (insert.message) {
+            const quoted = readPlace(insert.text);
+            setPlace(quoted ? quoted.place : null);
+            const words = quoted ? quoted.text : insert.text;
+            setText(text.trim() && words ? `${words}\n\n${text}` : words || text);
+        } else if (insert.command) setText(`${insert.text}${text.trimStart()}`);
         else setText(withQuote(insert.text, text));
         requestAnimationFrame(() => {
             const el = area.current;
@@ -286,8 +294,8 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const canCmd = commands && knows(exec, "session.command");
     const canShell = canRunShell(exec, stream, shell);
     const pack = files || [];
-    useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
-    const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
+    useEffect(() => { taken.current = false; }, [text, place, pack.length, sending]);
+    const cmd = canCmd && !pack.length && !place ? parseCommand(text, stream) : null;
     // /model and /effort with nothing after them are a request for the list,
     // as they are in a terminal: sending them opens it instead.
     const lists = cmd && !cmd.arg && onPicker && (cmd.command === "model" || cmd.command === "effort")
@@ -296,12 +304,12 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const opens = cmd && cmd.screen && onScreen ? cmd.command : "";
     // A question aside on the stream is the panel's to ask: it goes to the side
     // chat and never into the conversation.
-    const side = stream && onSide && !pack.length ? parseSide(text) : null;
+    const side = stream && onSide && !pack.length && !place ? parseSide(text) : null;
     // A leading "!" on the stream is a command for the shell of the session,
     // as it is in the composer of a terminal; a session in tmux takes it as
     // typed.
-    const bang = stream && canShell && !pack.length ? shellOf(text) : null;
-    const listing = canCmd && !pack.length && !(cmd && cmd.ready) && !lists && !opens && !(side && side.question);
+    const bang = stream && canShell && !pack.length && !place ? shellOf(text) : null;
+    const listing = canCmd && !pack.length && !place && !(cmd && cmd.ready) && !lists && !opens && !(side && side.question);
     // On the stream the list is the session's own, every command and skill it
     // takes; until it has come, and in tmux, the panel's own list stands.
     const theirs = useSessionCommands(name, id, stream && listing && text.startsWith("/"));
@@ -315,10 +323,10 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     // emptiness is folded into cantSend rather than kept beside it, so the
     // button and the key that sends keep asking one question.
     const canTalk = hear.on && !cmd && !pack.length;
-    const asMic = canTalk && !text.trim();
+    const asMic = canTalk && !text.trim() && !place;
     const cantSend = !ready || sending
-        || (side ? false : bang ? !bang.command : cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
-    const stopping = busy && !text.trim() && !pack.length;
+        || (side ? false : bang ? !bang.command : cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !place && !canTalk)));
+    const stopping = busy && !text.trim() && !pack.length && !place;
     const hint = askedHint || placeholder(ready, why, name, pack, busy ? waits : "");
 
     // The field fits its words whichever way they changed — typed, cleared by
@@ -387,7 +395,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     };
 
     const send = async () => {
-        const body = text.trim();
+        const body = place ? placeText(place, text.trim()) : text.trim();
         if (!body && !pack.length) return;
         if (sending || taken.current) return;
         if (lists) {
@@ -435,6 +443,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             done: (patch) => { if (onLocalDone) onLocalDone(key, patch); },
         };
         setText("");
+        setPlace(null);
         if (pack.length && onDropFiles) onDropFiles();
         if (hold) {
             if (onLocal) onLocal({ ...row, state: "held", hold: { text: body, files: pack, messageId } });
@@ -472,8 +481,13 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             ${hints.length > 0 && html`<${SlashList} hints=${hints} hot=${Math.min(hot, hints.length - 1)}
                                                    theirs=${Boolean(stream && theirs)} wide=${wideNow}
                                                    onHot=${setHot} onPick=${pick} />`}
-            ${pack.length > 0 && html`
+            ${(place || pack.length > 0) && html`
                 <div class="clippack">
+                    ${place && html`<div class="placedraft">
+                        <${PlaceCard} place=${place} draft />
+                        <button class="clipoff" type="button" aria-label="remove the place" disabled=${sending}
+                                onClick=${() => setPlace(null)}>${Icon.close()}</button>
+                    </div>`}
                     ${pack.map((one, i) => html`
                         <div class="clipped" key=${`${one.name}-${i}`}>
                             ${Icon.clip()}

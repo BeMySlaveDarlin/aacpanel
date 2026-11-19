@@ -1,7 +1,7 @@
 // The menus of the feed at a desk: of a message, a letter, a path or a link
-// in the words of a message, a file and a picture. The rows are drawn on the phone
-// as well, where nothing asks for a menu and a right click stays the
-// browser's. An item does what the row's own button does, through the same
+// in the words of a message, a file and a picture. File rows ask for the same
+// menu on a held press on the phone; words keep the browser's selection.
+// An item does what the row's own button does, through the same
 // code: a message has what a person does with words — copy them, quote them,
 // write them again — one in the queue what the buttons under it do, and one
 // that did not go out what its row offers.
@@ -102,10 +102,11 @@ export function usePieceMenu(onOpen) {
 // FileMenu is the menu of a file row: opened as a press opens it, its path,
 // and saved by the route the viewer saves it by (onSave), where the row knows
 // its conversation.
-export function FileMenu({ file, onOpen, onSave }) {
+export function FileMenu({ file, onOpen, onSave, onAsk }) {
     const toast = useToast();
     return html`<${MenuList} groups=${[
         [
+            onAsk && html`<${MenuItem} key="ask" label="Ask about this" onPick=${onAsk} />`,
             html`<${MenuItem} key="open" label="Open" onPick=${() => onOpen(file)} />`,
             html`<${MenuItem} key="copy" label="Copy the path" onPick=${() => copyText(file.path, toast)} />`,
         ],

@@ -67,6 +67,7 @@ import { useViewing } from "../../viewing.js";
 import { useWide } from "../../ui/wide.js";
 import { useAsOf } from "../../ui/asof.js";
 import { agentKey, agentName, isCodex, shownName, spoke } from "../../agent.js";
+import { PlaceContext } from "./place.js";
 
 // Conversation draws the screen; parts carry what its agent brings:
 //
@@ -384,6 +385,21 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // queueOf turns on whether the session takes messages back, so that is
     // what the lent things are made again on, with what decides their set.
     const writable = Boolean(live && !live.outside);
+    const placeActions = useMemo(() => ({
+        ask: writable && knows(exec, "session.send") ? (place) => {
+            setInsert({ key: Date.now(), place });
+            setCalls(null);
+            setLook(null);
+        } : null,
+        open: (place) => {
+            if (place.kind === "file") {
+                setLook({ kind: "file", path: place.path, name: place.path.split("/").pop() });
+                return;
+            }
+            const call = { ...place, name: place.tool };
+            setCalls({ list: [call], first: call });
+        },
+    }), [writable, exec]);
     const runs = writable && canRunShell(exec, live.transport === "stream" || isCodex(live), composer.shell || isCodex(live));
     const takes = Boolean(live && parts.takesBack);
     const lent = useMemo(() => (writable
@@ -591,6 +607,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const work = parts.work(ctx);
 
     return html`
+        <${PlaceContext.Provider} value=${placeActions}>
         ${wide
             ? html`<${DeskHead} limits=${snapshot && snapshot.limits} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} spent=${spent}
                                 move=${move} yours=${yourMoves} tools=${deskTools} exec=${exec} taken=${takenNames(snapshot)} />`
@@ -827,5 +844,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ${parts.aside(ctx)}
 
         <${QuoteTip} quote=${quote} onQuote=${takeQuote} />
+        <//>
     `;
 }
