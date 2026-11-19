@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"aacpanel/internal/act"
+	"aacpanel/internal/question"
 	"aacpanel/internal/request"
 	"github.com/jackc/pgx/v5"
 )
@@ -24,6 +25,7 @@ func readAct(row pgx.Row) (act.Record, error) {
 }
 
 func (s *Store) CreateAct(ctx context.Context, conversation, session string, input act.Input) (act.Record, error) {
+	input.Clean()
 	if err := input.Validate(); err != nil {
 		return act.Record{}, err
 	}
@@ -109,16 +111,18 @@ func (s *Store) LockAct(ctx context.Context, id string) (*ActAnswer, error) {
 	return &ActAnswer{Record: r, tx: tx}, nil
 }
 func (a *ActAnswer) Close(ctx context.Context) { _ = a.tx.Rollback(ctx) }
-func (a *ActAnswer) Finish(ctx context.Context, answer, note string) error {
-	if err := a.Record.ValidateAnswer(answer, note); err != nil {
+func (a *ActAnswer) Finish(ctx context.Context, answer, note string, answers ...question.Answer) error {
+	if err := a.Record.ValidateAnswer(answer, note, answers...); err != nil {
 		return err
 	}
 	state := "answered"
 	if answer == "cant" || answer == "decline" {
 		state = "declined"
 	}
-	reply := act.Answer{Outcome: answer, Note: strings.TrimSpace(note)}
-	if a.Record.Kind == "secret" {
+	reply := act.Answer{Outcome: answer, Note: strings.TrimSpace(note), Answers: answers}
+	if a.Record.Kind == "ask" {
+		state, reply = "answered", act.Answer{Answers: answers}
+	} else if a.Record.Kind == "secret" {
 		reply.Outcome = ""
 	}
 	return a.finish(ctx, state, reply)
@@ -132,6 +136,11 @@ func (a *ActAnswer) SaveSecret(ctx context.Context, path string) error {
 func (a *ActAnswer) finish(ctx context.Context, state string, answer act.Answer) error {
 	if _, err := a.tx.Exec(ctx, `UPDATE acts SET state=$2,closed_at=now(),answer=$3,answered_by='person' WHERE id=$1`, a.Record.ID, state, answer); err != nil {
 		return err
+	}
+	if a.Record.Kind == "ask" && a.Record.Body.Source == "prose" {
+		if _, err := a.tx.Exec(ctx, `UPDATE text_questions SET answered=true,closed=pushed WHERE conversation=$1 AND message=$2`, a.Record.Conversation, a.Record.Body.Message); err != nil {
+			return err
+		}
 	}
 	return a.tx.Commit(ctx)
 }

@@ -68,7 +68,7 @@ func TestTheHandshakeRegistersTheHeldHooks(t *testing.T) {
 		}
 		want := map[string][]hookMatcher{
 			"UserPromptSubmit": {{CallbackIDs: []string{"prompt-stamp"}}},
-			"Stop":             {{CallbackIDs: []string{"checklist-reminder", "background-reminder"}}},
+			"Stop":             {{CallbackIDs: []string{"checklist-reminder", "background-reminder", "turn"}}},
 		}
 		if !reflect.DeepEqual(msg.Request.Hooks, want) {
 			t.Fatalf("the handshake registered %v, want %v", msg.Request.Hooks, want)
@@ -140,7 +140,7 @@ func readHookReply(t *testing.T, out hookOutput, requestID string) map[string]js
 }
 
 func TestHookCallbacksRunWithTheSessionEnvironment(t *testing.T) {
-	for _, name := range []string{"prompt-stamp", "checklist-reminder", "background-reminder"} {
+	for _, name := range []string{"prompt-stamp", "checklist-reminder", "background-reminder", "turn"} {
 		t.Run(name, func(t *testing.T) {
 			h, out := hookHolder(t, "")
 			payload := fmt.Sprintf(`{"hook_event_name":%q,"session_id":"conversation","prompt":"hello"}`, hook.HeldEvent(name))

@@ -115,14 +115,14 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 		"PostToolUse":   {executor + " hook artifact-copy"},
 		"PostToolBatch": {atlasBudget},
 		"Stop": {state + executor + " hook background-reminder",
-			executor + " hook checklist-reminder"},
+			executor + " hook checklist-reminder", executor + " hook turn"},
 	}
 	for event, cmds := range want {
 		if got := commandsOf(t, out, event); !slices.Equal(got, cmds) {
 			t.Errorf("%s runs\n  %s\nwant\n  %s", event, strings.Join(got, "\n  "), strings.Join(cmds, "\n  "))
 		}
 	}
-	if groupsOf(t, out, "Stop") != 2 || groupsOf(t, out, "PostToolBatch") != 1 || groupsOf(t, out, "SubagentStop") != 0 {
+	if groupsOf(t, out, "Stop") != 3 || groupsOf(t, out, "PostToolBatch") != 1 || groupsOf(t, out, "SubagentStop") != 0 {
 		t.Errorf("the groups: Stop %d, PostToolBatch %d, SubagentStop %d:\n%s",
 			groupsOf(t, out, "Stop"), groupsOf(t, out, "PostToolBatch"), groupsOf(t, out, "SubagentStop"), out)
 	}
@@ -186,20 +186,26 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 	}
 	// The rest of the hooks the executor took over, in the forms an install
 	// wrote before and in the executor's.
-	for part, cmds := range map[string]map[string]bool{
-		"relay": {
+	for name, cmds := range map[string]map[string]bool{
+		"turn": {
+			"/home/u/bin/aacpanel-exec hook turn":     true,
+			"aacpanel-exec hook turn":                 true,
+			"/home/u/bin/aacpanel-exec hook ask-hook": false,
+			"python3 /srv/old/agent/ask-hook.py":      false,
+		},
+		"ask-hook": {
 			"/home/u/bin/aacpanel-exec hook ask-hook":                      true,
 			"test -f /a/agent/ask-hook.py && python3 /a/agent/ask-hook.py": true,
 			"python3 /srv/old/agent/ask-hook.py":                           true,
 			"/home/u/bin/aacpanel-exec hook artifact-copy":                 false,
 			"python3 /srv/old/agent/ask-hook-old.py":                       false,
 		},
-		"copies": {
+		"artifact-copy": {
 			"/opt/other/aacpanel-exec hook artifact-copy":                                            true,
 			"test -f /a/deploy/claude/artifact-copy.py && python3 /a/deploy/claude/artifact-copy.py": true,
 			"/home/u/bin/aacpanel-exec hook ask-hook":                                                false,
 		},
-		"nudge": {
+		"checklist-reminder": {
 			"/home/u/bin/aacpanel-exec hook checklist-reminder":                                                true,
 			"test -f /a/deploy/claude/checklist-reminder.py && python3 /a/deploy/claude/checklist-reminder.py": true,
 			"python3 /opt/elsewhere/deploy/claude/checklist-reminder.py":                                       true,
@@ -207,13 +213,13 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 		},
 		// The gate was born in the executor: no script tells it, and a word
 		// of the person's that ends in a slash is not an empty script's.
-		"heavy": {
+		"heavy-gate": {
 			"/home/u/bin/aacpanel-exec hook heavy-gate": true,
 			"aacpanel-exec hook heavy-gate":             true,
 			"cd /srv/repo/ && ./guard.sh":               false,
 			"/home/u/bin/aacpanel-exec hook ask-hook":   false,
 		},
-		"stamp": {
+		"prompt-stamp": {
 			"AACP_STATE_DIR=/x /opt/other/aacpanel-exec hook prompt-stamp PostToolBatch":                         true,
 			"test -f /a/deploy/claude/prompt-stamp.py && python3 /a/deploy/claude/prompt-stamp.py PostToolBatch": true,
 			"python3 /srv/old/deploy/claude/prompt-stamp.py":                                                     true,
@@ -221,12 +227,12 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 		},
 	} {
 		for _, h := range kitHooks {
-			if h.Part != part {
+			if h.Hook != name {
 				continue
 			}
 			for cmd, want := range cmds {
 				if h.owns(cmd) != want {
-					t.Errorf("%q: the %s hook on %s's %v, want %v", cmd, part, h.Event, h.owns(cmd), want)
+					t.Errorf("%q: the %s hook on %s's %v, want %v", cmd, name, h.Event, h.owns(cmd), want)
 				}
 			}
 		}
@@ -236,6 +242,19 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 // A hook of the executor that waits before it answers has a timeout past
 // the wait with a second to spare: claude kills a hook at its timeout, and
 // an answer lost at the timeout cannot reach the session.
+func TestTurnWiringIsClaudeOnlyAndHasNoScriptAlias(t *testing.T) {
+	for _, h := range kitHooks {
+		if h.Hook != "turn" {
+			continue
+		}
+		if h.Part != "relay" || h.Event != "Stop" || h.Codex || !h.owns("/opt/panel/bin/aacpanel-exec hook turn") || h.owns("/opt/panel/bin/aacpanel-exec hook ask-hook") {
+			t.Fatalf("turn wiring: %+v", h)
+		}
+		return
+	}
+	t.Fatal("turn hook is not installed")
+}
+
 func TestEveryTimeoutOfTheKitCoversTheHooksWait(t *testing.T) {
 	for _, h := range kitHooks {
 		if h.Hook == "" {

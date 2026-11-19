@@ -9,20 +9,22 @@ import (
 
 	"aacpanel/internal/act"
 	"aacpanel/internal/chat"
+	"aacpanel/internal/question"
 )
 
 // waitingItem is one outstanding thing, with the exact feed row it opens.
 // A task can reach the service before its tool result reaches the transcript;
 // until then it still counts, but has no position to promise a jump to.
 type waitingItem struct {
-	Kind     string   `json:"kind"`
-	ID       string   `json:"id,omitempty"`
-	Title    string   `json:"title"`
-	At       string   `json:"at,omitempty"`
-	Blocking bool     `json:"blocking,omitempty"`
-	Pos      *int64   `json:"pos,omitempty"`
-	Nth      int      `json:"nth,omitempty"`
-	Answers  []string `json:"answers"`
+	Kind      string              `json:"kind"`
+	ID        string              `json:"id,omitempty"`
+	Title     string              `json:"title"`
+	At        string              `json:"at,omitempty"`
+	Blocking  bool                `json:"blocking,omitempty"`
+	Pos       *int64              `json:"pos,omitempty"`
+	Nth       int                 `json:"nth,omitempty"`
+	What      string              `json:"what,omitempty"`
+	Questions []question.Question `json:"questions,omitempty"`
 }
 
 func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, sent map[string]bool) []waitingItem {
@@ -37,9 +39,6 @@ func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, s
 		return nil
 	}
 	add := func(item waitingItem, card *chat.Item) {
-		if item.Answers == nil {
-			item.Answers = []string{}
-		}
 		if card != nil {
 			pos := card.Pos
 			item.Pos, item.Nth = &pos, card.Nth
@@ -54,8 +53,10 @@ func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, s
 		item := waitingItem{Kind: kind, ID: row.ID, Title: row.Title, Blocking: row.Blocking, At: row.Created.Format(time.RFC3339Nano)}
 		card := anchor(kind, row.ID)
 		if row.Kind == "ask" {
-			card = anchor(kind, row.Body.Message)
-			item.Answers = row.Body.Answers
+			if row.Body.Source == "prose" {
+				card = anchor(kind, row.Body.Message)
+			}
+			item.What, item.Questions = row.Body.What, row.Body.Questions
 		}
 		if row.Kind == "call" {
 			card = nil

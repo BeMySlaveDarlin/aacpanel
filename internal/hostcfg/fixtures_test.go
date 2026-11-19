@@ -254,6 +254,8 @@ var (
 	}
 
 	cyrillicLines = map[string][]string{
+		// Candidate cues are input data, in the language of the message.
+		"internal/question/candidate.go": {"words     = regexp.MustCompile"},
 		// The rows of the table above: the check names what it allows, so the
 		// allowed spelling is written out here in full.
 		"internal/hostcfg/fixtures_test.go": {`"agent/`, `"internal/`, `"web/`},

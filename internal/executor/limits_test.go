@@ -103,21 +103,21 @@ func TestQuestionClassifierRunsInTheSessionsContour(t *testing.T) {
 	bin := filepath.Join(root, "claude")
 	if err := os.WriteFile(bin, []byte(`#!/bin/sh
 cat > candidate.json
-printf '%s' '{"result":"{\"asks\":true,\"what\":\"Publish?\",\"answers\":[\"Publish\",\"Wait\"]}"}'
+printf '%s' '{"result":"{\"questions\":[{\"question\":\"Publish?\",\"options\":[{\"label\":\"Publish\"},{\"label\":\"Wait\"}]}],\"what\":\"Publish?\",\"action\":\"\"}"}'
 `), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(probeClaudeEnv, bin)
 	e, _ := newTest(t, "")
-	yes, what, answers, err := e.Question(t.Context(), "demo", senderSID, "Publish?")
-	if err != nil || !yes || what != "Publish?" || len(answers) != 2 || answers[0] != "Publish" || answers[1] != "Wait" {
-		t.Fatalf("classification: %v %v", yes, err)
+	verdict, err := e.Question(t.Context(), "demo", senderSID, "Publish?")
+	if err != nil || verdict.What != "Publish?" || len(verdict.Questions) != 1 || len(verdict.Questions[0].Options) != 2 || verdict.Questions[0].Options[0].Label != "Publish" {
+		t.Fatalf("classification: %v %v", verdict, err)
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "candidate.json"))
 	if err != nil || !strings.Contains(string(raw), "Publish?") {
 		t.Fatalf("wrong contour: %s %v", raw, err)
 	}
-	if _, _, _, err := e.Question(t.Context(), "demo", streamSID, "Publish?"); err == nil {
+	if _, err := e.Question(t.Context(), "demo", streamSID, "Publish?"); err == nil {
 		t.Fatal("a replacement conversation spent a call")
 	}
 }

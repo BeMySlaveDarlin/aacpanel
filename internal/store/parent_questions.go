@@ -124,14 +124,14 @@ func (s *Store) AnswerTextQuestions(ctx context.Context, conversation string, me
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `INSERT INTO text_questions (conversation,message,answered)
- SELECT $1,unnest($2::text[]),true ON CONFLICT (conversation,message)
- DO UPDATE SET answered=true,closed=text_questions.pushed`, conversation, messages)
+	_, err = tx.Exec(ctx, `UPDATE acts SET state='answered',closed_at=now(),answered_by=$3
+ WHERE conversation=$1 AND kind='ask' AND body->>'source'='prose' AND state IN ('open','withdrawn') AND body->>'message'=ANY($2)`, conversation, messages, answeredBy)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE acts SET state='answered',closed_at=now(),answered_by=$3
- WHERE conversation=$1 AND kind='ask' AND state IN ('open','withdrawn') AND body->>'message'=ANY($2)`, conversation, messages, answeredBy)
+	_, err = tx.Exec(ctx, `INSERT INTO text_questions (conversation,message,answered)
+ SELECT $1,unnest($2::text[]),true ON CONFLICT (conversation,message)
+ DO UPDATE SET answered=true,closed=text_questions.pushed`, conversation, messages)
 	if err != nil {
 		return err
 	}

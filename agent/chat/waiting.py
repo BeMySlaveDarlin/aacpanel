@@ -41,13 +41,14 @@ class Index:
         self.items = {}
         self.question = None
         self.answered = set()
+        self.messages = set()
 
     def inspect(self, record, items):
         # The feed already distinguishes a person's input from tool results,
         # letters and harness inserts. Those must not settle a question.
         if any(item.get("role") == "me" for item in items):
-            if self.question:
-                self.answered.add(self.question["id"])
+            self.answered.update(self.messages)
+            self.messages.clear()
             self.question = None
         if record.get("type") != "assistant" or record.get("isSidechain") or record.get("isMeta"):
             return
@@ -55,6 +56,8 @@ class Index:
         message = record.get("message") or {}
         text = "\n\n".join(b.get("text", "") for b in message.get("content", [])
                            if isinstance(b, dict) and b.get("type") == "text")
+        if text.strip() and record.get("uuid"):
+            self.messages.add(record["uuid"])
         anchor = next((i for i in items if i.get("role") == "ai"), None)
         if not anchor or not question_in(text):
             return

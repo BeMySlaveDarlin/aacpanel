@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"aacpanel/internal/question"
 )
 
 // AskQuestion classifies a completed assistant message in its session's
@@ -11,7 +13,7 @@ import (
 const AskQuestion = "question"
 
 type QuestionAsker interface {
-	Question(ctx context.Context, target, conversation, text string) (bool, string, []string, error)
+	Question(ctx context.Context, target, conversation, text string) (question.Verdict, error)
 }
 
 func validateQuestion(r Request) error {
@@ -24,16 +26,16 @@ func validateQuestion(r Request) error {
 	return nil
 }
 
-func (c *Client) Question(ctx context.Context, target, conversation, text string) (bool, string, []string, error) {
+func (c *Client) Question(ctx context.Context, target, conversation, text string) (question.Verdict, error) {
 	resp, err := c.Do(ctx, Request{Ask: AskQuestion, Target: target, Conversation: conversation, Text: text})
 	if err != nil {
-		return false, "", []string{}, err
+		return question.Verdict{}, err
 	}
 	if !resp.OK {
-		return false, "", []string{}, errors.New(resp.Error)
+		return question.Verdict{}, errors.New(resp.Error)
 	}
 	if resp.Question == nil {
-		return false, "", []string{}, errors.New("the executor answered without a question verdict")
+		return question.Verdict{}, errors.New("the executor answered without a question verdict")
 	}
-	return *resp.Question, resp.What, append([]string{}, resp.Answers...), nil
+	return *resp.Question, nil
 }

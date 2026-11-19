@@ -385,30 +385,26 @@ and background notifications leave it in place, and the next assistant reply
 replaces it. The screen uses that session's contour limits for the reset time
 and marks a conversation still stopped after the reset as waiting for a person.
 
-**Questions left in prose are waiting work.** The collector finds a question
-mark outside code and URLs in the last assistant message, until the person
-speaks again. Busy sessions and codex threads contribute none. The service
-classifies candidates off the snapshot path, with at most two concurrent
-requests and a deadline. The executor starts a tool-free, non-persistent
-haiku call in the session's contour, carrying only that message on stdin.
-The classifier returns strict JSON: whether work is blocked on the human and
-what answer, decision or action it needs, in the message's language and at most
-140 characters. Rhetoric, self-answered questions, optional offers, quotations,
-examples and questions to other agents do not qualify. An invalid JSON verdict
-or a positive verdict without its question is an error. The database claims the
-message before the call and keeps its verdict and question: no poll or restart
-spends a second call. An error, including an interrupted
-claim past its deadline, leaves the question visible. A message cut by the
-feed limit stays visible too: its missing tail cannot earn a negative verdict.
-The same call offers up to four short replies from the choices the message
-names, yes and no to a proposal among them; a free-form question offers none.
-The replies are kept with the verdict; the person answers the full message
-through the composer. Guessed replies are not offered as buttons: one message
-can ask several questions or need several choices in one answer. Waiting items
-open the assistant's feed row and mark its contour; a separate persisted claim sends
-one push per message through the notification choice. The question names the
-waiting item, the session's state and the heading over the full assistant message;
-it is also the body of the “Asks” push. Each push has its own tag derived from
+**Questions left in prose are waiting work.** Claude's `turn` hook classifies
+candidate turn ends synchronously; the question-mark scan is the fallback for
+sessions where the hook cannot reach the panel. The executor starts a tool-free,
+non-persistent haiku call in the session's contour, carrying only that message
+on stdin. The verdict holds a form of up to four questions, a manual action
+and a summary in the message's language. Rhetoric, self-answered questions,
+optional offers, quotations, examples and questions to other agents do not
+qualify. Unreadable verdicts are errors. The database claims each message
+before the call, so the hook, a poll and a restart cannot spend a second call.
+A prose `ask` holds the form; its answer supplies one complete set of choices
+and free text. The act lifecycle and the hook's blocking rule are described
+with tasks for the person's hands below.
+
+The fallback has at most two concurrent requests and a deadline. An error,
+including an interrupted claim past its deadline, leaves its question visible.
+A message cut by the feed limit stays visible too: its missing tail cannot
+earn a negative verdict. Waiting items open the assistant's feed row and mark
+its contour. A separate persisted claim sends one push per message through
+the notification choice. The verdict's summary names the waiting item and the
+“Asks” push. Each push has its own tag derived from
 both conversation and message. A complete scan marks a pushed question closed
 when its card leaves the snapshot; an unreadable collector response cannot
 close it. Closure claims are persisted and sent once, in bounded batches with
@@ -665,10 +661,31 @@ string-shaped body and rendering. The local `/api/requests` endpoint adapts
 string requests for MCP servers that have not reconnected. The old request and
 call tables remain available for an image rollback; the service neither reads
 nor writes them. The classifier queue keeps its claims, verdicts and push
-bookkeeping; a yes verdict creates an ask act in the same transaction. Actual
-human input or a delivered parent letter answers it, with the parent recorded
-separately; a vanished candidate withdraws it. A new call withdraws its open
-predecessor, and closed calls expire after thirty days.
+bookkeeping. The end-of-turn classifier returns up to four questions with
+options, a summary and a separate manual action. A question verdict creates a
+prose `ask` act in the same transaction. The `ask` tool creates the same form
+with source `tool` and lets the session continue working. A complete answer
+sends one panel letter with the act's message identity and closes the act;
+failed delivery leaves it open. Ordinary human input or a delivered parent
+letter settles prose asks, with the parent recorded separately. Tool asks
+remain open until their form is answered.
+
+Claude's synchronous `turn` Stop hook reads the final text record, then calls
+the local `/api/turn` endpoint with a fifteen-second deadline. A shared cheap
+filter admits a question mark outside code and links, request words in the
+last eight hundred characters, or a code fence in the last twelve hundred.
+Haiku runs in the session's contour with no conversation, tools or MCP. The
+claim keyed by conversation and message prevents a second paid call. The hook
+holds the stop only for a nonempty manual action when no `do` act is open.
+Questions already have their form and need no extra model round. A timeout,
+unreadable verdict, subagent, Codex session or answering round holds nothing.
+The price is one model call and its latency on each candidate; failure leaves
+the turn free to stop. The collector's question-mark scan remains the fallback
+for Claude sessions without a working hook, using the same classifier and
+claim. A vanished fallback candidate withdraws its prose act; hook candidates
+survive that scan because it does not index requests without question marks.
+A new call withdraws its open predecessor, and closed calls expire after thirty
+days.
 
 The counter in both session lists opens the conversation. Its lower strip
 counts open acts and briefs together with the native question or permission.

@@ -5,23 +5,26 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/question"
 	"aacpanel/internal/request"
 )
 
 type Body struct {
-	Steps    string         `json:"-"`
-	Chain    []request.Step `json:"-"`
-	Name     string         `json:"name,omitempty"`
-	Template string         `json:"template,omitempty"`
-	Source   string         `json:"source,omitempty"`
-	Message  string         `json:"message,omitempty"`
-	What     string         `json:"what,omitempty"`
-	Answers  []string       `json:"answers,omitempty"`
+	Steps     string              `json:"-"`
+	Chain     []request.Step      `json:"-"`
+	Name      string              `json:"name,omitempty"`
+	Template  string              `json:"template,omitempty"`
+	Source    string              `json:"source,omitempty"`
+	Message   string              `json:"message,omitempty"`
+	What      string              `json:"what,omitempty"`
+	Questions []question.Question `json:"questions,omitempty"`
+	Action    string              `json:"action,omitempty"`
 }
 
 // Stored Markdown and structured steps share one wire key. Keeping the two
@@ -63,9 +66,10 @@ func (b *Body) UnmarshalJSON(data []byte) error {
 }
 
 type Answer struct {
-	Outcome string `json:"outcome,omitempty"`
-	Note    string `json:"note,omitempty"`
-	Path    string `json:"path,omitempty"`
+	Answers []question.Answer `json:"answers,omitempty"`
+	Outcome string            `json:"outcome,omitempty"`
+	Note    string            `json:"note,omitempty"`
+	Path    string            `json:"path,omitempty"`
 }
 
 type Input struct {
@@ -83,7 +87,7 @@ type Input struct {
 
 func (i Input) Validate() error {
 	if i.Withdraw || i.ID != "" || i.Reopen != 0 || i.Step != 0 || i.Outcome != "" || i.Note != "" {
-		if i.Kind != "" || i.Title != "" || i.Blocking != nil || i.Body.Steps != "" || i.Body.Chain != nil || i.Body.Name != "" || i.Body.Template != "" || i.Body.Source != "" || i.Body.Message != "" || i.Body.What != "" || len(i.Body.Answers) > 0 {
+		if i.Kind != "" || i.Title != "" || i.Blocking != nil || i.Body.Steps != "" || i.Body.Chain != nil || i.Body.Name != "" || i.Body.Template != "" || i.Body.Source != "" || i.Body.Message != "" || i.Body.What != "" || len(i.Body.Questions) > 0 || i.Body.Action != "" {
 			return errors.New("a chain operation carries no act body")
 		}
 		return (request.Input{ID: i.ID, Withdraw: i.Withdraw, Reopen: i.Reopen, Step: i.Step, Outcome: i.Outcome, Note: i.Note}).Validate()
@@ -109,7 +113,17 @@ func (i Input) Validate() error {
 		if len(i.Body.Template) > 8192 {
 			return errors.New("the secret template is longer than 8192 bytes")
 		}
-	case "ask", "call":
+	case "ask":
+		if *i.Blocking {
+			return errors.New("ask does not block the session")
+		}
+		if i.Body.Source != "tool" && i.Body.Source != "prose" {
+			return errors.New("ask source must be tool or prose")
+		}
+		if len(question.Clean(i.Body.Questions)) == 0 {
+			return errors.New("ask needs 1 to 4 questions")
+		}
+	case "call":
 	default:
 		return errors.New("the act kind is not valid")
 	}
@@ -137,9 +151,12 @@ type Record struct {
 
 func (r Record) Open() bool { return r.State == "open" || r.State == "failed" }
 
-func (r Record) ValidateAnswer(answer, note string) error {
+func (r Record) ValidateAnswer(answer, note string, answers ...question.Answer) error {
 	if utf8.RuneCountInString(note) > request.NoteMax {
 		return errors.New("the note is longer than 2000 characters")
+	}
+	if r.Kind == "ask" {
+		return question.ValidateAnswers(r.Body.Questions, answers)
 	}
 	if r.Kind == "do" {
 		return request.ValidateAnswer(answer, note)
@@ -150,7 +167,25 @@ func (r Record) ValidateAnswer(answer, note string) error {
 	return errors.New("the answer does not apply to this act")
 }
 
-func (r Record) Reply(answer, note string) string {
+func (r Record) Reply(answer, note string, answers ...question.Answer) string {
+	if r.Kind == "ask" {
+		who := "your ask"
+		if r.Body.Source == "prose" {
+			who = "the questions of your last message"
+		}
+		text := "The person answered " + who + " (" + r.ID + "):"
+		for i, a := range answers {
+			reply := strings.Join(a.Picks, ", ")
+			if words := strings.TrimSpace(a.Text); words != "" {
+				if reply != "" {
+					reply += "; "
+				}
+				reply += words
+			}
+			text += fmt.Sprintf("\n%d. %s\n   %s", i+1, r.Body.Questions[i].Question, reply)
+		}
+		return text
+	}
 	if r.Kind == "do" {
 		return request.Reply(request.Record{ID: r.ID, Title: r.Title}, answer, note)
 	}
@@ -164,4 +199,16 @@ func (r Record) Reply(answer, note string) string {
 // MessageID preserves the act's identity in transports that deduplicate messages.
 func MessageID(id string) string {
 	return id[:8] + "-" + id[8:12] + "-" + id[12:16] + "-" + id[16:20] + "-" + id[20:]
+}
+
+func (i *Input) Clean() {
+	if i.Kind != "ask" {
+		return
+	}
+	i.Body.Questions = question.Clean(i.Body.Questions)
+	i.Body.What, i.Body.Action = question.Line(i.Body.What, 140), question.Line(i.Body.Action, 140)
+	if i.Body.What == "" && len(i.Body.Questions) > 0 {
+		i.Body.What = question.Line(i.Body.Questions[0].Question, 140)
+	}
+	i.Title = question.Line(i.Title, 120)
 }

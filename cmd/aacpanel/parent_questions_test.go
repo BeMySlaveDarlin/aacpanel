@@ -14,6 +14,7 @@ import (
 	"aacpanel/internal/chat"
 	"aacpanel/internal/docker"
 	"aacpanel/internal/notify"
+	"aacpanel/internal/question"
 )
 
 const questionParentID = "11111111-1111-4111-8111-111111111111"
@@ -72,7 +73,7 @@ func TestParentQuestionsAreMailedOnceAndWaitAcrossServiceRestartsPG(t *testing.T
 	})
 	e := parentQuestionClient(t, p.srv, &action.Opening{Name: "parent", Conversation: questionParentID, Letters: true})
 	child := notify.Session{ID: requestConversation, Name: "sentinel", CWD: "/srv/unmapped/child", ConfigDir: "/account/unmapped"}
-	question := parentQuestion{Key: "text:clock", Text: "Publish the change?", Answers: []string{"Publish", "Wait"}}
+	question := parentQuestion{Key: "text:clock", Text: "Publish the change?", Questions: publishQuestions()}
 	now := time.Unix(2_000_000_000, 0).UTC()
 	if !p.srv.deferParentQuestion(t.Context(), child, question, now) {
 		t.Fatal("the question was pushed before the parent had time to answer")
@@ -166,7 +167,7 @@ func TestProseQuestionPushWaitsAndAQuestionClearedBeforeItsDeadlineStaysSilentPG
 		if message == "cleared" {
 			what = ""
 		}
-		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", what, []string{"Yes", "No"}); err != nil {
+		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", question.Verdict{What: what, Questions: publishQuestions()}); err != nil {
 			t.Fatal(err)
 		}
 		card := chat.Item{Role: "question", BriefID: message, Text: "Publish?", Title: "Asks in text"}
@@ -225,7 +226,7 @@ func TestAParentsOrdinaryLetterSettlesOnlyItsChildsCurrentProseQuestionPG(t *tes
 	if _, err := p.db.ClaimQuestion(t.Context(), requestConversation, card.BriefID); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", card.BriefID, "yes", card.Text, nil); err != nil {
+	if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", card.BriefID, "yes", question.Verdict{What: card.Text, Questions: publishQuestions()}); err != nil {
 		t.Fatal(err)
 	}
 	var rows []map[string]json.RawMessage

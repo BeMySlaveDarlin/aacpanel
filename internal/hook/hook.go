@@ -45,7 +45,7 @@ func HeldEvent(name string) string {
 	switch name {
 	case "prompt-stamp":
 		return "UserPromptSubmit"
-	case "checklist-reminder", "background-reminder":
+	case "checklist-reminder", "background-reminder", "turn":
 		return "Stop"
 	}
 	return ""
@@ -85,6 +85,7 @@ type handler struct {
 // does.
 var handlers = map[string]handler{
 	"task-context":        {Event: "SessionStart", Answer: taskContext},
+	"turn":                {Event: "Stop", Wait: turnWait, Answer: turn},
 	"artifact-copy":       {Event: "PostToolUse", Wait: copyWait, Answer: copyPage},
 	"ask-hook":            {Event: "PreToolUse", Wait: relayWait, Answer: relayQuestion},
 	"background-reminder": {Event: "Stop", Answer: remindBackground},

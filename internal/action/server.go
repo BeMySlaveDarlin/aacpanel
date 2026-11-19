@@ -407,11 +407,11 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		}
 		ctx, cancel := context.WithTimeout(ctx, s.timeout)
 		defer cancel()
-		answer, what, answers, err := asker.Question(ctx, req.Target, req.Conversation, req.Text)
+		verdict, err := asker.Question(ctx, req.Target, req.Conversation, req.Text)
 		if err != nil {
 			return Failed(req.ID, err, 0)
 		}
-		return Response{ID: req.ID, OK: true, Question: &answer, What: what, Answers: answers}
+		return Response{ID: req.ID, OK: true, Question: &verdict}
 	}
 
 	if req.Ask == AskSide {

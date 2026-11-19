@@ -63,6 +63,17 @@ func TestActsMigrationPreservesEveryOutstandingTurnPG(t *testing.T) {
 	if _, err := tx.Exec(t.Context(), string(chain)); err != nil {
 		t.Fatal(err)
 	}
+	turn, err := migrations.FS.ReadFile("075_turn_questions.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), string(turn)); err != nil {
+		t.Fatal(err)
+	}
+	var retired int
+	if err := tx.QueryRow(t.Context(), `SELECT count(*) FROM information_schema.columns WHERE table_schema='acts_migration' AND table_name='text_questions' AND column_name='answers'`).Scan(&retired); err != nil || retired != 0 {
+		t.Fatalf("retired answers column: %d %v", retired, err)
+	}
 	rows, err := tx.Query(t.Context(), `SELECT `+actColumns+` FROM acts ORDER BY kind,title`)
 	if err != nil {
 		t.Fatal(err)

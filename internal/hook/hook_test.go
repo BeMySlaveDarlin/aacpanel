@@ -95,7 +95,7 @@ func TestSettingsCallsLeaveOnlyHeldHooksToTheHolder(t *testing.T) {
 					in := &countedInput{Reader: strings.NewReader("{}")}
 					var out, errs bytes.Buffer
 					code := Run([]string{name}, in, &out, &errs)
-					kept := name == "prompt-stamp" || name == "checklist-reminder" || name == "background-reminder"
+					kept := name == "prompt-stamp" || name == "checklist-reminder" || name == "background-reminder" || name == "turn"
 					quiet := held == "1" && pid == "" && kept
 					if quiet != (in.reads == 0) || code != 0 || errs.Len() != 0 {
 						t.Errorf("quiet %v, reads %d, exit %d, stderr %q", quiet, in.reads, code, errs.String())

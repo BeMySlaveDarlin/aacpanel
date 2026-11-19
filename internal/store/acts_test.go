@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"aacpanel/internal/act"
+	"aacpanel/internal/question"
 	"aacpanel/internal/request"
 	"aacpanel/internal/testdb"
 )
@@ -110,7 +111,7 @@ func TestActKindsAndAnswersPG(t *testing.T) {
 		{"do", "cant", "declined", act.Body{Steps: "Run it"}},
 		{"secret", "decline", "declined", act.Body{Name: "github-token"}},
 		{"secret", "save", "answered", act.Body{Name: "db.env"}},
-		{"ask", "", "open", act.Body{Source: "prose", Message: "message", What: "Publish?"}},
+		{"ask", "", "open", act.Body{Source: "prose", Message: "message", What: "Publish?", Questions: []question.Question{{Question: "Publish?"}}}},
 		{"call", "", "open", act.Body{}},
 	}
 	for _, c := range cases {
@@ -223,7 +224,7 @@ func TestQuestionActsFollowTheVerdictAndTheActualAnswerPG(t *testing.T) {
 		if message == "no" {
 			verdict = "no"
 		}
-		if err := s.SetQuestionVerdict(t.Context(), conv, "child", message, verdict, "Publish?", []string{"Yes", "No"}); err != nil {
+		if err := s.SetQuestionVerdict(t.Context(), conv, "child", message, verdict, question.Verdict{What: "Publish?", Questions: []question.Question{{Question: "Publish?", Options: []question.Option{{Label: "Yes"}, {Label: "No"}}}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -232,7 +233,7 @@ func TestQuestionActsFollowTheVerdictAndTheActualAnswerPG(t *testing.T) {
 		t.Fatalf("verdict acts: %+v %v", rows, err)
 	}
 	for _, row := range rows {
-		if row.Kind != "ask" || row.Session != "child" || row.Body.Source != "prose" || row.Body.What != "Publish?" || len(row.Body.Answers) != 2 {
+		if row.Kind != "ask" || row.Session != "child" || row.Body.Source != "prose" || row.Body.What != "Publish?" || len(row.Body.Questions) != 1 || len(row.Body.Questions[0].Options) != 2 {
 			t.Fatalf("question body: %+v", row)
 		}
 	}

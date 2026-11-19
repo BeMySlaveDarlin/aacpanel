@@ -13,6 +13,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
+	"aacpanel/internal/question"
 )
 
 const requestConversation = "567f4d24-cd5f-48fa-bdc1-04c89d203494"
@@ -207,7 +208,7 @@ func TestWaitingSummaryCountsOnlyOutstandingWork(t *testing.T) {
 	rows := []act.Record{{ID: "open", Kind: "do", Title: "Restart", State: "open", Blocking: true, Created: at},
 		{ID: "done", Kind: "do", State: "answered", Closed: &at}, {ID: "withdrawn", Kind: "do", State: "withdrawn", Closed: &at},
 		{ID: "call", Kind: "call", State: "open", Created: at}, {ID: "secret", Kind: "secret", State: "open", Title: "Release token", Created: at},
-		{ID: "ask", Kind: "ask", State: "open", Title: "Publish?", Body: act.Body{Message: "message", Answers: []string{"Yes", "No"}}, Created: at}}
+		{ID: "ask", Kind: "ask", State: "open", Title: "Publish?", Body: act.Body{Source: "prose", Message: "message", Questions: publishQuestions()}, Created: at}}
 	cards := []chat.Item{{Role: "request", BriefID: "open", Pos: 11}, {Role: "call", Text: "Need your choice", At: at.Format(time.RFC3339Nano), Pos: 12},
 		{Role: "secret", BriefID: "secret", Name: "release", Pos: 13}, {Role: "secret", Name: "legacy", Pos: 14},
 		{Role: "question", BriefID: "message", Pos: 15, Nth: 2}, {Role: "question", BriefID: "unclassified", Pos: 16}}
@@ -219,7 +220,7 @@ func TestWaitingSummaryCountsOnlyOutstandingWork(t *testing.T) {
 	counts := map[string]int{}
 	for _, item := range got {
 		counts[item.Kind]++
-		if item.Kind == "question" && (item.ID != "ask" || item.Pos == nil || *item.Pos != 15 || item.Nth != 2 || len(item.Answers) != 2) {
+		if item.Kind == "question" && (item.ID != "ask" || item.Pos == nil || *item.Pos != 15 || item.Nth != 2 || len(item.Questions) != 1 || len(item.Questions[0].Options) != 2) {
 			t.Errorf("question anchor: %+v", item)
 		}
 	}
@@ -411,7 +412,7 @@ func TestPersonAndTranscriptRepliesSettleQuestionActsPG(t *testing.T) {
 		if _, err := p.db.ClaimQuestion(t.Context(), requestConversation, message); err != nil {
 			t.Fatal(err)
 		}
-		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", "Publish?", nil); err != nil {
+		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", question.Verdict{What: "Publish?", Questions: publishQuestions()}); err != nil {
 			t.Fatal(err)
 		}
 		if message == "panel-reply" {

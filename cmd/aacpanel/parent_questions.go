@@ -12,15 +12,16 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
+	formquestion "aacpanel/internal/question"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
 type parentQuestion struct {
-	Key     string
-	Text    string
-	Answers []string
-	Ask     *chat.Ask
+	Key       string
+	Text      string
+	Questions []formquestion.Question
+	Ask       *chat.Ask
 }
 
 func (s *Server) parentQuestionPolicy(ctx context.Context, child notify.Session) (bool, time.Duration) {
@@ -106,8 +107,11 @@ func parentQuestionLetter(child notify.Session, question parentQuestion, wait ti
 			"picks are exact option labels, or text for words of your own. A letter cannot release AskUserQuestion.\n", child.Name)
 	} else {
 		body.WriteString(question.Text)
-		for _, option := range question.Answers {
-			fmt.Fprintf(&body, "\n- %s", option)
+		for _, q := range question.Questions {
+			fmt.Fprintf(&body, "\n%s", q.Question)
+			for _, option := range q.Options {
+				fmt.Fprintf(&body, "\n- %s", option.Label)
+			}
 		}
 		fmt.Fprintf(&body, "\n\nReply to %q with send_to_session; your letter settles this prose question.\n", child.Name)
 	}

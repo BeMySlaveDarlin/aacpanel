@@ -57,7 +57,7 @@ var handshakeFields = map[string]any{
 	"perTaskStopAffordance": true,
 	"hooks": map[string][]hookMatcher{
 		"UserPromptSubmit": {{CallbackIDs: []string{"prompt-stamp"}}},
-		"Stop":             {{CallbackIDs: []string{"checklist-reminder", "background-reminder"}}},
+		"Stop":             {{CallbackIDs: []string{"checklist-reminder", "background-reminder", "turn"}}},
 	},
 }
 

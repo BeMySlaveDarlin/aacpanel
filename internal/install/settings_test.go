@@ -531,7 +531,7 @@ func TestAnEmptyContainerOfThePersonStays(t *testing.T) {
 	if got := keysOf(t, wired); !slices.Equal(got, []string{"hooks", "permissions", "statusLine", "env"}) {
 		t.Errorf("the keys are %q:\n%s", got, wired)
 	}
-	if hooked(t, wired, "Stop", "deploy/claude/context-guard.py") != 0 || groupsOf(t, wired, "Stop") != 1 {
+	if hooked(t, wired, "Stop", "deploy/claude/context-guard.py") != 0 || groupsOf(t, wired, "Stop") != 2 {
 		t.Errorf("the Stop hooks:\n%s", wired)
 	}
 }

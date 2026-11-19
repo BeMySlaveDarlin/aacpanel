@@ -26,6 +26,7 @@ import (
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
+	"aacpanel/internal/question"
 	"aacpanel/internal/rundir"
 	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/statusline"
@@ -801,10 +802,10 @@ func startTerminals(ctx context.Context, socket string) (net.Listener, error) {
 	return ln, nil
 }
 
-func (a audited) Question(ctx context.Context, target, conversation, text string) (bool, string, []string, error) {
+func (a audited) Question(ctx context.Context, target, conversation, text string) (question.Verdict, error) {
 	asker, ok := a.next.(action.QuestionAsker)
 	if !ok {
-		return false, "", []string{}, fmt.Errorf("this executor does not classify questions")
+		return question.Verdict{}, fmt.Errorf("this executor does not classify questions")
 	}
 	return asker.Question(ctx, target, conversation, text)
 }

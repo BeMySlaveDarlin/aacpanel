@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 
 	"aacpanel/internal/act"
 	"aacpanel/internal/notify"
+	"aacpanel/internal/question"
 	personrequest "aacpanel/internal/request"
 	"aacpanel/internal/store"
 )
@@ -59,12 +61,13 @@ func (s *Server) apiAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the act was not parsed", http.StatusBadRequest)
 		return
 	}
+	body.Input.Clean()
 	if err := body.Validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if body.ID == "" && body.Kind != "do" && body.Kind != "secret" {
-		http.Error(w, "only do and secret acts can be created here", http.StatusBadRequest)
+	if body.ID == "" && body.Kind != "do" && body.Kind != "secret" && body.Kind != "ask" {
+		http.Error(w, "only do, secret and ask acts can be created here", http.StatusBadRequest)
 		return
 	}
 	if body.Kind == "do" && body.Body.Chain == nil {
@@ -100,7 +103,14 @@ func (s *Server) createAct(w http.ResponseWriter, r *http.Request, conversation 
 	}
 	writeJSON(w, map[string]string{"id": row.ID})
 }
+
+var errActAnswer = errors.New("the question answers were not parsed")
+
 func actError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errActAnswer) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	code := http.StatusServiceUnavailable
 	if errors.Is(err, store.ErrActClosed) {
 		code = http.StatusConflict
@@ -131,6 +141,7 @@ func (s *Server) apiActs(w http.ResponseWriter, r *http.Request) {
 type actReply struct {
 	lease        *store.ActAnswer
 	answer, note string
+	answers      []question.Answer
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
@@ -159,7 +170,21 @@ func (s *Server) prepareActAnswer(r *http.Request, target string, params map[str
 	}
 	answer, _ := params["answer"].(string)
 	note, _ := params["note"].(string)
-	return &actReply{lease: lease, answer: answer, note: note, ctx: ctx, cancel: cancel}, nil
+	var answers []question.Answer
+	if lease.Record.Kind == "ask" {
+		data, err := json.Marshal(params["answers"])
+		if err == nil {
+			d := json.NewDecoder(bytes.NewReader(data))
+			d.DisallowUnknownFields()
+			err = d.Decode(&answers)
+		}
+		if err != nil {
+			lease.Close(ctx)
+			cancel()
+			return nil, errActAnswer
+		}
+	}
+	return &actReply{lease: lease, answer: answer, note: note, answers: answers, ctx: ctx, cancel: cancel}, nil
 }
 
 func requestMessageID(id string) string { return act.MessageID(id) }

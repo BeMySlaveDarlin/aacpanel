@@ -126,6 +126,18 @@ class TextQuestions(unittest.TestCase):
                 {"type": "text", "text": "I have the answer."}]}})
             self.assertEqual(cards(path), [], "an older assistant message remained a candidate")
 
+    def test_human_input_settles_hook_questions_without_a_question_mark(self):
+        index = Index("/unused/conversation.jsonl")
+        for number, text in enumerate(("Waiting for your decision.", "Please merge the change.")):
+            record = {"type": "assistant", "uuid": f"message-{number}", "message": {"content": [
+                {"type": "text", "text": text}]}}
+            index.inspect(record, chat.parse(record, number))
+        self.assertIsNone(index.question)
+        self.assertEqual(index.answered, set())
+        record = {"type": "user", "message": {"content": "I will answer later."}}
+        index.inspect(record, chat.parse(record, 3))
+        self.assertEqual(index.answered, {"message-0", "message-1"})
+
     def test_a_question_past_the_feed_limit_is_still_a_candidate(self):
         from chat.limits import MAX_TEXT
         index = Index("/unused/conversation.jsonl")

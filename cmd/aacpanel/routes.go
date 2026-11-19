@@ -102,6 +102,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	if g.local {
 		mux.HandleFunc("POST /api/requests", s.apiRequest)
 		mux.HandleFunc("POST /api/acts", s.apiAct)
+		mux.HandleFunc("POST /api/turn", s.apiTurn)
 	}
 	mux.Handle("GET /api/acts", g.page(s.apiActs))
 	mux.Handle("GET /api/briefs", g.page(s.apiBriefs))

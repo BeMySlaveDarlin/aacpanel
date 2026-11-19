@@ -54,6 +54,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__file_send",
 		"mcp__aacpanel__secret_ask",
 		"mcp__aacpanel__request",
+		"mcp__aacpanel__ask",
 		"mcp__aacpanel__session_restart",
 		"mcp__aacpanel__session_ready",
 		"mcp__aacpanel__session_close",
@@ -114,7 +115,7 @@ func TestFileSendIsNamedInTheLeadAndUsesTheCallingThreadsDirectory(t *testing.T)
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer",
+	want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "ask", "session_restart", "session_ready", "session_close", "crew_status", "session_answer",
 		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
@@ -394,7 +395,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "ask", "session_restart", "session_ready", "session_close", "crew_status", "session_answer", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)

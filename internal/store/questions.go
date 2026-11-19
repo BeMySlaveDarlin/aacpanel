@@ -4,15 +4,19 @@ import (
 	"context"
 
 	"aacpanel/internal/notify"
+	"aacpanel/internal/question"
 
 	"github.com/jackc/pgx/v5"
 )
 
 type QuestionVerdict struct {
-	Verdict  string
-	What     string
-	Answers  []string
-	Answered bool
+	Verdict   string
+	What      string
+	Questions []question.Question
+	Action    string
+	Hooked    bool
+	Closed    bool
+	Answered  bool
 }
 
 // QuestionVerdicts includes an interrupted classifier as an error after its
@@ -23,7 +27,7 @@ func (s *Store) QuestionVerdicts(ctx context.Context, conversations []string) (m
 		return nil, err
 	}
 	rows, err := pool.Query(ctx, `SELECT conversation, message,
- CASE WHEN verdict='pending' AND started_at < now()-interval '90 seconds' THEN 'error' ELSE verdict END, what, answers, answered
+ CASE WHEN verdict='pending' AND started_at < now()-interval '90 seconds' THEN 'error' ELSE verdict END, what, questions, action, hooked, closed, answered
  FROM text_questions WHERE conversation=ANY($1)`, conversations)
 	if err != nil {
 		return nil, err
@@ -33,7 +37,7 @@ func (s *Store) QuestionVerdicts(ctx context.Context, conversations []string) (m
 	for rows.Next() {
 		var conversation, message string
 		var verdict QuestionVerdict
-		if err := rows.Scan(&conversation, &message, &verdict.Verdict, &verdict.What, &verdict.Answers, &verdict.Answered); err != nil {
+		if err := rows.Scan(&conversation, &message, &verdict.Verdict, &verdict.What, &verdict.Questions, &verdict.Action, &verdict.Hooked, &verdict.Closed, &verdict.Answered); err != nil {
 			return nil, err
 		}
 		if out[conversation] == nil {
@@ -47,37 +51,44 @@ func (s *Store) QuestionVerdicts(ctx context.Context, conversations []string) (m
 // ClaimQuestion permits at most one classifier call per message, even when
 // several snapshots or service processes see it together.
 func (s *Store) ClaimQuestion(ctx context.Context, conversation, message string) (bool, error) {
+	return s.claimQuestion(ctx, conversation, message, false)
+}
+
+func (s *Store) ClaimTurnQuestion(ctx context.Context, conversation, message string) (bool, error) {
+	return s.claimQuestion(ctx, conversation, message, true)
+}
+
+func (s *Store) claimQuestion(ctx context.Context, conversation, message string, hooked bool) (bool, error) {
 	pool, err := s.Pool()
 	if err != nil {
 		return false, err
 	}
-	tag, err := pool.Exec(ctx, `INSERT INTO text_questions (conversation,message,verdict,started_at)
- VALUES ($1,$2,'pending',now()) ON CONFLICT (conversation,message) DO UPDATE
- SET verdict='pending',started_at=now() WHERE text_questions.verdict=''`, conversation, message)
+	tag, err := pool.Exec(ctx, `INSERT INTO text_questions (conversation,message,verdict,started_at,hooked)
+ VALUES ($1,$2,'pending',now(),$3) ON CONFLICT (conversation,message) DO UPDATE
+ SET verdict='pending',started_at=now(),hooked=$3 WHERE text_questions.verdict=''`, conversation, message, hooked)
 	return tag.RowsAffected() > 0, err
 }
 
-func (s *Store) SetQuestionVerdict(ctx context.Context, conversation, session, message, verdict, what string, answers []string) error {
+func (s *Store) SetQuestionVerdict(ctx context.Context, conversation, session, message, verdict string, form question.Verdict) error {
 	pool, err := s.Pool()
 	if err != nil {
 		return err
 	}
-	if answers == nil {
-		answers = []string{}
-	}
+	form.Questions = question.Clean(form.Questions)
+	form.What, form.Action = question.Line(form.What, 140), question.Line(form.Action, 140)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `UPDATE text_questions SET verdict=$3,what=$4,answers=$5 WHERE conversation=$1 AND message=$2`, conversation, message, verdict, what, answers)
+	_, err = tx.Exec(ctx, `UPDATE text_questions SET verdict=$3,what=$4,questions=$5,action=$6 WHERE conversation=$1 AND message=$2`, conversation, message, verdict, form.What, form.Questions, form.Action)
 	if err != nil {
 		return err
 	}
-	if verdict == "yes" {
+	if verdict == "yes" && len(form.Questions) > 0 {
 		_, err = tx.Exec(ctx, `INSERT INTO acts(id,conversation,session,kind,title,body,state,created_at,closed_at,answered_by)
  SELECT md5(conversation||message),conversation,$3,'ask',coalesce(nullif(left(btrim(what),120),''),'Asks in text'),
- jsonb_build_object('source','prose','message',message,'what',what,'answers',answers),
+ jsonb_build_object('source','prose','message',message,'what',what,'questions',questions,'action',action),
  CASE WHEN answered THEN 'answered' WHEN closed THEN 'withdrawn' ELSE 'open' END,coalesce(started_at,now()),
  CASE WHEN answered OR closed THEN now() END,CASE WHEN answered THEN 'person' ELSE '' END
  FROM text_questions WHERE conversation=$1 AND message=$2 ON CONFLICT(id) DO NOTHING`, conversation, message, session)
@@ -108,6 +119,9 @@ func (s *Store) PushQuestion(ctx context.Context, conversation, message string) 
 // CloseQuestions only trusts a complete snapshot. Its pending closures survive
 // a restart until an ordinary push can carry them without waking the phone.
 func (s *Store) CloseQuestions(ctx context.Context, active []string) error {
+	if active == nil {
+		active = []string{}
+	}
 	pool, err := s.Pool()
 	if err != nil {
 		return err
@@ -117,12 +131,16 @@ func (s *Store) CloseQuestions(ctx context.Context, active []string) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `UPDATE text_questions SET closed=true WHERE NOT closed AND NOT (conversation||':'||message=ANY($1))`, active)
+	// Answer delivery takes the act first too; keep the lock order so a
+	// fallback scan cannot deadlock with the form the person is submitting.
+	_, err = tx.Exec(ctx, `UPDATE acts SET state='withdrawn',closed_at=now()
+ WHERE kind='ask' AND body->>'source'='prose' AND state='open'
+ AND NOT (conversation||':'||(body->>'message')=ANY($1))
+ AND EXISTS (SELECT 1 FROM text_questions q WHERE q.conversation=acts.conversation AND q.message=body->>'message' AND NOT q.hooked)`, active)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE acts SET state='withdrawn',closed_at=now()
- WHERE kind='ask' AND state='open' AND NOT (conversation||':'||(body->>'message')=ANY($1))`, active)
+	_, err = tx.Exec(ctx, `UPDATE text_questions SET closed=true WHERE NOT hooked AND NOT closed AND NOT (conversation||':'||message=ANY($1))`, active)
 	if err != nil {
 		return err
 	}

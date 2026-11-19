@@ -10,6 +10,7 @@ import (
 
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
+	"aacpanel/internal/question"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
@@ -84,7 +85,6 @@ func (s *Server) questionCards(ctx context.Context, rows []map[string]json.RawMe
 			}
 			if card.Role == "question" && verdicts[id][card.BriefID].What != "" {
 				card.Title = verdicts[id][card.BriefID].What
-				card.Answers = verdicts[id][card.BriefID].Answers
 			}
 			out[id] = append(out[id], card)
 		}
@@ -166,6 +166,23 @@ func (s *Server) scanTextQuestions(ctx context.Context, schedule func(string, st
 		log.Printf("the question verdicts: %v", err)
 		return
 	}
+	for id, messages := range verdicts {
+		for message, v := range messages {
+			if !v.Hooked || v.Answered || v.Closed || len(v.Questions) == 0 {
+				continue
+			}
+			found := false
+			for _, card := range cards[id] {
+				if card.Role == "question" && card.BriefID == message {
+					found = true
+					break
+				}
+			}
+			if !found {
+				cards[id] = append(cards[id], chat.Item{Role: "question", BriefID: message, Text: v.What, Title: v.What})
+			}
+		}
+	}
 	prefs := s.pushPrefs(ctx)
 	for _, row := range snap.Sessions {
 		if !questionSession(row) {
@@ -173,7 +190,7 @@ func (s *Server) scanTextQuestions(ctx context.Context, schedule func(string, st
 		}
 		id, name := textField(row, "sessionId"), textField(row, "session")
 		for _, card := range cards[id] {
-			if card.Role != "question" || card.BriefID == "" {
+			if card.Role != "question" || card.BriefID == "" || (!question.Candidate(card.Text) && !verdicts[id][card.BriefID].Hooked) {
 				continue
 			}
 			verdict := verdicts[id][card.BriefID]
@@ -193,7 +210,7 @@ func (s *Server) scanTextQuestions(ctx context.Context, schedule func(string, st
 					question = card.Text
 				}
 				if s.deferParentQuestion(ctx, textQuestionSession(row),
-					parentQuestion{Key: "text:" + card.BriefID, Text: question, Answers: verdict.Answers}, time.Now()) {
+					parentQuestion{Key: "text:" + card.BriefID, Text: question, Questions: verdict.Questions}, time.Now()) {
 					continue
 				}
 			}
@@ -232,16 +249,17 @@ func (s *Server) classifyTextQuestion(ctx context.Context, conversation, session
 	if !claimed {
 		return
 	}
-	verdict, what := "error", ""
-	answers := []string{}
+	verdict := "error"
+	form := question.Verdict{Questions: []question.Question{}}
 	// A shortened message may have lost the very question we found. It
 	// cannot earn a negative verdict from the classifier.
 	if s.exec != nil && !card.Cut {
-		yes, asked, choices, err := s.exec.Question(ctx, session, conversation, card.Text)
+		got, err := s.exec.Question(ctx, session, conversation, card.Text)
 		if err == nil {
 			verdict = "no"
-			if yes {
-				verdict, what, answers = "yes", asked, choices
+			form = got
+			if len(got.Questions) > 0 {
+				verdict = "yes"
 			}
 		}
 	}
@@ -249,7 +267,7 @@ func (s *Server) classifyTextQuestion(ctx context.Context, conversation, session
 	// cancellation cannot leave an uncertain question hidden until recovery.
 	save, stop := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer stop()
-	if err := s.db.SetQuestionVerdict(save, conversation, session, card.BriefID, verdict, what, answers); err != nil {
+	if err := s.db.SetQuestionVerdict(save, conversation, session, card.BriefID, verdict, form); err != nil {
 		log.Printf("the question verdict was not kept: %v", err)
 	}
 }
