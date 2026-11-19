@@ -642,7 +642,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         onFile=${onFile}
                         onBrief=${openBrief}
                         briefs=${briefs}
-                        act=${acts[item.id]}
+                        act=${acts[item.actReplyID || item.id]}
                         onAct=${selectAct}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}

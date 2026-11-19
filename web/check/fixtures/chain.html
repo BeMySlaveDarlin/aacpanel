@@ -7,6 +7,8 @@
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { withActReplies } from "/src/screens/chat/actform.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -39,7 +41,7 @@ const steps = [
     { who: "you", text: "Log in to Teleport. Open the SSO link and confirm with your security key.", command: "tsh login --proxy=tp.example.test --auth=okta" },
     { who: "agent", text: "Check access to the cluster." },
     { who: "you", text: "Restart the API on stage.", command: "kubectl -n stage rollout restart deploy/api" },
-    { who: "you", text: "Open **stage.example.test** and check that you can sign in." },
+    { who: "you", text: "Open [stage.example.test](https://stage.example.test/) and check that you can sign in." },
 ];
 const req = { id: "a".repeat(32), kind: "do", title: "Log in to Teleport and restart the API", state: "open", blocking: true,
     created: at, step: 1, body: { steps }, outputs: [null, null, null, null] };
@@ -55,6 +57,8 @@ const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport:
 const exec = { available: true, kinds: ["act.run", "act.stop", "session.send", "session.shell"] };
 let stream, refuse = false, hold = false, release;
 const sent = [], terms = [];
+const copied = [];
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async text => copied.push(text) } });
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (input, options) => {
     const u = new URL(String(input), location.href);
@@ -86,6 +90,7 @@ const root = document.querySelector("#root");
 const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec}
     onTerm=${term => terms.push(term)} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
 const form = () => document.querySelector(".actform .mchain");
+const feedCard = () => [...document.querySelectorAll(".chatfeed .mchain")].find(card => !card.closest(".actform"));
 const step = n => form()?.querySelector(`[data-step="${n}"]`);
 const button = word => [...(form()?.querySelectorAll("button") || [])].find(b => b.textContent.trim() === word);
 const marker = () => document.querySelector('.actmark[data-act="' + req.id + '"]')?.textContent.replace(/\s+/g, " ");
@@ -112,9 +117,11 @@ window.done = (async () => {
         && step(1).classList.contains("current") && Boolean(button("Run")) && !button("Done") && !button("note")
         && !step(2).querySelector(".chainbody") && !step(3).querySelector(".chainbody") && !polls().length;
     out.markerPending = marker().includes("chain") && marker().includes("4 steps · step 1 is yours · below");
-    step(3).querySelector(".chainicon").click(); await quiet();
+    step(1).querySelector(".chaintext").click(); await quiet();
+    out.currentStaysOpen = Boolean(step(1).querySelector(".chainbody")) && step(1).querySelector(".chainicon").getAttribute("aria-expanded") === "true";
+    step(3).querySelector(".chainicon").click(); await until(() => step(3).querySelector(".chainbody"));
     out.future = Boolean(step(3).querySelector(".mdcode")) && !step(3).querySelector(".requestanswer") && !step(3).querySelector(".chainstatus");
-    step(3).querySelector(".chainicon").click(); await quiet();
+    step(3).querySelector(".chainicon").click(); await until(() => !step(3).querySelector(".chainbody"));
     exec.kinds = exec.kinds.filter(kind => kind !== "act.run"); draw(); await quiet();
     out.capabilities = !button("Run");
     exec.kinds = [...exec.kinds, "act.run"]; draw(); await quiet();
@@ -130,7 +137,7 @@ window.done = (async () => {
     button("Run").click(); await until(() => release);
     button("Run").click();
     out.singleRun = sent.length === before + 1;
-    release(); release = null; await until(() => step(1)?.classList.contains("running")); await quiet();
+    release(); release = null; await until(() => step(1)?.classList.contains("running") && polls().length);
     out.run = sent.at(-1).kind === "act.run" && sent.at(-1).target === "work"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, step: 1 });
     out.running = !button("Run") && !button("Done") && !button("Can't") && Boolean(button("Stop"))
@@ -151,13 +158,13 @@ window.done = (async () => {
     const reads = actReads;
     await poll();
     out.polls = out.polls && actReads === reads + 1;
-    button("Stop").click(); await until(() => step(1)?.classList.contains("stopped")); await quiet();
+    button("Stop").click(); await until(() => step(1)?.classList.contains("stopped") && !polls().length);
     out.stop = sent.at(-1).kind === "act.stop" && sent.at(-1).target === "work"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, step: 1 })
         && step(1).querySelector(".chainout").textContent === running.tail && Boolean(button("Run")) && !polls().length;
     button("Can't").click(); await quiet();
     await type(step(1).querySelector("textarea"), "No security key.");
-    button("Can't").click(); await until(() => !form()); await quiet();
+    button("Can't").click(); await until(() => !form());
     out.commandCant = sent.at(-1).kind === "session.send"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, answer: "cant", note: "No security key.", step: 1 });
     req.state = "open"; req.closed = null; req.outputs[0] = { ...running, state: "stopped" };
@@ -168,11 +175,12 @@ window.done = (async () => {
     out.agent = step(2).textContent.includes("the session works on it") && !button("Done") && !button("Run") && !button("Can't")
         && step(1).textContent.includes("exit 0 · 31 s") && !step(1).querySelector(".chainbody") && !polls().length;
     out.markerAgent = marker().includes("1 of 4 done · step 2 is the agent's · below");
-    step(1).querySelector(".chainicon").click(); await quiet();
+    step(1).querySelector(".chainicon").click(); await until(() => step(1).querySelector(".chainout"));
     out.pastOutput = step(1).querySelector(".chainout")?.textContent === done.tail;
-    items = [...items, { role: "me", pos: 3, at, text: `The chain summary for ${req.id}: step 2 is yours.` }];
+    items = [...items, { role: "me", pos: 3, at, text: `The chain “Release” (${req.id}):\n1 you · Login · exit 0\nFull log: /logs/1\nStep 2 is yours.` }];
     stream.listeners.chat({ data: JSON.stringify({ items, state: {}, first: 1, last: 3, total: items.length }) }); await quiet();
-    out.openReply = document.querySelector(".actreply summary")?.textContent.includes("The chain summary")
+    out.openReply = document.querySelector(".actmark .chainreply")?.textContent === "→ agent · step 1 done · step 2 is the agent's"
+        && !document.querySelector(".actreply details, .actreply summary")
         && ![...document.querySelectorAll(".msg.me")].some(node => node.textContent.includes(req.id));
     showScene("failed"); await publish();
     out.failed = Boolean(form()) && step(3).classList.contains("current") && step(3).textContent.includes("exit 3 · 31 s")
@@ -181,25 +189,50 @@ window.done = (async () => {
     showScene("manual"); await publish();
     out.manual = Boolean(button("Done")) && Boolean(button("Can't")) && !button("Run") && !step(4).querySelector(".mdcode")
         && !step(2).querySelector(".chainbody");
-    step(2).querySelector(".chainicon").click(); await quiet();
+    step(2).querySelector(".chainicon").click(); await until(() => step(2).querySelector(".chainbody"));
     out.agentNote = step(2).textContent.includes("Access confirmed: role stage-deployer.");
     req.outputs[1].note = ""; await publish();
     out.agentClosed = !step(2).textContent.includes("waits for the session") && !step(2).textContent.includes("the session works on it");
     button("note").click(); await quiet();
     await type(step(4).querySelector("textarea"), "Sign-in works.");
-    button("Done").click(); await until(() => !form()); await quiet();
+    button("Done").click(); await until(() => !form());
     out.done = sent.at(-1).kind === "session.send" && sent.at(-1).target === "work"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, answer: "done", note: "Sign-in works.", step: 4 })
-        && marker().includes("4 of 4 done");
+        && feedCard()?.querySelector(".sentlabel").textContent === "chain · 4 of 4 done" && !marker();
+    out.closedCard = Boolean(feedCard()) && !feedCard().querySelector(".chainbody, .requestanswer, .requestnote, .chainterm")
+        && [...feedCard().querySelectorAll(".chainicon")].every(icon => icon.getAttribute("aria-expanded") === "false")
+        && !document.querySelector(".actreply button, .actreply details, .actreply summary")
+        && !document.querySelector(".chatfeed").textContent.includes("Full log:");
+    const closedStep = n => feedCard().querySelector(`[data-step="${n}"]`);
+    closedStep(1).querySelector(".chaintext p").click(); await until(() => closedStep(1).querySelector(".chainbody"));
+    out.headerToggle = closedStep(1).querySelector(".chainicon").getAttribute("aria-expanded") === "true";
+    out.oneResult = !closedStep(1).querySelector(".chainresult") && closedStep(1).querySelector(".chainstatus")?.textContent.trim() === "exit 0 · 31 s"
+        && closedStep(1).textContent.match(/exit 0 · 31 s/g)?.length === 1;
+    closedStep(1).querySelector(".mdcopy").click(); await until(() => copied.length);
+    out.closedCopy = copied[0] === steps[0].command;
+    closedStep(1).querySelector(".chainwho").click(); await until(() => !closedStep(1).querySelector(".chainbody"));
+    out.headerToggle = out.headerToggle && closedStep(1).querySelector(".chainresult")?.textContent === "exit 0 · 31 s";
+    closedStep(1).querySelector(".chainresult").click(); await until(() => closedStep(1).querySelector(".chainbody"));
+    closedStep(1).querySelector(".chainicon").click(); await until(() => !closedStep(1).querySelector(".chainbody"));
+    out.headerToggle = out.headerToggle && closedStep(1).querySelector(".chainicon").getAttribute("aria-expanded") === "false";
+    const link = closedStep(4).querySelector(".chaintext a");
+    let followed = false;
+    link.addEventListener("click", event => { followed = true; event.preventDefault(); }, { once: true });
+    link.click(); await quiet();
+    out.linkStaysClosed = followed && link.href === "https://stage.example.test/" && !closedStep(4).querySelector(".chainbody");
+    closedStep(4).querySelector(".chaintext").click(); await until(() => closedStep(4).querySelector(".chainbody"));
+    link.addEventListener("click", event => event.preventDefault(), { once: true });
+    link.click(); await quiet();
+    out.linkStaysOpen = Boolean(closedStep(4).querySelector(".chainbody"));
     showScene("manual"); await publish(); await until(form);
     const sends = sent.length;
     button("Can't").click(); await quiet();
     out.reasonFirst = Boolean(step(4).querySelector("textarea")) && sent.length === sends;
     await type(step(4).querySelector("textarea"), "No account.");
-    button("Can't").click(); await until(() => !form()); await quiet();
+    button("Can't").click(); await until(() => !form());
     out.cant = sent.at(-1).kind === "session.send"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, answer: "cant", note: "No account.", step: 4 })
-        && marker().includes("3 of 4 done · Can't");
+        && feedCard()?.querySelector(".sentlabel").textContent === "chain · 3 of 4 done · Can't" && !marker();
     const legacy = { id: "b".repeat(32), kind: "do", title: "Legacy request", state: "open", created: at, body: { steps: "Run this:\n```sh\nprintf legacy\n```" } };
     acts = [req, legacy];
     items = [...items, { role: "request", pos: 4, at, id: legacy.id, title: legacy.title, steps: legacy.body.steps }];
@@ -207,6 +240,60 @@ window.done = (async () => {
     await until(() => document.querySelector(".actform .requeststeps .mdrun")); await quiet();
     out.legacy = document.querySelector(".actform .requeststeps").textContent.includes("printf legacy")
         && !document.querySelector(".actform .mchain") && !polls().length;
+
+    const summary = (act, rows) => `The chain “Release” (${act.id}):\n${rows}\nFull log: /logs/step`;
+    const range = { ...req, id: "c".repeat(32), state: "open", step: 3,
+        body: { steps: [{ ...steps[0] }, { ...steps[1], who: "you" }, { ...steps[2], who: "agent" }, steps[3]] },
+        outputs: [{ state: "done" }, { state: "done" }, null, null] };
+    const failed = { ...req, id: "d".repeat(32), state: "failed", step: 2, outputs: [{ state: "done" }, { state: "failed", exit: 1 }] };
+    const cant = { ...req, id: "e".repeat(32), state: "declined", step: 3,
+        outputs: [{ state: "done" }, { state: "done" }, { state: "cant" }, null] };
+    const finished = { ...req, id: "f".repeat(32), state: "answered", outputs: steps.map(() => ({ state: "done" })) };
+    acts = [finished]; items = [{ role: "me", pos: 5, at, text: summary(finished, "4 you · Check sign-in · done") }];
+    render(null, root); session.waiting = []; draw();
+    await until(() => document.querySelector("button.chainreply")?.textContent === "→ agent · step 4 done · chain done");
+    out.detachedClosed = !feedCard();
+    document.querySelector("button.chainreply").click(); await until(feedCard);
+    out.detachedClosed = out.detachedClosed && feedCard().querySelector(".sentlabel").textContent === "chain · 4 of 4 done"
+        && !feedCard().querySelector(".chainbody, .requestanswer, .requestnote, .chainterm")
+        && document.querySelector("button.chainreply").getAttribute("aria-expanded") === "true";
+    document.querySelector("button.chainreply").click(); await until(() => !feedCard());
+    out.detachedClosed = out.detachedClosed && document.querySelector("button.chainreply").getAttribute("aria-expanded") === "false";
+
+    const samples = [
+        { key: "summaryRange", act: range, rows: "1 you · Login · exit 0\n2 you · Check access · done", want: "→ agent · steps 1–2 done · step 3 is the agent's" },
+        { key: "summaryFailed", act: failed, rows: "2 agent · Check access · exit 0", want: "→ agent · step 2 failed · exit 1" },
+        { key: "summaryCant", act: cant, rows: "3 you · Deploy · done", want: "→ agent · Can't at step 3" },
+        { key: "summaryDone", act: finished, rows: "4 you · Sign-in · failed", want: "→ agent · step 4 done · chain done" },
+        { key: "summaryScattered", act: finished, rows: "1 you · Login · done\n3 you · Deploy · done", want: "→ agent · steps 1, 3 done" },
+        { key: "summaryFallback", act: finished, rows: "A changed summary format", want: "→ agent · chain update" },
+    ];
+    const opened = [];
+    const reply = sample => withActReplies([{ role: "me", at, text: summary(sample.act, sample.rows) }], { [sample.act.id]: sample.act })[0];
+    const openItem = { role: "request", id: range.id, title: range.title, steps: range.body.steps,
+        actReplies: [summary(range, samples[0].rows)] };
+    render(html`<div>${samples.map(sample => html`<div data-case=${sample.key}>
+        <${Row} item=${reply(sample)} act=${sample.act} onAct=${act => opened.push(act)} /></div>`)}
+        <div data-case="attached"><${Row} item=${openItem} act=${range} onAct=${act => opened.push(act)} /></div>
+        <div data-case="missing"><${Row} item=${openItem} /></div>
+    </div>`, root);
+    await until(() => document.querySelector('[data-case="summaryRange"] .chainreply'));
+    for (const sample of samples) {
+        const node = document.querySelector(`[data-case="${sample.key}"]`);
+        out[sample.key] = node.querySelector(".chainreply")?.textContent === sample.want && !node.textContent.includes("Full log:");
+    }
+    document.querySelector('[data-case="summaryRange"] button.chainreply').click();
+    out.detachedOpen = opened.length === 1 && opened[0].id === range.id && opened[0].role === "request"
+        && !document.querySelector('[data-case="summaryRange"] .mchain');
+    document.querySelector('[data-case="attached"] .chainreply').click();
+    out.attachedOpen = opened.length === 2 && opened[1].id === range.id;
+    out.missingRecord = Boolean(document.querySelector('[data-case="missing"] .actmarker'))
+        && !document.querySelector('[data-case="missing"] .mchain');
+    const withdrawn = { ...finished, state: "withdrawn" };
+    render(html`<${Row} item=${{ role: "request", id: withdrawn.id, title: withdrawn.title }} act=${withdrawn} />`, root);
+    await until(() => document.querySelector(".mchain"));
+    out.withdrawn = document.querySelector(".mchain .sentlabel").textContent === "chain · 4 of 4 done · withdrawn"
+        && !document.querySelector(".actmarker, .requestanswer, .chainbody");
     return out;
 })();
 </script>

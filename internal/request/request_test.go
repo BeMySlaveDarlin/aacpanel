@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -181,6 +182,17 @@ func TestChainSummaryCarriesOnlyUsefulOutput(t *testing.T) {
 	}
 	if got := Tail(strings.Repeat("界", 4100)); utf8.RuneCountInString(got) != 4000 {
 		t.Fatal("tail exceeds its character bound")
+	}
+}
+
+func TestChainSummaryIdentifiesCoveredSteps(t *testing.T) {
+	steps := []Step{{Who: "you", Text: "Login"}, {Who: "agent", Text: "Check access"}, {Who: "you", Text: "Deploy"},
+		{Who: "you", Text: "Wait"}, {Who: "agent", Text: "Check rollout"}, {Who: "you", Text: "Verify"}, {Who: "you", Text: "Retry"}}
+	outputs := []*Output{{State: "done"}, {State: "done"}, {State: "failed"}, {State: "pending"}, {State: "running"}, {State: "cant"}, {State: "stopped"}}
+	text := Summary("id", "Release", steps, outputs, 3, 1, "failed")
+	lines := regexp.MustCompile(`(?m)^\d+ (you|agent) · `).FindAllString(text, -1)
+	if got, want := strings.Join(lines, "\n"), "2 agent · \n3 you · \n6 you · \n7 you · "; got != want {
+		t.Fatalf("summary step lines = %q, want %q\n%s", got, want, text)
 	}
 }
 

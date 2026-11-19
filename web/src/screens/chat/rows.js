@@ -22,6 +22,7 @@ import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { pauseEnd } from "../sessions/pause.js";
 import { savedAfter } from "../../data/secrets.js";
 import { ActMarker, ActReply } from "./actform.js";
+import { actOpen, ChainCard, isChain } from "./chain.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
@@ -93,6 +94,9 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
         return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
     }
     if (item.role === "request" || item.role === "secret") {
+        if (item.role === "request" && isChain(act) && !actOpen(act)) return html`
+            <${ChainCard} item=${item} record=${act} />
+            ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
         return html`<${ActMarker} item=${item} record=${act} onOpen=${onAct} />`;
     }
     if (item.role === "brief") {
@@ -153,7 +157,7 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
     // A message the panel wrote on the person's behalf is drawn as what it
     // says. One that did not go out stays a bubble, since sending it again is
     // the bubble's, and so does one cut short: it is not the whole text.
-    if (item.actReply) return html`<${ActReply} text=${item.text} />`;
+    if (item.actReply) return html`<${ActReply} text=${item.text} record=${act} onOpen=${onAct} detached />`;
     const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
     // The answer to a question codex asked without waiting is the card of the
     // round answered, as claude's answer is, standing where it was sent; on

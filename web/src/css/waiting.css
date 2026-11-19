@@ -16,7 +16,8 @@
 .chainsteps { min-width: 0; }
 .chainstep { padding: .7rem 0; border-bottom: var(--hair) solid var(--line); }
 .chainstep:last-child { border-bottom: 0; padding-bottom: 0; }
-.chainhead { display: flex; align-items: baseline; gap: .55rem; min-width: 0; }
+.chainhead { display: flex; align-items: baseline; gap: .55rem; min-width: 0; cursor: pointer; }
+.chainstep.current .chainhead { cursor: default; }
 .chainicon { flex: 0 0 1rem; width: 1rem; height: 1rem; align-self: flex-start; margin-top: .2rem; padding: 0; border: 0; background: none; text-align: center; color: var(--ink-faint); font-size: var(--t-sm); line-height: 1rem; cursor: pointer; }
 .chainicon:disabled { cursor: default; opacity: 1; }
 .chainicon.spin { box-sizing: border-box; }
@@ -81,6 +82,8 @@
 .actreply { color: var(--ink-faint); font-size: var(--t-sm); }
 .actreply summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .actreply p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chainreply { display: block; width: 100%; padding: .25rem 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; overflow-wrap: anywhere; }
+button.chainreply { cursor: pointer; }
 .cstrip .deckuse { font-size: var(--t-xs); padding: 0 .3rem; gap: .25rem; box-shadow: none; }
 @media (max-width: 1099px) {
     [data-keyboard="open"] .composerbox .cstrip, [data-keyboard="open"] .composerbox + :is(.deck) { display: none; }

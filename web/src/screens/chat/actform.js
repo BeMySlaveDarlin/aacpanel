@@ -1,7 +1,9 @@
+import { useState } from "preact/hooks";
+
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { actOpen, chainSummary, isChain } from "./chain.js";
+import { actOpen, ChainCard, chainSummary, isChain } from "./chain.js";
 
 const kindOf = { do: "request", ask: "question" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -47,12 +49,45 @@ export function ActMarker({ item, record, onOpen }) {
             ${kind === "secret" ? Icon.key() : Icon.list()}<span class="actkind">${chain ? "chain" : kind}</span>
             <span class="acttitle">${record?.title || item.title}</span><small>${outcome}</small>
         </button>
-        ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} />`)}
+        ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${record} onOpen=${onOpen} />`)}
     </div>`;
 }
 
-export function ActReply({ text }) {
-    return html`<details class="actreply"><summary>to the agent: ${text}</summary><p>${text}</p></details>`;
+export function ActReply({ text, record, onOpen, detached = false }) {
+    const [expanded, setExpanded] = useState(false);
+    if (!isChain(record)) return html`<details class="actreply"><summary>to the agent: ${text}</summary><p>${text}</p></details>`;
+    const open = actOpen(record);
+    const press = open && onOpen ? () => onOpen({ ...record, role: "request" })
+        : !open && detached ? () => setExpanded(!expanded) : null;
+    const line = chainReply(text, record);
+    // The card stands beside the line, not in it: the line's faint small type
+    // would carry over to the card.
+    return html`<div class="actreply">
+        ${press ? html`<button class="chainreply" type="button" onClick=${press}
+            aria-expanded=${!open ? expanded : undefined}>${line}</button>` : html`<div class="chainreply">${line}</div>`}
+    </div>
+    ${detached && !open && expanded && html`<${ChainCard} item=${record} record=${record} />`}`;
+}
+
+function chainReply(text, act) {
+    const steps = act.steps || act.body.steps;
+    const numbers = [...new Set([...text.matchAll(/^(\d+) (you|agent) · /gm)].map(match => Number(match[1])))]
+        .filter(number => number > 0 && number <= steps.length).sort((a, b) => a - b);
+    const prefix = "→ agent · ";
+    if (!numbers.length) return prefix + "chain update";
+    const stopped = numbers.find(number => ["failed", "cant"].includes(act.outputs?.[number - 1]?.state));
+    if (stopped) {
+        const out = act.outputs[stopped - 1];
+        return prefix + (out.state === "cant" ? `Can't at step ${stopped}`
+            : `step ${stopped} failed${out.exit != null ? ` · exit ${out.exit}` : ""}`);
+    }
+    if (!numbers.every(number => act.outputs?.[number - 1]?.state === "done")) return prefix + "chain update";
+    const first = numbers[0], last = numbers.at(-1);
+    const covered = numbers.length === 1 ? `step ${first}`
+        : `steps ${last - first + 1 === numbers.length ? `${first}–${last}` : numbers.join(", ")}`;
+    const next = last === steps.length && act.state === "answered" ? " · chain done"
+        : steps[last]?.who === "agent" ? ` · step ${last + 1} is the agent's` : "";
+    return prefix + covered + " done" + next;
 }
 
 // Only an id present in the act data identifies a reply; its prose can change
@@ -66,7 +101,7 @@ export function withActReplies(items, acts) {
         const act = item.role === "me" && !item.cut && item.state !== "failed"
             && known.find((act) => item.text?.includes(act.id));
         if (!act) rest.push(item);
-        else if (!markers.has(act.id)) rest.push({ ...item, actReply: true });
+        else if (!markers.has(act.id)) rest.push({ ...item, actReply: true, actReplyID: act.id });
         else replies.set(act.id, [...(replies.get(act.id) || []), item.text]);
     }
     return rest.map((item) => replies.has(item.id) ? { ...item, actReplies: replies.get(item.id) } : item);

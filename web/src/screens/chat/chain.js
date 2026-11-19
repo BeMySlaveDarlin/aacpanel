@@ -35,7 +35,7 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onT
     const open = record && actOpen(record);
     return html`<article class=${`sent mrequest mchain${open && act.blocking ? " blocking" : ""}`}>
         <div class="senthead"><span class="sentico">${Icon.list()}</span>
-            <span class="sentlabel">chain · step ${act.step || 1} of ${steps.length}</span>
+            <span class="sentlabel">chain · ${record && !open ? chainSummary(act) : `step ${act.step || 1} of ${steps.length}`}</span>
             <span class="sentat">${ago(act.created || item.at)}</span></div>
         <h3 class="requesttitle">${act.title}</h3>
         <div class="chainsteps">${steps.map((step, i) => html`<${ChainStep} key=${`${act.id}:${i}`}
@@ -49,6 +49,10 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onT
 
 function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop, onTerm }) {
     const [expanded, setExpanded] = useState(false);
+    const shown = current || expanded;
+    const toggle = (event) => {
+        if (!current && !event.target.closest("a")) setExpanded(!expanded);
+    };
     const running = output?.state === "running";
     const state = output?.state || (current ? "current" : "pending");
     const terminal = output?.term && actOpen(act) && onTerm
@@ -63,7 +67,7 @@ function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop
             <span>${running ? `running · ${clock(seconds(output))}` : resultOf(output)}</span>${terminal}
             ${canAnswer && running && onStop && html`<${ChainButton} word="Stop" action=${() => onStop(act.id, number)} />`}
         </div>`}
-        ${step.who === "agent" && !output?.note && (!output || output.state === "pending" || output.state === "running")
+        ${actOpen(act) && step.who === "agent" && !output?.note && (!output || output.state === "pending" || output.state === "running")
             && html`<p class="requeststate">${current ? "the session works on it" : "waits for the session"}</p>`}
         ${output?.note && html`<div class="chainnote">${output.note}</div>`}
         ${current && act.state === "failed" && html`<p class="requeststate">The session is reviewing the failed step.</p>`}
@@ -71,16 +75,15 @@ function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop
             onAnswer=${onAnswer} run=${onRun ? () => onRun(act.id, number) : null} />`}
     </div>`;
     return html`<section class=${`chainstep ${state}${current ? " current" : ""}${expanded ? " expanded" : ""}`} data-step=${number}>
-        <div class="chainhead">
+        <div class="chainhead" onClick=${toggle}>
             <button class=${`chainicon${running ? " spin" : ""}`} type="button" title=${current ? state : expanded ? "Collapse the step" : "Expand the step"}
-                aria-label=${`Step ${number}: ${state}`} aria-expanded=${Boolean(current || expanded)} disabled=${current}
-                onClick=${() => setExpanded(!expanded)}>
+                aria-label=${`Step ${number}: ${state}`} aria-expanded=${Boolean(shown)} disabled=${current}>
                 ${running ? "" : state === "done" ? "✓" : state === "failed" ? "!" : state === "cant" ? "×" : current ? "●" : "○"}</button>
             <div class="chainlead"><span class="chainwho">${number} · ${step.who}</span><div class="msg chaintext">${render(step.text)}</div>
-                ${!current && resultOf(output) && html`<small class=${`chainresult ${state}`}>${resultOf(output)}</small>`}
+                ${!shown && resultOf(output) && html`<small class=${`chainresult ${state}`}>${resultOf(output)}</small>`}
             </div>
         </div>
-        ${(current || expanded) && content}
+        ${shown && content}
     </section>`;
 }
 
