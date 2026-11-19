@@ -23,6 +23,13 @@
 .chainstep.running .chainicon, .chainstatus.running { color: var(--accent); }
 .chainstep.done .chainicon, .chainstatus.done { color: var(--ok); }
 .chainstep.failed .chainicon, .chainstatus.failed { color: var(--crit); }
+/* A tick and a hue alone do not tell the past from the step at hand: a closed
+   step's words step back, the current step's come forward and its mark breathes. */
+.chainstep.done .chaintext, .chainstep.cant .chaintext,
+.chainstep.done .chaincommand .mdcode code, .chainstep.cant .chaincommand .mdcode code { color: var(--ink-faint); }
+.chainstep.current .chaintext { color: var(--ink); }
+.chainstep.current:not(.running) .chainicon { animation: pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .chainstep.current .chainicon { animation: none; } }
 .chainlead { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .45rem; flex: 1; min-width: 0; color: var(--ink); }
 .chainwho { flex: none; color: var(--ink-faint); font: var(--t-sm) var(--mono); }
 .chaintext { flex: 1 1 100%; min-width: 0; margin: 0; padding: 0; font-size: var(--t-base); }
