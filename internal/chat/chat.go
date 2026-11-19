@@ -690,6 +690,7 @@ type TaskRef struct {
 type ArchiveReq struct {
 	Limit    int      `json:"limit,omitempty"`
 	Offset   int      `json:"offset,omitempty"`
+	Q        string   `json:"q,omitempty"`
 	Skip     []string `json:"skip,omitempty"`
 	Profile  string   `json:"profile,omitempty"`
 	Profiles []string `json:"profiles,omitempty"`
@@ -704,9 +705,25 @@ type ArchiveReq struct {
 	ExcludePaths []string `json:"excludePaths,omitempty"`
 	// PathRoots keeps a project at a configured root, such as the home session,
 	// from owning every directory beneath that root.
-	PathRoots []string `json:"pathRoots,omitempty"`
+	PathRoots []string              `json:"pathRoots,omitempty"`
+	Project   *ArchiveProjectFilter `json:"project,omitempty"`
 
 	Conversations []string `json:"conversations,omitempty"`
+}
+
+// ArchiveProjectFilter carries the same ownership the service uses to place
+// rows, so a removed worktree can be counted before the page is cut.
+type ArchiveProjectFilter struct {
+	ID        int                  `json:"id"`
+	Paths     []ArchiveProjectPath `json:"paths"`
+	Worktrees map[string]string    `json:"worktrees,omitempty"`
+	Saved     []string             `json:"saved,omitempty"`
+}
+
+type ArchiveProjectPath struct {
+	ID            int      `json:"id"`
+	Path          string   `json:"path"`
+	PreviousPaths []string `json:"previousPaths,omitempty"`
 }
 
 // ImageRef says where to find an attachment: a block of a record, a picture

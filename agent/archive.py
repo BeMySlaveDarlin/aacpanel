@@ -247,8 +247,18 @@ class Index:
         at = seconds(seen.get("lastAt"))
         return mtime if at is None else at
 
+    def directory(self, sid, path, size, mtime):
+        with self.lock:
+            was = self.scanned.get(sid)
+            if was and was.get("size") == size and was.get("mtime") == mtime:
+                return was.get("cwd") or ""
+        # Ownership needs only the first cwd, not the tokens of every transcript
+        # in a cold archive. The full parse stays on the page being returned.
+        from chat.locate import transcript_cwd
+        return transcript_cwd(path)
+
     def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None, under=None, conversations=None,
-             under_paths=None, exclude_paths=None, path_roots=None):
+             under_paths=None, exclude_paths=None, path_roots=None, project=None, q=""):
         """Returns a page of the archive for the named profiles, the freshest first.
 
         With a directory, only the conversations that ran in it or below it: the
@@ -277,6 +287,8 @@ class Index:
                                           if isinstance(p, str) and p.rstrip("/")))
         excluded = tuple(p.rstrip("/") for p in (exclude_paths or ()) if isinstance(p, str) and p.rstrip("/"))
         roots = tuple(p.rstrip("/") for p in (path_roots or ()) if isinstance(p, str) and p.rstrip("/"))
+        ownership = ProjectFilter(project, roots) if project else None
+        query = q.strip().casefold()
         slugs = {}
         for directory in directories:
             slugs.setdefault(slug_of(directory), directory)
@@ -284,10 +296,15 @@ class Index:
         # A conversation is the time it last spoke, the time its file was
         # touched, its file, and the thread of codex it is, None for claude's.
         files = []
-        for thread in codex_archive.threads({_named(p) for p in wanted}, None if directories else under, skip):
+        for thread in codex_archive.threads({_named(p) for p in wanted}, None if directories or ownership else under, skip):
             if not wanted_id(thread["id"]):
                 continue
-            if directories and not project_directory(thread["cwd"], under, directories, excluded, roots):
+            if ownership:
+                if not ownership.matches(thread["id"], thread["cwd"]):
+                    continue
+            elif directories and not project_directory(thread["cwd"], under, directories, excluded, roots):
+                continue
+            if query and query not in codex_archive.present(thread)["name"].casefold():
                 continue
             at = thread["updatedMs"] / 1000
             files.append((at, at, thread["rollout"], 0, thread["contour"], thread))
@@ -307,7 +324,13 @@ class Index:
                 sid = name[:-len(".jsonl")]
                 if not wanted_id(sid):
                     continue
-                if directories:
+                cwd = None
+                if ownership:
+                    cwd = self.directory(sid, path, st.st_size, st.st_mtime)
+                    slug = os.path.basename(os.path.dirname(path))
+                    if not ownership.matches(sid, cwd, slug):
+                        continue
+                elif directories:
                     slug = os.path.basename(os.path.dirname(path))
                     if not any(slug == s or slug.startswith(s + "-") for s in slugs):
                         continue
@@ -318,6 +341,11 @@ class Index:
                         continue
                 elif own and not self.ran_under(path, st.st_size, st.st_mtime, contour, under, own):
                     continue
+                if query:
+                    if not self.names.get(sid) and cwd is None:
+                        cwd = self.directory(sid, path, st.st_size, st.st_mtime)
+                    if query not in name_of(sid, cwd or "", self.names)[0].casefold():
+                        continue
                 files.append((self.when(sid, path, st.st_size, st.st_mtime),
                               st.st_mtime, path, st.st_size, contour, None))
         files.sort(key=lambda f: (f[0], f[1], f[2]), reverse=True)
@@ -355,6 +383,54 @@ def project_directory(cwd, current, directories, excluded, roots):
     if claimed:
         return holds(current) and len(current) > len(claimed)
     return holds(current) or any(paths.under(cwd, p) for p in directories if p != current)
+
+
+class ProjectFilter:
+    """The map's directory ownership, then transcript slugs, then the saved census."""
+
+    def __init__(self, project, roots):
+        self.id = project["id"]
+        self.roots = roots
+        self.worktrees = project.get("worktrees") or {}
+        self.saved = set(project.get("saved") or ())
+        self.current, self.previous, self.slugs = {}, {}, {}
+        for p in project["paths"]:
+            self.current.setdefault(p["path"].rstrip("/"), p["id"])
+            self.slugs.setdefault(slug_of(p["path"]), p["id"])
+            for old in p.get("previousPaths") or ():
+                self.previous.setdefault(old, p["id"])
+
+    def owning(self, directory, previous=False, worktrees=True):
+        def climb():
+            return (os.path.isabs(directory) and directory != "/") if previous else any(
+                directory.startswith(root + "/") for root in self.roots)
+
+        while climb():
+            found = self.previous.get(directory) if previous else self.current.get(directory)
+            if previous and directory in self.current:
+                found = None
+            if found:
+                return found
+            main = self.worktrees.get(directory) if worktrees else None
+            if main:
+                found = self.owning(main, previous, worktrees=False)
+                if found:
+                    return found
+            directory = os.path.dirname(directory)
+        return None
+
+    def matches(self, sid, cwd, slug=""):
+        directory = cwd.strip().rstrip("/")
+        found = None
+        if directory:
+            found = self.current.get(directory) or self.owning(os.path.normpath(directory))
+            if not found:
+                clean = os.path.normpath(directory)
+                if clean not in self.current:
+                    found = self.previous.get(clean)
+                found = found or self.owning(clean, previous=True)
+        found = found or (self.slugs.get(slug) if slug else None)
+        return found == self.id if found else sid in self.saved
 
 
 def slug_of(directory):
@@ -462,10 +538,7 @@ def present(found, names):
     """Returns the archive row the panel expects, built from a parse."""
     sid = found["sessionId"]
     cwd = found.get("cwd") or ""
-    name = names.get(sid)
-    guessed = not name
-    if guessed:
-        name = os.path.basename(cwd.rstrip("/")) or cwd or sid[:8]
+    name, guessed = name_of(sid, cwd, names)
 
     limit, known = limit_for(found.get("model"))
     tokens = found.get("tokens") or 0
@@ -497,3 +570,8 @@ def present(found, names):
         "noRequests": not found.get("lastRequestAt"),
         "prompts": list(found.get("prompts") or []),
     }
+
+
+def name_of(sid, cwd, names):
+    name = names.get(sid)
+    return (name, False) if name else (os.path.basename(cwd.rstrip("/")) or cwd or sid[:8], True)

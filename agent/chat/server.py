@@ -33,7 +33,8 @@ from .waiting import snapshot as waiting_snapshot
 import chat
 
 
-MAX_REQUEST = 4096
+# Project filters carry the map and the saved ownership of closed conversations.
+MAX_REQUEST = 1024 * 1024
 
 
 _archive = None
@@ -187,6 +188,8 @@ def _answer(request):
                 under_paths=want_archive.get("underPaths") if isinstance(want_archive.get("underPaths"), list) else None,
                 exclude_paths=want_archive.get("excludePaths") if isinstance(want_archive.get("excludePaths"), list) else None,
                 path_roots=want_archive.get("pathRoots") if isinstance(want_archive.get("pathRoots"), list) else None,
+                project=want_archive.get("project") if isinstance(want_archive.get("project"), dict) else None,
+                q=want_archive.get("q") if isinstance(want_archive.get("q"), str) else "",
                 conversations=conversations,
             )
         except OSError as e:
@@ -491,7 +494,10 @@ def handle(conn):
     with conn:
         try:
             conn.settimeout(10)
-            raw = conn.recv(MAX_REQUEST)
+            with conn.makefile("rb") as stream:
+                raw = stream.read(MAX_REQUEST + 1)
+            if len(raw) > MAX_REQUEST:
+                raise ValueError("the request is too large")
             request = json.loads(raw.decode("utf-8"))
             if not isinstance(request, dict):
                 raise ValueError("an object was expected")

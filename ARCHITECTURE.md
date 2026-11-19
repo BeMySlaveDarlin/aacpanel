@@ -2204,14 +2204,19 @@ that project is still in the map. The lookup is one query for all unplaced
 conversations on the page, scoped to the host, and applies to Claude and Codex
 alike. It needs no worktree left on disk. The census has no expiry; without a
 saved row, the conversation stays outside the map.
-The archive of one project sends its current and former paths to the collector,
-along with the current paths of other projects, so filtering precedes pagination
-and respects current ownership. Its string `under` stays alongside `underPaths`
-and `excludePaths`: a collector that does not understand the lists continues
-to filter by the current path alone, and a service sending only the string
-keeps that behavior with a collector that understands both. Ownership checks
-read the candidate transcripts' cached metadata before pagination; a cold
-index parses those candidates once.
+The archive of one project sends the collector the ownership the service places
+rows by: every project's current and former paths, the worktree map, and the
+conversations whose last `session_living` record is this project. The collector
+applies the same order — current path, owning directory and worktree, former
+path, transcript slug, saved project — before pagination, so a conversation of
+a worktree, kept on disk or removed, counts in the page and in `total`. Its
+string `under`, `underPaths` and `excludePaths` stay alongside `project`: a
+collector that does not understand `project` filters by the paths, a service
+sending only the paths keeps that behavior with a collector that understands
+both. Ownership reads the first `cwd` of each candidate transcript, cached
+metadata first; the full parse stays with the returned page. The request is
+read to its end, up to 1 MiB. `q` narrows the archive to conversations whose
+name holds the text, case aside, before pagination as well.
 A resume below a former path replaces that prefix with the current project
 path, preserving the relative directory; the executor falls back to the current
 project root when that directory is absent. Claude starts there, while Codex

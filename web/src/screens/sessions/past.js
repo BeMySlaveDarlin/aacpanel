@@ -10,7 +10,7 @@ import { BackHead, useBackClose } from "../../ui/back.js";
 import { plural } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { area, Chart } from "../../chart.js";
-import { bucketText, PERIODS, useSessionsArchive, useSessionsHistory } from "../../history.js";
+import { bucketText, PERIODS, useArchiveSearch, useSessionsArchive, useSessionsHistory } from "../../history.js";
 import { Chips } from "../../ui/chips.js";
 import { aboutOf } from "./blocks.js";
 import { PastCard } from "./sessioncard.js";
@@ -51,7 +51,8 @@ export function Past({ profile = "", contour = 0, map = null, sessions = [], onB
 
     const [period, setPeriod] = useState("7d");
     const [offset, setOffset] = useState(0);
-    const state = useSessionsArchive({ limit: PAGE, offset, profile, contour });
+    const search = useArchiveSearch(() => setOffset(0));
+    const state = useSessionsArchive({ limit: PAGE, offset, profile, contour, q: search.q });
     const archive = state.kind === "ready" ? state.archive : null;
     const rows = (archive && archive.rows) || [];
     // A conversation that is live is on the list of sessions, not in the archive.
@@ -84,9 +85,6 @@ export function Past({ profile = "", contour = 0, map = null, sessions = [], onB
             ${state.kind === "loading" && html`<p class="hint">Reading the transcripts…</p>`}
             ${state.kind === "unavailable" && html`<p class="hint warn">${state.error}</p>`}
             ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
-            ${archive && rows.length === 0 && html`<p class="hint">${profile
-                ? `There are no conversations of contour ${profile} on disk.`
-                : "There are no conversations on disk."}</p>`}
 
             ${peaks && html`
                 <${Chart} data=${peaks} series=${PEAK} height=${78} yFormat=${(v) => `${Math.round(v)}%`} />
@@ -97,6 +95,12 @@ export function Past({ profile = "", contour = 0, map = null, sessions = [], onB
             ${crowd > 1 && html`
                 <p class="sub">up to ${crowd} ${plural(crowd, "session", "sessions")} ran at once</p>
             `}
+
+            <input class="search archivesearch" type="search" aria-label="Find a conversation" placeholder="Conversation name"
+                   spellcheck=${false} value=${search.query} onInput=${search.onInput} />
+            ${archive && rows.length === 0 && html`<p class="hint">${search.q ? "No conversations match this name." : profile
+                ? `There are no conversations of contour ${profile} on disk.`
+                : "There are no conversations on disk."}</p>`}
 
             ${byProject(rows.filter((row) => !live.has(row.sessionId))).map((block) => html`
                 <${ArchiveBlock} key=${block.key} block=${block} map=${map} exec=${exec} onOpen=${chat} onProject=${onProject} />

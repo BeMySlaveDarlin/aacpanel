@@ -211,6 +211,24 @@ class Threads(Homes):
                                   self.thread(4, cwd="/srv")]).close()
         self.assertEqual(sorted(r["sessionId"] for r in self.page(under="/srv/app")), [tid(1), tid(2)])
 
+    def test_project_worktrees_and_name_search_are_counted_before_paging(self):
+        self.database(self.work, [
+            self.thread(1, cwd="/srv/app/nginx-main"),
+            self.thread(2, cwd="/srv/worktrees/nginx-fix"),
+            self.thread(3, cwd="/srv/worktrees/nginx-removed"),
+            self.thread(4, cwd="/srv/app/nested/nginx-foreign"),
+            self.thread(5, cwd="/srv/app/redis"),
+        ]).close()
+        project = {"id": 1, "paths": [{"id": 1, "path": "/srv/app"}, {"id": 2, "path": "/srv/app/nested"}],
+                   "worktrees": {"/srv/worktrees/nginx-fix": "/srv/app"},
+                   "saved": [tid(3), tid(4)]}
+        want = {"project": project, "path_roots": ["/srv"], "q": "NGINX", "limit": 1}
+        pages = [self.index.page(offset=n, **want) for n in range(3)]
+        self.assertEqual([page["total"] for page in pages], [3, 3, 3])
+        self.assertEqual(sorted(r["sessionId"] for page in pages for r in page["rows"]), [tid(1), tid(2), tid(3)])
+        self.assertEqual(self.index.page(project=project, path_roots=["/srv"], q="")["total"], 4)
+        self.assertEqual(self.index.page(q="missing")["rows"], [])
+
     def test_a_project_archive_includes_former_paths_and_their_worktrees(self):
         self.database(self.work, [
             self.thread(1, cwd="/srv/app"),

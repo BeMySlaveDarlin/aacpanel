@@ -270,7 +270,7 @@ func run() error {
 	}
 
 	// The shelf of readings answers on a socket of its own: a reading is up to
-	// two hundred notes, and the chat socket takes a request that fits one read.
+	// two hundred notes, 8 MB, and the chat socket takes a request up to 1 MiB.
 	reviewSocket := env("AACP_REVIEW_SOCKET", "/host-state/reviews/review.sock")
 	if _, err := os.Stat(reviewSocket); err != nil {
 		log.Printf("the shelf of readings is unavailable (%s): %v", reviewSocket, err)

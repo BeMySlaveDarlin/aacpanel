@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import socket
 import sys
 import threading
 import unittest
@@ -728,6 +729,97 @@ class Under(unittest.TestCase):
     def ids(self, under):
         page = self.index.page(limit=50, under=under)
         return sorted(r["sessionId"][:1] for r in page["rows"]), page["total"]
+
+    def test_project_ownership_includes_worktrees_and_saved_conversations_before_paging(self):
+        cases = [
+            ("/srv/app", "/srv/app", 0, True),
+            ("/srv/worktrees/fix", "/srv/worktrees/fix", 0, True),
+            ("/srv/worktrees/fix/sub", "/srv/worktrees/fix/sub", 0, True),
+            ("/srv/worktrees/removed", "/srv/worktrees/removed", 1, True),
+            ("/srv/worktrees/unknown", "/srv/worktrees/unknown", 0, False),
+            ("/srv/app/nested", "/srv/app/nested", 1, False),
+            ("/srv/app/foreign-tree", "/srv/app/foreign-tree", 1, False),
+            ("/srv/former", "/srv/former", 0, True),
+            ("/srv/claimed", "/srv/claimed", 1, False),
+            ("/srv/app", "/srv/unknown", 2, True),
+            ("/srv/app", "/srv/other", 1, False),
+            ("/srv/other-former", "/srv/other-former", 1, False),
+            ("/home/u/unknown", "/home/u/unknown", 1, True),
+            ("/srv/worktrees/former", "/srv/worktrees/former", 0, True),
+        ]
+        saved, expected = {}, []
+        for n, (directory, cwd, project, included) in enumerate(cases, 1):
+            sid = f"{n:08d}-1111-4111-8111-111111111111"
+            self.put(archive.slug_of(directory), sid, cwd)
+            if project:
+                saved[sid] = project
+            if included:
+                expected.append(sid)
+        self.addCleanup(setattr, chat_server, "_archive", chat_server._archive)
+        chat_server._archive = self.index
+        project = {"id": 1, "paths": [
+            {"id": 1, "path": "/srv/app", "previousPaths": ["/srv/former", "/srv/claimed"]},
+            {"id": 2, "path": "/srv/app/nested"},
+            {"id": 2, "path": "/srv/other", "previousPaths": ["/srv/other-former"]},
+            {"id": 2, "path": "/srv/claimed"},
+            {"id": 3, "path": "/home/u"}],
+            "worktrees": {"/srv/worktrees/fix": "/srv/app", "/srv/app/foreign-tree": "/srv/other",
+                          "/srv/worktrees/former": "/srv/former"}, "saved": [sid for sid, p in saved.items() if p == 1]}
+        request = {"project": project, "under": "/srv/app", "underPaths": ["/srv/app"],
+                   "pathRoots": ["/srv", "/home/u"], "limit": 2}
+        first = chat_server.answer({"archive": request})
+        self.assertTrue(first["ok"], first.get("error"))
+        self.assertEqual(first["archive"]["total"], len(expected))
+        self.assertEqual(len(self.index.scanned), 2, "filtering must not parse every transcript in a cold archive")
+        found = []
+        for offset in range(0, len(expected), 2):
+            page = chat_server.answer({"archive": dict(request, offset=offset)})["archive"]
+            self.assertEqual(page["total"], len(expected))
+            found.extend(r["sessionId"] for r in page["rows"])
+        self.assertEqual(sorted(found), expected)
+
+    def test_name_search_filters_the_page_and_total_case_insensitively(self):
+        ids = [f"{n:08d}-1111-4111-8111-111111111111" for n in range(1, 5)]
+        for sid, directory in zip(ids, ["/srv/app", "/srv/worktrees/nginx-docs", "/srv/other", "/srv/app"]):
+            self.put(archive.slug_of(directory), sid, directory)
+        self.index.names.update({ids[0]: "infra-NGINX-cve", ids[2]: "infra-redis", ids[3]: "infra-nginx-config"})
+        self.addCleanup(setattr, chat_server, "_archive", chat_server._archive)
+        chat_server._archive = self.index
+        request = {"q": " NgInX ", "limit": 1}
+        pages = [chat_server.answer({"archive": dict(request, offset=n)})["archive"] for n in range(3)]
+        self.assertEqual([page["total"] for page in pages], [3, 3, 3])
+        self.assertEqual(sorted(r["sessionId"] for page in pages for r in page["rows"]), [ids[0], ids[1], ids[3]])
+        self.assertEqual(self.index.page(q="missing")["total"], 0)
+        self.assertEqual(self.index.page(q="")["total"], 4)
+        project = {"id": 1, "paths": [{"id": 1, "path": "/srv/app"}]}
+        page = self.index.page(q="nginx", project=project, path_roots=["/srv"])
+        self.assertEqual(page["total"], 2)
+        self.assertEqual(sorted(r["sessionId"] for r in page["rows"]), [ids[0], ids[3]])
+
+    def test_project_ownership_crosses_the_socket_as_one_complete_request(self):
+        self.put("-srv-worktrees-removed", UUID_A, "/srv/worktrees/removed")
+        self.index.names[UUID_A] = "infra-nginx-cve"
+        self.addCleanup(setattr, chat_server, "_archive", chat_server._archive)
+        chat_server._archive = self.index
+        saved = [f"{n:08d}-1111-4111-8111-111111111111" for n in range(200)] + [UUID_A]
+        request = {"archive": {"project": {"id": 1, "paths": [{"id": 1, "path": "/srv/app"}],
+                                              "saved": saved}, "pathRoots": ["/srv"], "q": "NGINX"}}
+        client, server = socket.socketpair()
+        self.addCleanup(client.close)
+        worker = threading.Thread(target=chat_server.handle, args=(server,))
+        worker.start()
+        raw = json.dumps(request).encode()
+        self.assertGreater(len(raw), 4096)
+        client.sendall(raw[:3000])
+        client.sendall(raw[3000:])
+        client.shutdown(socket.SHUT_WR)
+        with client.makefile("rb") as stream:
+            reply = json.load(stream)
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual(reply["archive"]["total"], 1)
+        self.assertEqual(reply["archive"]["rows"][0]["sessionId"], UUID_A)
 
     def test_the_project_its_subdirectories_and_nothing_beside_it(self):
         self.put("-opt-p-api", "11111111-1111-4111-8111-111111111111", "/opt/p/api")

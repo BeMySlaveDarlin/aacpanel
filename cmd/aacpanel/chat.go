@@ -594,6 +594,7 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 		Limit:  limit,
 		Offset: offset,
 		Skip:   skip,
+		Q:      strings.TrimSpace(q.Get("q")),
 	}
 	var picks []string
 	for _, name := range q["profile"] {
@@ -629,8 +630,8 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, page)
 }
 
-// projectArchive filters by the map's current and former project paths before
-// pagination, so hidden conversations cannot leave gaps or an incorrect total.
+// projectArchive sends ownership before pagination, so worktrees count in the
+// total even after their directories are gone.
 func (s *Server) projectArchive(ctx context.Context, raw string, req *chat.ArchiveReq) error {
 	id, err := strconv.Atoi(raw)
 	if err != nil || id <= 0 {
@@ -650,14 +651,26 @@ func (s *Server) projectArchive(ctx context.Context, raw string, req *chat.Archi
 	req.Under = found.project.Path
 	req.UnderPaths = append([]string{found.project.Path}, found.project.PreviousPaths...)
 	req.PathRoots = s.db.ProjectRoots()
+	req.Project = &chat.ArchiveProjectFilter{ID: id, Worktrees: s.worktrees()}
 	for _, profile := range list {
 		for _, group := range profile.Groups {
 			for _, p := range group.Projects {
+				req.Project.Paths = append(req.Project.Paths, chat.ArchiveProjectPath{
+					ID: p.ID, Path: p.Path, PreviousPaths: p.PreviousPaths,
+				})
 				if p.ID != id {
 					req.ExcludePaths = append(req.ExcludePaths, p.Path)
 				}
 			}
 		}
+	}
+	hostID, err := s.db.HostID(ctx, s.hostName)
+	if err != nil {
+		return fmt.Errorf("the host of the saved projects is unavailable: %w", err)
+	}
+	req.Project.Saved, err = s.db.LivingConversationsOf(ctx, hostID, id)
+	if err != nil {
+		return fmt.Errorf("the saved projects are unavailable: %w", err)
 	}
 	return nil
 }

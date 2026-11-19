@@ -4,6 +4,7 @@
 <style>html,body{margin:0}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <div id="root"></div>
+<div id="project"></div>
 <script type="module">
 // The archive of a contour on a phone, with a page of thirty conversations
 // across ten projects: the groups to start a session in come before that
@@ -11,23 +12,37 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Past } from "/src/screens/sessions/past.js";
+import { Project } from "/src/screens/sessions/map.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted } from "/check/fixtures/quiet.js";
 
 const ago = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
-const projects = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `zd-${i + 1}`, path: `/srv/zd-${i + 1}`, group: "Backend" }));
+const projects = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `zd-${i + 1}`, session: `zd-${i + 1}`, path: `/srv/zd-${i + 1}`, group: "Backend" }));
 const rows = Array.from({ length: 30 }, (_, i) => {
     const project = projects[i % 10];
     return { sessionId: `past-${i}`, name: project.name, cwd: project.path, profile: "algo", project,
              model: "claude-opus-5-5", pct: 10, pctMax: 30, tokens: 100000, tokensMax: 300000, limit: 1000000,
              messages: 40 + i, lastAt: ago(i + 1), startedAt: ago(i + 2) };
 });
+const year = new Date().getFullYear();
+rows[0] = { ...rows[0], name: "zd-1-nginx-cve", cwd: "/srv/worktrees/nginx-cve",
+    lastAt: new Date(year, 10, 19, 12, 5).toISOString() };
+rows[10] = { ...rows[10], name: "zd-1-research", lastAt: new Date(year - 1, 4, 6, 9, 4).toISOString() };
+const searched = { ...rows[0], sessionId: "found", name: "zd-1-nginx-result" };
+const asked = [];
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
-    if (u.startsWith("/api/sessions/archive")) return json({ rows, total: 3645, limit: 60, offset: 0 });
+    if (u.startsWith("/api/sessions/archive")) {
+        const query = new URL(u, location.origin).searchParams;
+        asked.push(Object.fromEntries(query));
+        const project = query.get("project");
+        return json({ rows: query.has("q") ? [searched] : project ? rows.filter((r) => r.project.id === Number(project)) : rows,
+            total: query.has("q") ? 1 : project ? 23 : 3645, limit: Number(query.get("limit")), offset: Number(query.get("offset") || 0) });
+    }
     return json({});
-};
+});
 const map = { profile: "algo", id: 3, groups: [
     { name: "Backend", projects: projects.slice(0, 6) },
     { name: "Common", projects: projects.slice(6) },
@@ -35,22 +50,55 @@ const map = { profile: "algo", id: 3, groups: [
 const exec = { available: true, kinds: ["session.open"] };
 render(h(ToastHost, null, h(GateHost, null, html`<${Past} profile="algo" contour=${3} map=${map} sessions=${[]}
     onBack=${() => {}} onProject=${() => {}} exec=${exec} chat=${() => {}} />`)), document.getElementById("root"));
+render(h(ToastHost, null, h(GateHost, null, h(Project, {
+    project: { ...projects[0], profile: "algo", contour: 3 }, sessions: [], exec, onBack() {}, onChat() {},
+}))), document.getElementById("project"));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await sleep(30); };
+const until = async (ok) => {
+    const end = performance.now() + 3000;
+    while (!ok() && performance.now() < end) await new Promise(requestAnimationFrame);
+    if (!ok()) throw new Error("the requested archive state did not arrive");
+};
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 window.done = (async () => {
     const out = {};
     try {
         const root = document.getElementById("root");
-        await until(() => root.querySelectorAll(".card .pjrow, .card .pjpast").length > 0);
+        await until(() => root.querySelector(".card .scpast"));
         const heads = Array.from(root.querySelectorAll(".grouphead"));
         const groups = heads.find((el) => text(el) === "project groups");
         const card = root.querySelector("section.card");
         out.heads = heads.map(text);
         out.groupsFirst = Boolean(groups && card && groups.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING);
         out.stacks = root.querySelectorAll(".stack").length;
+        const project = document.getElementById("project");
+        const names = (el) => [...el.querySelectorAll(".scpast .scown")].map(text);
+        await until(() => project.querySelector(".scpast"));
+        out.dates = [...root.querySelectorAll(".scpast[data-name^='zd-1-'] .sctime")].map(text);
+        out.projectNames = names(project);
+
+        const inputs = [root, project].map((el) => el.querySelector('input[type="search"]'));
+        if (inputs.some((el) => !el)) throw new Error("the archive search field is missing");
+        const type = (value) => inputs.forEach((el) => {
+            el.value = value;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        const initial = [names(root), names(project)];
+        const paging = asked.length;
+        root.querySelector(".pager button:last-of-type").click();
+        project.querySelector(".pjlink").click();
+        await until(() => asked.slice(paging).some((q) => q.offset === "60")
+            && asked.slice(paging).some((q) => q.project === "1" && q.limit === "20"));
+        const before = asked.length;
+        type("ngi");
+        type("nginx");
+        await until(() => [root, project].every((el) => el.querySelector('.scpast[data-name="zd-1-nginx-result"]')));
+        out.search = { asked: asked.slice(before), names: [names(root), names(project)] };
+        const found = asked.length;
+        type("");
+        await until(() => [root, project].every((el) => el.querySelector('.scpast[data-name="zd-1-nginx-cve"]')));
+        out.clear = { asked: asked.slice(found), restored: [root, project].every((el, i) => JSON.stringify(names(el)) === JSON.stringify(initial[i])) };
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

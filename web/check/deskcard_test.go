@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type deskCardSection struct {
@@ -325,7 +326,7 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 		if first.Contour != "personal" || got.Shelf[1].Contour != "personal" || last.Contour != "Globex Group" {
 			t.Errorf("the shelf names the contours %q, %q, %q", first.Contour, got.Shelf[1].Contour, last.Contour)
 		}
-		if first.When != "1h10" || last.When != "26h" || !strings.Contains(last.About, "move the report exports") {
+		if !spokeAgo(first.When, 70*time.Minute) || !spokeAgo(last.When, 26*time.Hour) || !strings.Contains(last.About, "move the report exports") {
 			t.Errorf("the shelf says %q and %q, %q", first.When, last.When, last.About)
 		}
 		for _, row := range got.Shelf {
@@ -374,14 +375,31 @@ func TestDeskChatHeaderSaysWhatTheSessionRunsOn(t *testing.T) {
 	}
 }
 
-// The time of a closed conversation is said in the words of the screen: how
-// long ago, in the card's own short span, not a date in the locale of the
-// browser.
-func TestClosedConversationTimeIsRelative(t *testing.T) {
+// The time of a closed conversation is the local date and time it last spoke,
+// in digits, not a date in the words of the browser's locale.
+func TestClosedConversationTimeIsADate(t *testing.T) {
 	got := runDeskCard(t)
-	if got.PhoneWhen != "2h" || regexp.MustCompile(`\p{Cyrillic}`).MatchString(got.PhoneWhen) {
-		t.Errorf("a closed conversation on the phone reads %q, expected how long ago, 2h", got.PhoneWhen)
+	if !spokeAgo(got.PhoneWhen, 125*time.Minute) || regexp.MustCompile(`\p{Cyrillic}`).MatchString(got.PhoneWhen) {
+		t.Errorf("a closed conversation on the phone reads %q, expected the local date and time 125 minutes ago", got.PhoneWhen)
 	}
+}
+
+// spokeAgo reports whether a closed card's time is the local "19.11 12:05" of
+// that long ago, with the year outside the current one; a minute either way
+// covers the clock turning between the fixture and the test.
+func spokeAgo(when string, ago time.Duration) bool {
+	now := time.Now()
+	for _, d := range []time.Duration{ago - time.Minute, ago, ago + time.Minute} {
+		at := now.Add(-d)
+		layout := "02.01 15:04"
+		if at.Year() != now.Year() {
+			layout = "02.01.2006 15:04"
+		}
+		if when == at.Format(layout) {
+			return true
+		}
+	}
+	return false
 }
 
 // A session that called the person waits on its card until its conversation

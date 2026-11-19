@@ -2,9 +2,55 @@ package store
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 )
+
+func TestLivingConversationsOfUsesLatestOwnershipOnThisHostPG(t *testing.T) {
+	s := requestStore(t)
+	host, err := s.HostID(t.Context(), t.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherHost, err := s.HostID(t.Context(), t.Name()+"-other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now()
+	for _, census := range []struct {
+		host int
+		boot string
+		at   time.Time
+		rows []LivingSession
+	}{
+		{host, "old", at, []LivingSession{
+			{Conversation: "removed-worktree", ProjectID: 42},
+			{Conversation: "moved", ProjectID: 42},
+			{Conversation: "unplaced", ProjectID: 42},
+		}},
+		{host, "new", at.Add(time.Second), []LivingSession{
+			{Conversation: "moved", ProjectID: 43}, {Conversation: "unplaced"},
+		}},
+		{otherHost, "foreign", at.Add(2 * time.Second), []LivingSession{
+			{Conversation: "removed-worktree", ProjectID: 43},
+			{Conversation: "foreign", ProjectID: 42},
+		}},
+	} {
+		if err := s.KeepLiving(t.Context(), census.host, census.boot, census.at, census.rows); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for project, want := range map[int][]string{42: {"removed-worktree"}, 43: {"moved"}, 44: nil} {
+		got, err := s.LivingConversationsOf(t.Context(), host, project)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("conversations of project %d = %v, want %v", project, got, want)
+		}
+	}
+}
 
 func TestLivingCensusAndBootClaimPG(t *testing.T) {
 	s := requestStore(t)

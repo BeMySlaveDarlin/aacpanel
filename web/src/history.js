@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 export const PERIODS = [
     { id: "30m", label: "30 min" },
@@ -81,11 +81,31 @@ export function useSessionsHistory(period, page = {}) {
     return state.kind === "ready" ? { kind: "ready", sessions: state.data } : state;
 }
 
-export function useSessionsArchive({ limit, offset, skip, profile, contour, project } = {}) {
+export function useArchiveSearch(reset) {
+    const [query, setQuery] = useState("");
+    const [q, setQ] = useState("");
+    const timer = useRef(null);
+    useEffect(() => () => clearTimeout(timer.current), []);
+    const onInput = (event) => {
+        const value = event.currentTarget.value;
+        setQuery(value);
+        clearTimeout(timer.current);
+        const apply = () => {
+            setQ(value.trim());
+            reset();
+        };
+        if (value.trim()) timer.current = setTimeout(apply, 250);
+        else apply();
+    };
+    return { query, q, onInput };
+}
+
+export function useSessionsArchive({ limit, offset, skip, profile, contour, project, q } = {}) {
     const query = new URLSearchParams();
     if (limit) query.set("limit", limit);
     if (project) query.set("project", project);
     if (offset) query.set("offset", offset);
+    if (q) query.set("q", q);
     if (skip && skip.length) query.set("skip", skip.join(","));
     // Contours given as lists are asked for in one request: those of the map
     // by the id of their entry, the rest by the name the collector gave them.

@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProbeStateHasOneOwner(t *testing.T) {
@@ -246,8 +247,8 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		if first.Contour != "Globex Group and every project of it" {
 			t.Errorf("a closed conversation of the contour the collector calls globex is labelled %q — the shelf names contours the way the map does", first.Contour)
 		}
-		if !strings.Contains(first.About, "what conversation 0 of contour 1 was about") || first.When != "1h" {
-			t.Errorf("a closed conversation says %q, %q — what it was about, and how long ago in the card's short span", first.About, first.When)
+		if !strings.Contains(first.About, "what conversation 0 of contour 1 was about") || !spokeAgo(first.When, 66*time.Minute) {
+			t.Errorf("a closed conversation says %q, %q — what it was about, and the local date and time 66 minutes ago", first.About, first.When)
 		}
 	}
 

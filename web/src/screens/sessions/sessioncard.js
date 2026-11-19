@@ -32,10 +32,9 @@ import { effortName } from "../chat/picker.js";
 import { useCardPie } from "./cardpie.js";
 import { busyOf } from "./controls.js";
 import { placeOf } from "./kin.js";
-import { stamp } from "./card.js";
 import { continueProject, pauseWhy } from "./pause.js";
 import { PausePie } from "./pausedial.js";
-import { runsOf, shortText, stateOf, timeOf } from "./state.js";
+import { runsOf, stateOf, timeOf } from "./state.js";
 
 // The glyph of each kind of state; a kind with none draws a shape of its own
 // (a dot at work, a ring for the background, a hollow ring for a closed one).
@@ -351,7 +350,6 @@ export function PastCard({ row, about = "", exec, known = "", contour = "", curr
     const who = { agent: last.agent || row.agent };
     const steps = pastSteps(row.last, about ? `«${about}»` : "");
     const ready = knows(exec, "session.resume");
-    const lastAt = stamp(row.lastAt);
     const codex = isCodex(who);
     const place = last.transport || (codex ? "daemon" : row.transport || "");
     return html`
@@ -374,12 +372,21 @@ export function PastCard({ row, about = "", exec, known = "", contour = "", curr
             <${Steps} ...${steps} />
             <${Agent} who=${who} model=${modelOf(last.model || row.model)} effort=${last.effort || row.effort ? effortName(last.effort || row.effort) : ""}
                       spent=${codex && row.tokensUsed ? `${tokens(row.tokensUsed)} tokens` : ""}
-                      time=${{ until: false, text: lastAt ? shortText(Date.now() / 1000 - lastAt) : "" }} tone="quiet" />
+                      time=${{ until: false, text: archiveTime(row.lastAt) }} tone="quiet" />
             <${Badges} mode=${last.mode || row.mode || ""} place=${place} cap=${last.cap} auto=${false} remote=${Boolean(last.remote)} known=${Boolean(row.last)}
                        worktree=${last.checkout || ""} ctx=${codex ? "—" : `peak ${Math.round(row.pctMax || 0)}%`} />
             <${Edge} pct=${row.pctMax || 0} past />
         </div>
     `;
+}
+
+function archiveTime(iso) {
+    if (!iso) return "";
+    const at = new Date(iso);
+    if (!Number.isFinite(at.getTime())) return "";
+    const two = (n) => String(n).padStart(2, "0");
+    const year = at.getFullYear() === new Date().getFullYear() ? "" : `.${at.getFullYear()}`;
+    return `${two(at.getDate())}.${two(at.getMonth() + 1)}${year} ${two(at.getHours())}:${two(at.getMinutes())}`;
 }
 
 // GhostCard holds the place of a session being raised: none of its lines is

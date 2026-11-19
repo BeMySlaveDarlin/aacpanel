@@ -17,7 +17,7 @@ import { inOrder, sessionsOf } from "./of.js";
 export { sessionsOf };
 import { LiveLines, aboutOf } from "./blocks.js";
 import { GhostCard, PastCard } from "./sessioncard.js";
-import { useSessionsArchive } from "../../history.js";
+import { useArchiveSearch, useSessionsArchive } from "../../history.js";
 import { spoke } from "../../agent.js";
 import { ProjectDoor } from "../profiles/door.js";
 
@@ -197,13 +197,14 @@ export function Project({ project, profile, profiles, sessions, notes, exec, wai
     useBackClose(true, onBack);
     const [settings, setSettings] = useState(false);
     const [shown, setShown] = useState(PROJECT_PAGE);
+    const search = useArchiveSearch(() => setShown(PROJECT_PAGE));
 
     const run = useAction();
     const own = inOrder(project, sessionsOf(project, sessions));
     const ready = knows(exec, "session.open");
     const why = whyNot(exec, "session.open");
     const opening = wait ? wait.of("open", project.session) : null;
-    const past = useSessionsArchive({ limit: shown, project: project.id, contour: project.contour, profile: project.profile });
+    const past = useSessionsArchive({ limit: shown, project: project.id, contour: project.contour, profile: project.profile, q: search.q });
     const archive = past.kind === "ready" ? past.archive : null;
     const live = new Set(own.map((s) => s.sessionId).filter(Boolean));
     const earlier = ((archive && archive.rows) || []).filter((row) => spoke(row) && !live.has(row.sessionId));
@@ -241,9 +242,11 @@ export function Project({ project, profile, profiles, sessions, notes, exec, wai
 
         <section class="pjblock pjquiet">
             <div class="pjhead"><span class="pjname">conversations</span>${archive && html`<span class="pjgroup">${archive.total}</span>`}</div>
+            <input class="search archivesearch" type="search" aria-label="Find a conversation" placeholder="Conversation name"
+                   spellcheck=${false} value=${search.query} onInput=${search.onInput} />
             ${past.kind === "loading" && html`<p class="pjempty">Reading the transcripts…</p>`}
             ${(past.kind === "failed" || past.kind === "unavailable") && html`<p class="pjempty">${past.error}</p>`}
-            ${archive && earlier.length === 0 && html`<p class="pjempty">No conversation of this project is kept on disk.</p>`}
+            ${archive && earlier.length === 0 && html`<p class="pjempty">${search.q ? "No conversations match this name." : "No conversation of this project is kept on disk."}</p>`}
             ${earlier.map((row) => html`<${PastCard} key=${row.sessionId} row=${row} about=${aboutOf(row, project)} exec=${exec}
                                                     known=${project.session} onOpen=${(r) => onChat(r.name, r.sessionId)} />`)}
             ${archive && archive.total > shown && html`

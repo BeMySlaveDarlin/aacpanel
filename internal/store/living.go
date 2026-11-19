@@ -158,3 +158,20 @@ func (s *Store) LivingProjects(ctx context.Context, host int, conversations []st
 	})
 	return projects, err
 }
+
+// LivingConversationsOf returns conversations last recorded in this project;
+// a record from an older boot must not reclaim one that moved elsewhere.
+func (s *Store) LivingConversationsOf(ctx context.Context, host, project int) ([]string, error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := pool.Query(ctx, `SELECT conversation FROM (
+		SELECT DISTINCT ON (conversation) conversation,project_id
+		FROM session_living WHERE host_id=$1 ORDER BY conversation,seen_at DESC
+	) latest WHERE project_id=$2 ORDER BY conversation`, host, project)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}

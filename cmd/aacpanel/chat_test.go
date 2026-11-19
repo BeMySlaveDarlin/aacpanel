@@ -507,7 +507,7 @@ func TestArchiveAsksForOneProfile(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		srv.apiSessionsArchive(w, httptest.NewRequest(http.MethodGet,
-			"/api/sessions/archive?limit=5&profile=work", nil))
+			"/api/sessions/archive?limit=5&profile=work&q=%20NGINX%20", nil))
 		if w.Code != http.StatusOK {
 			t.Fatalf("response %d: %s", w.Code, w.Body.String())
 		}
@@ -521,6 +521,9 @@ func TestArchiveAsksForOneProfile(t *testing.T) {
 		}
 		if req.Archive.Limit != 5 {
 			t.Errorf("the other fields of the request drifted apart: %+v", *req.Archive)
+		}
+		if req.Archive.Q != "NGINX" {
+			t.Errorf("the archive name search went out as %q", req.Archive.Q)
 		}
 		if raw := string(<-agent.raw); !strings.Contains(raw, `"profile":"work"`) {
 			t.Errorf("the request to the agent has no profile key: %s", raw)
@@ -1104,4 +1107,92 @@ func TestArchiveOfAProjectAsksForItsDirectoryPG(t *testing.T) {
 			t.Fatalf("the project's archive lost its former paths or current ownership: %+v", req.Archive)
 		}
 	})
+}
+
+func TestProjectArchivePassesWorktreesAndSavedOwnershipPG(t *testing.T) {
+	agent := startAgent(t, map[string]any{"ok": true, "archive": chat.ArchivePage{Rows: []chat.ArchiveRow{}}})
+	srv, root := profilesServer(t)
+	srv.hostName = t.Name()
+	srv.chat = chat.New(agent.path)
+	name := "work"
+	profile, err := srv.db.CreateProfile(t.Context(), store.ProfileEdit{Name: &name, ConfigDir: &root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := srv.db.CreateGroup(t.Context(), profile.ID, store.GroupEdit{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, previous := filepath.Join(root, "app"), []string{filepath.Join(root, "former")}
+	project, err := srv.db.CreateProject(t.Context(), group.ID, store.ProjectEdit{Name: &name, Path: &dir, PreviousPaths: &previous})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherPath := filepath.Join(dir, "nested")
+	other, err := srv.db.CreateProject(t.Context(), group.ID, store.ProjectEdit{Name: &otherPath, Path: &otherPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worktree := filepath.Join(root, "worktrees", "fix")
+	srv.host = hostWith(t, `{"at":1,"projects":{"dirs":[{"path":"`+worktree+`","worktreeOf":"`+dir+`"}]}}`)
+	hostID, err := srv.db.HostID(t.Context(), srv.hostName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignHost, err := srv.db.HostID(t.Context(), t.Name()+"-other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now()
+	for _, census := range []struct {
+		host int
+		boot string
+		at   time.Time
+		rows []store.LivingSession
+	}{
+		{hostID, "old", at, []store.LivingSession{
+			{Conversation: "removed", ProjectID: project.ID},
+			{Conversation: "moved", ProjectID: project.ID},
+			{Conversation: "unplaced", ProjectID: project.ID},
+		}},
+		{hostID, "new", at.Add(time.Second), []store.LivingSession{
+			{Conversation: "moved", ProjectID: other.ID},
+			{Conversation: "unplaced"},
+		}},
+		{foreignHost, "foreign", at.Add(2 * time.Second), []store.LivingSession{
+			{Conversation: "removed", ProjectID: other.ID},
+			{Conversation: "foreign", ProjectID: project.ID},
+		}},
+	} {
+		if err := srv.db.KeepLiving(t.Context(), census.host, census.boot, census.at, census.rows); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w := httptest.NewRecorder()
+	srv.apiSessionsArchive(w, httptest.NewRequest(http.MethodGet,
+		"/api/sessions/archive?limit=2&offset=1&q=nginx&project="+strconv.Itoa(project.ID), nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("response %d: %s", w.Code, w.Body.String())
+	}
+	req := (<-agent.got).Archive
+	if req == nil || req.Project == nil {
+		t.Fatalf("the collector received no project ownership: %+v", req)
+	}
+	if req.Project.ID != project.ID || req.Project.Worktrees[worktree] != dir {
+		t.Errorf("the worktree does not reach the project filter: %+v", req.Project)
+	}
+	paths := make(map[int]chat.ArchiveProjectPath)
+	for _, p := range req.Project.Paths {
+		paths[p.ID] = p
+	}
+	if paths[other.ID].Path != otherPath || paths[project.ID].Path != dir || !slices.Equal(paths[project.ID].PreviousPaths, previous) {
+		t.Errorf("the collector cannot resolve current and former ownership: %+v", paths)
+	}
+	saved := req.Project.Saved
+	if !slices.Equal(saved, []string{"removed"}) {
+		t.Errorf("the project filter lost a closed conversation, another host won, or an older census won: %v", saved)
+	}
+	if req.Q != "nginx" || req.Limit != 2 || req.Offset != 1 {
+		t.Errorf("the search and pagination did not reach the collector: %+v", req)
+	}
 }
