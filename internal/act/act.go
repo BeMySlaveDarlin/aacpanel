@@ -25,11 +25,19 @@ type Body struct {
 	What      string              `json:"what,omitempty"`
 	Questions []question.Question `json:"questions,omitempty"`
 	Action    string              `json:"action,omitempty"`
+	Expects   string              `json:"expects,omitempty"`
+	Due       *int                `json:"due,omitempty"`
 }
 
 // Stored Markdown and structured steps share one wire key. Keeping the two
 // representations explicit lets archived acts retain their original rendering.
 func (b Body) MarshalJSON() ([]byte, error) {
+	if b.Expects != "" {
+		return json.Marshal(struct {
+			Expects string `json:"expects"`
+			Due     *int   `json:"due"`
+		}{b.Expects, b.Due})
+	}
 	type fields Body
 	var steps any
 	if b.Chain != nil {
@@ -87,7 +95,7 @@ type Input struct {
 
 func (i Input) Validate() error {
 	if i.Withdraw || i.ID != "" || i.Reopen != 0 || i.Step != 0 || i.Outcome != "" || i.Note != "" {
-		if i.Kind != "" || i.Title != "" || i.Blocking != nil || i.Body.Steps != "" || i.Body.Chain != nil || i.Body.Name != "" || i.Body.Template != "" || i.Body.Source != "" || i.Body.Message != "" || i.Body.What != "" || len(i.Body.Questions) > 0 || i.Body.Action != "" {
+		if i.Kind != "" || i.Title != "" || i.Blocking != nil || i.Body.Steps != "" || i.Body.Chain != nil || i.Body.Name != "" || i.Body.Template != "" || i.Body.Source != "" || i.Body.Message != "" || i.Body.What != "" || len(i.Body.Questions) > 0 || i.Body.Action != "" || i.Body.Expects != "" || i.Body.Due != nil {
 			return errors.New("a chain operation carries no act body")
 		}
 		return (request.Input{ID: i.ID, Withdraw: i.Withdraw, Reopen: i.Reopen, Step: i.Step, Outcome: i.Outcome, Note: i.Note}).Validate()
@@ -98,7 +106,21 @@ func (i Input) Validate() error {
 	if i.Blocking == nil {
 		return errors.New("blocking must say whether the session waits for this act")
 	}
+	if i.Kind != "claim" && (i.Body.Expects != "" || i.Body.Due != nil) {
+		return errors.New("expects and due belong only to a claim")
+	}
 	switch i.Kind {
+	case "claim":
+		if i.Body.Expects == "" {
+			return errors.New("a claim needs expects")
+		}
+		if *i.Blocking {
+			return errors.New("a claim does not block the person")
+		}
+		if i.Body.Steps != "" || i.Body.Chain != nil || i.Body.Name != "" || i.Body.Template != "" || i.Body.Source != "" || i.Body.Message != "" || i.Body.What != "" || len(i.Body.Questions) > 0 || i.Body.Action != "" {
+			return errors.New("a claim body carries only expects and due")
+		}
+		return (ClaimInput{Expects: i.Body.Expects, Due: i.Body.Due}).Validate()
 	case "do":
 		if i.Body.Chain != nil {
 			return request.ValidateSteps(i.Body.Chain)
@@ -131,22 +153,29 @@ func (i Input) Validate() error {
 }
 
 type Record struct {
-	ID           string            `json:"id"`
-	Conversation string            `json:"conversation"`
-	Session      string            `json:"session"`
-	Kind         string            `json:"kind"`
-	Blocking     bool              `json:"blocking"`
-	Title        string            `json:"title"`
-	Body         Body              `json:"body"`
-	State        string            `json:"state"`
-	Created      time.Time         `json:"created"`
-	Closed       *time.Time        `json:"closed,omitempty"`
-	Answer       *Answer           `json:"answer,omitempty"`
-	AnsweredBy   string            `json:"answeredBy"`
-	Step         *int              `json:"step,omitempty"`
-	Outputs      []*request.Output `json:"outputs,omitempty"`
-	Notified     int               `json:"-"`
-	Notice       *Notice           `json:"-"`
+	ID               string            `json:"id"`
+	Conversation     string            `json:"conversation"`
+	Session          string            `json:"session"`
+	Kind             string            `json:"kind"`
+	Blocking         bool              `json:"blocking"`
+	Title            string            `json:"title"`
+	Body             Body              `json:"body"`
+	State            string            `json:"state"`
+	Created          time.Time         `json:"created"`
+	Closed           *time.Time        `json:"closed,omitempty"`
+	Answer           *Answer           `json:"answer,omitempty"`
+	AnsweredBy       string            `json:"answeredBy"`
+	Step             *int              `json:"step,omitempty"`
+	Outputs          []*request.Output `json:"outputs,omitempty"`
+	Notified         int               `json:"-"`
+	Notice           *Notice           `json:"-"`
+	Peer             string            `json:"peer,omitempty"`
+	PeerConversation string            `json:"-"`
+	Due              *time.Time        `json:"due"`
+	Rung             int               `json:"rung"`
+	RungAt           *time.Time        `json:"-"`
+	Incoming         bool              `json:"incoming,omitempty"`
+	Overdue          bool              `json:"overdue"`
 }
 
 func (r Record) Open() bool { return r.State == "open" || r.State == "failed" }
@@ -176,6 +205,9 @@ func (r Record) ValidateAnswer(answer, note string, answers ...question.Answer) 
 }
 
 func (r Record) Reply(answer, note string, answers ...question.Answer) string {
+	if r.Kind == "claim" {
+		return fmt.Sprintf("Re claim %s (%s):\n\n%s", r.ID, answer, note)
+	}
 	if r.Kind == "ask" {
 		who := "your ask"
 		if r.Body.Source == "prose" {

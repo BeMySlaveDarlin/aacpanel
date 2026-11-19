@@ -91,6 +91,9 @@ type Request struct {
 	// ParentQuestion sends a panel letter to the opener of this child
 	// conversation; Conversation binds the recipient found before the send.
 	ParentQuestion string `json:"parentQuestion,omitempty"`
+	// Claim permits the protocol header beside the letter's text. Panel mail
+	// has no From and binds its recipient by Conversation and MessageID.
+	Claim string `json:"claim,omitempty"`
 
 	// Report delivers a Codex helper's turn to its opener. The persistent
 	// opening record still binds the recipient after the helper has closed.

@@ -49,7 +49,7 @@ func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, s
 		out = append(out, item)
 	}
 	for _, row := range acts {
-		if !row.Open() {
+		if !row.Open() || row.Kind == "claim" {
 			continue
 		}
 		kind := map[string]string{"do": "request", "secret": "secret", "ask": "question", "call": "call"}[row.Kind]
@@ -99,16 +99,18 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 		return payload
 	}
 	ids := []string{}
+	names := []string{}
 	for _, row := range rows {
+		if name := textField(row, "session"); name != "" {
+			names = append(names, name)
+		}
 		if id := textField(row, "sessionId"); id != "" {
 			ids = append(ids, id)
 		}
 	}
-	if len(ids) == 0 {
-		return payload
-	}
 	waiting, _ := s.waitingCards(ctx, ids)
 	acts := map[string][]act.Record{}
+	var claims []act.Record
 	if s.db != nil {
 		got, err := s.db.OpenActs(ctx, ids)
 		if err != nil {
@@ -116,6 +118,10 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 		}
 		for _, row := range got {
 			acts[row.Conversation] = append(acts[row.Conversation], row)
+		}
+		claims, err = s.db.OpenClaims(ctx, names)
+		if err != nil {
+			log.Printf("the session claims: %v", err)
 		}
 	}
 	cards := waiting
@@ -150,6 +156,7 @@ func (s *Server) sessionsWaiting(ctx context.Context, payload []byte) []byte {
 		}
 		items := waitingFor(acts[id], cards[id], mine, sent)
 		row["waiting"], _ = json.Marshal(items)
+		row["claims"], _ = json.Marshal(claimsFor(claims, textField(row, "session")))
 	}
 	snapshot["sessions"], _ = json.Marshal(rows)
 	out, err := json.Marshal(snapshot)

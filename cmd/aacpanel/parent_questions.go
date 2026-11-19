@@ -24,11 +24,10 @@ type parentQuestion struct {
 	Ask       *chat.Ask
 }
 
-func (s *Server) parentQuestionPolicy(ctx context.Context, child notify.Session) (bool, time.Duration) {
-	on, wait := true, 5*time.Minute
+func (s *Server) sessionPolicy(ctx context.Context, child notify.Session) ([]schema.Value, error) {
 	list, err := s.db.Profiles(ctx)
 	if err != nil {
-		return false, wait
+		return nil, err
 	}
 	var contour, project map[string]any
 	if found, ok := projectAt(list, child.CWD, s.worktrees(), s.db.ProjectRoots()); ok {
@@ -42,7 +41,16 @@ func (s *Server) parentQuestionPolicy(ctx context.Context, child notify.Session)
 			}
 		}
 	}
-	for _, value := range schema.Effective(nil, contour, project) {
+	return schema.Effective(nil, contour, project), nil
+}
+
+func (s *Server) parentQuestionPolicy(ctx context.Context, child notify.Session) (bool, time.Duration) {
+	on, wait := true, 5*time.Minute
+	values, err := s.sessionPolicy(ctx, child)
+	if err != nil {
+		return false, wait
+	}
+	for _, value := range values {
 		switch value.Key {
 		case "parentQuestions":
 			on, _ = value.Value.(bool)

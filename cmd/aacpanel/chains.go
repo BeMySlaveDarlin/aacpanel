@@ -344,6 +344,10 @@ func (s *Server) operateChain(w http.ResponseWriter, r *http.Request, conversati
 	}
 	defer lease.Close(r.Context())
 	row := &lease.Record
+	if row.Kind == "claim" {
+		http.Error(w, "withdraw a claim with send_to_session and outcome withdraw", http.StatusConflict)
+		return
+	}
 	if row.Conversation != conversation {
 		http.Error(w, "the act belongs to another conversation", http.StatusConflict)
 		return

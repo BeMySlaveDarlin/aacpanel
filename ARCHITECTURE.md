@@ -653,7 +653,7 @@ is kept on the host under `~/.local/state/aacpanel/acts/<id>/<step>.log`, mode
 summary is saved in the same transaction as the step and retried with its own
 message identity after a failed delivery or a service restart.
 
-`acts` owns the waiting lifecycle: `do`, `secret`, `ask` and `call` share open,
+`acts` owns the waiting lifecycle: `do`, `secret`, `ask`, `call` and `claim` share open,
 answered, declined and withdrawn states; a chain also has the paused `failed`
 state. Its current step is numbered from one and its output array has one slot
 per step, null until used. Markdown requests in stored history keep their
@@ -669,6 +669,30 @@ sends one panel letter with the act's message identity and closes the act;
 failed delivery leaves it open. Ordinary human input or a delivered parent
 letter settles prose asks, with the parent recorded separately. Tool asks
 remain open until their form is answered.
+
+A letter with `expects: reply` or `expects: done` creates a `claim` act.
+Its sender is the act's conversation and session; its recipient is kept by
+session name, with the receiving conversation for the feed. A replacement
+conversation under the same name inherits incoming claims. The act stores the
+subject and expectation, never the letter's text. The delivered letter carries
+the claim id. Only an explicit `re` from its recipient can answer it; `done`
+settles either expectation, `cant` declines, and `reply` settles a reply claim
+but leaves a work claim open. The sender can withdraw by letter. The person's
+`act.withdraw` journals the withdrawal in the service and tells both sides,
+without adding a host action. Reply delivery precedes closure under a row lock,
+so failed delivery leaves the claim open.
+
+Claims have no due unless the sender gives one or the recipient's project or
+contour sets `claimDue`. Without it there are no reminders. At the due the
+panel mails the recipient; after `parentQuestionWait` it tells the sender and,
+when `parentQuestions` permits and the recipient has an opener, that opener.
+After another wait it pushes to the person. Without that parent stage the push
+goes with the sender's overdue letter. A rung is committed before delivery,
+with a distinct message id per recipient and rung: delivery failure is logged
+and still spends the rung. This trades retry for bounded reminders across
+service restarts. Closure stops the ladder. Open incoming and outgoing claims
+travel in the session snapshot separately from the person's waiting work and
+do not contribute to the move counter.
 
 Claude's synchronous `turn` Stop hook reads the final text record, then calls
 the local `/api/turn` endpoint with a fifteen-second deadline. A shared cheap
@@ -1948,7 +1972,7 @@ The list of actions is closed.
 | terminals | `term.start`, `term.peek`, `term.close`, `term.rename`, `term.console`, `tmux.close` |
 | secrets | `secret.put`, `secret.drop` |
 
-`act.run`, `act.stop` and `session.ready` belong to the service alone: it records readiness in the
+`act.run`, `act.stop`, `act.withdraw` and `session.ready` belong to the service alone: it records readiness in the
 database, appears in the journal and grants the executor no new action.
 
 What is deliberately not on the list: removing containers, images and volumes,

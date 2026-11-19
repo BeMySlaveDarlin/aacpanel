@@ -60,6 +60,17 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Claim != "" {
+		if r.Kind != SessionLetter || len(r.Claim) != 32 || strings.Trim(r.Claim, "abcdef0123456789") != "" || r.ParentQuestion != "" || r.Report != nil {
+			return badRequest("a claim letter needs its claim id and no other panel event")
+		}
+		if r.From == "" && (!safeUUID(r.Conversation) || r.FromCodex != nil || r.Caller != "" || r.MessageID == "") {
+			return badRequest("panel claim mail needs its recipient conversation and message id, with no agent sender")
+		}
+		if r.From != "" && r.MessageID != "" {
+			return badRequest("only panel claim mail names a message")
+		}
+	}
 	if r.Sleeping && ((r.Kind != SessionClose && r.Kind != AlarmCancel) || !safeUUID(r.Conversation) || r.Caller != "") {
 		return badRequest("a sleep close or sleeping alarm cancellation needs its conversation and no caller")
 	}
@@ -279,8 +290,12 @@ func (r Request) Validate() error {
 		if r.Kind != SessionFile && strings.TrimSpace(r.Text) == "" {
 			return badRequest("a message to the session without text")
 		}
-		if len([]rune(r.Text)) > TextMax {
-			return badRequest("the message is longer than %d characters", TextMax)
+		limit := TextMax
+		if r.Kind == SessionLetter && r.Claim != "" {
+			limit += 512
+		}
+		if len([]rune(r.Text)) > limit {
+			return badRequest("the message is longer than %d characters", limit)
 		}
 		if err := safeText(r.Text); err != nil {
 			return err
@@ -501,7 +516,7 @@ func (r Request) Validate() error {
 		}
 	}
 	if r.MessageID != "" {
-		if r.Kind != SessionSend && r.Kind != SessionUnqueue && r.Kind != SessionShell {
+		if r.Kind != SessionSend && r.Kind != SessionUnqueue && r.Kind != SessionShell && !(r.Kind == SessionLetter && r.Claim != "") {
 			return badRequest("action %s names no message", r.Kind)
 		}
 		if !safeUUID(r.MessageID) {
@@ -530,7 +545,7 @@ func (r Request) Validate() error {
 		}
 	}
 	if r.Kind == SessionLetter {
-		if r.From == "" && r.ParentQuestion == "" && r.Report == nil {
+		if r.From == "" && r.ParentQuestion == "" && r.Report == nil && r.Claim == "" {
 			return badRequest("a letter without the conversation it comes from: it would have no sender")
 		}
 		if r.From != "" && !safeUUID(r.From) {

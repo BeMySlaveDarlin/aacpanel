@@ -81,6 +81,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 
+	if body.Kind == string(action.SessionLetter) && claimParams(body.Params) {
+		s.sendClaim(w, r, body.Target, body.Params, term)
+		return
+	}
+	if body.Kind == string(action.ActWithdraw) {
+		s.withdrawClaim(w, r, body.Target, body.Params)
+		return
+	}
 	if body.Kind == string(action.ProjectPause) {
 		s.pauseProject(w, r, body.Params)
 		return
@@ -344,6 +352,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		from, _ := body.Params["from"].(string)
 		req.Text, req.From = text, from
 		params = map[string]any{"chars": len([]rune(text)), "from": from}
+		if mail, ok := r.Context().Value(claimMail{}).(claimMail); ok {
+			req.Claim, req.Conversation, req.MessageID = mail.ID, mail.Conversation, mail.MessageID
+			params["claim"], params["conversation"], params["message"] = mail.ID, mail.Conversation, mail.MessageID
+		}
 		if report, ok := r.Context().Value(helperReportKey{}).(action.HelperReport); ok {
 			req.Report, req.Conversation = &report, report.Parent
 			params = map[string]any{"chars": len([]rune(text)), "report": report}
@@ -1539,6 +1551,9 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
+	}
+	if s.db != nil && s.host != nil && slices.Contains(kinds, action.SessionLetter) {
+		kinds = append(kinds, action.ActWithdraw)
 	}
 	if slices.Contains(kinds, action.TermStart) && slices.Contains(kinds, action.TermClose) && slices.Contains(kinds, action.TermPeek) {
 		kinds = append(kinds, action.ActRun, action.ActStop)

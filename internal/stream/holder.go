@@ -701,14 +701,23 @@ func (h *Holder) say(text, id string, extra map[string]any) (string, error) {
 // it through; the holder names this session's own class, the one such a
 // session takes a letter of at once. The letter is not the person's message
 // and does not wait in the queue the panel shows.
-func (h *Holder) letter(text string) error {
+func (h *Holder) letter(text string, ids ...string) error {
 	if strings.TrimSpace(text) == "" {
 		return errors.New("the letter is empty")
 	}
 	h.mu.Lock()
 	class := peerClass(h.state.Mode, h.spec.Argv)
 	h.mu.Unlock()
-	msg := letterMessage(h.spec.SessionID, newUUID(), text, class)
+	id := ""
+	if len(ids) > 0 {
+		id = ids[0]
+	}
+	if id == "" {
+		id = newUUID()
+	} else if !uuidLike(id) {
+		return errors.New("the letter id is not a uuid")
+	}
+	msg := letterMessage(h.spec.SessionID, id, text, class)
 	if err := h.write(msg); err != nil {
 		return err
 	}
@@ -1004,7 +1013,7 @@ func (h *Holder) do(req Request) Reply {
 		}
 		return Reply{OK: true, UUID: id}
 	case OpLetter:
-		if err := h.letter(req.Text); err != nil {
+		if err := h.letter(req.Text, req.UUID); err != nil {
 			return Reply{Error: err.Error()}
 		}
 		return Reply{OK: true}

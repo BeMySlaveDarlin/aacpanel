@@ -16,11 +16,12 @@ import (
 
 var ErrActClosed = errors.New("the act has already been answered or withdrawn")
 
-const actColumns = `id, conversation, session, kind, blocking, title, body, state, created_at, closed_at, answer, answered_by, step, outputs, notice, notified`
+const actColumns = `id, conversation, session, kind, blocking, title, body, state, created_at, closed_at, answer, answered_by, step, outputs, notice, notified, coalesce(peer,''), coalesce(peer_conversation,''), due_at, rung, rung_at`
 
 func readAct(row pgx.Row) (act.Record, error) {
 	var r act.Record
-	err := row.Scan(&r.ID, &r.Conversation, &r.Session, &r.Kind, &r.Blocking, &r.Title, &r.Body, &r.State, &r.Created, &r.Closed, &r.Answer, &r.AnsweredBy, &r.Step, &r.Outputs, &r.Notice, &r.Notified)
+	err := row.Scan(&r.ID, &r.Conversation, &r.Session, &r.Kind, &r.Blocking, &r.Title, &r.Body, &r.State, &r.Created, &r.Closed, &r.Answer, &r.AnsweredBy, &r.Step, &r.Outputs, &r.Notice, &r.Notified, &r.Peer, &r.PeerConversation, &r.Due, &r.Rung, &r.RungAt)
+	r.Overdue = r.Kind == "claim" && r.Open() && r.Due != nil && !time.Now().Before(*r.Due)
 	return r, err
 }
 
@@ -31,6 +32,9 @@ func (s *Store) CreateAct(ctx context.Context, conversation, session string, inp
 	}
 	if input.ID != "" {
 		return act.Record{}, errors.New("a withdrawal creates no act")
+	}
+	if input.Kind == "claim" {
+		return act.Record{}, errors.New("a claim needs its recipient")
 	}
 	pool, err := s.Pool()
 	if err != nil {
@@ -55,7 +59,7 @@ func (s *Store) acts(ctx context.Context, conversations []string, open bool) ([]
 	if err != nil {
 		return nil, err
 	}
-	rows, err := pool.Query(ctx, `SELECT `+actColumns+` FROM acts WHERE conversation=ANY($1) AND (NOT $2 OR state IN ('open','failed')) ORDER BY created_at,id`, conversations, open)
+	rows, err := pool.Query(ctx, `SELECT `+actColumns+` FROM acts WHERE (conversation=ANY($1) OR (NOT $2 AND peer_conversation=ANY($1))) AND (NOT $2 OR state IN ('open','failed')) ORDER BY created_at,id`, conversations, open)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +91,11 @@ func (s *Store) OpenAskQuestions(ctx context.Context, conversation string) ([]st
 }
 
 func (s *Store) ActsOf(ctx context.Context, conversation string) ([]act.Record, error) {
-	return s.acts(ctx, []string{conversation}, false)
+	rows, err := s.acts(ctx, []string{conversation}, false)
+	for i := range rows {
+		rows[i].Incoming = rows[i].Kind == "claim" && rows[i].PeerConversation == conversation
+	}
+	return rows, err
 }
 
 func (s *Store) WithdrawAct(ctx context.Context, conversation, session, id string) error {
@@ -95,7 +103,7 @@ func (s *Store) WithdrawAct(ctx context.Context, conversation, session, id strin
 	if err != nil {
 		return err
 	}
-	tag, err := pool.Exec(ctx, `UPDATE acts SET state='withdrawn',closed_at=now(),answered_by=$3 WHERE id=$1 AND conversation=$2 AND state IN ('open','failed')`, id, conversation, session)
+	tag, err := pool.Exec(ctx, `UPDATE acts SET state='withdrawn',closed_at=now(),answered_by=$3 WHERE id=$1 AND conversation=$2 AND kind <> 'claim' AND state IN ('open','failed')`, id, conversation, session)
 	if err != nil {
 		return err
 	}

@@ -161,6 +161,9 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	if req.ParentQuestion != "" {
 		return e.parentQuestionLetter(ctx, req)
 	}
+	if req.Claim != "" && req.From == "" {
+		return e.claimLetter(ctx, req)
+	}
 	if req.Report != nil {
 		return e.helperReportLetter(ctx, req)
 	}

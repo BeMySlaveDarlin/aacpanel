@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/act"
 	"aacpanel/internal/action"
 	"aacpanel/internal/hostcfg"
 )
@@ -145,6 +146,7 @@ type answer struct {
 	// Logged is explicit: an old service or an unavailable database cannot
 	// be mistaken for a completed journal write.
 	Logged bool
+	Claim  *act.Record
 }
 
 // act asks the panel to run an action on this machine, waiting for its answer
@@ -174,10 +176,11 @@ func (h Host) act(ctx context.Context, kind, target string, params map[string]an
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	var reply struct {
-		Detail  string `json:"detail"`
-		Error   string `json:"error"`
-		Contour string `json:"contour"`
-		Logged  bool   `json:"logged"`
+		Detail  string      `json:"detail"`
+		Error   string      `json:"error"`
+		Contour string      `json:"contour"`
+		Logged  bool        `json:"logged"`
+		Claim   *act.Record `json:"claim"`
 	}
 	_ = json.Unmarshal(raw, &reply)
 	if resp.StatusCode != http.StatusOK {
@@ -190,7 +193,7 @@ func (h Host) act(ctx context.Context, kind, target string, params map[string]an
 		}
 		return answer{Said: said}, nil
 	}
-	return answer{Taken: true, Said: reply.Detail, Contour: reply.Contour, Logged: reply.Logged}, nil
+	return answer{Taken: true, Said: reply.Detail, Contour: reply.Contour, Logged: reply.Logged, Claim: reply.Claim}, nil
 }
 
 // RecordWork uses the tools' ordinary action path after the executor accepted

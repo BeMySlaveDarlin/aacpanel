@@ -54,3 +54,19 @@ func TestALetterNamesThePermissionClassOfTheSession(t *testing.T) {
 		}
 	}
 }
+
+func TestAClaimLetterRetainsItsMessageIdentity(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	const id = "11111111-1111-4111-8111-111111111111"
+	if reply := r.ask(Request{Op: OpLetter, UUID: "bad", Text: "The claim is due."}); reply.OK {
+		t.Fatal("an invalid letter id was accepted")
+	}
+	if reply := r.ask(Request{Op: OpLetter, UUID: id, Text: "The claim is due."}); !reply.OK {
+		t.Fatalf("claim letter: %+v", reply)
+	}
+	got := r.eventually(`"uuid":"` + id + `"`)
+	if !strings.Contains(got, `"kind":"peer"`) {
+		t.Fatalf("claim letter lost its origin: %s", got)
+	}
+}

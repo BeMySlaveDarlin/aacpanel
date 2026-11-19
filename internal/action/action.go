@@ -169,8 +169,9 @@ const (
 
 // Service actions orchestrate terminals; they never reach the executor.
 const (
-	ActRun  Kind = "act.run"
-	ActStop Kind = "act.stop"
+	ActRun      Kind = "act.run"
+	ActStop     Kind = "act.stop"
+	ActWithdraw Kind = "act.withdraw"
 )
 
 // Kinds is the full list of what the executor can do.

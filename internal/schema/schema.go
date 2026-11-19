@@ -222,7 +222,7 @@ var params = []Param{
 	{
 		Key: "parentQuestions", Label: "Questions to parent", Kind: KindBool,
 		Levels: []Level{LevelContour, LevelProject}, Default: true, Host: true,
-		Help:  "a child's questions go to the conversation that opened it before the phone is called; permissions and requests go straight to the person",
+		Help:  "a child's questions and overdue claims go to the conversation that opened it before the phone is called; permissions and requests go straight to the person",
 		Unset: "On for children opened through session_open", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
@@ -231,6 +231,13 @@ var params = []Param{
 		Levels: []Level{LevelContour, LevelProject}, Default: 5, Host: true,
 		Help:  "how long the parent has to answer before an outstanding question is pushed to the person",
 		Unset: "5 minutes", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
+	},
+	{
+		Key: "claimDue", Label: "Claim due", Kind: KindInt, Unit: "min", Min: 1, Max: 1440, Host: true,
+		Levels: []Level{LevelContour, LevelProject},
+		Help:   "the due of incoming claims when their sender gives none; overdue claims remind the recipient, then its parent and sender, then the person",
+		Unset:  "No due and no reminders", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{

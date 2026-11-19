@@ -248,3 +248,14 @@ func TestTextQuestionsHaveTheirOwnPushChoice(t *testing.T) {
 		t.Fatal("classification default or saved choice was lost")
 	}
 }
+
+func TestClaimsHaveTheirOwnPushChoice(t *testing.T) {
+	m := msg("claim:example", Source{})
+	if m.Kind != KindClaim || !(Prefs{}).Allows(m) {
+		t.Fatal("a claim is not heard by default")
+	}
+	off := Prefs{Off: []string{KindClaim}}.Clean()
+	if off.Allows(m) || len(off.Off) != 1 || off.Off[0] != KindClaim {
+		t.Fatal("claim notifications cannot be turned off")
+	}
+}
