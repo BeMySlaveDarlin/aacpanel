@@ -352,7 +352,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession, embedded, onOpen 
     }
 
     if (Array.isArray(doc.decisions)) return html`<${BriefDecisions} key=${id} doc=${doc} draft=${draft}
-        embedded=${embedded} onBack=${onBack} onSent=${() => onSession && onSession(name)}
+        embedded=${embedded} header=${!embedded ? head(doc.title) : null} onSent=${() => onSession && onSession(name)}
         onRemove=${!embedded && onBack ? remove : null} dropping=${dropping} />`;
     if (embedded) return html`<button class="actbrief" type="button" onClick=${() => onOpen && onOpen(id)}>
         Brief · ${asking.length} questions · Open</button>`;

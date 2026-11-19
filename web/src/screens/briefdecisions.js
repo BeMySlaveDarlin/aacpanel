@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { html } from "../html.js";
 import { render } from "../md.js";
 import { saveDraft, sendDecisions } from "../data/briefs.js";
-import { BackHead } from "../ui/back.js";
 import { Icon } from "../ui/icons.js";
 
 const SAVE_MS = 900;
@@ -58,7 +57,7 @@ function Decision({ decision, index, answer, locked, onAnswer }) {
     </article>`;
 }
 
-export function BriefDecisions({ doc, draft, embedded, onBack, onSent, onRemove, dropping }) {
+export function BriefDecisions({ doc, draft, embedded, header, onSent, onRemove, dropping }) {
     const [answers, setAnswers] = useState(() => draft?.answers || {});
     const [sent, setSent] = useState(Boolean(draft?.sentAt));
     const [sending, setSending] = useState(false);
@@ -135,7 +134,7 @@ export function BriefDecisions({ doc, draft, embedded, onBack, onSent, onRemove,
     };
     const locked = sent || sending;
     return html`<div class=${`brief-decisions${embedded ? " embedded" : ""}`}>
-        ${!embedded && html`<${BackHead} onBack=${onBack} label="back to the briefs"><div class="bway">${doc.title}</div><//>`}
+        ${header}
         <div class="bdecision-scroll">
             <header class="bdecision-head"><span>${Icon.plan()} BRIEF · ${doc.decisions.length} decisions</span>
                 ${!embedded && html`<h1>${doc.title}</h1>`}</header>

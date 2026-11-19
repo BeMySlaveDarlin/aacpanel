@@ -453,7 +453,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const yourMoves = moves.some((item) => !agentsMove(item));
     const current = moves.find((item) => moveKey(item) === selected) || moves[0];
     const currentKey = current ? moveKey(current) : "";
-    const openBrief = (briefId) => {
+    const openBrief = useSteady((briefId) => {
         const move = moves.find((item) => item.kind === "brief" && item.id === briefId);
         const decisions = briefs.find((card) => card.id === briefId)?.decisions
             || state.items.find((item) => item.role === "brief" && item.id === briefId)?.decisions;
@@ -466,7 +466,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         }
         // A document over the run leaves the feed where it was on closing.
         setLook({ kind: "brief", id: briefId });
-    };
+    });
     // An older render must not undo a newer marker press.
     useEffect(() => { setSelected((was) => was === selected ? currentKey : was); }, [currentKey, selected]);
     const selectAct = useCallback((item) => setSelected(moveKey({ ...item, kind: item.role === "ask" ? "question" : item.role || item.kind })), []);

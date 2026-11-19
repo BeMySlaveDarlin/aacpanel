@@ -23,6 +23,10 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
+// The order of saves matters here; the debounce's wall time does not.
+const timer = window.setTimeout;
+window.setTimeout = (fn, ms, ...args) => timer(fn, ms === 900 ? 30 : ms, ...args);
+
 const doc = {
     id: "at-the-desk",
     sessionId: "22222222-2222-4222-8222-222222222222",

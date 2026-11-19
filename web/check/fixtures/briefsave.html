@@ -12,6 +12,13 @@ import { Brief } from "/src/screens/brief.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { until } from "/check/fixtures/pie.js";
+
+// Autosave failures need their order, while the last pick must stay pending
+// until sending flushes it. Neither case needs the real debounce to pass.
+let holdSave = false;
+const timer = window.setTimeout;
+window.setTimeout = (fn, ms, ...args) => timer(fn, ms === 900 ? holdSave ? 60000 : 30 : ms, ...args);
 
 const doc = (id) => ({
     id, sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/srv/proj",
@@ -63,7 +70,6 @@ const root = document.getElementById("root");
 const show = (id) => render(
     h(ToastHost, null, h(GateHost, null, h(Brief, { id, snapshot, exec, onBack: () => {} }))), root);
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pick = (n, key) => {
     const q = document.querySelectorAll(".bq")[n];
     const opt = Array.from(q.querySelectorAll(".bopt")).find((b) => b.querySelector(".bopt-k").textContent === key);
@@ -83,7 +89,7 @@ window.done = (async () => {
     // the dock is the only place that can say the answers are going nowhere.
     refuse = true;
     show("refused");
-    for (let i = 0; i < 50 && !document.querySelector(".bdock"); i++) await sleep(50);
+    await until(() => document.querySelector(".bdock"), "the brief dock");
     pick(0, "A");
     await quiet();
     const barred = {
@@ -97,15 +103,14 @@ window.done = (async () => {
     // last answer has run out: the message has to carry that answer too.
     refuse = false;
     sent.length = 0;
-    show("kept");
-    await quiet();
     render(null, root);
     show("kept");
-    for (let i = 0; i < 50 && !document.querySelector(".bdock"); i++) await sleep(50);
+    await until(() => document.querySelector(".bdock"), "the brief dock");
     pick(0, "A");
     await quiet();
+    holdSave = true;
     pick(1, "B");
-    await sleep(80);
+    await until(() => document.querySelectorAll(".bq")[1].querySelector('.bopt[aria-pressed="true"] .bopt-k')?.textContent === "B", "the last pick");
     await pressSend();
 
     return { barred, sent, kept: Object.keys(kept.kept || {}).length };
