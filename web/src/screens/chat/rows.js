@@ -160,7 +160,7 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
     // A message the panel wrote on the person's behalf is drawn as what it
     // says. One that did not go out stays a bubble, since sending it again is
     // the bubble's, and so does one cut short: it is not the whole text.
-    if (item.actReply) return html`<${ActReply} text=${item.text} record=${act} onOpen=${onAct} detached />`;
+    if (item.actReply) return html`<${ActReply} text=${item.text} record=${act} onOpen=${onAct} card=${Boolean(item.actReplyCard)} />`;
     const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
     // The answer to a question codex asked without waiting is the card of the
     // round answered, as claude's answer is, standing where it was sent; on

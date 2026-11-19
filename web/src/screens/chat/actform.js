@@ -1,5 +1,3 @@
-import { useState } from "preact/hooks";
-
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
@@ -81,21 +79,21 @@ export function AskCard({ item, record }) {
     </article>`;
 }
 
-export function ActReply({ text, record, onOpen, detached = false }) {
-    const [expanded, setExpanded] = useState(false);
+// A finished chain whose own row is out of the feed stands as its card under
+// the last line of its replies, open as it is: one card per chain, whatever
+// number of replies it took.
+export function ActReply({ text, record, onOpen, card = false }) {
     if (record?.kind === "ask") return html`<div class="actreply">→ agent · answered</div>`;
     if (!isChain(record)) return html`<details class="actreply"><summary>to the agent: ${text}</summary><p>${text}</p></details>`;
     const open = actOpen(record);
-    const press = open && onOpen ? () => onOpen({ ...record, role: "request" })
-        : !open && detached ? () => setExpanded(!expanded) : null;
     const line = chainReply(text, record);
     // The card stands beside the line, not in it: the line's faint small type
     // would carry over to the card.
     return html`<div class="actreply">
-        ${press ? html`<button class="chainreply" type="button" onClick=${press}
-            aria-expanded=${!open ? expanded : undefined}>${line}</button>` : html`<div class="chainreply">${line}</div>`}
+        ${open && onOpen ? html`<button class="chainreply" type="button" onClick=${() => onOpen({ ...record, role: "request" })}>${line}</button>`
+            : html`<div class="chainreply">${line}</div>`}
     </div>
-    ${detached && !open && expanded && html`<${ChainCard} item=${record} record=${record} />`}`;
+    ${card && !open && html`<${ChainCard} item=${record} record=${record} />`}`;
 }
 
 // Prose has a transcript anchor; tool asks can arrive before their tool
@@ -159,5 +157,7 @@ export function withActReplies(items, acts, waiting = [], tail = true) {
         else if (!markers.has(act.id)) rest.push({ ...item, actReply: true, actReplyID: act.id });
         else replies.set(act.id, [...(replies.get(act.id) || []), item.text]);
     }
-    return rest.map((item) => replies.has(item.id) ? { ...item, actReplies: replies.get(item.id) } : item);
+    const last = new Map(rest.map((item, i) => [item.actReplyID, i]));
+    return rest.map((item, i) => replies.has(item.id) ? { ...item, actReplies: replies.get(item.id) }
+        : item.actReply && last.get(item.actReplyID) === i ? { ...item, actReplyCard: true } : item);
 }

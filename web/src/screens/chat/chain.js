@@ -47,12 +47,9 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onT
     </article>`;
 }
 
+// Every step stands open: what it asked, its command, its output and note are
+// read in place, in an open chain and in a finished one alike.
 function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop, onTerm }) {
-    const [expanded, setExpanded] = useState(false);
-    const shown = current || expanded;
-    const toggle = (event) => {
-        if (!current && !event.target.closest("a")) setExpanded(!expanded);
-    };
     const running = output?.state === "running";
     const state = output?.state || (current ? "current" : "pending");
     const terminal = output?.term && actOpen(act) && onTerm
@@ -74,16 +71,13 @@ function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop
         ${canAnswer && onAnswer && !running && html`<${StepAnswer} key=${number} act=${act.id} step=${number} command=${Boolean(step.command)}
             onAnswer=${onAnswer} run=${onRun ? () => onRun(act.id, number) : null} />`}
     </div>`;
-    return html`<section class=${`chainstep ${state}${current ? " current" : ""}${expanded ? " expanded" : ""}`} data-step=${number}>
-        <div class="chainhead" onClick=${toggle}>
-            <button class=${`chainicon${running ? " spin" : ""}`} type="button" title=${current ? state : expanded ? "Collapse the step" : "Expand the step"}
-                aria-label=${`Step ${number}: ${state}`} aria-expanded=${Boolean(shown)} disabled=${current}>
-                ${running ? "" : state === "done" ? "✓" : state === "failed" ? "!" : state === "cant" ? "×" : current ? "●" : "○"}</button>
-            <div class="chainlead"><span class="chainwho">${number} · ${step.who}</span><div class="msg chaintext">${render(step.text)}</div>
-                ${!shown && resultOf(output) && html`<small class=${`chainresult ${state}`}>${resultOf(output)}</small>`}
-            </div>
+    return html`<section class=${`chainstep ${state}${current ? " current" : ""}`} data-step=${number}>
+        <div class="chainhead">
+            <span class=${`chainicon${running ? " spin" : ""}`} role="img" aria-label=${`Step ${number}: ${state}`}>
+                ${running ? "" : state === "done" ? "✓" : state === "failed" ? "!" : state === "cant" ? "×" : current ? "●" : "○"}</span>
+            <div class="chainlead"><span class="chainwho">${number} · ${step.who}</span><div class="msg chaintext">${render(step.text)}</div></div>
         </div>
-        ${shown && content}
+        ${content}
     </section>`;
 }
 
