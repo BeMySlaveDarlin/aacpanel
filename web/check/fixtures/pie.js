@@ -41,11 +41,21 @@ export async function settled() {
 // openPie opens the pie of a card through its contextmenu, and says whether
 // the menu of the browser was kept from it. It is open once it stands as a
 // layer and the focus is inside it.
+// A pie that does not come says which of the three is missing, so a run that
+// fails once on a slow runner is read from its log rather than guessed at.
 export async function openPie(card) {
     await settled();
     const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
     card.dispatchEvent(event);
-    await until(() => pie() && depth() > floor && pie().contains(document.activeElement), "the pie of the card");
+    try {
+        await until(() => pie() && depth() > floor && pie().contains(document.activeElement), "the pie of the card");
+    } catch (err) {
+        const focus = document.activeElement;
+        throw new Error(`${err.message}: drawn ${Boolean(pie())}, history depth ${depth()} over floor ${floor}, `
+            + `focus on ${focus ? `${focus.tagName.toLowerCase()}.${focus.className}` : "nothing"}`
+            + `${pie() && pie().contains(focus) ? " inside the pie" : ""}, card ${card.isConnected ? "on" : "off"} the page, `
+            + `menu ${event.defaultPrevented ? "kept" : "left to the browser"}`);
+    }
     return event.defaultPrevented;
 }
 
