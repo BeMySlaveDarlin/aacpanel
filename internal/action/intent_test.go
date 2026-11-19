@@ -8,10 +8,12 @@ import (
 	"aacpanel/internal/sessionintent"
 )
 
-func TestSessionIntentAcceptsOnlyItsTwoMessages(t *testing.T) {
+func TestSessionIntentAcceptsOnlyItsMessagesAndQuickPhrases(t *testing.T) {
 	for _, values := range []sessionintent.Values{
 		{"intent": "Queue"}, {"restartIntent": ""}, {"intent": "", "restartIntent": "Continue"},
 		{"intent": strings.Repeat("🙂", IntentMax)},
+		{"quick": ""}, {"quick": "Go on\n\nStatus"},
+		{"quick": strings.Repeat(strings.Repeat("🙂", 200)+"\n", 5)},
 	} {
 		if err := (Request{ID: "a1", Kind: SessionIntent, Target: "lead", Intents: values}).Validate(); err != nil {
 			t.Errorf("%v: %v", values, err)
@@ -23,6 +25,9 @@ func TestSessionIntentAcceptsOnlyItsTwoMessages(t *testing.T) {
 		{ID: "a1", Kind: SessionIntent, Target: "lead", Intents: sessionintent.Values{"model": "opus"}},
 		{ID: "a1", Kind: SessionIntent, Target: "lead", Intents: sessionintent.Values{"intent": "a\ab"}},
 		{ID: "a1", Kind: SessionIntent, Target: "lead", Intents: sessionintent.Values{"intent": strings.Repeat("é", IntentMax+1)}},
+		{ID: "a1", Kind: SessionIntent, Target: "lead", Intents: sessionintent.Values{"quick": strings.Repeat("go\n", 6)}},
+		{ID: "a1", Kind: SessionIntent, Target: "lead", Intents: sessionintent.Values{"quick": strings.Repeat("🙂", 201)}},
+		{ID: "a1", Kind: SessionIntent, Target: "lead", Intents: sessionintent.Values{"quick": "go\a"}},
 		{ID: "a1", Kind: SessionStop, Target: "lead", Intents: sessionintent.Values{"intent": ""}},
 		{Ask: AskIntent},
 		{Ask: AskIntent, Target: "lead", Intents: sessionintent.Values{"intent": ""}},

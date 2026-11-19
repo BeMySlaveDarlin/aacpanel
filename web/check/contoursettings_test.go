@@ -2,6 +2,7 @@ package check
 
 import (
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -14,35 +15,42 @@ import (
 // page with its draft kept underneath, a deletion taken back from it.
 func TestTheContourSettingsPage(t *testing.T) {
 	var got struct {
-		Rows           []string       `json:"rows"`
-		Tabs           []string       `json:"tabs"`
-		OpenTab        string         `json:"openTab"`
-		Groups         []string       `json:"groups"`
-		Raise          []string       `json:"raise"`
-		Files          string         `json:"files"`
-		PathInputs     []string       `json:"pathInputs"`
-		DeleteDisabled bool           `json:"deleteDisabled"`
-		AfterRaise     string         `json:"afterRaise"`
-		RcNote         string         `json:"rcNote"`
-		RaiseLeft      []string       `json:"raiseLeft"`
-		AfterDrag      string         `json:"afterDrag"`
-		OrderNow       []string       `json:"orderNow"`
-		OrderSays      string         `json:"orderSays"`
-		Saved          []string       `json:"saved"`
-		SheetOnSave    bool           `json:"sheetOnSave"`
-		Copies         []string       `json:"copies"`
-		UnpinSheet     string         `json:"unpinSheet"`
-		Unpin          map[string]any `json:"unpin"`
-		PageHidden     bool           `json:"pageHidden"`
-		Entries        []string       `json:"entries"`
-		Undo           bool           `json:"undo"`
-		BackToPage     bool           `json:"backToPage"`
-		Closed         int            `json:"closed"`
+		Rows                 []string       `json:"rows"`
+		Tabs                 []string       `json:"tabs"`
+		OpenTab              string         `json:"openTab"`
+		Groups               []string       `json:"groups"`
+		Raise                []string       `json:"raise"`
+		Files                string         `json:"files"`
+		PathInputs           []string       `json:"pathInputs"`
+		DeleteDisabled       bool           `json:"deleteDisabled"`
+		AfterRaise           string         `json:"afterRaise"`
+		RcNote               string         `json:"rcNote"`
+		RaiseLeft            []string       `json:"raiseLeft"`
+		AfterDrag            string         `json:"afterDrag"`
+		OrderNow             []string       `json:"orderNow"`
+		OrderSays            string         `json:"orderSays"`
+		Saved                []string       `json:"saved"`
+		SheetOnSave          bool           `json:"sheetOnSave"`
+		Copies               []string       `json:"copies"`
+		UnpinSheet           string         `json:"unpinSheet"`
+		Unpin                map[string]any `json:"unpin"`
+		PageHidden           bool           `json:"pageHidden"`
+		Entries              []string       `json:"entries"`
+		Undo                 bool           `json:"undo"`
+		BackToPage           bool           `json:"backToPage"`
+		Closed               int            `json:"closed"`
+		QuickInherited       string         `json:"quickInherited"`
+		QuickSet, QuickUnset map[string]any
 	}
 	runFixtureServing(t, "contoursettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	if len(got.Rows) != 15 || got.Rows[0] != "Revive after reboot" || got.Rows[1] != "Agent" || got.Rows[2] != "First message" || got.Rows[3] != "Questions to parent" || got.Rows[4] != "Wait for parent" || got.Rows[5] != "Model" {
+	if len(got.Rows) != 16 || got.Rows[0] != "Revive after reboot" || got.Rows[1] != "Agent" || got.Rows[2] != "First message" || got.Rows[3] != "Questions to parent" || got.Rows[4] != "Wait for parent" || got.Rows[5] != "Quick phrases" || got.Rows[6] != "Model" {
 		t.Errorf("the contour's rows are %v, meant the same parameters as a project with claude's tab open", got.Rows)
+	}
+	if got.QuickInherited != "AskUserQuestion Go on Status — the panel's default" ||
+		!reflect.DeepEqual(got.QuickSet, map[string]any{"launchSet": map[string]any{"quick": "Go on\nStatus"}}) ||
+		!reflect.DeepEqual(got.QuickUnset, map[string]any{"launchUnset": []any{"quick"}}) {
+		t.Errorf("the contour's quick phrases: inherited %q, set %v, unset %v", got.QuickInherited, got.QuickSet, got.QuickUnset)
 	}
 	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenTab != "Claude" {
 		t.Errorf("the tabs are %v with %q open, meant Claude and Codex with Claude open", got.Tabs, got.OpenTab)

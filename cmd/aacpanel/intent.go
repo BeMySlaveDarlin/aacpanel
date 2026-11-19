@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"aacpanel/internal/schema"
+	"aacpanel/internal/sessionintent"
 )
 
 // The executor reads only the session's own messages. The service adds the
@@ -50,7 +51,7 @@ func (s *Server) apiSessionIntent(w http.ResponseWriter, r *http.Request) {
 	}
 	inherited := []schema.Value{}
 	for _, v := range schema.Effective(nil, contour, project) {
-		if v.Key == "intent" || v.Key == "restartIntent" {
+		if v.Key == sessionintent.First || v.Key == sessionintent.Restart || v.Key == sessionintent.Quick {
 			inherited = append(inherited, v)
 		}
 	}

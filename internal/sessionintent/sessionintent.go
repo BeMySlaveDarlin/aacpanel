@@ -1,4 +1,4 @@
-// Package sessionintent keeps a session's opening messages beside its role,
+// Package sessionintent keeps a session's messages beside its role,
 // under the same account, repository and name. Empty messages inherit the map.
 package sessionintent
 
@@ -25,7 +25,7 @@ const First = "intent"
 const Restart = "restartIntent"
 
 // Values holds the session's own messages by their launch keys. A missing or
-// empty value inherits the map, so the two messages can be cleared separately.
+// empty value inherits the map, so each value can be cleared separately.
 type Values map[string]string
 
 // Pick leaves an inherited value intact when the session sets none.
@@ -47,7 +47,7 @@ type record struct {
 // account, repository and session-name key they share.
 func Dir() string { return sessionfile.Dir("intents") }
 
-// Updates of the two messages may arrive separately, so their read and write
+// Updates of individual values may arrive separately, so their read and write
 // share a lock in the executor that owns this store.
 var mu sync.Mutex
 
@@ -90,8 +90,14 @@ func Keep(dir string, p mcp.Place, name string, change Values) error {
 		return err
 	}
 	for key, value := range change {
-		if key != First && key != Restart {
+		if key != First && key != Restart && key != Quick {
 			return fmt.Errorf("unknown session message %q", key)
+		}
+		if key == Quick {
+			value, err = NormalizeQuick(value)
+			if err != nil {
+				return err
+			}
 		}
 		if value = strings.TrimSpace(value); value == "" {
 			delete(values, key)

@@ -41,6 +41,7 @@ const contourEff = [
     { key: "contextCap", value: 80, layer: "contour" },
     { key: "autoRestart", value: false, layer: "panel" },
     { key: "restartIntent", value: "Carry on", layer: "contour" },
+    { key: "quick", value: "Go on\nStatus", layer: "contour" },
     { key: "env", value: null, layer: "claude" },
     { key: "args", value: null, layer: "claude" },
     { key: "codexTransport", value: null, layer: "claude" },
@@ -405,6 +406,19 @@ window.done = mode === "revive" ? (async () => {
     await until(() => transfers.length === 2 && closed === 2);
     out.transfer = transfers[1];
     out.transferDone = done.length === 2 && done[1] === true;
+    out.quickInherited = text(row("Quick phrases").querySelector(".pzfrom"));
+    row("Quick phrases").querySelector(".pzadd").click();
+    await until(() => row("Quick phrases").querySelector("textarea"));
+    await typeInto(row("Quick phrases").querySelector("textarea"), "AskUserQuestion\nGo on\nStatus");
+    await until(() => row("Quick phrases").dataset.draft === "1" && bar() && !bar().querySelector(".btn.primary").disabled);
+    bar().querySelector(".btn.primary").click();
+    await until(() => patches.at(-1)?.launchSet?.quick === "AskUserQuestion\nGo on\nStatus" && !bar());
+    out.quickSet = patches.at(-1);
+    row("Quick phrases").querySelector(".pzback").click();
+    await until(() => bar() && !bar().querySelector(".btn.primary").disabled);
+    bar().querySelector(".btn.primary").click();
+    await until(() => patches.at(-1)?.launchUnset?.includes("quick") && !bar());
+    out.quickUnset = patches.at(-1);
     return out;
 })();
 </script>

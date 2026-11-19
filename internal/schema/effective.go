@@ -1,5 +1,7 @@
 package schema
 
+import "aacpanel/internal/sessionintent"
+
 // Layers an effective value comes from, weakest first.
 const (
 	// LayerClaude: nothing sets it, and the parameter's Unset says what
@@ -39,6 +41,16 @@ func Effective(account, contour, project map[string]any) []Value {
 			got, ok := layer.obj[p.Key]
 			if !ok {
 				continue
+			}
+			if p.Key == sessionintent.Quick {
+				if text, ok := got.(string); ok {
+					if normalized, err := sessionintent.NormalizeQuick(text); err == nil {
+						if normalized == "" {
+							continue
+						}
+						got = normalized
+					}
+				}
 			}
 			if p.Merge == MergeByKey {
 				v = mergeKeys(v, got, layer.name)

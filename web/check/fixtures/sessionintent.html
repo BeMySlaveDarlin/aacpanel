@@ -27,6 +27,7 @@ window.fetch = counted(async (url, init) => {
         return json({ own, inherited: [
             { key: "intent", value: "Read the queue", layer: "contour" },
             { key: "restartIntent", value: "Summary", layer: "project" },
+            { key: "quick", value: "AskUserQuestion\nGo on\nStatus", layer: "contour" },
         ] });
     }
     if (u.startsWith("/api/session/window")) return json({ state: "none" });
@@ -101,6 +102,25 @@ window.done = (async () => {
     out.cleared = field("restartIntent").value;
     out.restored = text(field("restartIntent").closest(".intentfield").querySelector(".inherited"));
     out.firstKept = field("intent").value;
+    out.quick = field("quick").value;
+    await type("quick", "Go on\n".repeat(6));
+    out.tooManyQuickOff = save().disabled;
+    await type("quick", "🙂".repeat(201));
+    out.longQuickOff = save().disabled;
+    await type("quick", ("🙂".repeat(200) + "\n").repeat(5));
+    out.fullQuickOff = save().disabled;
+    await type("quick", " \n\t");
+    out.blankQuickOff = save().disabled;
+    await type("quick", " Go on \n\n Status \n");
+    save().click();
+    await until(() => sent.length === 3 && !sheet(), "the quick phrases saved");
+    await open();
+    out.quickSaved = field("quick").value;
+    field("quick").closest(".intentfield").querySelector("button").click();
+    await until(() => field("quick").value === "" && !save().disabled, "the quick phrases cleared");
+    save().click();
+    await until(() => sent.length === 4 && !sheet(), "the quick phrases inherit again");
+    await open();
     [...sheet().querySelectorAll("button")].find((b) => text(b) === "Cancel").click();
     await until(() => !sheet(), "the sheet closed");
     reject = true;

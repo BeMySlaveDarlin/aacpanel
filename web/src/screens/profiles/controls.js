@@ -251,7 +251,8 @@ export function TextRow({ param, eff, mine, onSet }) {
         `;
     }
     return html`
-        <textarea class="search pztext" rows="2" spellcheck=${false} maxlength=${param.maxLen || undefined}
+        <textarea class="search pztext" rows=${param.key === "quick" ? 5 : 2} spellcheck=${false} maxlength=${param.maxLen || undefined}
+                  aria-label=${param.label}
                   placeholder=${outcome(param, eff)}
                   value=${text}
                   onInput=${(e) => onSet(e.target.value === "" ? null : e.target.value)}

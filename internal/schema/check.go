@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/sessionintent"
 )
 
 // Problem is a stored value the launch would not take, and why.
@@ -105,6 +106,12 @@ func checkOne(level Level, key string, value any) string {
 }
 
 func checkText(p Param, s string) string {
+	if p.Key == sessionintent.Quick {
+		if _, err := sessionintent.NormalizeQuick(s); err != nil {
+			return err.Error()
+		}
+		return ""
+	}
 	if p.MaxLen > 0 && len([]rune(s)) > p.MaxLen {
 		return fmt.Sprintf("longer than %d characters", p.MaxLen)
 	}

@@ -36,6 +36,12 @@ func validIntents(values sessionintent.Values) error {
 		return badRequest("the session messages did not arrive: an empty text clears one")
 	}
 	for key, text := range values {
+		if key == sessionintent.Quick {
+			if _, err := sessionintent.NormalizeQuick(text); err != nil {
+				return badRequest("%s", err)
+			}
+			continue
+		}
 		if key != sessionintent.First && key != sessionintent.Restart {
 			return badRequest("unknown session message %q", key)
 		}

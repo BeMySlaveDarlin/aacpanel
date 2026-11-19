@@ -11,6 +11,7 @@ import (
 	"slices"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/sessionintent"
 )
 
 // Kind is how a value is typed, and so how a screen edits it.
@@ -254,6 +255,13 @@ var params = []Param{
 		Levels: []Level{LevelContour, LevelProject}, Host: true,
 		Help:  "the first message of the session a restart brings up, automatic or asked for",
 		Unset: "the session comes back without a message and waits", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
+	},
+	{
+		Key: sessionintent.Quick, Label: "Quick phrases", Kind: KindText,
+		Levels: []Level{LevelContour, LevelProject}, Host: true, Default: sessionintent.DefaultQuick,
+		Help:  "up to five phrases, one per line, up to 200 characters each; blank lines are ignored and an empty list inherits",
+		Unset: "the panel's quick phrases", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{

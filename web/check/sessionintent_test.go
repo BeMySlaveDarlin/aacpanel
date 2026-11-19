@@ -14,9 +14,11 @@ func TestSessionMessageSheetOnPhoneAndDesktop(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			var got struct {
-				Labels, Inherited, Sent                                 []string
-				First, Restart, Cleared, Restored, FirstKept, ReadError string
-				SameOff, LongOff, AstralOff, ErrorOff, Confirmation     bool
+				Labels, Inherited, Sent                                    []string
+				First, Restart, Cleared, Restored, FirstKept, ReadError    string
+				SameOff, LongOff, AstralOff, ErrorOff, Confirmation        bool
+				Quick, QuickSaved                                          string
+				TooManyQuickOff, LongQuickOff, FullQuickOff, BlankQuickOff bool
 			}
 			if wide {
 				runWideFixture(t, "sessionintent.html", &got)
@@ -30,7 +32,7 @@ func TestSessionMessageSheetOnPhoneAndDesktop(t *testing.T) {
 			if got.First != "" || got.Restart != "Continue" || !got.SameOff {
 				t.Errorf("the sheet did not open with its overrides: %+v", got)
 			}
-			if strings.Join(got.Inherited, "|") != "From contour: Read the queue|From project: Summary" {
+			if strings.Join(got.Inherited, "|") != "From contour: Read the queue|From project: Summary|From contour: AskUserQuestion Go on Status" {
 				t.Errorf("the sheet lost the inherited values or sources: %v", got.Inherited)
 			}
 			if !got.LongOff || got.AstralOff || !got.ErrorOff || got.ReadError != "The messages could not be read" {
@@ -39,9 +41,14 @@ func TestSessionMessageSheetOnPhoneAndDesktop(t *testing.T) {
 			if got.Cleared != "" || got.Restored != "From project: Summary" || got.FirstKept != "Start with the plan" {
 				t.Errorf("clearing the restart message lost inheritance or the first message: %+v", got)
 			}
+			if got.Quick != "" || got.QuickSaved != "Go on\nStatus" || !got.TooManyQuickOff || !got.LongQuickOff || got.FullQuickOff || !got.BlankQuickOff {
+				t.Errorf("the quick phrases lost their limits, normalization or inheritance: %+v", got)
+			}
 			want := []string{
 				`session.intent:shop:{"intent":"Start with the plan"}`,
 				`session.intent:shop:{"restartIntent":""}`,
+				`session.intent:shop:{"quick":"Go on\nStatus"}`,
+				`session.intent:shop:{"quick":""}`,
 			}
 			if !slices.Equal(got.Sent, want) || got.Confirmation {
 				t.Errorf("sent %v, confirmation %v; want %v", got.Sent, got.Confirmation, want)

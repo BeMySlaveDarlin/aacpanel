@@ -3,6 +3,7 @@ package check
 import (
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -126,13 +127,20 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 		ClosedAfterRefusal     int            `json:"closedAfterRefusal"`
 		Transfer               map[string]any `json:"transfer"`
 		TransferDone           bool           `json:"transferDone"`
+		QuickInherited         string         `json:"quickInherited"`
+		QuickSet, QuickUnset   map[string]any
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	want := []string{"Revive after reboot", "Agent", "First message", "Questions to parent", "Wait for parent", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
+	want := []string{"Revive after reboot", "Agent", "First message", "Questions to parent", "Wait for parent", "Quick phrases", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
 		"Context cap", "Auto restart", "Message after a restart", "Environment", "Extra arguments"}
 	if strings.Join(got.Rows, "|") != strings.Join(want, "|") {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)
+	}
+	if got.QuickInherited != "Go on Status — the contour" ||
+		!reflect.DeepEqual(got.QuickSet, map[string]any{"launchSet": map[string]any{"quick": "AskUserQuestion\nGo on\nStatus"}}) ||
+		!reflect.DeepEqual(got.QuickUnset, map[string]any{"launchUnset": []any{"quick"}}) {
+		t.Errorf("the project's quick phrases: inherited %q, set %v, unset %v", got.QuickInherited, got.QuickSet, got.QuickUnset)
 	}
 	if got.ParentQuestionsOn != "true" || got.ParentWaitDefault != "5" || got.ParentWaitDraft != 8 {
 		t.Errorf("parent routing defaults or the minute field were lost: %q %q %d", got.ParentQuestionsOn, got.ParentWaitDefault, got.ParentWaitDraft)
@@ -266,7 +274,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenAtStart != "Codex" {
 		t.Errorf("the tabs are %v with %q open, meant Codex open — the agent the contour starts", got.Tabs, got.OpenAtStart)
 	}
-	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
+	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Quick phrases|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
 		t.Errorf("the rows are %v, meant %s", got.Rows, want)
 	}
 	if got.Soon != "New starts a thread in the codex daemon of the contour, with what is chosen below; "+
@@ -294,7 +302,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if got.ApprovalAfter != "what config.toml of the contour's codex home says" {
 		t.Errorf("with the stored never removed the approvals read %q", got.ApprovalAfter)
 	}
-	if len(got.ClaudeRows) != 15 || got.ClaudeRows[5] != "Model" || got.ClaudeRows[14] != "Extra arguments" {
+	if len(got.ClaudeRows) != 16 || got.ClaudeRows[6] != "Model" || got.ClaudeRows[15] != "Extra arguments" {
 		t.Errorf("the Claude tab's rows are %v", got.ClaudeRows)
 	}
 	if len(got.ClaudeDrafted) != 0 {

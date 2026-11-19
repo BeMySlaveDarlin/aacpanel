@@ -25,10 +25,10 @@ func TestSessionMessagesAreSavedWithoutSendingThem(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	set(sessionintent.Values{"intent": "Queue", "restartIntent": "Continue"})
+	set(sessionintent.Values{"intent": "Queue", "restartIntent": "Continue", "quick": " Go on \n\n Status "})
 	set(sessionintent.Values{"restartIntent": ""})
 	values, err := e.Intents(t.Context(), "demo")
-	if err != nil || values["intent"] != "Queue" || values["restartIntent"] != "" {
+	if err != nil || values["intent"] != "Queue" || values["restartIntent"] != "" || values["quick"] != "Go on\nStatus" {
 		t.Fatalf("the saved messages: %v, %v", values, err)
 	}
 	if len(f.asked()) != 0 {
@@ -41,7 +41,7 @@ func TestSessionMessagesAreSavedWithoutSendingThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	values, err = sessionintent.Read(sessionintent.Dir(), p, "pilot")
-	if err != nil || values["intent"] != "Queue" {
+	if err != nil || values["intent"] != "Queue" || values["quick"] != "Go on\nStatus" {
 		t.Fatalf("the renamed session lost its message: %v, %v", values, err)
 	}
 	if _, err := e.Intents(t.Context(), "gone"); err == nil {
@@ -181,7 +181,7 @@ func TestCodexSessionMessagesUseTheThreadsPlace(t *testing.T) {
 	srv, e := onCodex(t, nil)
 	place := mcp.Place{ConfigDir: srv.Home, Dir: "/srv/proj"}
 	r := req(action.SessionIntent, codexName)
-	r.Intents = sessionintent.Values{sessionintent.First: "Read the queue", sessionintent.Restart: "Continue the split"}
+	r.Intents = sessionintent.Values{sessionintent.First: "Read the queue", sessionintent.Restart: "Continue the split", sessionintent.Quick: " Go on \n\n Status "}
 	if _, err := e.Execute(t.Context(), r); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestCodexSessionMessagesUseTheThreadsPlace(t *testing.T) {
 		t.Fatalf("the saved messages: %v, %v", values, err)
 	}
 	got, err := e.Intents(t.Context(), codexName)
-	if err != nil || got[sessionintent.Restart] != values[sessionintent.Restart] {
+	if err != nil || got[sessionintent.Restart] != values[sessionintent.Restart] || got[sessionintent.Quick] != "Go on\nStatus" {
 		t.Fatalf("the sheet reads %v, %v", got, err)
 	}
 	r.Intents = sessionintent.Values{sessionintent.Restart: ""}
@@ -198,7 +198,7 @@ func TestCodexSessionMessagesUseTheThreadsPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err = e.Intents(t.Context(), codexName)
-	if err != nil || got[sessionintent.First] != "Read the queue" || got[sessionintent.Restart] != "" {
+	if err != nil || got[sessionintent.First] != "Read the queue" || got[sessionintent.Restart] != "" || got[sessionintent.Quick] != "Go on\nStatus" {
 		t.Fatalf("clearing one message lost the other: %v, %v", got, err)
 	}
 	if len(srv.Calls("turn/start")) != 0 {
