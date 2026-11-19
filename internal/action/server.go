@@ -407,7 +407,7 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		}
 		ctx, cancel := context.WithTimeout(ctx, s.timeout)
 		defer cancel()
-		verdict, err := asker.Question(ctx, req.Target, req.Conversation, req.Text)
+		verdict, err := asker.Question(ctx, req.Target, req.Conversation, req.Text, req.AlreadyAsked)
 		if err != nil {
 			return Failed(req.ID, err, 0)
 		}

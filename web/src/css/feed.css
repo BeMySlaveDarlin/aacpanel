@@ -205,7 +205,10 @@
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ink-dim);
-    flex: none;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .sentat { margin-left: auto; font-size: var(--t-xs); flex: none; }
 .sentcap { font-size: var(--t-md); line-height: 1.45; color: var(--ink); }

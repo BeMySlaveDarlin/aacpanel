@@ -13,7 +13,7 @@ import (
 const AskQuestion = "question"
 
 type QuestionAsker interface {
-	Question(ctx context.Context, target, conversation, text string) (question.Verdict, error)
+	Question(ctx context.Context, target, conversation, text string, alreadyAsked []string) (question.Verdict, error)
 }
 
 func validateQuestion(r Request) error {
@@ -23,11 +23,19 @@ func validateQuestion(r Request) error {
 	if len(r.History) != 0 || r.Part != "" {
 		return badRequest("question classification carries no history or settings screen")
 	}
+	if len(r.AlreadyAsked) > 12 {
+		return badRequest("question classification carries at most 12 open questions")
+	}
+	for _, text := range r.AlreadyAsked {
+		if len([]rune(text)) > 200 {
+			return badRequest("an open question carries at most 200 characters")
+		}
+	}
 	return nil
 }
 
-func (c *Client) Question(ctx context.Context, target, conversation, text string) (question.Verdict, error) {
-	resp, err := c.Do(ctx, Request{Ask: AskQuestion, Target: target, Conversation: conversation, Text: text})
+func (c *Client) Question(ctx context.Context, target, conversation, text string, alreadyAsked []string) (question.Verdict, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskQuestion, Target: target, Conversation: conversation, Text: text, AlreadyAsked: alreadyAsked})
 	if err != nil {
 		return question.Verdict{}, err
 	}

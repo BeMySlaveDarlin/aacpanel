@@ -21,7 +21,7 @@ import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { pauseEnd } from "../sessions/pause.js";
 import { savedAfter } from "../../data/secrets.js";
-import { ActMarker, ActReply } from "./actform.js";
+import { ActMarker, ActReply, AskCard } from "./actform.js";
 import { actOpen, ChainCard, isChain } from "./chain.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
@@ -94,6 +94,9 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
         return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
     }
     if (["request", "secret", "ask"].includes(item.role)) {
+        if (item.role === "ask" && act && !actOpen(act)) return html`
+            <${AskCard} item=${item} record=${act} />
+            ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
         if (item.role === "request" && isChain(act) && !actOpen(act)) return html`
             <${ChainCard} item=${item} record=${act} />
             ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;

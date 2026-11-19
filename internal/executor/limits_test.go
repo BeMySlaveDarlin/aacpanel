@@ -2,8 +2,10 @@ package executor
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -109,7 +111,7 @@ printf '%s' '{"result":"{\"questions\":[{\"question\":\"Publish?\",\"options\":[
 	}
 	t.Setenv(probeClaudeEnv, bin)
 	e, _ := newTest(t, "")
-	verdict, err := e.Question(t.Context(), "demo", senderSID, "Publish?")
+	verdict, err := e.Question(t.Context(), "demo", senderSID, "Publish?", []string{"Restart it?"})
 	if err != nil || verdict.What != "Publish?" || len(verdict.Questions) != 1 || len(verdict.Questions[0].Options) != 2 || verdict.Questions[0].Options[0].Label != "Publish" {
 		t.Fatalf("classification: %v %v", verdict, err)
 	}
@@ -117,7 +119,14 @@ printf '%s' '{"result":"{\"questions\":[{\"question\":\"Publish?\",\"options\":[
 	if err != nil || !strings.Contains(string(raw), "Publish?") {
 		t.Fatalf("wrong contour: %s %v", raw, err)
 	}
-	if _, err := e.Question(t.Context(), "demo", streamSID, "Publish?"); err == nil {
+	var input struct {
+		Message      string   `json:"assistant_message"`
+		AlreadyAsked []string `json:"already_asked"`
+	}
+	if err := json.Unmarshal(raw, &input); err != nil || input.Message != "Publish?" || !reflect.DeepEqual(input.AlreadyAsked, []string{"Restart it?"}) {
+		t.Fatalf("classifier input: %s %v", raw, err)
+	}
+	if _, err := e.Question(t.Context(), "demo", streamSID, "Publish?", nil); err == nil {
 		t.Fatal("a replacement conversation spent a call")
 	}
 }

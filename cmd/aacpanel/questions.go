@@ -254,7 +254,7 @@ func (s *Server) classifyTextQuestion(ctx context.Context, conversation, session
 	// A shortened message may have lost the very question we found. It
 	// cannot earn a negative verdict from the classifier.
 	if s.exec != nil && !card.Cut {
-		got, err := s.exec.Question(ctx, session, conversation, card.Text)
+		got, err := s.questionVerdict(ctx, session, conversation, card.Text)
 		if err == nil {
 			verdict = "no"
 			form = got
@@ -270,4 +270,12 @@ func (s *Server) classifyTextQuestion(ctx context.Context, conversation, session
 	if err := s.db.SetQuestionVerdict(save, conversation, session, card.BriefID, verdict, form); err != nil {
 		log.Printf("the question verdict was not kept: %v", err)
 	}
+}
+
+func (s *Server) questionVerdict(ctx context.Context, session, conversation, text string) (question.Verdict, error) {
+	alreadyAsked, err := s.db.OpenAskQuestions(ctx, conversation)
+	if err != nil {
+		return question.Verdict{}, err
+	}
+	return s.exec.Question(ctx, session, conversation, text, alreadyAsked)
 }

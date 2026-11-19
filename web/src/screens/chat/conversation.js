@@ -468,8 +468,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         settleWaiting(live, "secret", item.id || item.name);
         loadSecrets();
     };
-    const finishQuestion = (id) => {
-        setActs((was) => ({ ...was, [id]: { ...was[id], state: "answered", answered: new Date().toISOString() } }));
+    const finishQuestion = (id, answers) => {
+        setActs((was) => ({ ...was, [id]: { ...was[id], state: "answered", answered: new Date().toISOString(), answer: { answers } } }));
         settleWaiting(live, "question", id);
     };
     const form = !current ? null : current.kind === "asked"

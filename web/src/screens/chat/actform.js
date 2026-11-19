@@ -57,6 +57,30 @@ export function ActMarker({ item, record, onOpen }) {
     </div>`;
 }
 
+export function AskCard({ item, record }) {
+    const act = record || item;
+    const questions = act.questions || act.body?.questions || [];
+    const answers = act.answer?.answers;
+    const state = act.state === "withdrawn" ? "withdrawn" : act.state === "declined" ? "declined"
+        : answers?.length ? "answered" : "answered in chat";
+    // A tool ask names itself by its first question: printing it twice
+    // would read as two questions.
+    const title = act.what || act.body?.what || act.title;
+    const heading = questions.some((q) => q.question === title) ? "" : title;
+    return html`<article class="sent asked mquestion" data-act=${act.id}>
+        <div class="senthead"><span class="sentico">${Icon.ask()}</span>
+            <span class="sentlabel">question · ${state}</span>
+            <span class="sentat">${ago(act.created || item.at)}</span></div>
+        ${heading && html`<h3 class="requesttitle">${heading}</h3>`}
+        <div class="mflist">${questions.map((q, i) => html`<div class="mfile askedrow" key=${i}>
+            ${q.header && html`<span class="mftag">${q.header}</span>`}
+            <span class="askedq">${q.question}</span>
+            ${answers?.[i]?.picks?.length > 0 && html`<span class="askeda">${answers[i].picks.join(", ")}</span>`}
+            ${answers?.[i]?.text && html`<span class="pnmnote">${answers[i].text}</span>`}
+        </div>`)}</div>
+    </article>`;
+}
+
 export function ActReply({ text, record, onOpen, detached = false }) {
     const [expanded, setExpanded] = useState(false);
     if (record?.kind === "ask") return html`<div class="actreply">→ agent · answered</div>`;

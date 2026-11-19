@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -19,19 +20,23 @@ import (
 )
 
 type questionExecutor struct {
-	calls   atomic.Int32
-	yes     bool
-	failed  bool
-	action  string
-	started chan struct{}
-	release <-chan struct{}
+	calls        atomic.Int32
+	yes          bool
+	failed       bool
+	action       string
+	started      chan struct{}
+	release      <-chan struct{}
+	alreadyAsked []string
 }
 
 func (q *questionExecutor) Execute(context.Context, action.Request) (string, error) {
 	return "", errors.New("no actions")
 }
-func (q *questionExecutor) Question(ctx context.Context, target, conversation, text string) (question.Verdict, error) {
+func (q *questionExecutor) Question(ctx context.Context, target, conversation, text string, alreadyAsked []string) (question.Verdict, error) {
 	q.calls.Add(1)
+	if !slices.Equal(alreadyAsked, q.alreadyAsked) {
+		return question.Verdict{}, fmt.Errorf("open questions: %v; want %v", alreadyAsked, q.alreadyAsked)
+	}
 	if target != "sentinel" || conversation != requestConversation || text != "Publish? The checks passed." {
 		return question.Verdict{}, errors.New("wrong candidate")
 	}
@@ -56,6 +61,76 @@ func (q *questionExecutor) Question(ctx context.Context, target, conversation, t
 		v.What = "Publish?"
 	}
 	return v, nil
+}
+
+func TestBothClassifiersCarryOnlyOpenQuestionsOfTheirConversationPG(t *testing.T) {
+	for _, hook := range []bool{false, true} {
+		t.Run(fmt.Sprintf("hook=%v", hook), func(t *testing.T) {
+			p := newPollProbe(t, t.Context(), "classifier-open-questions")
+			pool, err := p.db.Pool()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
+				pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=ANY($1)", []string{requestConversation, "other-question-conversation"})
+			})
+			q := &questionExecutor{action: "Merge the change"}
+			path := socketPath(t, "open-questions.sock")
+			server := action.NewServer(path, q, time.Second)
+			ln, err := server.Listen()
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan struct{})
+			go func() { defer close(done); server.Run(ctx, ln) }()
+			t.Cleanup(func() { cancel(); <-done })
+			p.srv.exec = action.NewClient(path, time.Second)
+			classify := func(n int) {
+				t.Helper()
+				id := fmt.Sprintf("12345678-1234-1234-1234-%012d", n)
+				if hook {
+					if got, _ := turnRequest(t, p.srv, id, "Publish? The checks passed."); got != q.action {
+						t.Fatalf("hook verdict: %q", got)
+					}
+				} else {
+					p.srv.classifyTextQuestion(t.Context(), requestConversation, "sentinel", chat.Item{BriefID: id, Text: "Publish? The checks passed."})
+					verdicts, err := p.db.QuestionVerdicts(t.Context(), []string{requestConversation})
+					if err != nil || verdicts[requestConversation][id].Action != q.action {
+						t.Fatalf("fallback verdict: %+v %v", verdicts, err)
+					}
+				}
+			}
+			blocking := false
+			create := func(conversation, kind, source, text string) act.Record {
+				t.Helper()
+				body := act.Body{Steps: "Check the screen"}
+				if kind == "ask" {
+					body = act.Body{Source: source, Questions: []question.Question{{Question: text}}}
+				}
+				r, err := p.db.CreateAct(t.Context(), conversation, "sentinel", act.Input{Kind: kind, Title: "Choose the plan", Blocking: &blocking, Body: body})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return r
+			}
+			create("other-question-conversation", "ask", "tool", "Other conversation?")
+			create(requestConversation, "do", "", "")
+			closed := create(requestConversation, "ask", "prose", "Closed question?")
+			if err := p.db.WithdrawAct(t.Context(), requestConversation, "sentinel", closed.ID); err != nil {
+				t.Fatal(err)
+			}
+			classify(1)
+			create(requestConversation, "ask", "tool", "Which region?")
+			create(requestConversation, "ask", "prose", "Which window?")
+			q.alreadyAsked = []string{"Which region?", "Which window?"}
+			classify(2)
+			if q.calls.Load() != 2 {
+				t.Fatalf("classifier calls: %d", q.calls.Load())
+			}
+		})
+	}
 }
 
 func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
@@ -96,6 +171,10 @@ func TestTextQuestionsUseStoredVerdictsAndTheLiveChoicePG(t *testing.T) {
 	} {
 		card := chat.Item{Role: "question", BriefID: tc.name, Text: "Publish? The checks passed.", Title: "Asks in text", Pos: 42, Cut: tc.cut}
 		q.yes, q.failed = tc.yes, tc.failed
+		q.alreadyAsked, err = p.db.OpenAskQuestions(t.Context(), requestConversation)
+		if err != nil {
+			t.Fatal(err)
+		}
 		prefs := notify.Prefs{}
 		if tc.disabled {
 			prefs.CheckQuestions = &off

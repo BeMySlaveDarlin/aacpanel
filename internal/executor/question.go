@@ -13,7 +13,7 @@ import (
 // Question takes the contour from the live session, never a path supplied by
 // the service. The root of that contour is where the account wrapper selects
 // its credentials, as it does for the limits probe.
-func (e *Executor) Question(ctx context.Context, target, conversation, text string) (formquestion.Verdict, error) {
+func (e *Executor) Question(ctx context.Context, target, conversation, text string, alreadyAsked []string) (formquestion.Verdict, error) {
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return formquestion.Verdict{}, err
@@ -33,7 +33,7 @@ func (e *Executor) Question(ctx context.Context, target, conversation, text stri
 		if bin == "" {
 			bin = "claude"
 		}
-		return stream.ClassifyQuestion(ctx, bin, dir, text)
+		return stream.ClassifyQuestion(ctx, bin, dir, text, alreadyAsked)
 	}
 	return formquestion.Verdict{}, errors.New("the session's contour is not registered")
 }

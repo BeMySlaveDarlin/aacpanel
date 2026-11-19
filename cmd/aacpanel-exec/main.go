@@ -802,12 +802,12 @@ func startTerminals(ctx context.Context, socket string) (net.Listener, error) {
 	return ln, nil
 }
 
-func (a audited) Question(ctx context.Context, target, conversation, text string) (question.Verdict, error) {
+func (a audited) Question(ctx context.Context, target, conversation, text string, alreadyAsked []string) (question.Verdict, error) {
 	asker, ok := a.next.(action.QuestionAsker)
 	if !ok {
 		return question.Verdict{}, fmt.Errorf("this executor does not classify questions")
 	}
-	return asker.Question(ctx, target, conversation, text)
+	return asker.Question(ctx, target, conversation, text, alreadyAsked)
 }
 
 func (a audited) Opening(ctx context.Context, target, conversation string) (*action.Opening, error) {

@@ -15,9 +15,29 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/executor"
 	"aacpanel/internal/heavy"
+	"aacpanel/internal/question"
 )
 
 type heavyExec struct{ muteExec }
+
+type verdictExec struct{ muteExec }
+
+func (verdictExec) Question(_ context.Context, target, conversation, text string, asked []string) (question.Verdict, error) {
+	if target != "work" || conversation != "conversation" || text != "Publish?" || !reflect.DeepEqual(asked, []string{"Restart it?"}) {
+		return question.Verdict{}, errors.New("wrong classifier input")
+	}
+	return question.Verdict{What: "Publish?"}, nil
+}
+
+func TestAuditedForwardsOpenQuestionsToTheClassifier(t *testing.T) {
+	got, err := (audited{next: verdictExec{}}).Question(t.Context(), "work", "conversation", "Publish?", []string{"Restart it?"})
+	if err != nil || got.What != "Publish?" {
+		t.Fatalf("classifier verdict: %+v %v", got, err)
+	}
+	if _, err := (audited{next: muteExec{}}).Question(t.Context(), "work", "conversation", "Publish?", nil); err == nil {
+		t.Fatal("an unavailable classifier was accepted")
+	}
+}
 
 func (heavyExec) Heavy(context.Context) (*heavy.View, error) {
 	return &heavy.View{Slots: 2, Waiting: []heavy.WaitingView{{Place: 1, Session: "lab"}}}, nil

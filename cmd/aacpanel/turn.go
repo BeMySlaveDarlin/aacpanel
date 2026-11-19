@@ -52,7 +52,7 @@ func (s *Server) apiTurn(w http.ResponseWriter, r *http.Request) {
 		verdict := "error"
 		form := question.Verdict{Questions: []question.Question{}}
 		if s.exec != nil {
-			if got, err := s.exec.Question(ctx, live.Name, live.SessionID, body.Text); err == nil {
+			if got, err := s.questionVerdict(ctx, live.Name, live.SessionID, body.Text); err == nil {
 				form, verdict = got, "no"
 				if len(got.Questions) > 0 {
 					verdict = "yes"

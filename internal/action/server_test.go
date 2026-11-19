@@ -695,11 +695,14 @@ func TestNewAnswersWithTheSessionItBroughtUp(t *testing.T) {
 	}
 }
 
-type questionExec struct{ verdict question.Verdict }
+type questionExec struct {
+	verdict      question.Verdict
+	alreadyAsked []string
+}
 
 func (questionExec) Execute(context.Context, Request) (string, error) { return "", nil }
-func (e questionExec) Question(_ context.Context, target, conversation, text string) (question.Verdict, error) {
-	if target != "work" || conversation != "01234567-1234-4321-aaaa-123456789012" || text != "Publish or wait?" {
+func (e questionExec) Question(_ context.Context, target, conversation, text string, alreadyAsked []string) (question.Verdict, error) {
+	if target != "work" || conversation != "01234567-1234-4321-aaaa-123456789012" || text != "Publish or wait?" || !reflect.DeepEqual(alreadyAsked, e.alreadyAsked) {
 		return question.Verdict{}, errors.New("wrong question")
 	}
 	return e.verdict, nil
@@ -707,7 +710,7 @@ func (e questionExec) Question(_ context.Context, target, conversation, text str
 func TestTurnVerdictTravelsThroughTheExecutorSocket(t *testing.T) {
 	want := question.Verdict{What: "Publish or wait?", Action: "Merge the change", Questions: []question.Question{{Question: "Publish or wait?", Header: "Release", Options: []question.Option{{Label: "Publish"}, {Label: "Wait"}}}}}
 	client := serve(t, questionExec{verdict: want})
-	got, err := client.Question(t.Context(), "work", "01234567-1234-4321-aaaa-123456789012", "Publish or wait?")
+	got, err := client.Question(t.Context(), "work", "01234567-1234-4321-aaaa-123456789012", "Publish or wait?", nil)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("verdict: %+v, %v", got, err)
 	}
@@ -715,5 +718,10 @@ func TestTurnVerdictTravelsThroughTheExecutorSocket(t *testing.T) {
 	wire, err := json.Marshal(reply)
 	if err != nil || strings.Contains(string(wire), `"answers"`) || !strings.Contains(string(wire), `"questions"`) {
 		t.Fatalf("wire: %s, %v", wire, err)
+	}
+	asked := []string{"Restart it?", "Which region?"}
+	withOpen := serve(t, questionExec{verdict: want, alreadyAsked: asked})
+	if got, err := withOpen.Question(t.Context(), "work", "01234567-1234-4321-aaaa-123456789012", "Publish or wait?", asked); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("verdict with open questions: %+v, %v", got, err)
 	}
 }

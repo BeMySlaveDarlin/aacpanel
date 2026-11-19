@@ -52,7 +52,8 @@ type Request struct {
 
 	Permit *Permit `json:"permit,omitempty"`
 
-	Text string `json:"text,omitempty"`
+	Text         string   `json:"text,omitempty"`
+	AlreadyAsked []string `json:"already_asked,omitempty"`
 
 	Answer *Answer `json:"answer,omitempty"`
 

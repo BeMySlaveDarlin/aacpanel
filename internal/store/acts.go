@@ -65,6 +65,27 @@ func (s *Store) acts(ctx context.Context, conversations []string, open bool) ([]
 func (s *Store) OpenActs(ctx context.Context, conversations []string) ([]act.Record, error) {
 	return s.acts(ctx, conversations, true)
 }
+
+func (s *Store) OpenAskQuestions(ctx context.Context, conversation string) ([]string, error) {
+	rows, err := s.OpenActs(ctx, []string{conversation})
+	if err != nil {
+		return nil, err
+	}
+	var questions []string
+	for _, row := range rows {
+		if row.Kind != "ask" {
+			continue
+		}
+		for _, q := range row.Body.Questions {
+			questions = append(questions, question.Line(q.Question, 200))
+			if len(questions) == 12 {
+				return questions, nil
+			}
+		}
+	}
+	return questions, nil
+}
+
 func (s *Store) ActsOf(ctx context.Context, conversation string) ([]act.Record, error) {
 	return s.acts(ctx, []string{conversation}, false)
 }

@@ -3,6 +3,9 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +26,61 @@ func requestStore(t *testing.T) *Store {
 		t.Fatal(err)
 	}
 	return s
+}
+
+func TestOpenAskQuestionsStayInTheirConversationAndWithinBoundsPG(t *testing.T) {
+	s := requestStore(t)
+	const conversation = "open-ask-questions"
+	blocking := false
+	create := func(conv, kind, source string, questions []question.Question) act.Record {
+		t.Helper()
+		body := act.Body{Source: source, Questions: questions}
+		if kind == "do" {
+			body.Steps = "Check the screen"
+		}
+		r, err := s.CreateAct(t.Context(), conv, "work", act.Input{Kind: kind, Title: "Choose the plan", Blocking: &blocking,
+			Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	create("another-conversation", "ask", "tool", []question.Question{{Question: "Other conversation?"}})
+	create(conversation, "do", "", nil)
+	closed := create(conversation, "ask", "prose", []question.Question{{Question: "Closed question?"}})
+	pool, err := s.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, state := range []string{"answered", "declined", "withdrawn"} {
+		if _, err := pool.Exec(t.Context(), `UPDATE acts SET state=$2,closed_at=now() WHERE id=$1`, closed.ID, state); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := s.OpenAskQuestions(t.Context(), conversation); err != nil || len(got) != 0 {
+			t.Fatalf("closed questions (%s): %v %v", state, got, err)
+		}
+	}
+	var want []string
+	for i, source := range []string{"tool", "prose", "tool", "prose"} {
+		var questions []question.Question
+		for j := range 4 {
+			text := fmt.Sprintf("Question %d?", i*4+j)
+			questions = append(questions, question.Question{Question: text})
+			want = append(want, text)
+		}
+		r := create(conversation, "ask", source, questions)
+		if i == 0 {
+			long := strings.Repeat("é", 205)
+			if _, err := pool.Exec(t.Context(), `UPDATE acts SET body=jsonb_set(body,'{questions,0,question}',to_jsonb($2::text)) WHERE id=$1`, r.ID, long); err != nil {
+				t.Fatal(err)
+			}
+			want[0] = strings.Repeat("é", 200)
+		}
+	}
+	got, err := s.OpenAskQuestions(t.Context(), conversation)
+	if err != nil || !reflect.DeepEqual(got, want[:12]) {
+		t.Fatalf("open questions: %v %v; want %v", got, err, want[:12])
+	}
 }
 
 func TestRequestOwnershipAndAnswerPersistencePG(t *testing.T) {

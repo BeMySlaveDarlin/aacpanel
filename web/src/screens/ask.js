@@ -29,15 +29,17 @@ export function Ask(props) {
 export function ActAsk({ item, name, exec, onAnswered }) {
     const run = useAction();
     const questions = (item.questions || item.body?.questions || []).map((q) => ({ ...q, text: q.question }));
-    const send = (picks, texts, notes) => run("session.send", name, {
-        act: item.id,
-        answers: questions.map((q, n) => ({
+    const send = async (picks, texts, notes) => {
+        const answers = questions.map((q, n) => ({
             picks: picks[n].map((pick) => q.options[pick - 1].label),
             text: [texts[n].trim(), notes[n]].filter(Boolean).join("\n\n"),
-        })),
-    });
+        }));
+        const result = await run("session.send", name, { act: item.id, answers });
+        if (result.ok && onAnswered) onAnswered(item.id, answers);
+        return result;
+    };
     return html`<${Round} ask=${{ toolUseId: item.id, at: item.at, questions }} name=${name} exec=${exec}
-        onSend=${send} onAnswered=${onAnswered} />`;
+        onSend=${send} />`;
 }
 
 // askLabel names who asks over a question: its header for claude, and for

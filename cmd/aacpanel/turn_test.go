@@ -67,6 +67,10 @@ func TestTurnClaimsOneVerdictAndBlocksOnlyUnrecordedManualWorkPG(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q.yes, q.failed, q.action = tc.questions, tc.failed, tc.action
+			q.alreadyAsked, err = p.db.OpenAskQuestions(t.Context(), requestConversation)
+			if err != nil {
+				t.Fatal(err)
+			}
 			id := fmt.Sprintf("12345678-1234-1234-1234-%012d", i)
 			if tc.existing {
 				newPersonRequest(t, p.srv)
