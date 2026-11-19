@@ -341,6 +341,18 @@ window.done = (async () => {
     render(html`<${AskCard} item=${{}} record=${declined} />`, direct);
     out.askDeclined = direct.querySelector(".sentlabel")?.textContent === "question · declined"
         && !direct.querySelector(".actmarker, button, input, textarea");
+    render(null, direct); direct.remove();
+    // A question of the ask tool is put away from its own form: the session
+    // hears it, the card closes as declined, and nothing is answered for it.
+    const awayStart = sent.length;
+    const away = [...form().querySelectorAll(".askdrop")];
+    out.askPutAway = form().textContent.includes("Which regions should receive it?") && away.length === 1 && !away[0].disabled
+        && away[0].textContent.includes("the session hears that you will answer in the conversation");
+    away[0]?.click();
+    await until(() => sent.length === awayStart + 1 && count() === 0 && card(independent.id));
+    out.askPutAway = out.askPutAway && sent.at(-1).kind === "session.send"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: independent.id, answer: "decline" })
+        && card(independent.id)?.querySelector(".sentlabel").textContent === "question · declined" && !form();
     return out;
 })();
 </script>

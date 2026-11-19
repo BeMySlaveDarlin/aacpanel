@@ -156,6 +156,14 @@ func (r Record) ValidateAnswer(answer, note string, answers ...question.Answer) 
 		return errors.New("the note is longer than 2000 characters")
 	}
 	if r.Kind == "ask" {
+		// Put away, a question carries no answer: the person will answer in
+		// the conversation.
+		if answer == "decline" {
+			if len(answers) > 0 {
+				return errors.New("a question put away carries no answers")
+			}
+			return nil
+		}
 		return question.ValidateAnswers(r.Body.Questions, answers)
 	}
 	if r.Kind == "do" {
@@ -172,6 +180,13 @@ func (r Record) Reply(answer, note string, answers ...question.Answer) string {
 		who := "your ask"
 		if r.Body.Source == "prose" {
 			who = "the questions of your last message"
+		}
+		if answer == "decline" {
+			text := "The person put " + who + " (" + r.ID + ") away and will answer in the conversation:"
+			for i, q := range r.Body.Questions {
+				text += fmt.Sprintf("\n%d. %s", i+1, q.Question)
+			}
+			return text
 		}
 		text := "The person answered " + who + " (" + r.ID + "):"
 		for i, a := range answers {

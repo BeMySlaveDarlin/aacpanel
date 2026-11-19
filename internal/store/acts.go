@@ -141,7 +141,7 @@ func (a *ActAnswer) Finish(ctx context.Context, answer, note string, answers ...
 		state = "declined"
 	}
 	reply := act.Answer{Outcome: answer, Note: strings.TrimSpace(note), Answers: answers}
-	if a.Record.Kind == "ask" {
+	if a.Record.Kind == "ask" && answer != "decline" {
 		state, reply = "answered", act.Answer{Answers: answers}
 	} else if a.Record.Kind == "secret" {
 		reply.Outcome = ""

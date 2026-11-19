@@ -271,6 +271,34 @@ func TestSavingASecretSettlesOnlyItsOpenActsAcrossConversationsPG(t *testing.T) 
 	}
 }
 
+func TestAnAskPutAwayClosesDeclinedWithoutAnswersPG(t *testing.T) {
+	s := requestStore(t)
+	blocking := false
+	row, err := s.CreateAct(t.Context(), "act-ask-away", "work", act.Input{Kind: "ask", Title: "Who fixes it?", Blocking: &blocking,
+		Body: act.Body{Source: "tool", Questions: []question.Question{{Question: "Who fixes it?", Options: []question.Option{{Label: "Max"}}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, err := s.LockAct(t.Context(), row.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A failed finish must not leave the row locked for the tests after it.
+	t.Cleanup(func() { lease.Close(context.Background()) })
+	if err := lease.Finish(t.Context(), "decline", ""); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.ActsOf(t.Context(), "act-ask-away")
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("acts: %+v %v", rows, err)
+	}
+	got := rows[0]
+	if got.State != "declined" || got.Closed == nil || got.AnsweredBy != "person" || got.Answer == nil ||
+		got.Answer.Outcome != "decline" || len(got.Answer.Answers) != 0 {
+		t.Fatalf("the question put away: %+v %+v", got, got.Answer)
+	}
+}
+
 func TestQuestionActsFollowTheVerdictAndTheActualAnswerPG(t *testing.T) {
 	s := requestStore(t)
 	conv := "act-question-lifecycle"

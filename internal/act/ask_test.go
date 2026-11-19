@@ -38,3 +38,22 @@ func TestAskRequiresTheWholeAnswerAndBuildsOneLetter(t *testing.T) {
 		t.Fatalf("tool letter: %q", got)
 	}
 }
+
+// A question put away carries no answer and tells the session it will be
+// answered in the conversation, naming each question.
+func TestAnAskPutAwayCarriesNoAnswerAndNamesItsQuestions(t *testing.T) {
+	row := Record{ID: strings.Repeat("b", 32), Kind: "ask", Body: Body{Source: "tool", Questions: []question.Question{
+		{Question: "Who fixes it?", Options: []question.Option{{Label: "Max"}, {Label: "infra"}}},
+		{Question: "When?"},
+	}}}
+	if err := row.ValidateAnswer("decline", ""); err != nil {
+		t.Fatalf("a question put away is refused: %v", err)
+	}
+	if err := row.ValidateAnswer("decline", "", question.Answer{Picks: []string{"Max"}}, question.Answer{Text: "now"}); err == nil {
+		t.Error("a question put away went with answers")
+	}
+	want := "The person put your ask (" + row.ID + ") away and will answer in the conversation:\n1. Who fixes it?\n2. When?"
+	if got := row.Reply("decline", ""); got != want {
+		t.Fatalf("letter: %q, want %q", got, want)
+	}
+}

@@ -483,8 +483,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         settleWaiting(live, "secret", item.id || item.name);
         loadSecrets();
     };
-    const finishQuestion = (id, answers) => {
-        setActs((was) => ({ ...was, [id]: { ...was[id], state: "answered", answered: new Date().toISOString(), answer: { answers } } }));
+    // A question put away closes declined, with no answers.
+    const finishQuestion = (id, answers, state = "answered") => {
+        const answer = state === "declined" ? { outcome: "decline" } : { answers };
+        setActs((was) => ({ ...was, [id]: { ...was[id], state, answered: new Date().toISOString(), answer } }));
         settleWaiting(live, "question", id);
     };
     const form = !current ? null : current.kind === "asked"

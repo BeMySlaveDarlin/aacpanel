@@ -38,8 +38,15 @@ export function ActAsk({ item, name, exec, onAnswered }) {
         if (result.ok && onAnswered) onAnswered(item.id, answers);
         return result;
     };
+    // Put away, the question closes and the session hears that the answer
+    // comes in the conversation.
+    const drop = async () => {
+        const result = await run("session.send", name, { act: item.id, answer: "decline" });
+        if (result.ok && onAnswered) onAnswered(item.id, [], "declined");
+        return result;
+    };
     return html`<${Round} ask=${{ toolUseId: item.id, at: item.at, questions }} name=${name} exec=${exec}
-        onSend=${send} />`;
+        onSend=${send} onDrop=${drop} />`;
 }
 
 // askLabel names who asks over a question: its header for claude, and for
@@ -128,7 +135,7 @@ function blankAnswer(questions) {
 //
 // field says the message field under the form dismisses the question with the
 // words typed into it: a second way to dismiss it in the form is not drawn.
-function Round({ ask, name, exec, stream, codex, field = false, onSend, onAnswered }) {
+function Round({ ask, name, exec, stream, codex, field = false, onSend, onDrop, onAnswered }) {
     const run = useAction();
     const [step, setStep] = useState(0);
     const [review, setReview] = useState(false);
@@ -172,14 +179,14 @@ function Round({ ask, name, exec, stream, codex, field = false, onSend, onAnswer
         ? "the question came without an id — there is nothing to match it against on the host"
         : whyNot(exec, action);
 
-    const dropReady = Boolean(id) && (goesOn ? knows(exec, "session.send") : knows(exec, "session.dismiss"));
+    const dropReady = Boolean(id) && (onDrop || goesOn ? knows(exec, "session.send") : knows(exec, "session.dismiss"));
     const dropWhy = !id
         ? "the question came without an id — there is nothing to match it against on the host"
-        : goesOn ? whyNot(exec, "session.send") : whyNot(exec, "session.dismiss");
+        : onDrop || goesOn ? whyNot(exec, "session.send") : whyNot(exec, "session.dismiss");
 
     const ownReady = ready && dropReady;
 
-    const dropBlocked = !proto && (questions[0].options || []).some((o) => o.preview)
+    const dropBlocked = !onDrop && !proto && (questions[0].options || []).some((o) => o.preview)
         ? "the options have previews, and in that layout the “discuss” item is drawn without a number"
         : "";
 
@@ -235,8 +242,8 @@ function Round({ ask, name, exec, stream, codex, field = false, onSend, onAnswer
         if (!dropReady || dropBlocked || !begin()) return;
         setFail("");
         const text = goesOn ? asyncPutAway(questions) : "";
-        const result = goesOn
-            ? await run("session.send", name, { text, asked: id })
+        const result = onDrop ? await onDrop()
+            : goesOn ? await run("session.send", name, { text, asked: id })
             : await run("session.dismiss", name, { ask: id });
         end();
         if (!result.ok) {
@@ -335,9 +342,10 @@ function Round({ ask, name, exec, stream, codex, field = false, onSend, onAnswer
                         disabled=${sending} onInput=${(e) => setNote(n, e.target.value)}></textarea>`}
                 </div>`;
             })}
-            ${!field && !onSend && html`<button class="askdrop" type="button" disabled=${!dropReady || Boolean(dropBlocked) || sending} onClick=${drop}>
+            ${!field && (!onSend || onDrop) && html`<button class="askdrop" type="button" disabled=${!dropReady || Boolean(dropBlocked) || sending} onClick=${drop}>
                 <span class="askdropname">Dismiss the question and discuss</span>
-                <span class="askdropwhy">${dropBlocked || (!dropReady ? dropWhy : goesOn ? "codex hears that you will answer in the conversation" : "the session will wait for an ordinary message")}</span>
+                <span class="askdropwhy">${dropBlocked || (!dropReady ? dropWhy : onDrop ? "the session hears that you will answer in the conversation"
+                    : goesOn ? "codex hears that you will answer in the conversation" : "the session will wait for an ordinary message")}</span>
             </button>`}
             ${fail && html`<p class="askfail">${fail}</p>`}
             ${(!instant || writing >= 0) && html`<div class="askfoot">
