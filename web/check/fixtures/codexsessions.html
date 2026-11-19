@@ -197,7 +197,7 @@ window.done = (async () => {
     out.deskAgent = agentOf(deskRow.querySelector(".scagent"));
     // At a desk the actions of a card are its pie, opened by a right click.
     await quiet();
-    underPies();
+    await underPies(1);
     await openPie(deskRow);
     out.deskActs = ring().map((it) => ({ label: it.label, tip: it.why }));
     await closePie();
@@ -214,7 +214,7 @@ window.done = (async () => {
     out.phoneAgents = phoneRows.map((r) => agentOf(r.querySelector(".scagent")));
     out.phoneButtons = phoneRow.querySelectorAll(".scact").length;
     await quiet();
-    underPies();
+    await underPies(1);
     await openPie(phoneRow);
     out.phoneActions = ring();
     out.phoneClose = await said("close");

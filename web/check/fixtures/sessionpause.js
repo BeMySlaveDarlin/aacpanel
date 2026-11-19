@@ -77,7 +77,7 @@ export async function sessionPause() {
             </div><div class="chatfeed pausefeed">${messages.map((item) => html`<${Row} key=${item.pos} item=${item} />`)}</div>`}
         <//><//><//><//>`, mount);
         await quiet();
-        underPies();
+        await underPies(chat ? 1 : 0);
     };
     const slider = () => pie()?.querySelector('[role="slider"]');
     const apply = () => pie().querySelector(".pauseapply");

@@ -39,7 +39,7 @@ export async function quickCommands({ show, live, sent, messages }) {
     try {
         show(live);
         await until(() => chip() && document.querySelector("textarea"), "the composer");
-        underPies();
+        await underPies(1);
         const area = document.querySelector("textarea");
         area.value = "Keep this draft";
         area.dispatchEvent(new Event("input", { bubbles: true }));

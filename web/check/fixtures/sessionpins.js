@@ -162,7 +162,7 @@ export async function sessionPins(phoneOnly = false) {
     };
     try {
         await paint();
-        underPies();
+        await underPies(0);
         const out = { before: read() };
         await phonePin("thread");
         out.pinning = read();

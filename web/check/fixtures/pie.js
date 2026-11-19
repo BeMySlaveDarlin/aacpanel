@@ -26,10 +26,18 @@ export async function until(ok, what = "the pie", ms = 4000) {
 const depth = () => (history.state && history.state.overlay ? Number(history.state.depth) || 1 : 0);
 let floor = 0;
 
-// underPies takes the layers the history stands on now for the floor under
-// the pies the page opens next: called once the page has come to rest.
-export function underPies() {
-    floor = depth();
+// underPies takes the layers the page holds open for the floor under the pies
+// it opens next, once the history stands on them. The page names the number:
+// a layer that went a moment ago leaves its step back on the way, and until it
+// lands the history still counts it, so a floor read off the history then
+// stands a layer too high and no pie after it is ever seen to open.
+export async function underPies(layers) {
+    try {
+        await until(() => depth() === layers, `the history on ${layers} ${layers === 1 ? "layer" : "layers"}`);
+    } catch (err) {
+        throw new Error(`${err.message}: it stands on ${depth()}`);
+    }
+    floor = layers;
 }
 
 // settled waits for the pie to go and for the history to stand where it
