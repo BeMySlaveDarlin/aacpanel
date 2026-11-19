@@ -31,8 +31,8 @@ func TestBriefAtADeskCanSendItsAnswers(t *testing.T) {
 	if got.After.SendDisabled {
 		t.Errorf("an answered brief still cannot be sent, and the dock says: %q", got.After.Say)
 	}
-	if got.Sent != "lab" {
-		t.Errorf("the answers went to %q, not into the session that wrote the brief", got.Sent)
+	if got.Sent != "/api/briefs/at-the-desk/send" {
+		t.Errorf("the decisions went to %q, not through the brief's send endpoint", got.Sent)
 	}
 }
 

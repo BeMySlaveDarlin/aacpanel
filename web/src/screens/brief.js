@@ -9,6 +9,7 @@ import { BackHead, useBackClose } from "../ui/back.js";
 import { Sheet } from "../ui/sheet.js";
 import { drop, markSent, one, saveDraft } from "../data/briefs.js";
 import { useToast } from "../ui/toasts.js";
+import { BriefDecisions } from "./briefdecisions.js";
 
 // How long after the last keystroke the draft goes to the panel. Short enough
 // that a phone put down mid-sentence keeps the sentence, long enough not to
@@ -158,7 +159,7 @@ function Question({ q, answer, onAnswer, locked }) {
     `;
 }
 
-export function Brief({ id, snapshot, exec, onBack, onSession }) {
+export function Brief({ id, snapshot, exec, onBack, onSession, embedded, onOpen }) {
     // A layer of its own when it is opened over a conversation: the gesture
     // puts the document down and leaves the run behind it. On the shelf, where
     // the page itself holds the gesture, there is no onBack of this kind.
@@ -167,6 +168,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     const run = useAction();
     const [doc, setDoc] = useState(null);
     const [answers, setAnswers] = useState({});
+    const [draft, setDraft] = useState(null);
     const [reply, setReply] = useState("");
     const [sentAt, setSentAt] = useState(null);
     // The guard the save path reads: a callback made before the send would
@@ -197,6 +199,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
             .then((body) => {
                 if (gone) return;
                 setDoc(body.brief);
+                setDraft(body.draft);
                 setAnswers((body.draft && body.draft.answers) || {});
                 setReply(body.reply || "");
                 setSentAt((body.draft && body.draft.sentAt) || null);
@@ -330,6 +333,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     `;
 
     if (error) {
+        if (embedded) return html`<p class="bdecision-error" role="alert">${error}</p>`;
         return html`
             <div class="brief">
                 ${head("")}
@@ -338,6 +342,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
         `;
     }
     if (!doc) {
+        if (embedded) return html`<p class="hint">Opening brief…</p>`;
         return html`
             <div class="brief">
                 ${head("")}
@@ -345,6 +350,12 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
             </div>
         `;
     }
+
+    if (Array.isArray(doc.decisions)) return html`<${BriefDecisions} key=${id} doc=${doc} draft=${draft}
+        embedded=${embedded} onBack=${onBack} onSent=${() => onSession && onSession(name)}
+        onRemove=${!embedded && onBack ? remove : null} dropping=${dropping} />`;
+    if (embedded) return html`<button class="actbrief" type="button" onClick=${() => onOpen && onOpen(id)}>
+        Brief · ${asking.length} questions · Open</button>`;
 
     return html`
         <div class="brief">

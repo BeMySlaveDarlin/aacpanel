@@ -57,6 +57,11 @@ export async function markSent(id) {
     return body(r, "the mark was not saved");
 }
 
+export async function sendDecisions(id) {
+    const r = await fetch(`/api/briefs/${encodeURIComponent(id)}/send`, { method: "POST" });
+    return body(r, "the decisions were not sent");
+}
+
 // drop takes a brief off the shelf of the host, and the answers with it.
 export async function drop(id) {
     const r = await fetch(`/api/briefs/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -70,10 +75,11 @@ export async function drop(id) {
 export function state(card) {
     if (!card) return { word: "", tone: "", share: 0 };
     if (card.sent) return { word: "sent", tone: "sent", share: 1 };
-    if (!card.questions) return { word: "to read", tone: "read", share: 0 };
-    const of = `${card.answered || 0} of ${card.questions}`;
-    if ((card.answered || 0) >= card.questions) return { word: of, tone: "ready", share: 1 };
-    if ((card.answered || 0) > 0) return { word: of, tone: "part", share: (card.answered || 0) / card.questions };
+    const total = card.decisions || card.questions;
+    if (!total) return { word: "to read", tone: "read", share: 0 };
+    const of = `${card.answered || 0} of ${total}${card.decisions ? " decided" : ""}`;
+    if ((card.answered || 0) >= total) return { word: of, tone: "ready", share: 1 };
+    if ((card.answered || 0) > 0) return { word: of, tone: "part", share: (card.answered || 0) / total };
     return { word: of, tone: "fresh", share: 0 };
 }
 

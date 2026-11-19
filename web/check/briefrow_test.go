@@ -7,17 +7,38 @@ import (
 
 type briefRowShot struct {
 	Before struct {
-		Titles []string `json:"titles"`
-		Descs  []string `json:"descs"`
-		Metas  []string `json:"metas"`
-		Tags   []string `json:"tags"`
-		Icons  int      `json:"icons"`
+		Titles         []string `json:"titles"`
+		Descs          []string `json:"descs"`
+		Metas          []string `json:"metas"`
+		Tags           []string `json:"tags"`
+		Icons          int      `json:"icons"`
+		Marker         string   `json:"marker"`
+		Decided        string   `json:"decided"`
+		DecisionTitles []string `json:"decisionTitles"`
+		TailRejected   bool     `json:"tailRejected"`
 	} `json:"before"`
 	Opened  []string `json:"opened"`
 	Nowhere struct {
 		Tag  string `json:"tag"`
 		Dead bool   `json:"dead"`
 	} `json:"nowhere"`
+}
+
+func TestBriefDecisionsLeaveAMarkerAndTheChoicesInTheFeed(t *testing.T) {
+	var got briefRowShot
+	runFixture(t, "briefrow.html", &got)
+	if !strings.Contains(got.Before.Marker, `Search "plan"`) || !strings.Contains(got.Before.Marker, "3 decisions · yours · below") {
+		t.Errorf("the marker lost the brief or its state: %q", got.Before.Marker)
+	}
+	if len(got.Before.DecisionTitles) != 3 || got.Before.DecisionTitles[0] != "Search index: where it lives" {
+		t.Errorf("the decision title was split at its colon: %q", got.Before.DecisionTitles)
+	}
+	if !got.Before.TailRejected {
+		t.Error("the picked line accepted text beyond the recommendation suffix")
+	}
+	if got.Before.Decided != "decided: Column on products, Compare results, Watch latency" {
+		t.Errorf("the reply did not show the choices: %q", got.Before.Decided)
+	}
 }
 
 // A session that published a brief said so in a sentence that scrolls away with

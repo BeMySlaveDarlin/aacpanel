@@ -157,6 +157,57 @@ function brief(text) {
     };
 }
 
+const DECIDED = /^The person decided brief ("(?:[^"\\\n]|\\.)*") \(([a-z0-9][a-z0-9-]{0,63})\): (\d+) of (\d+) decided\.(?:\n|$)/;
+const DECISION = /^(\d+)\. (.+)$/;
+const DECISION_PICK = /^ {3}picked: (.+) \((recommended|changed; recommended: (.+))\)$/;
+
+function decisions(text) {
+    const head = DECIDED.exec(text);
+    if (!head) return null;
+    const rows = [];
+    let note = "";
+    let general = false;
+    for (const line of text.slice(head[0].length).split("\n")) {
+        if (general) {
+            note += `\n${line}`;
+            continue;
+        }
+        if (line.startsWith("Note: ")) {
+            if (!rows.length || rows.at(-1).none === null) return null;
+            note = line.slice(6);
+            general = true;
+            continue;
+        }
+        const row = DECISION.exec(line);
+        if (row) {
+            if ((rows.length && rows.at(-1).none === null) || Number(row[1]) !== rows.length + 1) return null;
+            rows.push({ n: row[1], title: row[2], picks: [], none: null, note: "" });
+            continue;
+        }
+        const last = rows.at(-1);
+        if (!last) return null;
+        if (last.none === null) {
+            const pick = DECISION_PICK.exec(line);
+            if (pick) {
+                last.picks = [{ label: pick[1] }];
+                last.none = false;
+                last.recommended = pick[2] === "recommended";
+                last.recommendation = pick[3] || pick[1];
+            } else if (line === "   no answer") last.none = true;
+            else return null;
+            continue;
+        }
+        if (line.startsWith(NOTE) && !last.note) last.note = line.slice(NOTE.length);
+        else if (last.note) last.note += `\n${line}`;
+        else return null;
+    }
+    const done = Number(head[3]);
+    const total = Number(head[4]);
+    if (!done || rows.length !== total || rows.some((row) => row.none === null) || rows.filter((row) => !row.none).length !== done) return null;
+    return { kind: "brief", decisions: true, title: unquote(head[1]), id: head[2], answered: done, total,
+        skipped: 0, none: total - done, rows, note };
+}
+
 // A question codex asked without waiting is answered in the sheet a question
 // of claude's is answered in, and nothing in codex's protocol takes the
 // answer: it goes as a message of the person, in words codex reads as the
@@ -248,6 +299,7 @@ export function panelSaid(text) {
     }
     if (said.startsWith('The secret "')) return secret(said);
     if (said.startsWith('Brief "')) return brief(said);
+    if (said.startsWith('The person decided brief "')) return decisions(said);
     if (said.startsWith("A reading of this branch ")) return reading(said);
     if (said.startsWith("The person answered your request “")) return request(said);
     if (said.startsWith("The answer") || said.startsWith("I put your ")) return asked(said);

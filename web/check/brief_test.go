@@ -1,6 +1,7 @@
 package check
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -62,10 +63,119 @@ type briefShot struct {
 		Removed bool     `json:"removed"`
 		Left    int      `json:"left"`
 	} `json:"reading"`
-	Exit struct {
+	Decisions decisionsShot `json:"decisions"`
+	Exit      struct {
 		There bool `json:"there"`
 		Left  int  `json:"left"`
 	} `json:"exit"`
+}
+
+type decisionAnswer struct {
+	Picks []string `json:"picks"`
+	Note  string   `json:"note"`
+}
+
+type decisionDraft struct {
+	Decisions map[string]decisionAnswer `json:"decisions"`
+	Note      string                    `json:"note"`
+}
+
+type decisionsShot struct {
+	Before struct {
+		Task          string   `json:"task"`
+		ContextClosed bool     `json:"contextClosed"`
+		Markdown      bool     `json:"markdown"`
+		Accept        string   `json:"accept"`
+		Progress      string   `json:"progress"`
+		Multi         int      `json:"multi"`
+		Costs         int      `json:"costs"`
+		Hours         []string `json:"hours"`
+	} `json:"before"`
+	Accepted  decisionDraft `json:"accepted"`
+	Changed   decisionDraft `json:"changed"`
+	Final     decisionDraft `json:"final"`
+	Collapsed int           `json:"collapsed"`
+	Rounding  string        `json:"rounding"`
+	Calls     []struct {
+		Method string `json:"method"`
+		URL    string `json:"url"`
+	} `json:"calls"`
+	Sending bool `json:"sending"`
+	Locked  struct {
+		Changes  int  `json:"changes"`
+		Fields   int  `json:"fields"`
+		Disabled bool `json:"disabled"`
+		Sent     int  `json:"sent"`
+	} `json:"locked"`
+	State struct {
+		Word string `json:"word"`
+	} `json:"state"`
+	SentState struct {
+		Word string `json:"word"`
+	} `json:"sentState"`
+	Reopened bool `json:"reopened"`
+	Refused  struct {
+		Error   string `json:"error"`
+		Sends   int    `json:"sends"`
+		Retried int    `json:"retried"`
+	} `json:"refused"`
+	Raced []string `json:"raced"`
+}
+
+func TestBriefDecisionsShowTheTaskAndChooseOnlyUnresolvedRecommendations(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+	d := got.Decisions
+	if !strings.Contains(d.Before.Task, "Move search from the cluster to Postgres.") || !strings.Contains(d.Before.Task, "half the bill") ||
+		!d.Before.ContextClosed || !d.Before.Markdown || d.Before.Multi != 3 || d.Before.Costs != 5 {
+		t.Errorf("the task, context or options are incomplete: %+v", d.Before)
+	}
+	if d.Before.Accept != "Accept recommended · 2" || d.Before.Progress != "1 of 3 decided" {
+		t.Errorf("the form does not count only unresolved decisions: %+v", d.Before)
+	}
+	for id, want := range map[string][]string{"index": {"B"}, "checks": {"A", "C"}, "3": {"B"}} {
+		if !reflect.DeepEqual(d.Accepted.Decisions[id].Picks, want) {
+			t.Errorf("decision %s got %v, want %v", id, d.Accepted.Decisions[id].Picks, want)
+		}
+	}
+	if d.Collapsed != 3 || d.Rounding != "≈ 6.2 h" {
+		t.Errorf("the chosen decisions did not fold or hours did not round: %+v", d)
+	}
+	if d.State.Word != "2 of 3 decided" || d.SentState.Word != "sent" {
+		t.Errorf("the shelf states read %q and %q", d.State.Word, d.SentState.Word)
+	}
+}
+
+func TestBriefDecisionsKeepChangesAndNotesAndSendOnce(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+	d := got.Decisions
+	if !reflect.DeepEqual(d.Changed.Decisions["index"].Picks, []string{"A"}) || d.Changed.Decisions["index"].Note != "Keep a fallback" ||
+		!reflect.DeepEqual(d.Changed.Decisions["checks"].Picks, []string{"A", "C"}) {
+		t.Errorf("change lost a pick, a note or another decision: %+v", d.Changed)
+	}
+	if d.Final.Note != "Switch after the measurement" || d.Final.Decisions["index"].Note != "Keep a fallback" {
+		t.Errorf("the send lost a note: %+v", d.Final)
+	}
+	sends := 0
+	for i, call := range d.Calls {
+		if call.Method != "POST" {
+			continue
+		}
+		sends++
+		if call.URL != "/api/briefs/search-plan/send" || i == 0 || d.Calls[i-1].Method != "PUT" {
+			t.Errorf("the send did not follow saving the draft: %+v", d.Calls)
+		}
+	}
+	if sends != 1 || !d.Sending || !d.Locked.Disabled || d.Locked.Sent != 1 || d.Locked.Changes != 0 || d.Locked.Fields != 0 || !d.Reopened {
+		t.Errorf("the sent form can still change or send: sends=%d, locked=%+v, reopened=%v", sends, d.Locked, d.Reopened)
+	}
+	if d.Refused.Error != "The draft was refused" || d.Refused.Sends != 0 || d.Refused.Retried != 1 {
+		t.Errorf("a failed save was hidden, sent or could not retry: %+v", d.Refused)
+	}
+	if !reflect.DeepEqual(d.Raced, []string{"B"}) {
+		t.Errorf("an earlier save overwrote the final pick before sending: %v", d.Raced)
+	}
 }
 
 // The half of a brief that is not questions is the half that earns it: the

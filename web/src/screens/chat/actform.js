@@ -31,7 +31,7 @@ export function movesOf(acts, waiting, native) {
 }
 
 // The icon of each kind of move; a request and a chain share the list.
-const moveIcon = { asked: Icon.ask, question: Icon.ask, request: Icon.list, secret: Icon.key, permit: Icon.lock };
+const moveIcon = { asked: Icon.ask, question: Icon.ask, request: Icon.list, secret: Icon.key, permit: Icon.lock, brief: Icon.plan };
 
 // MovePill is one square of the row, the size of the tools beside it whatever
 // waits: the icon says what the first move is, the corner how many there are,

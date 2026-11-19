@@ -523,6 +523,10 @@ function RequestGist({ said }) {
 
 // BriefGist is the brief and how much of it was answered.
 function BriefGist({ said }) {
+    if (said.decisions) return html`<div class="pnmtitle">${said.title}</div>
+        <div class="bdecided">decided: ${said.rows.flatMap((row) => row.picks.map((pick) => pick.label)).join(", ")}</div>
+        <div class="pnmmeta">${said.answered} of ${said.total} decided</div>
+        ${said.note && html`<div class="pnmnote">${said.note}</div>`}`;
     const rest = [
         said.skipped > 0 && `${said.skipped} skipped`,
         said.none > 0 && `${said.none} without an answer`,
@@ -543,7 +547,7 @@ function answerOf(row) {
     if (row.skipped) return html`<span class="askeda skip">skipped</span>`;
     if (row.none) return html`<span class="askeda skip">no answer</span>`;
     if (!row.picks.length) return null;
-    return html`<span class="askeda pnmpicks">${row.picks.map((p) => `${p.key} · ${p.label}`).join("\n")}</span>`;
+    return html`<span class="askeda pnmpicks">${row.picks.map((p) => p.key ? `${p.key} · ${p.label}` : p.label).join("\n")}</span>`;
 }
 
 // BriefAnswers is a row a question, built as a round of questions is: the
@@ -847,6 +851,13 @@ function PageCard({ item, copy, onOpen }) {
 // it — with the mark of the shelf, so a brief whose answers went out says sent
 // here as well.
 function BriefDoc({ item, card, onOpen }) {
+    const decisions = card?.decisions || item.decisions;
+    if (decisions) return html`<div class=${`actmark briefmark${card?.sent ? " done" : " open"}`} data-act=${item.id}>
+        <button type="button" class="actmarker" disabled=${!onOpen} onClick=${() => onOpen && onOpen(item.id)}>
+            ${Icon.plan()}<span class="actkind">BRIEF</span><span class="acttitle">${item.title}</span>
+            <small>${decisions} decisions · ${card?.sent ? "sent" : "yours · below"}</small>
+        </button>
+    </div>`;
     const row = card ? { ...item, mark: briefState(card) } : item;
     return html`
         <div class="sent mbrief">
@@ -957,7 +968,8 @@ export function ArtifactCard({ item, copy, onOpen, onSeen }) {
 // card in the feed the head already names it a brief, and the row drops the
 // word (named false).
 export function BriefCard({ item, onOpen, named = true }) {
-    const asks = item.questions > 0;
+    const count = item.decisions || item.questions;
+    const asks = count > 0;
     // A card listed after the document was answered says where it stands, not
     // only how much it asked: "5 of 5" and "sent" are different states, and a
     // row that says neither sends the reader in to find out.
@@ -970,7 +982,7 @@ export function BriefCard({ item, onOpen, named = true }) {
             <span class="armeta">
                 ${named && html`<span class="arnew">brief</span>`}
                 <span>${asks
-                    ? `${item.questions} ${plural(item.questions, "question", "questions")}`
+                    ? item.decisions ? `${count} decisions` : `${count} ${plural(count, "question", "questions")}`
                     : "nothing to answer"}</span>
                 ${mark && mark.word && html`
                     <span class=${`brstate is-${mark.tone}`}>${mark.word}</span>

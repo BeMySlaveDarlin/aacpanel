@@ -16,6 +16,8 @@
 <script type="module">
 import { h, render } from "preact";
 import { Brief } from "/src/screens/brief.js";
+import { Chat } from "/src/screens/chat.js";
+import { until } from "/check/fixtures/pie.js";
 import { Sheet } from "/src/ui/sheet.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -26,28 +28,26 @@ const doc = {
     sessionId: "22222222-2222-4222-8222-222222222222",
     cwd: "/srv/proj",
     title: "Read at a desk",
-    eyebrow: "18.09.2026 · two questions",
-    lede: "A document is read for forty minutes, and a monitor is not a hand.",
-    sections: [{ title: "where this came from", body: ["The tail of yesterday, not a new round."] }],
-    questions: [
-        {
-            id: "d1", n: "01", title: "The width of the column", kind: "pick",
-            ask: "A column measured in pixels does not follow the scale of the shell.",
-            options: [
-                { key: "A", label: "Follow the scale", note: "the column grows with the type" },
-                { key: "B", label: "Stay at the phone's width", note: "small print in an empty room" },
-            ],
-            capture: { note: { placeholder: "A note, if there is more to say" } },
-        },
-        {
-            id: "d2", n: "02", title: "The size of the type", kind: "pick",
-            ask: "The step that fits a hand is one step short of a desk.",
-            options: [{ key: "A", label: "One step up" }, { key: "B", label: "Leave it" }],
-        },
+    task: "Choose how the search moves to Postgres.",
+    why: "The spare cluster costs more than its work.",
+    context: [{ title: "The trial", text: "The results match." }],
+    decisions: [
+        { id: "d1", title: "Where the index lives", ask: "Choose the write path.", multi: false,
+          options: [
+              { key: "A", label: "Separate table", reason: "Search changes independently.", cost: "Maintain triggers", hours: 6, recommended: true },
+              { key: "B", label: "Column on products", reason: "No synchronisation.", cost: "Rebuild pauses writes", hours: 3 },
+          ] },
+        { id: "d2", title: "When to switch", ask: "Choose the window.", multi: false,
+          options: [
+              { key: "A", label: "Today", reason: "Save the next bill.", cost: "Less observation", hours: 1 },
+              { key: "B", label: "After a week", reason: "Observe the cycle.", cost: "Keep the cluster a week", hours: 2, recommended: true },
+          ] },
     ],
 };
 
 let sent = "";
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.EventSource = class { addEventListener() {} close() {} };
 window.fetch = counted(async (input, init) => {
     const u = typeof input === "string" ? input : input.url;
     const method = (init && init.method) || "GET";
@@ -59,12 +59,16 @@ window.fetch = counted(async (input, init) => {
         return new Response(JSON.stringify({ ok: true, reply: "01 · A" }),
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
-    if (u === "/api/actions") {
-        sent = JSON.parse(init.body).target || "";
+    if (u === "/api/briefs/at-the-desk/send" && method === "POST") {
+        sent = u;
         return new Response(JSON.stringify({ ok: true, detail: "typed into lab" }),
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
-    return new Response("", { status: 404 });
+    if (u.startsWith("/api/chat?")) return json({ items: [{ role: "brief", id: doc.id, title: doc.title, decisions: 2, pos: 1, at: "2026-01-01T09:00:00Z" }], first: 1, last: 1, total: 1, state: {}, moreBefore: false });
+    if (u === "/api/briefs") return json({ briefs: [{ id: doc.id, title: doc.title, decisions: 2, sessionId: doc.sessionId, cwd: doc.cwd }] });
+    if (u === "/api/acts") return json({ acts: [] });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    return json({});
 });
 
 // The snapshot is how the document finds the session its answers go into. The
@@ -83,13 +87,35 @@ render(
 window.done = (async () => {
     await quiet();
     const sheet = document.querySelector(".sheet.doc");
-    return {
+    const out = {
         // A document carries one way out — the arrow drawn inside it. The
         // handle and the cross belong to a sheet a person glances into.
-        exits: sheet.querySelectorAll(":scope > .sheetclose, :scope > .grab, :scope > .sheetbody > .brief > .phead .pback").length,
-        exitKinds: Array.from(sheet.querySelectorAll(":scope > .sheetclose, :scope > .grab, :scope > .sheetbody > .brief > .phead .pback")).map((n) => n.className).join(" | "),
+        exits: sheet.querySelectorAll(":scope > .sheetclose, :scope > .grab, :scope > .sheetbody > .brief-decisions > .phead .pback").length,
+        exitKinds: Array.from(sheet.querySelectorAll(":scope > .sheetclose, :scope > .grab, :scope > .sheetbody > .brief-decisions > .phead .pback")).map((n) => n.className).join(" | "),
         win: sheet.classList.contains("win"),
         doc: sheet.classList.contains("doc"),
+        decisions: document.querySelectorAll(".brief-decisions .bdecision").length,
+        task: document.querySelector(".btask")?.textContent || "",
     };
+    const root = document.querySelector("#root");
+    render(null, root);
+    await quiet();
+    const live = { session: "lab", sessionId: doc.sessionId, cwd: doc.cwd, transport: "stream", status: "idle",
+        waiting: [{ kind: "brief", id: doc.id, title: doc.title, at: "2026-01-01T09:00:00Z", questions: 2 }] };
+    render(h(ToastHost, null, h(GateHost, null, h(Chat, { name: "lab", id: doc.sessionId, live, snapshot, exec, onBack: () => {} }))), root);
+    await until(() => document.querySelector(".actform .brief-decisions .brecommend"), "the brief in the move slot");
+    out.inline = Boolean(document.querySelector(".chatfeed .actform .btask")) && Boolean(document.querySelector(".composer > textarea")) && !document.querySelector(".sheet.on");
+    out.marker = document.querySelector(".briefmark")?.textContent || "";
+    out.icon = document.querySelector('.movepill[data-kind="brief"] svg')?.outerHTML === document.querySelector(".bdecision-head svg")?.outerHTML;
+    document.querySelector(".actform .brecommend").click();
+    await until(() => !document.querySelector(".actform .bdecision-send").disabled, "the decision pick");
+    document.querySelector(".briefmark .actmarker").click();
+    await quiet();
+    out.single = document.querySelectorAll(".brief-decisions").length === 1 && !document.querySelector(".sheet.on") && document.querySelectorAll(".actform .bdecision.decided").length === 2;
+    document.querySelector(".actform .bdecision-send").click();
+    await until(() => !document.querySelector(".actform"), "the move after sending");
+    out.closed = !document.querySelector('.movepill[data-kind="brief"]') && Boolean(document.querySelector(".composer > textarea"));
+    out.sent = sent;
+    return out;
 })();
 </script>

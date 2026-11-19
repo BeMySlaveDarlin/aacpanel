@@ -771,3 +771,54 @@
     cursor: pointer;
 }
 .bcard-x.asking { color: var(--crit); box-shadow: inset 0 0 0 1px var(--crit); }
+
+/* The decision form shares its frame in the move slot and on the shelf. Its
+   own scroll leaves the composer reachable while the decisions stay open. */
+.brief-decisions { color: var(--ink); font: var(--t-base)/1.55 var(--sans); min-width: 0; }
+.brief-decisions > .phead { padding: .35rem 1rem; }
+.bdecision-scroll { padding: 1rem; max-width: 68rem; margin: 0 auto; }
+.brief-decisions.embedded { display: flex; flex-direction: column; max-height: 54dvh; }
+.embedded > .bdecision-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 .15rem .6rem; margin: 0; }
+.bdecision-head > span { display: flex; align-items: center; gap: .4rem; color: var(--wait); font: var(--t-sm)/1.5 var(--mono); }
+.bdecision-head svg { width: var(--i-sm); height: var(--i-sm); }
+.bdecision-head h1 { margin: .65rem 0; font-size: var(--t-xl); line-height: 1.3; }
+.btask { padding: .65rem .8rem; margin: .7rem 0; border: var(--hair) solid var(--edge); border-radius: var(--r-card); background: var(--surface); }
+.bdecision-label { color: var(--ink-faint); font: var(--t-sm)/1.5 var(--mono); }
+.btask p { margin: .35rem 0 .65rem; overflow-wrap: anywhere; }
+.btask p:first-of-type { font-weight: 600; }
+.btask p:last-child { margin-bottom: 0; color: var(--ink-dim); }
+.bcontext { margin: .8rem 0; color: var(--ink-dim); }
+.bcontext summary { cursor: pointer; font-size: var(--t-sm); }
+.bcontext h3 { font-size: var(--t-base); }
+.bcontext section, .bdecision-ask { overflow-wrap: anywhere; }
+.bcontext pre, .bdecision-ask pre { overflow-x: auto; }
+.brecommend { width: 100%; margin: .3rem 0 .7rem; }
+.bdecision { margin: .8rem 0; }
+.bdecision h3 { margin: .5rem 0; color: var(--ink-faint); font: var(--t-sm)/1.5 var(--mono); text-transform: uppercase; }
+.bdecision-ask { color: var(--ink-dim); margin: .4rem 0 .6rem; }
+.bdecision-ask > :first-child { margin-top: 0; }
+.bdecision-options { display: grid; gap: .55rem; }
+.bchoice { display: flex; align-items: flex-start; gap: .65rem; padding: .7rem; border: var(--hair) solid var(--edge); border-radius: var(--r-small); cursor: pointer; }
+.bchoice.picked { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.bchoice:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bchoice input { flex: none; margin: .3rem 0 0; accent-color: var(--accent); width: 1rem; height: 1rem; }
+.bchoice-body { display: grid; gap: .25rem; min-width: 0; overflow-wrap: anywhere; }
+.bchoice-label { font-weight: 600; }
+.brecommended { display: inline-block; margin-left: .4rem; padding: .05rem .3rem; border-radius: var(--r-small); color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); font: var(--t-xs)/1.5 var(--mono); vertical-align: baseline; }
+.bchoice-reason { color: var(--ink-dim); }
+.bchoice-cost { color: var(--ink-faint); font-size: var(--t-sm); }
+.bchoice-hours { color: var(--ink-dim); font: var(--t-sm)/1.5 var(--mono); }
+.bdecision-line { display: flex; align-items: baseline; gap: .45rem; padding: .55rem .65rem; border-radius: var(--r-small); background: var(--surface); }
+.bdecision-line > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.bdecision-tick { color: var(--ok); }
+.bchange { flex: none; padding: .25rem; border: 0; background: none; color: var(--accent); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+.bdecision-done { display: block; margin: .4rem 0 0 auto; }
+.bdecision-notefield { display: grid; gap: .3rem; margin-top: .75rem; color: var(--ink-dim); font-size: var(--t-sm); }
+.bdecision-notefield textarea { box-sizing: border-box; width: 100%; min-height: 3.5rem; padding: .6rem; resize: vertical; border: var(--hair) solid var(--edge); border-radius: var(--r-small); background: var(--deep); color: var(--ink); font: inherit; }
+.bdecision-notefield textarea:focus { outline: 1px solid var(--accent); }
+.bdecision-note { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-dim); }
+.bdecision-foot { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .65rem 1rem; position: sticky; bottom: 0; background: var(--sheet-bg); border-top: var(--hair) solid var(--line); }
+.embedded > .bdecision-foot { position: static; flex: none; padding: .5rem 0 0; background: none; }
+.bdecision-progress { flex: 1; font-size: var(--t-sm); color: var(--ink-dim); }
+.bdecision-foot .btn { min-height: 2.5rem; }
+.bdecision-error { flex: 1 0 100%; margin: .3rem 0; color: var(--crit); font-size: var(--t-sm); overflow-wrap: anywhere; }

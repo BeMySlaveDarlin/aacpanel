@@ -25,24 +25,20 @@ const doc = {
     sessionId: "22222222-2222-4222-8222-222222222222",
     cwd: "/srv/proj",
     title: "Read at a desk",
-    eyebrow: "18.09.2026 · two questions",
-    lede: "A document is read for forty minutes, and a monitor is not a hand.",
-    sections: [{ title: "where this came from", body: ["The tail of yesterday, not a new round."] }],
-    questions: [
-        {
-            id: "d1", n: "01", title: "The width of the column", kind: "pick",
-            ask: "A column measured in pixels does not follow the scale of the shell.",
-            options: [
-                { key: "A", label: "Follow the scale", note: "the column grows with the type" },
-                { key: "B", label: "Stay at the phone's width", note: "small print in an empty room" },
-            ],
-            capture: { note: { placeholder: "A note, if there is more to say" } },
-        },
-        {
-            id: "d2", n: "02", title: "The size of the type", kind: "pick",
-            ask: "The step that fits a hand is one step short of a desk.",
-            options: [{ key: "A", label: "One step up" }, { key: "B", label: "Leave it" }],
-        },
+    task: "Choose how the search moves to Postgres.",
+    why: "The spare cluster costs more than its work.",
+    context: [{ title: "The trial", text: "The results match." }],
+    decisions: [
+        { id: "d1", title: "Where the index lives", ask: "Choose the write path.", multi: false,
+          options: [
+              { key: "A", label: "Separate table", reason: "Search changes independently.", cost: "Maintain triggers", hours: 6, recommended: true },
+              { key: "B", label: "Column on products", reason: "No synchronisation.", cost: "Rebuild pauses writes", hours: 3 },
+          ] },
+        { id: "d2", title: "When to switch", ask: "Choose the window.", multi: false,
+          options: [
+              { key: "A", label: "Today", reason: "Save the next bill.", cost: "Less observation", hours: 1 },
+              { key: "B", label: "After a week", reason: "Observe the cycle.", cost: "Keep the cluster a week", hours: 2, recommended: true },
+          ] },
     ],
 };
 
@@ -58,8 +54,8 @@ window.fetch = counted(async (input, init) => {
         return new Response(JSON.stringify({ ok: true, reply: "01 · A" }),
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
-    if (u === "/api/actions") {
-        sent = JSON.parse(init.body).target || "";
+    if (u === "/api/briefs/at-the-desk/send" && method === "POST") {
+        sent = u;
         return new Response(JSON.stringify({ ok: true, detail: "typed into lab" }),
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
@@ -78,22 +74,22 @@ render(
 
 window.done = (async () => {
     await quiet();
-    const go = document.querySelector(".bbtn.go");
+    const go = document.querySelector(".bdecision-send");
     const before = {
         sendDisabled: Boolean(go && go.disabled),
-        say: (document.querySelector(".bdock-say") || {}).textContent || "",
+        say: (document.querySelector(".bdecision-progress") || {}).textContent || "",
     };
 
-    document.querySelectorAll(".bq")[0].querySelectorAll(".bopt")[0].click();
+    document.querySelector('[data-decision="d1"] input[value="A"]').click();
     // The pick saves after a pause of its own, which quiet waits out.
     await quiet();
 
     const after = {
-        sendDisabled: Boolean(document.querySelector(".bbtn.go").disabled),
-        say: (document.querySelector(".bdock-say") || {}).textContent || "",
+        sendDisabled: Boolean(document.querySelector(".bdecision-send").disabled),
+        say: (document.querySelector(".bdecision-progress") || {}).textContent || "",
     };
 
-    document.querySelector(".bbtn.go").click();
+    document.querySelector(".bdecision-send").click();
     await quiet();
 
     return { before, after, sent };

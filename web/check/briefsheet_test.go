@@ -11,6 +11,35 @@ type sheetShot struct {
 	ExitKinds string `json:"exitKinds"`
 	Win       bool   `json:"win"`
 	Doc       bool   `json:"doc"`
+	Decisions int    `json:"decisions"`
+	Task      string `json:"task"`
+	Inline    bool   `json:"inline"`
+	Single    bool   `json:"single"`
+	Marker    string `json:"marker"`
+	Icon      bool   `json:"icon"`
+	Closed    bool   `json:"closed"`
+	Sent      string `json:"sent"`
+}
+
+func TestBriefDecisionsLiveInTheMoveSlotAndTheDocumentSheet(t *testing.T) {
+	for _, screen := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+	}{{"phone", runFixture}, {"desk", runWideFixture}} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got sheetShot
+			screen.run(t, "briefsheet.html", &got)
+			if got.Decisions != 2 || !strings.Contains(got.Task, "Choose how the search moves") || !got.Inline || !got.Icon || !got.Single {
+				t.Errorf("the form is missing from the sheet or move slot: %+v", got)
+			}
+			if !strings.Contains(got.Marker, "BRIEF") || !strings.Contains(got.Marker, "2 decisions · yours · below") {
+				t.Errorf("the published brief is not a move marker: %q", got.Marker)
+			}
+			if !got.Closed || got.Sent != "/api/briefs/at-the-desk/send" {
+				t.Errorf("sending did not close the move slot: %+v", got)
+			}
+		})
+	}
 }
 
 // A brief opens as a layer over the conversation, and on a wide screen every

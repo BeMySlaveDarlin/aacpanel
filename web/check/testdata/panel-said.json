@@ -216,6 +216,162 @@
           { "n": "3", "title": "Anything else", "picks": [], "skipped": false, "none": false, "note": "only a note" }
         ]
       }
+    },
+    {
+      "input": {
+        "brief": {
+          "id": "search-plan",
+          "title": "Search \"plan\"",
+          "sessionId": "s1",
+          "task": "Choose the search migration.",
+          "why": "Retire an idle cluster.",
+          "decisions": [
+            {
+              "id": "index",
+              "title": "Search index: where it lives",
+              "ask": "Choose the next step.",
+              "multi": false,
+              "options": [
+                {
+                  "key": "A",
+                  "label": "Separate table",
+                  "reason": "Search changes independently.",
+                  "cost": "Maintain triggers",
+                  "hours": 6,
+                  "recommended": true
+                },
+                {
+                  "key": "B",
+                  "label": "Column on products",
+                  "reason": "No synchronisation.",
+                  "cost": "Rebuild pauses writes",
+                  "hours": 3
+                }
+              ]
+            },
+            {
+              "id": "checks",
+              "title": "Which checks run",
+              "ask": "Choose the next step.",
+              "multi": true,
+              "options": [
+                {
+                  "key": "A",
+                  "label": "Compare results",
+                  "reason": "Find missing records.",
+                  "cost": "A second query",
+                  "hours": 2,
+                  "recommended": true
+                },
+                {
+                  "key": "B",
+                  "label": "Replay traffic",
+                  "reason": "Check the whole load.",
+                  "cost": "Keep recordings",
+                  "hours": 4
+                },
+                {
+                  "key": "C",
+                  "label": "Watch latency",
+                  "reason": "Keep search fast.",
+                  "cost": "One dashboard",
+                  "hours": 0.1,
+                  "recommended": true
+                }
+              ]
+            },
+            {
+              "id": "switch",
+              "title": "When to switch",
+              "ask": "Choose the next step.",
+              "multi": false,
+              "options": [
+                {
+                  "key": "A",
+                  "label": "Today",
+                  "reason": "Save the next bill.",
+                  "cost": "Less observation",
+                  "hours": 1
+                },
+                {
+                  "key": "B",
+                  "label": "After a week",
+                  "reason": "Observe the cycle.",
+                  "cost": "Keep the cluster",
+                  "hours": 2,
+                  "recommended": true
+                }
+              ]
+            }
+          ]
+        },
+        "draft": {
+          "answers": {
+            "decisions": {
+              "index": {
+                "picks": [
+                  "B"
+                ],
+                "note": "Keep the writes free"
+              },
+              "checks": {
+                "picks": [
+                  "A",
+                  "C"
+                ]
+              }
+            },
+            "note": "Send the measurements\non two lines"
+          }
+        }
+      },
+      "text": "The person decided brief \"Search \\\"plan\\\"\" (search-plan): 2 of 3 decided.\n1. Search index: where it lives\n   picked: Column on products (changed; recommended: Separate table)\n   note: Keep the writes free\n2. Which checks run\n   picked: Compare results, Watch latency (recommended)\n3. When to switch\n   no answer\nNote: Send the measurements\non two lines\n",
+      "said": {
+        "kind": "brief",
+        "decisions": true,
+        "title": "Search \"plan\"",
+        "id": "search-plan",
+        "answered": 2,
+        "total": 3,
+        "skipped": 0,
+        "none": 1,
+        "rows": [
+          {
+            "n": "1",
+            "title": "Search index: where it lives",
+            "picks": [
+              {
+                "label": "Column on products"
+              }
+            ],
+            "none": false,
+            "note": "Keep the writes free",
+            "recommended": false,
+            "recommendation": "Separate table"
+          },
+          {
+            "n": "2",
+            "title": "Which checks run",
+            "picks": [
+              {
+                "label": "Compare results, Watch latency"
+              }
+            ],
+            "none": false,
+            "note": "",
+            "recommended": true,
+            "recommendation": "Compare results, Watch latency"
+          },
+          {
+            "n": "3",
+            "title": "When to switch",
+            "picks": [],
+            "none": true,
+            "note": ""
+          }
+        ],
+        "note": "Send the measurements\non two lines"
+      }
     }
   ],
   "reading": [

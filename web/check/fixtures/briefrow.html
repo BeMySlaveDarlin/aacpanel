@@ -8,6 +8,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
+import { panelSaid } from "/src/screens/chat/panelsaid.js";
 import { quiet } from "/check/fixtures/quiet.js";
 
 const asking = {
@@ -21,6 +22,8 @@ const reading = {
 };
 
 const opened = [];
+const samples = await (await fetch("/check/testdata/panel-said.json")).json();
+const decisionSample = samples.brief.find(sample => sample.said.decisions);
 
 // The feed is the real one, with a height of its own: a card that takes the
 // palette or the height of the document it points at only shows it here.
@@ -28,6 +31,9 @@ render(html`
     <div class="chatfeed" style="height: 400px">
         <${Row} item=${asking} session="lab" id="1" onBrief=${(id) => opened.push(id)} />
         <${Row} item=${reading} session="lab" id="1" onBrief=${(id) => opened.push(id)} />
+        <${Row} item=${{ role: "brief", id: "search-plan", title: 'Search "plan"', decisions: 3 }}
+            session="lab" id="1" onBrief=${(id) => opened.push(id)} />
+        <${Row} item=${{ role: "me", text: decisionSample.text }} session="lab" id="1" onBrief=${(id) => opened.push(id)} />
     </div>
 `, document.getElementById("root"));
 
@@ -35,8 +41,14 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
 
 (async () => {
     await quiet();
+    document.querySelector(".pnm.k-brief .pnmmore").click();
+    await quiet();
     const cards = Array.from(document.querySelectorAll(".artifact.arbrief"));
     const before = {
+        marker: document.querySelector(".briefmark")?.textContent || "",
+        decided: document.querySelector(".bdecided")?.textContent || "",
+        decisionTitles: text(".pnm.k-brief .pnmq .askedq"),
+        tailRejected: panelSaid(decisionSample.text.replace("(recommended)\n", "(recommended) trailing\n")) === null,
         titles: text(".artifact.arbrief .artitle"),
         descs: text(".artifact.arbrief .ardesc"),
         metas: text(".artifact.arbrief .armeta"),

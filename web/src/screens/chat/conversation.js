@@ -91,11 +91,6 @@ import { agentKey, agentName, isCodex, shownName, spoke } from "../../agent.js";
 // whether the feed shows and its box, the work of the turn, and the setters of
 // the sheet over the run and of what goes into the composer.
 export function Conversation({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat, onTerm, parts }) {
-    // A brief opens over the conversation, the way a subagent's letters do: a
-    // layer above the run, put down by the same gesture and leaving the run
-    // where it was. Sending the reader to a page of their own instead costs
-    // them the conversation and the gesture both.
-    const openBrief = useCallback((briefId) => setLook({ kind: "brief", id: briefId }), []);
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
@@ -458,6 +453,20 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const yourMoves = moves.some((item) => !agentsMove(item));
     const current = moves.find((item) => moveKey(item) === selected) || moves[0];
     const currentKey = current ? moveKey(current) : "";
+    const openBrief = (briefId) => {
+        const move = moves.find((item) => item.kind === "brief" && item.id === briefId);
+        const decisions = briefs.find((card) => card.id === briefId)?.decisions
+            || state.items.find((item) => item.role === "brief" && item.id === briefId)?.decisions;
+        // An open form has the draft still being typed. A second editor over
+        // it would start from the saved copy and overwrite those last edits.
+        if (move && decisions) {
+            setSelected(moveKey(move));
+            toEnd();
+            return;
+        }
+        // A document over the run leaves the feed where it was on closing.
+        setLook({ kind: "brief", id: briefId });
+    };
     // An older render must not undo a newer marker press.
     useEffect(() => { setSelected((was) => was === selected ? currentKey : was); }, [currentKey, selected]);
     const selectAct = useCallback((item) => setSelected(moveKey({ ...item, kind: item.role === "ask" ? "question" : item.role || item.kind })), []);
@@ -512,8 +521,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ? html`<${SecretPad} key=${currentKey} item=${current} session=${name} exec=${exec} shelf=${secrets}
             onSaved=${(state) => finishSecret(current, state)} onDone=${() => {}} />`
         : current.kind === "brief"
-        ? html`<button class="actbrief" type="button" onClick=${() => openBrief(current.id)}>
-            Brief · ${myBriefs.find((b) => b.id === current.id)?.questions || current.questions || 0} questions · Open</button>` : null;
+        ? html`<${Brief} key=${currentKey} id=${current.id} snapshot=${snapshot} exec=${exec} embedded
+            onOpen=${openBrief} onSession=${() => sentBrief(current.id)} />` : null;
 
     if (sub) {
         const fresh = ((state.work && state.work.agents) || []).find((a) => a.id === sub.id);
@@ -749,7 +758,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     <${CommandsChip} onOpen=${setQuick} />
                     ${termJump}
                     ${work}
-                    <div class="deckright"><${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${setLook} /></div>
+                    <div class="deckright"><${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs}
+                        onOpen=${(look) => look.kind === "brief" ? openBrief(look.id) : setLook(look)} /></div>
                 </div>
             </div>
         `}

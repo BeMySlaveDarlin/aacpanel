@@ -92,7 +92,8 @@ export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave, onBac
         let ready = 0;
         for (const card of rows) {
             if (card.sent) continue;
-            if (card.questions && card.answered >= card.questions) ready++;
+            const total = card.decisions || card.questions;
+            if (total && card.answered >= total) ready++;
             else waiting++;
         }
         return { all: rows.length, waiting, ready };
