@@ -192,7 +192,8 @@ const calls = () => Object.fromEntries(live().filter((row) => row.dataset.kind =
     .map((row) => [row.dataset.name, `${text(row.querySelector(".scsay"))} · ${text(row.querySelector(".sctime"))}`]));
 
 window.done = (async () => {
-    const out = {};
+    // The clock the times of the conversations are taken from.
+    const out = { clock: now };
 
     column(first, "aacpanel");
     for (let i = 0; i < 60 && !root().querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);

@@ -91,6 +91,7 @@ type deskCard struct {
 	WithPanel         deskCardHead     `json:"withPanel"`
 	WithoutPanel      deskCardHead     `json:"withoutPanel"`
 	PhoneWhen         string           `json:"phoneWhen"`
+	Clock             int64            `json:"clock"`
 	ProjectHead       struct {
 		Name string `json:"name"`
 		Tip  string `json:"tip"`
@@ -326,7 +327,7 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 		if first.Contour != "personal" || got.Shelf[1].Contour != "personal" || last.Contour != "Globex Group" {
 			t.Errorf("the shelf names the contours %q, %q, %q", first.Contour, got.Shelf[1].Contour, last.Contour)
 		}
-		if !spokeAgo(first.When, 70*time.Minute) || !spokeAgo(last.When, 26*time.Hour) || !strings.Contains(last.About, "move the report exports") {
+		if !spokeAgo(first.When, time.UnixMilli(got.Clock), 70*time.Minute) || !spokeAgo(last.When, time.UnixMilli(got.Clock), 26*time.Hour) || !strings.Contains(last.About, "move the report exports") {
 			t.Errorf("the shelf says %q and %q, %q", first.When, last.When, last.About)
 		}
 		for _, row := range got.Shelf {
@@ -379,27 +380,22 @@ func TestDeskChatHeaderSaysWhatTheSessionRunsOn(t *testing.T) {
 // in digits, not a date in the words of the browser's locale.
 func TestClosedConversationTimeIsADate(t *testing.T) {
 	got := runDeskCard(t)
-	if !spokeAgo(got.PhoneWhen, 125*time.Minute) || regexp.MustCompile(`\p{Cyrillic}`).MatchString(got.PhoneWhen) {
+	if !spokeAgo(got.PhoneWhen, time.UnixMilli(got.Clock), 125*time.Minute) || regexp.MustCompile(`\p{Cyrillic}`).MatchString(got.PhoneWhen) {
 		t.Errorf("a closed conversation on the phone reads %q, expected the local date and time 125 minutes ago", got.PhoneWhen)
 	}
 }
 
 // spokeAgo reports whether a closed card's time is the local "19.11 12:05" of
-// that long ago, with the year outside the current one; a minute either way
-// covers the clock turning between the fixture and the test.
-func spokeAgo(when string, ago time.Duration) bool {
-	now := time.Now()
-	for _, d := range []time.Duration{ago - time.Minute, ago, ago + time.Minute} {
-		at := now.Add(-d)
-		layout := "02.01 15:04"
-		if at.Year() != now.Year() {
-			layout = "02.01.2006 15:04"
-		}
-		if when == at.Format(layout) {
-			return true
-		}
+// that long before the fixture's clock, with the year outside the current one.
+// The fixture's clock, not the test's: a result is read well after the page
+// that drew it.
+func spokeAgo(when string, clock time.Time, ago time.Duration) bool {
+	at := clock.Add(-ago)
+	layout := "02.01 15:04"
+	if at.Year() != time.Now().Year() {
+		layout = "02.01.2006 15:04"
 	}
-	return false
+	return when == at.Format(layout)
 }
 
 // A session that called the person waits on its card until its conversation

@@ -37,10 +37,13 @@ const asked = [];
 // Three closed conversations a contour, an hour apart and the contours
 // interleaved, each in a project of its own.
 const collector = { 3: "personal", 1: "globex", 4: "acme" };
+// The clock the times of the closed conversations are taken from; the test
+// reads their dates against it, not against its own later one.
+const clock = Date.now();
 const closed = (contour, n) => Array.from({ length: n }, (_, i) => ({
     sessionId: `c${contour}-${i}`, name: `old-${contour}-${i}`, cwd: `/srv/old${contour}${i}`, profile: collector[contour],
     prompts: [`what conversation ${i} of contour ${contour} was about`],
-    lastAt: new Date(Date.now() - (i * 3 + contour / 10 + 1) * 3600e3).toISOString(),
+    lastAt: new Date(clock - (i * 3 + contour / 10 + 1) * 3600e3).toISOString(),
     pctMax: 30, messages: 10,
     project: { id: contour * 10 + i, name: `old${contour}${i}`, group: "Backend", session: `old${contour}${i}`, path: `/srv/old${contour}${i}` },
 }));
@@ -82,7 +85,7 @@ window.done = (async () => {
     for (let i = 0; i < 60 && !document.querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);
     await quiet();
     const shelf = document.querySelector(".dkshelf");
-    const out = {
+    const out = { clock,
         sections: sections(),
         asked,
         shelf: Array.from(document.querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({

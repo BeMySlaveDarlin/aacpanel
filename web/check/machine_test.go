@@ -178,6 +178,7 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		Pop       []string       `json:"pop"`
 		Closed    bool           `json:"closed"`
 		OldNote   string         `json:"oldNote"`
+		Clock     int64          `json:"clock"`
 	}
 	runWideFixture(t, "desklimits.html", &got)
 
@@ -247,7 +248,7 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		if first.Contour != "Globex Group and every project of it" {
 			t.Errorf("a closed conversation of the contour the collector calls globex is labelled %q — the shelf names contours the way the map does", first.Contour)
 		}
-		if !strings.Contains(first.About, "what conversation 0 of contour 1 was about") || !spokeAgo(first.When, 66*time.Minute) {
+		if !strings.Contains(first.About, "what conversation 0 of contour 1 was about") || !spokeAgo(first.When, time.UnixMilli(got.Clock), 66*time.Minute) {
 			t.Errorf("a closed conversation says %q, %q — what it was about, and the local date and time 66 minutes ago", first.About, first.When)
 		}
 	}
