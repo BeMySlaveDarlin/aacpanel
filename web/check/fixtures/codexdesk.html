@@ -84,7 +84,7 @@ window.done = (async () => {
     await show({ ...thread, plan: true });
     out.planWord = said(chip("think"));
     await show({ ...thread, processes: 3 });
-    out.procs = Array.from(box.querySelectorAll(".deck .wchips .wchip")).map((b) => b.getAttribute("aria-label"));
+    out.procs = Array.from(box.querySelectorAll(".cstrip .wchips .wchip")).map((b) => b.getAttribute("aria-label"));
     const strip = box.querySelector(".composer .cstrip");
     out.band = Array.from(strip.querySelectorAll(".pickfile, [data-pick]"))
         .map((el) => el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : "cwork"));

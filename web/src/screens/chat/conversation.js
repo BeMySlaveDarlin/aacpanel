@@ -605,6 +605,16 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ? html`<${TermJump} place=${termPlace} exec=${exec} onTerm=${onTerm} />`
         : null;
     const work = parts.work(ctx);
+    const movePill = html`<${MovePill} items=${moves} onNext=${nextAct} />`;
+    const deckTools = html`
+        <div class="decktools">
+            <${CommandsChip} onOpen=${setQuick} />
+            ${termJump}
+            ${work}
+            <div class="deckright"><${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs}
+                onOpen=${(look) => look.kind === "brief" ? openBrief(look.id) : setLook(look)} /></div>
+        </div>
+    `;
 
     return html`
         <${PlaceContext.Provider} value=${placeActions}>
@@ -758,6 +768,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                      beforeSend=${dismissBeforeSend}
                                      hint=${dismissBeforeSend ? "your words dismiss the question" : ""}
                                      strip=${html`${parts.strip(ctx)}
+                                         ${wide && html`${movePill}${deckTools}`}
                                          ${live.tokensIn > 0 && html`<button class="deckuse" type="button"
                                              aria-label="tokens in and out of this session, open usage" onClick=${onUsage}>
                                              <span class="deckin"><i aria-hidden="true">↑</i>${tokens(live.tokensIn)}</span>
@@ -768,16 +779,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             </div>
         `}
 
-        ${live && feedShown && html`
+        ${live && feedShown && (!wide || live.outside) && html`
             <div class="deck">
-                <${MovePill} items=${moves} onNext=${nextAct} />
-                <div class="decktools">
-                    <${CommandsChip} onOpen=${setQuick} />
-                    ${termJump}
-                    ${work}
-                    <div class="deckright"><${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs}
-                        onOpen=${(look) => look.kind === "brief" ? openBrief(look.id) : setLook(look)} /></div>
-                </div>
+                ${movePill}
+                ${deckTools}
             </div>
         `}
 

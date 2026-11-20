@@ -1,6 +1,12 @@
 /* Desktop layout: columns, top menu and panels. */
 
 @media (min-width: 1100px) {
+    /* The model and moves stay together; tools take the spare width and wrap
+       inside the frame when the conversation column is narrow. */
+    .cstrip { flex-wrap: wrap; }
+    .cstrip .pickbar { flex: 0 1 auto; min-width: 0; }
+    .cstrip .deckuse { margin-left: 0; }
+
     .deskshell {
         position: fixed;
         inset: 0;

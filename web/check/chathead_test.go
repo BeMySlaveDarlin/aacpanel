@@ -194,12 +194,12 @@ func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
 }
 
 // A wide screen keeps what the session has in flight in the composer's band
-// rather than in a row of its own under the frame; the tokens in and out stay
-// in the session info its panel opens.
+// rather than in a row of its own under the frame; the tokens in and out end
+// the same band.
 func TestTheWideScreenKeepsTheWorkUnderTheComposer(t *testing.T) {
 	var got chatHeadSeen
 	runWideFixture(t, "chathead.html", &got)
-	if !got.Deck || got.Cwork || got.StripChips != 3 || !got.DeckUse || !got.DeckUseFirst {
-		t.Errorf("the wide conversation lost its deck or usage in the model strip: %+v", got)
+	if got.Deck || got.Cwork || got.StripChips != 3 || !got.DeckUse || !got.DeckUseFirst {
+		t.Errorf("the wide conversation lost its tools or usage in the model strip: %+v", got)
 	}
 }

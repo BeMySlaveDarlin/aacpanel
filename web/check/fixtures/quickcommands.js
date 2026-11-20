@@ -1,7 +1,7 @@
 // The command list and its ring share the conversation already on the page.
 import { closePie, middle, pie, plate, press, sector, settled, tap, underPies, until } from "/check/fixtures/pie.js";
 
-const chip = () => document.querySelector(".deck .pkcmds");
+const chip = () => document.querySelector(".decktools .pkcmds");
 const frame = () => new Promise((r) => requestAnimationFrame(r));
 const assert = (ok, why) => { if (!ok) throw new Error(why); };
 const ready = () => until(() => sector("quick-0")?.getAttribute("aria-disabled") !== "true" && sector("quick-0"), "the quick phrases");

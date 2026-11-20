@@ -20,6 +20,7 @@ const until = async (ready) => {
     if (!ready()) throw new Error("The form did not reach its expected state");
 };
 const at = new Date(Date.now() - 5 * 60000).toISOString();
+const wide = innerWidth >= 1100;
 const req = { id: "a".repeat(32), kind: "do", title: "Restart the router", state: "open", blocking: true, created: at,
     body: { steps: "Run this:\n```sh\nprintf ready\n```\nWait for Wi-Fi." } };
 const sec = { id: "b".repeat(32), kind: "secret", title: "Release token", state: "open", created: at,
@@ -50,7 +51,8 @@ window.fetch = counted(async (input, options) => {
         if (body.kind === "session.send" && body.params.text) acts = acts.map(a => a.kind === "ask" && a.body.source === "prose" && a.state === "open" ? { ...a, state: "answered", closed: new Date().toISOString() } : a);
         return json({ ok: true });
     }
-    if (u.pathname.startsWith("/api/term")) return json({ available: false });
+    if (u.pathname === "/api/terms") return json({ terms: [{ id: "project-term", place: "/srv/proj", activity: 1 }] });
+    if (u.pathname.startsWith("/api/term")) return json({ available: wide });
     return json({});
 });
 window.EventSource = class {
@@ -60,9 +62,11 @@ window.EventSource = class {
 };
 const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport: "stream", status: "idle", model: "claude-opus-5-5",
     waiting: [{ kind: "request", id: req.id, title: req.title, pos: 10, at, blocking: true }, { kind: "secret", id: sec.id, title: sec.title, pos: 11, at }] };
-const exec = { available: true, kinds: ["session.send", "session.answer", "session.dismiss", "session.shell", "secret.put", "session.file"] };
+const exec = { available: true, kinds: ["session.send", "session.answer", "session.dismiss", "session.shell", "secret.put", "session.file", ...(wide ? ["term.start"] : [])] };
+const terminals = [];
 const root = document.querySelector("#root");
-const draw = (live = session) => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${live} exec=${exec} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
+const draw = (live = session) => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${live} exec=${exec}
+    onBack=${() => {}} onTerm=${wide ? (target) => terminals.push(target) : null} /></${GateHost}></${ToastHost}>`, root);
 const count = () => Number(document.querySelector(".movepill .movecount")?.textContent || 0);
 const form = () => document.querySelector(".actform:not(.actsent)");
 const button = (word) => [...form().querySelectorAll("button")].find(b => b.textContent.trim() === word);
@@ -73,6 +77,18 @@ const publish = async () => { stream.listeners.state({ data: JSON.stringify(stat
 window.done = (async () => {
     const out = {};
     draw(); await until(() => form()?.querySelector(".requestanswer")); await quiet();
+    const home = document.querySelector(wide ? ".cstrip" : ".deck");
+    out.toolsHome = Boolean(home?.querySelector(".pkcmds") && home.querySelector(".movepill"))
+        && Boolean(document.querySelector(".deck")) === !wide;
+    out.terminal = !wide;
+    if (wide) {
+        const ordered = [".pickfile", '[data-pick="model"]', '[data-pick="mode"]', ".movepill", ".pkcmds", ".tjump", ".wchips", ".deckright"]
+            .map((selector) => home.querySelector(selector));
+        out.toolsHome = out.toolsHome && ordered.every((el, i) => el
+            && (i === 0 || ordered[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
+        home.querySelector(".tjump")?.click(); await quiet();
+        out.terminal = terminals.length === 1 && terminals[0].id === "project-term" && sent.length === 0;
+    }
     out.auto = count() === 2 && form().textContent.includes(req.title) && !document.querySelector(".sheet.on, .waitingqueue");
     // One square whatever waits: an icon and the count, the words and the time in its label.
     out.waitTime = document.querySelector(".movepill").getAttribute("aria-label").includes("5 min ago")
@@ -102,7 +118,7 @@ window.done = (async () => {
     // keyboard hides them on a phone, and they come back when it closes even
     // with the field still focused.
     const strips = () => getComputedStyle(document.querySelector(".cstrip")).display !== "none"
-        && getComputedStyle(document.querySelector(".deck")).display !== "none";
+        && (wide || getComputedStyle(document.querySelector(".deck")).display !== "none");
     const clip = () => getComputedStyle(document.querySelector(".composeclip")).display !== "none";
     const narrow = innerWidth < 1100, tall = innerHeight;
     const keyboard = async (h) => { Object.defineProperty(window, "innerHeight", { value: h, configurable: true }); window.dispatchEvent(new Event("resize")); await quiet(); };
@@ -407,6 +423,8 @@ window.done = (async () => {
     await until(() => badge(overdue.id).endsWith(" · withdrawn"));
     out.claimArchive = sent.at(-1).kind === "act.withdraw" && sent.at(-1).target === "saved-sender"
         && sent.at(-1).params.act === overdue.id;
+    draw({ ...session, outside: true }); await quiet();
+    out.outsideDeck = !document.querySelector(".cstrip") && Boolean(document.querySelector(".deck .pkcmds"));
     return out;
 })();
 </script>

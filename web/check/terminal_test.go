@@ -62,7 +62,8 @@ func TestTerminalIsItsOwnComposer(t *testing.T) {
 		t.Errorf("%s: what stands under the feed is not asked from the view and the move together — "+
 			"it stays under a terminal or under a session between its sides", chatFile)
 	}
-	if strings.Count(body, `live && feedShown && html`) != 2 || strings.Contains(body, `class="cwork"`) {
+	if !strings.Contains(body, `live && feedShown && html`) ||
+		!strings.Contains(body, `live && feedShown && (!wide || live.outside) && html`) || strings.Contains(body, `class="cwork"`) {
 		t.Errorf("%s: the composer and deck must leave together with the feed", chatFile)
 	}
 	if strings.Contains(body, "chatterm") {
