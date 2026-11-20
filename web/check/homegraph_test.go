@@ -303,9 +303,9 @@ func TestAContourIsASystemOfItsProjects(t *testing.T) {
 		t.Errorf("the frame writes %v: blog once, as its planet, drafts once, as its orbit, client once, as its star, "+
 			"and of personal behind neither shop nor its orbit outside the map", w)
 	}
-	if w["helper"] != 1 || w["thread"] != 0 {
+	if w["helper"] != 0 || w["thread"] != 0 {
 		t.Errorf("the thread of codex blog opened is written %d times as \"codex · blog\" and %d as its own name: "+
-			"a helper of a session is written as that session's helper", w["helper"], w["thread"])
+			"a moon that does not wait is named by its tip alone", w["helper"], w["thread"])
 	}
 	summary := map[string]string{}
 	for _, sys := range got.Systems {
@@ -610,21 +610,24 @@ func TestTheGraphIsHandledAsAMap(t *testing.T) {
 }
 
 // A system behind the front one is one target and small with distance: it
-// says its own name and that of a session waiting for the person, and no
+// says its own name and those of the sessions waiting for the person, and no
 // other — the names of its planets on leaders round a small system are a
-// tangle. The system in front writes every name.
+// tangle. The system in front writes the names of its planets; a moon, a
+// session another opened, is named by its tip unless it waits.
 func TestABehindSaysItsNameAndTheWait(t *testing.T) {
 	q := runHomeGraph(t).Quiet
 	shown := append([]string(nil), q.Behind.ShownKeys...)
 	sort.Strings(shown)
-	if !reflect.DeepEqual(shown, []string{"*personal", "node-f"}) {
-		t.Errorf("a system behind the front writes %v: only its own name and the session waiting for the person", shown)
+	if !reflect.DeepEqual(shown, []string{"*personal", "node-f", "node-n"}) {
+		t.Errorf("a system behind the front writes %v: only its own name and the sessions waiting for the person", shown)
 	}
-	if contains("node-f", q.Behind.Hidden) {
-		t.Error("a session waiting for the person lost its name behind the front")
+	hidden := append([]string(nil), q.Front.Hidden...)
+	sort.Strings(hidden)
+	if !reflect.DeepEqual(hidden, []string{"node-l", "node-m"}) {
+		t.Errorf("the system in front hides the names %v: only its moons that do not wait", hidden)
 	}
-	if len(q.Front.Hidden) != 0 {
-		t.Errorf("the system in front hides the names %v", q.Front.Hidden)
+	if contains("node-n", q.Front.Hidden) {
+		t.Error("a moon waiting for the person lost its name in front")
 	}
 }
 

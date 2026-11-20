@@ -598,9 +598,11 @@ export function drawScene(ctx, W, H, pr, scene) {
     const hits = [];
     const areas = [];
     const bySystem = new Map(systems.map((s) => [s.name, s]));
-    // The names of the system in front are all written; a system behind it is
-    // one target, and says only its own name and that of a session waiting
-    // for the person.
+    // The system in front writes the names of its planets; a moon — a session
+    // another opened, at any depth — is named by its tip, as a crowd of codex
+    // threads round a lead would bury the planets' names. A system behind is
+    // one target, and says only its own name. A session waiting for the person
+    // is named wherever it stands.
     const behind = (name) => Boolean(scene.front) && name !== scene.front;
     const R = Math.max(...systems.map((s) => s.R));
     const marks = new Map(systems.map((s) => [s.name, markOf(s, R)]));
@@ -742,7 +744,7 @@ export function drawScene(ctx, W, H, pr, scene) {
         hits.push({ x: q.x, y: q.y, r: d.r + 3 * u, node: n });
         items.push({
             key: n.s.session, x: q.x, y: q.y, r: d.r, pri: priority(n, !behind(n.p.system)), from: star,
-            quiet: behind(n.p.system) && n.tone !== "wait",
+            quiet: (behind(n.p.system) || n.p.depth > 0) && n.tone !== "wait",
             leader: n.tone === "wait" ? rgba(pal.wait, 0.8) : null,
             lines: linesOf(n, pal, type),
         });

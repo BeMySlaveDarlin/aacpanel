@@ -393,17 +393,17 @@ window.done = (async () => {
     out.afterReset = opened.slice(before).map((t) => t.name);
 
 
-    // The picture is handled as a map. NAMES pairs a session with the name the
-    // graph writes for it, and the name its tip says where that is another —
-    // the thread of codex blog opened is written as blog's helper; a name's
+    // The picture is handled as a map. NAMES pairs a planet of the system in
+    // front with the name the graph writes for it, always written; a name's
     // offset from its mark at the home view tells where the mark stands later,
-    // while the name keeps its side. The names are those of the system in
-    // front, which are always written.
+    // while the name keeps its side. TIPS adds the moons, which are named by
+    // their tips alone — the thread of codex blog opened by its own title.
     await quiet();
-    const NAMES = [["blog", "blog"], ["notes", "notes"], ["draft", "draft"], ["codex-1", "codex · blog", "cx-thread"], ["deep", "deep"]];
+    const NAMES = [["blog", "blog"], ["notes", "notes"], ["draft", "draft"]];
+    const TIPS = [...NAMES, ["codex-1", "cx-thread"], ["deep", "deep"]];
     const local = (p) => ({ x: p.x - box.left, y: p.y - box.top });
     const names = () => Object.fromEntries(NAMES.map(([, n]) => [n, written.get(n) ? { ...written.get(n) } : null]));
-    const marks0 = Object.fromEntries(NAMES.map(([s, n]) => [n, local(spotOf(s))]));
+    const marks0 = Object.fromEntries(TIPS.map(([s, n]) => [n, local(spotOf(s))]));
     const names0 = names();
     // Where each name stands beside its mark at the home view, as it stands now.
     const besides = () => {
@@ -513,7 +513,7 @@ window.done = (async () => {
     const toward = (n, k) => ({ x: m.x + k * (marks0[n].x + box.left - m.x), y: m.y + k * (marks0[n].y + box.top - m.y) });
     stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -100000, clientX: m.x, clientY: m.y }));
     await quiet();
-    g2.zoomIn = { bound: ZOOM[1], tip: await tipAt(toward("codex · blog", ZOOM[1])) };
+    g2.zoomIn = { bound: ZOOM[1], tip: await tipAt(toward("cx-thread", ZOOM[1])) };
     stage().dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100000, clientX: m.x, clientY: m.y }));
     await quiet();
     g2.zoomOut = { bound: ZOOM[0], tip: await tipAt(toward("draft", ZOOM[0])) };
@@ -554,13 +554,13 @@ window.done = (async () => {
     await quiet();
     await resetView();
     g2.resetTips = [];
-    for (const [s, n, said = n] of NAMES) g2.resetTips.push((await tipAt(spotOf(s))) === said ? said : `${said}?`);
+    for (const [s, said] of TIPS) g2.resetTips.push((await tipAt(spotOf(s))) === said ? said : `${said}?`);
     g2.resetOpened = opened.length - count;
 
-    // A crowded ring of fourteen sessions, one of them waiting and three the
-    // moons of the first, drawn on a canvas of its own.
+    // A crowded ring of fourteen sessions, three of them the moons of the
+    // first; a planet and the last moon wait. Drawn on a canvas of its own.
     const crowd = { at: Math.floor(now / 1000), profileMap: [], sessions: Array.from({ length: 14 }, (_, i) => S({
-        session: `node-${String.fromCharCode(97 + i)}`, profile: "personal", status: i === 5 ? "waiting" : i % 3 ? "idle" : "busy",
+        session: `node-${String.fromCharCode(97 + i)}`, profile: "personal", status: i === 5 || i === 13 ? "waiting" : i % 3 ? "idle" : "busy",
         lastRequestAt: iso(2 + i * 1.5), pct: 10 + i * 5,
         parent: i > 10 ? { session: "node-a" } : undefined })) };
     const cg = graphOf(crowd);
@@ -575,9 +575,9 @@ window.done = (async () => {
     const pal = { ink: "#eef1ff", wait: "#e3c97a", busy: "#63a8ff", cap: "#b98cff", void: "#06070f", sky: false };
     const type = { unit: 1, tag: { font: "15px Inter", size: 15, sp: 0.5, halo: 6 }, star: { font: "600 15px Inter", size: 15, sp: 0.8, halo: 6 } };
 
-    // Behind the front only the name of the system and that of a session
+    // Behind the front only the name of the system and those of the sessions
     // waiting for the person are written; the same crowded system in front,
-    // drawn small, writes every name.
+    // drawn small, writes every planet and a moon only while it waits.
     const hues = ["#6b9c83", "#7fe3d4", "#b98cff"];
     const SW = 380;
     const SH = 200;
