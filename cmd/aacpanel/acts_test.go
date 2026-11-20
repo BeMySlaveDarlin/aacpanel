@@ -13,47 +13,31 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
+	personrequest "aacpanel/internal/request"
 )
 
 const requestConversation = "567f4d24-cd5f-48fa-bdc1-04c89d203494"
 
-func TestOnlyTheLocalListenerAcceptsAnAgentsRequest(t *testing.T) {
-	srv := &Server{}
-	for _, listener := range []struct {
-		gate gate
-		want int
-	}{
-		{srv.publicGate(), http.StatusNotFound},
-		{srv.localGate(), http.StatusServiceUnavailable},
-	} {
-		w := httptest.NewRecorder()
-		srv.routes(listener.gate).ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/requests", strings.NewReader(`{}`)))
-		if w.Code != listener.want {
-			t.Errorf("local=%v: %d, want %d", listener.gate.local, w.Code, listener.want)
-		}
-	}
-}
-
 func newPersonRequest(t *testing.T, srv *Server) string {
 	t.Helper()
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/api/requests", strings.NewReader(`{"conversation":"`+requestConversation+`","title":"Restart the router","steps":"Run reboot","blocking":true}`))
-	srv.apiRequest(w, r)
-	if w.Code != http.StatusOK {
-		t.Fatalf("create: %d %s", w.Code, w.Body.String())
-	}
-	var body struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+	return createChain(t, srv, personrequest.Step{Who: "you", Text: "Run reboot"})
+}
+
+func newLegacyRequest(t *testing.T, srv *Server) string {
+	t.Helper()
+	blocking := true
+	row, err := srv.db.CreateAct(t.Context(), requestConversation, "sentinel", act.Input{
+		Kind: "do", Title: "Restart the router", Body: act.Body{Steps: "Run reboot"}, Blocking: &blocking,
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	pool, err := srv.db.Pool()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { pool.Exec(context.Background(), "DELETE FROM acts WHERE id=$1", body.ID) })
-	return body.ID
+	t.Cleanup(func() { pool.Exec(context.Background(), "DELETE FROM acts WHERE id=$1", row.ID) })
+	return row.ID
 }
 
 func TestANewRequestPushesWithoutWaitingForASnapshotPG(t *testing.T) {
@@ -64,7 +48,7 @@ func TestANewRequestPushesWithoutWaitingForASnapshotPG(t *testing.T) {
 	stopped := make(chan struct{})
 	go func() { defer close(stopped); p.srv.push.Run(ctx) }()
 	t.Cleanup(func() { cancel(); <-stopped })
-	newPersonRequest(t, p.srv)
+	createChain(t, p.srv, personrequest.Step{Who: "you", Text: "Run reboot"})
 	taken(t, store, time.Second, "the new request")
 }
 
@@ -113,11 +97,11 @@ func TestWaitingSnapshotJoinsTheDatabaseAndTheHostCardsPG(t *testing.T) {
 	}
 }
 
-func TestRequestUsesTheCallerAndTheAnswerUsesTheActionGatePG(t *testing.T) {
+func TestLegacyRequestAnswerUsesTheActionGatePG(t *testing.T) {
 	p := newPollProbe(t, t.Context(), "request-answer-phone")
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "queued"})
 	p.srv.exec = client
-	id := newPersonRequest(t, p.srv)
+	id := newLegacyRequest(t, p.srv)
 	rows, err := p.db.ActsOf(t.Context(), requestConversation)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +117,7 @@ func TestRequestUsesTheCallerAndTheAnswerUsesTheActionGatePG(t *testing.T) {
 	}
 	// The model cannot choose a session name even on the local listener.
 	w := httptest.NewRecorder()
-	p.srv.apiRequest(w, httptest.NewRequest(http.MethodPost, "/api/requests", strings.NewReader(`{"conversation":"`+requestConversation+`","session":"other","title":"Run","steps":"Run","blocking":false}`)))
+	p.srv.apiAct(w, httptest.NewRequest(http.MethodPost, "/api/acts", strings.NewReader(`{"conversation":"`+requestConversation+`","session":"other","kind":"do","title":"Run","body":{"steps":[{"who":"you","text":"Run"}]},"blocking":false}`)))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("model chose a session: %d", w.Code)
 	}
@@ -143,7 +127,7 @@ func TestRequestUsesTheCallerAndTheAnswerUsesTheActionGatePG(t *testing.T) {
 	}
 	select {
 	case got := <-fake.got:
-		if got.Kind != action.SessionSend || got.Target != "sentinel" || got.Text != row.Reply("done", "Wi-Fi is back.") || got.MessageID != requestMessageID(id) {
+		if got.Kind != action.SessionSend || got.Target != "sentinel" || got.Text != row.Reply("done", "Wi-Fi is back.") || got.MessageID != act.MessageID(id) {
 			t.Fatalf("answer sent as %+v", got)
 		}
 	case <-time.After(time.Second):
@@ -173,7 +157,7 @@ func TestRequestFailureKeepsTheTaskAndDoesNotSendToAnotherSessionPG(t *testing.T
 	p := newPollProbe(t, t.Context(), "request-failed-phone")
 	client, fake := startFakeExec(t, action.Response{OK: false, Error: "not delivered"})
 	p.srv.exec = client
-	id := newPersonRequest(t, p.srv)
+	id := newLegacyRequest(t, p.srv)
 	for _, target := range []string{"other", "sentinel"} {
 		w := post(t, p.srv, `{"kind":"session.send","target":"`+target+`","params":{"act":"`+id+`","answer":"cant","note":"No access"}}`)
 		if w.Code == http.StatusOK {

@@ -281,7 +281,7 @@ func TestChainWithdrawClosesTerminalsAndKeepsLegacyActsPG(t *testing.T) {
 	if row := chainRecord(t, s, id); row.State != "withdrawn" || len(exec.captured(action.TermClose)) != 1 || len(exec.captured(action.SessionSend)) != 0 {
 		t.Fatalf("withdraw: %+v", row)
 	}
-	legacy := newPersonRequest(t, s)
+	legacy := newLegacyRequest(t, s)
 	row := chainRecord(t, s, legacy)
 	data, err := json.Marshal(row)
 	if err != nil {
@@ -688,7 +688,7 @@ func TestChainCancelRefusesWhatItDoesNotOwnPG(t *testing.T) {
 	if w := chainCancel(t, s, "sentinel", foreign.ID, ""); w.Code == http.StatusOK {
 		t.Fatal("a chain of another conversation was cancelled")
 	}
-	legacy := newPersonRequest(t, s)
+	legacy := newLegacyRequest(t, s)
 	if w := chainCancel(t, s, "sentinel", legacy, ""); w.Code != http.StatusConflict {
 		t.Fatalf("a plain request was cancelled: %d", w.Code)
 	}

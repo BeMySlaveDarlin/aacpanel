@@ -13,37 +13,6 @@ import (
 	"aacpanel/internal/store"
 )
 
-// Existing MCP servers keep the request endpoint until they reconnect.
-func (s *Server) apiRequest(w http.ResponseWriter, r *http.Request) {
-	if s.db == nil || s.host == nil {
-		http.Error(w, "acts need the database and the host snapshot", http.StatusServiceUnavailable)
-		return
-	}
-	var body struct {
-		Conversation string `json:"conversation"`
-		Title        string `json:"title"`
-		Steps        string `json:"steps"`
-		Blocking     *bool  `json:"blocking"`
-		ID           string `json:"id"`
-		Withdraw     bool   `json:"withdraw"`
-	}
-	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384))
-	d.DisallowUnknownFields()
-	if err := d.Decode(&body); err != nil {
-		http.Error(w, "the request was not parsed", http.StatusBadRequest)
-		return
-	}
-	input := act.Input{Kind: "do", Title: body.Title, Body: act.Body{Steps: body.Steps}, Blocking: body.Blocking, ID: body.ID, Withdraw: body.Withdraw}
-	if input.Withdraw {
-		input.Kind = ""
-	}
-	if err := input.Validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	s.createAct(w, r, body.Conversation, input)
-}
-
 func (s *Server) apiAct(w http.ResponseWriter, r *http.Request) {
 	if s.db == nil || s.host == nil {
 		http.Error(w, "acts need the database and the host snapshot", http.StatusServiceUnavailable)
@@ -169,5 +138,3 @@ func (s *Server) prepareActAnswer(r *http.Request, target string, params map[str
 	note, _ := params["note"].(string)
 	return &actReply{lease: lease, answer: answer, note: note, ctx: ctx, cancel: cancel}, nil
 }
-
-func requestMessageID(id string) string { return act.MessageID(id) }

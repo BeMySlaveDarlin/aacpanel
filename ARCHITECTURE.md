@@ -698,10 +698,7 @@ message identity after a failed delivery or a service restart.
 answered, declined and withdrawn states; a chain also has the paused `failed`
 state. Its current step is numbered from one and its output array has one slot
 per step, null until used. Markdown requests in stored history keep their
-string-shaped body and rendering. The local `/api/requests` endpoint adapts
-string requests for MCP servers that have not reconnected. The old request and
-call tables remain available for an image rollback; the service neither reads
-nor writes them.
+string-shaped body and rendering.
 
 Closed `ask` acts remain cards in the conversation, including their recorded
 questions and answers. Open asks are withdrawn by migration, and the act API
