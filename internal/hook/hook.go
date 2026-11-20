@@ -115,6 +115,12 @@ func Names() []string {
 // event and every outcome — an unknown name, a payload that does not read, a
 // hook that panics — for the reason above.
 func Run(args []string, in io.Reader, out, errs io.Writer) int {
+	return RunWithGuide(args, in, out, errs, nil)
+}
+
+// RunWithGuide supplies the compiled-in tool guide from the entry point. The
+// toolset depends on the stream holder, which itself uses hooks.
+func RunWithGuide(args []string, in io.Reader, out, errs io.Writer, guide func(bool) string) int {
 	if len(args) == 0 {
 		fmt.Fprintf(errs, "aacpanel-exec hook: no hook named; the executor serves %s\n", strings.Join(Names(), ", "))
 		return 0
@@ -127,6 +133,11 @@ func Run(args []string, in io.Reader, out, errs io.Writer) int {
 	if !ok {
 		fmt.Fprintf(errs, "aacpanel-exec hook: no hook %q; the executor serves %s\n", name, strings.Join(Names(), ", "))
 		return 0
+	}
+	if name == "task-context" && guide != nil {
+		h.Answer = func(_ string, payload []byte, _ time.Time) Reply {
+			return taskContextWithGuide(payload, guide)
+		}
 	}
 	event := h.Event
 	if len(args) > 1 {

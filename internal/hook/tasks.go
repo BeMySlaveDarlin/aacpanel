@@ -11,19 +11,36 @@ import (
 	"aacpanel/internal/taskreg"
 )
 
+var taskContextTimeout = time.Second
+
 func taskContext(_ string, payload []byte, _ time.Time) Reply {
-	var in struct {
-		CWD string `json:"cwd"`
-	}
-	if json.Unmarshal(payload, &in) != nil || in.CWD == "" {
+	return taskContextWithGuide(payload, nil)
+}
+
+func taskContextWithGuide(payload []byte, guide func(bool) string) Reply {
+	p, ok := loadNumbers(payload).(map[string]any)
+	if !ok {
 		return Reply{}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	cwd, _ := p["cwd"].(string)
+	if cwd == "" {
+		return Reply{}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), taskContextTimeout)
 	defer cancel()
 	var out taskreg.Context
-	if taskreg.Call(ctx, hostcfg.PanelURL(), taskreg.Request{Operation: "context", CWD: in.CWD}, &out) != nil || out.Project.Writer != taskreg.PanelWriter {
-		return Reply{}
+	registry := taskreg.Call(ctx, hostcfg.PanelURL(), taskreg.Request{Operation: "context", CWD: cwd}, &out) == nil && out.Project.Writer == taskreg.PanelWriter
+	var parts []string
+	if registry {
+		parts = append(parts, taskRegistryContext(out))
 	}
+	if _, codex := codexHome(nil, p); !codex && guide != nil {
+		parts = append(parts, "## Panel tools\n\n"+guide(registry))
+	}
+	return Reply{Context: strings.Join(parts, "\n\n")}
+}
+
+func taskRegistryContext(out taskreg.Context) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Project task registry: %s. Use task_list, task_show, task_create, task_update and handoff_read/write.\n", out.Project.Name)
 	// A full handoff can consume the client's hook allowance and hide the queue.
@@ -57,5 +74,5 @@ func taskContext(_ string, payload []byte, _ time.Time) Reply {
 		}
 		b.WriteByte('\n')
 	}
-	return Reply{Context: strings.TrimSpace(b.String())}
+	return strings.TrimSpace(b.String())
 }

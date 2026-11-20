@@ -25,6 +25,9 @@ type Server struct {
 	// Tools are the tools the server lists and calls, in the order it lists
 	// them.
 	Tools []Tool
+	// StandingOnly leaves tool guidance to the session's start context, so
+	// the handshake carries only the lead and what the place already holds.
+	StandingOnly bool
 	// More supplies tools scoped to this server's project at its handshake.
 	More func() []Tool
 	// Bind finds where the claude this server serves works.
@@ -145,16 +148,30 @@ func (s *Server) initialize(params json.RawMessage) map[string]any {
 	}
 }
 
-// instructions are the server's word to the session: its lead, then the line
-// of every tool, each on a line of its own, with what the place already holds
-// for it. A place not known yet is said nothing of: every call finds it again.
+// Guide needs no binding and never reads a tool's standing, so it is available
+// even when the panel cannot answer a session's start hook.
+func Guide(lead string, tools []Tool) string {
+	return instructionText(lead, tools, nil, false)
+}
+
 func (s *Server) instructions() string {
 	b, err := s.Bind()
-	lines := []string{s.Lead}
-	for _, t := range s.available() {
-		line := []string{t.Instructions}
-		if err == nil && t.Standing != nil {
-			line = append(line, t.Standing(b))
+	var bound *Binding
+	if err == nil {
+		bound = &b
+	}
+	return instructionText(s.Lead, s.available(), bound, s.StandingOnly)
+}
+
+func instructionText(lead string, tools []Tool, bound *Binding, standingOnly bool) string {
+	lines := []string{lead}
+	for _, t := range tools {
+		var line []string
+		if !standingOnly {
+			line = append(line, t.Instructions)
+		}
+		if bound != nil && t.Standing != nil {
+			line = append(line, t.Standing(*bound))
 		}
 		lines = append(lines, strings.Join(slices.DeleteFunc(line, empty), " "))
 	}

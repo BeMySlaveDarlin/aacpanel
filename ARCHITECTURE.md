@@ -2651,9 +2651,12 @@ The installed `aacpanel-exec hook task-context` runs on `SessionStart` for
 Claude and Codex with Panel tools. It supplies the latest project handoff,
 its task groups and next step, then the first ten open tasks ordered by priority,
 position and number. Full handoff markdown stays behind `handoff_read`, so a
-long document does not crowd the queue out of the client's start context. The
-hook stays silent for cctm projects or an unavailable service, so file projects
-keep their own start hook. Period reads use a half-open interval, include all event kinds and paginate tasks before grouping
+long document does not crowd the queue out of the client's start context. No
+registry context is added for cctm projects or an unavailable service, so file
+projects keep their own start hook. Claude also receives the compiled-in Panel
+tools guide on startup, resume, compact and clear, even when the registry
+request fails or times out; Codex receives only the registry context.
+Period reads use a half-open interval, include all event kinds and paginate tasks before grouping
 them by issue. Reads and filters are under `/api/tasks`, task details under
 `/api/projects/{id}/tasks/{number}`, and period reads under `/api/tasks/period`;
 explicit import and registry operations are local-only.
@@ -3048,9 +3051,15 @@ one server, since claude keeps one server of a name and the one on the command
 line takes the place of the account's. The list of tools lives in one
 place, `internal/toolset`: the executor serves it and the launcher takes the
 allowed names from it, so a session is never allowed a tool the server does not
-have. The server's word to a session — in its system prompt — is a lead and a
-line from every tool, since a tool of a server is often deferred and its
-description unread. The lead routes a blocking question to the client's question
+have. A guide carries the lead and a line from every tool, since a tool of a
+server is often deferred and its description unread. Claude receives it under
+Panel tools through the existing `task-context` SessionStart hook, including on
+resume, compact and clear: a reconnect does not refresh the server's word in
+the conversation. The guide and the MCP instructions use the same formatter and
+tool lines; the guide reads no standing and makes no panel request. Registry
+lines are included only when the hook's registry lookup confirms a panel-written
+project. A failed lookup still leaves the ordinary tools' guide available.
+The lead routes a blocking question to the client's question
 tool, a phone call to `notify`, a file to show to `file_send`, a long read to
 `brief_publish`, a credential to `secret_ask`, a task for the person's hands to `request`, a letter to
 `send_to_session`, a command watch to `observer_start` and a timed return to
@@ -3058,17 +3067,23 @@ tool, a phone call to `notify`, a file to show to `file_send`, a long read to
 a nonblocking one leaves the agent free to continue independent work. Each tool's line
 says when to reach for it; its description gives the arguments, limits, alternatives
 and whether to continue work or end the turn. Question and permission dialogs
-already call the person, so they need no extra `notify`. Claude keeps 2048 UTF-16 units of that word by default
-and cuts the rest mid-sentence. The launcher lifts the ceiling to 6912 with
+already call the person, so they need no extra `notify`.
+
+Claude's MCP handshake keeps the lead and standing alone — its checklist, role
+and answered briefs — so the tool lines reach the conversation once. Codex keeps
+the full MCP instructions and receives no hook guide: its SessionStart context
+is limited to 2500 characters. Claude keeps 2048 UTF-16 units of a server's word
+by default and cuts the rest mid-sentence. The launcher lifts that ceiling with
 `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the environment of every session
 it hands the tools; claude holds the description of every tool of every
-server to the same ceiling, so those are lifted too. The lead and every line
-fit the lifted ceiling even with the longest checklist standing, the
+server to the same ceiling, so those are lifted too. The lead and standing
+fit even with the longest checklist standing, the
 three longest brief titles and the longest role, all in letters of two units,
-and a test holds that, so a new tool pays for its line out of the
-same budget; that worst case is what the number is made of, and its cost is
-that a tool of any other server keeps a description up to the same length. A session started by hand keeps the default unless the variable
-is in its environment, and past 2048 it loses the lines of the last tools. `-plan`
+and a test holds the shorter handshake to 4096 units. The launch ceiling also
+leaves room for other servers' tool descriptions; its cost is that every tool
+may keep a description up to that length. A session started by hand keeps the
+default unless the variable is in its environment, and past 2048 it loses the
+tail of its standing. `-plan`
 starts the same server: a live session keeps the
 MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries

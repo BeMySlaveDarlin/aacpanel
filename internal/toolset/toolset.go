@@ -36,15 +36,13 @@ const (
 	codexLead = leadStart + "the client's question tool, or ask in the conversation and end the turn if unavailable; " + leadWays
 )
 
-// WordEnv and WordMax lift what claude keeps of a server's word: by default it
-// keeps 2048 UTF-16 units and cuts the rest, and the lines of the last tools
-// never reach the model. The launcher sets the variable for every session it
-// hands the panel's tools; a session started otherwise keeps the default.
+// WordEnv and WordMax lift claude's default 2048 UTF-16 unit ceiling so long
+// roles, checklists and answered briefs keep their standing. The launcher sets
+// the variable for every session it hands the panel's tools; a session started
+// otherwise keeps the default.
 // Claude holds the description of every tool of every server to the same
-// ceiling, so the variable lifts those too. The number is the word at its
-// worst — the longest checklist standing, the longest brief titles and the
-// longest role, all in letters of two units — with room to spare; its cost is
-// that a tool of any other server keeps a description up to the same length.
+// ceiling, so the variable lifts those too. The lead and longest standing fit
+// within it; the rest remains available to tool descriptions from other servers.
 const (
 	WordEnv = "CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH"
 	WordMax = 7168
@@ -71,9 +69,19 @@ func tools() []mcp.Tool {
 	}, observer.Tools(observer.SocketPath())...)
 }
 
+// Guide is built without looking up a binding or calling the panel: a start
+// hook must still deliver it when its registry request fails.
+func Guide(registry bool) string {
+	list := tools()
+	if registry {
+		list = append(list, taskreg.Tools(session.Here().Panel)...)
+	}
+	return mcp.Guide(lead, list)
+}
+
 // Server is the panel's MCP server for the claude bind finds.
 func Server(bind mcp.Bind) *mcp.Server {
-	srv := &mcp.Server{Lead: lead, Tools: tools(), Bind: bind}
+	srv := &mcp.Server{Lead: lead, Tools: tools(), Bind: bind, StandingOnly: true}
 	if bind != nil {
 		srv.More = registryTools(func() string {
 			b, e := bind()

@@ -8,17 +8,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"aacpanel/internal/checklist"
+	"aacpanel/internal/hook"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/toolset"
 )
 
 func TestMain(m *testing.M) {
 	_ = os.Setenv("AACP_PANEL_URL", "http://127.0.0.1:1")
+	if os.Getenv("AACP_TEST_HOOK") == "1" {
+		main()
+	}
 	if os.Getenv("AACP_TEST_CCTM") == "1" {
 		_ = os.Setenv("AACP_PANEL_URL", os.Getenv("AACP_TEST_CCTM_PANEL"))
 		os.Args[0] = "cctm"
@@ -84,16 +90,45 @@ func talk(t *testing.T, parent int, lines ...string) []map[string]any {
 
 const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"2.1.283"}}}`
 
-// noChecklist is how the server's word to a session in a place with no
-// checklist begins, to the byte: the lead and the checklist's line stand in the
-// system prompt of every session the panel starts, and the lines of the other
-// tools follow.
+// Without standing, the handshake carries only the lead; guidance arrives
+// through the session's start hook.
 const noChecklist = "The person follows this session in the panel, on phone and desk. A blocking question: " +
 	"AskUserQuestion; a question while work goes on: ask; a phone call: notify; a file to show: file_send; a long read with questions: brief_publish; a credential: secret_ask; " +
 	"a task for their hands: request; another session: send_to_session; a command to watch: observer_start; " +
-	"a time to return: alarm_set.\n" +
-	"For work with several steps, use checklist before starting; update the whole list " +
-	"as steps start, finish or change, and before the report."
+	"a time to return: alarm_set."
+
+func TestTheHookCommandDeliversTheCompiledGuideWithoutThePanel(t *testing.T) {
+	t.Setenv("AACP_HOSTCFG", filepath.Join(t.TempDir(), "host.env"))
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, home := range []string{"", "/home/u/.codex"} {
+		cmd := exec.CommandContext(t.Context(), self, "hook", "task-context")
+		cmd.Env = append(os.Environ(), "AACP_TEST_HOOK=1", hook.CodexHomeEnv+"="+home)
+		cmd.Stdin = strings.NewReader(`{"cwd":"/srv/proj","source":"startup","session_id":"conversation"}`)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("hook command: %v, %s", err, out)
+		}
+		if home != "" {
+			if len(out) != 0 {
+				t.Fatalf("the hook command gave codex a guide: %s", out)
+			}
+			continue
+		}
+		var reply struct {
+			Output struct {
+				Event   string `json:"hookEventName"`
+				Context string `json:"additionalContext"`
+			} `json:"hookSpecificOutput"`
+		}
+		if err := json.Unmarshal(out, &reply); err != nil || reply.Output.Event != "SessionStart" || reply.Output.Context != "## Panel tools\n\n"+toolset.Guide(false) {
+			t.Fatalf("the hook command lost the compiled guide: %s (%v)", out, err)
+		}
+	}
+}
 
 // Both flags start the one server: the launcher writes -mcp into the MCP
 // configuration of a session, and a live session whose configuration names
@@ -143,7 +178,7 @@ func TestTheServerKeepsTheChecklistOfItsParentsSession(t *testing.T) {
 	}
 	hello, _ := replies[0]["result"].(map[string]any)
 	told, _ := hello["instructions"].(string)
-	if !strings.HasPrefix(told, noChecklist+"\n") || strings.Contains(told, "already has a checklist") {
+	if told != noChecklist {
 		t.Errorf("a place with no checklist was told otherwise: %v", replies[0])
 	}
 	if res, _ := replies[1]["result"].(map[string]any); res == nil || res["isError"] != nil {
@@ -160,7 +195,7 @@ func TestTheServerKeepsTheChecklistOfItsParentsSession(t *testing.T) {
 	replies = talk(t, 6262, handshake)
 	res, _ := replies[0]["result"].(map[string]any)
 	said, _ := res["instructions"].(string)
-	if !strings.HasPrefix(said, noChecklist+"\n") || strings.Contains(said, "already has a checklist") {
+	if said != noChecklist {
 		t.Errorf("another session of the directory was told of the checklist of this one: %q", said)
 	}
 
@@ -168,7 +203,7 @@ func TestTheServerKeepsTheChecklistOfItsParentsSession(t *testing.T) {
 	replies = talk(t, 5151, handshake)
 	res, _ = replies[0]["result"].(map[string]any)
 	said, _ = res["instructions"].(string)
-	if !strings.HasPrefix(said, noChecklist+" This session already has a checklist") ||
+	if !strings.HasPrefix(said, noChecklist+"\nThis session already has a checklist") ||
 		!strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
 		t.Errorf("the session started again under its name was not told of its checklist: %q", said)
 	}

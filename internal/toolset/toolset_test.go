@@ -20,6 +20,7 @@ import (
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/role"
 	"aacpanel/internal/stream"
+	"aacpanel/internal/taskreg"
 )
 
 func TestMain(m *testing.M) {
@@ -425,6 +426,31 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 	}
 }
 
+func TestTheGuideKeepsEveryToolLineWithoutCallingThePanel(t *testing.T) {
+	t.Setenv("AACP_HOSTCFG", filepath.Join(t.TempDir(), "host.env"))
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("building the guide called the panel: %s", r.URL.Path)
+		http.Error(w, "not available", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(panel.Close)
+	t.Setenv("AACP_PANEL_URL", panel.URL)
+	for _, registry := range []bool{false, true} {
+		list := tools()
+		if registry {
+			list = append(list, taskreg.Tools(panel.URL)...)
+		}
+		lines := []string{lead}
+		for _, tool := range list {
+			if tool.Instructions != "" {
+				lines = append(lines, tool.Instructions)
+			}
+		}
+		if got, want := Guide(registry), strings.Join(lines, "\n"); got != want {
+			t.Fatalf("the guide changed the tool lines (registry %v):\n%s\nwant:\n%s", registry, got, want)
+		}
+	}
+}
+
 // Every tool of a thread of codex works for the thread the call proves, and
 // for nobody else: a call that names no thread, or a thread the codex does
 // not hold, is refused, reaches no socket of the collector and keeps no
@@ -597,10 +623,8 @@ func TestTheCloseClosesOnlyTheSessionCalling(t *testing.T) {
 	}
 }
 
-// The server's word fits what claude keeps of it even when the session has the
-// longest role, the place holds the longest checklist standing and three
-// longest brief titles: cut, it loses the lines of the last tools, and the
-// model never learns when to reach for them.
+// A cut handshake loses standing silently, so the lead and longest standing
+// must fit together without borrowing the guide's allowance.
 func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -648,6 +672,11 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 		t.Fatalf("the server answered %q: %v", out.String(), err)
 	}
 	said := reply.Result.Instructions
+	for _, tool := range append(tools(), taskreg.Tools(panel.URL)...) {
+		if tool.Instructions != "" && strings.Contains(said, tool.Instructions) {
+			t.Errorf("the handshake repeats the guide's line for %s", tool.Name)
+		}
+	}
 	if !strings.Contains(said, "39 of 40 steps finished") {
 		t.Fatalf("the word does not carry the checklist of the place: %q", said)
 	}
@@ -659,8 +688,8 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	}
 	// Claude counts the word as JavaScript counts a string, in UTF-16 units.
 	t.Logf("server word: %d UTF-16 units", len(utf16.Encode([]rune(said))))
-	if n := len(utf16.Encode([]rune(said))); n > WordMax {
-		t.Errorf("the server's word is %d units, claude keeps %d:\n%s", n, WordMax, said)
+	if n, ceiling := len(utf16.Encode([]rune(said))), min(4096, WordMax); n > ceiling {
+		t.Errorf("the server's lead and standing are %d units, the ceiling is %d:\n%s", n, ceiling, said)
 	}
 }
 

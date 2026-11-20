@@ -67,7 +67,7 @@ func TestRegistryToolsAreVisibleOnlyInPanelProjects(t *testing.T) {
 					t.Fatalf("listed %v, want %v", listed, want)
 				}
 				instructions := replies[0]["result"].(map[string]any)["instructions"].(string)
-				if strings.Contains(instructions, "Use task_list") != (writer == taskreg.PanelWriter) {
+				if strings.Contains(instructions, "Use task_list") != (agent == "codex" && writer == taskreg.PanelWriter) {
 					t.Fatalf("wrong scoped instructions: %s", instructions)
 				}
 				if writer == taskreg.FilesWriter && !slices.Equal(AllowedFor(dir), baseline) {

@@ -352,6 +352,41 @@ func TestTheInstructionsAreTheLeadAndTheLineOfEveryTool(t *testing.T) {
 	}
 }
 
+func TestTheGuideIsTheSameToolTextWithoutReadingStanding(t *testing.T) {
+	var calls []called
+	first, second := fake("first", &calls), fake("second", &calls)
+	second.Standing = func(Binding) string {
+		t.Error("the guide read standing")
+		return "The place holds two of second."
+	}
+	if got, want := Guide("The panel is here.", []Tool{first, second}), "The panel is here.\nUse first when it helps.\nUse second when it helps."; got != want {
+		t.Fatalf("the guide changed the tool text: %q, want %q", got, want)
+	}
+	first.Instructions = ""
+	if got := Guide("", []Tool{first, second}); got != "Use second when it helps." {
+		t.Fatalf("the guide left a gap: %q", got)
+	}
+}
+
+func TestStandingCanTravelWithoutToolGuidance(t *testing.T) {
+	var calls []called
+	first, second := fake("first", &calls), fake("second", &calls)
+	second.Standing = func(b Binding) string {
+		if b != lab {
+			t.Errorf("standing got another binding: %+v", b)
+		}
+		return "The place holds two of second."
+	}
+	srv := &Server{Lead: "The panel is here.", Tools: []Tool{first}, More: func() []Tool { return []Tool{second} }, Bind: placed, StandingOnly: true}
+	if got := instructionsOf(t, srv); got != "The panel is here.\nThe place holds two of second." {
+		t.Fatalf("the handshake repeated tool guidance or lost standing: %q", got)
+	}
+	srv.Bind = lost
+	if got := instructionsOf(t, srv); got != "The panel is here." {
+		t.Fatalf("an unknown place got more than the lead: %q", got)
+	}
+}
+
 // The launcher allows a tool by the name claude gives it, and only a tool
 // that is marked allowed.
 func TestAllowedAreTheAllowedToolsByTheNamesClaudeGivesThem(t *testing.T) {

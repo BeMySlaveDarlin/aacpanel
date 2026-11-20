@@ -58,7 +58,7 @@ func main() {
 	// and it comes before the flags: its exit is the hook's, never the 2 of a
 	// flag that does not parse, which would hold the session it serves.
 	if len(os.Args) > 1 && os.Args[1] == hook.Command {
-		os.Exit(hook.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+		os.Exit(hook.RunWithGuide(os.Args[2:], os.Stdin, os.Stdout, os.Stderr, toolset.Guide))
 	}
 	// A heavy run takes the rest of the line as its own, its flags and the
 	// command after them: the executor's flags would read the command's.
