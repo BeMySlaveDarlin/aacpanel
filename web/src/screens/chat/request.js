@@ -50,7 +50,7 @@ function MarkdownRequest({ item, record, onAnswer, onRun, error = "", unavailabl
 }
 
 const waitingRow = (item, node) => Number(node.dataset.pos) === item.pos
-    && node.classList.contains(`r-${item.kind === "question" ? "ai" : item.kind}`)
+    && node.classList.contains(`r-${item.kind}`)
     && Number(node.dataset.nth || 0) === (item.nth || 0);
 
 // A revealed card keeps its contour only while its item is outstanding.

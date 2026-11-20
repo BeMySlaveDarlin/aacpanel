@@ -25,7 +25,7 @@ import { overdueMinutes } from "../../data/acts.js";
 export const PAUSE_NO_END = "pause-no-end";
 
 // The word each kind of outstanding work opens its line with.
-const OUTSTANDING = { question: "asks", request: "request", brief: "brief", secret: "secret", call: "called you" };
+const OUTSTANDING = { request: "request", brief: "brief", secret: "secret", call: "called you" };
 
 // runsOf counts what of a session's background work runs, by the counter
 // its card shows it under: subagents and workflows, the commands it left
@@ -175,11 +175,9 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
         const said = waitWords(s.waitingFor);
         return make("wait", said.permission ? "permission" : "input", said.word, { subject: said.subject });
     }
-    // A question asked in the conversation goes first: it holds the turn up;
-    // the rest stand in the order the session left them.
     const outstanding = waitingOf(s, viewed);
     if (outstanding.length > 0) {
-        const first = outstanding.find((item) => item.kind === "question") || outstanding[0];
+        const first = outstanding[0];
         return make("wait", first.kind, OUTSTANDING[first.kind], {
             subject: first.kind === "call" ? "" : first.title || "",
             note: outstanding.length > 1 ? `${outstanding.length - 1} more` : "",

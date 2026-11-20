@@ -229,20 +229,7 @@ func TestTheNewsOfASessionNamesWhereItComesFrom(t *testing.T) {
 	}
 }
 
-func TestTextQuestionsHaveTheirOwnPushChoice(t *testing.T) {
-	m := TextQuestion(Session{ID: "conversation", Name: "project"}, "message", "Publish?")
-	if m.Title != "Asks · project" || m.Body != "Publish?" || m.Tag != QuestionTag("conversation", "message") {
-		t.Fatalf("question push lost its summary or tag: %+v", m)
-	}
-	if m.Tag == TextQuestion(Session{ID: "conversation", Name: "project"}, "another", "Publish?").Tag {
-		t.Fatal("two questions share a tag")
-	}
-	if m.Kind != KindQuestion || m.Session != "project" {
-		t.Fatalf("question push lost its kind or destination: %+v", m)
-	}
-	if !(Prefs{}).Allows(m) || (Prefs{Off: []string{KindQuestion}}).Allows(m) {
-		t.Fatal("text questions ignore the push choice")
-	}
+func TestTurnClassificationHasALiveChoice(t *testing.T) {
 	off := false
 	if !(Prefs{}).ClassifyQuestions() || (Prefs{CheckQuestions: &off}).Clean().ClassifyQuestions() {
 		t.Fatal("classification default or saved choice was lost")

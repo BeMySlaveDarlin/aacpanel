@@ -14,7 +14,6 @@ import (
 	"aacpanel/internal/chat"
 	"aacpanel/internal/docker"
 	"aacpanel/internal/notify"
-	"aacpanel/internal/question"
 )
 
 const questionParentID = "11111111-1111-4111-8111-111111111111"
@@ -73,7 +72,7 @@ func TestParentQuestionsAreMailedOnceAndWaitAcrossServiceRestartsPG(t *testing.T
 	})
 	e := parentQuestionClient(t, p.srv, &action.Opening{Name: "parent", Conversation: questionParentID, Letters: true})
 	child := notify.Session{ID: requestConversation, Name: "sentinel", CWD: "/srv/unmapped/child", ConfigDir: "/account/unmapped"}
-	question := parentQuestion{Key: "text:clock", Text: "Publish the change?", Questions: publishQuestions()}
+	question := parentQuestion{Key: "ask:clock", Ask: &chat.Ask{ToolUseID: "clock", Questions: []chat.AskQuestion{{Text: "Publish the change?", Options: []chat.AskOption{{Label: "Publish"}}}}}}
 	now := time.Unix(2_000_000_000, 0).UTC()
 	if !p.srv.deferParentQuestion(t.Context(), child, question, now) {
 		t.Fatal("the question was pushed before the parent had time to answer")
@@ -90,7 +89,7 @@ func TestParentQuestionsAreMailedOnceAndWaitAcrossServiceRestartsPG(t *testing.T
 		sent[0].Conversation != questionParentID || sent[0].From != "" {
 		t.Fatalf("the repeated question was mailed more than once or as an agent: %+v", sent)
 	}
-	for _, text := range []string{"sentinel", "Publish the change?", "Publish", "send_to_session", "5 minutes", "do not ask them yourself"} {
+	for _, text := range []string{"sentinel", "Publish the change?", "Publish", "session_answer", "5 minutes", "do not ask them yourself"} {
 		if !strings.Contains(sent[0].Text, text) {
 			t.Errorf("the parent's letter lacks %q: %s", text, sent[0].Text)
 		}
@@ -133,129 +132,8 @@ func TestParentQuestionPolicyDefaultsAndProjectOverridesPG(t *testing.T) {
 	}
 	e := parentQuestionClient(t, p.srv, &action.Opening{Name: "parent", Conversation: questionParentID, Letters: true})
 	child.ID, child.Name = requestConversation, "sentinel"
-	if p.srv.deferParentQuestion(t.Context(), child, parentQuestion{Key: "disabled", Text: "Question?"}, time.Now()) || len(e.sent()) != 0 {
+	if p.srv.deferParentQuestion(t.Context(), child, parentQuestion{Key: "ask:disabled", Ask: &chat.Ask{ToolUseID: "disabled"}}, time.Now()) || len(e.sent()) != 0 {
 		t.Fatal("a disabled project delayed its push or mailed the parent")
-	}
-}
-
-func TestProseQuestionPushWaitsAndAQuestionClearedBeforeItsDeadlineStaysSilentPG(t *testing.T) {
-	p := newPollProbe(t, t.Context(), "parent-question-push")
-	pool, _ := p.db.Pool()
-	t.Cleanup(func() {
-		pool.Exec(context.Background(), "DELETE FROM parent_questions WHERE conversation=$1", requestConversation)
-		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
-		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1 AND kind='ask'", requestConversation)
-	})
-	e := parentQuestionClient(t, p.srv, &action.Opening{Name: "parent", Conversation: questionParentID, Letters: true})
-	p.srv.push = notify.New(nil, "")
-	p.srv.host = hostWith(t, `{"sessions":[{"sessionId":"`+requestConversation+`","session":"sentinel","status":"idle"}]}`)
-	scan := func() {
-		p.srv.scanTextQuestions(t.Context(), func(string, string, chat.Item) { t.Error("a stored verdict was classified again") })
-	}
-	assertPushed := func(message string, want bool) {
-		t.Helper()
-		var got bool
-		if err := pool.QueryRow(t.Context(), "SELECT pushed FROM text_questions WHERE conversation=$1 AND message=$2", requestConversation, message).Scan(&got); err != nil || got != want {
-			t.Fatalf("push of %s: %v, want %v (%v)", message, got, want, err)
-		}
-	}
-	for _, message := range []string{"expires", "cleared", "no-parent", "no-mailbox"} {
-		if _, err := p.db.ClaimQuestion(t.Context(), requestConversation, message); err != nil {
-			t.Fatal(err)
-		}
-		what := "Publish?"
-		if message == "cleared" {
-			what = ""
-		}
-		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", question.Verdict{What: what, Questions: publishQuestions()}); err != nil {
-			t.Fatal(err)
-		}
-		card := chat.Item{Role: "question", BriefID: message, Text: "Publish?", Title: "Asks in text"}
-		active := map[string]any{"ok": true, "waiting": map[string][]chat.Item{requestConversation: {card}}}
-		empty := map[string]any{"ok": true, "waiting": map[string][]chat.Item{requestConversation: {}}}
-		agent := startAgentSeq(t, active, empty)
-		if message == "expires" {
-			agent = startAgent(t, active)
-		}
-		p.srv.chat = chat.New(agent.path)
-		e.mu.Lock()
-		if message == "no-parent" {
-			e.opening = nil
-		} else if message == "no-mailbox" {
-			e.opening = &action.Opening{Name: "parent", Conversation: questionParentID, Letters: false}
-		}
-		e.mu.Unlock()
-		scan()
-		if message == "no-parent" || message == "no-mailbox" {
-			assertPushed(message, true)
-			continue
-		}
-		assertPushed(message, false)
-		var rows []map[string]json.RawMessage
-		_ = json.Unmarshal([]byte(`[{"sessionId":"`+requestConversation+`","status":"idle"}]`), &rows)
-		if visible := p.srv.questionCards(t.Context(), rows, map[string][]chat.Item{requestConversation: {card}}); len(visible[requestConversation]) != 1 {
-			t.Fatalf("the delayed push hid the question from the panel: %v", visible)
-		}
-		if _, err := pool.Exec(t.Context(), "UPDATE parent_questions SET due=now()-interval '1 second' WHERE conversation=$1 AND question=$2", requestConversation, "text:"+message); err != nil {
-			t.Fatal(err)
-		}
-		scan()
-		assertPushed(message, message == "expires")
-	}
-	if len(e.sent()) != 2 {
-		t.Fatalf("questions without a reachable parent were mailed: %+v", e.sent())
-	}
-	for _, letter := range e.sent() {
-		if !strings.Contains(letter.Text, "Publish?") {
-			t.Fatalf("a parent got no question when the verdict had no summary: %s", letter.Text)
-		}
-	}
-}
-
-func TestAParentsOrdinaryLetterSettlesOnlyItsChildsCurrentProseQuestionPG(t *testing.T) {
-	p := newPollProbe(t, t.Context(), "parent-question-reply")
-	pool, _ := p.db.Pool()
-	t.Cleanup(func() {
-		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
-		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1 AND kind='ask'", requestConversation)
-	})
-	e := parentQuestionClient(t, p.srv, &action.Opening{Name: "parent", Conversation: questionParentID, Letters: true})
-	card := chat.Item{Role: "question", BriefID: "parent-reply", Text: "Use this path?", Title: "Asks in text"}
-	agent := startAgent(t, map[string]any{"ok": true, "waiting": map[string][]chat.Item{requestConversation: {card}}})
-	p.srv.chat = chat.New(agent.path)
-	if _, err := p.db.ClaimQuestion(t.Context(), requestConversation, card.BriefID); err != nil {
-		t.Fatal(err)
-	}
-	if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", card.BriefID, "yes", question.Verdict{What: card.Text, Questions: publishQuestions()}); err != nil {
-		t.Fatal(err)
-	}
-	var rows []map[string]json.RawMessage
-	_ = json.Unmarshal([]byte(`[{"sessionId":"`+requestConversation+`","status":"idle"}]`), &rows)
-	for _, from := range []string{questionForeignID, questionParentID} {
-		response := post(t, p.srv, `{"kind":"session.letter","target":"sentinel","params":{"from":"`+from+`","text":"Use the saved plan."}}`)
-		if response.Code != http.StatusOK {
-			t.Fatalf("the ordinary letter failed: %d %s", response.Code, response.Body.String())
-		}
-		visible := p.srv.questionCards(t.Context(), rows, map[string][]chat.Item{requestConversation: {card}})
-		if (len(visible[requestConversation]) == 0) != (from == questionParentID) {
-			t.Fatalf("a sibling settled the question, or the parent did not: %v", visible)
-		}
-	}
-	acts, err := p.db.ActsOf(t.Context(), requestConversation)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range acts {
-		if row.Kind == "ask" && (row.State != "answered" || row.AnsweredBy != "parent") {
-			t.Fatalf("parent answer act: %+v", row)
-		}
-	}
-	sent := e.sent()
-	if len(sent) != 2 || sent[0].Caller != "" || sent[1].Caller != questionParentID || sent[1].Conversation != requestConversation {
-		t.Fatalf("the parent's reply was not verified on the host: %+v", sent)
-	}
-	if fresh, err := p.db.PushQuestion(t.Context(), requestConversation, card.BriefID); err != nil || fresh {
-		t.Fatalf("a stale scan pushed a prose question already answered by its parent: %v %v", fresh, err)
 	}
 }
 
@@ -479,14 +357,13 @@ func TestAQuestionHeldAtTheParentMarksTheChildPG(t *testing.T) {
 		}
 	}
 
-	// A question in prose is named by the waiting list; a parent that is not
-	// live is named as the row names it.
-	claim(child, "text:brief-1", due, true, false)
+	// A parent outside the live snapshot is named as the child row names it.
+	claim(child, "ask:brief-1", due, true, false)
 	payload := []byte(`{"sessions":[{"sessionId":"` + child + `","parent":{"session":"gone-lead"},` +
-		`"waiting":[{"kind":"question","id":"brief-1","title":"Ship?","answers":[]}]}]}`)
+		`"ask":{"toolUseId":"brief-1"}}]}`)
 	p.srv.host = hostWith(t, `{"at":1,"sessions":[]}`)
 	got := parentQuestionOf(t, p.srv.sessionsAtParent(t.Context(), payload, time.Now()), child)
 	if want := `{"parent":"gone-lead","due":"` + due.Format(time.RFC3339) + `"}`; got != want {
-		t.Fatalf("the question in prose marks %q, want %s", got, want)
+		t.Fatalf("the native question marks %q, want %s", got, want)
 	}
 }

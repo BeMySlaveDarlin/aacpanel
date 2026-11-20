@@ -70,26 +70,6 @@ func (s *Store) OpenActs(ctx context.Context, conversations []string) ([]act.Rec
 	return s.acts(ctx, conversations, true)
 }
 
-func (s *Store) OpenAskQuestions(ctx context.Context, conversation string) ([]string, error) {
-	rows, err := s.OpenActs(ctx, []string{conversation})
-	if err != nil {
-		return nil, err
-	}
-	var questions []string
-	for _, row := range rows {
-		if row.Kind != "ask" {
-			continue
-		}
-		for _, q := range row.Body.Questions {
-			questions = append(questions, question.Line(q.Question, 200))
-			if len(questions) == 12 {
-				return questions, nil
-			}
-		}
-	}
-	return questions, nil
-}
-
 func (s *Store) ActsOf(ctx context.Context, conversation string) ([]act.Record, error) {
 	rows, err := s.acts(ctx, []string{conversation}, false)
 	for i := range rows {
@@ -165,11 +145,6 @@ func (a *ActAnswer) SaveSecret(ctx context.Context, path string) error {
 func (a *ActAnswer) finish(ctx context.Context, state string, answer act.Answer) error {
 	if _, err := a.tx.Exec(ctx, `UPDATE acts SET state=$2,closed_at=now(),answer=$3,answered_by='person' WHERE id=$1`, a.Record.ID, state, answer); err != nil {
 		return err
-	}
-	if a.Record.Kind == "ask" && a.Record.Body.Source == "prose" {
-		if _, err := a.tx.Exec(ctx, `UPDATE text_questions SET answered=true,closed=pushed WHERE conversation=$1 AND message=$2`, a.Record.Conversation, a.Record.Body.Message); err != nil {
-			return err
-		}
 	}
 	return a.tx.Commit(ctx)
 }

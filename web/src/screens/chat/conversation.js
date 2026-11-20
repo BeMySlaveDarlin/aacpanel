@@ -18,7 +18,7 @@ import { ParentSheet } from "./parent.js";
 import { useToast } from "../../ui/toasts.js";
 import * as codecopy from "./copy.js";
 import { ContextBar } from "../../ui/bar.js";
-import { ActAsk, Ask } from "../ask.js";
+import { Ask } from "../ask.js";
 import { Permit } from "./permit.js";
 import { ago, tokens } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
@@ -118,7 +118,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const actRunning = Object.values(acts).some((act) => act.state === "open" && act.outputs?.some((out) => out?.state === "running"));
     const waitingItems = useWaiting(live, true);
     useEffect(() => clearWaitingTargets(waitingItems, feedRef.current), [waitingItems]);
-    const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret", "ask", "question"].includes(item.role) || item.claim || item.re).map((item) => item.id || item.claim || item.re).join("|");
+    const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret", "ask"].includes(item.role) || item.claim || item.re).map((item) => item.id || item.claim || item.re).join("|");
     useEffect(() => {
         if (!id) return;
         let active = true;
@@ -126,7 +126,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             if (!active) return;
             setActs(Object.fromEntries(list.map((row) => [row.id, row])));
             setActError("");
-            for (const row of list) if (!actOpen(row)) settleWaiting(live, row.kind === "do" ? "request" : row.kind === "ask" ? "question" : row.kind, row.id);
+            for (const row of list) if (!actOpen(row)) settleWaiting(live, row.kind === "do" ? "request" : row.kind, row.id);
         }).catch((err) => { if (active) setActError(String(err.message || err)); });
         return () => { active = false; };
     }, [id, actCards, live && live.waiting, live && live.claims, actRefresh]);
@@ -409,7 +409,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const feed = weld(queuedRows(state.items, queue, taken));
     // What the feed draws: the tail, or a window away from the end of the
     // conversation. The work under the feed is always the tail's.
-    const drawn = withActReplies(away ? weld(queuedRows(shown, queue, taken)) : feed, acts, waitingItems, !away);
+    const drawn = withActReplies(away ? weld(queuedRows(shown, queue, taken)) : feed, acts, !away);
     // The checklist of the work: on a phone a line over the composer, at a
     // desk a block at the top of the timeline column, where the room is.
     const checklist = (state.work && state.work.checklist) || null;
@@ -417,15 +417,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const own = look ? parts.look(look, ctx) : null;
     const onLocal = (row) => setLocal((was) => [...was, { ...row, after: lastPos(state.items) }]);
     const onLocalDone = (key, patch) => setLocal((was) => was.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-    // A message the session took answers what it asked in text: the mark goes
-    // at once, while the host learns of the answer with its next look.
+    // An async native question settles when the session takes the message.
     const onSent = (key, patch) => {
         onLocalDone(key, patch);
         if (patch.state !== "queued") return;
         if (goesOn && asksTurn) mark(answered(live, ask.toolUseId, Date.now(), ask.at, true));
-        for (const item of waitingItems) if (item.kind === "question" && acts[item.id]?.body?.source === "prose") settleWaiting(live, "question", item.id);
-        setActs((was) => Object.fromEntries(Object.entries(was).map(([id, act]) => [id,
-            act.kind === "ask" && act.body?.source === "prose" && act.state === "open" ? { ...act, state: "answered" } : act])));
     };
     const sendQuick = async (text) => {
         if (dismissBeforeSend && !await dismissBeforeSend()) return;
@@ -485,7 +481,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     });
     // An older render must not undo a newer marker press.
     useEffect(() => { setSelected((was) => was === selected ? currentKey : was); }, [currentKey, selected]);
-    const selectAct = useCallback((item) => setSelected(moveKey({ ...item, kind: item.role === "ask" ? "question" : item.role || item.kind })), []);
+    const selectAct = useCallback((item) => setSelected(moveKey({ ...item, kind: item.role || item.kind })), []);
     const nextAct = () => {
         const next = moves[(moves.findIndex((item) => moveKey(item) === currentKey) + 1) % moves.length];
         if (!next) return;
@@ -514,19 +510,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         settleWaiting(live, "secret", item.id || item.name);
         loadSecrets();
     };
-    // A question put away closes declined, with no answers.
-    const finishQuestion = (id, answers, state = "answered") => {
-        const answer = state === "declined" ? { outcome: "decline" } : { answers };
-        setActs((was) => ({ ...was, [id]: { ...was[id], state, answered: new Date().toISOString(), answer } }));
-        settleWaiting(live, "question", id);
-    };
     const form = !current ? null : current.kind === "asked"
         ? html`<${Ask} key=${currentKey} ask=${ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
             field=${Boolean(dismissBeforeSend)} onAnswered=${nativeAnswered} />`
         : current.kind === "permit"
         ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)} onAnswered=${() => mark(answered(live, ""))} />`
-        : current.kind === "question"
-        ? html`<${ActAsk} key=${currentKey} item=${current} name=${name} exec=${exec} onAnswered=${finishQuestion} />`
         : current.kind === "request"
         ? html`<div onClick=${(event) => codecopy.fromClick(event, toast)}><${RequestCard} key=${currentKey} item=${current} record=${acts[current.id]}
             error=${actError} onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${lent.onRun}
@@ -700,7 +688,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     row=${(item, n) => html`<${FeedRow}
                         key=${`${item.pos}-${n}`}
                         item=${item}
-                        question=${item.role === "ai" && waitingItems.find((q) => q.kind === "question" && q.pos === item.pos && (q.nth || 0) === (item.nth || 0))}
                         session=${name}
                         id=${id}
                         copies=${copies}

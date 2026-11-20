@@ -26,29 +26,6 @@ export function Ask(props) {
         : html`<${Round} ...${props} />`;
 }
 
-export function ActAsk({ item, name, exec, onAnswered }) {
-    const run = useAction();
-    const questions = (item.questions || item.body?.questions || []).map((q) => ({ ...q, text: q.question }));
-    const send = async (picks, texts, notes) => {
-        const answers = questions.map((q, n) => ({
-            picks: picks[n].map((pick) => q.options[pick - 1].label),
-            text: [texts[n].trim(), notes[n]].filter(Boolean).join("\n\n"),
-        }));
-        const result = await run("session.send", name, { act: item.id, answers });
-        if (result.ok && onAnswered) onAnswered(item.id, answers);
-        return result;
-    };
-    // Put away, the question closes and the session hears that the answer
-    // comes in the conversation.
-    const drop = async () => {
-        const result = await run("session.send", name, { act: item.id, answer: "decline" });
-        if (result.ok && onAnswered) onAnswered(item.id, [], "declined");
-        return result;
-    };
-    return html`<${Round} ask=${{ toolUseId: item.id, at: item.at, questions }} name=${name} exec=${exec}
-        onSend=${send} onDrop=${drop} />`;
-}
-
 // askLabel names who asks over a question: its header for claude, and for
 // codex the header beside the word that the question is codex's — a question
 // of codex that holds its turn comes from plan mode, and one it asked without

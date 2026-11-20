@@ -43,7 +43,7 @@ export const FeedWrites = createContext(null);
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, question, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onClaimWithdraw }) {
+export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onClaimWithdraw }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -97,7 +97,7 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
         return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
     }
     if (["request", "secret", "ask"].includes(item.role)) {
-        if (item.role === "ask" && act && !actOpen(act)) return html`
+        if (item.role === "ask") return html`
             <${AskCard} item=${item} record=${act} />
             ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
         if (item.role === "request" && isChain(act) && !actOpen(act)) return html`
@@ -206,7 +206,6 @@ export function Row({ item, question, session, id, onFile, onBrief, briefs, onCo
                  onContextMenu=${menu && messageMenu(menu, writes, item, mine ? copied : String(said || ""), again)}>
                 ${copied !== "" && html`<button class="cmdcopy msgcopy" type="button" aria-label="copy the message"
                                         data-md=${copied}>${Icon.copy()}</button>`}
-                ${question && html`<div class="mquestionwhat" title=${question.title}>${question.title}</div>`}
                 ${placed && html`<${PlaceCard} place=${placed.place} />`}
                 ${placed ? render(placed.text, { breaks: mine, onRun: writes.onRun })
                     : render(said, { breaks: mine, onRun: writes.onRun })}

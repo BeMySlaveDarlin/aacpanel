@@ -221,8 +221,7 @@ function Choice({ prefs, sources, change }) {
                     <div class="grouphead">needs you</div>
                     <section class="card nfcard">
                         <${Always} title="A session calls you" sub="it was asked to — always comes" />
-                        <${Kind} title="A question in text" on=${heard("question")} onFlip=${kind("question")} />
-                        <${Kind} title="Check questions in text with haiku" sub="off shows every candidate" on=${prefs.checkQuestions}
+                        <${Kind} title="Check turn endings with haiku" sub="questions use AskUserQuestion; manual work uses request" on=${prefs.checkQuestions}
                             onFlip=${() => change((p) => ({ ...p, checkQuestions: !p.checkQuestions }))} />
                         <${Kind} title="A question" on=${heard("ask")} onFlip=${kind("ask")} />
                         <${Kind} title="Waits for a permission" on=${heard("wait")} onFlip=${kind("wait")} />

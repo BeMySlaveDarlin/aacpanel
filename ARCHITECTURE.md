@@ -385,37 +385,18 @@ and background notifications leave it in place, and the next assistant reply
 replaces it. The screen uses that session's contour limits for the reset time
 and marks a conversation still stopped after the reset as waiting for a person.
 
-**Questions left in prose are waiting work.** Claude's `turn` hook classifies
-candidate turn ends synchronously; the question-mark scan is the fallback for
-sessions where the hook cannot reach the panel. The executor starts a tool-free,
-non-persistent haiku call in the session's contour, carrying only that message
-on stdin. The verdict holds a form of up to four questions, a manual action
-and a summary in the message's language. Rhetoric, self-answered questions,
-optional offers, quotations, examples and questions to other agents do not
-qualify. Unreadable verdicts are errors. The database claims each message
-before the call, so the hook, a poll and a restart cannot spend a second call.
-A prose `ask` holds the form; its answer supplies one complete set of choices
-and free text. The act lifecycle and the hook's blocking rule are described
-with tasks for the person's hands below.
+**Questions use the client's question tool.** Claude's `turn` Stop hook checks
+candidate turn endings synchronously. A confirmed question to the person holds
+the stop and asks the session to use AskUserQuestion. A question in prose creates
+no waiting card, act, parent letter or push. The collector indexes actionable
+cards without inferring questions from assistant text or treating human input
+as an answer to that text. Native question dialogs keep their own answer path.
 
-The fallback has at most two concurrent requests and a deadline. An error,
-including an interrupted claim past its deadline, leaves its question visible.
-A message cut by the feed limit stays visible too: its missing tail cannot
-earn a negative verdict. Waiting items open the assistant's feed row and mark
-its contour. A separate persisted claim sends one push per message through
-the notification choice. The verdict's summary names the waiting item and the
-“Asks” push. Each push has its own tag derived from
-both conversation and message. A complete scan marks a pushed question closed
-when its card leaves the snapshot; an unreadable collector response cannot
-close it. Closure claims are persisted and sent once, in bounded batches with
-the next ordinary push that reaches every subscribed device. The worker closes
-matching notifications before showing that ordinary news. With no later push,
-the notification stays until the person dismisses it. This avoids waking the
-phone solely to cancel a question: browsers enforce userVisibleOnly and may
-revoke subscriptions for a push that shows no notification. A close-only payload
-is understood by the worker but is never sent by the service. Notifications also
-holds the live switch for haiku, on by default: off shows every candidate
-without classification, including a candidate with a stored negative verdict.
+The model check runs only through the hook. Notifications holds its live switch,
+on by default: off lets candidate turns stop without the model check. A missing
+hook, an unreachable panel or an unreadable verdict also lets the turn stop;
+there is no background classifier to recover those turns. The detailed blocking
+rule and the cost of the check are described with tasks for the person's hands.
 
 **The delivery socket.** The executor has no access to transcripts, yet typing
 into a session in tmux is blind without them: whether the message landed, whether the
@@ -674,23 +655,21 @@ is kept on the host under `~/.local/state/aacpanel/acts/<id>/<step>.log`, mode
 summary is saved in the same transaction as the step and retried with its own
 message identity after a failed delivery or a service restart.
 
-`acts` owns the waiting lifecycle: `do`, `secret`, `ask`, `call` and `claim` share open,
+`acts` owns the waiting lifecycle: `do`, `secret`, `call` and `claim` share open,
 answered, declined and withdrawn states; a chain also has the paused `failed`
 state. Its current step is numbered from one and its output array has one slot
 per step, null until used. Markdown requests in stored history keep their
 string-shaped body and rendering. The local `/api/requests` endpoint adapts
 string requests for MCP servers that have not reconnected. The old request and
 call tables remain available for an image rollback; the service neither reads
-nor writes them. The classifier queue keeps its claims, verdicts and push
-bookkeeping. The end-of-turn classifier returns up to four questions with
-options, a summary and a separate manual action. A question verdict creates a
-prose `ask` act in the same transaction. A question that must not block the
-session has no tool of its own: a session asks with the client's question tool,
-which holds its turn until the answer arrives. A complete answer
-sends one panel letter with the act's message identity and closes the act;
-failed delivery leaves it open. Ordinary human input or a delivered parent
-letter settles prose asks, with the parent recorded separately. Asks kept from an
-earlier tool stay in history, and an open one still takes its answer.
+nor writes them.
+
+Closed `ask` acts remain cards in the conversation, including their recorded
+questions and answers. Open asks are withdrawn by migration, and the act API
+neither creates nor answers them. Questions use the client's question tool,
+which holds the request until the answer arrives. Turn classification keeps only
+its claim and verdict in `text_questions`; saving a question verdict creates no
+act and sends no notification.
 
 A letter with `expects: reply` or `expects: done` creates a `claim` act.
 Its sender is the act's conversation and session; its recipient is kept by
@@ -722,14 +701,17 @@ filter admits a question mark outside code and links, request words in the
 last eight hundred characters, or a code fence in the last twelve hundred.
 Haiku runs in the session's contour with no conversation, tools or MCP. The
 claim keyed by conversation and message prevents a second paid call. The hook
-holds the stop only for a nonempty manual action when no `do` act is open.
-Questions already have their form and need no extra model round. A timeout,
-unreadable verdict, subagent, Codex session or answering round holds nothing.
-The price is one model call and its latency on each candidate; failure leaves
-the turn free to stop. The collector's question-mark scan remains the fallback
-for Claude sessions without a working hook, using the same classifier and
-claim. A vanished fallback candidate withdraws its prose act; hook candidates
-survive that scan because it does not index requests without question marks.
+holds the stop for a confirmed question to the person and requires
+AskUserQuestion. A question takes priority over a manual action in the same
+verdict. Without a question, a nonempty manual action holds the stop when no
+`do` act is open and requires `request` or `secret_ask`. A timeout, unreadable
+verdict, subagent, Codex session, session outside the panel or answering round
+holds nothing. Repeated and concurrent Stops read the saved verdict instead of
+spending another call. The price is one model call and its latency on each
+candidate, plus a correction turn when the hook blocks; failure leaves the turn
+free to stop. Disabling the live model check removes both corrections. No scan
+of the collector's waiting cards classifies prose.
+
 A new call withdraws its open predecessor, and closed calls expire after thirty
 days.
 
@@ -3304,24 +3286,22 @@ conversation until the executor checks ownership and substitutes the child's:
 an executor that does not know child closes refuses the mismatch. Claude
 children are recorded by process and start time, Codex children by thread.
 `crew_status` reads this conversation's `session_open` descendants from their
-opening records and the panel's enriched snapshot, including its classified
-text questions and requests; it names closed children from the opening record
+opening records and the panel's enriched snapshot, including its native
+questions and requests; it names closed children from the opening record
 and grants no ownership through screen grouping.
 `session_answer` answers only an AskUserQuestion of a child that conversation
 opened, through `session.answer` and the same opening check on the host. It
 accepts option labels or free text, and cannot answer a permission or MCP form.
-The panel first mails a child's AskUserQuestion or haiku-confirmed prose
-question to its live opener, signed as panel mail. The map's `parentQuestions`
-switch controls this at contour and project level; `parentQuestionWait` gives
+The panel first mails a child's AskUserQuestion to its live opener, signed as
+panel mail. The map's `parentQuestions` switch controls this at contour and project level; `parentQuestionWait` gives
 the parent's time in minutes, five by default. A durable claim permits one
 letter per question across service restarts. Only the push waits: the
 session lists show the question immediately, while permissions and requests go
 straight to the person. A missing parent or one without a mail input leaves
-the push immediate. A parent's ordinary letter settles the child's current
-prose questions in the verdict store after successful delivery, with ownership
-checked again on the host; other letters do not settle them. Successful answers
-also fence off stale push scans, so a collector snapshot that lags behind the
-answer cannot call the person for that answered question.
+the push immediate. The parent answers through `session_answer`; an ordinary
+letter cannot release the child's question. Successful answers also fence off
+stale push scans, so a collector snapshot that lags behind the answer cannot
+call the person for that answered question.
 `send_to_session` lists the live sessions of
 every account from the snapshot, and sends a letter as `session.letter` with
 the sender's conversation: the executor finds the sender and the recipient

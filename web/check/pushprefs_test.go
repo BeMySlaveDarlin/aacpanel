@@ -162,8 +162,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 
 	want := []prefsRow{
 		{Title: "A session calls you", Sub: "it was asked to — always comes", Role: "switch", On: "true", Disabled: true, Lock: "always"},
-		{Title: "A question in text", Role: "switch", On: "true"},
-		{Title: "Check questions in text with haiku", Sub: "off shows every candidate", Role: "switch", On: "true"},
+		{Title: "Check turn endings with haiku", Sub: "questions use AskUserQuestion; manual work uses request", Role: "switch", On: "true"},
 		{Title: "A question", Role: "switch", On: "true"},
 		{Title: "Waits for a permission", Role: "switch", On: "true"},
 		{Title: "A brief is ready", Role: "switch", On: "true"},
@@ -185,7 +184,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		t.Errorf("the overdue claim kind did not save its choice: off=%v back=%v", got.ClaimKind, got.ClaimBack)
 	}
 	if !got.CheckDefault || !got.CheckOff || !got.CheckOn {
-		t.Errorf("question classifier switch: %+v", got)
+		t.Errorf("turn classifier switch: %+v", got)
 	}
 	if len(got.Rows) != len(want) {
 		t.Fatalf("rows drawn: %+v", got.Rows)

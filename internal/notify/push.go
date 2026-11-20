@@ -3,8 +3,6 @@ package notify
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,7 +44,6 @@ type Message struct {
 	Tag      string
 	Severity Severity
 	Session  string
-	Closes   []string
 
 	// Kind, Source and Back are what the person's choice is read against:
 	// what the push says, where from, and whether it says a fall is over.
@@ -125,27 +122,19 @@ type Store interface {
 	SavePushKeys(ctx context.Context, private, public []byte) error
 }
 
-// QuestionClosures keeps cancellations until ordinary news can carry them.
-type QuestionClosures interface {
-	ClaimQuestionClosures(context.Context) ([]string, error)
-}
-
 // Sender sends notifications.
 type Sender struct {
-	store    Store
-	contact  string
-	client   *http.Client
-	queue    chan Message
-	views    Views
-	journal  Journal
-	closures QuestionClosures
+	store   Store
+	contact string
+	client  *http.Client
+	queue   chan Message
+	views   Views
+	journal Journal
 
 	ready chan struct{}
 	once  sync.Once
 	keys  *Keys
 }
-
-func (s *Sender) UseQuestionClosures(c QuestionClosures) { s.closures = c }
 
 // New builds a sender for the given owner contact.
 func New(store Store, contact string) *Sender {
@@ -294,15 +283,6 @@ func (s *Sender) deliver(ctx context.Context, m Message) {
 	if !waiting {
 		return
 	}
-	// Closing alone violates userVisibleOnly. Carry closures with ordinary
-	// news that reaches every device, so viewing suppression cannot lose
-	// a closure on the device whose ordinary notification is withheld.
-	if s.closures != nil && len(seen) == 0 {
-		m.Closes, err = s.closures.ClaimQuestionClosures(ctx)
-		if err != nil {
-			log.Printf("notify: the question closures: %v", err)
-		}
-	}
 	payload, err := payloadOf(m)
 	if err != nil {
 		log.Printf("notify: assembling the notification: %v", err)
@@ -326,9 +306,6 @@ func payloadOf(m Message) ([]byte, error) {
 		"tag":      m.Tag,
 		"severity": string(m.Severity),
 		"ts":       time.Now().Unix(),
-	}
-	if len(m.Closes) > 0 {
-		fields["closes"] = m.Closes
 	}
 	if screen := m.screen(); screen != "" {
 		fields["url"] = screen
@@ -475,12 +452,6 @@ func (s *Sender) note(ctx context.Context, device int64, reason string) {
 }
 
 func topicOf(tag string) string {
-	// Truncating a question tag loses the message ID and lets the push service
-	// replace every outstanding question from the same conversation.
-	if strings.HasPrefix(tag, "question:") {
-		digest := sha256.Sum256([]byte(tag))
-		return "question_" + base64.RawURLEncoding.EncodeToString(digest[:16])
-	}
 	var b strings.Builder
 	for _, r := range tag {
 		switch {

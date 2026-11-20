@@ -244,7 +244,6 @@ func TestEveryWaitMakesTheCardWait(t *testing.T) {
 		{"a permission", "wait", "permission", "allow Bash tar -xf",
 			row("status", "waiting", "waitingFor", "dialog open", "permission", map[string]any{"tool": "Bash", "head": "tar -xf"})},
 		{"a permission the row does not detail", "wait", "permission", "allow a tool", row("status", "waiting", "waitingFor", "dialog open")},
-		{"a question in the conversation", "wait", "question", "asks Shall I publish?", row("waiting", item("question", "Shall I publish?"))},
 		{"a request", "wait", "request", "request Rotate the token", row("status", "busy", "waiting", item("request", "Rotate the token"))},
 		{"a brief", "wait", "brief", "brief Token rotation", row("waiting", item("brief", "Token rotation"))},
 		{"a secret", "wait", "secret", "secret Release token", row("waiting", item("secret", "Release token"))},

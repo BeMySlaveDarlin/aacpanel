@@ -3,9 +3,6 @@ package store
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,61 +23,6 @@ func requestStore(t *testing.T) *Store {
 		t.Fatal(err)
 	}
 	return s
-}
-
-func TestOpenAskQuestionsStayInTheirConversationAndWithinBoundsPG(t *testing.T) {
-	s := requestStore(t)
-	const conversation = "open-ask-questions"
-	blocking := false
-	create := func(conv, kind, source string, questions []question.Question) act.Record {
-		t.Helper()
-		body := act.Body{Source: source, Questions: questions}
-		if kind == "do" {
-			body.Steps = "Check the screen"
-		}
-		r, err := s.CreateAct(t.Context(), conv, "work", act.Input{Kind: kind, Title: "Choose the plan", Blocking: &blocking,
-			Body: body})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return r
-	}
-	create("another-conversation", "ask", "tool", []question.Question{{Question: "Other conversation?"}})
-	create(conversation, "do", "", nil)
-	closed := create(conversation, "ask", "prose", []question.Question{{Question: "Closed question?"}})
-	pool, err := s.Pool()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, state := range []string{"answered", "declined", "withdrawn"} {
-		if _, err := pool.Exec(t.Context(), `UPDATE acts SET state=$2,closed_at=now() WHERE id=$1`, closed.ID, state); err != nil {
-			t.Fatal(err)
-		}
-		if got, err := s.OpenAskQuestions(t.Context(), conversation); err != nil || len(got) != 0 {
-			t.Fatalf("closed questions (%s): %v %v", state, got, err)
-		}
-	}
-	var want []string
-	for i, source := range []string{"tool", "prose", "tool", "prose"} {
-		var questions []question.Question
-		for j := range 4 {
-			text := fmt.Sprintf("Question %d?", i*4+j)
-			questions = append(questions, question.Question{Question: text})
-			want = append(want, text)
-		}
-		r := create(conversation, "ask", source, questions)
-		if i == 0 {
-			long := strings.Repeat("é", 205)
-			if _, err := pool.Exec(t.Context(), `UPDATE acts SET body=jsonb_set(body,'{questions,0,question}',to_jsonb($2::text)) WHERE id=$1`, r.ID, long); err != nil {
-				t.Fatal(err)
-			}
-			want[0] = strings.Repeat("é", 200)
-		}
-	}
-	got, err := s.OpenAskQuestions(t.Context(), conversation)
-	if err != nil || !reflect.DeepEqual(got, want[:12]) {
-		t.Fatalf("open questions: %v %v; want %v", got, err, want[:12])
-	}
 }
 
 func TestRequestOwnershipAndAnswerPersistencePG(t *testing.T) {
@@ -296,56 +238,5 @@ func TestAnAskPutAwayClosesDeclinedWithoutAnswersPG(t *testing.T) {
 	if got.State != "declined" || got.Closed == nil || got.AnsweredBy != "person" || got.Answer == nil ||
 		got.Answer.Outcome != "decline" || len(got.Answer.Answers) != 0 {
 		t.Fatalf("the question put away: %+v %+v", got, got.Answer)
-	}
-}
-
-func TestQuestionActsFollowTheVerdictAndTheActualAnswerPG(t *testing.T) {
-	s := requestStore(t)
-	conv := "act-question-lifecycle"
-	for _, message := range []string{"person", "parent", "gone", "no"} {
-		if _, err := s.ClaimQuestion(t.Context(), conv, message); err != nil {
-			t.Fatal(err)
-		}
-		verdict := "yes"
-		if message == "no" {
-			verdict = "no"
-		}
-		if err := s.SetQuestionVerdict(t.Context(), conv, "child", message, verdict, question.Verdict{What: "Publish?", Questions: []question.Question{{Question: "Publish?", Options: []question.Option{{Label: "Yes"}, {Label: "No"}}}}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	rows, err := s.OpenActs(t.Context(), []string{conv})
-	if err != nil || len(rows) != 3 {
-		t.Fatalf("verdict acts: %+v %v", rows, err)
-	}
-	for _, row := range rows {
-		if row.Kind != "ask" || row.Session != "child" || row.Body.Source != "prose" || row.Body.What != "Publish?" || len(row.Body.Questions) != 1 || len(row.Body.Questions[0].Options) != 2 {
-			t.Fatalf("question body: %+v", row)
-		}
-	}
-	if err := s.AnswerTextQuestions(t.Context(), conv, []string{"person"}, "person"); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AnswerTextQuestions(t.Context(), conv, []string{"parent"}, "lead"); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.CloseQuestions(t.Context(), []string{}); err != nil {
-		t.Fatal(err)
-	}
-	rows, err = s.ActsOf(t.Context(), conv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range rows {
-		want, by := "answered", row.Body.Message
-		if by == "parent" {
-			by = "lead"
-		}
-		if by == "gone" {
-			want, by = "withdrawn", ""
-		}
-		if row.State != want || row.AnsweredBy != by || row.Closed == nil {
-			t.Fatalf("question closure: %+v", row)
-		}
 	}
 }

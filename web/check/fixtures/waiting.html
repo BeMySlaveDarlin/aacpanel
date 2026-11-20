@@ -7,11 +7,10 @@
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
-import { ActAsk } from "/src/screens/ask.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
-import { ActMarker, AskCard, movesOf, withActReplies } from "/src/screens/chat/actform.js";
+import { AskCard, movesOf, withActReplies } from "/src/screens/chat/actform.js";
 
 const until = async (ready) => {
     await Promise.resolve();
@@ -48,7 +47,6 @@ window.fetch = counted(async (input, options) => {
         if (hold) { hold = false; await new Promise(resolve => { release = resolve; }); }
         if (refuse) return json({ error: "Delivery refused" }, 502);
         if (body.params.act) acts = acts.map(a => a.id === body.params.act ? { ...a, state: body.kind === "act.withdraw" ? "withdrawn" : body.params.answer === "decline" ? "declined" : "answered", closed: new Date().toISOString(), answer: body.params.answers ? { answers: body.params.answers } : { outcome: body.params.answer, note: body.params.note } } : a);
-        if (body.kind === "session.send" && body.params.text) acts = acts.map(a => a.kind === "ask" && a.body.source === "prose" && a.state === "open" ? { ...a, state: "answered", closed: new Date().toISOString() } : a);
         return json({ ok: true });
     }
     if (u.pathname === "/api/terms") return json({ terms: [{ id: "project-term", place: "/srv/proj", activity: 1 }] });
@@ -220,158 +218,45 @@ window.done = (async () => {
     out.closedWins = movesOf(normalized, session.waiting, []).length === 0;
     out.detachedReply = withActReplies([items.at(-1)], normalized)[0]?.actReply === true;
 
-    const prose = { id: "d".repeat(32), kind: "ask", title: "Release plan", state: "open", created: new Date().toISOString(),
+    const prose = { id: "d".repeat(32), kind: "ask", title: "Release plan", state: "answered", created: new Date().toISOString(),
         body: { source: "prose", message: "prose-message", what: "Choose the release plan", questions: [
-            { header: "Plan", question: "Which plan should run?", multi: false, options: [{ label: "Canary", description: "Start with one region" }, { label: "All" }] },
+            { header: "Plan", question: "Which plan should run?", multi: false, options: [{ label: "Canary" }, { label: "All" }] },
             { header: "Window", question: "When should it run?", multi: false, options: [] },
+        ] }, answer: { answers: [{ picks: ["Canary"], text: "" }, { picks: [], text: "After midnight." }] } };
+    const tool = { id: "e".repeat(32), kind: "ask", title: "Release regions", state: "withdrawn", created: prose.created,
+        body: { source: "tool", what: "Choose the release regions", questions: [
+            { header: "Regions", question: "Which regions should receive it?", multi: true, options: [{ label: "West" }, { label: "East" }] },
         ] } };
-    exec.kinds = exec.kinds.filter(kind => !["session.answer", "session.dismiss"].includes(kind));
-    acts = [...acts, prose];
+    acts = [...acts, prose, tool];
+    session.waiting = [...session.waiting];
     state = {};
-    items = [...items, { role: "ai", pos: 41, at: prose.created, text: "Which plan should run? When should it run?" }];
-    session.waiting = [...session.waiting, { kind: "question", id: prose.id, what: prose.body.what, questions: prose.body.questions, pos: 41, at: prose.created }];
+    items = [...items, { role: "ai", pos: 41, at: prose.created, text: "Which plan should run? When should it run?" },
+        { role: "me", pos: 42, at: prose.created, text: `The person answered the questions of your last message (${prose.id}): Canary; after midnight.` }];
     draw();
-    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 41, total: items.length }) });
-    const marker = (id) => document.querySelector(`.actmark[data-act="${id}"]`);
+    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 42, total: items.length }) });
     const card = (id) => document.querySelector(`.mquestion[data-act="${id}"]`);
     const questionRow = (id) => card(id)?.closest(".feedrow");
-    await until(() => form()?.textContent.includes("Which plan should run?") && marker(prose.id));
-    out.askMarker = marker(prose.id)?.querySelector(".actkind").textContent === "question"
-        && marker(prose.id)?.textContent.includes("Choose the release plan")
-        && marker(prose.id)?.textContent.includes("2 questions · below");
-    const proseStart = sent.length;
-    out.askRequired = Boolean(button("Next")?.disabled) && Boolean(form().querySelector(".askown .askpick"));
-    form().querySelector(".askopts .askpick").click();
-    await until(() => form()?.textContent.includes("When should it run?"));
-    button("Review").click(); await quiet();
-    out.askEmpty = Boolean(button("Review")?.disabled) && sent.length === proseStart && !form().querySelector(".askreview");
-    input(form().querySelector(".askinput"), "  After midnight.  ");
-    await until(() => !button("Review")?.disabled);
-    button("Review").click(); await until(() => form()?.querySelector(".askreview"));
-    out.askReview = JSON.stringify([...form().querySelectorAll(".askrowa")].map(row => row.textContent.trim())) === '["Canary","After midnight."]';
-    // Losing an earlier answer while reviewing holds the whole message back.
-    form().querySelectorAll(".askedit")[1].click(); await until(() => form()?.querySelector(".askinput"));
-    input(form().querySelector(".askinput"), "");
-    await until(() => button("Review")?.disabled);
-    button("Back").click(); await until(() => form()?.textContent.includes("Which plan should run?"));
-    button("Next").click(); await until(() => form()?.textContent.includes("When should it run?"));
-    out.askEmpty = out.askEmpty && Boolean(button("Review")?.disabled) && sent.length === proseStart;
-    input(form().querySelector(".askinput"), "  After midnight.  ");
-    await until(() => !button("Review")?.disabled);
-    button("Review").click(); await until(() => form()?.querySelector(".askreview"));
-    const beforeProseAnswerReads = actReads;
-    hold = true;
-    button("Send").click(); button("Send")?.click();
-    await until(() => release && sent.length === proseStart + 1);
-    release(); await until(() => !form() && count() === 0 && card(prose.id));
-    out.askProse = sent.length === proseStart + 1 && sent.at(-1).kind === "session.send" && sent.at(-1).target === "work"
-        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: prose.id, answers: [{ picks: ["Canary"], text: "" }, { picks: [], text: "After midnight." }] });
-    out.askClosed = count() === 0 && !form() && Boolean(card(prose.id)) && !marker(prose.id);
-    out.askImmediateProse = actReads === beforeProseAnswerReads
-        && card(prose.id)?.querySelector(".sentlabel").textContent === "question · answered"
+    await until(() => card(prose.id) && card(tool.id));
+    out.askHistory = !form() && count() === 0 && !document.querySelector(".actmark[data-act='" + prose.id + "']")
+        && card(prose.id).querySelector(".sentlabel").textContent === "question · answered"
         && JSON.stringify([...card(prose.id).querySelectorAll(".askedrow")].map(row => [row.querySelector(".askeda")?.textContent || "", row.querySelector(".pnmnote")?.textContent || ""]))
-            === '[["Canary",""],["","After midnight."]]';
-    items = [...items, { role: "me", pos: 42, at: new Date().toISOString(), text: `The person answered the questions of your last message (${prose.id}):\n1. Which plan should run?\n   Canary\n2. When should it run?\n   After midnight.` }];
-    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 42, total: items.length }) });
-    await until(() => questionRow(prose.id)?.querySelector(".actreply"));
+            === '[["Canary",""],["","After midnight."]]'
+        && card(tool.id).querySelector(".sentlabel").textContent === "question · withdrawn"
+        && card(tool.id).textContent.includes("Which regions should receive it?")
+        && !card(tool.id).querySelector("button, input, textarea");
     out.askReply = questionRow(prose.id)?.querySelector(".actreply")?.textContent === "→ agent · answered"
-        && !questionRow(prose.id)?.querySelector("details") && ![...document.querySelectorAll(".msg.me")].some(el => el.textContent.includes("The person answered"));
-
-    const tool = { id: "e".repeat(32), kind: "ask", title: "Release regions", state: "open", created: new Date().toISOString(),
-        body: { source: "tool", what: "Choose the release regions", questions: [
-            { header: "Regions", question: "Which regions should receive it?", multi: true, options: [{ label: "West" }, { label: "East" }, { label: "North" }] },
-        ] } };
-    const dismissed = { ...prose, id: "f".repeat(32), state: "open", created: tool.created, body: { ...prose.body, message: "another-prose-message" } };
-    acts = [...acts, tool, dismissed];
-    session.waiting = [...session.waiting, ...[tool, dismissed].map(act => ({ kind: "question", id: act.id, at: act.created, what: act.body.what, questions: act.body.questions }))];
-    draw(); await until(() => form()?.textContent.includes("Which regions should receive it?") && marker(dismissed.id));
-    marker(dismissed.id).querySelector(".actmarker").click(); await until(() => form()?.textContent.includes("Which plan should run?"));
-    const opened = form()?.textContent.includes("Which plan should run?");
-    marker(tool.id).querySelector(".actmarker").click(); await until(() => form()?.textContent.includes("Which regions should receive it?"));
-    out.askMarker = out.askMarker && opened && form()?.textContent.includes("Which regions should receive it?");
-    const beforeReplyReads = actReads;
-    input(document.querySelector(".composer > textarea"), "I am checking the rollout.");
-    await until(() => !document.querySelector(".composer .sendbtn").disabled);
-    document.querySelector(".composer .sendbtn").click();
-    await until(() => count() === 1 && card(dismissed.id));
-    out.askSources = count() === 1 && form()?.textContent.includes("Which regions should receive it?") === true
-        && Boolean(card(dismissed.id)) && !marker(dismissed.id) && actReads === beforeReplyReads;
-    out.askConversation = card(dismissed.id)?.querySelector(".sentlabel").textContent === "question · answered in chat"
-        && card(dismissed.id)?.querySelectorAll(".askedrow").length === 2
-        && card(dismissed.id)?.textContent.includes("Which plan should run?")
-        && card(dismissed.id)?.textContent.includes("When should it run?")
-        && !card(dismissed.id)?.querySelector(".askeda, .pnmnote, button, input, textarea");
-    const toolStart = sent.length;
-    button("Send").click(); await quiet();
-    out.askEmpty = out.askEmpty && sent.length === toolStart && Boolean(button("Send")?.disabled);
-    const opts = form().querySelectorAll(".askopts .askopt:not(.askown) .askpick");
-    opts[0].click(); opts[1].click();
-    await until(() => form()?.querySelectorAll(".askopt:not(.askown).on").length === 2);
-    form().querySelector(".askown .askpick").click(); await until(() => form()?.querySelector(".askinput:not(.asknote)"));
-    input(form().querySelector(".askinput:not(.asknote)"), "Keep staging available.");
-    const beforeToolAnswerReads = actReads;
-    button("Send").click(); await until(() => !form() && count() === 0);
-    out.askTool = sent.length === toolStart + 1 && sent.at(-1).kind === "session.send"
-        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: tool.id, answers: [{ picks: ["West", "East"], text: "Keep staging available." }] })
-        && !form() && count() === 0;
-    out.askImmediateTool = actReads === beforeToolAnswerReads
-        && card(tool.id)?.querySelector(".sentlabel").textContent === "question · answered"
-        && card(tool.id)?.querySelector(".askeda")?.textContent === "West, East"
-        && card(tool.id)?.querySelector(".pnmnote")?.textContent === "Keep staging available.";
-    const archived = Object.fromEntries(acts.map(a => [a.id, { ...a, ...a.body }]));
-    out.askDetached = withActReplies([items.at(-1)], { [prose.id]: { ...archived[prose.id], created: new Date(Date.parse(at) - 1).toISOString() } })[0]?.actReply === true;
-    out.askClosed = out.askClosed && movesOf(archived, session.waiting, []).length === 0;
-    const independent = { ...tool, id: "g".repeat(32), created: new Date().toISOString() };
-    acts = [...acts, independent];
-    session.waiting = [...session.waiting];
-    draw();
-    await until(() => form()?.textContent.includes("Which regions should receive it?") && card(tool.id)?.querySelector(".askeda"));
-    out.askCard = card(tool.id)?.querySelector(".sentlabel").textContent === "question · answered"
-        && card(tool.id)?.querySelector(".requesttitle").textContent === tool.body.what
-        && card(tool.id)?.querySelector(".mftag").textContent === "Regions"
-        && card(tool.id)?.querySelector(".askedq").textContent === "Which regions should receive it?"
-        && card(tool.id)?.querySelector(".askeda").textContent === "West, East"
-        && card(tool.id)?.querySelector(".pnmnote").textContent === "Keep staging available."
-        && !card(tool.id)?.textContent.includes("North") && !marker(tool.id)
-        && !card(tool.id)?.querySelector("button, input, textarea")
-        && card(prose.id)?.querySelector(".sentlabel").textContent === "question · answered"
-        && JSON.stringify([...card(prose.id).querySelectorAll(".askedrow")].map(row => [row.querySelector(".askeda")?.textContent || "", row.querySelector(".pnmnote")?.textContent || ""]))
-            === '[["Canary",""],["","After midnight."]]';
-    out.askWithoutWaiting = count() === 1 && !session.waiting.some(item => item.id === independent.id);
-    const raw = (await (await fetch("/api/acts")).json()).acts.find(act => act.id === independent.id);
+        && ![...document.querySelectorAll(".msg.me")].some(el => el.textContent.includes("The person answered"));
+    out.askDetached = withActReplies([items.at(-1)], { [prose.id]: { ...prose, created: new Date(Date.parse(at) - 1).toISOString() } })[0]?.actReply === true;
     const direct = document.createElement("div");
     document.body.append(direct);
-    const move = movesOf({ [raw.id]: raw }, [], [])[0];
-    render(html`<${ToastHost}><${GateHost}><${ActMarker} item=${{ role: "ask", id: raw.id }} record=${raw} />
-        <${ActAsk} item=${move} name="work" exec=${exec} /></${GateHost}></${ToastHost}>`, direct);
-    await until(() => direct.querySelector(".askone"));
-    out.askBody = direct.textContent.includes("Which regions should receive it?")
-        && direct.querySelector(".acttitle").textContent === raw.body.what;
-    const withdrawn = { ...raw, state: "withdrawn" };
-    const declined = { ...raw, state: "declined" };
-    render(html`<${AskCard} item=${{}} record=${withdrawn} />`, direct);
-    out.askWithdrawn = direct.querySelector(".sentlabel")?.textContent === "question · withdrawn"
-        && direct.textContent.includes("Which regions should receive it?")
-        && !direct.querySelector(".askeda, .pnmnote, .actmarker, button, input, textarea");
-    const named = { ...raw, state: "answered", what: raw.body.questions[0].question, body: { ...raw.body, what: raw.body.questions[0].question } };
+    const named = { ...prose, what: prose.body.questions[0].question, body: { ...prose.body, what: prose.body.questions[0].question } };
     render(html`<${AskCard} item=${{}} record=${named} />`, direct);
     out.askOneTitle = !direct.querySelector(".requesttitle")
-        && direct.textContent.split(raw.body.questions[0].question).length === 2;
-    render(html`<${AskCard} item=${{}} record=${declined} />`, direct);
+        && direct.textContent.split(prose.body.questions[0].question).length === 2;
+    render(html`<${AskCard} item=${{}} record=${{ ...tool, state: "declined" }} />`, direct);
     out.askDeclined = direct.querySelector(".sentlabel")?.textContent === "question · declined"
-        && !direct.querySelector(".actmarker, button, input, textarea");
+        && !direct.querySelector("button, input, textarea");
     render(null, direct); direct.remove();
-    // A question of the ask tool is put away from its own form: the session
-    // hears it, the card closes as declined, and nothing is answered for it.
-    const awayStart = sent.length;
-    const away = [...form().querySelectorAll(".askdrop")];
-    out.askPutAway = form().textContent.includes("Which regions should receive it?") && away.length === 1 && !away[0].disabled
-        && away[0].textContent.includes("the session hears that you will answer in the conversation");
-    away[0]?.click();
-    await until(() => sent.length === awayStart + 1 && count() === 0 && card(independent.id));
-    out.askPutAway = out.askPutAway && sent.at(-1).kind === "session.send"
-        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: independent.id, answer: "decline" })
-        && card(independent.id)?.querySelector(".sentlabel").textContent === "question · declined" && !form();
     const claim = (id, title, more = {}) => ({ id: id.repeat(32), kind: "claim", session: "work", peer: "review", title,
         state: "open", created: at, body: { expects: "reply", due: 15 }, due: new Date(Date.now() + 15 * 60000).toISOString(), rung: 0, overdue: false, ...more });
     const outgoing = claim("1", "Check the parser");

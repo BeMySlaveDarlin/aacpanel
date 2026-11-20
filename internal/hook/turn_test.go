@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestTurnReadsTheFinalTextAndOnlyBlocksAConfirmedAction(t *testing.T) {
+func TestTurnReadsTheFinalTextAndBlocksQuestionsBeforeManualActions(t *testing.T) {
 	dir, proc, config := inPlace(t)
 	t.Setenv(CodexHomeEnv, "")
 	t.Setenv(PIDEnv, "42")
@@ -39,7 +39,9 @@ func TestTurnReadsTheFinalTextAndOnlyBlocksAConfirmedAction(t *testing.T) {
 		case "empty":
 			_, _ = w.Write([]byte(`{"action":"","block":true}`))
 		case "question":
-			_, _ = w.Write([]byte(`{"action":"","block":false}`))
+			_, _ = w.Write([]byte(`{"question":"  Publish  now? ","action":"","block":true}`))
+		case "both":
+			_, _ = w.Write([]byte(`{"question":"Publish now?","action":"Run the command","block":true}`))
 		case "recorded":
 			_, _ = w.Write([]byte(`{"action":"Run the command","block":false}`))
 		case "error":
@@ -61,10 +63,12 @@ func TestTurnReadsTheFinalTextAndOnlyBlocksAConfirmedAction(t *testing.T) {
 		over        map[string]any
 		text        string
 		mode        string
+		reason      string
 		call, block bool
 	}{
-		{name: "manual action", mode: "block", call: true, block: true},
-		{name: "question", mode: "question", call: true},
+		{name: "manual action", mode: "block", call: true, block: true, reason: "request"},
+		{name: "question", mode: "question", call: true, block: true, reason: "AskUserQuestion"},
+		{name: "question and action", mode: "both", call: true, block: true, reason: "AskUserQuestion"},
 		{name: "recorded action", mode: "recorded", call: true},
 		{name: "empty action", mode: "empty", call: true},
 		{name: "error", mode: "error", call: true},
@@ -74,6 +78,7 @@ func TestTurnReadsTheFinalTextAndOnlyBlocksAConfirmedAction(t *testing.T) {
 		{name: "subagent", over: map[string]any{"agent_id": "agent"}},
 		{name: "empty agent id", over: map[string]any{"agent_id": ""}},
 		{name: "codex", over: map[string]any{"turn_id": "turn"}},
+		{name: "outside panel", over: map[string]any{"session_id": "unmapped"}},
 		{name: "other event", over: map[string]any{"hook_event_name": "SubagentStop"}},
 		{name: "report", text: "The build passed."},
 	} {
@@ -89,9 +94,19 @@ func TestTurnReadsTheFinalTextAndOnlyBlocksAConfirmedAction(t *testing.T) {
 			if (calls > before) != tc.call || (r.Block != "") != tc.block || r.Context != "" {
 				t.Fatalf("reply %+v, calls %d", r, calls-before)
 			}
-			if tc.block && (strings.Contains(r.Block, "\n") || !strings.Contains(r.Block, "“Run the command”") || !strings.Contains(r.Block, "secret_ask")) {
-				t.Fatalf("reason: %q", r.Block)
+			if tc.block {
+				summary := "“Run the command”"
+				if tc.reason == "AskUserQuestion" {
+					summary = "“Publish now?”"
+				}
+				if strings.Contains(r.Block, "\n") || !strings.Contains(r.Block, summary) || !strings.Contains(r.Block, tc.reason) {
+					t.Fatalf("reason: %q", r.Block)
+				}
+				if tc.reason == "AskUserQuestion" && strings.Contains(r.Block, "secret_ask") {
+					t.Fatalf("manual action won over the question: %q", r.Block)
+				}
 			}
+
 		})
 	}
 	writeFile(t, path, `{"type":"assistant","uuid":"old","message":{"content":"Old?"}}`+"\n"+`{"type":"user","message":{"content":"new turn"}}`+"\n")

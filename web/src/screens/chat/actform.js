@@ -3,7 +3,7 @@ import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { actOpen, agentsMove, ChainCard, chainSummary, isChain } from "./chain.js";
 
-const kindOf = { do: "request", ask: "question" };
+const kindOf = { do: "request" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
 export const moveKey = (item) => `${item.kind}:${item.id || item.at || ""}`;
 
@@ -13,12 +13,12 @@ export function movesOf(acts, waiting, native) {
     const moves = new Map();
     for (const item of waiting) {
         const act = acts[item.id];
-        if (item.kind === "claim" || act?.kind === "claim") continue;
+        if (["claim", "question"].includes(item.kind) || ["claim", "ask"].includes(act?.kind)) continue;
         if (act && !actOpen(act)) continue;
         moves.set(moveKey(item), { ...item, ...act, kind: item.kind, at: item.at || act?.created });
     }
     for (const act of Object.values(acts)) {
-        if (act.kind === "claim") continue;
+        if (["claim", "ask"].includes(act.kind)) continue;
         if (!actOpen(act)) continue;
         const kind = kindOf[act.kind] || act.kind;
         const key = moveKey({ ...act, kind });
@@ -31,7 +31,7 @@ export function movesOf(acts, waiting, native) {
 }
 
 // The icon of each kind of move; a request and a chain share the list.
-const moveIcon = { asked: Icon.ask, question: Icon.ask, request: Icon.list, secret: Icon.key, permit: Icon.lock, brief: Icon.plan };
+const moveIcon = { asked: Icon.ask, request: Icon.list, secret: Icon.key, permit: Icon.lock, brief: Icon.plan };
 
 // MovePill is one square of the row, the size of the tools beside it whatever
 // waits: the icon says what the first move is, the corner how many there are,
@@ -53,20 +53,17 @@ export function MovePill({ items, onNext }) {
 }
 
 export function ActMarker({ item, record, onOpen }) {
-    const kind = item.role === "ask" ? "question" : item.role;
-    const question = kind === "question";
+    const kind = item.role;
     const open = record ? actOpen(record) : true;
     const chain = isChain(record || item);
     const outcome = chain ? chainSummary(record || item) : record?.withdrawn ? "Withdrawn" : record?.outcome === "done" ? "Done"
         : record?.outcome === "cant" ? "Can't" : record?.state === "declined" ? "Won't give"
-        : record?.answered || record?.state === "answered" ? (question ? "Answered" : "Filled in") : question ? "below" : "yours · below";
-    const body = record || item;
-    const count = (body.questions || body.body?.questions || []).length;
+        : record?.answered || record?.state === "answered" ? "Filled in" : "yours · below";
     return html`<div class=${`actmark${open ? " open" : " done"}`} data-act=${item.id}>
         <button type="button" class="actmarker" onClick=${() => onOpen && onOpen(item)} disabled=${!open || !onOpen}>
-            ${kind === "secret" ? Icon.key() : question ? Icon.ask() : Icon.list()}<span class="actkind">${chain ? "chain" : kind}</span>
-            <span class="acttitle">${question ? body.what || body.body?.what || body.title || item.title : record?.title || item.title}</span>
-            <small>${question ? `${count} ${count === 1 ? "question" : "questions"} · ${outcome}` : outcome}</small>
+            ${kind === "secret" ? Icon.key() : Icon.list()}<span class="actkind">${chain ? "chain" : kind}</span>
+            <span class="acttitle">${record?.title || item.title}</span>
+            <small>${outcome}</small>
         </button>
         ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${record} onOpen=${onOpen} />`)}
     </div>`;
@@ -113,27 +110,19 @@ export function ActReply({ text, record, onOpen, card = false }) {
     ${card && !open && html`<${ChainCard} item=${record} record=${record} />`}`;
 }
 
-// Prose has a transcript anchor; tool asks can arrive before their tool
-// result. The act's time places either marker when that anchor is absent.
-function withAskMarkers(items, acts, waiting, tail) {
-    const asks = Object.values(acts).filter((act) => act.kind === "ask");
-    const list = items.map((item) => {
-        if (item.role !== "question") return item;
-        const act = asks.find((act) => act.id === item.id || (act.message || act.body?.message) === item.id);
-        return act ? { ...item, role: "ask", id: act.id } : item;
-    });
+// Closed asks stay in the feed at their recorded time, even without a transcript marker.
+function withAskMarkers(items, acts, tail) {
+    const asks = Object.values(acts).filter((act) => act.kind === "ask" && !actOpen(act));
+    const list = [...items];
     const first = timeOf(items.find((item) => item.at) || {});
     const last = timeOf(items.findLast((item) => item.at) || {});
     for (const act of asks) {
         if (list.some((item) => item.role === "ask" && item.id === act.id)) continue;
         const at = act.created;
         const stamp = timeOf({ at });
-        const anchor = waiting.find((item) => item.kind === "question" && item.id === act.id)?.pos;
-        const anchored = anchor != null && items.some((item) => item.pos === anchor);
-        if (!anchored && (!stamp || stamp < first || !tail && stamp > last)) continue;
-        const n = anchored ? list.findLastIndex((item) => item.pos <= anchor)
-            : list.findLastIndex((item) => timeOf(item) <= stamp);
-        list.splice(n + 1, 0, { role: "ask", id: act.id, title: act.title, at, pos: anchor ?? list[n]?.pos ?? 0 });
+        if (!stamp || stamp < first || !tail && stamp > last) continue;
+        const n = list.findLastIndex((item) => timeOf(item) <= stamp);
+        list.splice(n + 1, 0, { role: "ask", id: act.id, title: act.title, at, pos: list[n]?.pos ?? 0 });
     }
     return list;
 }
@@ -161,8 +150,8 @@ function chainReply(text, act) {
 
 // Only an id present in the act data identifies a reply; its prose can change
 // without changing how the feed groups it. Legacy replies keep their parser.
-export function withActReplies(items, acts, waiting = [], tail = true) {
-    items = withAskMarkers(items, acts, waiting, tail);
+export function withActReplies(items, acts, tail = true) {
+    items = withAskMarkers(items, acts, tail);
     const markers = new Set(items.filter((item) => ["request", "secret", "ask"].includes(item.role)).map((item) => item.id));
     const known = Object.values(acts).filter((act) => ["do", "secret", "ask"].includes(act.kind) && (isChain(act) || act.state !== "open"));
     const replies = new Map();

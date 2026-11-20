@@ -9,7 +9,6 @@ import (
 
 	"aacpanel/internal/act"
 	"aacpanel/internal/chat"
-	"aacpanel/internal/question"
 )
 
 // waitingItem is one outstanding thing, with the exact feed row it opens.
@@ -23,11 +22,9 @@ type waitingItem struct {
 	Blocking bool   `json:"blocking,omitempty"`
 	// Agent marks a chain standing on the agent's turn: open, but not the
 	// person's move.
-	Agent     bool                `json:"agent,omitempty"`
-	Pos       *int64              `json:"pos,omitempty"`
-	Nth       int                 `json:"nth,omitempty"`
-	What      string              `json:"what,omitempty"`
-	Questions []question.Question `json:"questions,omitempty"`
+	Agent bool   `json:"agent,omitempty"`
+	Pos   *int64 `json:"pos,omitempty"`
+	Nth   int    `json:"nth,omitempty"`
 }
 
 func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, sent map[string]bool) []waitingItem {
@@ -49,18 +46,12 @@ func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, s
 		out = append(out, item)
 	}
 	for _, row := range acts {
-		if !row.Open() || row.Kind == "claim" {
+		if !row.Open() || row.Kind == "claim" || row.Kind == "ask" {
 			continue
 		}
-		kind := map[string]string{"do": "request", "secret": "secret", "ask": "question", "call": "call"}[row.Kind]
+		kind := map[string]string{"do": "request", "secret": "secret", "call": "call"}[row.Kind]
 		item := waitingItem{Kind: kind, ID: row.ID, Title: row.Title, Blocking: row.Blocking, Agent: row.AgentsMove(), At: row.Created.Format(time.RFC3339Nano)}
 		card := anchor(kind, row.ID)
-		if row.Kind == "ask" {
-			if row.Body.Source == "prose" {
-				card = anchor(kind, row.Body.Message)
-			}
-			item.What, item.Questions = row.Body.What, row.Body.Questions
-		}
 		if row.Kind == "call" {
 			card = nil
 			for i := range cards {

@@ -13,7 +13,6 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
-	"aacpanel/internal/question"
 )
 
 const requestConversation = "567f4d24-cd5f-48fa-bdc1-04c89d203494"
@@ -214,17 +213,15 @@ func TestWaitingSummaryCountsOnlyOutstandingWork(t *testing.T) {
 		{Role: "question", BriefID: "message", Pos: 15, Nth: 2}, {Role: "question", BriefID: "unclassified", Pos: 16}}
 	briefs := []chat.BriefCard{{ID: "waiting", Title: "Rotation", Questions: 6}, {ID: "sent", Questions: 2}, {ID: "read"}}
 	got := waitingFor(rows, cards, briefs, map[string]bool{"sent": true})
-	if len(got) != 5 {
+	if len(got) != 4 {
 		t.Fatalf("waiting summary: %+v", got)
 	}
 	counts := map[string]int{}
 	for _, item := range got {
 		counts[item.Kind]++
-		if item.Kind == "question" && (item.ID != "ask" || item.Pos == nil || *item.Pos != 15 || item.Nth != 2 || len(item.Questions) != 1 || len(item.Questions[0].Options) != 2) {
-			t.Errorf("question anchor: %+v", item)
-		}
+
 	}
-	for _, kind := range []string{"request", "call", "brief", "secret", "question"} {
+	for _, kind := range []string{"request", "call", "brief", "secret"} {
 		if counts[kind] != 1 {
 			t.Errorf("%s count: %v", kind, counts)
 		}
@@ -233,7 +230,7 @@ func TestWaitingSummaryCountsOnlyOutstandingWork(t *testing.T) {
 		t.Fatalf("blocking task anchor: %+v", got[0])
 	}
 	rows[3].State = "answered"
-	if after := waitingFor(rows, cards, briefs, map[string]bool{"sent": true}); len(after) != 4 {
+	if after := waitingFor(rows, cards, briefs, map[string]bool{"sent": true}); len(after) != 3 {
 		t.Fatalf("viewing cleared more than call: %+v", after)
 	}
 	rows[3].State = "open"
@@ -396,54 +393,6 @@ func TestActsAPIListsAndWithdrawsOnlyTheCallersActsPG(t *testing.T) {
 	}
 	if got := withdraw(); got != http.StatusConflict {
 		t.Fatalf("second withdraw: %d", got)
-	}
-}
-
-func TestPersonAndTranscriptRepliesSettleQuestionActsPG(t *testing.T) {
-	p := newPollProbe(t, t.Context(), "person-question-act-phone")
-	client, fake := startFakeExec(t, action.Response{OK: true})
-	p.srv.exec = client
-	pool, _ := p.db.Pool()
-	t.Cleanup(func() {
-		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1 AND kind='ask'", requestConversation)
-		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
-	})
-	for _, message := range []string{"panel-reply", "console-reply"} {
-		if _, err := p.db.ClaimQuestion(t.Context(), requestConversation, message); err != nil {
-			t.Fatal(err)
-		}
-		if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", question.Verdict{What: "Publish?", Questions: publishQuestions()}); err != nil {
-			t.Fatal(err)
-		}
-		if message == "panel-reply" {
-			w := post(t, p.srv, `{"kind":"session.send","target":"sentinel","params":{"text":"Yes, publish."}}`)
-			if w.Code != http.StatusOK {
-				t.Fatalf("reply: %d %s", w.Code, w.Body.String())
-			}
-			<-fake.got
-		} else {
-			agent := startAgent(t, map[string]any{"ok": true, "waiting": map[string][]chat.Item{}, "answeredQuestions": map[string][]string{requestConversation: {message}}})
-			p.srv.chat = chat.New(agent.path)
-			if _, err := p.srv.waitingCards(t.Context(), []string{requestConversation}); err != nil {
-				t.Fatal(err)
-			}
-		}
-		rows, err := p.db.ActsOf(t.Context(), requestConversation)
-		if err != nil {
-			t.Fatal(err)
-		}
-		found := false
-		for _, row := range rows {
-			if row.Kind == "ask" && row.Body.Message == message {
-				found = true
-				if row.State != "answered" || row.AnsweredBy != "person" {
-					t.Fatalf("person answer: %+v", row)
-				}
-			}
-		}
-		if !found {
-			t.Fatal("question act missing")
-		}
 	}
 }
 

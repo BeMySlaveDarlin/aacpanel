@@ -10,12 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"aacpanel/internal/act"
 	"aacpanel/internal/action"
-	"aacpanel/internal/question"
+	"aacpanel/internal/notify"
 )
 
-func turnRequest(t *testing.T, s *Server, message, text string) (string, bool) {
+type turnVerdict struct {
+	Question string `json:"question"`
+	Action   string `json:"action"`
+	Block    bool   `json:"block"`
+}
+
+func turnRequest(t *testing.T, s *Server, message, text string) turnVerdict {
 	t.Helper()
 	raw, err := json.Marshal(map[string]string{"conversation": requestConversation, "session": "sentinel", "message": message, "text": text})
 	if err != nil {
@@ -23,17 +28,14 @@ func turnRequest(t *testing.T, s *Server, message, text string) (string, bool) {
 	}
 	w := httptest.NewRecorder()
 	s.apiTurn(w, httptest.NewRequest(http.MethodPost, "/api/turn", strings.NewReader(string(raw))))
-	var got struct {
-		Action string `json:"action"`
-		Block  bool   `json:"block"`
-	}
+	var got turnVerdict
 	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &got) != nil {
 		t.Fatalf("turn: %d %s", w.Code, w.Body.String())
 	}
-	return got.Action, got.Block
+	return got
 }
 
-func TestTurnClaimsOneVerdictAndBlocksOnlyUnrecordedManualWorkPG(t *testing.T) {
+func TestTurnClaimsOneVerdictAndRequiresStructuredQuestionsOrManualWorkPG(t *testing.T) {
 	p := newPollProbe(t, t.Context(), "turn-verdict-phone")
 	pool, err := p.db.Pool()
 	if err != nil {
@@ -43,6 +45,12 @@ func TestTurnClaimsOneVerdictAndBlocksOnlyUnrecordedManualWorkPG(t *testing.T) {
 		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1", requestConversation)
 		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
 	})
+	pushes := &pushStore{taken: make(chan time.Time, 16)}
+	p.srv.push = notify.New(pushes, "")
+	pushCtx, stopPush := context.WithCancel(t.Context())
+	pushDone := make(chan struct{})
+	go func() { defer close(pushDone); p.srv.push.Run(pushCtx) }()
+	t.Cleanup(func() { stopPush(); <-pushDone })
 	q := &questionExecutor{}
 	path := socketPath(t, "turn.sock")
 	executor := action.NewServer(path, q, time.Second)
@@ -56,34 +64,38 @@ func TestTurnClaimsOneVerdictAndBlocksOnlyUnrecordedManualWorkPG(t *testing.T) {
 	t.Cleanup(func() { cancel(); <-done })
 	p.srv.exec = action.NewClient(path, time.Second)
 	for i, tc := range []struct {
-		name, action                       string
-		questions, existing, failed, block bool
+		name, action                                  string
+		questions, existing, failed, block, noSummary bool
 	}{
-		{name: "report"}, {name: "question", questions: true},
+		{name: "report"}, {name: "question", questions: true, block: true},
+		{name: "question without a summary", questions: true, noSummary: true, block: true},
 		{name: "manual action", action: "Merge the change", block: true},
 		{name: "question and action", questions: true, action: "Check the screen", block: true},
+		{name: "question with recorded work", questions: true, existing: true, block: true},
 		{name: "already recorded", action: "Merge the change", existing: true},
 		{name: "failed classifier", action: "Merge the change", failed: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			q.yes, q.failed, q.action = tc.questions, tc.failed, tc.action
-			q.alreadyAsked, err = p.db.OpenAskQuestions(t.Context(), requestConversation)
-			if err != nil {
-				t.Fatal(err)
-			}
+			q.yes, q.failed, q.action, q.noSummary = tc.questions, tc.failed, tc.action, tc.noSummary
 			id := fmt.Sprintf("12345678-1234-1234-1234-%012d", i)
 			if tc.existing {
-				newPersonRequest(t, p.srv)
+				recorded := newPersonRequest(t, p.srv)
+				taken(t, pushes, time.Second, "the existing request")
+				t.Cleanup(func() { pool.Exec(t.Context(), "DELETE FROM acts WHERE id=$1", recorded) })
 			}
 			before := q.calls.Load()
 			for range 2 {
-				action, block := turnRequest(t, p.srv, id, "Publish? The checks passed.")
+				got := turnRequest(t, p.srv, id, "Publish? The checks passed.")
 				wantAction := tc.action
 				if tc.failed {
 					wantAction = ""
 				}
-				if action != wantAction || block != tc.block {
-					t.Fatalf("action %q block %v; want %q %v", action, block, wantAction, tc.block)
+				wantQuestion := ""
+				if tc.questions && !tc.failed {
+					wantQuestion = "Publish?"
+				}
+				if got.Action != wantAction || got.Block != tc.block || got.Question != wantQuestion {
+					t.Fatalf("verdict: %+v; want question %q action %q block %v", got, wantQuestion, wantAction, tc.block)
 				}
 			}
 			if q.calls.Load()-before != 1 {
@@ -93,61 +105,44 @@ func TestTurnClaimsOneVerdictAndBlocksOnlyUnrecordedManualWorkPG(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			count := 0
 			for _, row := range rows {
-				if row.Kind == "ask" && row.Body.Message == id {
-					count++
-					if row.Body.Source != "prose" || row.Body.Action != tc.action || len(row.Body.Questions) != 1 {
-						t.Fatalf("ask: %+v", row)
-					}
+				if row.Kind == "ask" {
+					t.Fatalf("a question verdict created an act: %+v", row)
 				}
 			}
-			if (count == 1) != (tc.questions && !tc.failed) {
-				t.Fatalf("question act count: %d", count)
-			}
+			nothingTaken(t, pushes, 20*time.Millisecond, "a prose verdict pushed to the person")
+
 		})
 	}
 	before := q.calls.Load()
-	if _, block := turnRequest(t, p.srv, "12345678-1234-1234-1234-999999999999", "The build passed."); block || q.calls.Load() != before {
+	if got := turnRequest(t, p.srv, "12345678-1234-1234-1234-999999999999", "The build passed."); got.Block || q.calls.Load() != before {
 		t.Fatal("a report reached the classifier")
 	}
-}
+	for i, tc := range []struct {
+		name     string
+		disabled bool
+		row      string
+	}{
+		{name: "disabled checker", disabled: true},
+		{name: "codex", row: `,"agent":"codex"`},
+		{name: "outside panel", row: `,"outside":true`},
+		{name: "other session", row: `,"session":"other"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			on := !tc.disabled
+			if _, err := p.srv.savePushPrefs(t.Context(), notify.Prefs{CheckQuestions: &on}); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { pool.Exec(context.Background(), "DELETE FROM push_prefs") })
+			p.srv.host = hostWith(t, `{"sessions":[{"sessionId":"`+requestConversation+`","session":"sentinel"`+tc.row+`}]}`)
+			before := q.calls.Load()
+			got := turnRequest(t, p.srv, fmt.Sprintf("12345678-1234-1234-1234-%012d", i+100), "Publish? The checks passed.")
+			if got.Block || got.Question != "" || q.calls.Load() != before {
+				t.Fatalf("out-of-scope turn: %+v, calls %d", got, q.calls.Load()-before)
+			}
+		})
+	}
 
-func TestHookQuestionSurvivesTheFallbackAndHumanInputSettlesOnlyProsePG(t *testing.T) {
-	p := newPollProbe(t, t.Context(), "hook-question-lifecycle")
-	pool, _ := p.db.Pool()
-	t.Cleanup(func() {
-		pool.Exec(context.Background(), "DELETE FROM acts WHERE conversation=$1", requestConversation)
-		pool.Exec(context.Background(), "DELETE FROM text_questions WHERE conversation=$1", requestConversation)
-	})
-	message := "12345678-1234-1234-1234-333333333333"
-	if fresh, err := p.db.ClaimTurnQuestion(t.Context(), requestConversation, message); err != nil || !fresh {
-		t.Fatalf("claim: %v %v", fresh, err)
-	}
-	if err := p.db.SetQuestionVerdict(t.Context(), requestConversation, "sentinel", message, "yes", question.Verdict{What: "Publish?", Questions: publishQuestions()}); err != nil {
-		t.Fatal(err)
-	}
-	blocking := false
-	tool, err := p.db.CreateAct(t.Context(), requestConversation, "sentinel", act.Input{Kind: "ask", Title: "Name?", Blocking: &blocking, Body: act.Body{Source: "tool", Questions: []question.Question{{Question: "Name?"}}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := p.db.CloseQuestions(t.Context(), nil); err != nil {
-		t.Fatal(err)
-	}
-	rows, err := p.db.OpenActs(t.Context(), []string{requestConversation})
-	if err != nil || len(rows) != 2 {
-		t.Fatalf("fallback retired an ask: %+v %v", rows, err)
-	}
-	p.srv.exec, _ = startFakeExec(t, action.Response{OK: true})
-	w := post(t, p.srv, `{"kind":"session.send","target":"sentinel","params":{"text":"I will answer later"}}`)
-	if w.Code != http.StatusOK {
-		t.Fatalf("human reply: %d %s", w.Code, w.Body.String())
-	}
-	rows, err = p.db.OpenActs(t.Context(), []string{requestConversation})
-	if err != nil || len(rows) != 1 || rows[0].ID != tool.ID {
-		t.Fatalf("human reply lifecycle: %+v %v", rows, err)
-	}
 }
 
 func TestTurnEndpointBelongsOnlyToTheLocalListener(t *testing.T) {
@@ -189,8 +184,8 @@ func TestTurnRepeatWaitsForTheClaimedVerdictPG(t *testing.T) {
 		block  bool
 	}
 	request := func(out chan<- verdict) {
-		a, b := turnRequest(t, p.srv, id, "Publish? The checks passed.")
-		out <- verdict{a, b}
+		got := turnRequest(t, p.srv, id, "Publish? The checks passed.")
+		out <- verdict{got.Action, got.Block}
 	}
 	first, second := make(chan verdict, 1), make(chan verdict, 1)
 	go request(first)

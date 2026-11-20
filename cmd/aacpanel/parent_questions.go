@@ -12,16 +12,13 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
-	formquestion "aacpanel/internal/question"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
 type parentQuestion struct {
-	Key       string
-	Text      string
-	Questions []formquestion.Question
-	Ask       *chat.Ask
+	Key string
+	Ask *chat.Ask
 }
 
 func (s *Server) sessionPolicy(ctx context.Context, child notify.Session) ([]schema.Value, error) {
@@ -66,8 +63,7 @@ func (s *Server) parentQuestionPolicy(ctx context.Context, child notify.Session)
 	return on, wait
 }
 
-// Only the push waits. The question stays in the collector and the verdict
-// store, so the session lists continue to show it immediately.
+// Only the push waits; the collector keeps the question visible in session lists.
 func (s *Server) deferParentQuestion(ctx context.Context, child notify.Session, question parentQuestion, now time.Time) bool {
 	if s.db == nil || s.exec == nil {
 		return false
@@ -113,16 +109,8 @@ func parentQuestionLetter(child notify.Session, question parentQuestion, wait ti
 		}
 		fmt.Fprintf(&body, "\nUse session_answer with name %q, this ask id, and one answer per question: "+
 			"picks are exact option labels, or text for words of your own. A letter cannot release AskUserQuestion.\n", child.Name)
-	} else {
-		body.WriteString(question.Text)
-		for _, q := range question.Questions {
-			fmt.Fprintf(&body, "\n%s", q.Question)
-			for _, option := range q.Options {
-				fmt.Fprintf(&body, "\n- %s", option.Label)
-			}
-		}
-		fmt.Fprintf(&body, "\n\nReply to %q with send_to_session; your letter settles this prose question.\n", child.Name)
 	}
+
 	// A parent that relays the question makes the person answer it twice:
 	// the child's own question already stands in the panel.
 	fmt.Fprintf(&body, "Answer only what your own work already settles. If it needs the person's decision, leave it to them: "+
@@ -196,41 +184,6 @@ func (s *Server) deferAskQuestions(ctx context.Context, cur notify.World, report
 	report.Raise = raised
 }
 
-// Capture the candidate ids before delivery: a later question from the same
-// child must not disappear because an earlier letter finished sending late.
-func (s *Server) parentReplyQuestions(ctx context.Context, req *action.Request) ([]string, string) {
-	if s.db == nil || s.exec == nil || req.Kind != action.SessionLetter || req.From == "" {
-		return nil, ""
-	}
-	child, ok := s.host.LiveSession(req.Target)
-	if !ok || child.SessionID == "" {
-		return nil, ""
-	}
-	opening, err := s.exec.Opening(ctx, req.Target, child.SessionID)
-	if err != nil || opening == nil || opening.Conversation != req.From {
-		return nil, ""
-	}
-	cards, err := s.waitingCards(ctx, []string{child.SessionID})
-	if err != nil {
-		return nil, ""
-	}
-	var ids []string
-	for _, card := range cards[child.SessionID] {
-		if card.Role == "question" && card.BriefID != "" {
-			ids = append(ids, card.BriefID)
-		}
-	}
-	if len(ids) > 0 {
-		req.Caller, req.Conversation = req.From, child.SessionID
-	}
-	return ids, opening.Name
-}
-
-func textQuestionSession(row map[string]json.RawMessage) notify.Session {
-	return notify.Session{ID: textField(row, "sessionId"), Name: textField(row, "session"),
-		CWD: textField(row, "cwd"), Profile: textField(row, "profile"), ConfigDir: textField(row, "configDir")}
-}
-
 // heldAtParent is the mark of a child whose question waits at its parent:
 // the parent's name and when the question goes to the person.
 type heldAtParent struct {
@@ -240,8 +193,7 @@ type heldAtParent struct {
 
 // sessionsAtParent marks the rows whose standing question is held at their
 // parent. A held question the row no longer asks marks nothing: it was
-// answered or withdrawn, whatever the claim says. It runs after the waiting
-// list is put on the rows, since the questions in prose are named there.
+// answered or withdrawn, whatever the claim says.
 func (s *Server) sessionsAtParent(ctx context.Context, payload []byte, now time.Time) []byte {
 	if s.db == nil {
 		return payload
@@ -288,7 +240,7 @@ func (s *Server) sessionsAtParent(ctx context.Context, payload []byte, now time.
 }
 
 // standingQuestions are the keys a parent question is claimed under for what
-// the row asks now: its tool question and its questions in prose.
+// the row asks now through its question tool.
 func standingQuestions(row map[string]json.RawMessage) map[string]bool {
 	out := map[string]bool{}
 	var ask struct {
@@ -296,14 +248,6 @@ func standingQuestions(row map[string]json.RawMessage) map[string]bool {
 	}
 	if json.Unmarshal(row["ask"], &ask) == nil && ask.ID != "" {
 		out["ask:"+ask.ID] = true
-	}
-	var waiting []waitingItem
-	if json.Unmarshal(row["waiting"], &waiting) == nil {
-		for _, item := range waiting {
-			if item.Kind == "question" && item.ID != "" {
-				out["text:"+item.ID] = true
-			}
-		}
 	}
 	return out
 }

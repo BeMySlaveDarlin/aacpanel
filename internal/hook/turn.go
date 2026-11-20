@@ -65,11 +65,15 @@ func turn(_ string, payload []byte, _ time.Time) Reply {
 		return Reply{}
 	}
 	var verdict struct {
-		Action string `json:"action"`
-		Block  bool   `json:"block"`
+		Question string `json:"question"`
+		Action   string `json:"action"`
+		Block    bool   `json:"block"`
 	}
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&verdict) != nil || !verdict.Block {
 		return Reply{}
+	}
+	if what := question.Line(verdict.Question, 140); what != "" {
+		return Reply{Block: "This turn asks the person a question in prose: “" + what + "”. A prose question does not reach the person. Ask it through AskUserQuestion. If it is not a question for the person, end the turn."}
 	}
 	action := question.Line(verdict.Action, 140)
 	if action == "" {

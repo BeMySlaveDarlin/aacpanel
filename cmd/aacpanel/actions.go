@@ -309,12 +309,12 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				s.chainHumanAction(w, r, req.Kind, req.Target, body.Params, func(out http.ResponseWriter) { s.answerChain(out, r, actAnswer, body.Params) })
 				return
 			}
-			if err := actAnswer.lease.Record.ValidateAnswer(actAnswer.answer, actAnswer.note, actAnswer.answers...); err != nil {
+			if err := actAnswer.lease.Record.ValidateAnswer(actAnswer.answer, actAnswer.note); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			row := actAnswer.lease.Record
-			body.Params["text"] = row.Reply(actAnswer.answer, actAnswer.note, actAnswer.answers...)
+			body.Params["text"] = row.Reply(actAnswer.answer, actAnswer.note)
 			body.Params["messageId"] = act.MessageID(row.ID)
 		}
 		if voice, _ := r.Context().Value(voiceKey{}).(bool); voice {
@@ -726,25 +726,6 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 
-	parentQuestions, parentAnswerer := s.parentReplyQuestions(r.Context(), &req)
-	if req.Kind == action.SessionSend && actAnswer == nil && s.db != nil && s.host != nil {
-		if live, ok := s.host.LiveSession(req.Target); ok {
-			rows, err := s.db.OpenActs(r.Context(), []string{live.SessionID})
-			if err != nil {
-				actError(w, err)
-				return
-			}
-			for _, row := range rows {
-				if row.Kind == "ask" && row.Body.Source == "prose" {
-					parentQuestions = append(parentQuestions, row.Body.Message)
-				}
-			}
-			if len(parentQuestions) > 0 {
-				req.Conversation = live.SessionID
-				parentAnswerer = "person"
-			}
-		}
-	}
 	answeredConversation := ""
 	if req.Kind == action.SessionAnswer && s.host != nil {
 		if child, ok := s.host.LiveSession(req.Target); ok {
@@ -830,13 +811,6 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	case !resp.OK:
 		outcome.Result, outcome.Error = store.ActionFailed, resp.Error
 	}
-	if outcome.Result == store.ActionOK && len(parentQuestions) > 0 {
-		if err := s.db.AnswerTextQuestions(ctx, req.Conversation, parentQuestions, parentAnswerer); err != nil {
-			log.Printf("the reply was delivered but its question mark was not saved: %v", err)
-			resp.Detail += "; the reply was delivered but the question mark was not saved; do not resend it blindly"
-			outcome.Detail = resp.Detail
-		}
-	}
 	if outcome.Result == store.ActionOK && answeredConversation != "" && s.db != nil {
 		if err := s.db.AnswerParentQuestion(ctx, answeredConversation, "ask:"+req.Answer.AskID, req.Caller); err != nil {
 			log.Printf("the answered child question was not marked for pushes: %v", err)
@@ -900,7 +874,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 	if actAnswer != nil && req.Kind != action.SecretPut {
-		if err := actAnswer.lease.Finish(ctx, actAnswer.answer, actAnswer.note, actAnswer.answers...); err != nil {
+		if err := actAnswer.lease.Finish(ctx, actAnswer.answer, actAnswer.note); err != nil {
 			http.Error(w, "the answer was delivered but its mark was not saved; do not resend it blindly", http.StatusServiceUnavailable)
 			return
 		}

@@ -185,9 +185,9 @@ window.done = (async () => {
     out.idle = all(".nffrom").map((f) => f.getAttribute("data-idle"));
     out.gets = asked.filter((a) => a.startsWith("GET /api/push/prefs")).length;
 
-    out.checkDefault = row("Check questions in text with haiku").getAttribute("aria-checked") === "true";
-    out.checkOff = (await press(row("Check questions in text with haiku"))).checkQuestions === false;
-    out.checkOn = (await press(row("Check questions in text with haiku"))).checkQuestions === true;
+    out.checkDefault = row("Check turn endings with haiku").getAttribute("aria-checked") === "true";
+    out.checkOff = (await press(row("Check turn endings with haiku"))).checkQuestions === false;
+    out.checkOn = (await press(row("Check turn endings with haiku"))).checkQuestions === true;
     // A kind turned off, then on again.
     out.question = (await press(row("A question"))).off;
     out.questionShown = row("A question").getAttribute("aria-checked");
