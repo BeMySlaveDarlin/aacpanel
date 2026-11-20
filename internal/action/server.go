@@ -83,6 +83,7 @@ type Server struct {
 	path    string
 	exec    Executor
 	timeout time.Duration
+	drain   time.Duration
 
 	mu      sync.Mutex
 	results map[string]*result
@@ -106,7 +107,7 @@ func NewServer(path string, exec Executor, timeout time.Duration) *Server {
 	if timeout <= 0 {
 		timeout = time.Minute
 	}
-	return &Server{path: path, exec: exec, timeout: timeout, results: map[string]*result{}}
+	return &Server{path: path, exec: exec, timeout: timeout, drain: 30 * time.Second, results: map[string]*result{}}
 }
 
 // Listen opens the socket with owner-only permissions.
@@ -150,9 +151,26 @@ func (s *Server) Listen() (net.Listener, error) {
 
 // Run serves the socket until the context is cancelled.
 func (s *Server) Run(ctx context.Context, ln net.Listener) error {
+	// Stop accepting at once, but let an accepted restart finish its launch.
+	// The drain ends before the service manager's stop deadline.
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancel()
+	finished := make(chan struct{})
+	defer close(finished)
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-finished:
+			return
+		}
 		ln.Close()
+		timer := time.NewTimer(s.drain)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			cancel()
+		case <-finished:
+		}
 	}()
 
 	var wg sync.WaitGroup
@@ -169,12 +187,12 @@ func (s *Server) Run(ctx context.Context, ln net.Listener) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s.serve(ctx, conn)
+			s.serve(ctx, runCtx, conn)
 		}()
 	}
 }
 
-func (s *Server) serve(ctx context.Context, conn net.Conn) {
+func (s *Server) serve(ctx, launchCtx context.Context, conn net.Conn) {
 	defer conn.Close()
 
 	var req Request
@@ -186,6 +204,10 @@ func (s *Server) serve(ctx context.Context, conn net.Conn) {
 		return
 	}
 
+	switch req.Kind {
+	case SessionOpen, SessionResume, SessionRestart, SessionSwitch:
+		ctx = launchCtx
+	}
 	resp := s.handle(ctx, req)
 	s.reply(conn, resp)
 }

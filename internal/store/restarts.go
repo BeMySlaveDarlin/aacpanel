@@ -20,6 +20,9 @@ type RestartCycle struct {
 	Done                  bool
 	Manual                bool
 	Finish                string
+	Attempts              int
+	CWD, Parent           string
+	RecoveredSession      string
 }
 
 const (
@@ -34,14 +37,16 @@ func (s *Store) RestartCycles(ctx context.Context) ([]RestartCycle, error) {
 		return nil, err
 	}
 	rows, err := pool.Query(ctx, `SELECT conversation, session, commanded_at, commanded,
-		reminded_at, ready_at, intent, attempted_at, done, manual, finish FROM session_restarts`)
+		reminded_at, ready_at, intent, attempted_at, done, manual, finish,
+		attempts, cwd, parent, recovered_session FROM session_restarts ORDER BY commanded_at, conversation`)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (RestartCycle, error) {
 		var c RestartCycle
 		err := row.Scan(&c.Conversation, &c.Session, &c.CommandAt, &c.Commanded,
-			&c.RemindedAt, &c.ReadyAt, &c.Intent, &c.AttemptedAt, &c.Done, &c.Manual, &c.Finish)
+			&c.RemindedAt, &c.ReadyAt, &c.Intent, &c.AttemptedAt, &c.Done, &c.Manual, &c.Finish,
+			&c.Attempts, &c.CWD, &c.Parent, &c.RecoveredSession)
 		return c, err
 	})
 }
@@ -55,8 +60,9 @@ func (s *Store) KeepRestartCycle(ctx context.Context, c RestartCycle) error {
 		return err
 	}
 	_, err = pool.Exec(ctx, `INSERT INTO session_restarts
-		(conversation, session, commanded_at, commanded, reminded_at, ready_at, intent, attempted_at, done, manual, finish)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		(conversation, session, commanded_at, commanded, reminded_at, ready_at, intent, attempted_at, done, manual, finish,
+		 attempts, cwd, parent, recovered_session)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		ON CONFLICT (conversation) DO UPDATE SET session=$2, commanded_at=$3,
 		commanded=CASE WHEN session_restarts.done AND NOT $9 THEN $4 ELSE (session_restarts.commanded OR $4) END,
 		reminded_at=$5,
@@ -64,8 +70,10 @@ func (s *Store) KeepRestartCycle(ctx context.Context, c RestartCycle) error {
 		intent=CASE WHEN session_restarts.ready_at IS NULL OR (session_restarts.done AND NOT $9) THEN $7 ELSE session_restarts.intent END,
 		attempted_at=$8, done=$9,
 		manual=CASE WHEN session_restarts.done AND NOT $9 THEN $10 ELSE (session_restarts.manual OR $10) END,
-		finish=CASE WHEN session_restarts.done THEN $11 ELSE session_restarts.finish END`,
-		c.Conversation, c.Session, c.CommandAt, c.Commanded, c.RemindedAt, c.ReadyAt, c.Intent, c.AttemptedAt, c.Done, c.Manual, c.Finish)
+		finish=CASE WHEN session_restarts.done THEN $11 ELSE session_restarts.finish END,
+		attempts=$12, cwd=$13, parent=$14, recovered_session=$15`,
+		c.Conversation, c.Session, c.CommandAt, c.Commanded, c.RemindedAt, c.ReadyAt, c.Intent, c.AttemptedAt, c.Done, c.Manual, c.Finish,
+		c.Attempts, c.CWD, c.Parent, c.RecoveredSession)
 	return err
 }
 
@@ -124,11 +132,31 @@ func (s *Store) BeginPreparation(ctx context.Context, conversation, session, fin
         ready_at=CASE WHEN session_restarts.done THEN NULL ELSE session_restarts.ready_at END,
         intent=CASE WHEN session_restarts.done THEN '' ELSE session_restarts.intent END,
         attempted_at=CASE WHEN session_restarts.done THEN NULL ELSE session_restarts.attempted_at END,
+		attempts=CASE WHEN session_restarts.done THEN 0 ELSE session_restarts.attempts END,
+		cwd=CASE WHEN session_restarts.done THEN '' ELSE session_restarts.cwd END,
+		parent=CASE WHEN session_restarts.done THEN '' ELSE session_restarts.parent END,
+		recovered_session=CASE WHEN session_restarts.done THEN '' ELSE session_restarts.recovered_session END,
 		done=false WHERE session_restarts.done OR session_restarts.finish=$4`, conversation, session, now, finish)
 	if err == nil && tag.RowsAffected() == 0 {
 		return fmt.Errorf("the conversation is already preparing for another action")
 	}
 	return err
+}
+
+// A close requested outside the cycle revokes its permission to reopen.
+func (s *Store) RestartClosed(ctx context.Context, c RestartCycle) (bool, error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return false, err
+	}
+	var closed bool
+	err = pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM actions
+		WHERE kind IN ('session.close','session.kill') AND result='ok' AND ts >= $1
+		AND device_name <> 'context restart'
+		AND params->>'prepare' IS DISTINCT FROM 'true'
+		AND (params->>'conversation'=$2 OR target=$3 OR (target=$4 AND $4 <> '')))`,
+		c.CommandAt, c.Conversation, c.Session, c.RecoveredSession).Scan(&closed)
+	return closed, err
 }
 
 // The timestamp belongs to the user input that starts a turn. Model requests

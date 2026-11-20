@@ -28,6 +28,10 @@ EnvironmentFile=-/var/lib/aacpanel/host.env
 Restart=on-failure
 RestartSec=5
 
+# Let the executor drain accepted launches before systemd kills its helpers.
+KillMode=mixed
+TimeoutStopSec=45s
+
 # Logs: journalctl --user -u aacpanel-exec
 StandardOutput=journal
 StandardError=journal

@@ -6,7 +6,20 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestExecutorUnitLetsItsLauncherDrain(t *testing.T) {
+	d := directives(unit(t, "aacpanel-exec.service"))
+	if got := d["KillMode"]; len(got) != 1 || got[0] != "mixed" {
+		t.Fatalf("KillMode=%v: stopping the executor would signal the launcher before it drains", got)
+	}
+	if got := d["TimeoutStopSec"]; len(got) != 1 {
+		t.Fatalf("TimeoutStopSec=%v: the drain needs an explicit stop budget", got)
+	} else if wait, err := time.ParseDuration(got[0]); err != nil || wait <= 30*time.Second {
+		t.Fatalf("TimeoutStopSec=%v: the manager must outlast the executor's drain", got)
+	}
+}
 
 func unit(t *testing.T, name string) string {
 	t.Helper()

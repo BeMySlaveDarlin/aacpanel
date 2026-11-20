@@ -22,6 +22,7 @@ const (
 	restartGrace       = 5 * time.Minute
 	restartKeep        = 7 * 24 * time.Hour
 	restartSnapshotAge = 30 * time.Second
+	restartAttempts    = 3
 )
 
 const savePreparation = "Start no new work, background included. Update the task registry, save a handoff using the project's finalize skill if it has one, " +
@@ -247,6 +248,9 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 	for _, row := range snap.Sessions {
 		live = append(live, row.SessionID)
 	}
+	if acted, err := s.recoverRestarts(ctx, cycles, snap, now); acted || err != nil {
+		return err
+	}
 	if err := s.db.PruneRestartCycles(ctx, live, now.Add(-restartKeep)); err != nil {
 		return err
 	}
@@ -300,6 +304,10 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 		// Persist before delivery: readiness may arrive immediately, and a
 		// service failure must not make a failed restart retry without a delay.
 		c.AttemptedAt = &now
+		if step.Kind == action.SessionRestart {
+			c.Attempts++
+			c.CWD, c.Parent = row.CWD, row.OpenedBy()
+		}
 		if err := s.db.KeepRestartCycle(ctx, c); err != nil {
 			return err
 		}
@@ -307,6 +315,9 @@ func (s *Server) restartOnce(ctx context.Context, now time.Time) error {
 		err = s.restartAction(ctx, c, step)
 		if err != nil {
 			log.Printf("context restart of %s: %v", c.Session, err)
+			if step.Kind == action.SessionRestart && c.Attempts >= restartAttempts {
+				return s.finishRestart(ctx, c, "attempt limit reached")
+			}
 			return nil
 		}
 		c.AttemptedAt = nil
@@ -423,12 +434,8 @@ func (s *Server) restartAction(ctx context.Context, c store.RestartCycle, step r
 		params["anyway"] = true
 	}
 	device := preparationOrigin(c)
-	id, err := s.db.LogAttempt(ctx, store.Action{Kind: string(step.Kind), Target: c.Session,
-		DeviceName: device, Params: params})
-	if err != nil {
-		return err
-	}
-	req := action.Request{ID: requestID(id), Kind: step.Kind, Target: c.Session, Text: step.Text, Device: device}
+	req := action.Request{Kind: step.Kind, Target: c.Session, Text: step.Text, Device: device}
+	var err error
 	if step.Kind == action.SessionClose {
 		req.Conversation, req.Text = c.Conversation, ""
 	}
@@ -440,6 +447,19 @@ func (s *Server) restartAction(ctx context.Context, c store.RestartCycle, step r
 		}
 		req.Project, req.Conversation, req.AutoRestart, req.Anyway = plan.Project, c.Conversation, true, step.Anyway
 	}
+	_, err = s.restartDelivery(ctx, req, params, err)
+	return err
+}
+
+func (s *Server) restartDelivery(ctx context.Context, req action.Request, params map[string]any, err error) (action.Response, error) {
+	ctx, cancel := context.WithTimeout(ctx, action.Timeout(req.Kind, execTimeout))
+	defer cancel()
+	id, logErr := s.db.LogAttempt(ctx, store.Action{Kind: string(req.Kind), Target: req.Target,
+		DeviceName: req.Device, Params: params})
+	if logErr != nil {
+		return action.Response{}, logErr
+	}
+	req.ID = requestID(id)
 	if err == nil {
 		err = req.Validate()
 	}
@@ -463,7 +483,7 @@ func (s *Server) restartAction(ctx context.Context, c store.RestartCycle, step r
 		log.Printf("context restart journal: %v", logErr)
 	}
 	log.Printf("context restart: %s %s — %s%s", req.Kind, req.Target, outcome.Result, note(outcome.Error))
-	return err
+	return resp, err
 }
 
 func (s *Server) sessionReady(w http.ResponseWriter, r *http.Request, target string, params map[string]any) {

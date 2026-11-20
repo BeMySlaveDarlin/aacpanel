@@ -229,9 +229,18 @@ A turn ending without readiness gets one reminder. Readiness followed by idle
 with running work gets one reminder naming that work. Five minutes after the
 reminder, an unmet condition permits a forced fresh restart, including stopping
 an unfinished turn and its background work. A failed action is logged and
-journaled and is retried no sooner than five minutes later. Completed cycles
+journaled and is retried no sooner than five minutes later, with at most three
+restart or recovery attempts. If the old conversation disappeared during an
+attempt, the cycle opens its project again and sends the saved readiness intent.
+The opened session's name is persisted before delivery so a failed send retries
+there instead of opening another session. A live replacement, an explicit close
+outside the cycle or an exhausted attempt budget completes the cycle. Completed cycles
 remain while their conversation lives; absent conversations older than a week
 are pruned. Snapshots older than thirty seconds cannot advance a cycle.
+Stopping the executor closes its listener and gives accepted session opens,
+resumes, restarts and transport switches thirty seconds to finish before cancelling
+them. Other requests are cancelled at once. Its unit signals only the main process
+during this drain and allows forty-five seconds before killing remaining helpers.
 The `context-guard` hook answers nothing so an installed Stop entry cannot
 block finalization; the installer removes that entry and offers no cap hook.
 
