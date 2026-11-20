@@ -130,6 +130,10 @@ export function useFeedWindow({ name, id, live }) {
     // messages nor hides the way back.
     const settle = (box) => {
         const near = !awayRef.current && nearEnd(box);
+        const at = leftAt(keyRef.current);
+        // A queued scroll can arrive after a card grows, with the offset unchanged.
+        // That is still following the end; the resize observer catches up with it.
+        if (!near && stickRef.current && at?.end && at.top === box.scrollTop) return;
         stickRef.current = near;
         setAtEnd(near);
         keepAt(keyRef.current, box);

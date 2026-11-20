@@ -18,11 +18,34 @@ import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const asked = [];
-window.fetch = counted(async (url) => {
+let extraA = 0;
+const started = Date.now() - 600000;
+const previousAsk = (id) => ({ id: `ask-${id}`, kind: "ask", state: "answered", closed: new Date(started + 21000).toISOString(), title: "Choose the next build",
+    created: new Date(started + 20000).toISOString(), body: { questions: Array.from({ length: 4 }, () => ({
+        question: "Which build should be deployed after the checks finish? ".repeat(8),
+    })) }, answer: { answers: Array.from({ length: 4 }, () => ({ picks: ["After the checks"],
+        text: "Keep the previous build ready until the new build has passed its checks. ".repeat(8),
+    })) } });
+const network = window.fetch.bind(window);
+window.fetch = counted(async (url, init) => {
     const u = String(url);
+    if (u === "/check/pointer") return network(url, init);
     if (u.startsWith("/api/chat?")) {
-        asked.push(new URL(u, location.href).searchParams.get("id") || "");
-        return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+        const params = new URL(u, location.href).searchParams;
+        const id = params.get("id") || "";
+        asked.push(id);
+        const total = id === "nav-a" ? 40 + extraA : 40;
+        const all = id.startsWith("nav-") ? Array.from({ length: total }, (_, n) => ({
+            role: n % 2 ? "ai" : "me", pos: n + 1, at: new Date(started + n * 1000).toISOString(), text: `${id} message ${n + 1}: ${"read the build output and check the result. ".repeat(id === "nav-a" ? 12 : 1)}`,
+        })) : [];
+        const items = (params.has("before") ? all.filter((item) => item.pos < Number(params.get("before"))) : all).slice(-40);
+        if (id.startsWith("nav-") && !params.has("before")) await until(() =>
+            document.querySelector(".chatfeed")?.textContent.includes("Reading the conversation"));
+        return json({ items, first: items[0]?.pos || 0, last: items.at(-1)?.pos || 0, total: all.length, moreBefore: items[0]?.pos > 1, state: null });
+    }
+    if (u.startsWith("/api/acts?")) {
+        const id = new URL(u, location.href).searchParams.get("session");
+        return json({ acts: id?.startsWith("nav-") ? [previousAsk(id)] : [] });
     }
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
@@ -42,7 +65,11 @@ const run = (sessionId) => ({ session: "aacpanel", sessionId, status: "busy", tr
 const root = document.getElementById("root");
 const waits = { opening: () => [], of: () => null };
 const alerts = { kind: "ready", list: [], reload: () => {} };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    const end = performance.now() + 3000;
+    while (!ok() && performance.now() < end) await new Promise(requestAnimationFrame);
+    if (!ok()) throw new Error("The conversation did not open");
+};
 
 const show = (snap, jump) => render(h(ToastHost, null, h(GateHost, null, html`<${DesktopShell} snapshot=${snap}
     tree=${[]} treeError=${null} hostError=${null} ageSec=${1} history=${[]} faults=${[]}
@@ -50,6 +77,18 @@ const show = (snap, jump) => render(h(ToastHost, null, h(GateHost, null, html`<$
     theme="space" onTheme=${() => {}} updateReady=${false} updating=${false} onApplyUpdate=${() => {}}
     route=${{ here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }}
     jump=${jump} onJumped=${() => {}} />`)), root);
+
+const open = async (name, id) => {
+    document.querySelector(`button[aria-label="open conversation ${name}"]`).click();
+    await until(() => document.querySelector(".chatfeed")?.textContent.includes(`${id} message ${id === "nav-a" ? 40 + extraA : 40}`));
+    await quiet();
+    return document.querySelector(".chatfeed");
+};
+const atEnd = (box) => box.scrollHeight - box.scrollTop - box.clientHeight <= 1;
+const pointer = async (point) => {
+    const response = await fetch("/check/pointer", { method: "POST", body: JSON.stringify(point) });
+    if (!response.ok) throw new Error(await response.text());
+};
 
 (async () => {
     const out = {};
@@ -70,6 +109,51 @@ const show = (snap, jump) => render(h(ToastHost, null, h(GateHost, null, html`<$
         await quiet();
         out.restartAsked = [...asked];
         out.restartComposer = Boolean(document.querySelector(".dkchat textarea"));
+
+        render(null, root);
+        show({ at: 4, sessions: [
+            { ...run("nav-a"), session: "alpha" }, { ...run("nav-b"), session: "beta" },
+        ] }, null);
+        await quiet();
+        out.navigation = [];
+        for (const [name, id] of [["alpha", "nav-a"], ["beta", "nav-b"], ["alpha", "nav-a"]]) {
+            const box = await open(name, id);
+            out.navigation.push({ name, scrollable: box.scrollHeight > box.clientHeight,
+                atEnd: atEnd(box) });
+            if (out.navigation.length === 1) {
+                const edge = box.getBoundingClientRect();
+                const text = [...box.querySelectorAll(".msg, .askedq")].reverse().find((el) => {
+                    const r = el.getBoundingClientRect();
+                    return r.bottom > edge.top + 10 && r.top < edge.bottom - 10;
+                });
+                const r = text.getBoundingClientRect();
+                await pointer({ x: r.left + r.width / 2,
+                    y: Math.max(edge.top + 10, Math.min(edge.bottom - 10, r.top + r.height / 2)) });
+                await quiet();
+                out.clickedAtEnd = atEnd(box);
+            }
+            if (name === "beta") extraA += 8;
+        }
+        out.arrivedWhileAway = extraA;
+        out.jumpReturns = [];
+        for (const mode of ["jump immediately", "jump after settling", "wheel after 200ms"]) {
+            const box = document.querySelector(".chatfeed");
+            box.scrollTop = 200;
+            box.dispatchEvent(new Event("scroll"));
+            await until(() => box.querySelector(".feedjump"));
+            await quiet();
+            if (mode.startsWith("wheel")) {
+                const r = box.getBoundingClientRect();
+                await pointer({ x: r.left + r.width / 2, y: r.top + r.height / 2, wheel: box.scrollHeight });
+                await new Promise((resolve) => setTimeout(resolve, 200));
+            } else {
+                box.querySelector(".feedjump").click();
+                if (mode === "jump after settling") await quiet();
+            }
+            await open("beta", "nav-b");
+            const returned = await open("alpha", "nav-a");
+            out.jumpReturns.push({ mode, atEnd: atEnd(returned) });
+        }
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }
