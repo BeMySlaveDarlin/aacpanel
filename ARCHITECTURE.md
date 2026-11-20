@@ -684,12 +684,13 @@ call tables remain available for an image rollback; the service neither reads
 nor writes them. The classifier queue keeps its claims, verdicts and push
 bookkeeping. The end-of-turn classifier returns up to four questions with
 options, a summary and a separate manual action. A question verdict creates a
-prose `ask` act in the same transaction. The `ask` tool creates the same form
-with source `tool` and lets the session continue working. A complete answer
+prose `ask` act in the same transaction. A question that must not block the
+session has no tool of its own: a session asks with the client's question tool,
+which holds its turn until the answer arrives. A complete answer
 sends one panel letter with the act's message identity and closes the act;
 failed delivery leaves it open. Ordinary human input or a delivered parent
-letter settles prose asks, with the parent recorded separately. Tool asks
-remain open until their form is answered.
+letter settles prose asks, with the parent recorded separately. Asks kept from an
+earlier tool stay in history, and an open one still takes its answer.
 
 A letter with `expects: reply` or `expects: done` creates a `claim` act.
 Its sender is the act's conversation and session; its recipient is kept by

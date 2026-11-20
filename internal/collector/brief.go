@@ -41,7 +41,7 @@ const publishDescription = "Publishes a task, why it matters, and decisions with
 	"The same doc.id in the same project updates the brief and keeps its answers. Once answers are sent, a reissue " +
 	"does not open it again: new decisions need a new brief under a new id. Answers arrive as one message; " +
 	"continue independent work or end the turn, never poll or wait here. When work stops until they answer, " +
-	"ask with AskUserQuestion instead. Use ask for a question while work continues and secret_ask for credentials. " +
+	"ask with AskUserQuestion instead; secret_ask takes credentials. " +
 	"A refusal means nothing was published; report it in the conversation."
 
 const codexPublishInstructions = "Use brief_publish for a task with decisions to answer later " +

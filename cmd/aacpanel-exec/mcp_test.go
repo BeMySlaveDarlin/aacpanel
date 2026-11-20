@@ -93,7 +93,7 @@ const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"prot
 // Without standing, the handshake carries only the lead; guidance arrives
 // through the session's start hook.
 const noChecklist = "The person follows this session in the panel, on phone and desk. A blocking question: " +
-	"AskUserQuestion; a question while work goes on: ask; a phone call: notify; a file to show: file_send; a long read with questions: brief_publish; a credential: secret_ask; " +
+	"AskUserQuestion; a phone call: notify; a file to show: file_send; a long read with questions: brief_publish; a credential: secret_ask; " +
 	"a task for their hands: request; another session: send_to_session; a command to watch: observer_start; " +
 	"a time to return: alarm_set."
 
@@ -349,7 +349,7 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	for _, tool := range tools {
 		offered = append(offered, tool.(map[string]any)["name"].(string))
 	}
-	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "ask", "session_restart", "session_ready", "session_close", "crew_status", "session_answer", "session_open",
+	if want := []string{"checklist", "role", "brief_publish", "brief_delete", "notify", "file_send", "secret_ask", "request", "session_restart", "session_ready", "session_close", "crew_status", "session_answer", "session_open",
 		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
 		"alarm_cancel"}; !slices.Equal(offered, want) {
 		t.Errorf("codex was offered %v", offered)
