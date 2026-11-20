@@ -26,19 +26,21 @@
         --ctx-2: #6b9c83;
         --ctx-3: #cbab7f;
         --ctx-4: #cb9490;
+        --me-bg: color-mix(in srgb, var(--accent) 24%, transparent);
     }
 
     :root.sky .deskshell {
         --tipbg: #ffffff;
-        --ok: #3c6b56;
-        --accent: #4a6890;
-        --accent-bg: rgba(74, 104, 144, .14);
-        --warn: #7a6537;
-        --crit: #965855;
-        --ctx-1: #3c6b56;
-        --ctx-2: #3c6b56;
-        --ctx-3: #7a6537;
-        --ctx-4: #965855;
+        --ok: #307113;
+        --accent: #a44d31;
+        --accent-bg: rgba(164, 77, 49, .08);
+        --warn: #966306;
+        --crit: #5e4dc2;
+        --ctx-1: #307113;
+        --ctx-2: #307113;
+        --ctx-3: #966306;
+        --ctx-4: #5e4dc2;
+        --me-bg: #f0efec;
     }
 
     .dktop {
@@ -315,8 +317,8 @@
         border-bottom: var(--hair) solid var(--line);
     }
 
-    /* The sky ground is a gradient, and a sticky heading cut from it would
-       show as a band: there the heading is frosted glass over the rows. */
+    /* A sticky heading of the light theme is a step darker than the page,
+       so that the rows passing under it are not read as a part of it. */
     :root.sky .deskshell :is(.dkcontour, .dkth, .dkprochead) {
         background: var(--glass-2);
         backdrop-filter: var(--blur);

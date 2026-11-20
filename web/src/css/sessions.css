@@ -548,7 +548,7 @@ span.pjname { cursor: default; }
 /* A session that waits on the person stands out of the list: a fuller fill
    and a bar of the colour of waiting down its edge. */
 .sc.scwait {
-    background: linear-gradient(100deg, color-mix(in srgb, var(--wait) 28%, transparent), color-mix(in srgb, var(--wait) 12%, transparent) 75%);
+    background: var(--wait-bg);
     box-shadow: inset 3px 0 0 var(--wait);
 }
 .sc.sccur { background: var(--accent-bg); }

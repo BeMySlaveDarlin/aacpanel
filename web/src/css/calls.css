@@ -86,7 +86,7 @@
     border-radius: var(--r-small);
     overflow: hidden;
     border: var(--hair) solid var(--line);
-    background: rgba(150, 170, 255, .05);
+    background: var(--plate-bg);
 }
 .cnshot img {
     display: block;
@@ -399,7 +399,7 @@ button.filepic {
     padding: .1rem .6rem;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
-    background: rgba(150, 170, 255, .05);
+    background: var(--plate-bg);
 }
 
 

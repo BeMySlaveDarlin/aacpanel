@@ -94,9 +94,16 @@
     --toast-bg: linear-gradient(180deg, rgba(30, 34, 62, .97), rgba(12, 14, 30, .98));
     --toast-drop: 0 14px 34px rgba(0, 0, 0, .55);
     --code-bg: rgba(0, 0, 0, .35);
+    --code-inline-bg: rgba(150, 170, 255, .10);
+    --plate-bg: rgba(150, 170, 255, .05);
+    --quote-rule: rgba(150, 170, 255, .3);
     --strip-bg: rgba(0, 0, 0, .26);
     --on-accent: #060a1a;
-    --me-bg: color-mix(in srgb, var(--accent) 18%, transparent);
+    /* A var() in a token is read where the token is declared, with the
+       accent of :root: a scope that sets an accent of its own declares the
+       bubble again, or its bubble keeps the colour of :root. */
+    --me-bg: color-mix(in srgb, var(--accent) 24%, transparent);
+    --sep-ink: rgba(150, 170, 255, .3);
 
     --neb: radial-gradient(74% 32% at 10% -6%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
         radial-gradient(56% 26% at 106% 2%, rgba(143, 157, 255, .24), transparent 72%),
@@ -113,6 +120,9 @@
     --accent-bg: linear-gradient(160deg,
         color-mix(in srgb, var(--accent) 34%, transparent),
         color-mix(in srgb, var(--accent) 16%, transparent) 62%);
+    /* A share, not a colour: the tag of a file mixes it with the accent of
+       its own scope. */
+    --tag-tint: 18%;
 
     --ok: #7fe3d4;
     --warn: #9fc9f0;
@@ -121,6 +131,7 @@
        that it is told from a session at work without reading the word beside
        it. */
     --wait: #e3c97a;
+    --wait-bg: linear-gradient(100deg, color-mix(in srgb, var(--wait) 28%, transparent), color-mix(in srgb, var(--wait) 12%, transparent) 75%);
     /* The words Claude and Codex, wherever they say who runs a session, are
        in the colours of the agents' own marks: claude in a quiet clay of
        Anthropic's terracotta, toned down so the one warm mark does not shout
@@ -194,75 +205,91 @@
     --t-3xl: calc(2rem * var(--t-k, 1));
 }
 
+/* The light theme is the light theme of the Claude client: an off-white
+   page, white opaque cards cut by hairlines, no frost, no glow, no clouds. The
+   greys, the clay and the blue are the client's; where its text falls short of
+   4.5:1 — its faint grey — the step here is darker. */
 :root.sky {
-    --void: #bcd9f2;
-    --deep: #cfe7fb;
-    --surface: rgba(255, 255, 255, .58);
-    --surface-2: rgba(255, 255, 255, .72);
-    --surface-3: rgba(255, 255, 255, .84);
-    --line: rgba(15, 35, 56, .12);
+    /* Overlays drawn in the tint darken here: a white one is lost on paper,
+       and the empty tracks of a context bar with it. */
+    --tint: 31, 30, 29;
+    --void: #f9f9f7;
+    --deep: #f3f3f0;
+    --surface: #ffffff;
+    --surface-2: #f3f3f0;
+    --surface-3: #edece8;
+    --line: rgba(31, 30, 29, .12);
 
-    --glass: linear-gradient(160deg, rgba(255, 255, 255, .74), rgba(255, 255, 255, .54) 62%);
-    --glass-2: linear-gradient(160deg, rgba(255, 255, 255, .86), rgba(255, 255, 255, .66) 62%);
-    --edge: rgba(255, 255, 255, .7);
-    --drop: 0 4px 12px rgba(24, 60, 100, .09);
-    --gloss: inset 0 1px 0 rgba(255, 255, 255, .7);
-    --hairline: inset 0 0 0 var(--hair) rgba(255, 255, 255, .4);
-    --blur: blur(26px) saturate(170%);
-    --glow: 0 0 14px -8px color-mix(in srgb, var(--accent) 28%, transparent);
+    /* The glass stays an image of one colour: rules lay it over the ground as
+       one layer of several, and only the last layer may be a colour. */
+    --glass: linear-gradient(#ffffff, #ffffff);
+    --glass-2: linear-gradient(#f3f3f0, #f3f3f0);
+    --edge: rgba(31, 30, 29, .15);
+    --drop: 0 1px 2px rgba(31, 30, 29, .04), 0 4px 16px rgba(31, 30, 29, .035);
+    /* Shadows with nothing in them rather than none: these stand inside
+       lists of shadows, where none is not allowed. */
+    --gloss: 0 0 0 0 transparent;
+    --hairline: inset 0 0 0 var(--hair) rgba(31, 30, 29, .15);
+    --blur: none;
+    --glow: 0 0 0 0 transparent;
 
-    --ink: #0f2338;
-    --ink-dim: #2f4a68;
-    --ink-faint: #3e5063;
+    --ink: #131313;
+    --ink-dim: #383835;
+    --ink-faint: #585754;
 
-    --accent: #14548f;
-    --accent-2: #0f6157;
-    --accent-bg: linear-gradient(160deg, rgba(22, 79, 141, .2), rgba(22, 79, 141, .1) 62%);
+    --accent: #a44d31;
+    --accent-2: #307113;
+    --accent-bg: linear-gradient(160deg, rgba(164, 77, 49, .1), rgba(164, 77, 49, .06) 62%);
+    /* The word of a file's tag is the accent itself, read on its own fill. */
+    --tag-tint: 10%;
 
-    --ok: #0f6157;
-    --warn: #1f5580;
-    --crit: #5b3a9e;
-    --wait: #7a5a12;
-    /* The darker pair of the agents' own marks, short of 4.5:1 on the sky's
-       blues — about 3.5 for claude and 3.4 for codex where the limits stand.
-       The marks are kept over the norm of contrast on purpose: the words are
-       semibold, a step heavier than the text around them. */
-    --word-claude: #8a5e4c;
-    --word-codex: #3941ff;
+    --ok: #307113;
+    --warn: #966306;
+    /* A failure is violet, not red: red stands next to the clay of a session
+       at work. */
+    --crit: #5e4dc2;
+    /* Among warm colours the one cool colour of a state is waiting on the
+       person: the client's blue. The card of a waiting session takes a lighter
+       fill than in the dark theme, since the words of the card are read on it. */
+    --wait: #1a56a3;
+    --wait-bg: linear-gradient(100deg, color-mix(in srgb, var(--wait) 14%, transparent), color-mix(in srgb, var(--wait) 6%, transparent) 75%);
+    /* The word claude is a darker clay than the accent: it is read on the
+       fill of a waiting card as well. */
+    --word-claude: #8a4129;
+    --word-codex: #242dff;
 
-    --ctx-1: #12857a;
-    --ctx-2: #2f7fc8;
-    --ctx-3: #5f6fd8;
-    --ctx-4: #8b5fd8;
+    --ctx-1: #6e8b4e;
+    --ctx-2: #c99a4b;
+    --ctx-3: #d97757;
+    --ctx-4: #7161e0;
 
-    --cat-messages: #2f7fc8;
-    --cat-memory: #c2682a;
-    --cat-skills: #9c7f0c;
-    --cat-mcp: #12857a;
-    --cat-agents: #8b5fd8;
-    --cat-tools: #5f6fd8;
-    --cat-system: #5a6b86;
-    --cat-other: #3e5063;
-    --ok-bg: rgba(15, 97, 87, .12);
-    --warn-bg: rgba(31, 85, 128, .13);
-    --crit-bg: rgba(91, 58, 158, .13);
+    --cat-messages: #d97757;
+    --cat-memory: #c2853a;
+    --cat-skills: #a99232;
+    --cat-mcp: #3e8c83;
+    --cat-agents: #7161e0;
+    --cat-tools: #5a86b8;
+    --cat-system: #7b7974;
+    --cat-other: #b4b2a9;
+    --ok-bg: rgba(48, 113, 19, .1);
+    --warn-bg: rgba(150, 99, 6, .1);
+    --crit-bg: rgba(94, 77, 194, .1);
 
-    --bg: linear-gradient(180deg, #93c4ea 0%, #aed3f0 45%, #c4dff8 100%);
-    --top-bg: linear-gradient(180deg, rgba(147, 196, 234, .84), rgba(147, 196, 234, .42));
-    --chips-bg: linear-gradient(180deg, rgba(147, 196, 234, .9), rgba(147, 196, 234, .66));
-    --nav-bg: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .18));
-    --sheet-bg: linear-gradient(180deg, rgba(247, 251, 255, .97), rgba(226, 240, 253, .99));
-    --toast-bg: linear-gradient(180deg, rgba(247, 251, 255, .97), rgba(226, 240, 253, .99));
-    --toast-drop: 0 8px 22px rgba(24, 60, 100, .16);
-    --code-bg: rgba(255, 255, 255, .62);
-    --strip-bg: rgba(15, 35, 56, .07);
+    --bg: #f9f9f7;
+    --top-bg: linear-gradient(180deg, rgba(249, 249, 247, .96), rgba(249, 249, 247, .9));
+    --chips-bg: linear-gradient(180deg, rgba(249, 249, 247, .97), rgba(249, 249, 247, .92));
+    --nav-bg: linear-gradient(#ffffff, #ffffff);
+    --sheet-bg: linear-gradient(#ffffff, #ffffff);
+    --toast-bg: linear-gradient(#ffffff, #ffffff);
+    --toast-drop: 0 8px 24px rgba(31, 30, 29, .12);
+    --code-bg: #f3f3f0;
+    --code-inline-bg: rgba(31, 30, 29, .06);
+    --plate-bg: rgba(31, 30, 29, .03);
+    --quote-rule: rgba(31, 30, 29, .2);
+    --strip-bg: rgba(31, 30, 29, .05);
     --on-accent: #ffffff;
-    --me-bg: rgba(255, 255, 255, .55);
+    --me-bg: #f0efec;
+    --sep-ink: var(--ink-faint);
 
-    --neb: radial-gradient(38% 16% at 18% 10%, rgba(255, 255, 255, .9), transparent 72%),
-        radial-gradient(30% 12% at 34% 20%, rgba(255, 255, 255, .85), transparent 70%),
-        radial-gradient(46% 18% at 84% 28%, rgba(255, 255, 255, .75), transparent 74%),
-        radial-gradient(34% 14% at 60% 60%, rgba(255, 255, 255, .7), transparent 72%),
-        radial-gradient(52% 20% at 22% 92%, rgba(255, 255, 255, .55), transparent 76%);
+    --neb: none;
 }
-

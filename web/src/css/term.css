@@ -32,8 +32,8 @@
 }
 
 :root.sky .termwrap {
-    --termbg: #0d1524;
-    --termink: #d7e2f6;
+    --termbg: #1f1e1d;
+    --termink: #e8e6dc;
 }
 
 .termview {

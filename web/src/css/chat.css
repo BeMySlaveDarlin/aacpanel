@@ -88,7 +88,7 @@
     font-size: var(--t-xs);
     color: var(--ink-faint);
 }
-.chatsub .sep { color: rgba(150, 170, 255, .3); margin: 0 .35rem; }
+.chatsub .sep { color: var(--sep-ink); margin: 0 .35rem; }
 /* Where the session works has a line of its own under how it stands: the line
    of the agent, the model and the state has no room left for it on a phone. A
    path too long for its line keeps its end, which names the project: the line

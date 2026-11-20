@@ -37,9 +37,9 @@ func themeTokens(t *testing.T) (dark, sky map[string]bool) {
 }
 
 // TestThemedSurfacesTakeTheirFillFromASkyToken holds the surfaces that used to
-// stay black in the light theme: each draws its fill from a token, and that
-// token has a value in the sky block. A literal colour or a token sky does not
-// override is a black box on a light screen.
+// keep the dark theme's colour in the light theme: each draws its fill from a
+// token, and that token has a value in the sky block. A literal colour or a
+// token sky does not override is a dark-theme box on a light screen.
 func TestThemedSurfacesTakeTheirFillFromASkyToken(t *testing.T) {
 	dark, sky := themeTokens(t)
 	cases := []struct {
@@ -49,6 +49,13 @@ func TestThemedSurfacesTakeTheirFillFromASkyToken(t *testing.T) {
 		{"src/css/sheet.css", ".toast", "box-shadow"},
 		{"src/css/markdown.css", ".mdcode", "background"},
 		{"src/css/desktop.css", ".dktip", "background"},
+		{"src/css/feed.css", ".msg.me", "background"},
+		{"src/css/markdown.css", ".msg code", "background"},
+		{"src/css/sessions.css", ".sc.scwait", "background"},
+		{"src/css/feed.css", ".mshot", "background"},
+		{"src/css/feed.css", ".sentcap code:not(.hl)", "background"},
+		{"src/css/calls.css", ".cnshot", "background"},
+		{"src/css/calls.css", ".mnote", "background"},
 	}
 	value := func(block, property string) string {
 		for _, line := range strings.Split(block, "\n") {
@@ -68,7 +75,7 @@ func TestThemedSurfacesTakeTheirFillFromASkyToken(t *testing.T) {
 		v := value(block, c.property)
 		m := regexp.MustCompile(`^var\((--[a-z0-9-]+)\)$`).FindStringSubmatch(v)
 		if m == nil {
-			t.Errorf("%s: %s of %s is %q, not a single theme token — the light theme cannot change it and the box stays black",
+			t.Errorf("%s: %s of %s is %q, not a single theme token — the light theme cannot change it and the box keeps the dark theme's colour",
 				c.file, c.property, c.selector, v)
 			continue
 		}
@@ -76,7 +83,7 @@ func TestThemedSurfacesTakeTheirFillFromASkyToken(t *testing.T) {
 			t.Errorf("%s: %s of %s uses %s, which no dark block declares — the box has no fill at all", c.file, c.property, c.selector, m[1])
 		}
 		if !sky[m[1]] {
-			t.Errorf("%s: %s of %s uses %s, which the sky block does not override — the box stays black on the light theme",
+			t.Errorf("%s: %s of %s uses %s, which the sky block does not override — the box keeps the dark theme's colour on the light theme",
 				c.file, c.property, c.selector, m[1])
 		}
 	}

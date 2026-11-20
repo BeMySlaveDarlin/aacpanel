@@ -19,11 +19,11 @@
     -webkit-touch-callout: none;
 }
 :root.sky .pie {
-    --pie-top: rgba(250, 253, 255, .92);
-    --pie-foot: rgba(218, 234, 251, .95);
-    --pie-hub: rgba(243, 249, 255, .96);
-    --pie-edge: rgba(15, 35, 56, .16);
-    --pie-scrim: rgba(52, 82, 112, .42);
+    --pie-top: rgba(255, 255, 255, .98);
+    --pie-foot: rgba(243, 243, 240, .98);
+    --pie-hub: rgba(255, 255, 255, .98);
+    --pie-edge: rgba(31, 30, 29, .16);
+    --pie-scrim: rgba(31, 30, 29, .26);
 }
 .piescrim { position: absolute; inset: 0; background: var(--pie-scrim); backdrop-filter: blur(2.5px) saturate(.85); -webkit-backdrop-filter: blur(2.5px) saturate(.85); }
 

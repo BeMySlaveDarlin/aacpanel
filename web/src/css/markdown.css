@@ -9,7 +9,7 @@
     font-family: var(--code);
     font-size: .82em;
     color: var(--accent-2);
-    background: rgba(150, 170, 255, .10);
+    background: var(--code-inline-bg);
     border-radius: var(--r-small);
     padding: .06em .3em;
     overflow-wrap: anywhere;
@@ -34,7 +34,7 @@
 .mdquote {
     margin: .3rem 0 .5rem;
     padding-left: .7rem;
-    border-left: 2px solid rgba(150, 170, 255, .3);
+    border-left: 2px solid var(--quote-rule);
     color: var(--ink-dim);
 }
 /* The copy button of a quote stands in its top right corner and the words
