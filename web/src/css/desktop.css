@@ -364,14 +364,19 @@
     /* The heading right under the band of the contour needs no air above. */
     .dkcontour + .dkproj { padding-top: .35rem; }
 
-    .dkprojname { min-width: 0; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dkprojname { min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 
     .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
+
+    .dkprojcount { flex: none; font-size: var(--t-xs); color: var(--ink-dim); }
+
+    /* Keep the inner folds mounted while their project is closed. */
+    .dkprojectrows:not([hidden]) { display: contents; }
 
     /* The card of a session in the column: the five lines of the phone, a
        step smaller, on the page rather than on glass. The controls stay in
        sight on every card: no hover brings them, and none hides them. */
-    .dkblock > :not(:first-child) { border-top: var(--hair) solid var(--line); }
+    .dkproj + .dkprojectrows > *, .dkprojectrows > :not(:first-child) { border-top: var(--hair) solid var(--line); }
 
     .dkleft .sc {
         --step: .72rem;

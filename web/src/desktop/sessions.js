@@ -251,22 +251,27 @@ function NewSession({ name, entry, snapshot, exec }) {
 // and a restart of all of it (see HeadActs). The heading opens the menu of
 // the project on a right click: its pause, a new session, its terminal, its
 // page in the settings of the map (onSettings, with where the page stands).
-function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings }) {
+function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings, folded, onToggle }) {
     const run = useAction();
     const menu = useMenu();
     const p = block.project;
     const sessions = snapshot?.sessions || [];
+    const waits = block.live.filter((s) => stateOf(s, snapshot?.limits).tone === "wait").length;
     const start = p && !block.home ? () => {
         if (!knows(exec, "session.open")) return;
         return run("session.open", p.session || p.name, { project: p.id });
     } : null;
     return html`
-        <div class="dkproj" onContextMenu=${menu && p && menu(ProjectMenu, {
+        <div class="dkproj" onClick=${(event) => { if (!event.target.closest("button")) onToggle(); }}
+             onContextMenu=${menu && p && menu(ProjectMenu, {
             project: p, profile: entry, sessions, exec, onNew: start, onTerm,
             onSettings: onSettings && entry ? () => onSettings({ contour: entry.id, project: p.id }) : null,
         }, `project ${block.name}`)}>
-            <span class="dkprojname" data-tip=${block.name}>${block.name}</span>
+            <button class="dkprojname" type="button" data-tip=${block.name}
+                    aria-expanded=${folded ? "false" : "true"} onClick=${onToggle}>${block.name}</button>
             ${block.group && html`<span class="dkprojgroup">${block.group}</span>`}
+            ${folded && html`<span class="dkprojcount">${block.live.length} ${plural(block.live.length, "session", "sessions")}</span>`}
+            ${folded && waits > 0 && html`<span class="waitn dkwaitn" role="img" aria-label=${`${waits} waiting for you`}><i></i>${waits}</span>`}
             <${HeadActs} block=${block} profile=${entry} sessions=${sessions} exec=${exec} wait=${wait} />
         </div>
     `;
@@ -278,7 +283,7 @@ function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings })
 // sessions, the sessions those opened and the runs they started under them,
 // and the sessions being raised in them. blocks holds the projects as the
 // column lays them out.
-function ContourSection({ name, entry, list, blocks, archive, folds, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
+function ContourSection({ name, entry, list, blocks, archive, folds, projectFolds, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
     const menu = useMenu();
     const waits = list.filter((s) => stateOf(s, snapshot && snapshot.limits).tone === "wait").length;
     const open = (session, id) => onPick({ name: session, id });
@@ -286,6 +291,7 @@ function ContourSection({ name, entry, list, blocks, archive, folds, limits, map
         exec, snapshot, wait, onOpen: () => open(s.session, s.sessionId), onTerm, profile: entry,
     }));
     const notes = splitNotes((snapshot && snapshot.sessionNotes) || [], (snapshot && snapshot.sessions) || []).own;
+    const [folded, toggle] = projectFolds;
     return html`
         <section>
             <div class="dkcontour dklimhead">
@@ -300,15 +306,19 @@ function ContourSection({ name, entry, list, blocks, archive, folds, limits, map
             </div>
             ${blocks.map((block) => {
                 const known = knownOf(block);
+                const closed = headed(block) && folded.has(block.key);
                 return html`
                     <div class="dkblock" key=${block.key}>
                         ${headed(block) && html`<${ProjectHead} block=${block} entry=${entry} snapshot=${snapshot} exec=${exec} wait=${wait}
-                                                                onTerm=${onTerm} onSettings=${onSettings} />`}
+                                                                onTerm=${onTerm} onSettings=${onSettings} folded=${closed}
+                                                                onToggle=${() => toggle(block.key)} />`}
+                        <div class="dkprojectrows" hidden=${closed}>
                         <${LiveLines} list=${block.live} live=${snapshot?.sessions || []} past=${archive} limits=${limits} wait=${wait} notes=${notes}
                                       exec=${exec} profile=${entry} profiles=${map} project=${block.project} known=${known}
                                       folds=${folds} desk current=${current} menuOf=${menuOf} onOpen=${open}
                                       onStub=${(row) => onPick({ name: row.name, id: row.sessionId, archived: true, row })} />
                         ${block.ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} known=${known} />`)}
+                        </div>
                     </div>
                 `;
             })}
@@ -444,11 +454,14 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
     // a run and a session still being raised are not among them.
     const entryOf = (name) => map.find((p) => p.profile === name) || null;
     const folds = useFolds();
+    const projectFolds = useFolds("aacpanel.project-folds");
     const [folded] = folds;
+    const [projectsFolded] = projectFolds;
     const blocksIn = new Map(sections.map((n) => [n, liveBlocksOf({
         profile: entryOf(n), sessions: byProfile.get(n) || [], opening: ghostsIn.get(n) || [], wait,
     }).map((block) => ({ block, rows: layoutOf(block.live, all, folded) }))]));
-    const flat = [...blocksIn.values()].flat().flatMap((b) => b.rows)
+    const flat = [...blocksIn.values()].flat().flatMap(({ block, rows }) =>
+        headed(block) && projectsFolded.has(block.key) ? [] : rows)
         .filter((e) => e.kind === "row").map((e) => e.s);
 
     useEffect(() => {
@@ -499,7 +512,7 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
                 ${sections.map((name) => html`
                     <${ContourSection} key=${name} name=${name} entry=${entryOf(name)}
                                        list=${byProfile.get(name) || []} blocks=${(blocksIn.get(name) || []).map((b) => b.block)}
-                                       archive=${archive} folds=${folds} limits=${limits} map=${map}
+                                       archive=${archive} folds=${folds} projectFolds=${projectFolds} limits=${limits} map=${map}
                                        snapshot=${snapshot} current=${current} onPick=${onPick}
                                        onTerm=${onTerm} onSettings=${onSettings} exec=${exec} wait=${wait} />
                 `)}

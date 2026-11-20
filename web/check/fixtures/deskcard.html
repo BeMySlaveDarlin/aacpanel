@@ -142,15 +142,14 @@ const picked = [];
 const orders = [];
 let archiveOpened = 0;
 // The column stands under the host of the pies, as in the shell of the desk.
-const column = (sessions, current, currentId = "", map = profileMap) => {
+const column = (sessions, current, currentId = "", map = profileMap, pending = wait) => {
     const snapshot = { at: now / 1000, sessions, profileMap: map, limits, profiles: accounts, host: { home: "/home/u" } };
-    render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec, wait }, h(SessionColumn, {
+    render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec, wait: pending }, h(SessionColumn, {
         snapshot, limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
-        onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait,
+        onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait: pending,
     })))), document.getElementById("root"));
 };
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 // words reads a line made of several pieces the way it reads on the screen.
 const words = (el) => (el ? Array.from(el.children).map(text).filter(Boolean).join(" ") : "");
@@ -196,8 +195,7 @@ window.done = (async () => {
     const out = { clock: now };
 
     column(first, "aacpanel");
-    for (let i = 0; i < 60 && !root().querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);
-    await quiet();
+    await until(() => root().querySelector(".dkshelf .sc.scpast") && orders.length, "the column and its shelf");
     out.before = lay();
     out.orderBefore = orders[orders.length - 1];
     out.ghost = (() => {
@@ -230,14 +228,14 @@ window.done = (async () => {
 
     // The new session of a contour.
     root().querySelector(".dkscroll > section .dknew").click();
-    await quiet();
+    await until(() => root().querySelector(".dknewrow"), "the contour's projects");
     out.menu = Array.from(root().querySelectorAll(".dknewpop .dknewgroup, .dknewpop .dknewrow")).map((el) =>
         el.classList.contains("dknewgroup") ? `[${text(el)}]` : words(el));
     Array.from(root().querySelectorAll(".dknewrow")).find((b) => text(b.querySelector(".dkname")) === "blog").click();
-    await quiet();
+    await until(() => document.querySelector(".btnrow .btn.primary"), "the contour's new session confirmation");
     const ok = document.querySelector(".btnrow .btn.primary");
     if (ok) ok.click();
-    await quiet();
+    await until(() => sent.length && !document.querySelector('.sheet.on[aria-label="action confirmation"]'), "the new session sent");
     out.opened = sent.slice();
 
     // The plus in the heading of a project of one session starts a session
@@ -249,10 +247,10 @@ window.done = (async () => {
     const own = headOf("person") && headOf("person").querySelector('.scact[aria-label="new session in project person"]');
     if (own) {
         own.click();
-        for (let i = 0; i < 100 && !document.querySelector(".btnrow .btn.primary"); i++) await sleep(10);
+        await until(() => document.querySelector(".btnrow .btn.primary"), "the project's new session confirmation");
         const sure = document.querySelector(".btnrow .btn.primary");
         if (sure) sure.click();
-        await quiet();
+        await until(() => sent.length && !document.querySelector('.sheet.on[aria-label="action confirmation"]'), "the project's new session sent");
     }
     out.projectOpened = sent.slice();
 
@@ -271,10 +269,10 @@ window.done = (async () => {
     out.openClosed = open ? { name: open.dataset.name } : null;
     if (open) {
         open.querySelector(".scresume").click();
-        await quiet();
+        await until(() => document.querySelector(".btnrow .btn.primary"), "the resume confirmation");
         const yes = document.querySelector(".btnrow .btn.primary");
         if (yes) yes.click();
-        await quiet();
+        await until(() => sent.length && !document.querySelector('.sheet.on[aria-label="action confirmation"]'), "the conversation resumed");
     }
     out.resumed = sent.slice();
     out.pickedAfterResume = picked.length;
@@ -285,7 +283,7 @@ window.done = (async () => {
         name: "shop", id: live.sessionId, live, exec, snapshot: { sessions: [live] }, onBack() {}, onUsage() {},
     }))), document.getElementById("chat"));
     const chat = document.getElementById("chat");
-    for (let i = 0; i < 40 && !chat.querySelector(".dkplace"); i++) await sleep(50);
+    await until(() => chat.querySelector(".dkplace"), "the conversation header");
     await quiet();
     const head = () => ({
         sub: words(chat.querySelector(".dkwhosub")),
@@ -346,7 +344,7 @@ window.done = (async () => {
     // The time of a closed conversation on the phone.
     render(h(ToastHost, null, h(GateHost, null, html`<${PastCard} row=${archive[1]} exec=${exec} onOpen=${() => {}} />`)),
         document.getElementById("phone"));
-    await sleep(50);
+    await until(() => text(document.querySelector("#phone .sctime")), "the closed conversation's time");
     out.phoneWhen = text(document.querySelector("#phone .sctime"));
 
     const longName = "browser-extension-release-automation";
@@ -356,6 +354,54 @@ window.done = (async () => {
     await until(() => text(root().querySelector(".dkprojname")) === longName, "the long project's heading");
     const projectName = root().querySelector(".dkprojname");
     out.projectHead = { name: text(projectName), tip: projectName.getAttribute("data-tip") || "" };
+
+    const family = [...first,
+        S({ session: "aacpanel-review", parent: { session: "aacpanel" }, project: projects[11], profile: "personal",
+            status: "waiting", waitingFor: "input needed", pct: 4 }),
+        S({ session: "aacpanel-run", parent: { session: "aacpanel" }, project: projects[11], profile: "personal",
+            outside: true, status: "idle", pct: 3 }),
+    ];
+    const raising = { ...task, target: "aacpanel", params: { project: 11 }, before: family.map((s) => s.session) };
+    const pending = { ...wait, opening: () => [raising] };
+    const keptChildren = localStorage.getItem("aacpanel.folds");
+    localStorage.setItem("aacpanel.project-folds", JSON.stringify(Array.from({ length: 35 }, (_, n) => `old-${n}`)));
+    render(null, root());
+    column(family, "aacpanel", "", profileMap, pending);
+    const visible = (node) => Boolean(node) && !node.closest("[hidden]");
+    const block = () => headOf("aacpanel").closest(".dkblock");
+    const cards = () => [...block().querySelectorAll(".sc:not(.scghost)")].filter(visible).map((r) => r.dataset.name);
+    const ghost = () => visible(block().querySelector(".scghost"));
+    await until(() => rowOf("aacpanel-review") && ghost(), "the project and the session being raised");
+    const runsFold = [...block().querySelectorAll(".scfold")].find((f) => text(f).includes("started by it"));
+    runsFold.click();
+    await until(() => visible(rowOf("aacpanel-run")), "the open run under the project");
+    out.projectFold = { button: headOf("aacpanel").querySelector(".dkprojname").tagName,
+        before: cards(), ghostBefore: ghost() };
+    headOf("aacpanel").click();
+    await until(() => !visible(rowOf("aacpanel")) && !orders.at(-1).split(",").includes("aacpanel"), "the collapsed project");
+    Object.assign(out.projectFold, { collapsed: cards(), ghostHidden: !ghost(), neighbor: visible(rowOf("person")),
+        expanded: headOf("aacpanel").querySelector(".dkprojname").getAttribute("aria-expanded"),
+        count: text(headOf("aacpanel").querySelector(".dkprojcount")),
+        waits: headOf("aacpanel").querySelector(".waitn")?.getAttribute("aria-label"),
+        order: orders.at(-1).split(",") });
+    headOf("aacpanel").querySelector('button[aria-label="new session in project aacpanel"]').click();
+    await until(gate, "the project action confirmation while folded");
+    out.projectFold.controlKeptFolded = !visible(rowOf("aacpanel"));
+    gate().querySelector(".btnrow .btn:first-child").click();
+    await until(() => !gate(), "the cancelled project action");
+    headOf("aacpanel").querySelector(".dkprojgroup").click();
+    await until(() => visible(rowOf("aacpanel-run")) && ghost(), "the project reopened with its run still open");
+    out.projectFold.reopened = cards();
+    out.projectFold.ghostReopened = ghost();
+    headOf("aacpanel").querySelector(".dkprojname").click();
+    await until(() => !visible(rowOf("aacpanel")), "the project folded by its name button");
+    out.projectFold.kept = JSON.parse(localStorage.getItem("aacpanel.project-folds"));
+    out.projectFold.childrenUnchanged = localStorage.getItem("aacpanel.folds") === keptChildren;
+    render(null, root());
+    column(family, "aacpanel", "", profileMap, pending);
+    await until(() => headOf("aacpanel") && rowOf("person"), "the remounted column");
+    out.projectFold.remounted = { closed: !visible(rowOf("aacpanel")), neighbor: visible(rowOf("person")),
+        expanded: headOf("aacpanel").querySelector(".dkprojname").getAttribute("aria-expanded") };
     return out;
 })();
 </script>

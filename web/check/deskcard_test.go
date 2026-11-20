@@ -96,6 +96,16 @@ type deskCard struct {
 		Name string `json:"name"`
 		Tip  string `json:"tip"`
 	} `json:"projectHead"`
+	ProjectFold struct {
+		Button, Expanded, Count, Waits                    string
+		Before, Collapsed, Reopened, Order, Kept          []string
+		GhostBefore, GhostHidden, GhostReopened, Neighbor bool
+		ControlKeptFolded, ChildrenUnchanged              bool
+		Remounted                                         struct {
+			Closed, Neighbor bool
+			Expanded         string
+		}
+	} `json:"projectFold"`
 }
 
 // The page is run once for all the tests below: each of them reads its own
@@ -129,6 +139,37 @@ func TestTheProjectHeadingKeepsItsFullNameInATip(t *testing.T) {
 	const name = "browser-extension-release-automation"
 	if got.Name != name || got.Tip != name {
 		t.Errorf("the project heading reads %q with tip %q, want its full name %q in both", got.Name, got.Tip, name)
+	}
+}
+
+func TestDeskProjectHeadingFoldsItsWholeBlock(t *testing.T) {
+	got := runDeskCard(t).ProjectFold
+	want := "aacpanel,aacpanel-review,aacpanel-run"
+	if strings.Join(got.Before, ",") != want || !got.GhostBefore {
+		t.Fatalf("the fixture did not open the project's sessions, child and run: %+v", got)
+	}
+	if got.Button != "BUTTON" || got.Expanded != "false" {
+		t.Errorf("the project name is %q with aria-expanded=%q, expected a collapsed button", got.Button, got.Expanded)
+	}
+	if len(got.Collapsed) != 0 || !got.GhostHidden || !got.Neighbor || !got.ControlKeptFolded {
+		t.Errorf("folding the project hid the wrong content or a control unfolded it: %+v", got)
+	}
+	if got.Count != "3 sessions" || got.Waits != "1 waiting for you" {
+		t.Errorf("the collapsed heading says %q and %q, expected the live count and waiting mark", got.Count, got.Waits)
+	}
+	for _, name := range got.Order {
+		if strings.HasPrefix(name, "aacpanel") {
+			t.Errorf("the keyboard order includes the hidden session %q", name)
+		}
+	}
+	if strings.Join(got.Reopened, ",") != want || !got.GhostReopened {
+		t.Errorf("reopening lost an inner fold's state or the session being raised: %+v", got)
+	}
+	if len(got.Kept) != 32 || got.Kept[len(got.Kept)-1] != "p11" || !got.ChildrenUnchanged {
+		t.Errorf("project folds were not kept in their own bounded list: %+v", got)
+	}
+	if !got.Remounted.Closed || !got.Remounted.Neighbor || got.Remounted.Expanded != "false" {
+		t.Errorf("remounting forgot the collapsed project or hid its neighbor: %+v", got.Remounted)
 	}
 }
 

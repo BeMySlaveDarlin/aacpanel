@@ -11,31 +11,31 @@ const FOLDS_KEY = "aacpanel.folds";
 
 const FOLDS_KEPT = 32;
 
-function readFolds() {
+function readFolds(key) {
     try {
-        const list = JSON.parse(localStorage.getItem(FOLDS_KEY) || "[]");
+        const list = JSON.parse(localStorage.getItem(key) || "[]");
         return new Set(Array.isArray(list) ? list.filter((name) => typeof name === "string") : []);
     } catch {
         return new Set();
     }
 }
 
-function keepFolds(folded) {
+function keepFolds(key, folded) {
     try {
-        localStorage.setItem(FOLDS_KEY, JSON.stringify([...folded].slice(-FOLDS_KEPT)));
+        localStorage.setItem(key, JSON.stringify([...folded].slice(-FOLDS_KEPT)));
     } catch {
     }
 }
 
-// useFolds returns the parents whose fold is closed, and the toggle of one.
-export function useFolds() {
-    const [folded, setFolded] = useState(readFolds);
+// Separate kinds of folds keep their closed keys in separate storage lists.
+export function useFolds(key = FOLDS_KEY) {
+    const [folded, setFolded] = useState(() => readFolds(key));
     const toggle = useCallback((name) => setFolded((prev) => {
         const next = new Set(prev);
         if (next.has(name)) next.delete(name);
         else next.add(name);
-        keepFolds(next);
+        keepFolds(key, next);
         return next;
-    }), []);
+    }), [key]);
     return [folded, toggle];
 }
