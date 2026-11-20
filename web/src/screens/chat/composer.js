@@ -481,13 +481,13 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             ${hints.length > 0 && html`<${SlashList} hints=${hints} hot=${Math.min(hot, hints.length - 1)}
                                                    theirs=${Boolean(stream && theirs)} wide=${wideNow}
                                                    onHot=${setHot} onPick=${pick} />`}
-            ${(place || pack.length > 0) && html`
+            ${place && html`<div class="placedraft">
+                <${PlaceCard} place=${place} draft />
+                <button class="clipoff" type="button" aria-label="remove the place" disabled=${sending}
+                        onClick=${() => setPlace(null)}>${Icon.close()}</button>
+            </div>`}
+            ${pack.length > 0 && html`
                 <div class="clippack">
-                    ${place && html`<div class="placedraft">
-                        <${PlaceCard} place=${place} draft />
-                        <button class="clipoff" type="button" aria-label="remove the place" disabled=${sending}
-                                onClick=${() => setPlace(null)}>${Icon.close()}</button>
-                    </div>`}
                     ${pack.map((one, i) => html`
                         <div class="clipped" key=${`${one.name}-${i}`}>
                             ${Icon.clip()}
