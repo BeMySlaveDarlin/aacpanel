@@ -240,3 +240,111 @@ func TestARestartHandsTheChildrenToTheConversationItComesBackWith(t *testing.T) 
 		})
 	}
 }
+
+func TestARestartKeepsItsOpeningSession(t *testing.T) {
+	const anew = "88888888-8888-4888-8888-888888888888"
+	for _, path := range []string{"stream", "console", "home"} {
+		for _, mode := range []string{"anew", "going on"} {
+			for _, opening := range []string{"owned", "without an opener"} {
+				t.Run(path+"/"+mode+"/"+opening, func(t *testing.T) {
+					t.Setenv("XDG_STATE_HOME", t.TempDir())
+					pid, start, from := 1004, "1000", consoleSID
+					var dir string
+					if path == "stream" {
+						dir, _ = streamStand(t, func(*stream.State) {})
+						pid, start, from = 5001, "5555", streamSID
+					} else {
+						dir = consoleStand(t, "idle")
+					}
+					procFS(t,
+						fakeProc{pid: pid, comm: "claude", ppid: 1, cwd: dir, start: start, args: []string{"claude", "-n", "demo"}},
+						fakeProc{pid: 6001, comm: "claude", ppid: 1, start: "6000", args: []string{"claude", "-n", "replacement"}},
+					)
+					request := restartOf(dir, "")
+					if path == "home" {
+						t.Setenv("HOME", dir)
+						request.Project = nil
+					}
+					back := anew
+					if mode == "going on" {
+						request.Resume, back = from, from
+					}
+					key, err := processOwnerKey(pid)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var owner stream.SessionOwner
+					if opening == "owned" {
+						owner = stream.SessionOwner{Name: "parent", Conversation: senderSID}
+						if err := stream.KeepOpened(key, stream.OpenedSession{SessionOwner: owner,
+							Session: "demo", SessionID: from, Agent: "claude"}); err != nil {
+							t.Fatal(err)
+						}
+					}
+					fakeLauncher(t, launcher.Report{Session: "demo", Agent: 6001, Conversation: back})
+					e, _ := newTest(t, "")
+					withSignals(t, e, map[int]bool{pid: true}, map[int]int{pid: 1})
+
+					if _, _, err := e.Restart(t.Context(), request); err != nil {
+						t.Fatal(err)
+					}
+					key, err = processOwnerKey(6001)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := stream.OwnerOf(key); got != owner {
+						t.Fatalf("the replacement is owned by %+v, meant its original opener %+v", got, owner)
+					}
+					if opening == "without an opener" {
+						if _, err := os.Stat(stream.OpenedPath(key)); !os.IsNotExist(err) {
+							t.Fatalf("an unowned session acquired an opening record: %v", err)
+						}
+						return
+					}
+					rows, err := stream.OpenedSessions()
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, row := range rows {
+						if row.Key == key && row.Session == "demo" && row.SessionID == back && row.Agent == "claude" {
+							return
+						}
+					}
+					t.Fatalf("the replacement's opening record lost its child identity: %+v", rows)
+				})
+			}
+		}
+	}
+}
+
+func TestARestartReportsAnOpeningRecordFailureAfterStarting(t *testing.T) {
+	const anew = "88888888-8888-4888-8888-888888888888"
+	for _, path := range []string{"project", "home"} {
+		t.Run(path, func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			dir := consoleStand(t, "idle")
+			request := restartOf(dir, "")
+			if path == "home" {
+				t.Setenv("HOME", dir)
+				request.Project = nil
+			}
+			if err := stream.KeepOwner("process-1004-1000", stream.SessionOwner{Name: "parent", Conversation: senderSID}); err != nil {
+				t.Fatal(err)
+			}
+			fakeLauncher(t, launcher.Report{Session: "demo", Agent: 6001, Conversation: anew})
+			e, _ := newTest(t, "")
+			withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
+
+			detail, ownership, err := e.Restart(t.Context(), request)
+			if err == nil || !strings.Contains(err.Error(), "session demo started, but its opening session was not recorded") {
+				t.Fatalf("the failed opening record was not reported: %s, %v", detail, err)
+			}
+			if !strings.Contains(detail, "session demo started") {
+				t.Fatalf("the failed record hid the successful launch: %s", detail)
+			}
+			if ownership == nil || ownership.From != consoleSID || ownership.Conversation != anew {
+				t.Fatalf("the failed record hid the completed children's transfer: %+v", ownership)
+			}
+		})
+	}
+}

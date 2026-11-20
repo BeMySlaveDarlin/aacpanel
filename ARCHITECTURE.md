@@ -1263,6 +1263,8 @@ A parent restarted anew runs a new conversation that the panel itself names
 at the start, and its records move to that conversation; a restart that goes
 on keeps the conversation and the records as they are. A tmux parent names no
 conversation at its start, and its records stay with the previous one.
+Restarting a Claude child carries its own opening record to the replacement
+process, so its original parent can still close it, answer it and receive its reports.
 
 The same `PassOwners` result travels in the restart reply. Both the manual
 restart and the context cycle pass the panel's pause records to that UUID and

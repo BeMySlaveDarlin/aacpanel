@@ -130,6 +130,7 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 	if s, err := findOneLiveSession(target); err == nil {
 		from = s.SessionID
 	}
+	owner := openerOf(p.Agent)
 	closed, err := e.closeAgent(ctx, p)
 	if err != nil {
 		return "", nil, fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
@@ -140,7 +141,7 @@ func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (stri
 		return "", nil, fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
 	suffix, ownership := passChildren(from, rep)
-	return closed + "; " + describeConsole(rep) + restartedWith(resume, "") + suffix, ownership, nil
+	return closed + "; " + describeConsole(rep) + restartedWith(resume, "") + suffix, ownership, keepOwner(rep, owner)
 }
 
 // runsConversation refuses a restart or a close, as act names it, that names
@@ -198,6 +199,7 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 	if next.Launch, err = restartOpening(next.Launch, intent, clean); err != nil {
 		return "", nil, err
 	}
+	owner := openerOf(p.Agent)
 	if held && !anyway {
 		closed, err = e.closeGently(ctx, s, p, true)
 	} else {
@@ -211,7 +213,18 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 		return "", nil, fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
 	suffix, ownership := passChildren(from, rep)
-	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh + suffix, ownership, nil
+	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh + suffix, ownership, keepOwner(rep, owner)
+}
+
+// openerOf reads the opening record of a session about to be restarted. The
+// record only follows the session to its replacement, so a process that can no
+// longer be identified restarts without one rather than refusing the restart.
+func openerOf(pid int) stream.SessionOwner {
+	key, err := processOwnerKey(pid)
+	if err != nil {
+		return stream.SessionOwner{}
+	}
+	return stream.OwnerOf(key)
 }
 
 // passChildren hands the sessions a restarted session had opened to the
