@@ -30,6 +30,7 @@ type streamCardRun struct {
 		Visited map[string]streamCardBell `json:"visited"`
 		Again   map[string]streamCardBell `json:"again"`
 	} `json:"called"`
+	Letters map[string]streamCardBell `json:"letters"`
 }
 
 // The phone's card says the name, place, state, model and background work:
@@ -112,5 +113,20 @@ func TestACallMarksTheCardUntilTheSessionIsOpened(t *testing.T) {
 	}
 	if _, ok := got.Again["aacpanel"]; !ok || len(got.Again) != 1 {
 		t.Errorf("a call after the visit marks %v, wanted the session that called again", got.Again)
+	}
+}
+
+// A session waiting on a letter it sent another, and one that owes an overdue
+// answer, say so with the envelope letters carry in the feed: a state with no
+// mark leaves a gap where every other card has one.
+func TestALetterStateHasItsGlyph(t *testing.T) {
+	var run streamCardRun
+	runFixture(t, "streamcard.html", &run)
+	want := map[string]string{"lead": "waits for review +1", "review": "owes lead · overdue 5m"}
+	for name, title := range want {
+		got, ok := run.Letters[name]
+		if !ok || got.Title != title || !got.Icon {
+			t.Errorf("the card of %s reads %+v, wanted %q under a glyph", name, got, title)
+		}
 	}
 }

@@ -118,6 +118,18 @@ window.done = (async () => {
     const later = new Date(Date.now() + 60e3).toISOString().replace(/\.\d+Z$/, "Z");
     list(rows.map((r) => (r.session === "aacpanel" ? { ...r, called: later } : r)));
     await until(() => document.querySelector('.sc[data-kind="call"]'));
-    return { cards, called: { before, visited, again: called() } };
+    const again = called();
+
+    // A session waiting on a letter to another, and one that owes an overdue
+    // answer, mark their state with the envelope letters carry in the feed.
+    const due = new Date(Date.now() - 5 * 60e3).toISOString();
+    list([
+        { ...base, session: "lead", sessionId: "l", claims: { out: [{ peer: "review", at: base.lastRequestAt }, { peer: "docs", at: base.lastRequestAt }] } },
+        { ...base, session: "review", sessionId: "r", claims: { in: [{ from: "lead", due, at: base.lastRequestAt }] } },
+    ]);
+    await until(() => document.querySelectorAll('.sc[data-kind="claim"]').length === 2);
+    const letters = Object.fromEntries(Array.from(document.querySelectorAll('.sc[data-kind="claim"]')).map((card) =>
+        [card.dataset.name, { title: text(card.querySelector(".scsay")), icon: Boolean(card.querySelector(".scglyph svg")) }]));
+    return { cards, called: { before, visited, again }, letters };
 })();
 </script>
