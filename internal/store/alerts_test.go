@@ -291,9 +291,8 @@ func TestAlertsAndProbesPG(t *testing.T) {
 	})
 }
 
-// The badge counts every open alert, not the ones that fit on a page: alerts
-// come back sorted by their latest event, so an open alert with enough fresher
-// events above it is off the first page while it still stands open.
+// The badge counts every open alert, including unseen alerts beyond the first
+// page. Fresher unseen alerts can fill the page while older ones still wait.
 func TestAlertCountsIgnorePagesPG(t *testing.T) {
 	dsn := testdb.DSN(t)
 
@@ -323,7 +322,7 @@ func TestAlertCountsIgnorePagesPG(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Opened a day ago and never touched since: every later event outranks it.
+	// Fresher unseen alerts fill the page ahead of this one.
 	if _, err := pool.Exec(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, opened_at, payload)
 		VALUES ($1, 'buried', 'critical', 1, 2, now() - interval '1 day', '{}')`, ruleID); err != nil {
 		t.Fatal(err)
@@ -334,6 +333,11 @@ func TestAlertCountsIgnorePagesPG(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range 3 {
+		if _, err := pool.Exec(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, opened_at, payload)
+			VALUES ($1, $2, 'warning', 1, 2, now() - make_interval(secs => $3), '{}')`,
+			ruleID, "fresh-"+strconv.Itoa(i), i); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := pool.Exec(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, opened_at, closed_at, payload)
 			VALUES ($1, $2, 'info', 1, 2, now() - interval '1 day', now() - make_interval(secs => $3), '{}')`,
 			ruleID, "closed-"+strconv.Itoa(i), i); err != nil {
@@ -355,10 +359,10 @@ func TestAlertCountsIgnorePagesPG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if counts.Open != 2 {
-		t.Errorf("%d alerts stand open, 2 were expected (the buried one and the seen one)", counts.Open)
+	if counts.Open != 5 {
+		t.Errorf("%d alerts stand open, 5 were expected", counts.Open)
 	}
-	if counts.Unread != 1 {
-		t.Errorf("the badge would show %d, 1 was expected: the buried alert alone is open and unseen", counts.Unread)
+	if counts.Unread != 4 {
+		t.Errorf("the badge would show %d, 4 were expected: three on the page and the buried alert", counts.Unread)
 	}
 }

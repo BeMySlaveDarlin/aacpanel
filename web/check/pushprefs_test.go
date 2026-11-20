@@ -17,6 +17,11 @@ type prefsRow struct {
 }
 
 type prefsShot struct {
+	AlertPaging struct {
+		Initial, Loaded, After, Next []int
+		SeenIndex                    int
+		Seen, AckButton              bool
+	}
 	CheckDefault, CheckOff, CheckOn bool
 	ClaimKind, ClaimBack            bool
 	Alerts                          struct {
@@ -117,6 +122,18 @@ func TestTheChoiceOfPushes(t *testing.T) {
 
 func checkPushChoice(t *testing.T, got prefsShot) {
 	t.Helper()
+	paging := got.AlertPaging
+	if len(paging.Initial) != 50 || len(paging.Loaded) != 55 || len(paging.After) != 50 {
+		t.Errorf("alert pages did not restart after acknowledgement: first=%d loaded=%d after=%d", len(paging.Initial), len(paging.Loaded), len(paging.After))
+	}
+	pagingWant := make([]int, 0, 55)
+	for id := 2; id <= 51; id++ {
+		pagingWant = append(pagingWant, id)
+	}
+	pagingWant = append(pagingWant, 1, 52, 53, 54, 55)
+	if !slices.Equal(paging.Next, pagingWant) || paging.SeenIndex != 50 || !paging.Seen || paging.AckButton {
+		t.Errorf("the acknowledged alert is lost, repeated or outside its group: %+v", paging)
+	}
 
 	if got.Alerts.OldBlock || slices.Contains(got.Alerts.Buttons, "Test") || slices.Contains(got.Alerts.Buttons, "Turn off") {
 		t.Errorf("the alerts screen still carries the old block of notifications: buttons %v", got.Alerts.Buttons)

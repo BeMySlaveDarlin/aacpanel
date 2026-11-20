@@ -99,8 +99,8 @@ function Engine({ state, onAction }) {
     `;
 }
 
-// The first page is reloaded while the older pages stay. An alert loaded below
-// the cursor comes back on top once it gets a new event, and is drawn once.
+// Polling refreshes the first page while older pages stay. Its current rows
+// replace any older copies, so a row crossing the cursor is drawn once.
 function merged(alerts, older) {
     const shown = new Set((alerts || []).map((alert) => alert.id));
     return [...(alerts || []), ...(older || []).filter((alert) => !shown.has(alert.id))];

@@ -2,22 +2,18 @@ package store
 
 import (
 	"context"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
 	"aacpanel/internal/testdb"
 )
 
-// TestAlertsOrderByLastEventPG checks that the list runs by the latest event
-// of each alert, whatever its state: an alert closed an hour ago stands above
-// one that has been open for a day, and a page picks up below the cursor
-// without losing the open ones.
-func TestAlertsOrderByLastEventPG(t *testing.T) {
+func TestAlertsOrderByStateAndLastEventPG(t *testing.T) {
 	dsn := testdb.DSN(t)
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-
 	s, err := New(dsn)
 	if err != nil {
 		t.Fatal(err)
@@ -30,120 +26,121 @@ func TestAlertsOrderByLastEventPG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	cleanup := func() { pool.Exec(ctx, "DELETE FROM alerts") }
-	cleanup()
-	defer cleanup()
-
+	if _, err := pool.Exec(ctx, "DELETE FROM alerts"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if _, err := pool.Exec(ctx, "DELETE FROM alerts"); err != nil {
+			t.Error(err)
+		}
+	}()
 	var ruleID int
-	if err := pool.QueryRow(ctx,
-		"SELECT id FROM rules WHERE subject = 'stack.running_pct' LIMIT 1").Scan(&ruleID); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT id FROM rules WHERE subject = 'stack.running_pct' LIMIT 1").Scan(&ruleID); err != nil {
 		t.Fatal(err)
 	}
 
+	// A shared clock makes equal events rely on the id tie-breaker.
+	clock := time.Now().UTC().Truncate(time.Second)
 	insert := func(subject, opened, closed, acked string) int64 {
 		t.Helper()
 		var id int64
 		if err := pool.QueryRow(ctx, `INSERT INTO alerts (rule_id, subject, severity, payload,
-				opened_at, closed_at, acknowledged_at)
-			VALUES ($1, $2, 'warning', '{}',
-				now() - $3::interval,
-				CASE WHEN $4 = '' THEN NULL ELSE now() - $4::interval END,
-				CASE WHEN $5 = '' THEN NULL ELSE now() - $5::interval END)
-			RETURNING id`, ruleID, subject, opened, closed, acked).Scan(&id); err != nil {
+                opened_at, closed_at, acknowledged_at)
+            VALUES ($1, $2, 'warning', '{}',
+                $6::timestamptz - $3::interval,
+                CASE WHEN $4 = '' THEN NULL ELSE $6::timestamptz - $4::interval END,
+                CASE WHEN $5 = '' THEN NULL ELSE $6::timestamptz - $5::interval END)
+            RETURNING id`, ruleID, subject, opened, closed, acked, clock).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
 		return id
 	}
+	last := insert("closed-old", "4 days", "2 days", "")
+	insert("unread-old", "1 day", "", "")
+	insert("seen-old", "2 days", "", "3 hours")
+	insert("closed-fresh", "4 days", "1 hour", "")
+	insert("unread-fresh", "2 hours", "", "")
+	insert("seen-fresh", "2 days", "", "30 minutes")
+	unread := insert("unread-tie", "2 hours", "", "")
+	insert("seen-tie", "2 days", "", "30 minutes")
+	insert("closed-tie", "4 days", "1 hour", "2 days")
 
-	// Inserted from the oldest event to the newest so that the id order
-	// contradicts the expected one and cannot pass for it.
-	stale := insert("stale", "3 days", "2 days", "")
-	open := insert("open", "1 day", "", "")
-	seen := insert("seen", "2 days", "", "3 hours")
-	closed := insert("closed", "23 days", "1 hour", "")
-
-	subjects := func(list []Alert) []string {
-		out := make([]string, 0, len(list))
-		for _, a := range list {
-			out = append(out, a.Subject)
-		}
-		return out
-	}
-	expect := func(t *testing.T, list []Alert, want ...string) {
+	want := []string{"unread-tie", "unread-fresh", "unread-old", "seen-tie", "seen-fresh", "seen-old", "closed-tie", "closed-fresh", "closed-old"}
+	expect := func(t *testing.T, list []Alert, want []string) {
 		t.Helper()
-		got := subjects(list)
-		if len(got) != len(want) {
-			t.Fatalf("got %v, wanted %v", got, want)
+		got := make([]string, 0, len(list))
+		for _, row := range list {
+			got = append(got, row.Subject)
 		}
-		for i := range want {
-			if got[i] != want[i] {
-				t.Fatalf("got %v, wanted %v", got, want)
-			}
+		if !slices.Equal(got, want) {
+			t.Fatalf("alerts are %v, expected %v", got, want)
 		}
 	}
-
-	t.Run("the latest event comes first regardless of the state", func(t *testing.T) {
+	t.Run("unseen open alerts precede seen and closed alerts", func(t *testing.T) {
 		list, err := s.Alerts(ctx, AlertsReq{Limit: 50})
 		if err != nil {
 			t.Fatal(err)
 		}
-		expect(t, list, "closed", "seen", "open", "stale")
-		if list[0].ClosedAt == nil || list[2].ClosedAt != nil {
-			t.Error("the states came back wrong: the first one is closed, the third one is open")
+		expect(t, list, want)
+		for i, row := range list {
+			if (row.ClosedAt != nil) != (i >= 6) || (row.AckedAt != nil) != (i >= 3 && i <= 6) {
+				t.Errorf("alert %s has the wrong state at position %d", row.Subject, i)
+			}
 		}
 	})
-
-	t.Run("acknowledging lifts the alert to the top", func(t *testing.T) {
-		if ok, err := s.Ack(ctx, open); err != nil || !ok {
+	t.Run("acknowledging moves an alert below the unseen ones", func(t *testing.T) {
+		t.Cleanup(func() {
+			if _, err := pool.Exec(ctx, "UPDATE alerts SET acknowledged_at = NULL WHERE id = $1", unread); err != nil {
+				t.Error(err)
+			}
+		})
+		if ok, err := s.Ack(ctx, unread); err != nil || !ok {
 			t.Fatalf("ack: ok=%v, err=%v", ok, err)
 		}
 		list, err := s.Alerts(ctx, AlertsReq{Limit: 50})
 		if err != nil {
 			t.Fatal(err)
 		}
-		expect(t, list, "open", "closed", "seen", "stale")
-		if _, err := pool.Exec(ctx, "UPDATE alerts SET acknowledged_at = NULL WHERE id = $1", open); err != nil {
-			t.Fatal(err)
-		}
+		expect(t, list, append([]string{want[1], want[2], want[0]}, want[3:]...))
 	})
-
-	t.Run("a page continues below the cursor and keeps the open ones", func(t *testing.T) {
-		first, err := s.Alerts(ctx, AlertsReq{Limit: 1})
-		if err != nil {
-			t.Fatal(err)
-		}
-		expect(t, first, "closed")
-		if first[0].ID != closed {
-			t.Fatalf("the first page is alert %d, %d was expected", first[0].ID, closed)
-		}
-
-		next, err := s.Alerts(ctx, AlertsReq{Limit: 50, Before: closed})
-		if err != nil {
-			t.Fatal(err)
-		}
-		expect(t, next, "seen", "open", "stale")
-		if next[0].ID != seen {
-			t.Fatalf("the second page starts at alert %d, %d was expected", next[0].ID, seen)
-		}
-
-		last, err := s.Alerts(ctx, AlertsReq{Limit: 50, Before: open})
-		if err != nil {
-			t.Fatal(err)
-		}
-		expect(t, last, "stale")
-		if last[0].ID != stale {
-			t.Fatalf("the last page is alert %d, %d was expected", last[0].ID, stale)
-		}
-	})
-
+	for _, limit := range []int{1, 2, 3, 4} {
+		t.Run("pages of "+strconv.Itoa(limit)+" cross every group", func(t *testing.T) {
+			var all []Alert
+			var before int64
+			seen := make(map[int64]bool)
+			for {
+				page, err := s.Alerts(ctx, AlertsReq{Limit: limit, Before: before})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(page) == 0 {
+					break
+				}
+				if len(page) > limit {
+					t.Fatalf("page contains %d alerts, limit is %d", len(page), limit)
+				}
+				for _, row := range page {
+					if seen[row.ID] {
+						t.Fatalf("alert %s repeated across pages", row.Subject)
+					}
+					seen[row.ID] = true
+				}
+				all = append(all, page...)
+				if len(all) > len(want) {
+					t.Fatal("paging returned more alerts than exist")
+				}
+				before = page[len(page)-1].ID
+			}
+			expect(t, all, want)
+		})
+	}
 	t.Run("a page beyond the last alert is empty", func(t *testing.T) {
-		list, err := s.Alerts(ctx, AlertsReq{Limit: 50, Before: stale})
+		list, err := s.Alerts(ctx, AlertsReq{Limit: 50, Before: last})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(list) != 0 {
-			t.Errorf("got %v beyond the last alert, nothing was expected", subjects(list))
+			t.Errorf("alerts beyond the last one: %v", list)
 		}
 	})
 }

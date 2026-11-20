@@ -37,11 +37,10 @@ type AlertsReq struct {
 	Before int64
 }
 
-// Alerts reads the alerts by their latest event, the newest first: an alert
-// moves to the top when it is opened, closed or acknowledged, whatever its
-// state. Before is the id of the last alert shown; the page continues below it
-// in the same order, so the open ones are not lost when the closed ones
-// outnumber them.
+// Alerts lists unseen open alerts, seen open alerts and closed alerts, each
+// by its latest event and id, newest first. Acknowledging an alert leaves the
+// work still needing attention above it. Before names the last alert shown;
+// its state and event tuple carries paging across the same group boundaries.
 func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err error) {
 	defer func() { err = Unavailable(err) }()
 
@@ -61,10 +60,13 @@ func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err err
 		       a.value, a.worst, a.payload
 		FROM alerts a
 		JOIN rules r ON r.id = a.rule_id
-		WHERE $2 = 0 OR (GREATEST(a.opened_at, a.closed_at, a.acknowledged_at), a.id) < (
-			SELECT GREATEST(c.opened_at, c.closed_at, c.acknowledged_at), c.id
+		WHERE $2 = 0 OR (a.closed_at IS NULL, a.closed_at IS NULL AND a.acknowledged_at IS NULL,
+			GREATEST(a.opened_at, a.closed_at, a.acknowledged_at), a.id) < (
+			SELECT c.closed_at IS NULL, c.closed_at IS NULL AND c.acknowledged_at IS NULL,
+				GREATEST(c.opened_at, c.closed_at, c.acknowledged_at), c.id
 			FROM alerts c WHERE c.id = $2)
-		ORDER BY GREATEST(a.opened_at, a.closed_at, a.acknowledged_at) DESC, a.id DESC
+		ORDER BY (a.closed_at IS NULL) DESC, (a.closed_at IS NULL AND a.acknowledged_at IS NULL) DESC,
+			GREATEST(a.opened_at, a.closed_at, a.acknowledged_at) DESC, a.id DESC
 		LIMIT $1`, limit, req.Before)
 	if err != nil {
 		return nil, err

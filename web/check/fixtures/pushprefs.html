@@ -13,6 +13,7 @@
 // over a section.
 import { h, render } from "preact";
 import { Alerts } from "/src/screens/alerts.js";
+import { useAlerts } from "/src/alerts.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { quiet, counted } from "/check/fixtures/quiet.js";
@@ -74,10 +75,33 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 const puts = [];
 const asked = [];
 let refuse = false;
+const clock = Math.floor(Date.now() / 1000);
+const notices = Array.from({ length: 55 }, (_, n) => ({ id: n + 1, rule: `Rule ${n + 1}`, subject: `object-${n + 1}`,
+    severity: "warning", openedAt: clock - 2000 - n, payload: {},
+    ackedAt: n >= 51 && n < 53 ? clock - 500 - n : null,
+    closedAt: n >= 53 ? clock - 1000 - n : null,
+}));
+const alertReads = [];
+const alertGroup = (a) => a.closedAt ? 0 : a.ackedAt ? 1 : 2;
+const alertEvent = (a) => Math.max(a.openedAt, a.ackedAt || 0, a.closedAt || 0);
 window.fetch = counted(async (input, init) => {
     const u = typeof input === "string" ? input : input.url;
     const method = (init && init.method) || "GET";
     asked.push(`${method} ${u}`);
+    if (u.startsWith("/api/alerts?")) {
+        const params = new URL(u, location.href).searchParams;
+        const sorted = [...notices].sort((a, b) => alertGroup(b) - alertGroup(a) || alertEvent(b) - alertEvent(a) || b.id - a.id);
+        const before = Number(params.get("before") || 0);
+        alertReads.push(before);
+        const at = before ? sorted.findIndex((a) => a.id === before) : -1;
+        return json({ alerts: before && at < 0 ? [] : sorted.slice(at + 1, at + 1 + Number(params.get("limit"))),
+            open: notices.filter((a) => !a.closedAt).length, unread: notices.filter((a) => !a.closedAt && !a.ackedAt).length });
+    }
+    const ack = u.match(/^\/api\/alerts\/(\d+)\/ack$/);
+    if (ack && method === "POST") {
+        notices.find((a) => a.id === Number(ack[1])).ackedAt = clock;
+        return json({ ok: true });
+    }
     if (u === "/api/push/subscription" && method === "GET") return json({ endpoint });
     if (u === "/api/devices") return json({ devices: [{ id: 4, name: "phone" }, { id: 5, name: "laptop" }], current: 4 });
     if (u === "/api/degradations") return json({ degradations: [] });
@@ -251,6 +275,33 @@ window.done = (async () => {
     root.querySelector(".phead .pback").click();
     out.back = Boolean(await until(() => root.querySelector(".nfdoor")));
     out.final = prefs;
+
+    function AlertHistory() {
+        const state = useAlerts();
+        return h(Alerts, { alerts: state, onAction: state.reload, onBack() {} });
+    }
+    render(h(ToastHost, null, h(GateHost, null, h(AlertHistory))), root);
+    const titles = () => all("section.alert .t").map((el) => Number(text(el).split(" ")[1]));
+    const more = () => root.querySelector("button.ghost.wide");
+    await until(() => titles().length === 50);
+    out.alertPaging = { initial: titles() };
+    more().click();
+    await until(() => titles().length === 55);
+    out.alertPaging.loaded = titles();
+    const first = all("section.alert").find((el) => text(el.querySelector(".t")) === "Rule 1");
+    [...first.querySelectorAll("button")].find((el) => text(el) === "Got it").click();
+    await until(() => alertReads.filter((before) => before === 0).length === 2);
+    await quiet();
+    out.alertPaging.after = titles();
+    const reads = alertReads.length;
+    more().click();
+    await until(() => alertReads.length > reads);
+    await quiet();
+    out.alertPaging.next = titles();
+    const seen = all("section.alert").find((el) => text(el.querySelector(".t")) === "Rule 1");
+    out.alertPaging.seenIndex = titles().indexOf(1);
+    out.alertPaging.seen = Boolean(seen?.querySelector(".acked-mark"));
+    out.alertPaging.ackButton = [...(seen?.querySelectorAll("button") || [])].some((el) => text(el) === "Got it");
     return out;
 })();
 </script>

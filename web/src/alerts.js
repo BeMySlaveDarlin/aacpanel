@@ -15,7 +15,7 @@ export function useAlerts() {
     const [state, setState] = useState({ kind: "loading", alerts: [] });
     const [older, setOlder] = useState([]);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (reset = false) => {
         try {
             const response = await fetch("/api/alerts?limit=50", { credentials: "same-origin" });
             if (response.status === 503 || response.status === 500) {
@@ -33,10 +33,15 @@ export function useAlerts() {
                 open: count(body.open),
                 unread: count(body.unread),
             });
+            // An acknowledgement can move a row past the first page; an explicit
+            // reload must restart paging so the old cursor does not skip it.
+            if (reset) setOlder([]);
         } catch (err) {
             setState({ kind: "failed", alerts: [], error: "the network is unavailable" });
         }
     }, []);
+
+    const reload = useCallback(() => load(true), [load]);
 
     const more = useCallback(async () => {
         const all = [...(state.alerts || []), ...older];
@@ -59,7 +64,7 @@ export function useAlerts() {
         return () => clearInterval(timer);
     }, [load]);
 
-    return { ...state, older, more, reload: load };
+    return { ...state, older, more, reload };
 }
 
 export function useProbes() {
