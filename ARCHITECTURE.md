@@ -349,8 +349,8 @@ Sleep keeps the visual parent and the opener as separate identities. The
 fresh census before sleep supplies the parent, and the executor supplies
 the opener. A conversation-bound close completes the child conversation in
 its opening record before ending the process. Wake-up forwards the saved
-opener and preserves the parent without applying the map's rule for a new
-placement. A live opener is resolved directly; an absent opener is restored
+opener and preserves the parent without requiring that session to be live
+or sleeping. A live opener is resolved directly; an absent opener is restored
 only from a record for that same child conversation and opener. A reused name
 inherits no right to close or answer the child.
 
@@ -2807,13 +2807,13 @@ claudes does not push the sessions of the person off the list.
 `session_open` hands the panel the name of the session that calls it, and the
 launcher puts the name into the environment of the new session as
 `AACP_PARENT`; a codex thread has no process of its own, and the executor keeps
-its parent beside the name the panel gave it. The link holds within one project
-of the map — its own directory, one inside it and its worktrees: the panel
-names the caller as the parent only while it lives in the project the new
-session opens in, and a session opened in another project stands on its own. A
-session that opens one elsewhere hands work over to that project, and the new
-session is that project's, not a step of the caller's work. The rule is the
-panel's, where the map is, and the open goes on either way. The collector
+its parent beside the name the panel gave it. A live or sleeping
+session stays the parent wherever it works. The child leaves the block of its
+own project for the parent's block and names its own mapped project before
+its session name; a child of the block's project or outside the map needs no
+project mark. A block restart reaches all its restartable rows, including a
+child of another project, each through its own confirmation and with the
+launch parameters of its own project. The collector
 reads the parent as the session's `parent`, the field that names the session
 a run runs inside of — without `outside`, since the panel opened this one.
 The lists stand the child a
@@ -2836,9 +2836,9 @@ the person's, and a claude session and a codex thread alike come back with no
 parent — the executor takes the parent of a codex thread off the disk as it
 resumes it — and a claude session under the name it ran under, a free one
 after it when that name is taken. A resume a session asks for through `session_open` goes by the rule
-of an open: the session that asks is the parent while it lives in the project
-the conversation ran in, a directory it names is only checked to be of that
-project, and the conversation comes back under the name it ran under unless the
+of an open: the live or sleeping session that asks stays the parent,
+a directory it names is only checked to be of the project the conversation
+ran in, and the conversation comes back under the name it ran under unless the
 session gives another. A conversation that lives is not resumed: a second
 process would write into the same transcript. A child whose parent
 closed stands under a stub of the parent that says when it closed and opens its
@@ -2849,11 +2849,10 @@ not a child of that parent.
 
 **A live session is stood under another with `session.parent`**: a session
 started before the panel kept a parent, or one the person names later. Both
-live and work in one project of the map, or the panel refuses; a run inside the
-work of a session is stood under nothing else, and two sessions are not stood
-under each other. The environment of a running process does not change, so the
-executor keeps the parent in a file of the session's claude process, by its pid
-and with the start of the process, beside the parents of codex threads; the
+must live, wherever they work; a run inside the work of a session is stood
+under nothing else, and two sessions are not stood under each other. The
+environment of a running process does not change, so the executor keeps the
+parent in a file of the session's claude process, by its pid and with the start of the process, beside the parents of codex threads; the
 collector reads it there before the environment, and the later word wins. The
 file is the process's, not the name's: a session started later under the same
 name is another process and no child of it, and a renamed one keeps its
@@ -2864,7 +2863,10 @@ the executor wrote it, and a move with the panel down knows only the parent
 the session was started with. A codex thread is stood under a session where a
 thread started for one keeps its parent. Stand under… in the session's tools
 on a phone and at a desk, and in its desktop menu, chooses a live parent from
-the same project of the map, claude or codex. The choice leaves out the session
+any mapped project in the session's displayed contour, claude or codex,
+with a different project's name before the candidate's name. Contour placement
+uses the same map lookup and fallback as the sessions list: a parent in another
+contour leaves the child standing separately. The choice leaves out the session
 itself, its descendants and its current parent; a session already under one
 can move under another. Without a candidate the entry says why it cannot be
 pressed. The choice goes through the action gate, and the journal names it.
@@ -3386,9 +3388,9 @@ project holds is refused rather than looked up by the name, since the panel
 would know neither the account to open it in nor its launch parameters, and
 the answer names the contour, so the session can tell its person which account
 the new one spends. The calling session names itself, and the new one is shown
-as its child when the two are of one project. With `resume` it asks for
-`session.resume` of a closed claude conversation instead: the conversation
-goes on where it ran, with the launch of the map, under the name it ran under
+as its child while the caller is a live or sleeping session. With
+`resume` it asks for `session.resume` of a closed claude conversation instead:
+the conversation goes on where it ran, with the launch of the map, under the name it ran under
 unless one is given and under the caller by the same rule — so a session that
 hands out work brings a step of it back as its own child, not around the
 panel. Either may give a claude session its role, `role`, kept under the name

@@ -21,11 +21,9 @@ import (
 // name the session gave or else the project's session name. The answer names
 // the contour, so the session can tell its person which account the new one
 // spends; a project opened by its id, as the screens open one, names it too.
-// The session that asks names itself, and the new one is its child while the
-// two are of one project — its own directory, one inside it, a worktree of it:
-// the executor and the journal hear the name of the parent. One that asks from
-// another project, from a directory no project holds or that does not live
-// opens the session all the same, and the new one stands on its own.
+// The session that asks names itself, and a live or sleeping session
+// stays the parent wherever it works, including outside the panel's reach.
+// A missing caller leaves the new session standing on its own.
 func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 	srv, root := hostServer(t, `{"at":1}`)
 	id := fillMap(t, srv, root)
@@ -33,8 +31,30 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 	shop := otherProject(t, srv, root, "shop")
 	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[`+
 		`{"session":"lead","cwd":"`+repo+`"},{"session":"fixer","cwd":"`+worktree+`"},`+
-		`{"session":"seller","cwd":"`+shop+`"},{"session":"stray","cwd":"`+filepath.Join(root, "stray")+`"}],`+
+		`{"session":"seller","cwd":"`+shop+`"},{"session":"stray","cwd":"`+filepath.Join(root, "stray")+`"},`+
+		`{"session":"run","cwd":"`+repo+`","outside":true}],`+
 		`"projects":{"at":1,"dirs":[{"path":"`+worktree+`","kind":"project","git":true,"worktreeOf":"`+repo+`"}]}}`))
+	list, err := srv.db.Profiles(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, ok := projectAt(list, shop, nil, srv.db.ProjectRoots())
+	if !ok {
+		t.Fatal("the other project was not found")
+	}
+	hostID, err := srv.db.HostID(t.Context(), srv.hostName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"sleeping", "absent"} {
+		if err := srv.db.PutSessionPause(t.Context(), hostID, store.SessionPause{
+			LivingSession: store.LivingSession{Session: name, Conversation: "sleep-" + name,
+				CWD: shop, ProjectID: other.project.ID},
+			Snapshot: json.RawMessage(`{}`), Sleeping: i == 0, CommandAt: time.Now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "session aacpanel started"})
 	srv.exec, srv.auth = client, &auth.Service{}
 
@@ -54,9 +74,12 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 		{"into a worktree, at the word of a session of the project", opened(worktree, "lead"), "aacpanel", worktree, "lead"},
 		{"at the word of a session in a worktree of the project", opened(repo+"/web", "fixer"), "aacpanel", repo + "/web",
 			"fixer"},
-		{"at the word of a session of another project", opened(repo, "seller"), "aacpanel", repo, ""},
-		{"into another project", opened(shop, "lead"), "shop", shop, ""},
-		{"at the word of a session no project holds", opened(repo, "stray"), "aacpanel", repo, ""},
+		{"at the word of a session of another project", opened(repo, "seller"), "aacpanel", repo, "seller"},
+		{"into another project", opened(shop, "lead"), "shop", shop, "lead"},
+		{"at the word of a session no project holds", opened(repo, "stray"), "aacpanel", repo, "stray"},
+		{"at the word of a sleeping session of another project", opened(repo, "sleeping"), "aacpanel", repo, "sleeping"},
+		{"at the word of an absent session with an unfinished pause", opened(repo, "absent"), "aacpanel", repo, ""},
+		{"at the word of a run outside the panel", opened(repo, "run"), "aacpanel", repo, "run"},
 		{"at the word of a session that does not live", opened(repo, "gone"), "aacpanel", repo, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -109,8 +132,7 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 }
 
 // A role session_open gives goes to the executor with the session that asked
-// for it, by its name, whatever project that one is of — the place in the
-// list is the map's to give, the role is the opener's word — and the journal
+// for it, by its name, whatever project that one is of, and the journal
 // keeps the role. An open without one carries none, and the session keeps the
 // role its name has.
 func TestAnOpenCarriesTheRoleTheOpenerGivesPG(t *testing.T) {
@@ -140,7 +162,7 @@ func TestAnOpenCarriesTheRoleTheOpenerGivesPG(t *testing.T) {
 			case <-time.After(3 * time.Second):
 				t.Fatal("the executor did not get the request")
 			}
-			if got.Project == nil || got.Project.Parent != "" ||
+			if got.Project == nil || got.Project.Parent != "seller" ||
 				(got.Project.Role == nil) != (c.role == nil) || c.role != nil && *got.Project.Role != *c.role {
 				t.Fatalf("the open reached the executor with %+v, meant the role %+v", got.Project, c.role)
 			}

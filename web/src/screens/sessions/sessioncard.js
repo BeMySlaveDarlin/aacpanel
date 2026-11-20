@@ -84,12 +84,14 @@ export function namesOf(project) {
 
 // Name is the name of a card, its own part on the screen and whole for a
 // reader, with the address of the session in its tip where the name read is
-// another — a thread of codex reads by its title; tag is a quiet word after
+// another — a thread of codex reads by its title. A project precedes a card
+// standing in another project's block; tag is a quiet word after
 // it — who opened a session that stands away from its parent, the contour of
 // a closed one on a shelf of several.
-function Name({ full, own, tag = "", address = full }) {
+function Name({ full, own, project = "", tag = "", address = full }) {
     return html`
-        <span class="scname" title=${address !== full ? address : undefined} aria-label=${full}>
+        <span class="scname" title=${address !== full ? address : undefined} aria-label=${project ? `${project} · ${full}` : full}>
+            ${project && html`<span class="scproject" aria-hidden="true">${project} · </span>`}
             <span class="scown" aria-hidden="true">${own}</span>
             ${tag && html`<span class="sctag">${tag}</span>`}
         </span>
@@ -302,7 +304,7 @@ function Act({ label, tip, off, on = false, pressed, busy = false, onPress, chil
 // page with no host of pies; current marks the conversation open beside the
 // list.
 export function SessionCard({ s, limits, wait, exec, profile = null, profiles = [], notes = null, known = "",
-    depth = 0, from = "", current = false, desk = false, onOpen, onMenu }) {
+    depth = 0, from = "", projectName = "", current = false, desk = false, onOpen, onMenu }) {
     const busy = busyOf(s, wait);
     const state = stateOf(s, limits, { viewed: current });
     const steps = stepsOf(s.checklist);
@@ -337,7 +339,7 @@ export function SessionCard({ s, limits, wait, exec, profile = null, profiles = 
             <button class="scopen" type="button" aria-label=${`open conversation ${s.session}`}
                     onClick=${() => onOpen && onOpen(s)}></button>
             <div class="scl1">
-                <${Name} full=${name} address=${s.session} own=${nameOf(name, known)} tag=${from ? `opened by ${from}` : ""} />
+                <${Name} full=${name} address=${s.session} own=${nameOf(name, known)} project=${projectName} tag=${from ? `opened by ${from}` : ""} />
                 <${Resources} res=${s.res} account=${account} />
             </div>
             <${Line} state=${state} runs=${runsOf(s.work)} alarm=${wakeOf(s)} notes=${notes} busy=${busy} time=${time} tone=${timeTone} />

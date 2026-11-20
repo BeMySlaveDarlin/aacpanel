@@ -84,12 +84,14 @@ func archive(t *testing.T, srv *Server, name, conversation, cwd string) {
 	}
 }
 
-// A live session is stood under another of its project — its own directory,
-// one inside it, a worktree of it — and the executor hears which, with the
-// journal.
-func TestALiveSessionIsStoodUnderAnotherOfItsProjectPG(t *testing.T) {
+// A live panel session is stood under another wherever either works, and
+// the executor and journal hear the parent by name.
+func TestALiveSessionIsStoodUnderAnotherPG(t *testing.T) {
 	srv, fake, _ := standServer(t)
-	for _, c := range []struct{ target, parent string }{{"kid", "lead"}, {"lead", "kid"}} {
+	for _, c := range []struct{ target, parent string }{
+		{"kid", "lead"}, {"lead", "kid"}, {"kid", "seller"}, {"seller", "lead"},
+		{"stray", "lead"}, {"kid", "stray"},
+	} {
 		w := post(t, srv, `{"kind":"session.parent","target":"`+c.target+`","params":{"parent":"`+c.parent+`"}}`)
 		if w.Code != http.StatusOK {
 			t.Fatalf("%s under %s: status %d, body %s", c.target, c.parent, w.Code, w.Body.String())
@@ -115,17 +117,12 @@ func TestALiveSessionIsStoodUnderAnotherOfItsProjectPG(t *testing.T) {
 	}
 }
 
-// A session is stood under another only when both live in one project of
-// the map, and the panel says why not before the executor is asked. A run
-// inside the work of a session stands under that session and is stood under
+// A session is stood under another only when both live, and the panel says
+// why not before the executor is asked. A run inside the work of a session stands under that session and is stood under
 // nothing else, and two sessions do not stand under each other.
-func TestASessionIsStoodOnlyUnderALiveSessionOfItsProjectPG(t *testing.T) {
+func TestASessionIsStoodOnlyUnderALiveSessionPG(t *testing.T) {
 	srv, fake, _ := standServer(t)
 	for name, c := range map[string]struct{ target, params, says string }{
-		"a parent of another project": {"kid", `{"parent":"seller"}`, "only within one project"},
-		"a child of another project":  {"seller", `{"parent":"lead"}`, "only within one project"},
-		"a child no project holds":    {"stray", `{"parent":"lead"}`, "no project of the map holds"},
-		"a parent no project holds":   {"kid", `{"parent":"stray"}`, "only within one project"},
 		"a parent that does not live": {"kid", `{"parent":"gone"}`, `no live session "gone"`},
 		"a child that does not live":  {"gone", `{"parent":"lead"}`, `no live session "gone"`},
 		"a run inside a session":      {"run", `{"parent":"kid"}`, "outside the panel"},
@@ -202,15 +199,10 @@ func TestOnlyASessionUnderAnotherIsTakenFromUnderItPG(t *testing.T) {
 	}
 }
 
-// A conversation a session resumes through session_open stands under that
-// session by the rule of an open: while the two are of one project — the
-// conversation ran in the project's directory, and the caller lives in a
-// worktree of it — and on its own otherwise. It goes on where it ran, whatever
-// directory of its project the session names, and under the name the session
-// gives or else the one it ran under. The Resume of the screens names no
-// parent and no name, and comes back under the name it ran under as well, so
-// it finds the role that name has. A role the session gives goes along as
-// set by the session that asked, whichever project that one is of.
+// A conversation resumed at the word of a live session stands under
+// it wherever it works. It goes on where it ran under the name given or its
+// own name. Resume from the screens names no parent, and a role the opener
+// gives accompanies the request independently of the projects.
 func TestAResumeASessionAsksForStandsUnderItPG(t *testing.T) {
 	srv, fake, root := standServer(t)
 	repo, shop := filepath.Join(root, "aacpanel"), filepath.Join(root, "shop")
@@ -233,13 +225,13 @@ func TestAResumeASessionAsksForStandsUnderItPG(t *testing.T) {
 			"fix-2", nil},
 		{"naming a directory of its project", asked(task, `,"name":"","parent":"kid","path":"`+repo+`/web"`),
 			"task-7", "kid", repo, opener, "task-7", nil},
-		{"by a session of another project", asked(task, `,"name":"","parent":"seller"`), "task-7", "", repo, opener,
+		{"by a session of another project", asked(task, `,"name":"","parent":"seller"`), "task-7", "seller", repo, opener,
 			"task-7", nil},
-		{"of another project", asked(sold, `,"name":"","parent":"kid"`), "shop-fix", "", shop, opener, "shop-fix", nil},
+		{"of another project", asked(sold, `,"name":"","parent":"kid"`), "shop-fix", "kid", shop, opener, "shop-fix", nil},
 		{"with a role", asked(task, `,"name":"","parent":"kid","role":"the db split"`), "task-7", "kid", repo, opener,
 			"task-7", &action.OpenRole{Text: "the db split", Opener: "kid"}},
 		{"with a role by a session of another project", asked(task, `,"name":"","parent":"seller","role":""`),
-			"task-7", "", repo, opener, "task-7", &action.OpenRole{Opener: "seller"}},
+			"task-7", "seller", repo, opener, "task-7", &action.OpenRole{Opener: "seller"}},
 		// The journal keeps the row the screen pressed, as it always has.
 		{"from the screens", `{"kind":"session.resume","target":"task-7","params":{"session":"` + task + `"}}`,
 			"task-7", "", repo, "", "task-7", nil},

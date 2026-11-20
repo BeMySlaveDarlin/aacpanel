@@ -509,10 +509,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Mcp = change
 		params = map[string]any{"server": change.Server, "do": change.Do}
 	}
-	// A live session is stood under another of its project here, where the
-	// map is: the executor keeps the parent wherever it is told to.
+	// The service validates live links and prevents cycles; the executor
+	// records the parent by name without deciding placement.
 	if req.Kind == action.SessionParent {
-		parent, err := s.standUnder(r.Context(), body.Target, body.Params)
+		parent, err := s.standUnder(body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -623,10 +623,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				want.Role, params["role"] = &action.OpenRole{Text: *givenRole, Opener: opener}, *givenRole
 			}
 			if parent != "" {
-				// Waking preserves an existing relationship rather than
-				// placing a new child according to the current map.
+				// Waking keeps the saved parent even when that session
+				// is no longer live or sleeping.
 				if _, waking := r.Context().Value(sleepResumeKey{}).(store.LivingSession); !waking {
-					parent = s.openedUnder(r.Context(), parent, found)
+					parent = s.openedUnder(r.Context(), parent)
 				}
 			}
 			if parent != "" {

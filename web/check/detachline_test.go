@@ -41,7 +41,7 @@ func TestTheToolsOfASessionTakeItFromUnderItsParent(t *testing.T) {
 	}
 }
 
-func TestTheToolsChooseAParentWithinTheProject(t *testing.T) {
+func TestTheToolsChooseAParentAcrossProjects(t *testing.T) {
 	var got struct {
 		Child, Alone, Thread, Outside []string
 		Parents                       []string
@@ -66,11 +66,11 @@ func TestTheToolsChooseAParentWithinTheProject(t *testing.T) {
 	if !slices.Contains(got.Alone, label) || slices.Contains(got.Outside, label) {
 		t.Errorf("parent choice on a standalone session: %v; outside the panel: %v", got.Alone, got.Outside)
 	}
-	if want := []string{"solo", "Codex parent"}; !slices.Equal(got.Parents, want) {
-		t.Errorf("parent choices are %v, want %v: exclude self, current parent, descendants and other or unknown projects", got.Parents, want)
+	if want := []string{"solo", "Codex parent", "aacpanel · same-name-project", "Backend · worker"}; !slices.Equal(got.Parents, want) {
+		t.Errorf("parent choices are %v, want %v: exclude self, current parent, descendants, other contours and unknown projects; name foreign projects", got.Parents, want)
 	}
 	for id, why := range map[string]string{
-		"empty":    "no other live session in this project",
+		"empty":    "no other mapped live session in this contour",
 		"off-map":  "belongs to no project of the map",
 		"old-host": "does not know the action “session.parent”",
 	} {
@@ -83,7 +83,7 @@ func TestTheToolsChooseAParentWithinTheProject(t *testing.T) {
 		!strings.Contains(got.Refused.Message, "the chosen parent has ended") {
 		t.Errorf("a refused parent choice must show the gate's error and allow retry: %+v", got.Refused)
 	}
-	want := [][2]string{{"review", "codex-2"}, {"review", "codex-2"}, {"codex-2", "solo"}, {"solo", "review"}}
+	want := [][2]string{{"review", "codex-2"}, {"review", "codex-2"}, {"codex-2", "solo"}, {"solo", "worker"}}
 	if len(got.ParentSent) != len(want) {
 		t.Fatalf("parent choices sent %+v, want %d requests", got.ParentSent, len(want))
 	}

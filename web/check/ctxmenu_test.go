@@ -289,16 +289,16 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		t.Errorf("the codex menus copied %q, expected %q", got.CodexCopied, wantCopies)
 	}
 	want := map[string]string{
-		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
+		"aacpanel": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · Stop the turn · ~Move to tmux · ~Turn Remote Control on · Stand under… · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
-		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · ~Stand under… · ~Pin the group · | · " +
+		"helios": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Stand under… · ~Pin the group · | · " +
 			"Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session",
 		"scratch": "Open · Terminal of the project · | · ~Rename… · ~Role… · ~Session messages… · | · Move to the stream · Open a window on this machine · " +
 			"~Turn Remote Control on · ~Stand under… · ~Pin the group · | · Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
 		"child": "Open · Terminal of the project · | · Rename… · ~Role… · ~Session messages… · | · ~Turn Remote Control on · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · " +
 			"Copy the session ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
 		"ext": "Open · | · Copy the session ID · Copy the resume command",
-		"codex": "Open · | · ~Stand under… · ~Pin the group · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · " +
+		"codex": "Open · | · Stand under… · ~Pin the group · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · " +
 			"Stop the turn · ~Pause… · Restart the session · Close the session",
 		"codexChild":   "Open · | · Detach from parent · Stand under… · ~Pin the group of aacpanel · | · ~Role… · ~Session messages… · | · Copy the thread ID · Copy the resume command · | · ~Pause… · Restart the session · Close the session",
 		"closed":       "Open · Resume · New session in the project · | · Copy the session ID · Copy the resume command",
@@ -338,7 +338,10 @@ func TestEveryObjectHasItsMenu(t *testing.T) {
 		!strings.Contains(m.Tip, "stands on its own in the list") {
 		t.Errorf("the detach of a session aacpanel opened stands as %+v — expected naming aacpanel and what it does", m)
 	}
-	if m := got.About["parent"]; m == nil || m.Off || !strings.Contains(m.Tip, "same project") {
+	if m := got.About["parentAcrossProjects"]; m == nil || m.Off {
+		t.Errorf("a session with candidates only in other projects cannot choose a parent: %+v", m)
+	}
+	if m := got.About["parent"]; m == nil || m.Off || !strings.Contains(m.Tip, "in this contour") {
 		t.Errorf("the parent choice must be on and explain its scope: %+v", m)
 	}
 }
@@ -352,7 +355,6 @@ func TestAnItemThatCannotBePressedSaysWhy(t *testing.T) {
 		"remote":           "the host does not know the action “session.remote”",
 		"containerRestart": "the host does not know the action “container.restart”",
 		"rename":           "a session in tmux is renamed on its own screen",
-		"parentEmpty":      "no other live session in this project can be its parent",
 	} {
 		m := got.About[name]
 		if m == nil {
@@ -442,8 +444,8 @@ func TestMenuItemsSendWhatTheButtonsSend(t *testing.T) {
 	} else {
 		for i, want := range wantParents {
 			pick := got.Stood[i]
-			if !reflect.DeepEqual(pick.Choices, []string{want.label}) {
-				t.Errorf("the parent picker for %s offers %v, want only %s", want.target, pick.Choices, want.label)
+			if labels := []string{"helios · helios", "blog · cx-thread", want.label}; !reflect.DeepEqual(pick.Choices, labels) {
+				t.Errorf("the parent picker for %s offers %v, want %v", want.target, pick.Choices, labels)
 			}
 			if a := pick.Sent; a.Kind != "session.parent" || a.Target != want.target || len(a.Params) != 1 || a.Params["parent"] != want.parent {
 				t.Errorf("the parent choice for %s sent %+v, want parent %s", want.target, a, want.parent)

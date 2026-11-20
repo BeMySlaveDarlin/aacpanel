@@ -588,6 +588,7 @@ span.pjname { cursor: default; }
    its tail: the tail is what tells two sessions apart. */
 .scl1 { display: flex; align-items: center; gap: .5rem; min-height: 1.27rem; }
 .scname { flex: 0 1 auto; min-width: 0; font-size: var(--t-base); font-weight: 600; line-height: 1.33; color: var(--ink); overflow-wrap: anywhere; }
+.scproject { font-size: var(--t-xs); font-weight: 500; color: var(--ink-faint); }
 .sctag { margin-left: .4rem; font-size: var(--t-xs); font-weight: 500; color: var(--ink-faint); }
 .scres { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: .27rem; }
 .scmeter { display: inline-flex; align-items: center; gap: .2rem; padding: .1rem .27rem; border-radius: var(--r-small); background: var(--code-bg); font-size: var(--t-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }

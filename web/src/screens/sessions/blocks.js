@@ -258,7 +258,7 @@ export function ProjectBlock({ block, profile, profiles, exec, wait, notes, live
                 </div>
             `}
             <${LiveLines} limits=${limits} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
-                          onOpen=${onOpen} exec=${exec} profile=${profile} profiles=${profiles} known=${known} />
+                          onOpen=${onOpen} exec=${exec} profile=${profile} profiles=${profiles} project=${project} known=${known} />
             ${block.ghosts.map((task) => html`<${GhostCard} key=${task.target} task=${task} known=${known} />`)}
             ${block.past && html`<${PastCard} row=${block.past} about=${aboutOf(block.past, project)} exec=${exec} known=${known}
                                             onOpen=${(row) => onOpen && onOpen(row.name, row.sessionId)} />`}
@@ -277,14 +277,26 @@ export function ProjectBlock({ block, profile, profiles, exec, wait, notes, live
 // its own folds — its arrow keys go down the same rows — the conversation
 // open beside the column (current), the menu of a card (menuOf) and how a
 // closed parent opens (onStub).
-export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits, profile = null, profiles = [], known = "",
+export function LiveLines({ list, live = null, past = [], notes, wait, exec, onOpen, limits, profile = null, profiles = [], project = null, known = "",
     folds = null, desk = false, current = "", menuOf = null, onStub = null }) {
     const own = useFolds();
     const [folded, fold] = folds || own;
+    const projects = projectsIn(profile);
+    // The service resolves worktrees to their main project's id. The same
+    // sessionsOf lookup as the block also supports an unplaced snapshot. A
+    // name that says its project already — the project's own session name,
+    // or one that starts with it — is not marked twice.
+    const projectName = (s) => {
+        const at = projects.find((p) => sessionsOf(p.project, [s]).length)?.project || s.project;
+        if (!at || !project || at.id === project.id) return "";
+        const names = namesOf(at);
+        const name = shownName(s);
+        return names.includes(name) || nameOf(name, names) !== name ? "" : at.name;
+    };
     const card = (s, depth = 0, from = "", parent = "") => html`
         <${SessionCard} key=${s.session} s=${s} depth=${depth} from=${from} limits=${limits} wait=${wait} exec=${exec}
                         profile=${profile} profiles=${profiles} notes=${notes && notes.get(s.session)}
-                        known=${parent ? [parent, known] : known}
+                        known=${parent ? [parent, known] : known} projectName=${projectName(s)}
                         desk=${desk} current=${current === s.session} onMenu=${menuOf ? menuOf(s) : null}
                         onOpen=${(row) => onOpen && onOpen(row.session, row.sessionId)} />
     `;

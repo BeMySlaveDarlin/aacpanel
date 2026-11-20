@@ -14,8 +14,8 @@ import (
 // environment of a running process does not change, so the parent goes into a
 // file of the session's claude process, beside its pid and start, where the
 // collector reads it; a restart starts the next process with the parent in its
-// environment. That both sessions live and belong to one project is the
-// panel's to check: the map is there, not here.
+// environment. The panel checks that both sessions live and cannot stand
+// under each other; the executor only records the given parent.
 func (e *Executor) sessionParent(target, parent string) (string, error) {
 	name, err := keepProcessParent(target, parent, "stood under "+parent)
 	if err != nil {

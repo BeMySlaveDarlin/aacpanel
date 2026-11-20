@@ -35,7 +35,7 @@ window.fetch = async (url, init) => {
 };
 
 const project = { id: 11, name: "aacpanel", session: "aacpanel", path: "/srv/aacpanel" };
-const child = { session: "review", transport: "stream", profile: "personal", project, sessionId: "id-review", status: "idle",
+const child = { session: "review", transport: "stream", profile: "personal", contour: 1, project, sessionId: "id-review", status: "idle",
     parent: { session: "aacpanel" } };
 const alone = { ...child, session: "solo", sessionId: "id-solo", parent: null };
 const thread = { session: "codex-2", agent: "codex", title: "Codex parent", project, transport: "stream", sessionId: "th-2", status: "idle",
@@ -43,23 +43,33 @@ const thread = { session: "codex-2", agent: "codex", title: "Codex parent", proj
 const empty = { ...alone, session: "only", project: { ...project, id: 90 } };
 const offMap = { ...alone, session: "off-map", project: null };
 const outside = { ...child, session: "outside", outside: true };
-const sessions = [child, alone, thread, empty, offMap,
+const sessions = [child, alone, thread, offMap,
     { ...alone, session: "aacpanel" },
     { ...child, session: "kid", parent: { session: "review" } },
     { ...child, session: "grandkid", parent: { session: "kid" } },
     { ...child, session: "other-project-kid", project: { ...project, id: 12 }, parent: { session: "review" } },
     { ...child, session: "returning-kid", parent: { session: "other-project-kid" } },
     { ...alone, session: "same-name-project", project: { ...project, id: 12 } },
+    { ...alone, session: "worker", profile: "retired-name", project: { id: 13, name: "Backend", session: "backend", path: "/srv/backend" } },
+    { ...alone, session: "other-contour", contour: 2, project: { id: 21, name: "Ops", session: "ops", path: "/srv/ops" } },
     { ...alone, session: "aacpanel-unknown", project: undefined },
 ];
 setLiveSessions(sessions);
 const exec = { available: true, kinds: ["session.parent", "session.detach", "session.close", "session.stop", "session.remote", "session.rename"] };
-const snapshot = { sessions, profiles: [{ name: "personal", auth: "builtin" }] };
+// A contour id survives a rename, while a raw profile label can be stale
+// or absent. Parent choices follow the same placement as the sessions list.
+const profileMap = [
+    { id: 1, profile: "Personal", default: true, groups: [{ name: "work", projects: [project,
+        { ...project, id: 12 }, { id: 13, name: "Backend", session: "backend", path: "/srv/backend" },
+    ] }] },
+    { id: 2, profile: "Work", groups: [{ name: "ops", projects: [{ id: 21, name: "Ops", session: "ops", path: "/srv/ops" }] }] },
+];
+const snapshot = { sessions, profileMap, profiles: [{ name: "personal", auth: "builtin" }] };
 function Tools() {
     const [picking, setPicking] = useState(null);
     const one = (id, live, host = exec) => {
         const Sections = live.agent === "codex" ? CodexSections : SessionSections;
-        return html`<div id=${id}><${Sections} name=${live.session} live=${live} exec=${host} snapshot=${snapshot} cwd="/srv/aacpanel"
+        return html`<div id=${id}><${Sections} name=${live.session} live=${live} exec=${host} snapshot=${id === "empty" ? { ...snapshot, sessions: [empty] } : snapshot} cwd="/srv/aacpanel"
             sides=${{ moves: "" }} win=${{ kind: "closed" }} way=${{ to: "" }} work=${null}
             onDone=${() => {}} onWindow=${() => {}} onLook=${(kind) => { if (kind === "parent") setPicking(live); }} /></div>`;
     };
@@ -139,7 +149,7 @@ window.done = (async () => {
     await until(() => !picker());
     await choose("thread", "solo");
     await until(() => !picker());
-    await choose("alone", "review");
+    await choose("alone", "Backend · worker");
     await until(() => !picker());
     out.parentSent = sent.filter((s) => s.kind === "session.parent");
     return out;

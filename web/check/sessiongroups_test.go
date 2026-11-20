@@ -230,3 +230,35 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		t.Errorf("a list where nobody opened anybody reads %v with %d marks of a group", got.Plain, got.PlainMarks)
 	}
 }
+
+// A child stands in the parent's block while naming its own mapped project.
+// A child of the block's project and an unmapped child need no project mark,
+// nor does one whose name says its project already: person of the project
+// person stands under lead as person.
+func TestForeignProjectChildrenNameTheirProject(t *testing.T) {
+	type projectRow struct {
+		Name, Text, Project, Label string
+		Depth                      int
+	}
+	var got struct {
+		ProjectLabels struct {
+			Phone, Desk []projectRow
+			Blocks      []string
+		}
+	}
+	runWideFixture(t, "sessiongroups.html", &got)
+	want := []projectRow{
+		{"root", "root", "", "root", 0},
+		{"helper", "Backend · helper", "Backend ·", "Backend · helper", 1},
+		{"local", "local", "", "local", 1},
+		{"unmapped", "unmapped", "", "unmapped", 1},
+	}
+	for name, rows := range map[string][]projectRow{"phone": got.ProjectLabels.Phone, "desk": got.ProjectLabels.Desk} {
+		if !reflect.DeepEqual(rows, want) {
+			t.Errorf("%s names the children as %+v, want %+v", name, rows, want)
+		}
+	}
+	if !reflect.DeepEqual(got.ProjectLabels.Blocks, []string{"lead"}) {
+		t.Errorf("the foreign child leaves a block in its own project: %v", got.ProjectLabels.Blocks)
+	}
+}

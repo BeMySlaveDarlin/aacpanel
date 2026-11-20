@@ -89,7 +89,7 @@ const opened = [];
 const page = (id, contour, list) => {
     const blocks = blocksOf({ profile: profileMap.find((p) => p.id === contour), sessions: list });
     render(wrap(html`${blocks.map((block) => html`
-        <${ProjectBlock} key=${block.key} block=${block} exec=${exec} live=${sessions} past=${archive}
+        <${ProjectBlock} key=${block.key} block=${block} profile=${profileMap.find((p) => p.id === contour)} exec=${exec} live=${sessions} past=${archive}
                          onOpen=${(name, sid) => opened.push({ name, id: sid })} />
     `)}`), document.getElementById(id));
 };
@@ -200,6 +200,34 @@ window.done = (async () => {
     out.digit = await press("1");
     out.back = await press("ArrowUp");
     render(null, shell);
+    // Worktree placement comes from the service's project id, not a name or
+    // the checkout's path. An unmapped child carries an explicit null.
+    const family = [
+        S(1, pj.lead, { session: "root" }),
+        S(1, pj.person, { session: "helper", cwd: "/srv/person-fix", parent: { session: "root" }, up: 30 }),
+        S(1, pj.lead, { session: "local", parent: { session: "root" }, up: 20 }),
+        S(1, pj.person, { session: "unmapped", project: null, cwd: "/srv/stray", parent: { session: "root" }, up: 10 }),
+    ];
+    const labelMap = [{ ...profileMap[0], groups: [{ name: "work", projects: [pj.lead, { ...pj.person, name: "Backend" }] }] }];
+    const familyBlocks = blocksOf({ profile: labelMap[0], sessions: family });
+    const labels = document.createElement("div");
+    document.body.append(labels);
+    render(wrap(html`
+        <div id="labelphone">${familyBlocks.map((block) => html`
+            <${ProjectBlock} block=${block} profile=${labelMap[0]} live=${family} exec=${exec} />
+        `)}</div>
+        <div id="labeldesk"><${SessionColumn} snapshot=${{ ...snapshot, sessions: family, profileMap: labelMap }}
+            limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} onNames=${() => {}} exec=${exec} /></div>
+    `), labels);
+    await quiet();
+    const labelRows = (id) => Array.from(labels.querySelectorAll(`#${id} .sc[data-name]:not(.scpast):not(.scghost)`)).map((row) => ({
+        name: row.dataset.name, text: text(row.querySelector(".scname")),
+        project: text(row.querySelector(".scproject")), label: row.querySelector(".scname").getAttribute("aria-label"),
+        depth: Number(row.style.getPropertyValue("--depth") || 0),
+    }));
+    out.projectLabels = { phone: labelRows("labelphone"), desk: labelRows("labeldesk"), blocks: familyBlocks.map((b) => b.name) };
+    render(null, labels);
+    labels.remove();
     const { sessionPins } = await import("/check/fixtures/sessionpins.js");
     out.pins = await sessionPins();
     const { sessionLevels } = await import("/check/fixtures/sessionlevels.js");
