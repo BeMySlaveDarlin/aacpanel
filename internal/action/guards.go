@@ -8,7 +8,7 @@ import (
 
 // AskGuards hands the executor the context guard of every place the map
 // knows: the service computes it from the map, and the host keeps it where
-// the context guard hook and the prompt stamp read it. It is not an action —
+// the prompt stamp reads it. It is not an action —
 // nothing on the host changes but that file — and it goes to no journal.
 const AskGuards = "guards"
 

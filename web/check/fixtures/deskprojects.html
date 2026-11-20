@@ -25,7 +25,7 @@ const base = [
 const project = (id, groupId, name) => ({ id, groupId, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id,
     launch: {}, effective: base, line: { words: [{ text: "claude" }, { text: "-n" }, { text: name }] } });
 const contour = (id, name, groups) => ({ id, name, configDir: `/home/u/.claude-${id}`, prefix: "", auth: "builtin",
-    contextGuard: true, account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 },
+     account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 },
     effective: base, groups: groups.map(([gid, gname, projects]) => ({ id: gid, profileId: id, name: gname, projects })) });
 let profiles = [
     contour(3, "personal", [[31, "Home", [project(11, 31, "helios")]],

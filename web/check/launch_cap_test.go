@@ -82,8 +82,8 @@ process.stdout.write(JSON.stringify({
 		t.Errorf("the project form hides the profile's cap and restart:\n%s", got.FieldsInherited)
 	}
 	if !strings.Contains(got.FieldsOn, "checked=true") || !strings.Contains(got.FieldsOn, "past 65% of the window") ||
-		!strings.Contains(got.FieldsOn, "context guard hook") {
-		t.Errorf("a set cap with the switch on is shown without its effect or the hook caveat:\n%s", got.FieldsOn)
+		!strings.Contains(got.FieldsOn, "the service coordinates the restart") || strings.Contains(got.FieldsOn, "context guard hook") {
+		t.Errorf("a set cap with the switch on does not name the service's restart:\n%s", got.FieldsOn)
 	}
 	if !strings.Contains(got.FieldsJunk, "outside 50–95") || !strings.Contains(got.FieldsJunk, "pfhelp warn") {
 		t.Errorf("a cap the map will refuse is shown without a warning:\n%s", got.FieldsJunk)

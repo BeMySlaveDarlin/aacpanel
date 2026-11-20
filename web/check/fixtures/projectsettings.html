@@ -80,8 +80,9 @@ let project = {
 };
 project.effective = effectiveOf(project.launch);
 project.line = lineOf(project.launch, "helios");
+// A missing hook must not gate the service's restart cycle.
 const contour = () => ({
-    id: 3, name: "personal", auth: "builtin", contextGuard: true, account,
+    id: 3, name: "personal", auth: "builtin", contextGuard: false, account,
     launch: { contextCap: 80, restartIntent: "Carry on", ...(codexMode ? { agent: "codex" } : {}) },
     effective: contourEff,
     groups: [{ id: 3, name: "home", projects: [project] }, { id: 5, name: "side", projects: [] }],
@@ -196,6 +197,23 @@ const openTab = () => text(document.querySelector(".pztab[aria-selected='true']"
 const chips = (name) => Array.from((row(name) || document).querySelectorAll(".pzopt")).map(text);
 const names = () => all(".pzrow").map((r) => text(r.querySelector(".pzname")));
 
+async function saveRestart() {
+    const on = chip("Auto restart", "On");
+    const out = { enabled: Boolean(row("Auto restart")) && Boolean(on) && !on.disabled };
+    if (!out.enabled) return out;
+    on.click();
+    chip("Context cap", "90%").click();
+    row("Message after a restart").querySelector(".pzadd").click();
+    await quiet();
+    await typeInto(row("Message after a restart").querySelector("textarea"), "Read the saved handoff");
+    await quiet();
+    bar().querySelector(".btn.primary").click();
+    await until(() => patches.at(-1)?.launchSet?.autoRestart === true && !bar());
+    out.patch = patches.at(-1);
+    out.savedOn = chip("Auto restart", "On").getAttribute("aria-pressed");
+    return out;
+}
+
 window.done = mode === "revive" ? (async () => {
     await until(() => row("Revive after reboot"));
     const out = { inherited: chip("Revive after reboot", "On").getAttribute("aria-pressed") };
@@ -219,6 +237,12 @@ window.done = mode === "revive" ? (async () => {
     out.sandboxes = chips("Sandbox");
     out.placesOfCodex = chips("Where it lives");
     out.effortsBefore = chips("Effort");
+    out.restart = await saveRestart();
+    chip("Where it lives", "tmux").click();
+    await quiet();
+    out.tmuxRows = names();
+    row("Where it lives").querySelector(".pzback").click();
+    await quiet();
 
     row("Model").querySelector(".pzpick").click();
     const sheet = await until(() => document.querySelector(".sheet.on .pzlist"));
@@ -254,8 +278,9 @@ window.done = mode === "revive" ? (async () => {
 
     bar().querySelector(".btn.primary").click();
     await until(() => patches.length > 0);
-    out.patch = patches[0];
+    out.patch = patches.at(-1);
     await until(() => document.querySelector(".pzapply"));
+    await quiet();
     out.applyLater = all(".pzapply .pzhelp").map(text);
     return out;
 })() : mode === "haiku" ? (async () => {
@@ -419,6 +444,7 @@ window.done = mode === "revive" ? (async () => {
     bar().querySelector(".btn.primary").click();
     await until(() => patches.at(-1)?.launchUnset?.includes("quick") && !bar());
     out.quickUnset = patches.at(-1);
+    out.restart = await saveRestart();
     return out;
 })();
 </script>

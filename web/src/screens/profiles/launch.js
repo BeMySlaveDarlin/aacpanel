@@ -226,7 +226,7 @@ function capHelp(launch, parent) {
     const restart = launch.autoRestart || (launch.autoRestart === undefined && parent.autoRestart);
     const where = capped(launch) ? "" : parent.contextCap ? " (from the profile)" : " (the panel's default)";
     if (restart) {
-        return `past ${cap}%${where} of the window the session wraps up and starts afresh — where the account has the context guard hook`;
+        return `past ${cap}%${where} of the window the session wraps up and starts afresh — the service coordinates the restart`;
     }
     return `the prompt stamp names ${cap}%${where} as the point to wrap up; nothing restarts`;
 }

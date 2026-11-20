@@ -88,7 +88,8 @@ func (s *Server) handGuards(ctx context.Context, failed string) string {
 }
 
 // sessionsGuarded uses the host's choice of the nearest place, so the card
-// and the prompt stamp name the same cap. Codex has no context restart.
+// and the prompt stamp name the same cap. Codex in tmux cannot be restarted
+// by the panel.
 func sessionsGuarded(payload []byte, list []store.Profile) []byte {
 	body := guards.Lines(guardsOf(list))
 	if body == "" {
@@ -102,7 +103,7 @@ func sessionsGuarded(payload []byte, list []store.Profile) []byte {
 	}
 	marked := false
 	for _, row := range snapshot.Sessions {
-		if textField(row, "agent") == schema.AgentCodex {
+		if textField(row, "agent") == schema.AgentCodex && textField(row, "transport") == schema.TransportTmux {
 			continue
 		}
 		guard, ok := guards.Closest(body, textField(row, "cwd"))

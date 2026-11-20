@@ -10,6 +10,30 @@ import (
 	"aacpanel/internal/schema"
 )
 
+type restartSettings struct {
+	Enabled bool           `json:"enabled"`
+	Patch   map[string]any `json:"patch"`
+	SavedOn string         `json:"savedOn"`
+}
+
+func checkRestartSettings(t *testing.T, got restartSettings) {
+	t.Helper()
+	want := map[string]any{"launchSet": map[string]any{
+		"autoRestart": true, "contextCap": float64(90), "restartIntent": "Read the saved handoff",
+	}}
+	if !got.Enabled || got.SavedOn != "true" || !reflect.DeepEqual(got.Patch, want) {
+		t.Errorf("restart settings without the hook: enabled %v, saved On %q, patch %v; want %v", got.Enabled, got.SavedOn, got.Patch, want)
+	}
+}
+
+func checkCodexTmuxSettings(t *testing.T, rows []string) {
+	t.Helper()
+	text := "|" + strings.Join(rows, "|") + "|"
+	if !strings.Contains(text, "|Context cap|") || strings.Contains(text, "|Auto restart|") || strings.Contains(text, "|Message after a restart|") {
+		t.Errorf("Codex in tmux shows %v: the cap warns, but the panel cannot restart it", rows)
+	}
+}
+
 // schemaAnswer serves what GET /api/profiles/schema answers, from the schema
 // the service is built with, and what the models take as the host says it.
 func schemaAnswer(traits map[string]any) map[string]http.Handler {
@@ -79,6 +103,8 @@ func TestTheProjectSettingsPageStrikesWhatTheModelDoesNotTake(t *testing.T) {
 // names both; leaving a draft asks.
 func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	var got struct {
+		Restart restartSettings `json:"restart"`
+
 		ParentQuestionsOn      string         `json:"parentQuestionsOn"`
 		ParentWaitDefault      string         `json:"parentWaitDefault"`
 		ParentWaitDraft        int            `json:"parentWaitDraft"`
@@ -131,9 +157,10 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 		QuickSet, QuickUnset   map[string]any
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
+	checkRestartSettings(t, got.Restart)
 
-	want := []string{"Revive after reboot", "Agent", "First message", "Questions to parent", "Wait for parent", "Claim due", "Quick phrases", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
-		"Context cap", "Auto restart", "Message after a restart", "Environment", "Extra arguments"}
+	want := []string{"Revive after reboot", "Agent", "First message", "Questions to parent", "Wait for parent", "Claim due",
+		"Context cap", "Auto restart", "Message after a restart", "Quick phrases", "Model", "Effort", "Permissions", "Remote Control", "Panel tools", "Environment", "Extra arguments"}
 	if strings.Join(got.Rows, "|") != strings.Join(want, "|") {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)
 	}
@@ -244,6 +271,9 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 // opens its tab, and Save sends what changed key by key.
 func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	var got struct {
+		Restart restartSettings `json:"restart"`
+
+		TmuxRows       []string       `json:"tmuxRows"`
 		Tabs           []string       `json:"tabs"`
 		OpenAtStart    string         `json:"openAtStart"`
 		Rows           []string       `json:"rows"`
@@ -270,11 +300,13 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	serve := schemaAnswer(map[string]any{})
 	serve["/mode"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("codex")) })
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, serve, &got)
+	checkRestartSettings(t, got.Restart)
+	checkCodexTmuxSettings(t, got.TmuxRows)
 
 	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenAtStart != "Codex" {
 		t.Errorf("the tabs are %v with %q open, meant Codex open — the agent the contour starts", got.Tabs, got.OpenAtStart)
 	}
-	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Claim due|Quick phrases|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
+	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Claim due|Context cap|Auto restart|Message after a restart|Quick phrases|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
 		t.Errorf("the rows are %v, meant %s", got.Rows, want)
 	}
 	if got.Soon != "New starts a thread in the codex daemon of the contour, with what is chosen below; "+
@@ -302,7 +334,7 @@ func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
 	if got.ApprovalAfter != "what config.toml of the contour's codex home says" {
 		t.Errorf("with the stored never removed the approvals read %q", got.ApprovalAfter)
 	}
-	if len(got.ClaudeRows) != 17 || got.ClaudeRows[7] != "Model" || got.ClaudeRows[16] != "Extra arguments" {
+	if len(got.ClaudeRows) != 17 || got.ClaudeRows[10] != "Model" || got.ClaudeRows[16] != "Extra arguments" {
 		t.Errorf("the Claude tab's rows are %v", got.ClaudeRows)
 	}
 	if len(got.ClaudeDrafted) != 0 {

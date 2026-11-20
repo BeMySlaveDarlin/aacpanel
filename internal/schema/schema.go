@@ -241,26 +241,26 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax, Agent: AgentClaude,
+		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax,
 		Levels: []Level{LevelContour, LevelProject}, Default: CapDefault, Host: true,
 		Help: "the share of the model's window a session works up to: past it, or idle for ten minutes close " +
 			"under it, a session with Auto restart wraps up and starts afresh; without Auto restart the prompt " +
-			"stamp names it as the point to finalize from",
+			"stamp names it as the point to finalize from; Codex in tmux uses only this finalize threshold",
 		Unset: "80% of the model's window", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "autoRestart", Label: "Auto restart", Kind: KindBool, Agent: AgentClaude,
+		Key: "autoRestart", Label: "Auto restart", Kind: KindBool,
 		Levels: []Level{LevelContour, LevelProject}, Default: false, Host: true,
-		Help: "past the context cap the session puts its work on disk and starts afresh in the same place, " +
-			"with the project's parameters; needs the context guard hook in the account",
+		Help: "the service asks the session to save its work past the context cap, then restarts it in the same place; " +
+			"Codex threads must run in the daemon, not in tmux",
 		Unset: "Off", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: action.IntentMax, Agent: AgentClaude,
+		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: action.IntentMax,
 		Levels: []Level{LevelContour, LevelProject}, Host: true,
-		Help:  "the first message of the session a restart brings up, automatic or asked for",
+		Help:  "the first message of the session a restart brings up, automatic or asked for; Codex restarts require the daemon transport",
 		Unset: "the session comes back without a message and waits", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},

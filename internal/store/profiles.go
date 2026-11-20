@@ -43,10 +43,8 @@ type Profile struct {
 	Groups    []ProfileGroup  `json:"groups"`
 
 	// Account is what the account starts a session with where the map says
-	// nothing, and ContextGuard whether it runs the context guard hook — both
-	// as the collector read them on the host; absent where it did not.
-	Account      map[string]string `json:"account,omitempty"`
-	ContextGuard *bool             `json:"contextGuard,omitempty"`
+	// nothing, as the collector read it on the host; absent where it did not.
+	Account map[string]string `json:"account,omitempty"`
 	// Route is set where the router's registry on the host holds the account:
 	// the directory a session starts in picks it there, so the account fields
 	// of the map only mirror the registry.

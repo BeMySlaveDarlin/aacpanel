@@ -247,9 +247,6 @@ type ContourState struct {
 	// Account is what the account starts a session with — model, effort,
 	// permissionMode — as its settings say; nil where they were not read.
 	Account map[string]string
-	// ContextGuard says whether the account runs the context guard hook; nil
-	// where its settings were not read.
-	ContextGuard *bool
 	// Routed says the router's registry holds the account: a session started
 	// in a directory under Prefix goes into it, whatever the map says; "*" is
 	// the prefix of the rest.
@@ -269,15 +266,14 @@ func (h *Reader) Contours() []ContourState {
 	}
 	var snapshot struct {
 		Profiles []struct {
-			Name         string            `json:"name"`
-			ConfigDir    string            `json:"configDir"`
-			Auth         string            `json:"auth"`
-			Hooks        string            `json:"hooks"`
-			Account      map[string]string `json:"account"`
-			ContextGuard *bool             `json:"contextGuard"`
-			Routed       bool              `json:"routed"`
-			Prefix       string            `json:"prefix"`
-			CodexHome    string            `json:"codexHome"`
+			Name      string            `json:"name"`
+			ConfigDir string            `json:"configDir"`
+			Auth      string            `json:"auth"`
+			Hooks     string            `json:"hooks"`
+			Account   map[string]string `json:"account"`
+			Routed    bool              `json:"routed"`
+			Prefix    string            `json:"prefix"`
+			CodexHome string            `json:"codexHome"`
 		} `json:"profiles"`
 	}
 	if err := json.Unmarshal(payload, &snapshot); err != nil {
@@ -288,7 +284,7 @@ func (h *Reader) Contours() []ContourState {
 		if c.Name == "" && c.ConfigDir == "" {
 			continue
 		}
-		row := ContourState{Name: c.Name, ConfigDir: c.ConfigDir, Account: c.Account, ContextGuard: c.ContextGuard,
+		row := ContourState{Name: c.Name, ConfigDir: c.ConfigDir, Account: c.Account,
 			Routed: c.Routed, Prefix: c.Prefix, CodexHome: c.CodexHome}
 		switch c.Auth {
 		case AuthBuiltin, AuthToken, AuthMissing:

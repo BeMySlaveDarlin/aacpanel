@@ -18,6 +18,7 @@ import { html } from "/src/html.js";
 import { EditLayer } from "/src/screens/profiles/forms.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const real = window.fetch.bind(window);
@@ -30,14 +31,16 @@ const layered = (launch) => [
     ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
     ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
     ["contextCap", 80, "panel"], ["autoRestart", false, "panel"], ["restartIntent", null, "claude"],
+    ["codexTransport", null, "claude"],
     ["quick", "AskUserQuestion\nGo on\nStatus", "panel"],
     ["env", null, "claude"], ["args", null, "claude"],
 ].map(([key, value, layer]) => (key in launch ? { key, value: launch[key], layer: "contour" } : { key, value, layer }));
 
 const project = (id, name, launch) => ({ id, groupId: id < 20 ? 3 : 5, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id, launch });
+// A missing hook must not gate the service's restart cycle.
 let contour = {
     id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", claudeBin: "/srv/bin/claude", auth: "builtin",
-    account, contextGuard: true, route: { prefix: "*" }, launch: { contextCap: 80 },
+    account, contextGuard: false, route: { prefix: "*" }, launch: { contextCap: 80 },
     groups: [
         { id: 3, name: "home", projects: [project(11, "alpha", { remoteControl: true }), project(12, "beta", { remoteControl: true })] },
         { id: 5, name: "side", projects: [project(21, "gamma", { remoteControl: true }), project(22, "delta", { effort: "high" })] },
@@ -236,6 +239,25 @@ window.done = mode === "paths" ? (async () => {
     button("Save", bar()).click();
     await until(() => sent.some((s) => s.method === "PATCH" && s.body.launchUnset?.includes("quick")) && !bar());
     out.quickUnset = sent.filter((s) => s.method === "PATCH").at(-1).body;
+    const on = button("On", row("Auto restart"));
+    out.restart = { enabled: Boolean(on) && !on.disabled };
+    if (!out.restart.enabled) return out;
+    on.click();
+    button("90%", row("Context cap")).click();
+    row("Message after a restart").querySelector(".pzadd").click();
+    await quiet();
+    await typeInto(row("Message after a restart").querySelector("textarea"), "Read the saved handoff");
+    await quiet();
+    button("Save", bar()).click();
+    await until(() => sent.some((s) => s.method === "PATCH" && s.body.launchSet?.autoRestart === true) && !bar());
+    out.restart.patch = sent.filter((s) => s.method === "PATCH").at(-1).body;
+    out.restart.savedOn = button("On", row("Auto restart")).getAttribute("aria-pressed");
+    button("Codex").click();
+    await quiet();
+    out.codexRows = all(".pzrow").filter(visible).map((r) => text(r.querySelector(".pzname")));
+    button("tmux", row("Where it lives")).click();
+    await quiet();
+    out.tmuxRows = all(".pzrow").filter(visible).map((r) => text(r.querySelector(".pzname")));
     return out;
 })();
 </script>

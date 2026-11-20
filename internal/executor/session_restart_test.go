@@ -218,11 +218,10 @@ func TestSessionRestart(t *testing.T) {
 				t.Fatalf("the restart ended with %v", err)
 			}
 			if _, err := os.Stat(seen); err != nil {
-				t.Errorf("no marker at %s while the new session was being started: the context guard hook "+
-					"would ask the closing session for a second restart", marker)
+				t.Errorf("no marker at %s while the new session was being started", marker)
 			}
 			if _, err := os.Stat(marker); !os.IsNotExist(err) {
-				t.Errorf("the marker outlived the restart (%v): the hook would stay silent for the new session", err)
+				t.Errorf("the marker outlived the restart (%v)", err)
 			}
 		})
 	}

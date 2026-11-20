@@ -22,7 +22,8 @@ func TestSessionsCarryTheGuardOfTheirDirectory(t *testing.T) {
 		{"session":"project","cwd":"/srv/work/shop","agent":"claude","pct":35},
 		{"session":"contour","cwd":"/srv/work/notes"},
 		{"session":"worktree","cwd":"/srv/work/shop/.claude/worktrees/review"},
-		{"session":"codex","cwd":"/srv/work/shop","agent":"codex"},
+		{"session":"codex","cwd":"/srv/work/shop","agent":"codex","transport":"stream"},
+		{"session":"codex-tmux","cwd":"/srv/work/shop","agent":"codex","transport":"tmux"},
 		{"session":"outside","cwd":"/srv/personal"},
 		{"session":"neighbour","cwd":"/srv/workshop"},
 		{"session":"unknown"}
@@ -34,14 +35,14 @@ func TestSessionsCarryTheGuardOfTheirDirectory(t *testing.T) {
 	if err := json.Unmarshal(sessionsGuarded(payload, list), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.At != 42 || len(got.Sessions) != 7 || string(got.Sessions[0]["pct"]) != "35" {
+	if got.At != 42 || len(got.Sessions) != 8 || string(got.Sessions[0]["pct"]) != "35" {
 		t.Fatalf("the guard changed the rest of the snapshot: %+v", got)
 	}
 	for _, row := range got.Sessions {
 		name := textField(row, "session")
 		cap, restart := "", ""
 		switch name {
-		case "project", "worktree":
+		case "project", "worktree", "codex":
 			cap, restart = "70", "true"
 		case "contour":
 			cap, restart = "90", "false"
@@ -50,7 +51,7 @@ func TestSessionsCarryTheGuardOfTheirDirectory(t *testing.T) {
 			t.Errorf("%s: cap=%s autoRestart=%s, want %q and %q", name, row["cap"], row["autoRestart"], cap, restart)
 		}
 	}
-	for _, body := range []string{`{`, `{"sessions":null}`, `{"sessions":[{"agent":"codex","cwd":"/srv/work"}]}`} {
+	for _, body := range []string{`{`, `{"sessions":null}`, `{"sessions":[{"agent":"codex","transport":"tmux","cwd":"/srv/work"}]}`} {
 		if got := string(sessionsGuarded([]byte(body), list)); got != body {
 			t.Errorf("a snapshot with no guarded session changed: %s", got)
 		}

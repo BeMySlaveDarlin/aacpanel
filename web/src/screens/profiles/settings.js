@@ -98,9 +98,8 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
     const problem = conflict ? { text: conflict, exit: null }
         : problemOf({ draft, params, preview, blocked, fields: fieldProblems(draft, project) });
 
-    const guard = contour.contextGuard === false ? "the context guard hook is not installed in this account" : "";
     const noBridge = contour.auth === "token" ? "an account on a token has no bridge to claude.ai" : "";
-    const offOf = { remoteControl: noBridge, autoRestart: guard, restartIntent: guard };
+    const offOf = { remoteControl: noBridge };
 
     const runExit = () => {
         if (!problem || !problem.exit) return;
@@ -168,6 +167,8 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
     const rows = (keys) => keys.map((key) => {
         const p = rowProps(key);
         if (!p.param) return null;
+        if (tab === "codex" && valueOf(effective, "codexTransport").value === "tmux"
+            && ["autoRestart", "restartIntent"].includes(key)) return null;
         const mine = own(draft, project, key);
         const picked = p.param.kind === "model" || p.param.kind === "codexModel";
         return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}

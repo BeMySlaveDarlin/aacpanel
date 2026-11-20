@@ -200,7 +200,6 @@ the quiet group is checked for you, the rest waits to be asked for:
                           own close, its observers, alarms
    Quiet — checked for you
  ❯ [✔] Page copies        a published page opens on the phone under any account
-   [✔] Context cap        stops a session at the cap, restarts it with your line
    [✔] Checklist nudge    reminds a session that forgot its checklist
    [✔] Self-restart       a session may restart itself without asking you
    [✔] Prompt stamp       time, context, limits, load; the role after a restart
@@ -364,7 +363,7 @@ taken over only with `--adopt` next to `--yes`.
 
 ```bash
 ./install.sh --yes --plain                                     # the suggested answers, all of them
-./install.sh --yes --plain --transport tmux --no-windows --kit +background,-cap
+./install.sh --yes --plain --transport tmux --no-windows --kit +background,-nudge
 ./install.sh --yes --plain --kit +tailscale --ts-authkey-file ~/ts.key
 ```
 
@@ -387,7 +386,7 @@ taken over only with `--adopt` next to `--yes`.
 | `--account DIR` | Which claude accounts does the panel serve? Again for more |
 | `--transport stream\|tmux` | How are sessions kept? |
 | `--claude-login [DIR=]now\|later` | Sign in to an account now? |
-| `--kit PARTS`, `--kit +PART,-PART` | the kit: a list is the whole of it, `+`/`-` change the suggested one. The parts: `relay`, `limits`, `tools`, `copies`, `cap`, `nudge`, `restart`, `stamp`, `background`, `gc`, `tailscale`, `lan`, `domain`, `testdb` |
+| `--kit PARTS`, `--kit +PART,-PART` | the kit: a list is the whole of it, `+`/`-` change the suggested one. The parts: `relay`, `limits`, `tools`, `copies`, `nudge`, `restart`, `stamp`, `background`, `gc`, `tailscale`, `lan`, `domain`, `testdb` |
 | `--ts-authkey-file FILE` | the one-time Tailscale key, read from a file: a key never goes on a command line |
 | `--ts-hostname NAME` | Node name in the tailnet? |
 | `--lan-addr ADDRESS` | Which address should the panel listen on in the home network? |
@@ -781,9 +780,9 @@ A no stops the run with the command that installs it by hand.
 |---|---|---|
 | Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `aacpanel-exec hook ask-hook` |
 | Limits snapshot | always | the status line, `aacpanel-exec statusline`, before yours |
-| Panel tools | always | the MCP server `aacpanel` with thirteen allow rules: the checklist, the role, publishing and deleting a brief, the call to the person, the notepad of secrets, the session's own close, the list, the stop and the log of its observers, and its alarms — a letter, opening a session and starting an observer still ask, and so does the restart without Self-restart; `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the `env` of the settings, so that a session started by hand keeps the server's word whole; in every codex home, the server and the approval of the same tools (S12a); answered briefs of the directory are named at the handshake |
+| Panel tools | always | the MCP server `aacpanel` with allow rules for the checklist, the role, publishing and deleting a brief, the call to the person, the notepad of secrets, requests, readiness and the session's own close, the list, the stop and the log of its observers, and its alarms — a letter, opening a session and starting an observer still ask, and so does the restart without Self-restart; `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the `env` of the settings, so that a session started by hand keeps the server's word whole; in every codex home, the server and the approval of the same tools (S12a); answered briefs of the directory are named at the handshake |
 | Page copies | yes | the `PostToolUse` hook on `Artifact`, `aacpanel-exec hook artifact-copy` |
-| Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
+| Context cap | on the project map | the service coordinates saving and restarting; no hook is installed |
 | Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | yes | the `UserPromptSubmit` hook, `aacpanel-exec hook prompt-stamp`, and the marks of the role it told `<state>/role-*.state`, swept on each prompt once untouched for seven days. After a restart, a resume or a reopen the session's role reaches the model only through the stamp: claude keeps the word of the server a conversation started with |
@@ -1402,7 +1401,7 @@ first in the chain and passes the payload on to the command that was there:
     "mcp__aacpanel__checklist", "mcp__aacpanel__role",
     "mcp__aacpanel__brief_publish",
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify", "mcp__aacpanel__file_send",
-    "mcp__aacpanel__secret_ask", "mcp__aacpanel__request", "mcp__aacpanel__session_close",
+    "mcp__aacpanel__secret_ask", "mcp__aacpanel__request", "mcp__aacpanel__session_close", "mcp__aacpanel__session_ready",
     "mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop",
     "mcp__aacpanel__observer_tail", "mcp__aacpanel__alarm_set",
     "mcp__aacpanel__alarm_list", "mcp__aacpanel__alarm_cancel",
@@ -1415,8 +1414,7 @@ Without a status line of your own it is simply
 the job it was opened for close itself with nobody at the screen; it closes
 only the session that calls it, and its agents and background commands hold it
 off. The last allow rule is Self-restart:
-the restart past the context cap is done with nobody at the screen; the price is
-that the model restarts its own session without asking whenever it decides to,
+the model can restart its own session without asking whenever it decides to,
 while its agents and background commands still hold the restart off.
 
 The hooks of the kit, each an entry in a group of its own under its event, with
@@ -1426,8 +1424,7 @@ the matcher where there is one. Every hook the kit writes runs
 | Part | Event | Matcher | Command | Timeout |
 |---|---|---|---|---|
 | Page copies | `PostToolUse` | `Artifact` | `<home>/bin/aacpanel-exec hook artifact-copy` | 10 |
-| Context cap | `Stop` | — | `<home>/bin/aacpanel-exec hook context-guard` | 20 |
-| Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 5 |
+| Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 20 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 | Heavy-run queue | `PreToolUse` | `Bash` | `<home>/bin/aacpanel-exec hook heavy-gate` | 5 |
@@ -1447,12 +1444,10 @@ passes over until the clone is back or the installer runs again. The
 executor's hook needs no check: a binary that is not there makes the shell exit
 127, and the executor itself exits 0 for every event and every outcome — it
 holds a `Stop` with `{"decision": "block"}` in its answer, never with an exit
-of 2. The context cap answers late on purpose: when the collector's snapshot
-shows work of the session at work, it waits up to fifteen seconds for a
-snapshot read after the stop — the turn may have begun with the news that the
-last agent is done — and its timeout is past that wait. A hook claude kills at
-its timeout says nothing, and a session past its cap that is not asked to
-restart there stays until someone writes to it.
+of 2. The service coordinates the context cap from the collector's snapshots,
+asks the session to save and waits for `session_ready` and a fresh idle snapshot
+with no background work before restarting it. No context hook is required; the
+installer removes the `context-guard` Stop entry, whose handler answers nothing.
 
 An entry is the panel's by what it runs, not by the whole command: the
 executor's hook of the name, from wherever the executor lies, or the script of
@@ -1477,8 +1472,8 @@ keeps `rate-limits.json` and `session-models/<session id>.json` in the account
 directory and then runs the person's line with the payload on stdin.
 
 For a state directory other than `/var/lib/aacpanel`, the commands of the
-context cap, the prompt stamp and the background reminder set
-`AACP_STATE_DIR='<state>'` before the executor: the first two read the
+prompt stamp and the background reminder set
+`AACP_STATE_DIR='<state>'` before the executor: both read the
 collector's snapshot there, the stamp keeps there what it last said between
 prompts and the reminder when it first saw each task.
 
@@ -1557,8 +1552,11 @@ out, the rest of the file as it was:
 | Part | Event | Matcher | Command | Timeout |
 |---|---|---|---|---|
 | Question relay | `PreToolUse` | `AskUserQuestion` | `<home>/bin/aacpanel-exec hook ask-hook` | 5 |
+| Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 20 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
+| Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 | Heavy-run queue | `PreToolUse` | `Bash` | `<home>/bin/aacpanel-exec hook heavy-gate` | 5 |
+| Task context | `SessionStart` | — | `<home>/bin/aacpanel-exec hook task-context` | 3 |
 
 **The trust.** codex runs a hook of the person's own only once it is trusted,
 and passes over a hook new or changed since without a word. The trust lives in
@@ -1596,9 +1594,10 @@ env = { AACP_STATE_DIR = "<state>" }   # only for a state directory other than t
 approval_mode = "approve"
 ```
 
-— and a table of the same form for `brief_publish`, `brief_delete`, `notify`, `file_send`,
-`secret_ask`, `session_close`, `observer_list`, `observer_stop`,
-`observer_tail`, `alarm_set`, `alarm_list`, `alarm_cancel`, `crew_status` and `session_answer` — the very list
+— and a table of the same form for `role`, `brief_publish`, `brief_delete`, `notify`,
+`file_send`, `secret_ask`, `request`, `session_restart`, `session_ready`, `session_close`,
+`crew_status`, `session_answer`, `observer_list`, `observer_stop`, `observer_tail`,
+`alarm_set`, `alarm_list` and `alarm_cancel` — the very list
 a thread the panel starts is given. A server of the name already
 in the file is the panel's, as in a claude account: its `command`, `args` and
 `env` are put in place where they stand, its other keys and the tables of other

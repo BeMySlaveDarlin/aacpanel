@@ -25,7 +25,7 @@ const base = [
 ].map(([key, value, layer]) => ({ key, value, layer }));
 const project = (id, name) => ({ id, groupId: 3, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id, launch: {},
     effective: base, line: { words: [{ text: "claude" }, { text: "-n" }, { text: name }] } });
-const personal = { id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", auth: "builtin", contextGuard: true,
+const personal = { id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", auth: "builtin",
     account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 }, effective: base,
     groups: [
         { id: 3, profileId: 3, name: "home", projects: [project(11, "alpha"), project(12, "beta")] },

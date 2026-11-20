@@ -143,7 +143,7 @@ func jsonText(v any) string {
 func TestProfilesAnswerTheAccountLayerPG(t *testing.T) {
 	srv, root := profilesServer(t)
 	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"profiles":[{"name":"personal","configDir":"`+root+
-		`","auth":"builtin","account":{"model":"opus[1m]","effort":"xhigh"},"contextGuard":true}]}`))
+		`","auth":"builtin","account":{"model":"opus[1m]","effort":"xhigh"}}]}`))
 	mux := profilesMux(srv)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/profiles",
@@ -153,8 +153,7 @@ func TestProfilesAnswerTheAccountLayerPG(t *testing.T) {
 	}
 	var body struct {
 		Profile struct {
-			ContextGuard *bool `json:"contextGuard"`
-			Effective    []struct {
+			Effective []struct {
 				Key   string `json:"key"`
 				Value any    `json:"value"`
 				Layer string `json:"layer"`
@@ -163,9 +162,6 @@ func TestProfilesAnswerTheAccountLayerPG(t *testing.T) {
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
-	}
-	if body.Profile.ContextGuard == nil || !*body.Profile.ContextGuard {
-		t.Error("the contour does not say its account runs the context guard")
 	}
 	got := map[string]string{}
 	for _, v := range body.Profile.Effective {

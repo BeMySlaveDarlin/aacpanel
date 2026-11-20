@@ -13,7 +13,7 @@ import (
 )
 
 // GuardsPath is where the host reads the context guard of every place the map
-// knows: the context guard hook and the prompt stamp of every contour, run as
+// knows: the prompt stamp of every contour, run as
 // this user (internal/guards).
 func GuardsPath() string {
 	return guards.Path()
@@ -25,15 +25,15 @@ func stateDir() string {
 }
 
 // restartingPath is the marker a restart of the session keeps while it is
-// under way, which the context guard hook reads.
+// under way.
 func restartingPath(session string) string {
 	return guards.RestartingPath(session)
 }
 
 // markRestarting keeps the marker of a restart of the session until the
 // function it returns is called, whatever the restart ends with. A marker that
-// cannot be written costs the hook its hint and nothing more: the restart goes
-// on, and a second one is still refused here.
+// cannot be written does not prevent the restart: the in-process gate still
+// refuses a second one.
 func markRestarting(session string) func() {
 	path := restartingPath(session)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

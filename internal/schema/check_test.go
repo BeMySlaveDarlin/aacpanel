@@ -128,12 +128,12 @@ func TestSchemaIsWellFormed(t *testing.T) {
 	}
 }
 
-// Every parameter says the agent it is for: the agent and the first message
-// are both agents', the keys of codex are codex's and the rest claude's. The
+// Every parameter says the agent it is for: the service's restart policy is
+// shared, the keys of codex are codex's and the rest claude's. The
 // screen lays them out under the tab of their agent, and the claude launcher
 // reads only the common ones and its own.
 func TestEveryParameterNamesItsAgent(t *testing.T) {
-	common := map[string]bool{"agent": true, "intent": true, "quick": true, "parentQuestions": true, "parentQuestionWait": true, "claimDue": true, "reviveAfterReboot": true}
+	common := map[string]bool{"agent": true, "intent": true, "quick": true, "parentQuestions": true, "parentQuestionWait": true, "claimDue": true, "reviveAfterReboot": true, "contextCap": true, "autoRestart": true, "restartIntent": true}
 	for _, p := range Params() {
 		want := AgentClaude
 		switch {

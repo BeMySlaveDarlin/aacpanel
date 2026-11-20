@@ -238,22 +238,6 @@ def _hooks_of(config_dir):
     return data.get("hooks") if data is not None else None
 
 
-# The context guard, as the installer writes it or wrote it before: the
-# executor's hook of the name, from wherever the executor lies, or the script
-# of a clone.
-GUARD_HOOK = "context-guard"
-GUARD_SCRIPT = GUARD_HOOK + ".py"
-
-
-def _runs_guard(command):
-    """Says whether a hook's command runs the context guard, in either form."""
-    words = command.split()
-    if any(w.endswith(GUARD_SCRIPT) for w in words):
-        return True
-    return any(os.path.basename(w) == "aacpanel-exec" and words[i + 1:i + 3] == ["hook", GUARD_HOOK]
-               for i, w in enumerate(words))
-
-
 def _account_of(settings):
     """Returns what the account starts a session with, in the map's words.
 
@@ -267,15 +251,6 @@ def _account_of(settings):
         if isinstance(value, str) and value:
             out[key] = value
     return out
-
-
-def _guarded(settings):
-    """Says whether the account runs the context guard hook at the end of a turn."""
-    for entry in ((settings.get("hooks") or {}).get("Stop") or []):
-        for hook in (entry.get("hooks") or []) if isinstance(entry, dict) else []:
-            if isinstance(hook, dict) and _runs_guard(str(hook.get("command") or "")):
-                return True
-    return False
 
 
 def _hooks_state(base, config_dir):
@@ -318,7 +293,6 @@ def described():
         settings = _settings_of(conf)
         if settings is not None:
             row["account"] = _account_of(settings)
-            row["contextGuard"] = _guarded(settings)
         # New offers codex only in a contour with a home of its own: without
         # one the executor has no daemon to start the thread in.
         codex = _codex_home_of(name)

@@ -184,8 +184,6 @@ function Files({ contour, draft, catalog, setField }) {
             <div class="kv"><span class="k">authorization</span><span class="v"><span class=${`dot ${auth.dot}`}></span> ${auth.text}</span></div>
             <div class="kv"><span class="k">account defaults</span><span class="v">${defaults.length > 0
                 ? defaults.join(" · ") : html`<span class="pfnone">the settings of the account were not read</span>`}</span></div>
-            <div class="kv"><span class="k">context guard hook</span><span class="v">${contour.contextGuard === true
-                ? "installed" : contour.contextGuard === false ? "not installed — Auto restart does nothing here" : html`<span class="pfnone">not known</span>`}</span></div>
             <div class="kv"><span class="k">model catalogue</span><span class="v">${models > 0
                 ? `${models} ${plural(models, "model", "models")}` : html`<span class="pfnone">not read — aliases only</span>`}</span></div>
             ${routed && html`
@@ -260,9 +258,8 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
     const problem = conflict ? { text: conflict, exit: null }
         : problemOf({ draft, params, preview, blocked, fields: fieldIssues(draft, contour) });
 
-    const guard = contour.contextGuard === false ? "the context guard hook is not installed in this account" : "";
     const noBridge = contour.auth === "token" ? "an account on a token has no bridge to claude.ai" : "";
-    const offOf = { remoteControl: noBridge, autoRestart: guard, restartIntent: guard };
+    const offOf = { remoteControl: noBridge };
 
     const runExit = () => {
         if (!problem || !problem.exit) return;
@@ -332,6 +329,8 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
     const rows = (keys) => keys.map((key) => {
         const p = rowProps(key);
         if (!p.param) return null;
+        if (tab === "codex" && valueOf(effective, "codexTransport").value === "tmux"
+            && ["autoRestart", "restartIntent"].includes(key)) return null;
         const mine = own(draft, contour, key);
         const picked = p.param.kind === "model" || p.param.kind === "codexModel";
         return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}

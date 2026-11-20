@@ -15,6 +15,10 @@ import (
 // page with its draft kept underneath, a deletion taken back from it.
 func TestTheContourSettingsPage(t *testing.T) {
 	var got struct {
+		Restart restartSettings `json:"restart"`
+
+		CodexRows            []string       `json:"codexRows"`
+		TmuxRows             []string       `json:"tmuxRows"`
 		Rows                 []string       `json:"rows"`
 		Tabs                 []string       `json:"tabs"`
 		OpenTab              string         `json:"openTab"`
@@ -43,8 +47,13 @@ func TestTheContourSettingsPage(t *testing.T) {
 		QuickSet, QuickUnset map[string]any
 	}
 	runFixtureServing(t, "contoursettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
+	checkRestartSettings(t, got.Restart)
+	checkCodexTmuxSettings(t, got.TmuxRows)
+	if want := "Revive after reboot|Agent|First message|Questions to parent|Wait for parent|Claim due|Context cap|Auto restart|Message after a restart|Quick phrases|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.CodexRows, "|") != want {
+		t.Errorf("the Codex contour rows are %v, want %s", got.CodexRows, want)
+	}
 
-	if len(got.Rows) != 17 || got.Rows[0] != "Revive after reboot" || got.Rows[1] != "Agent" || got.Rows[2] != "First message" || got.Rows[3] != "Questions to parent" || got.Rows[4] != "Wait for parent" || got.Rows[5] != "Claim due" || got.Rows[6] != "Quick phrases" || got.Rows[7] != "Model" {
+	if len(got.Rows) != 17 || got.Rows[0] != "Revive after reboot" || got.Rows[1] != "Agent" || got.Rows[2] != "First message" || got.Rows[3] != "Questions to parent" || got.Rows[4] != "Wait for parent" || got.Rows[5] != "Claim due" || got.Rows[9] != "Quick phrases" || got.Rows[10] != "Model" {
 		t.Errorf("the contour's rows are %v, meant the same parameters as a project with claude's tab open", got.Rows)
 	}
 	if got.QuickInherited != "AskUserQuestion Go on Status — the panel's default" ||

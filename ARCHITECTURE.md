@@ -1593,8 +1593,9 @@ answering round alone through `stop_hook_active`.
   name. The thread is not archived in codex: the daemon unloads it once no
   client is left, its rollout stays, and it leaves the list of sessions —
   unless another client starts a turn in it — for the archive of its contour,
-  where Resume brings it back. **A restart is refused**: the daemon keeps the
-  thread, and no process of the panel's is there to start again.
+  where Resume brings it back. **A restart starts a fresh thread** in the same
+  directory and place in the tree, as described above; Codex in tmux must be
+  restarted from its terminal.
 - **A thread that is over stands in the archive, and Resume joins it again.**
   The collector reads the threads of every codex home off its state database
   and from no rollout — the rollouts of a busy home run to gigabytes, nearly

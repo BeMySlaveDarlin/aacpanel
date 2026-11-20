@@ -34,7 +34,7 @@ const project = (id, name, launch) => ({
     effective: effectiveOf(launch), line: { words: [{ text: "claude" }, { text: "-n" }, { text: name }] },
 });
 const personal = {
-    id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", auth: "builtin", contextGuard: true,
+    id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", auth: "builtin",
     account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 }, effective: base,
     ...(mode === "free" ? {} : { route: { prefix: "*" } }),
     groups: [

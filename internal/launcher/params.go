@@ -101,8 +101,8 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 			}
 			continue
 		}
-		// A parameter the host reads is not the launch's: the context guard
-		// and the prompt stamp take it from what the executor keeps of the map.
+		// A parameter the host reads is not the launch's: the service reads
+		// the restart policy, and the prompt stamp reads the published guards.
 		// A parameter of codex is not claude's launch to read.
 		if known.Host || known.Agent == schema.AgentCodex {
 			continue
