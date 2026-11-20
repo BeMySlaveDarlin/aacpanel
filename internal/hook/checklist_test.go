@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -58,6 +61,7 @@ type checklistStop struct {
 	Drop       []string        `json:"drop"`
 	Input      *string         `json:"input"`
 	Tail       int64           `json:"tail"`
+	Service    string          `json:"service"`
 	Holds      bool            `json:"holds"`
 }
 
@@ -135,7 +139,7 @@ func writeJSON(t *testing.T, path string, v any) {
 	}
 }
 
-func TestCodexChecklistReminderReadsOnlyTheCurrentWorkedTurn(t *testing.T) {
+func TestCodexChecklistWindow(t *testing.T) {
 	const thread = "01a12345-0000-7000-8000-00000000abcd"
 	for _, tc := range []struct {
 		name, tool, status, owner, turn          string
@@ -150,15 +154,15 @@ func TestCodexChecklistReminderReadsOnlyTheCurrentWorkedTurn(t *testing.T) {
 		{name: "image call", tool: "image_generation_call", want: true},
 		{name: "pending step", tool: "function_call", status: checklist.Pending, want: true},
 		{name: "answer only"},
-		{name: "previous turn worked", older: true},
+		{name: "previous turn worked", older: true, want: true},
 		{name: "checklist updated", tool: "function_call", updated: true},
 		{name: "finished checklist", tool: "function_call", status: checklist.Done},
 		{name: "dropped checklist", tool: "function_call", status: checklist.Dropped},
 		{name: "answer to the reminder", tool: "function_call", active: true},
 		{name: "another thread", tool: "function_call", owner: "01a12345-0000-7000-8000-000000000002"},
-		{name: "another turn", tool: "function_call", turn: "other"},
-		{name: "unknown beginning", tool: "function_call", noStart: true},
-		{name: "truncated tail", tool: "function_call", tail: 160},
+		{name: "another turn", tool: "function_call", turn: "other", want: true},
+		{name: "unknown beginning", tool: "function_call", noStart: true, want: true},
+		{name: "call before the ordinary tail", tool: "function_call", tail: 160, want: true},
 		{name: "no checklist", tool: "function_call", missing: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -224,12 +228,26 @@ func TestTheSharedCasesOfTheChecklistReminder(t *testing.T) {
 	for _, cs := range c.Cases {
 		t.Run(cs.What, func(t *testing.T) {
 			dir, proc, config := inPlace(t)
+			mode := "block"
+			service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch mode {
+				case "current":
+					w.Write([]byte(`{"block":false}`))
+				case "error":
+					http.Error(w, "unavailable", http.StatusServiceUnavailable)
+				default:
+					w.Write([]byte(`{"block":true}`))
+				}
+			}))
+			defer service.Close()
+			t.Setenv("AACP_PANEL_URL", service.URL)
 			// A shell stands between claude and the hook, and has no file of a session.
 			fakeProcess(t, proc, c.Shell.PID, c.Claude.PID, c.Shell.Start, c.Shell.Args)
 			parentPID = func() int { return c.Shell.PID }
 			placeClaude(t, c, proc, config, cs.Claude)
 
 			for i, st := range cs.Stops {
+				mode = st.Service
 				at := "stop " + strconv.Itoa(i)
 				for _, cl := range st.Checklists {
 					writeChecklist(t, c, config, cl)
@@ -393,6 +411,10 @@ func writeChecklist(t *testing.T, c checklistCases, config string, cl map[string
 		written, _ = number(v)
 	}
 	then := time.Unix(0, int64((c.Began+written)*1e9))
+	if _, overridden := object(cl["over"])["at"]; !overridden {
+		file["at"] = then.UTC().Format(time.RFC3339Nano)
+		writeJSON(t, path, laid(file, cl["over"]))
+	}
 	if err := os.Chtimes(path, then, then); err != nil {
 		t.Fatal(err)
 	}
@@ -486,5 +508,110 @@ func TestTheHolderNamesOnlyALiveClaudeOfTheSameConversation(t *testing.T) {
 				t.Errorf("claudeOf found pid %d, file %v; want pid %d", pid, data, cs.want)
 			}
 		})
+	}
+}
+
+func TestChecklistReview(t *testing.T) {
+	var received idleChecklistRequest
+	mode := "block"
+	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/checklist/idle" || json.NewDecoder(r.Body).Decode(&received) != nil {
+			t.Error("the hook sent an invalid review request")
+		}
+		switch mode {
+		case "block":
+			w.Write([]byte(`{"block":true}`))
+		case "current":
+			w.Write([]byte(`{"block":false}`))
+		case "missing":
+			w.Write([]byte(`{}`))
+		case "malformed":
+			w.Write([]byte(`no verdict`))
+		case "error":
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		case "timeout":
+			<-r.Context().Done()
+		}
+	}))
+	defer service.Close()
+	t.Setenv("AACP_PANEL_URL", service.URL)
+	previous := checklistTimeout
+	checklistTimeout = 25 * time.Millisecond
+	t.Cleanup(func() { checklistTimeout = previous })
+	body := idleChecklistRequest{Conversation: "conversation", Session: "work", Message: "last", Span: "CALL Edit: main.go",
+		Checklist: []checklist.Item{{Text: "Fix the hook", Status: checklist.Active}}}
+	for _, tc := range []struct {
+		mode  string
+		block bool
+	}{{"block", true}, {"current", false}, {"missing", true}, {"malformed", true}, {"error", true}, {"timeout", true}} {
+		mode = tc.mode
+		if reply := reviewIdleChecklist(body); (reply.Block != "") != tc.block {
+			t.Fatalf("%s: %+v", mode, reply)
+		}
+		if !reflect.DeepEqual(received, body) {
+			t.Fatalf("review request: %+v", received)
+		}
+	}
+}
+
+func TestChecklistFileInRequest(t *testing.T) {
+	c := readChecklistCases(t)
+	dir, proc, config := inPlace(t)
+	fakeProcess(t, proc, c.Shell.PID, c.Claude.PID, c.Shell.Start, c.Shell.Args)
+	parentPID = func() int { return c.Shell.PID }
+	placeClaude(t, c, proc, config, nil)
+	writeChecklist(t, c, config, map[string]any{"statuses": []any{checklist.Active}, "over": map[string]any{"items": []any{
+		map[string]any{"text": "Fix the hook", "status": checklist.Done, "since": "2026-09-28T09:59:00Z"},
+		map[string]any{"text": "Verify the change", "status": checklist.Active},
+	}}})
+	transcript := filepath.Join(dir, "transcript.jsonl")
+	writeFile(t, transcript, strings.Join(c.Transcripts["worked"], "\n")+"\n")
+	var received struct {
+		Checklist []map[string]string `json:"checklist"`
+	}
+	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Error(err)
+		}
+		w.Write([]byte(`{"block":false}`))
+	}))
+	defer service.Close()
+	t.Setenv("AACP_PANEL_URL", service.URL)
+	payload := mustJSON(t, map[string]any{"hook_event_name": "Stop", "session_id": c.Session, "transcript_path": transcript})
+	if reply := remindChecklist("Stop", payload, time.Now()); reply.Block != "" {
+		t.Fatalf("an approved checklist was held: %+v", reply)
+	}
+	want := []map[string]string{{"text": "Fix the hook", "status": checklist.Done}, {"text": "Verify the change", "status": checklist.Active}}
+	if !reflect.DeepEqual(received.Checklist, want) {
+		t.Fatalf("the checklist file's steps: %+v, want %+v", received.Checklist, want)
+	}
+}
+
+func TestChecklistSpan(t *testing.T) {
+	dir, _, _ := inPlace(t)
+	path := filepath.Join(dir, "transcript.jsonl")
+	var records []string
+	add := func(kind, at, id string, content any, extra map[string]any) {
+		raw := mustJSON(t, laid(map[string]any{"type": kind, "timestamp": at, "uuid": id, "message": map[string]any{"content": content}}, extra))
+		records = append(records, string(raw))
+	}
+	add("assistant", "2026-01-01T11:59:00Z", "old", []any{map[string]any{"type": "tool_use", "name": "Old"}}, nil)
+	add("assistant", "2026-01-01T12:00:01Z", "call", []any{map[string]any{"type": "tool_use", "name": "Bash", "input": map[string]any{"command": "make test"}}}, nil)
+	add("user", "2026-01-01T12:00:02Z", "result", []any{map[string]any{"type": "tool_result", "is_error": true, "content": "failed\n" + strings.Repeat("padding", 700000)}}, nil)
+	add("user", "2026-01-01T12:00:03Z", "prompt", "What changed?", nil)
+	add("assistant", "2026-01-01T12:00:04Z", "last", "The hook is fixed.", nil)
+	add("assistant", "2026-01-01T12:00:05Z", "side", "Wrong session", map[string]any{"isSidechain": true})
+	writeFile(t, path, strings.Join(records, "\n"))
+	message, span, called := checklistSpan(path, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
+	if message != "last" || !called || span != "CALL Bash: make test\n  ERR failed\nUSER: What changed?\nASSISTANT: The hook is fixed." {
+		t.Fatalf("span: %q %v %q", message, called, span)
+	}
+	for i := range 15 {
+		add("assistant", "2026-01-01T12:00:06Z", strconv.Itoa(i), strings.Repeat("é", 2000), nil)
+	}
+	writeFile(t, path, strings.Join(records, "\n")+"\n")
+	_, span, called = checklistSpan(path, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
+	if !called || len([]rune(span)) > 10000 || !strings.HasPrefix(span, "[earlier part cut]\n") {
+		t.Fatalf("unbounded span: %d characters, called %v", len([]rune(span)), called)
 	}
 }

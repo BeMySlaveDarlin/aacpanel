@@ -1316,7 +1316,7 @@ The prompt stamp takes a Codex thread's limits from the contour whose Codex
 home matches the session row, and names only the windows that account reports.
 The installed hook command carries `AACP_HOOK_CODEX_HOME` for a thread not yet
 in the snapshot. Codex Stop reminders read the thread's checklist and the
-current turn's tool calls from its rollout; background reminders track the
+tool calls since it was last sent from its rollout; background reminders track the
 presence of terminals across stops, since the snapshot holds their count,
 not their identities or ages. Both use a blocking reason and leave the
 answering round alone through `stop_hook_active`.
@@ -3148,9 +3148,35 @@ the kernel names, the collector by the home the executor was given. The row
 of the thread and the state of its conversation carry it as a claude
 session's do; the thread is told nothing of it at the handshake, since the
 server knows no thread before a call. A checklist nobody has sent for thirty days is
-swept when a server starts. Nothing makes the model keep it true: a `Stop` hook, where
-the account has it, holds a turn that did work past an unfinished checklist it
-did not touch, once, to ask whether it changed.
+swept when a server starts.
+
+The `checklist-reminder` Stop hook checks an unfinished list only before the
+session waits for the person. Work is every tool call since the checklist's
+`at`, across turns; no calls means no review. Background tasks in Stop leave
+the turn free immediately. Otherwise the local-only `/api/checklist/idle`
+endpoint decides from the host snapshot, pause and restart records whether
+the session is about to wait. Running native work, an observer, a working child
+opened by this conversation, an alarm due within thirty minutes, a pause or a
+restart in preparation leave the turn free. The executor reads opening records
+through a closed read-only question: screen grouping grants no ownership, and
+the service gains no access to host files. Open requests do not postpone the
+check, since a person's answer can take hours.
+
+For Claude the hook sends the steps from the checklist file it read with its
+timestamp and a condensed log since that write, limited to its last ten
+thousand characters. The service sends those steps and that log to a
+tool-free, non-persistent haiku call in the session's contour. Only `current`
+with confidence of at least 0.7 frees an idle stop;
+an unreadable verdict, failure or timeout holds it. Haiku never writes the
+checklist: the session sends the whole list, or ends without a word if it
+already matches. The answering round is never held again. A Codex thread has
+another journal format and takes no haiku review: work before an idle stop
+holds it directly. Repeated checks of one conversation and message share their
+answer in process memory for ten minutes, including concurrent requests. The
+hook waits fifteen seconds; settings and the holder give it twenty. The price
+is a model call and its latency before an idle stop with work, possible missed
+changes despite a confident verdict, and an extra session turn on a failed
+review.
 
 **A session can keep its own first and restart messages.** The tools of the
 conversation on the phone and the desktop open the Session messages sheet,

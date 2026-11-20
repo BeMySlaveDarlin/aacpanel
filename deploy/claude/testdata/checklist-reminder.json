@@ -8,8 +8,13 @@
   "shell": {"pid": 4300, "start": "900", "args": ["sh", "-c", "hook"]},
   "began": 1790589600,
   "args": {"withTool": ["/srv/bin/claude", "--mcp-config", "{\"mcpServers\":{}}", "--allowedTools", "mcp__aacpanel__checklist", "-n", "lab"], "byHand": ["/srv/bin/claude", "--resume", "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d"]},
-  "reason": "The panel shows the person the checklist of this session's work, and this turn did work without touching it. If the checklist changed — a step started, ended or was dropped, or the steps themselves changed — send it with the checklist tool (mcp__aacpanel__checklist); if it no longer applies, clear it with an empty list. If it did not change, end the turn now, without a word about this.",
+  "reason": "This session is about to wait for the person, and its checklist may not match the work since it was last sent. Send it whole with the checklist tool — finished steps done, the step at hand active, wording as things stand now. If it already matches, end the turn without a word.",
   "transcripts": {
+    "prior-work": [
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T09:59:20Z\", \"uuid\": \"11111111-1111-4111-8111-111111111111\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"name\": \"Edit\", \"input\": {\"file_path\": \"/srv/proj/main.go\"}}]}}",
+      "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00Z\", \"message\": {\"content\": \"What changed?\"}}",
+      "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T10:00:40Z\", \"uuid\": \"22222222-2222-4222-8222-222222222222\", \"message\": {\"content\": \"The change is ready.\"}}"
+    ],
     "worked": [
       "{\"type\": \"user\", \"timestamp\": \"2026-09-28T10:00:00.000Z\", \"message\": {\"role\": \"user\", \"content\": \"earlier\"}}",
       "{\"type\": \"assistant\", \"timestamp\": \"2026-09-28T09:50:00.000Z\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"done\"}]}}",
@@ -125,24 +130,113 @@
     {"what": "a checklist with nothing left to do asks nothing", "stops": [{"checklists": [{"statuses": ["done", "dropped", "done"]}], "holds": false}]},
     {"what": "a step of a status not known is nothing left to do", "stops": [{"checklists": [{"statuses": ["done", "ACTIVE", "waiting"]}], "holds": false}]},
     {"what": "without a checklist nothing is said", "stops": [{"holds": false}]},
-    {"what": "a result of a tool is not the start of the turn", "stops": [{"checklists": [{"statuses": ["active"], "written": 3}], "transcript": "quick", "holds": false}, {"checklists": [{"statuses": ["active"], "written": -1}], "transcript": "quick", "holds": true}]},
-    {"what": "a checklist written the moment the turn began is not older than it", "stops": [{"checklists": [{"statuses": ["active"], "written": 0}], "transcript": "quick", "holds": false}]},
-    {"what": "a turn longer than the tail is taken from what was read", "stops": [{"checklists": [{"statuses": ["active"]}], "tail": 500, "holds": true}, {"tail": 200, "holds": false}]},
-    {"what": "the first line of a tail is dropped even when it starts there", "stops": [{"checklists": [{"statuses": ["active"], "written": 3}], "tail": 951, "holds": true}]},
-    {"what": "a prompt of white space starts no turn", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "blank", "holds": false}]},
-    {"what": "a note of claude's starts no turn", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "meta", "holds": false}]},
-    {"what": "the summary of a compaction starts no turn", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "summary", "holds": false}]},
+    {"what": "calls after the last checklist write count even when the prompt came first", "stops": [{"checklists": [{"statuses": ["active"], "written": 3}], "transcript": "quick", "holds": true}, {"checklists": [{"statuses": ["active"], "written": -1}], "transcript": "quick", "holds": true}]},
+    {"what": "a checklist written at the prompt still predates the tool calls", "stops": [{"checklists": [{"statuses": ["active"], "written": 0}], "transcript": "quick", "holds": true}]},
+    {"what": "the checklist window reaches before the ordinary transcript tail", "stops": [{"checklists": [{"statuses": ["active"]}], "tail": 500, "holds": true}, {"tail": 200, "holds": true}]},
+    {"what": "the checklist window includes the first line of the ordinary tail", "stops": [{"checklists": [{"statuses": ["active"], "written": 3}], "tail": 951, "holds": true}]},
+    {"what": "a blank prompt does not reset the checklist window", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "blank", "holds": true}]},
+    {"what": "a note from claude does not reset the checklist window", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "meta", "holds": true}]},
+    {"what": "a compaction summary does not reset the checklist window", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "summary", "holds": true}]},
     {"what": "a prompt of blocks with text starts the turn", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "blocks", "holds": true}]},
     {"what": "a call of an agent of the session is not a call of the turn", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "sidechain", "holds": false}]},
     {"what": "lines that are no records are passed over", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": "noise", "holds": true}]},
-    {"what": "times are read with their offsets, and one that does not read is passed over", "stops": [{"checklists": [{"statuses": ["active"], "written": -1}], "transcript": "offsets", "holds": true}, {"checklists": [{"statuses": ["active"], "written": 0}], "transcript": "offsets", "holds": false}]},
+    {"what": "a tool call with an unreadable timestamp proves no work after the checklist", "stops": [{"checklists": [{"statuses": ["active"], "written": -1}], "transcript": "offsets", "holds": false}, {"checklists": [{"statuses": ["active"], "written": 0}], "transcript": "offsets", "holds": false}]},
     {"what": "a subagent stop is not the session", "stops": [{"checklists": [{"statuses": ["active"]}], "payload": {"hook_event_name": "SubagentStop"}, "holds": false}]},
     {"what": "a stop without the name of its event is a stop", "stops": [{"checklists": [{"statuses": ["active"]}], "drop": ["hook_event_name"], "holds": true}]},
     {"what": "an event of null is no stop", "stops": [{"checklists": [{"statuses": ["active"]}], "payload": {"hook_event_name": null}, "holds": false}]},
     {"what": "the turn after the hold is never held, whatever says it", "stops": [{"checklists": [{"statuses": ["active"]}], "payload": {"stop_hook_active": 1}, "holds": false}, {"payload": {"stop_hook_active": "yes"}, "holds": false}, {"payload": {"stop_hook_active": 0}, "holds": true}]},
     {"what": "a stop of another conversation asks nothing", "stops": [{"checklists": [{"statuses": ["active"]}], "payload": {"session_id": "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e"}, "holds": false}]},
     {"what": "a transcript that is not there asks nothing", "stops": [{"checklists": [{"statuses": ["active"]}], "transcript": null, "holds": false}]},
-    {"what": "a broken payload is not a crash", "stops": [{"checklists": [{"statuses": ["active"]}], "input": "not json", "holds": false}, {"input": "[]", "holds": false}, {"input": "", "holds": false}, {"input": "{\"hook_event_name\": \"Stop\"} {}", "holds": false}]}
+    {"what": "a broken payload is not a crash", "stops": [{"checklists": [{"statuses": ["active"]}], "input": "not json", "holds": false}, {"input": "[]", "holds": false}, {"input": "", "holds": false}, {"input": "{\"hook_event_name\": \"Stop\"} {}", "holds": false}]},
+    {
+      "what": "work in an earlier turn after the checklist still needs review",
+      "stops": [
+        {
+          "checklists": [
+            {
+              "statuses": [
+                "active"
+              ]
+            }
+          ],
+          "transcript": "prior-work",
+          "holds": true
+        }
+      ]
+    },
+    {
+      "what": "running background work cannot hold the stop",
+      "stops": [
+        {
+          "checklists": [
+            {
+              "statuses": [
+                "active"
+              ]
+            }
+          ],
+          "payload": {
+            "background_tasks": [
+              {
+                "id": "task"
+              }
+            ]
+          },
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "the service refusing the review holds the stop",
+      "stops": [
+        {
+          "checklists": [
+            {
+              "statuses": [
+                "active"
+              ]
+            }
+          ],
+          "service": "error",
+          "holds": true
+        }
+      ]
+    },
+    {
+      "what": "a current checklist needs no answering turn",
+      "stops": [
+        {
+          "checklists": [
+            {
+              "statuses": [
+                "active"
+              ]
+            }
+          ],
+          "service": "current",
+          "holds": false
+        }
+      ]
+    },
+    {
+      "what": "the checklist timestamp wins over the file modification time",
+      "stops": [
+        {
+          "checklists": [
+            {
+              "statuses": [
+                "active"
+              ],
+              "written": 60,
+              "over": {
+                "at": "2026-09-28T09:59:00Z"
+              }
+            }
+          ],
+          "holds": true
+        }
+      ]
+    }
   ],
   "names": [
     ["/srv/claude", "/srv/proj/lab", "lab", "f7138acc90830a36ac4a7481c26dfb18.json"],

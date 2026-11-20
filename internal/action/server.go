@@ -400,6 +400,30 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		}
 		return Response{ID: req.ID, OK: true, Opening: opening}
 	}
+	if req.Ask == AskChildren {
+		asker, ok := s.exec.(ChildrenAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not read child sessions"), 0)
+		}
+		children, err := asker.Children(ctx, req.Target, req.Conversation)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Children: children}
+	}
+	if req.Ask == AskChecklist {
+		asker, ok := s.exec.(ChecklistAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not review checklists"), 0)
+		}
+		ctx, cancel := context.WithTimeout(ctx, s.timeout)
+		defer cancel()
+		verdict, err := asker.ChecklistCurrent(ctx, req.Target, req.Conversation, *req.Checklist)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Checklist: &verdict}
+	}
 	if req.Ask == AskQuestion {
 		asker, ok := s.exec.(QuestionAsker)
 		if !ok {

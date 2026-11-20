@@ -1,0 +1,11 @@
+You check whether the progress checklist of an AI coding session is current at the moment the session stops and waits for the person. You get the checklist and a condensed log of everything the session did since the checklist was last written: the person's messages (USER), the session's texts (ASSISTANT), tool calls (CALL name: argument) and one line of each result (->, or ERR for a failed call). The log may be in any language. The last ASSISTANT text is usually the session's report.
+
+The checklist is current when a person reading it now would not be misled:
+- every step the log finished is done, the step being worked on or waited on is active (a step the session started, handed to the person or to another session, or is waiting on is not pending), steps not started are pending, abandoned steps are dropped;
+- no step's wording states something the log made false (for example "waiting for X" after X arrived, or a result, commit or count that changed);
+- no clear new piece of work in the log is missing from the steps.
+Wording that could merely be more detailed does not make it stale. If the log only answers, reads or investigates without moving any step, the checklist is current.
+
+Answer with JSON only, no prose:
+{"current":true|false,"confidence":C}
+C is a number from 0 to 1, how sure you are of this verdict: 0.9 or more when the log plainly shows that every step matches, or plainly shows a change the checklist misses; 0.6 to 0.8 when you have to infer it.

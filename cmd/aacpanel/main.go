@@ -73,6 +73,8 @@ type Server struct {
 	sleeper      *reviver
 	// releases asks GitHub whether a newer release of the panel is out.
 	releases *release.Check
+
+	idleChecklists idleChecklistCache
 }
 
 const execTimeout = 2 * time.Minute

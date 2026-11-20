@@ -52,8 +52,9 @@ type Request struct {
 
 	Permit *Permit `json:"permit,omitempty"`
 
-	Text         string   `json:"text,omitempty"`
-	AlreadyAsked []string `json:"already_asked,omitempty"`
+	Text         string          `json:"text,omitempty"`
+	AlreadyAsked []string        `json:"already_asked,omitempty"`
+	Checklist    *ChecklistInput `json:"checklist,omitempty"`
 
 	Answer *Answer `json:"answer,omitempty"`
 

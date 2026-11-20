@@ -89,7 +89,7 @@ var handlers = map[string]handler{
 	"artifact-copy":       {Event: "PostToolUse", Wait: copyWait, Answer: copyPage},
 	"ask-hook":            {Event: "PreToolUse", Wait: relayWait, Answer: relayQuestion},
 	"background-reminder": {Event: "Stop", Answer: remindBackground},
-	"checklist-reminder":  {Event: "Stop", Answer: remindChecklist},
+	"checklist-reminder":  {Event: "Stop", Wait: checklistWait, Answer: remindChecklist},
 	"context-guard":       {Event: "Stop", Answer: guardContext},
 	"heavy-gate":          {Event: "PreToolUse", Answer: gateHeavy},
 	"prompt-stamp":        {Event: "UserPromptSubmit", Answer: stampPrompt},

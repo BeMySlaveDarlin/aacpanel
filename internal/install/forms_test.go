@@ -134,7 +134,7 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 		t.Errorf("the compatibility hook was installed again:\n%s", out)
 	}
 	// An entry written by hand without a timeout gets the kit's.
-	if got := timeoutOf(t, out, "Stop", executor+" hook checklist-reminder"); got != "5" {
+	if got := timeoutOf(t, out, "Stop", executor+" hook checklist-reminder"); got != "20" {
 		t.Errorf("the checklist reminder has a timeout of %s:\n%s", got, out)
 	}
 	again, changed := wire(t, out, w)

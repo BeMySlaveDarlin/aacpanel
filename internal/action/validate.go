@@ -60,6 +60,9 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Checklist != nil && r.Ask != AskChecklist {
+		return badRequest("only a checklist review carries its input")
+	}
 	if r.Claim != "" {
 		if r.Kind != SessionLetter || len(r.Claim) != 32 || strings.Trim(r.Claim, "abcdef0123456789") != "" || r.ParentQuestion != "" || r.Report != nil {
 			return badRequest("a claim letter needs its claim id and no other panel event")
@@ -121,7 +124,7 @@ func (r Request) Validate() error {
 			}
 		case AskGuards:
 			return validateGuards(r)
-		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses, AskIntent, AskQuestion, AskOpening:
+		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses, AskIntent, AskQuestion, AskOpening, AskChecklist, AskChildren:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -133,6 +136,12 @@ func (r Request) Validate() error {
 			}
 			if r.Ask == AskQuestion {
 				return validateQuestion(r)
+			}
+			if r.Ask == AskChecklist {
+				return validateChecklist(r)
+			}
+			if r.Ask == AskChildren && !safeUUID(r.Conversation) {
+				return badRequest("a children lookup needs its opening conversation")
 			}
 			if r.Ask == AskOpening && !safeUUID(r.Conversation) {
 				return badRequest("an opening lookup needs its child's conversation")

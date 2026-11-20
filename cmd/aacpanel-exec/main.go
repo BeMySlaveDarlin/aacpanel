@@ -810,6 +810,22 @@ func (a audited) Question(ctx context.Context, target, conversation, text string
 	return asker.Question(ctx, target, conversation, text, alreadyAsked)
 }
 
+func (a audited) ChecklistCurrent(ctx context.Context, target, conversation string, input action.ChecklistInput) (action.ChecklistVerdict, error) {
+	asker, ok := a.next.(action.ChecklistAsker)
+	if !ok {
+		return action.ChecklistVerdict{}, fmt.Errorf("this executor does not review checklists")
+	}
+	return asker.ChecklistCurrent(ctx, target, conversation, input)
+}
+
+func (a audited) Children(ctx context.Context, target, conversation string) ([]action.ChildSession, error) {
+	asker, ok := a.next.(action.ChildrenAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not read child sessions")
+	}
+	return asker.Children(ctx, target, conversation)
+}
+
 func (a audited) Opening(ctx context.Context, target, conversation string) (*action.Opening, error) {
 	asker, ok := a.next.(action.OpeningAsker)
 	if !ok {

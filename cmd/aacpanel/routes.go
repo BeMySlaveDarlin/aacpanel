@@ -103,6 +103,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 		mux.HandleFunc("POST /api/requests", s.apiRequest)
 		mux.HandleFunc("POST /api/acts", s.apiAct)
 		mux.HandleFunc("POST /api/turn", s.apiTurn)
+		mux.HandleFunc("POST /api/checklist/idle", s.apiChecklistIdle)
 	}
 	mux.Handle("GET /api/acts", g.page(s.apiActs))
 	mux.Handle("GET /api/briefs", g.page(s.apiBriefs))

@@ -62,7 +62,9 @@ type Response struct {
 
 	Setup *Setup `json:"setup,omitempty"`
 
-	Question *question.Verdict `json:"question,omitempty"`
+	Question  *question.Verdict `json:"question,omitempty"`
+	Checklist *ChecklistVerdict `json:"checklist,omitempty"`
+	Children  []ChildSession    `json:"children,omitempty"`
 
 	Side *Side `json:"side,omitempty"`
 

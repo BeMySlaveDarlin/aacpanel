@@ -241,7 +241,7 @@ var kitHooks = []kitHook{
 	{Part: "relay", Event: "PreToolUse", Matcher: "AskUserQuestion", Hook: "ask-hook", Script: "agent/ask-hook.py", Timeout: 5, Codex: true},
 	{Part: "relay", Event: "Stop", Hook: "turn", Timeout: 20},
 	{Part: "copies", Event: "PostToolUse", Matcher: "Artifact", Hook: "artifact-copy", Script: "deploy/claude/artifact-copy.py", Timeout: 10},
-	{Part: "nudge", Event: "Stop", Hook: "checklist-reminder", Script: "deploy/claude/checklist-reminder.py", Timeout: 5, Codex: true},
+	{Part: "nudge", Event: "Stop", Hook: "checklist-reminder", Script: "deploy/claude/checklist-reminder.py", Timeout: 20, Codex: true},
 	{Part: "stamp", Event: "UserPromptSubmit", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
 	{Part: "background", Event: "Stop", Hook: "background-reminder", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true, Codex: true},
 	{Part: "heavy", Event: "PreToolUse", Matcher: "Bash", Hook: "heavy-gate", Timeout: 5, Codex: true},

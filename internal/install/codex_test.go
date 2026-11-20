@@ -278,7 +278,11 @@ func TestCodexStopRemindersFollowTheKitAndKeepTheirTrust(t *testing.T) {
 	}
 	for i, name := range []string{"checklist-reminder", "background-reminder"} {
 		place := "stop:" + strconv.Itoa(i+1) + ":0"
-		if trustOf(config, place) != hashAt(t, hooks, place) || timeoutOf(t, hooks, "Stop", want[i+1]) != "5" {
+		timeout := "5"
+		if name == "checklist-reminder" {
+			timeout = "20"
+		}
+		if trustOf(config, place) != hashAt(t, hooks, place) || timeoutOf(t, hooks, "Stop", want[i+1]) != timeout {
 			t.Fatalf("%s is not trusted with its timeout", name)
 		}
 	}

@@ -2,9 +2,11 @@ package hook
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"iter"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,12 +16,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/checklist"
+	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/mcp"
 )
 
-// The checklist reminder: at the end of a turn a session that keeps a
-// checklist is asked once whether it changed.
+// The checklist reminder checks the work since the list was sent only when
+// the service confirms that the session is about to wait for the person.
 //
 // The checklist is the model's own list of steps, kept through the panel's
 // checklist tool and shown to the person. It belongs to the session: the
@@ -27,11 +31,11 @@ import (
 // session's name, so a session started again under its name, afresh or going
 // on with its conversation, in the main checkout or in a worktree of it,
 // finds it, and another session of the repository has its own; a session
-// without a name is told by its account and its repository alone. A turn
-// that did work — called tools — and left the checklist as it was may have
-// left it behind: the end of that turn is held once, and the model is told to
-// update the checklist if it changed, to clear it if it no longer applies,
-// and otherwise to end the turn. The turn after the hold is never held again.
+// without a name is told by its account and its repository alone. Work can
+// span many turns while background work keeps the session going, so the
+// window starts at the list's timestamp, not the last prompt. The answering
+// round is never held again. A failed review holds the turn: a lost review
+// must not silently declare an unfinished checklist current.
 //
 // A checklist with nothing left to do asks nothing, and neither does a
 // session that has no checklist tool: a claude started by hand in the same
@@ -46,6 +50,7 @@ import (
 // deploy/claude/testdata/checklist-reminder.json.
 
 const (
+	checklistWait = 15 * time.Second
 	// checklistTool is the checklist tool of the panel's server.
 	checklistTool = "mcp__aacpanel__checklist"
 	// claudeAncestors is how far up the chain of its parents the hook looks
@@ -53,10 +58,10 @@ const (
 	claudeAncestors = 6
 )
 
-// transcriptTail is how much of the tail of the transcript is read for the
-// turn. A turn longer than this is taken from the oldest record read, which
-// is all the question needs: whether the turn called tools, and whether the
-// checklist is older.
+var checklistTimeout = checklistWait
+
+// Ordinary readers need only the current turn's tail. A checklist review
+// reads back to its own timestamp, which can precede several turns.
 var transcriptTail int64 = 4 << 20
 
 // procDir is where the processes are read; parentPID is the process the
@@ -67,10 +72,18 @@ var (
 )
 
 // checklistReason is what the model is told instead of stopping.
-const checklistReason = "The panel shows the person the checklist of this session's work, and this turn did work " +
-	"without touching it. If the checklist changed — a step started, ended or was dropped, or the " +
-	"steps themselves changed — send it with the checklist tool (" + checklistTool + "); if it no longer applies, " +
-	"clear it with an empty list. If it did not change, end the turn now, without a word about this."
+const checklistReason = "This session is about to wait for the person, and its checklist may not match the work since it was last sent. " +
+	"Send it whole with the checklist tool — finished steps done, the step at hand active, wording as things stand now. " +
+	"If it already matches, end the turn without a word."
+
+type idleChecklistRequest struct {
+	Conversation string           `json:"conversation"`
+	Session      string           `json:"session"`
+	Message      string           `json:"message"`
+	Span         string           `json:"span,omitempty"`
+	Checklist    []checklist.Item `json:"checklist,omitempty"`
+	Codex        bool             `json:"codex,omitempty"`
+}
 
 func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 	p, ok := loadNumbers(payload).(map[string]any)
@@ -82,6 +95,9 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 	}
 	// The turn that follows a hold is the answer to it: it is never held again.
 	if truthy(p["stop_hook_active"]) {
+		return Reply{}
+	}
+	if truthy(p["background_tasks"]) {
 		return Reply{}
 	}
 	if _, codex := codexHome(nil, p); codex {
@@ -103,11 +119,20 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 		return Reply{}
 	}
 	path, _ := p["transcript_path"].(string)
-	began, known, called := turnOf(path)
-	if !called || !known || written >= began {
+	message, span, called := checklistSpan(path, written)
+	if !called {
 		return Reply{}
 	}
-	return Reply{Block: checklistReason}
+	conversation, _ := id.(string)
+	items, _ := list["items"].([]any)
+	steps := make([]checklist.Item, 0, len(items))
+	for _, value := range items {
+		item := object(value)
+		text, _ := item["text"].(string)
+		status, _ := item["status"].(string)
+		steps = append(steps, checklist.Item{Text: text, Status: status})
+	}
+	return reviewIdleChecklist(idleChecklistRequest{Conversation: conversation, Session: sessionName(pid, session), Message: message, Span: span, Checklist: steps})
 }
 
 func remindCodexChecklist(p map[string]any) Reply {
@@ -130,44 +155,60 @@ func remindCodexChecklist(p map[string]any) Reply {
 		return Reply{}
 	}
 	transcript, _ := p["transcript_path"].(string)
-	turn, _ := p["turn_id"].(string)
-	began, known, called := codexTurnOf(transcript, turn)
-	if !known || !called || seconds(info.ModTime()) >= began {
-		return Reply{}
-	}
-	return Reply{Block: checklistReason}
-}
-
-// A rollout's tool calls carry no turn id. Only a matching task_started
-// boundary proves that they belong to the Stop being answered; a truncated
-// tail or another turn is not evidence that this turn worked.
-func codexTurnOf(path, turn string) (began float64, known, called bool) {
-	if turn == "" {
-		return 0, false, false
-	}
-	for record := range newestFirst(path) {
-		p := object(record["payload"])
-		switch record["type"] {
-		case "event_msg":
-			if p["type"] == "task_started" {
-				if p["turn_id"] != turn {
-					return 0, false, false
-				}
-				began, known = stampOf(record)
-				return began, known, called
-			}
-		case "turn_context":
-			if p["turn_id"] != turn {
-				return 0, false, false
-			}
-		case "response_item":
-			switch p["type"] {
-			case "function_call", "custom_tool_call", "local_shell_call", "web_search_call", "image_generation_call":
-				called = true
-			}
+	written := checklistWritten(list, info.ModTime())
+	called := false
+	for record := range checklistRecords(transcript) {
+		at, known := stampOf(record)
+		if known && at <= written {
+			break
+		}
+		if !known || at <= written || record["type"] != "response_item" {
+			continue
+		}
+		switch object(record["payload"])["type"] {
+		case "function_call", "custom_tool_call", "local_shell_call", "web_search_call", "image_generation_call":
+			called = true
+		}
+		if called {
+			break
 		}
 	}
-	return 0, false, false
+	if !called {
+		return Reply{}
+	}
+	turn, _ := p["turn_id"].(string)
+	name := ""
+	if len(id) >= 8 {
+		name = "codex-" + id[len(id)-8:]
+	}
+	return reviewIdleChecklist(idleChecklistRequest{Conversation: id, Session: name, Message: turn, Codex: true})
+}
+
+func reviewIdleChecklist(body idleChecklistRequest) Reply {
+	block := Reply{Block: checklistReason}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return block
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), checklistTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(hostcfg.PanelURL(), "/")+"/api/checklist/idle", bytes.NewReader(raw))
+	if err != nil {
+		return block
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return block
+	}
+	defer resp.Body.Close()
+	var verdict struct {
+		Block *bool `json:"block"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&verdict) != nil || verdict.Block == nil || *verdict.Block {
+		return block
+	}
+	return Reply{}
 }
 
 // loadNumbers is a JSON text read with its numbers as they are written, nil
@@ -371,10 +412,169 @@ func readPlaced(configDir string, cwd any, name string) (map[string]any, float64
 		if !ok || found["configDir"] != where.ConfigDir || found[k.Field] != k.Where || own != name {
 			continue
 		}
-		mtime := info.ModTime()
-		return found, float64(mtime.Unix()) + float64(mtime.Nanosecond())*1e-9, true
+		return found, checklistWritten(found, info.ModTime()), true
 	}
 	return nil, 0, false
+}
+
+func checklistWritten(list map[string]any, fallback time.Time) float64 {
+	if at, known := stampOf(map[string]any{"timestamp": list["at"]}); known {
+		return at
+	}
+	return seconds(fallback)
+}
+
+func checklistSpan(path string, written float64) (message, span string, called bool) {
+	var fragments []string
+	size := 0
+	for record := range checklistRecords(path) {
+		if message == "" && record["type"] == "assistant" && !truthy(record["isMeta"]) {
+			message, _ = record["uuid"].(string)
+		}
+		at, known := stampOf(record)
+		if !known {
+			continue
+		}
+		if at <= written {
+			break
+		}
+		called = called || calledTools(record)
+		if size < action.ChecklistLogMax {
+			fragment := strings.Join(checklistRecordLines(record, message), "\n")
+			if fragment != "" {
+				fragments = append(fragments, fragment)
+				size += utf8.RuneCountInString(fragment) + 1
+			}
+		}
+	}
+	slices.Reverse(fragments)
+	runes := []rune(strings.Join(fragments, "\n"))
+	if len(runes) > action.ChecklistLogMax {
+		const cut = "[earlier part cut]\n"
+		span = cut + string(runes[len(runes)-(action.ChecklistLogMax-len(cut)):])
+	} else {
+		span = string(runes)
+	}
+	return message, span, called
+}
+
+func checklistRecordLines(record map[string]any, message string) []string {
+	var lines []string
+	if truthy(record["isMeta"]) || truthy(record["isCompactSummary"]) {
+		return nil
+	}
+	role, _ := record["type"].(string)
+	if role != "user" && role != "assistant" {
+		return nil
+	}
+	label, limit := "USER", 500
+	if role == "assistant" {
+		label, limit = "ASSISTANT", 1400
+		if record["uuid"] == message {
+			limit = 3000
+		}
+	}
+	content := contentOf(record)
+	if text, ok := content.(string); ok {
+		lines = append(lines, label+": "+checklistExcerpt(text, limit))
+		return lines
+	}
+	blocks, _ := content.([]any)
+	for _, value := range blocks {
+		b := object(value)
+		switch b["type"] {
+		case "text":
+			text, _ := b["text"].(string)
+			lines = append(lines, label+": "+checklistExcerpt(text, limit))
+		case "tool_use":
+			name, _ := b["name"].(string)
+			input := object(b["input"])
+			arg, ok := input["command"].(string)
+			if !ok {
+				raw, _ := json.Marshal(input)
+				arg = string(raw)
+			}
+			lines = append(lines, "CALL "+name+": "+checklistExcerpt(arg, 400))
+		case "tool_result":
+			prefix := "  -> "
+			if truthy(b["is_error"]) {
+				prefix = "  ERR "
+			}
+			text, ok := b["content"].(string)
+			if !ok {
+				parts, _ := b["content"].([]any)
+				for _, part := range parts {
+					if s, ok := object(part)["text"].(string); ok {
+						text = s
+						break
+					}
+				}
+			}
+			lines = append(lines, prefix+checklistExcerpt(strings.SplitN(text, "\n", 2)[0], 120))
+		}
+	}
+	return lines
+}
+
+// Large tool results can put the call before the ordinary transcript tail.
+// Read backwards in chunks until the checklist's timestamp, retaining only
+// one line at a time instead of loading the whole conversation into memory.
+func checklistRecords(path string) iter.Seq[map[string]any] {
+	return func(yield func(map[string]any) bool) {
+		f, err := os.Open(path)
+		if err != nil {
+			return
+		}
+		defer f.Close()
+		offset, err := f.Seek(0, io.SeekEnd)
+		if err != nil {
+			return
+		}
+		emit := func(raw []byte) bool {
+			record, ok := loadNumbers(bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))).(map[string]any)
+			return !ok || truthy(record["isSidechain"]) || yield(record)
+		}
+		var parts [][]byte
+		join := func() []byte {
+			slices.Reverse(parts)
+			raw := bytes.Join(parts, nil)
+			parts = nil
+			return raw
+		}
+		for offset > 0 {
+			n := min(offset, 64<<10)
+			offset -= n
+			chunk := make([]byte, n)
+			if _, err := f.ReadAt(chunk, offset); err != nil {
+				return
+			}
+			for {
+				i := bytes.LastIndexByte(chunk, '\n')
+				if i < 0 {
+					parts = append(parts, chunk)
+					break
+				}
+				raw := chunk[i+1:]
+				if len(parts) > 0 {
+					parts = append(parts, raw)
+					raw = join()
+				}
+				if !emit(raw) {
+					return
+				}
+				chunk = chunk[:i]
+			}
+		}
+		emit(join())
+	}
+}
+
+func checklistExcerpt(text string, limit int) string {
+	runes := []rune(strings.Join(strings.Fields(text), " "))
+	if len(runes) <= limit {
+		return string(runes)
+	}
+	return string(runes[:limit/2]) + " [...] " + string(runes[len(runes)-limit/2:])
 }
 
 // readChecklist is the checklist of a session and when its file was written.
@@ -404,23 +604,6 @@ func unfinished(list map[string]any) bool {
 }
 
 // ---- the turn ----
-
-// turnOf is when the turn whose end the hook answers began, and whether it
-// called tools; the time is not known when no record read names one.
-func turnOf(path string) (began float64, known, called bool) {
-	for record := range newestFirst(path) {
-		if at, ok := stampOf(record); ok {
-			began, known = at, true
-		}
-		if calledTools(record) {
-			called = true
-		}
-		if isPrompt(record) {
-			break
-		}
-	}
-	return began, known, called
-}
 
 // newestFirst are the records of the tail of a transcript, newest first,
 // those of the session's agents left out, each read only when it is asked

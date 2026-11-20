@@ -22,6 +22,38 @@ type heavyExec struct{ muteExec }
 
 type verdictExec struct{ muteExec }
 
+func (verdictExec) ChecklistCurrent(_ context.Context, target, conversation string, input action.ChecklistInput) (action.ChecklistVerdict, error) {
+	if target != "work" || conversation != "conversation" || input.Log != "CALL Edit: main.go" {
+		return action.ChecklistVerdict{}, errors.New("wrong checklist input")
+	}
+	return action.ChecklistVerdict{Current: true, Confidence: 0.7}, nil
+}
+
+func (verdictExec) Children(_ context.Context, target, conversation string) ([]action.ChildSession, error) {
+	if target != "work" || conversation != "conversation" {
+		return nil, errors.New("wrong opening input")
+	}
+	return []action.ChildSession{{Key: "child"}}, nil
+}
+
+func TestAuditedChecklist(t *testing.T) {
+	a := audited{next: verdictExec{}}
+	verdict, err := a.ChecklistCurrent(t.Context(), "work", "conversation", action.ChecklistInput{Log: "CALL Edit: main.go"})
+	if err != nil || !verdict.Current || verdict.Confidence != 0.7 {
+		t.Fatalf("checklist verdict: %+v %v", verdict, err)
+	}
+	children, err := a.Children(t.Context(), "work", "conversation")
+	if err != nil || len(children) != 1 || children[0].Key != "child" {
+		t.Fatalf("children: %+v %v", children, err)
+	}
+	if _, err := (audited{next: muteExec{}}).ChecklistCurrent(t.Context(), "work", "conversation", action.ChecklistInput{}); err == nil {
+		t.Fatal("an unavailable classifier was accepted")
+	}
+	if _, err := (audited{next: muteExec{}}).Children(t.Context(), "work", "conversation"); err == nil {
+		t.Fatal("an unavailable opening source was accepted")
+	}
+}
+
 func (verdictExec) Question(_ context.Context, target, conversation, text string, asked []string) (question.Verdict, error) {
 	if target != "work" || conversation != "conversation" || text != "Publish?" || !reflect.DeepEqual(asked, []string{"Restart it?"}) {
 		return question.Verdict{}, errors.New("wrong classifier input")
@@ -221,6 +253,7 @@ func TestAuditedAnswersEveryQuestionTheExecutorAnswers(t *testing.T) {
 		reflect.TypeFor[action.Asker](), reflect.TypeFor[action.WindowAsker](), reflect.TypeFor[action.ModelsAsker](),
 		reflect.TypeFor[action.McpAsker](), reflect.TypeFor[action.StatusAsker](), reflect.TypeFor[action.CommandsAsker](),
 		reflect.TypeFor[action.QuestionAsker](), reflect.TypeFor[action.SideAsker](), reflect.TypeFor[action.SetupAsker](), reflect.TypeFor[action.GuardKeeper](),
+		reflect.TypeFor[action.ChecklistAsker](), reflect.TypeFor[action.ChildrenAsker](),
 		reflect.TypeFor[action.Capable](), reflect.TypeFor[action.Opener](), reflect.TypeFor[action.Restarter](), reflect.TypeFor[action.CodexModelsAsker](),
 		reflect.TypeFor[action.TermsAsker](), reflect.TypeFor[action.SecretsAsker](),
 	}
@@ -263,6 +296,8 @@ func TestTheWrapperPassesOnEveryQuestionOfTheExecutor(t *testing.T) {
 		"SetupAsker":          reflect.TypeFor[action.SetupAsker](),
 		"SideAsker":           reflect.TypeFor[action.SideAsker](),
 		"QuestionAsker":       reflect.TypeFor[action.QuestionAsker](),
+		"ChecklistAsker":      reflect.TypeFor[action.ChecklistAsker](),
+		"ChildrenAsker":       reflect.TypeFor[action.ChildrenAsker](),
 		"OpeningAsker":        reflect.TypeFor[action.OpeningAsker](),
 		"CommandsAsker":       reflect.TypeFor[action.CommandsAsker](),
 		"TermsAsker":          reflect.TypeFor[action.TermsAsker](),
