@@ -41,6 +41,36 @@ func (e *Executor) resumedOpening(child, opener string) (stream.SessionOwner, er
 	return stream.SessionOwner{}, fmt.Errorf("the resumed conversation has no opening record for this parent: %w", err)
 }
 
+// Recovery replaces an absent conversation, not a name: a live conversation
+// must not give another process its opening record.
+func (e *Executor) recoveredOpening(conversation string) (stream.SessionOwner, error) {
+	if conversation == "" {
+		return stream.SessionOwner{}, nil
+	}
+	if _, live := e.codex.Thread(conversation); live {
+		return stream.SessionOwner{}, nil
+	}
+	live, err := allLiveSessions()
+	if err != nil {
+		return stream.SessionOwner{}, err
+	}
+	for _, s := range live {
+		if s.SessionID == conversation {
+			return stream.SessionOwner{}, nil
+		}
+	}
+	rows, err := stream.OpenedSessions()
+	if err != nil {
+		return stream.SessionOwner{}, err
+	}
+	for _, row := range rows {
+		if row.SessionID == conversation {
+			return row.SessionOwner, nil
+		}
+	}
+	return stream.SessionOwner{}, nil
+}
+
 func processOwnerKey(pid int) (string, error) {
 	start, ok := procStart(pid)
 	if !ok {

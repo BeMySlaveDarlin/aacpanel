@@ -197,7 +197,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.StackDown:
 		return e.stackDown(ctx, req.Target)
 	case action.SessionOpen:
-		detail, _, err := e.sessionOpen(ctx, req.Target, req.Project)
+		detail, _, err := e.sessionOpen(ctx, req)
 		return detail, err
 	case action.SessionResume:
 		return e.sessionResume(ctx, req)

@@ -82,7 +82,8 @@ func TestRestartRecoveryOpensTheProjectAndDeliversTheSavedIntentPG(t *testing.T)
 	}
 	open, send := restartRequest(t, fake), restartRequest(t, fake)
 	if open.Kind != action.SessionOpen || open.Target != c.Session || open.Project == nil ||
-		open.Project.Path != dir || open.Project.Session != c.Session || open.Project.Parent != "lead" || open.Resume != "" {
+		open.Project.Path != dir || open.Project.Session != c.Session || open.Project.Parent != "lead" ||
+		open.Conversation != c.Conversation || open.Resume != "" {
 		t.Fatalf("the closed conversation did not open with its project and name: %+v", open)
 	}
 	if send.Kind != action.SessionSend || send.Target != c.Session || send.Text != c.Intent {

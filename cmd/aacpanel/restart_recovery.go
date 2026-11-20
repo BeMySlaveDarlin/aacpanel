@@ -75,7 +75,8 @@ func (s *Server) reopenRestart(ctx context.Context, c *store.RestartCycle) error
 	params := map[string]any{"conversation": c.Conversation, "automatic": true, "recovery": true, "attempt": c.Attempts}
 	if c.RecoveredSession == "" {
 		project, err := s.recoveryProject(ctx, *c)
-		req := action.Request{Kind: action.SessionOpen, Target: c.Session, Project: project, Device: action.PanelContextRestart}
+		req := action.Request{Kind: action.SessionOpen, Target: c.Session, Conversation: c.Conversation,
+			Project: project, Device: action.PanelContextRestart}
 		resp, err := s.restartDelivery(ctx, req, params, err)
 		if err != nil {
 			return err

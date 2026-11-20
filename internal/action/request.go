@@ -32,6 +32,7 @@ type Request struct {
 
 	// Conversation binds a close, restart, freeze or thaw to the conversation
 	// the session must still run. A thread of codex names the thread.
+	// A Claude open names the absent conversation whose opener recovery keeps.
 	Conversation string `json:"conversation,omitempty"`
 	// Sleeping preserves alarms on a sleep close, or cancels a sleeping orphan.
 	Sleeping bool `json:"sleeping,omitempty"`

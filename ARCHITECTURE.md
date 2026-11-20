@@ -232,6 +232,7 @@ an unfinished turn and its background work. A failed action is logged and
 journaled and is retried no sooner than five minutes later, with at most three
 restart or recovery attempts. If the old conversation disappeared during an
 attempt, the cycle opens its project again and sends the saved readiness intent.
+The recovered session keeps the opener of the old conversation.
 The opened session's name is persisted before delivery so a failed send retries
 there instead of opening another session. A live replacement, an explicit close
 outside the cycle or an exhausted attempt budget completes the cycle. Completed cycles

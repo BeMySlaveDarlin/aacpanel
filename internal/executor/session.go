@@ -69,13 +69,13 @@ func (e *Executor) Open(ctx context.Context, req action.Request) (string, string
 		}
 		return detail + "; " + parent, name, nil
 	}
-	return e.sessionOpen(ctx, req.Target, req.Project)
+	return e.sessionOpen(ctx, req)
 }
 
-func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.Project) (string, string, error) {
+func (e *Executor) sessionOpen(ctx context.Context, req action.Request) (string, string, error) {
 	e.projectMoves.Lock()
 	defer e.projectMoves.Unlock()
-	p, err := chooseProject(target, want)
+	p, err := chooseProject(req.Target, req.Project)
 	if err != nil {
 		return "", "", err
 	}
@@ -90,6 +90,9 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 		return "", "", fmt.Errorf("Codex launch options need agent codex")
 	}
 	owner, err := e.openingSession(p.OpenedBy)
+	if err == nil && p.OpenedBy == "" {
+		owner, err = e.recoveredOpening(req.Conversation)
+	}
 	if err != nil {
 		return "", "", err
 	}
