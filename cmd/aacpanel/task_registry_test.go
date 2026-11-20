@@ -127,6 +127,23 @@ func TestTaskRegistrySwitchUsesTheFinalCollectorSnapshotPG(t *testing.T) {
 	id := fillMap(t, srv, root)
 	dir := filepath.Join(root, "aacpanel")
 	snapshot := taskreg.Snapshot{Root: dir, Present: true, TasksComplete: true, HandoffsComplete: true, Files: []taskreg.File{{Name: "tasks/7.json", Raw: `{"id":7,"title":"Last file task","status":"open"}`}}}
+	for _, unreadable := range []taskreg.Snapshot{
+		{Root: dir, Present: true, TasksComplete: true, Errors: []string{"handoff: PermissionError"}},
+		{Root: dir, Present: true, TasksComplete: true, HandoffsComplete: true, Files: []taskreg.File{{Name: "handoff/final.json", Error: "PermissionError: the store file was not read"}}},
+	} {
+		agent := startAgent(t, map[string]any{"ok": true, "taskStore": unreadable})
+		srv.chat = chat.New(agent.path)
+		w := httptest.NewRecorder()
+		raw, _ := json.Marshal(taskreg.Request{Operation: "switch", Project: id})
+		srv.apiTaskRegistry(w, httptest.NewRequest("POST", "/api/tasks/registry", strings.NewReader(string(raw))))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("unreadable handoff accepted: %d %s", w.Code, w.Body.String())
+		}
+		writer, err := srv.db.TaskWriter(t.Context(), id)
+		if err != nil || writer != taskreg.FilesWriter {
+			t.Fatalf("failed switch changed writer: %s %v", writer, err)
+		}
+	}
 	agent := startAgent(t, map[string]any{"ok": true, "taskStore": snapshot})
 	srv.chat = chat.New(agent.path)
 	w := httptest.NewRecorder()

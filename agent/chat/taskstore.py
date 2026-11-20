@@ -44,10 +44,14 @@ def answer(request):
                 entries = list((store / directory).iterdir())
                 names.extend(f"{directory}/{p.name}" for p in entries if p.suffix == ".json")
                 out[flag] = True
-            except FileNotFoundError:
-                # A missing directory is not evidence that every source file
-                # was deleted: a move or a new store can leave it absent.
-                pass
+            except FileNotFoundError as e:
+                # A store with no handoffs need not create their directory.
+                # A missing task directory still cannot prove deletion.
+                if directory == "handoff":
+                    if os.path.lexists(store / directory):
+                        out["errors"].append(f"{directory}: {type(e).__name__}")
+                    else:
+                        out[flag] = True
             except OSError as e:
                 out["errors"].append(f"{directory}: {type(e).__name__}")
         size = 0

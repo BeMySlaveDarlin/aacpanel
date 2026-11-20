@@ -2557,7 +2557,8 @@ pages over `chat.sock`, resolving linked worktrees to their common repository.
 Only mapped paths are read, and the current map path is checked under the same
 project lock that protects writes. `aacpanel-exec task switch <project-id>`
 performs a final complete import and changes the writer in one transaction.
-An unreadable file or incomplete listing refuses the switch; the CLI offers
+An absent handoff directory is an empty handoff listing. An unreadable file
+or directory, or an incomplete task listing, refuses the switch; the CLI offers
 no reverse switch. The command is explicit and installation switches nothing.
 
 Removing a mapped project whose writer is the panel is refused while it holds

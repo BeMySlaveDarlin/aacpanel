@@ -82,6 +82,42 @@ class TaskStore(unittest.TestCase):
         empty.mkdir()
         self.assertFalse(taskstore.answer({"cwd": str(empty)})["taskStore"]["present"])
 
+    def test_a_store_without_handoffs_has_a_complete_empty_listing(self):
+        (self.store / "handoff").rmdir()
+        self.write("tasks/1.json", '{"id":1}')
+        out = taskstore.answer({"cwd": str(self.root)})["taskStore"]
+        self.assertTrue(out["handoffsComplete"])
+        self.assertEqual(out["errors"], [])
+        self.assertEqual([f["name"] for f in out["files"]], ["tasks/1.json"])
+
+    def test_an_unreadable_handoff_directory_or_file_keeps_its_error(self):
+        if os.geteuid() == 0:
+            self.skipTest("root can read files without permission")
+        directory = self.store / "handoff"
+        directory.chmod(0)
+        try:
+            out = taskstore.answer({"cwd": str(self.root)})["taskStore"]
+            self.assertFalse(out["handoffsComplete"])
+            self.assertEqual(out["errors"], ["handoff: PermissionError"])
+        finally:
+            directory.chmod(0o755)
+        self.write("handoff/final.json", '{"key":"final"}')
+        file = directory / "final.json"
+        file.chmod(0)
+        try:
+            out = taskstore.answer({"cwd": str(self.root)})["taskStore"]
+            self.assertIn("PermissionError", out["files"][0]["error"])
+        finally:
+            file.chmod(0o644)
+
+    def test_a_dangling_handoff_directory_link_is_not_an_empty_store(self):
+        directory = self.store / "handoff"
+        directory.rmdir()
+        directory.symlink_to(self.root / "absent", target_is_directory=True)
+        out = taskstore.answer({"cwd": str(self.root)})["taskStore"]
+        self.assertFalse(out["handoffsComplete"])
+        self.assertEqual(out["errors"], ["handoff: FileNotFoundError"])
+
     def test_an_oversized_encoded_file_keeps_its_name_and_other_files(self):
         self.write("tasks/1.json", "\x00" * 100)
         self.write("tasks/2.json", '{"id":2}')
