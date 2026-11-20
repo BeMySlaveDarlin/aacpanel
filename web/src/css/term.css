@@ -36,9 +36,17 @@
     --termink: #d7e2f6;
 }
 
+.termview {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 .termscreen {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
     padding: 0.5rem 0.6rem;
     border: 0;
     border-radius: var(--r-card);
@@ -54,6 +62,30 @@
 
 .termwrap.off .termscreen {
     display: none;
+}
+
+.termwrap.off .termview {
+    display: none;
+}
+
+.termselect {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    padding: .5rem .6rem;
+    border-radius: var(--r-card);
+    background: var(--termbg);
+    color: var(--termink);
+    touch-action: auto;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.termselect pre {
+    margin: 0;
+    font: inherit;
+    white-space: pre;
+    overflow-wrap: normal;
 }
 
 .termnote {
@@ -75,9 +107,10 @@
     align-items: center;
     gap: .28rem;
     flex-wrap: nowrap;
+    overflow-x: auto;
 }
 
-/* The row is a fifth smaller than a comfortable target: eight keys have to
+/* The row is a fifth smaller than a comfortable target: the keys have to
    stand side by side on a phone, and the screen of the session above them is
    what the person is here for. */
 .termkey {
@@ -102,6 +135,8 @@
 }
 
 .termkey:active { background: var(--glass); color: var(--ink); }
+
+.termkey:disabled { opacity: .4; cursor: default; }
 
 .termkey.danger {
     margin-right: auto;

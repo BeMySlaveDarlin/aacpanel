@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { useBackClose } from "../../ui/back.js";
 import { mayFocus } from "../../ui/focus.js";
 import { useToast } from "../../ui/toasts.js";
 import { useWide, WIDE } from "../../ui/wide.js";
@@ -8,6 +9,7 @@ import { hostCopies } from "./copy.js";
 import { sender } from "./input.js";
 
 const SCROLLBACK = 5000;
+const SELECT_LINES = 2000;
 
 // useTermAvailable reports whether this installation has a terminal at all.
 // ok says a terminal can be opened now; route says the listener has the
@@ -191,7 +193,7 @@ function ctrlHeld(data) {
     return data;
 }
 
-function TermKeys({ send, ctrl, onCtrl }) {
+function TermKeys({ send, ctrl, onCtrl, selecting, onSelect }) {
     const hold = useRef({ delay: 0, tick: 0 });
     const stop = () => {
         clearTimeout(hold.current.delay);
@@ -199,9 +201,13 @@ function TermKeys({ send, ctrl, onCtrl }) {
         hold.current = { delay: 0, tick: 0 };
     };
     useEffect(() => stop, []);
+    useEffect(() => {
+        if (selecting) stop();
+    }, [selecting]);
 
     const press = (key) => (event) => {
         event.preventDefault();
+        if (selecting) return;
         if (key.modifier) {
             onCtrl(!ctrl);
             return;
@@ -223,11 +229,18 @@ function TermKeys({ send, ctrl, onCtrl }) {
                     type="button"
                     key=${key.id}
                     aria-label=${key.id}
+                    disabled=${selecting}
                     onPointerDown=${press(key)}
                     onPointerUp=${stop}
                     onPointerLeave=${stop}
                     onPointerCancel=${stop}
                 >${key.label}</button>
+                ${key.id === "esc" && html`
+                    <button class="termkey" type="button" key="select" aria-pressed=${String(selecting)}
+                            aria-label=${selecting ? "done selecting terminal text" : "select terminal text"}
+                            onPointerDown=${(event) => event.preventDefault()}
+                            onClick=${onSelect}>${selecting ? "Done" : "Select"}</button>
+                `}
             `)}
         </div>
     `;
@@ -241,10 +254,13 @@ export function Term({ name, term: tab }) {
     const wrap = useRef(null);
     const termRef = useRef(null);
     const sendRef = useRef(null);
+    const selectionBox = useRef(null);
+    const selectionRef = useRef(null);
     const toast = useToast();
     const wide = useWide();
     const [state, setState] = useState({ kind: "loading" });
     const [attempt, setAttempt] = useState(0);
+    const [selection, setSelection] = useState(null);
     // The modifier lives here rather than in the row of keys: what it changes
     // is the next character typed on the phone's own keyboard, and that goes
     // straight from the emulator to the session.
@@ -255,8 +271,63 @@ export function Term({ name, term: tab }) {
         setCtrl(on);
     };
 
+    const finishSelection = () => {
+        const was = selectionRef.current;
+        if (!was) return;
+        selectionRef.current = null;
+        setSelection(null);
+        const term = termRef.current;
+        if (!term) return;
+        term.options.disableStdin = false;
+        box.current.inert = false;
+        if (was.focused && state.kind === "live") term.focus();
+    };
+
+    const select = () => {
+        if (selectionRef.current) {
+            finishSelection();
+            return;
+        }
+        const term = termRef.current;
+        if (!term) return;
+        const buffer = term.buffer.active;
+        const from = Math.max(0, buffer.length - SELECT_LINES);
+        const lines = [];
+        for (let i = from; i < buffer.length; i += 1) lines.push(buffer.getLine(i).translateToString(true));
+        const screen = term.element.querySelector(".xterm-screen");
+        const lineHeight = screen.getBoundingClientRect().height / term.rows;
+        const snapshot = {
+            text: lines.join("\n"),
+            top: Math.max(0, buffer.viewportY - from) * lineHeight,
+            fontFamily: term.options.fontFamily,
+            fontSize: term.options.fontSize,
+            lineHeight,
+            focused: document.activeElement === term.textarea,
+        };
+        selectionRef.current = snapshot;
+        setSelection(snapshot);
+        term.options.disableStdin = true;
+        term.blur();
+        box.current.inert = true;
+    };
+
+    useBackClose(Boolean(selection), finishSelection);
+
+    useLayoutEffect(() => {
+        // The extra height below the snapshot keeps its top in place when
+        // dismissing the keyboard leaves more room than the captured screen.
+        if (selection && selectionBox.current) selectionBox.current.scrollTop = selection.top;
+    }, [selection]);
+
+    useEffect(() => {
+        if (wide || state.kind !== "live") finishSelection();
+    }, [wide, state.kind]);
+
     useEffect(() => {
         if (!box.current) return undefined;
+        selectionRef.current = null;
+        setSelection(null);
+        box.current.inert = false;
 
         let alive = true;
         let close = null;
@@ -310,10 +381,12 @@ export function Term({ name, term: tab }) {
             themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
             const keepFocus = (event) => {
+                if (selectionRef.current) return;
                 if (event.relatedTarget && event.relatedTarget !== document.body) return;
                 if (!mayFocus()) return;
                 requestAnimationFrame(() => {
                     if (!alive) return;
+                    if (selectionRef.current) return;
                     if (document.activeElement && document.activeElement !== document.body) return;
                     term.focus();
                 });
@@ -325,7 +398,9 @@ export function Term({ name, term: tab }) {
 
             let id = "";
             const encoder = new TextEncoder();
-            const send = (bytes) => input.send(bytes);
+            const send = (bytes) => {
+                if (!selectionRef.current) input.send(bytes);
+            };
 
             es.addEventListener("ready", (ev) => {
                 if (!alive) return;
@@ -395,6 +470,7 @@ export function Term({ name, term: tab }) {
             if (term) opening.then(() => term.dispose());
             termRef.current = null;
             sendRef.current = null;
+            selectionRef.current = null;
         };
     }, [name, tab, attempt]);
 
@@ -423,6 +499,7 @@ export function Term({ name, term: tab }) {
     }, [toast, tab]);
 
     const type = (data) => {
+        if (selectionRef.current) return;
         const send = sendRef.current;
         if (send) send(data);
     };
@@ -434,9 +511,17 @@ export function Term({ name, term: tab }) {
 
     return html`
         <div class=${`termwrap${state.kind === "live" ? "" : " off"}`} ref=${wrap}>
-            <div class="termscreen" ref=${box}></div>
+            <div class="termview">
+                <div class="termscreen" ref=${box}></div>
+                ${selection && html`
+                    <div class="termselect" ref=${selectionBox} role="region" aria-label="terminal text"
+                         style=${{ fontFamily: selection.fontFamily, fontSize: `${selection.fontSize}px`, lineHeight: `${selection.lineHeight}px` }}>
+                        <pre style=${{ minHeight: `calc(100% + ${selection.top}px)` }}>${selection.text}</pre>
+                    </div>
+                `}
+            </div>
             ${state.kind === "live" && !wide && html`
-                <${TermKeys} send=${type} ctrl=${ctrl} onCtrl=${holdCtrl} />`}
+                <${TermKeys} send=${type} ctrl=${ctrl} onCtrl=${holdCtrl} selecting=${Boolean(selection)} onSelect=${select} />`}
             ${state.kind === "loading" && html`
                 <div class="viewwait" role="status">
                     <span class="spin"></span>

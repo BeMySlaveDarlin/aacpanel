@@ -19,6 +19,14 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { foreignTerms } from "/check/fixtures/termsforeign.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { Terminal } from "/dist/term.js";
+
+let terminal = null;
+const openTerminal = Terminal.prototype.open;
+Terminal.prototype.open = function (...args) {
+    openTerminal.apply(this, args);
+    terminal = this;
+};
 
 // A frame to look at: #shot=A stops the walk where the artboard stands.
 const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
@@ -64,6 +72,7 @@ const profileMap = [
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const asked = [];
+const inputs = [];
 let made = 0;
 // held keeps the answer to the next close back until the walk lets it go, so
 // the walk can look at a tab whose close is on its way.
@@ -78,6 +87,7 @@ window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u === "/api/term") return json({ available: true });
     if (u === "/api/terms") return json({ terms });
+    if (u.startsWith("/api/term/input")) inputs.push(new TextDecoder().decode(init.body));
     if (u.startsWith("/api/term/")) return json({});
     if (u === "/api/actions" && init && init.method === "POST") {
         const body = JSON.parse(init.body);
@@ -145,13 +155,12 @@ const mount = (exec) => render(h(ToastHost, null, h(GateHost, null, html`<${Mobi
     jump=${null} onJumped=${() => {}} />`)), document.getElementById("root"));
 mount(exec);
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms = 3000) => {
     const end = Date.now() + ms;
     while (Date.now() < end) {
         const got = fn();
         if (got) return got;
-        await sleep(30);
+        await new Promise(requestAnimationFrame);
     }
     return fn();
 };
@@ -309,13 +318,83 @@ window.done = (async () => {
         await until(() => document.querySelector(".termkeys"));
         out.keys = all(".termkeys .termkey").map(text);
 
+        const term = terminal;
+        Terminal.prototype.open = openTerminal;
+        const write = (data) => new Promise((resolve) => term.write(data, resolve));
+        await write("\r\n" + Array.from({ length: 2040 }, (_, i) => `history ${i}`).join("\r\n") +
+            "\r\n\x1b[32msnapshot héllo ✓ <tag>&\x1b[0m   ");
+        const buffer = term.buffer.active;
+        const expected = Array.from({ length: Math.min(buffer.length, 2000) }, (_, i) =>
+            buffer.getLine(Math.max(0, buffer.length - 2000) + i).translateToString(true)).join("\n");
+        term.scrollToLine(buffer.baseY - 5);
+        term.focus();
+        const selectKey = () => document.querySelector(".termkeys [aria-label='select terminal text']");
+        const doneKey = () => document.querySelector(".termkeys [aria-label='done selecting terminal text']");
+        const pointer = (el, type) => el.dispatchEvent(new PointerEvent(type, {
+            bubbles: true, cancelable: true, pointerType: "touch",
+        }));
+        const select = () => {
+            const key = selectKey();
+            pointer(key, "pointerdown");
+            key.click();
+            pointer(key, "pointerup");
+        };
+        select();
+        const copy = await until(() => document.querySelector(".termselect pre"));
+        if (!copy) throw new Error("Select did not open the terminal text");
+        const native = window.getSelection();
+        native.selectAllChildren(copy);
+        out.selection = {
+            text: copy.textContent, expected, native: native.toString(),
+            selectable: getComputedStyle(copy).userSelect === "text",
+            bufferLines: buffer.length,
+            blurred: document.activeElement !== term.textarea,
+            doneLabel: text(doneKey()),
+        };
+        native.removeAllRanges();
+        const sent = inputs.length;
+        for (const key of all(".termkeys .termkey").filter((b) => b !== doneKey())) {
+            pointer(key, "pointerdown");
+            pointer(key, "pointerup");
+        }
+        term.paste("paste while selecting");
+        term.textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "x", code: "KeyX", bubbles: true }));
+        lastStream().onmessage({ data: btoa("\r\narrived while selecting") });
+        await write("\x1b[6n");
+        await quiet();
+        Object.assign(out.selection, {
+            input: inputs.length - sent,
+            frozen: copy.textContent === expected,
+            streaming: term.buffer.active.getLine(term.buffer.active.baseY + term.buffer.active.cursorY)
+                .translateToString(true) === "arrived while selecting",
+        });
+        doneKey().click();
+        await until(() => !document.querySelector(".termselect") && selectKey());
+        out.selection.done = !document.querySelector(".termselect") && text(selectKey()) === "Select";
+        out.selection.refocused = document.activeElement === term.textarea;
+        pointer(document.querySelector(".termkeys [aria-label=enter]"), "pointerdown");
+        pointer(document.querySelector(".termkeys [aria-label=enter]"), "pointerup");
+        await until(() => inputs.length > sent);
+        out.selection.resumed = inputs.slice(sent);
+
+        term.blur();
+        await quiet();
+        const depth = history.state.depth;
+        select();
+        await until(() => doneKey() && history.state.depth === depth + 1);
+        history.back();
+        await until(() => !document.querySelector(".termselect") && history.state.depth === depth);
+        out.selection.back = !document.querySelector(".termselect") && Boolean(document.querySelector(".ttabs"));
+        out.selection.unfocused = document.activeElement !== term.textarea;
+        select();
+        await until(() => document.querySelector(".termselect"));
+
         // An attach is announced before xterm's startup task can run. Keep
         // this turn busy, then change tabs before yielding to that task: the
         // emulator's renderer must survive until its startup has finished.
         const nextStream = () => new Promise((resolve) => {
             onStream = (stream) => { onStream = null; resolve(stream); };
         });
-        const { Terminal } = await import("/dist/term.js");
         const dispose = Terminal.prototype.dispose;
         const disposed = new Set();
         Terminal.prototype.dispose = function () {
@@ -325,6 +404,7 @@ window.done = (async () => {
         const firstAttached = nextStream();
         all(".ttabs .ttab").find((b) => text(b) === "make check").click();
         const first = await firstAttached;
+        out.selection.switched = !document.querySelector(".termselect");
         const firstElement = document.querySelector(".xterm");
         first.on.ready({ data: JSON.stringify({ id: "rapid-in" }) });
         // A live refit records the viewport size before startup reads it.
@@ -336,7 +416,7 @@ window.done = (async () => {
         const secondAttached = nextStream();
         all(".ttabs .ttab").find((b) => text(b) === "zsh").click();
         const second = await secondAttached;
-        await quiet();
+        await until(() => disposed.has(firstElement));
         Terminal.prototype.dispose = dispose;
         out.lifecycle = {
             retired: first.readyState === 2, current: second.readyState === 1,
@@ -374,7 +454,7 @@ window.done = (async () => {
         const field = await until(() => document.querySelector(".sheet.on .rnname"));
         field.value = "build";
         field.dispatchEvent(new Event("input", { bubbles: true }));
-        await sleep(50);
+        await until(() => !all(".sheet.on .btn.primary").pop().disabled);
         all(".sheet.on .btn.primary").pop().click();
         await until(() => actions("term.rename").length === 1 && tabs().includes("build"));
         out.renamed = { action: actions("term.rename")[0], tabs: tabs() };

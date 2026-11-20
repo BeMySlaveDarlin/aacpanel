@@ -207,7 +207,25 @@ type termsPhoneShot struct {
 		Current  bool `json:"current"`
 		Disposed bool `json:"disposed"`
 	} `json:"lifecycle"`
-	Keys     []string `json:"keys"`
+	Keys      []string `json:"keys"`
+	Selection struct {
+		Text        string   `json:"text"`
+		Expected    string   `json:"expected"`
+		Native      string   `json:"native"`
+		Selectable  bool     `json:"selectable"`
+		BufferLines int      `json:"bufferLines"`
+		Blurred     bool     `json:"blurred"`
+		DoneLabel   string   `json:"doneLabel"`
+		Input       int      `json:"input"`
+		Frozen      bool     `json:"frozen"`
+		Streaming   bool     `json:"streaming"`
+		Done        bool     `json:"done"`
+		Refocused   bool     `json:"refocused"`
+		Resumed     []string `json:"resumed"`
+		Back        bool     `json:"back"`
+		Unfocused   bool     `json:"unfocused"`
+		Switched    bool     `json:"switched"`
+	} `json:"selection"`
 	Switched struct {
 		On     string `json:"on"`
 		Stream string `json:"stream"`
@@ -395,8 +413,33 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		if o.Stream != "/api/term/stream?term=t-new1" {
 			t.Errorf("the terminal attached with %q, expected the stream of the new id", o.Stream)
 		}
-		if want := []string{"Esc", "Ctrl", "Tab", "←", "↑", "↓", "→", "Enter"}; !equalStrings(got.Keys, want) {
+		if want := []string{"Esc", "Select", "Ctrl", "Tab", "←", "↑", "↓", "→", "Enter"}; !equalStrings(got.Keys, want) {
 			t.Errorf("the keys over the keyboard read %v, expected the row of the session terminal %v", got.Keys, want)
+		}
+	})
+
+	t.Run("Select exposes a frozen text buffer without sending input", func(t *testing.T) {
+		s := got.Selection
+		if s.BufferLines <= 2000 || len(strings.Split(s.Text, "\n")) != 2000 {
+			t.Errorf("Select kept %d of %d buffer lines, expected the last 2000 of a longer history", len(strings.Split(s.Text, "\n")), s.BufferLines)
+		}
+		if s.Text != s.Expected || !strings.Contains(s.Text, "snapshot héllo ✓ <tag>&") {
+			t.Errorf("Select differs from the trimmed buffer %v; its last lines are %q", s.Text != s.Expected, s.Text[max(0, len(s.Text)-160):])
+		}
+		if !s.Selectable || s.Native != s.Text {
+			t.Error("the buffer is not available to native text selection")
+		}
+		if s.DoneLabel != "Done" || !s.Blurred {
+			t.Errorf("Select left its key %q and removed input focus %v", s.DoneLabel, s.Blurred)
+		}
+		if s.Input != 0 || !s.Frozen || !s.Streaming {
+			t.Errorf("the snapshot sent %d inputs, stayed frozen %v, and kept receiving output %v", s.Input, s.Frozen, s.Streaming)
+		}
+		if !s.Done || !s.Refocused || !equalStrings(s.Resumed, []string{"\r"}) {
+			t.Errorf("Done closed the snapshot %v, restored focus %v and sent %q after input resumed", s.Done, s.Refocused, s.Resumed)
+		}
+		if !s.Back || !s.Unfocused || !s.Switched {
+			t.Errorf("Back closed only the snapshot %v, kept the keyboard closed %v, and changing tabs closed it %v", s.Back, s.Unfocused, s.Switched)
 		}
 	})
 
