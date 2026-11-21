@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 type slashRow struct {
@@ -74,13 +75,22 @@ type slashBtwShot struct {
 		Q       string `json:"q"`
 		Status  string `json:"status"`
 	} `json:"taskQueries"`
-	MapRequests       int        `json:"mapRequests"`
-	NoProjectRows     int        `json:"noProjectRows"`
-	NoProjectRequests int        `json:"noProjectRequests"`
-	Aborted           int        `json:"aborted"`
-	AfterAbort        []slashRow `json:"afterAbort"`
-	FallbackMaps      int        `json:"fallbackMaps"`
-	FallbackNames     []slashRow `json:"fallbackNames"`
+	MapRequests              int        `json:"mapRequests"`
+	NoProjectRows            int        `json:"noProjectRows"`
+	NoProjectRequests        int        `json:"noProjectRequests"`
+	Aborted                  int        `json:"aborted"`
+	AfterAbort               []slashRow `json:"afterAbort"`
+	FallbackMaps             int        `json:"fallbackMaps"`
+	FallbackNames            []slashRow `json:"fallbackNames"`
+	FuzzyNames               []slashRow `json:"fuzzyNames"`
+	ScoredNames              []slashRow `json:"scoredNames"`
+	GappedNames              []slashRow `json:"gappedNames"`
+	CyrillicNames            []slashRow `json:"cyrillicNames"`
+	CapitalNames             []slashRow `json:"capitalNames"`
+	EmptyNames               []slashRow `json:"emptyNames"`
+	CodexNames               []slashRow `json:"codexNames"`
+	MissingSessionNames      []slashRow `json:"missingSessionNames"`
+	MissingSessionEmptyNames []slashRow `json:"missingSessionEmptyNames"`
 }
 
 func TestComposerCompletesNamesAndProjectTasks(t *testing.T) {
@@ -136,6 +146,64 @@ func TestComposerCompletesNamesAndProjectTasks(t *testing.T) {
 	if got.FallbackMaps != 1 || len(got.FallbackNames) != 5 {
 		t.Errorf("fallback map: %d requests, names %v", got.FallbackMaps, labels(got.FallbackNames))
 	}
+	wantFuzzy := []string{"Every road", "Evening review", "Evirma", "Evergreen", "evr", "evr-group", "evr-project", "evr-session"}
+	for _, rows := range [][]slashRow{got.FuzzyNames, got.CodexNames} {
+		if !reflect.DeepEqual(labels(rows), wantFuzzy) {
+			t.Errorf("fuzzy names in contour and score order: %v, want %v", labels(rows), wantFuzzy)
+		}
+	}
+	if want := []string{"rnk", "rnk-tail", "Z rnk", "Raven knot", "Aranok"}; !reflect.DeepEqual(labels(got.ScoredNames), want) {
+		t.Errorf("exact, consecutive, word-boundary and scattered matches: %v, want %v", labels(got.ScoredNames), want)
+	}
+	if !reflect.DeepEqual(labels(got.GappedNames), []string{"aacpanel"}) {
+		t.Errorf("gapped name: %v", labels(got.GappedNames))
+	}
+	if !reflect.DeepEqual(labels(got.CyrillicNames), []string{"\u0410\u043b\u0433\u043e"}) {
+		t.Errorf("Cyrillic name: %v", labels(got.CyrillicNames))
+	}
+	if want := []string{"\u0410\u0431\u0412\u0433", "\u0410\u0431\u0432\u0433"}; !reflect.DeepEqual(labels(got.CapitalNames), want) {
+		t.Errorf("Unicode capital boundary: %v, want %v", labels(got.CapitalNames), want)
+	}
+	// The user's locale decides where Cyrillic stands relative to Latin.
+	checkEmptyTier := func(context string, rows []slashRow, want []string) {
+		t.Helper()
+		gotSet, wantSet := map[string]int{}, map[string]int{}
+		gotLatin, wantLatin := []string{}, []string{}
+		hasCyrillic := func(r rune) bool { return unicode.Is(unicode.Cyrillic, r) }
+		for _, name := range labels(rows) {
+			gotSet[name]++
+			if !strings.ContainsFunc(name, hasCyrillic) {
+				gotLatin = append(gotLatin, name)
+			}
+		}
+		for _, name := range want {
+			wantSet[name]++
+			if !strings.ContainsFunc(name, hasCyrillic) {
+				wantLatin = append(wantLatin, name)
+			}
+		}
+		if !reflect.DeepEqual(gotSet, wantSet) {
+			t.Errorf("%s names: %v, want %v", context, gotSet, wantSet)
+		}
+		if !reflect.DeepEqual(gotLatin, wantLatin) {
+			t.Errorf("%s Latin alphabetic order: %v, want %v", context, gotLatin, wantLatin)
+		}
+	}
+	wantOwn := []string{"aacpanel", "Aranok", "Evening review", "Evergreen", "Every road", "Evirma", "Raven knot", "River", "rnk", "rnk-tail", "term", "Z rnk",
+		"\u0410\u0431\u0432\u0433", "\u0410\u0431\u0412\u0433", "\u0410\u043b\u0433\u043e"}
+	wantOther := []string{"evr", "evr-group", "evr-project", "evr-session"}
+	if len(got.EmptyNames) != len(wantOwn)+len(wantOther) {
+		t.Errorf("empty query names: %v, want %d names", labels(got.EmptyNames), len(wantOwn)+len(wantOther))
+	} else {
+		checkEmptyTier("empty query own contour", got.EmptyNames[:len(wantOwn)], wantOwn)
+		checkEmptyTier("empty query other contours", got.EmptyNames[len(wantOwn):], wantOther)
+	}
+	if want := []string{"evr", "evr-group", "evr-project", "evr-session", "Every road", "Evening review", "Evirma", "Evergreen"}; !reflect.DeepEqual(labels(got.MissingSessionNames), want) {
+		t.Errorf("missing session must rank only by score: %v, want %v", labels(got.MissingSessionNames), want)
+	}
+	wantMissingEmpty := []string{"aacpanel", "Aranok", "Evening review", "Evergreen", "Every road", "Evirma", "evr", "evr-group", "evr-project", "evr-session", "Raven knot", "River", "rnk", "rnk-tail", "Z rnk",
+		"\u0410\u0431\u0432\u0433", "\u0410\u0431\u0412\u0433", "\u0410\u043b\u0433\u043e"}
+	checkEmptyTier("empty query without a session", got.MissingSessionEmptyNames, wantMissingEmpty)
 }
 
 func slashBtwFixture(t *testing.T) slashBtwShot {

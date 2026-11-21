@@ -279,6 +279,47 @@ window.done = (async () => {
     await quiet();
     out.fallbackMaps = log.maps;
     out.fallbackNames = rows();
+
+    const ownDir = "/cfg/second";
+    const fuzzyProfiles = [
+        { id: 1, profile: "evr", configDir: "/cfg/first", groups: [{ name: "evr-group", projects: [{ id: 8, name: "evr-project" }] }] },
+        { id: 2, profile: "Evirma", configDir: ownDir, groups: [
+            { name: "Evening review", projects: [{ id: 9, name: "Every road" }] },
+            { name: "\u0410\u043b\u0433\u043e", projects: [] },
+        ] },
+    ];
+    const fuzzySessions = [
+        { session: "term", configDir: ownDir, project: null },
+        { session: "evr-session", configDir: "/cfg/first" },
+        { session: "evergreen-thread", title: "Evergreen", agent: "codex", configDir: ownDir, codexHome: "/codex/second" },
+        { session: "River", configDir: ownDir },
+        ...["rnk", "rnk-tail", "Z rnk", "Raven knot", "Aranok", "aacpanel", "\u0410\u0431\u0412\u0433", "\u0410\u0431\u0432\u0433"]
+            .map((session) => ({ session, configDir: ownDir })),
+    ];
+    setProfileMap(fuzzyProfiles);
+    setLiveSessions(fuzzySessions);
+    await type("@evr");
+    out.fuzzyNames = rows();
+    await type("@rnk");
+    out.scoredNames = rows();
+    await type("@aacpl");
+    out.gappedNames = rows();
+    await type("@\u0430\u043b\u0433");
+    out.cyrillicNames = rows();
+    await type("@\u0430\u0432");
+    out.capitalNames = rows();
+    await type("@");
+    out.emptyNames = rows();
+
+    // Codex's configDir identifies its contour too, independently of codexHome.
+    setLiveSessions(fuzzySessions.map((s) => s.session === "term" ? { ...s, agent: "codex", codexHome: "/codex/second" } : s));
+    await type("@evr");
+    out.codexNames = rows();
+    setLiveSessions(fuzzySessions.filter((s) => s.session !== "term"));
+    await type("@EVR");
+    out.missingSessionNames = rows();
+    await type("@");
+    out.missingSessionEmptyNames = rows();
     return out;
 })();
 </script>

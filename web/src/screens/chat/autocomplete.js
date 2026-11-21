@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { completionSources } from "../../actions/registry.js";
 import { agentName, shownName } from "../../agent.js";
+import { fuzzyScore } from "../../fuzzy.js";
 import { sessionsOf } from "../sessions/of.js";
 
 export const COMPLETION_DELAY = 180;
@@ -16,20 +17,26 @@ export function completionAt(text, start, end = start) {
     return { kind: match[1], query: match[2].toLowerCase(), from, to: start + tail.length };
 }
 
-function nameHints(query, profiles, sessions) {
+function nameHints(query, profiles, sessions, live) {
     const rows = [];
-    const add = (label, tag) => {
-        if (label && label.toLowerCase().includes(query)) rows.push({ label, tag, value: `${label} ` });
+    const ownContour = live?.configDir && (profiles || []).find((contour) => contour.configDir === live.configDir);
+    const add = (label, tag, own) => {
+        if (!label) return;
+        const score = fuzzyScore(query, label);
+        if (score !== null) rows.push({ label, tag, own, score, value: `${label} ` });
     };
-    for (const session of sessions) add(shownName(session), `session · ${agentName(session)}`);
+    for (const session of sessions) {
+        add(shownName(session), `session · ${agentName(session)}`, Boolean(ownContour && session.configDir === ownContour.configDir));
+    }
     for (const contour of profiles || []) {
-        add(contour.profile || contour.name, "contour");
+        const own = contour === ownContour;
+        add(contour.profile || contour.name, "contour", own);
         for (const group of contour.groups || []) {
-            add(group.name, "group");
-            for (const project of group.projects || []) add(project.name, "project");
+            add(group.name, "group", own);
+            for (const project of group.projects || []) add(project.name, "project", own);
         }
     }
-    return rows.sort((a, b) => Number(!a.label.toLowerCase().startsWith(query)) - Number(!b.label.toLowerCase().startsWith(query))
+    return rows.sort((a, b) => b.own - a.own || b.score - a.score
         || a.label.localeCompare(b.label));
 }
 
@@ -93,5 +100,5 @@ export function useCompletions(name, at) {
     }, [project, query]);
 
     if (!at) return [];
-    return at.kind === "@" ? nameHints(at.query, profiles, sources.sessions) : tasks.key === key ? tasks.rows : [];
+    return at.kind === "@" ? nameHints(at.query, profiles, sources.sessions, live) : tasks.key === key ? tasks.rows : [];
 }
