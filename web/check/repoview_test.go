@@ -15,6 +15,33 @@ type repoShot struct {
 	Tags                 []string `json:"tags"`
 	Dots                 []string `json:"dots"`
 	GutterTouchAction    string   `json:"gutterTouchAction"`
+	Folded               struct {
+		Rows int    `json:"rows"`
+		More string `json:"more"`
+		Tree int    `json:"tree"`
+	} `json:"folded"`
+	Unfolded struct {
+		Rows int    `json:"rows"`
+		More string `json:"more"`
+	} `json:"unfolded"`
+}
+
+// A long run of changes folds after the first few. Unfolded, a branch with a
+// hundred changed files puts the files of the project a hundred rows down,
+// out of reach on a phone.
+func TestRepoALongRunOfChangesFoldsAboveTheFiles(t *testing.T) {
+	var got repoShot
+	runFixture(t, "repoview.html", &got)
+
+	if got.Folded.Rows != 5 || got.Folded.More != "All 7 changed" {
+		t.Errorf("seven changes show %d rows under %q — the run does not fold after five", got.Folded.Rows, got.Folded.More)
+	}
+	if got.Folded.Tree == 0 {
+		t.Error("the files of the project are not drawn under the folded changes")
+	}
+	if got.Unfolded.Rows != 7 || got.Unfolded.More != "Show fewer" {
+		t.Errorf("unfolded, %d rows under %q — every change should be there with a way to fold them back", got.Unfolded.Rows, got.Unfolded.More)
+	}
 }
 
 // A page has one way back. Two of them stacked is not a cosmetic slip: the

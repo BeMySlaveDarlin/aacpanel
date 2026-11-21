@@ -233,6 +233,8 @@
 .cdallfiles .cdup { margin-left: auto; }
 .cddirectory { font-size: var(--t-xs); font-weight: 400; color: var(--ink-faint); }
 .cdchangedfile { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border: 0; border-bottom: var(--hair) solid var(--line); background: none; color: var(--ink); text-align: left; cursor: pointer; }
+.cdchangedmore { display: block; width: 100%; padding: 10px 12px; border: 0; border-bottom: var(--hair) solid var(--line); background: none; color: var(--accent); font: inherit; font-size: var(--t-sm); text-align: left; cursor: pointer; }
+.cdchangedmore:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .cdchangedname { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
 .cdchangedname b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); font-weight: 500; }
 .cdchangedname small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-xs) var(--mono); color: var(--ink-faint); }
@@ -280,6 +282,7 @@
     .cdfilesbutton svg { width: var(--i-sm); height: var(--i-sm); }
     .cdfindbox kbd { display: inline; }
     .cdchangedfile { padding-block: 7px; border-bottom: 0; }
+    .cdchangedmore { padding-block: 7px; border-bottom: 0; }
     .cdnode { padding-block: 6px; border-bottom: 0; }
     .cdfilebar { flex-wrap: nowrap; padding-inline: 10px; }
     .cdfilepath { flex-basis: 0; }

@@ -166,9 +166,17 @@ function FileMarks({ file }) {
     `;
 }
 
+// How many changed files the list shows before the rest folds: a long run of
+// changes would push the files of the project out of reach.
+const CHANGED_SHOWN = 5;
+
 function FilesPane({ repo }) {
     const { data, plain, changes, base } = repo;
     const files = data && !plain ? data.files || [] : [];
+    const [everyChange, setEveryChange] = useState(false);
+    const folds = files.length > CHANGED_SHOWN;
+    const shownFiles = everyChange || !folds ? files
+        : files.filter((f, i) => i < CHANGED_SHOWN || f.path === repo.file);
     const comparison = data && (data.base || base) || "";
     const baseName = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(comparison)
         ? comparison.slice(0, 7) : comparison.replace(/^refs\/(?:heads|remotes|tags)\//, "");
@@ -195,13 +203,19 @@ function FilesPane({ repo }) {
                 <span class="cdstat"><span class="plus">+${totals.add}</span> <span class="minus">−${totals.delete}</span></span>
             </h3>
             <div class="cdchanged">
-                ${files.map((f) => html`
+                ${shownFiles.map((f) => html`
                     <button class=${`cdchangedfile${repo.file === f.path ? " on" : ""}`} type="button" key=${f.path}
                             data-path=${f.path} aria-current=${repo.file === f.path ? "true" : undefined} onClick=${() => repo.openFile(f.path)}>
                         <span class="cdchangedname"><b>${dirName(f.path)}</b><small>${f.path.split("/").slice(0, -1).join("/") || "/"}</small></span>
                         <${FileMarks} file=${f} />
                     </button>
                 `)}
+                ${folds && html`
+                    <button class="cdchangedmore" type="button" aria-expanded=${everyChange}
+                            onClick=${() => setEveryChange(!everyChange)}>
+                        ${everyChange ? "Show fewer" : `All ${files.length} changed`}
+                    </button>
+                `}
                 ${!files.length && html`<p class="hint">Nothing has changed against <b>${data.base || "the base"}</b>.</p>`}
                 ${data.cut && html`<p class="cdcut">Showing <b>${files.length}</b> of <b>${data.total}</b> changed files. Other files remain in All files.</p>`}
             </div>
