@@ -705,9 +705,14 @@ service restarts. Closure stops the ladder. Open incoming and outgoing claims
 travel in the session snapshot separately from the person's waiting work and
 do not contribute to the move counter.
 
-Claude's synchronous `turn` Stop hook reads the final text record, then calls
-the local `/api/turn` endpoint with a fifteen-second deadline. A shared cheap
-filter admits a question mark outside code and links, request words in the
+Claude's synchronous `turn` Stop hook takes `last_assistant_message` from the
+event, falling back to the transcript when that text is absent or empty, then
+calls the local `/api/turn` endpoint with a fifteen-second deadline. A matching
+text record in the current turn supplies the message UUID; without one, the
+hook uses a deterministic version-eight UUID from SHA-256 of the conversation,
+a NUL separator and the trimmed text. The hook does not wait for the transcript
+write: stream callbacks can precede it. A shared cheap filter admits a question
+mark outside code and links, request words in the
 last eight hundred characters, or a code fence in the last twelve hundred.
 Haiku runs in the session's contour with no conversation, tools or MCP. The
 claim keyed by conversation and message prevents a second paid call. The hook
@@ -3178,8 +3183,10 @@ check, since a person's answer can take hours.
 
 For Claude the hook sends the steps from the checklist file it read with its
 timestamp and a condensed log since that write, limited to its last ten
-thousand characters. The service sends those steps and that log to a
-tool-free, non-persistent haiku call in the session's contour. Only `current`
+thousand characters. The final text and message key follow the `turn` hook's
+Stop source; text not yet in the transcript is appended to the log. The service
+sends those steps and that log to a tool-free, non-persistent haiku call in the
+session's contour. Only `current`
 with confidence of at least 0.7 frees an idle stop;
 an unreadable verdict, failure or timeout holds it. Haiku never writes the
 checklist: the session sends the whole list, or ends without a word if it

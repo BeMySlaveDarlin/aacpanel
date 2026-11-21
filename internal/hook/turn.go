@@ -3,7 +3,9 @@ package hook
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -32,8 +34,7 @@ func turn(_ string, payload []byte, _ time.Time) Reply {
 		return Reply{}
 	}
 	id, _ := p["session_id"].(string)
-	path, _ := p["transcript_path"].(string)
-	message, text := lastAgentText(path)
+	message, text := stopAgentText(p)
 	if id == "" || message == "" || !question.Candidate(text) {
 		return Reply{}
 	}
@@ -82,31 +83,61 @@ func turn(_ string, payload []byte, _ time.Time) Reply {
 	return Reply{Block: "This turn asks the person to do something by hand: “" + action + "”. Hand it over as an act so the panel shows it as their move — request with steps (a command goes into its step), or secret_ask for a credential. If it already is an act or is not for the person, end the turn."}
 }
 
+// Stream callbacks can precede the transcript write, so Stop's text is
+// authoritative and a missing record must not postpone the check.
+func stopAgentText(p map[string]any) (string, string) {
+	path, _ := p["transcript_path"].(string)
+	text, _ := p["last_assistant_message"].(string)
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return lastAgentText(path)
+	}
+	for record := range newestFirst(path) {
+		if isPrompt(record) {
+			break
+		}
+		if agentText(record) == text {
+			if id, _ := record["uuid"].(string); id != "" {
+				return id, text
+			}
+		}
+	}
+	id, _ := p["session_id"].(string)
+	sum := sha256.Sum256([]byte(id + "\x00" + text))
+	sum[6] = sum[6]&0x0f | 0x80
+	sum[8] = sum[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", sum[:4], sum[4:6], sum[6:8], sum[8:10], sum[10:16]), text
+}
+
 func lastAgentText(path string) (string, string) {
 	for record := range newestFirst(path) {
 		if isPrompt(record) {
 			return "", ""
 		}
-		if record["type"] != "assistant" || truthy(record["isMeta"]) {
-			continue
-		}
-		var text []string
-		switch content := contentOf(record).(type) {
-		case string:
-			text = append(text, content)
-		case []any:
-			for _, item := range content {
-				if b, ok := item.(map[string]any); ok && b["type"] == "text" {
-					if s, ok := b["text"].(string); ok {
-						text = append(text, s)
-					}
-				}
-			}
-		}
-		if joined := strings.TrimSpace(strings.Join(text, "\n\n")); joined != "" {
+		if text := agentText(record); text != "" {
 			id, _ := record["uuid"].(string)
-			return id, joined
+			return id, text
 		}
 	}
 	return "", ""
+}
+
+func agentText(record map[string]any) string {
+	if record["type"] != "assistant" || truthy(record["isMeta"]) {
+		return ""
+	}
+	var text []string
+	switch content := contentOf(record).(type) {
+	case string:
+		text = append(text, content)
+	case []any:
+		for _, item := range content {
+			if b, ok := item.(map[string]any); ok && b["type"] == "text" {
+				if s, ok := b["text"].(string); ok {
+					text = append(text, s)
+				}
+			}
+		}
+	}
+	return strings.TrimSpace(strings.Join(text, "\n\n"))
 }

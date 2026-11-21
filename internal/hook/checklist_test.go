@@ -565,10 +565,7 @@ func TestChecklistFileInRequest(t *testing.T) {
 		map[string]any{"text": "Verify the change", "status": checklist.Active},
 	}}})
 	transcript := filepath.Join(dir, "transcript.jsonl")
-	writeFile(t, transcript, strings.Join(c.Transcripts["worked"], "\n")+"\n")
-	var received struct {
-		Checklist []map[string]string `json:"checklist"`
-	}
+	var received *idleChecklistRequest
 	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 			t.Error(err)
@@ -577,13 +574,50 @@ func TestChecklistFileInRequest(t *testing.T) {
 	}))
 	defer service.Close()
 	t.Setenv("AACP_PANEL_URL", service.URL)
-	payload := mustJSON(t, map[string]any{"hook_event_name": "Stop", "session_id": c.Session, "transcript_path": transcript})
-	if reply := remindChecklist("Stop", payload, time.Now()); reply.Block != "" {
-		t.Fatalf("an approved checklist was held: %+v", reply)
-	}
-	want := []map[string]string{{"text": "Fix the hook", "status": checklist.Done}, {"text": "Verify the change", "status": checklist.Active}}
-	if !reflect.DeepEqual(received.Checklist, want) {
-		t.Fatalf("the checklist file's steps: %+v, want %+v", received.Checklist, want)
+	const final = "The edits are ready."
+	const message = "33333333-3333-4333-8333-333333333333"
+	for _, tc := range []struct {
+		name, transcript string
+		final, recorded  bool
+		called           bool
+	}{
+		{name: "transcript fallback", transcript: "worked", called: true},
+		{name: "final record missing", transcript: "worked", final: true, called: true},
+		{name: "final record present", transcript: "worked", final: true, recorded: true, called: true},
+		{name: "no new work", transcript: "talked", final: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			received = nil
+			log := strings.Join(c.Transcripts[tc.transcript], "\n") + "\n"
+			if tc.recorded {
+				log += string(mustJSON(t, map[string]any{"type": "assistant", "uuid": message, "timestamp": "2026-09-28T10:00:41Z",
+					"message": map[string]any{"content": final}})) + "\n"
+			}
+			writeFile(t, transcript, log)
+			payload := map[string]any{"hook_event_name": "Stop", "session_id": c.Session, "transcript_path": transcript}
+			if tc.final {
+				payload["last_assistant_message"] = " \n" + final + "\n"
+			}
+			if reply := remindChecklist("Stop", mustJSON(t, payload), time.Now()); reply.Block != "" {
+				t.Fatalf("an approved checklist was held: %+v", reply)
+			}
+			if (received != nil) != tc.called {
+				t.Fatalf("review request: %+v, want called %v", received, tc.called)
+			}
+			if !tc.called {
+				return
+			}
+			want := []checklist.Item{{Text: "Fix the hook", Status: checklist.Done}, {Text: "Verify the change", Status: checklist.Active}}
+			if !reflect.DeepEqual(received.Checklist, want) {
+				t.Fatalf("the checklist file's steps: %+v, want %+v", received.Checklist, want)
+			}
+			if tc.final && (received.Message == "" || strings.Count(received.Span, final) != 1 || !strings.HasSuffix(received.Span, "ASSISTANT: "+final)) {
+				t.Fatalf("the final text and key did not reach the review once: %+v", received)
+			}
+			if tc.recorded && received.Message != message {
+				t.Fatalf("message: %q, want %q", received.Message, message)
+			}
+		})
 	}
 }
 
@@ -602,7 +636,8 @@ func TestChecklistSpan(t *testing.T) {
 	add("assistant", "2026-01-01T12:00:04Z", "last", "The hook is fixed.", nil)
 	add("assistant", "2026-01-01T12:00:05Z", "side", "Wrong session", map[string]any{"isSidechain": true})
 	writeFile(t, path, strings.Join(records, "\n"))
-	message, span, called := checklistSpan(path, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
+	payload := map[string]any{"transcript_path": path}
+	message, span, called := checklistSpan(payload, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
 	if message != "last" || !called || span != "CALL Bash: make test\n  ERR failed\nUSER: What changed?\nASSISTANT: The hook is fixed." {
 		t.Fatalf("span: %q %v %q", message, called, span)
 	}
@@ -610,8 +645,23 @@ func TestChecklistSpan(t *testing.T) {
 		add("assistant", "2026-01-01T12:00:06Z", strconv.Itoa(i), strings.Repeat("é", 2000), nil)
 	}
 	writeFile(t, path, strings.Join(records, "\n")+"\n")
-	_, span, called = checklistSpan(path, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
+	_, span, called = checklistSpan(payload, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
 	if !called || len([]rune(span)) > 10000 || !strings.HasPrefix(span, "[earlier part cut]\n") {
 		t.Fatalf("unbounded span: %d characters, called %v", len([]rune(span)), called)
+	}
+	payload["last_assistant_message"] = "Final report: " + strings.Repeat("é", 4000)
+	_, span, called = checklistSpan(payload, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
+	if !called || len([]rune(span)) > 10000 || !strings.HasSuffix(span, "ASSISTANT: "+checklistExcerpt(payload["last_assistant_message"].(string), 3000)) {
+		t.Fatalf("the pending final report did not fit the span: %d characters, called %v", len([]rune(span)), called)
+	}
+	records = nil
+	add("assistant", "2026-01-01T12:00:01Z", "prior", "The hook is fixed.", nil)
+	add("user", "2026-01-01T12:00:02Z", "prompt", "Verify again.", nil)
+	add("assistant", "2026-01-01T12:00:03Z", "call", []any{map[string]any{"type": "tool_use", "name": "Bash"}}, nil)
+	writeFile(t, path, strings.Join(records, "\n"))
+	payload["last_assistant_message"] = "The hook is fixed."
+	message, span, called = checklistSpan(payload, float64(time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC).Unix()))
+	if !called || message == "prior" || !strings.HasSuffix(span, "ASSISTANT: The hook is fixed.") || strings.Count(span, "The hook is fixed.") != 2 {
+		t.Fatalf("an earlier turn hid the pending final report: %q %v %q", message, called, span)
 	}
 }

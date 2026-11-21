@@ -118,8 +118,7 @@ func remindChecklist(_ string, payload []byte, _ time.Time) Reply {
 	if !pyEqual(list["pid"], json.Number(strconv.Itoa(pid))) && !hasTool(pid) {
 		return Reply{}
 	}
-	path, _ := p["transcript_path"].(string)
-	message, span, called := checklistSpan(path, written)
+	message, span, called := checklistSpan(p, written)
 	if !called {
 		return Reply{}
 	}
@@ -424,9 +423,16 @@ func checklistWritten(list map[string]any, fallback time.Time) float64 {
 	return seconds(fallback)
 }
 
-func checklistSpan(path string, written float64) (message, span string, called bool) {
+func checklistSpan(p map[string]any, written float64) (message, span string, called bool) {
+	path, _ := p["transcript_path"].(string)
+	final, _ := p["last_assistant_message"].(string)
+	final = strings.TrimSpace(final)
+	if final != "" {
+		message, final = stopAgentText(p)
+	}
 	var fragments []string
 	size := 0
+	includedFinal := false
 	for record := range checklistRecords(path) {
 		if message == "" && record["type"] == "assistant" && !truthy(record["isMeta"]) {
 			message, _ = record["uuid"].(string)
@@ -444,10 +450,14 @@ func checklistSpan(path string, written float64) (message, span string, called b
 			if fragment != "" {
 				fragments = append(fragments, fragment)
 				size += utf8.RuneCountInString(fragment) + 1
+				includedFinal = includedFinal || (final != "" && record["uuid"] == message && agentText(record) == final)
 			}
 		}
 	}
 	slices.Reverse(fragments)
+	if final != "" && !includedFinal {
+		fragments = append(fragments, "ASSISTANT: "+checklistExcerpt(final, 3000))
+	}
 	runes := []rune(strings.Join(fragments, "\n"))
 	if len(runes) > action.ChecklistLogMax {
 		const cut = "[earlier part cut]\n"
