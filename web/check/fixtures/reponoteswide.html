@@ -10,7 +10,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
+import { RepoScene as RepoView, quiet, showChanged } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const CHANGES = {
@@ -153,7 +153,7 @@ const sideTab = (name) => sel(name === "Files" ? ".cdbackfiles" : ".cdnotetab");
 const chip = (name) => all(".cdstrip .chip").find((c) => c.textContent.trim() === name);
 
 window.done = (async () => {
-    (await until(".cdchangedfile")).click();
+    (await showChanged()).click();
     await until(".cdln.del");
     await quiet();
     sideTab("Notes").click();

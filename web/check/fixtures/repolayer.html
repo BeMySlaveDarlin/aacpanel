@@ -32,7 +32,7 @@ window.fetch = async (url) => {
 
 const root = document.getElementById("root");
 const draw = (tick) => render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", tick })), root);
-import { until } from "/check/fixtures/repo-scene.js";
+import { showChanged, until } from "/check/fixtures/repo-scene.js";
 draw(0);
 window.done = (async () => {
     (await until(".cdbasepick")).click();
@@ -40,7 +40,7 @@ window.done = (async () => {
     draw(1);
     (await until(".cdbasepick")).click();
     await quiet();
-    (await until(".cdchangedfile")).click();
+    (await showChanged()).click();
     await until(".cdstrip");
     draw(2);
     await quiet();

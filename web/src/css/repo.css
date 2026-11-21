@@ -233,8 +233,6 @@
 .cdallfiles .cdup { margin-left: auto; }
 .cddirectory { font-size: var(--t-xs); font-weight: 400; color: var(--ink-faint); }
 .cdchangedfile { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border: 0; border-bottom: var(--hair) solid var(--line); background: none; color: var(--ink); text-align: left; cursor: pointer; }
-.cdchangedmore { display: block; width: 100%; padding: 10px 12px; border: 0; border-bottom: var(--hair) solid var(--line); background: none; color: var(--accent); font: inherit; font-size: var(--t-sm); text-align: left; cursor: pointer; }
-.cdchangedmore:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .cdchangedname { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
 .cdchangedname b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); font-weight: 500; }
 .cdchangedname small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-xs) var(--mono); color: var(--ink-faint); }
@@ -246,7 +244,10 @@
 .cdnodeicon svg { width: var(--i-sm); height: var(--i-sm); }
 .cdnode.on, .cdchangedfile.on { background: var(--accent-bg); }
 .cdcontrol { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; padding: 6px 8px; border: 0; border-radius: var(--r-small); background: var(--surface-2); color: var(--ink-dim); font: inherit; font-size: var(--t-xs); cursor: pointer; white-space: nowrap; }
-.cdcontrol[aria-pressed="true"] { background: var(--accent-bg); color: var(--ink); }
+.cdcontrol:is([aria-pressed="true"], [aria-selected="true"]) { background: var(--accent-bg); color: var(--ink); }
+.cdlisttabs { display: flex; gap: 2px; padding: 12px 12px 6px; }
+.cdlisttab { flex: 1; font-size: var(--t-sm); padding-block: 8px; }
+.cdtabcount { color: var(--ink-faint); }
 .cdcontrol svg { width: var(--i-sm); height: var(--i-sm); }
 .cdcontrol:focus-visible, .cdnode:focus-visible, .cdchangedfile:focus-visible, .cdfindrow:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .cdfilebar { flex-wrap: wrap; background: var(--bg); backdrop-filter: none; gap: 6px; overflow-x: auto; }
@@ -278,11 +279,13 @@
 @media (min-width: 1100px) {
     .cdsession { flex-direction: row; gap: 0; }
     .cdside { position: static; z-index: auto; flex: 0 0 clamp(260px, 23vw, 350px); background: var(--bg); border-left: var(--hair) solid var(--line); }
+    /* The list covers the work column of the feed instead of narrowing the prose. */
+    .cdsession.sideopen .feedgrid.desk { grid-template-columns: minmax(0, 1fr); }
+    .cdsession.sideopen .feedgrid.desk > .tline { display: none; }
     .cdside .cdhunk { margin-inline: 8px; }
     .cdfilesbutton svg { width: var(--i-sm); height: var(--i-sm); }
     .cdfindbox kbd { display: inline; }
     .cdchangedfile { padding-block: 7px; border-bottom: 0; }
-    .cdchangedmore { padding-block: 7px; border-bottom: 0; }
     .cdnode { padding-block: 6px; border-bottom: 0; }
     .cdfilebar { flex-wrap: nowrap; padding-inline: 10px; }
     .cdfilepath { flex-basis: 0; }

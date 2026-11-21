@@ -10,7 +10,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { quiet, sel, all, text, until } from "/check/fixtures/repo-scene.js";
+import { quiet, sel, all, showChanged, showFiles, text, until } from "/check/fixtures/repo-scene.js";
 import { ClaudeChat } from "/src/screens/chat/claude.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -86,14 +86,17 @@ window.done = (async () => {
     const feed = sel(".chatfeed");
     const composer = sel(".composerbox");
     const button = sel('.cdfilesbutton');
-    const out = { wide, closed: sel(".cdside").hidden, buttonText: text(button) };
+    const rail = () => { const r = sel(".feedgrid.desk > .tline"); return r ? getComputedStyle(r).display : ""; };
+    const out = { wide, closed: sel(".cdside").hidden, buttonText: text(button), railClosed: rail() };
     button.click();
     await quiet();
     out.opened = !sel(".cdside").hidden;
+    out.railOpen = rail();
     out.baseLabel = text(sel(".cdbasepick"));
     out.baseTitle = sel(".cdbasepick").title;
     out.feedWithSidebar = sel(".chatfeed") === feed && !sel(".cdfeedslot").hidden;
     out.folderCount = text(sel('.cdnode[data-path="pkg"] .cdinside'));
+    await showChanged();
     out.changedMarks = text(sel('.cdchangedfile[data-path="pkg/env.go"]'));
     sel('.cdchangedfile[data-path="pkg/env.go"]').click();
     await until(".cdln");
@@ -115,6 +118,8 @@ window.done = (async () => {
     sel(".cdtofeed").click();
     await quiet();
     out.returned = !sel(".cdfileview") && !sel(".cdside").hidden && !sel(".cdfeedslot").hidden;
+    await showFiles();
+    await quiet();
     sel('.cdnode[data-path="pkg"]').click();
     await until('.cdnode[data-path="pkg/env.go"]');
     await quiet();

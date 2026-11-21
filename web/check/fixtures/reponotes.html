@@ -12,7 +12,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
+import { RepoScene as RepoView, quiet, showChanged } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const CHANGES = {
@@ -140,7 +140,7 @@ const rows = () => all(".cdnrow").map((r) => text(r.querySelector(".cdnat")));
 const puts = () => panel.calls.filter((c) => c.method === "PUT");
 
 window.done = (async () => {
-    (await until(".cdchangedfile")).click();
+    (await showChanged()).click();
     await quiet();
     all('.cdmodes .cdcontrol').find((b) => text(b) === "File").click();
     await until(".cdln");
@@ -184,7 +184,7 @@ window.done = (async () => {
     render(null, root);
     await quiet();
     draw();
-    (await until(".cdchangedfile")).click();
+    (await showChanged()).click();
     await until(".cdstrip");
     await quiet();
     const backChip = await until(".cdnotetab");

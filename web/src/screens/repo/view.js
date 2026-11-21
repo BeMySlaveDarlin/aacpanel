@@ -117,8 +117,10 @@ export function RepoView({ repo, feed, children, onSend, onConversation }) {
     const changed = data && !plain && (data.files || []).find((f) => f.path === file);
     const fileShown = Boolean(file) && (wide || open);
     const notesShown = open && side === "notes" && !plain;
+    // At a desk the open list takes the place of the work column beside the
+    // feed: the checklist and the timeline are covered rather than squeezed.
     return html`
-        <div class="cdsession">
+        <div class=${`cdsession${wide && open ? " sideopen" : ""}`}>
             <div class="cdmain">
                 <div class="cdviewslot" ref=${repo.mainRef}>
                     <div class="cdfeedslot" hidden=${fileShown}>${feed}</div>
@@ -166,17 +168,17 @@ function FileMarks({ file }) {
     `;
 }
 
-// How many changed files the list shows before the rest folds: a long run of
-// changes would push the files of the project out of reach.
-const CHANGED_SHOWN = 5;
-
+// The files of the project and the changes of the branch are two tabs of one
+// list, the files first: a long run of changes stacked over the tree would put
+// the files of the project out of reach.
 function FilesPane({ repo }) {
     const { data, plain, changes, base } = repo;
     const files = data && !plain ? data.files || [] : [];
-    const [everyChange, setEveryChange] = useState(false);
-    const folds = files.length > CHANGED_SHOWN;
-    const shownFiles = everyChange || !folds ? files
-        : files.filter((f, i) => i < CHANGED_SHOWN || f.path === repo.file);
+    const [tab, setTab] = useState("files");
+    const listTab = (id, label) => html`
+        <button class="cdcontrol cdlisttab" type="button" role="tab" data-tab=${id}
+                aria-selected=${tab === id ? "true" : "false"} onClick=${() => setTab(id)}>${label}</button>
+    `;
     const comparison = data && (data.base || base) || "";
     const baseName = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(comparison)
         ? comparison.slice(0, 7) : comparison.replace(/^refs\/(?:heads|remotes|tags)\//, "");
@@ -199,28 +201,25 @@ function FilesPane({ repo }) {
         ${changes.kind === "loading" && html`<p class="hint">Reading the project…</p>`}
         ${changes.kind === "failed" && html`<p class="hint crit">${changes.error}</p>`}
         ${data && !plain && html`
-            <h3 class="cdgroup">Changed <span>${data.total}</span>
-                <span class="cdstat"><span class="plus">+${totals.add}</span> <span class="minus">−${totals.delete}</span></span>
-            </h3>
-            <div class="cdchanged">
-                ${shownFiles.map((f) => html`
+            <div class="cdlisttabs" role="tablist" aria-label="what the list shows">
+                ${listTab("files", "All files")}
+                ${listTab("changed", html`Changed <span class="cdtabcount">${data.total}</span>`)}
+            </div>
+        `}
+        ${data && !plain && tab === "changed" && html`
+            <div class="cdchanged" role="tabpanel">
+                ${files.map((f) => html`
                     <button class=${`cdchangedfile${repo.file === f.path ? " on" : ""}`} type="button" key=${f.path}
                             data-path=${f.path} aria-current=${repo.file === f.path ? "true" : undefined} onClick=${() => repo.openFile(f.path)}>
                         <span class="cdchangedname"><b>${dirName(f.path)}</b><small>${f.path.split("/").slice(0, -1).join("/") || "/"}</small></span>
                         <${FileMarks} file=${f} />
                     </button>
                 `)}
-                ${folds && html`
-                    <button class="cdchangedmore" type="button" aria-expanded=${everyChange}
-                            onClick=${() => setEveryChange(!everyChange)}>
-                        ${everyChange ? "Show fewer" : `All ${files.length} changed`}
-                    </button>
-                `}
                 ${!files.length && html`<p class="hint">Nothing has changed against <b>${data.base || "the base"}</b>.</p>`}
                 ${data.cut && html`<p class="cdcut">Showing <b>${files.length}</b> of <b>${data.total}</b> changed files. Other files remain in All files.</p>`}
             </div>
         `}
-        ${data && html`<${TreePane} repo=${repo} />`}
+        ${data && html`<div role="tabpanel" hidden=${!plain && tab !== "files"}><${TreePane} repo=${repo} /></div>`}
     `;
 }
 
@@ -302,20 +301,17 @@ function TreeDirectory({ repo, path, depth, where, onWhere, counts, expanded, on
     const [state] = useAsk(() => treeOf(repo.cwd, path), [repo.cwd, path, repo.open]);
     const data = state.kind === "ready" ? state.data : null;
     return html`
-        ${depth === 0 && html`
+        ${depth === 0 && where && html`
             <h3 class="cdgroup cdallfiles">
-                <button class="cdtreeroot" type="button" onClick=${() => onWhere("")}>All files</button>
-                ${data && html`<span>${data.total}</span>`}
-                ${where && html`
-                    <span class="cdcrumbs"><span>·</span>
-                        ${where.split("/").map((part, i, all) => html`
-                            <button class="cdcrumb" type="button" key=${i}
-                                    onClick=${() => onWhere(all.slice(0, i + 1).join("/"))}>${part}</button>
-                        `)}
-                    </span>
-                    <button class="cdcontrol cdup" type="button" aria-label="up one directory"
-                            onClick=${() => onWhere(where.split("/").slice(0, -1).join("/"))}>↑</button>
-                `}
+                <button class="cdtreeroot" type="button" onClick=${() => onWhere("")}>${dirName(repo.cwd)}</button>
+                <span class="cdcrumbs"><span>·</span>
+                    ${where.split("/").map((part, i, all) => html`
+                        <button class="cdcrumb" type="button" key=${i}
+                                onClick=${() => onWhere(all.slice(0, i + 1).join("/"))}>${part}</button>
+                    `)}
+                </span>
+                <button class="cdcontrol cdup" type="button" aria-label="up one directory"
+                        onClick=${() => onWhere(where.split("/").slice(0, -1).join("/"))}>↑</button>
             </h3>
         `}
         ${state.kind === "loading" && html`<p class="hint">Reading the directory…</p>`}

@@ -2,7 +2,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{height:100%;margin:0}</style>
-<!-- A phone opens a changed file directly from Files and reads its diff; a long run of changes folds above the files. -->
+<!-- A phone opens a changed file directly from Files and reads its diff; the files and the changes are two tabs, the files first. -->
 <div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
   <div id="root" style="flex:1;min-height:0;overflow:auto"></div>
 </div>
@@ -69,14 +69,18 @@ window.fetch = async (url) => {
 
 
 render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work" })), document.getElementById("root"));
-import { all, sel, text, until } from "/check/fixtures/repo-scene.js";
+import { all, sel, showChanged, text, until } from "/check/fixtures/repo-scene.js";
 window.done = (async () => {
-    await until(".cdchangedfile");
     await until(".cdnode", "the files of the project");
-    const folded = { rows: all(".cdchangedfile").length, more: text(sel(".cdchangedmore")), tree: all(".cdnode").length };
-    sel(".cdchangedmore").click();
-    await until(() => all(".cdchangedfile").length === 7, "every change shown");
-    const unfolded = { rows: all(".cdchangedfile").length, more: text(sel(".cdchangedmore")) };
+    const opened = {
+        tabs: all(".cdlisttab").map(text), selected: text(sel('.cdlisttab[aria-selected="true"]')),
+        changedRows: all(".cdchangedfile").length, tree: all(".cdnode").length,
+    };
+    await showChanged();
+    const changedTab = {
+        selected: text(sel('.cdlisttab[aria-selected="true"]')), rows: all(".cdchangedfile").length,
+        treeHidden: sel(".cdtree").closest('[role="tabpanel"]').hidden,
+    };
     sel(".cdchangedfile").click();
     await until(".cdln");
     await quiet();
@@ -93,7 +97,7 @@ window.done = (async () => {
         tags: [...document.querySelectorAll(".cdtag")].map((t) => t.textContent.trim()),
         dots: [...document.querySelectorAll(".cdstatus")].map((d) => d.title),
         gutterTouchAction: getComputedStyle(gut).touchAction,
-        folded, unfolded,
+        opened, changedTab,
     };
 })();
 </script>

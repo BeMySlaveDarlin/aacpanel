@@ -16,6 +16,13 @@ export async function until(ok, label = "the repository state") {
     }
     throw new Error(`Did not reach ${label}`);
 }
+export async function showChanged() {
+    (await until('.cdlisttab[data-tab="changed"]', "the Changed tab")).click();
+    return until(".cdchangedfile", "a changed file");
+}
+export async function showFiles() {
+    (await until('.cdlisttab[data-tab="files"]', "the All files tab")).click();
+}
 export function RepoScene({ cwd, name, onBack = () => {}, onSend, onConversation, autoOpen = true }) {
     useBackClose(true, onBack);
     const repo = useRepo({ cwd, name });

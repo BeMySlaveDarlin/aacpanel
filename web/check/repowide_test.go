@@ -34,6 +34,8 @@ type repoWideShot struct {
 	Folded             bool     `json:"folded"`
 	NoTabs             bool     `json:"noTabs"`
 	ToolFileEntry      bool     `json:"toolFileEntry"`
+	RailClosed         string   `json:"railClosed"`
+	RailOpen           string   `json:"railOpen"`
 }
 
 func TestRepoFilesStayWithTheConversation(t *testing.T) {
@@ -86,6 +88,10 @@ func TestRepoFilesStayWithTheConversation(t *testing.T) {
 			}
 			if !got.NoTabs || got.ToolFileEntry {
 				t.Error("file tabs or the tools entry still stand")
+			}
+			if shape.wide && (got.RailClosed == "none" || got.RailClosed == "" || got.RailOpen != "none") {
+				t.Errorf("the work column beside the feed is %q with Files closed and %q with it open — Files should cover it, not stand beside it",
+					got.RailClosed, got.RailOpen)
 			}
 			if shape.wide && !got.Folded {
 				t.Error("Files did not close the sidebar")

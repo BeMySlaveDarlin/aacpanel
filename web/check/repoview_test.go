@@ -15,38 +15,39 @@ type repoShot struct {
 	Tags                 []string `json:"tags"`
 	Dots                 []string `json:"dots"`
 	GutterTouchAction    string   `json:"gutterTouchAction"`
-	Folded               struct {
-		Rows int    `json:"rows"`
-		More string `json:"more"`
-		Tree int    `json:"tree"`
-	} `json:"folded"`
-	Unfolded struct {
-		Rows int    `json:"rows"`
-		More string `json:"more"`
-	} `json:"unfolded"`
+	Opened               struct {
+		Tabs        []string `json:"tabs"`
+		Selected    string   `json:"selected"`
+		ChangedRows int      `json:"changedRows"`
+		Tree        int      `json:"tree"`
+	} `json:"opened"`
+	ChangedTab struct {
+		Selected   string `json:"selected"`
+		Rows       int    `json:"rows"`
+		TreeHidden bool   `json:"treeHidden"`
+	} `json:"changedTab"`
 }
 
-// A long run of changes folds after the first few. Unfolded, a branch with a
-// hundred changed files puts the files of the project a hundred rows down,
-// out of reach on a phone.
-func TestRepoALongRunOfChangesFoldsAboveTheFiles(t *testing.T) {
+// The files of the project and the changes of the branch are two tabs, the
+// files first. One list with the changes stacked over the tree put the files
+// of a branch with a hundred changes a hundred rows down.
+func TestRepoFilesAndChangesAreTwoTabsFilesFirst(t *testing.T) {
 	var got repoShot
 	runFixture(t, "repoview.html", &got)
 
-	if got.Folded.Rows != 5 || got.Folded.More != "All 7 changed" {
-		t.Errorf("seven changes show %d rows under %q — the run does not fold after five", got.Folded.Rows, got.Folded.More)
+	if len(got.Opened.Tabs) != 2 || got.Opened.Tabs[0] != "All files" || !strings.HasPrefix(got.Opened.Tabs[1], "Changed") {
+		t.Errorf("the list opens with tabs %v, want All files then Changed", got.Opened.Tabs)
 	}
-	if got.Folded.Tree == 0 {
-		t.Error("the files of the project are not drawn under the folded changes")
+	if got.Opened.Selected != "All files" || got.Opened.Tree == 0 || got.Opened.ChangedRows != 0 {
+		t.Errorf("the list opens on %q with %d files and %d changed rows — it should open on the files alone",
+			got.Opened.Selected, got.Opened.Tree, got.Opened.ChangedRows)
 	}
-	if got.Unfolded.Rows != 7 || got.Unfolded.More != "Show fewer" {
-		t.Errorf("unfolded, %d rows under %q — every change should be there with a way to fold them back", got.Unfolded.Rows, got.Unfolded.More)
+	if !strings.HasPrefix(got.ChangedTab.Selected, "Changed") || got.ChangedTab.Rows != 7 || !got.ChangedTab.TreeHidden {
+		t.Errorf("the Changed tab shows %d rows on %q, tree hidden %v — it should show every change and nothing else",
+			got.ChangedTab.Rows, got.ChangedTab.Selected, got.ChangedTab.TreeHidden)
 	}
 }
 
-// A page has one way back. Two of them stacked is not a cosmetic slip: the
-// second is a live handler over a dead layer, and a tap on it leaves the
-// viewer without leaving the page it was drawn over.
 func TestRepoThePageKeepsOneHeadWhateverItRedraws(t *testing.T) {
 	var got repoShot
 	runFixture(t, "repoview.html", &got)

@@ -11,7 +11,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
+import { RepoScene as RepoView, quiet, showChanged } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const CHANGES = {
@@ -75,7 +75,7 @@ async function until(q, tries = 60) {
 const chip = (text) => all(".chip").find((c) => c.textContent.trim() === text);
 
 window.done = (async () => {
-    const head = await until(".cdchangedfile");
+    const head = await showChanged();
     head.click();
     await until(".cdln");
     await quiet();
