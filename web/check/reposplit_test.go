@@ -20,7 +20,7 @@ type repoSplitShot struct {
 // Side by side is offered where there is room for it, and the diff starts in
 // one column: two half-width columns of code is neither side read, and the
 // view that opens is the one a narrow window can also hold.
-func TestSideBySideIsOfferedAndNotForced(t *testing.T) {
+func TestRepoSideBySideIsOfferedAndNotForced(t *testing.T) {
 	var got repoSplitShot
 	runWideFixture(t, "reposplit.html", &got)
 
@@ -40,7 +40,7 @@ func TestSideBySideIsOfferedAndNotForced(t *testing.T) {
 // removed where one was added, twice over, is exactly what walks a column laid
 // out by line numbers out of step with its neighbour — by the end of this hunk
 // it would be two lines out.
-func TestTheColumnsPairUpThroughALopsidedDiff(t *testing.T) {
+func TestRepoTheColumnsPairUpThroughALopsidedDiff(t *testing.T) {
 	var got repoSplitShot
 	runWideFixture(t, "reposplit.html", &got)
 
@@ -58,7 +58,7 @@ func TestTheColumnsPairUpThroughALopsidedDiff(t *testing.T) {
 // The last line of the hunk is context: the same line on both sides, in one
 // row, carrying the number each side knows it by. It is the line that proves
 // the alignment survived the whole hunk and not just its first block.
-func TestTheLineThatClosesTheHunkReadsTheSameOnBothSides(t *testing.T) {
+func TestRepoTheLineThatClosesTheHunkReadsTheSameOnBothSides(t *testing.T) {
 	var got repoSplitShot
 	runWideFixture(t, "reposplit.html", &got)
 
@@ -73,7 +73,7 @@ func TestTheLineThatClosesTheHunkReadsTheSameOnBothSides(t *testing.T) {
 
 // What was removed belongs on the left and what was added on the right. A
 // deletion drawn on the right is a diff read backwards.
-func TestRemovalsStayLeftAndAdditionsStayRight(t *testing.T) {
+func TestRepoRemovalsStayLeftAndAdditionsStayRight(t *testing.T) {
 	var got repoSplitShot
 	runWideFixture(t, "reposplit.html", &got)
 

@@ -21,6 +21,7 @@ type talkOff struct {
 // what to watch puts the sheet down.
 func TestThePhoneHeaderKeepsTheToolsBehindOneButton(t *testing.T) {
 	var got struct {
+		Files        bool     `json:"files"`
 		Back         bool     `json:"back"`
 		More         bool     `json:"more"`
 		Buttons      int      `json:"buttons"`
@@ -45,8 +46,8 @@ func TestThePhoneHeaderKeepsTheToolsBehindOneButton(t *testing.T) {
 	if !got.More || !got.Back {
 		t.Fatalf("the header has no way back or no button for the tools: %+v", got)
 	}
-	if got.OldTools != 0 || got.Buttons != 2 {
-		t.Errorf("the header still carries %d tools of its own among %d buttons — they live behind the one button",
+	if got.OldTools != 0 || got.Buttons != 3 {
+		t.Errorf("the header carries %d old tools among %d buttons — expected Back, Files and More",
 			got.OldTools, got.Buttons)
 	}
 	if got.Running != 0 {
@@ -84,8 +85,11 @@ func TestThePhoneHeaderKeepsTheToolsBehindOneButton(t *testing.T) {
 			t.Errorf("the tools sheet has no line %q: %s", w, joined)
 		}
 	}
-	if !strings.Contains(joined, "Files of the project") {
-		t.Errorf("the files of the project are not among the tools: %s", joined)
+	if strings.Contains(joined, "Files of the project") {
+		t.Errorf("Files still lives in the tools sheet: %s", joined)
+	}
+	if !got.Files {
+		t.Error("Files has no button beside the tools")
 	}
 	if got.Title != "acme-fingerprint-rotation-review-2" || got.Where != "/srv/proj/panel" {
 		t.Errorf("the sheet opens on %q at %q — the name whole and where the session works", got.Title, got.Where)

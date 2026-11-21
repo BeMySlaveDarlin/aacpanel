@@ -65,10 +65,18 @@ a shell command on the host.
 
 **One list of changes.** What the commits of a branch did, what the working tree
 has done since, and what git does not know about at all arrive together. The
-tree on a screen and the run of diffs under it are the same set of files:
+tree and the Changed list on a screen are the same set of files:
 counted twice they come apart, and the file a person taps is not the file they
 were shown. A file that is both in a commit and changed again since is marked as
 not yet committed — that is the half still unanswered for.
+
+**Files stay with the conversation.** At a desk the list is a column beside
+the feed. One file takes the feed's place while its composer stays; returning
+to the feed keeps the list open. The phone opens that same list as a full page
+and takes one back step through the file before closing it. Notes replace the
+list with a way back to Files; there is one file in view and no row of open
+file tabs. The side chat docks to the central column, so it leaves the files
+column free even when the feed is showing code.
 
 **A revision travels with every window.** It holds the head, the merge base and
 the ids of the tracked files. A repository under a working session moves between

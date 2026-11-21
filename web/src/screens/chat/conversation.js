@@ -26,7 +26,7 @@ import { closed, lastPos, outboxRows, queuedLocal, queuedRows, rows, runCalls, t
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { FindBar, useFeedFind } from "./find.js";
 import { agentFeedId, SubChat } from "./subchat.js";
-import { RepoView } from "../repo/view.js";
+import { FilesButton, RepoView, useRepo } from "../repo/view.js";
 import { onShelf, sealed, signal } from "../repo/notes.js";
 import { FeedRow, FeedWrites } from "./rows.js";
 import { useSteady } from "../../ui/pure.js";
@@ -96,7 +96,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
-    const [repo, setRepo] = useState(false);
     const {
         state, shown, away, more, later, feedRef, topRef, bottomRef, onScroll, atEnd, toEnd, show,
     } = useFeedWindow({ name, id, live: live && !sub });
@@ -194,6 +193,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // A session that has ended leaves its pages and its briefs to the next one
     // in the same place, which is the session that carries the work on.
     const here = (live && live.cwd) || (archive && archive.cwd) || "";
+    const repo = useRepo({ cwd: here, name, onFile: () => pickView("feed") });
     // Without a directory there is nothing to match on, and showing everything
     // would put the documents of other projects into this conversation.
     const mine = useCallback((cards) => (here
@@ -280,7 +280,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const backChat = useBackClose(true, onBack);
     // The search of the conversation: the bar over the feed, Ctrl+F at a
     // keyboard, an item of the tools on a phone.
-    const find = useFeedFind({ name, id, feedRef, show, on: feedShown && !sub && !repo, under: backChat });
+    const find = useFeedFind({ name, id, feedRef, show, on: feedShown && !sub && !repo.file && (wide || !repo.open), under: backChat });
 
 
     // The rows still on their way are what the feed draws after its items;
@@ -379,7 +379,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const steadyEdit = useSteady(putBack);
     const steadyQueueOf = useSteady(queueOf);
     const steadyRun = useSteady((text, lang) => late.current.onRun(text, lang));
-    const ctx = { wide, view, feedShown, feedRef, work: state.work, pages: myPages, setLook, setInsert };
+    const ctx = { wide, view, feedShown, feedRef, asideRef: repo.mainRef, work: state.work, pages: myPages, setLook, setInsert };
     const composer = parts.composer(ctx);
     // The feed lends these to its rows alone: a file or a brief opened beside
     // it cannot acquire the session's command buttons. What a row asks of
@@ -535,39 +535,21 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                 live=${Boolean(live)} onBack=${() => setSub(null)} />`;
     }
 
-    // The repository of this conversation, read as a page of its own. A layer
-    // over the run rather than a screen beside it: the way back is one tap and
-    // the conversation is still underneath when it comes.
-    if (repo) {
-        // Sending a reading is three steps in one act: the file is written to
-        // the shelf, the session is told where it is through the same queue any
-        // message goes through, and only then is the reading written down as
-        // gone. Told first and written second, the session would open a path to
-        // nothing; settled before the signal, a reading that never left would
-        // read as delivered.
-        const sendReview = async ({ id, notes }) => {
-            // A host whose executor does not know how to write to a session
-            // would take the reading, put the file on the shelf and tell
-            // nobody. Better to say so before anything is written.
-            if (!knows(exec, "session.send")) {
-                throw new Error(whyNot(exec, "session.send") || "this host cannot write to a session");
-            }
-            const put = await onShelf(id);
-            const result = await deliver(run, name, { text: signal(put.path, put.notes || notes) });
-            if (!result || result.ok === false) {
-                throw new Error(result && result.error ? result.error : "the session did not take the signal");
-            }
-            await sealed(id, put.path);
-        };
-        // A line of the repository leads to the conversation it was written
-        // in: that conversation opens in place of this one.
-        const openTalk = onOpenChat
-            ? (talk) => { setRepo(false); onOpenChat(talk); }
-            : null;
-        return html`<${RepoView} cwd=${here} name=${name}
-                                 onBack=${() => setRepo(false)} onSend=${sendReview}
-                                 onConversation=${openTalk} />`;
-    }
+    // The shelf must exist before its signal is queued; only a delivered
+    // signal settles the reading as sent.
+    const sendReview = async ({ id, notes }) => {
+        // Refuse before writing a shelf file the host cannot deliver.
+        if (!knows(exec, "session.send")) {
+            throw new Error(whyNot(exec, "session.send") || "this host cannot write to a session");
+        }
+        const put = await onShelf(id);
+        const result = await deliver(run, name, { text: signal(put.path, put.notes || notes) });
+        if (!result || result.ok === false) {
+            throw new Error(result && result.error ? result.error : "the session did not take the signal");
+        }
+        await sealed(id, put.path);
+    };
+    const openTalk = onOpenChat ? (talk) => onOpenChat(talk) : null;
 
     // A thread of codex in the archive keeps no fill of its context: its head
     // says what the thread spent instead, as its row in the archive does, and
@@ -576,14 +558,14 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const pct = live ? live.pct : (archive && !pastCodex ? archive.pctMax : null);
     const spent = pastCodex ? (spoke(archive) ? `${tokens(archive.tokensUsed)} tokens` : "") : null;
     const stand = stateOf(live, still, move, snapshot && snapshot.limits);
-    const openRepo = here ? () => setRepo(true) : null;
     const tools = {
         name, live, archive, pct, spent, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
         sections: parts.sections, onTerm: term.route ? onTerm : null, onWindow: place.onWindow, onLook: (kind) => setLook({ kind }),
     };
     const deskTools = html`
-        <${ViewTabs} view=${view} sides=${live ? sides : {}} canTerm=${canTerm}
-                     onView=${pickView} onRepo=${openRepo} onMove=${() => setPanel(true)} />
+        <${ViewTabs} view=${repo.file ? "" : view} sides=${live ? sides : {}} canTerm=${canTerm}
+                     onView=${(next) => { repo.setFile(""); pickView(next); }} onMove=${() => setPanel(true)} />
+        <${FilesButton} repo=${repo} />
         ${live && html`<${SessionButton} ...${tools} open=${panel} onOpen=${setPanel} />`}
     `;
     // The terminal of the session's project: the root the map knows it by,
@@ -613,7 +595,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
                      foot=${html`<${ContextBar} pct=${pct} peak=${!live} cap=${live && live.cap} autoRestart=${live && live.autoRestart} />`}
-                     tools=${html`<${MoreButton} onOpen=${() => setLook({ kind: "tools" })} />`}>
+                     tools=${html`<${FilesButton} repo=${repo} /><${MoreButton} onOpen=${() => setLook({ kind: "tools" })} />`}>
             <div class="chathead">
                 <h2>
                     <span class="talkdot" data-tone=${stand.tone} title=${stand.say}></span>
@@ -644,6 +626,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         <//>
         `}
 
+        <${RepoView} repo=${repo} onSend=${sendReview} onConversation=${openTalk} feed=${html`
         ${move
             ? html`<${MoveScreen} move=${move} />`
             : view === "term"
@@ -723,6 +706,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} away=${away} />`}
         </div>
         `}
+        `}>
         ${live && feedShown && !hasWork(state.work, live.status === "busy" || Boolean(live.compacting)) && live.lastRequestAt && html`
             <p class="lastreq">last reply ${ago(live.lastRequestAt)}</p>
         `}
@@ -776,6 +760,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             </div>
         `}
 
+        <//>
+
         ${live && parts.sheets(ctx)}
         ${live && quick && html`<${QuickCommands} name=${name} live=${live} exec=${exec} ...${quick}
             onClose=${() => { setQuick(null); quick.lift?.focus({ preventScroll: true }); }}
@@ -823,7 +809,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                       onDone=${() => setLook(null)} />`
                 : look.kind === "tools"
                 ? html`<${SessionTools} ...${tools}
-                                        onRepo=${here ? () => { setLook(null); setRepo(true); } : null}
                                         onFind=${feedShown ? () => { setLook(null); find.start(); } : null}
                                         onPick=${(next) => { setLook(null); pickView(next); }}
                                         onDone=${() => setLook(null)} />`

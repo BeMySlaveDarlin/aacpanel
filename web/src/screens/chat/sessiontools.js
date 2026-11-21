@@ -43,7 +43,7 @@ export function MoreButton({ onOpen }) {
 // works, finding in its conversation, what to look at it with, then the
 // sections of what is done to it, which are its agent's own.
 export function SessionTools(props) {
-    const { name, live, archive, pct, spent, cwd, view, sides, sections: Sections, onRepo, onFind, onPick } = props;
+    const { name, live, archive, pct, spent, cwd, view, sides, sections: Sections, onFind, onPick } = props;
     const toast = useToast();
     const where = cwd ? shortPath(cwd) : "";
     return html`
@@ -64,13 +64,6 @@ export function SessionTools(props) {
                     <li><button type="button" class="mcprow toolrow" onClick=${onFind}>
                         <span class="toolicon">${Icon.search()}</span>
                         <span class="toollabel">Find in the conversation</span>
-                    </button></li>
-                `}
-                ${onRepo && html`
-                    <li><button type="button" class="mcprow toolrow" onClick=${onRepo}>
-                        <span class="toolicon">${Icon.files()}</span>
-                        <span class="toollabel">Files of the project</span>
-                        <span class="crgo">${Icon.chevron()}</span>
                     </button></li>
                 `}
                 ${live && sides.pair && html`<${Watch} view=${view} note=${sides.tip} onPick=${onPick} />`}
@@ -436,18 +429,18 @@ function Move({ name, live, exec, sides, work, win, way, run, onDone }) {
 }
 
 // ViewTabs is what the wide screen looks at the conversation with: the feed,
-// the terminal, the files of the project. A view never moves the session: a
+// the terminal. A view never moves the session: a
 // session in tmux is watched either way and stays where it is, and the
 // terminal of a session on the stream is tmux, reached only by a move — its tab
 // opens the session panel on the move instead, and is marked for it.
-export function ViewTabs({ view, sides, canTerm, onView, onRepo, onMove }) {
-    const moving = (id) => id !== "files" && id !== sides.view && !sides.pair && Boolean(sides.moves);
+export function ViewTabs({ view, sides, canTerm, onView, onMove }) {
+    const moving = (id) => id !== sides.view && !sides.pair && Boolean(sides.moves);
     const tab = (id, label, press, shown = true) => shown && html`
         <button type="button" class=${`dktab${view === id ? " on" : ""}${moving(id) ? " moves" : ""}`}
                 aria-pressed=${view === id}
                 data-tip=${moving(id)
                     ? "The session is on the stream: move it to tmux first"
-                    : (id !== "files" && id !== view && sides.tip) || undefined}
+                    : (id !== view && sides.tip) || undefined}
                 onClick=${press}>${label}${moving(id) ? html`<span class="dktabgo" aria-hidden="true">⇢</span>` : ""}</button>
     `;
     // The view already shown is no choice: pressing it keeps nothing for the
@@ -457,7 +450,6 @@ export function ViewTabs({ view, sides, canTerm, onView, onRepo, onMove }) {
         <span class="dktabs" role="group" aria-label="what to look at the conversation with">
             ${tab("feed", "Feed", pick("feed"))}
             ${tab("term", "Terminal", pick("term"), canTerm || sides.moves === "console")}
-            ${onRepo && tab("files", "Files", onRepo)}
         </span>
     `;
 }

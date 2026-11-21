@@ -101,8 +101,10 @@ function useDock(feedRef, open) {
             });
         };
         place();
+        const observer = new ResizeObserver(place);
+        if (feedRef.current) observer.observe(feedRef.current);
         window.addEventListener("resize", place);
-        return () => window.removeEventListener("resize", place);
+        return () => { observer.disconnect(); window.removeEventListener("resize", place); };
     }, [open]);
     return at;
 }

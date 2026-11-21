@@ -34,7 +34,7 @@ type repoNotesShot struct {
 // opens under that line. A box that stands anywhere else is written into with
 // the line out of sight, and what is written from memory is written about the
 // wrong line.
-func TestANoteIsLeftByTheNumberOfItsLine(t *testing.T) {
+func TestRepoANoteIsLeftByTheNumberOfItsLine(t *testing.T) {
 	var got repoNotesShot
 	runFixture(t, "reponotes.html", &got)
 
@@ -58,7 +58,7 @@ func TestANoteIsLeftByTheNumberOfItsLine(t *testing.T) {
 // The note carries the text of the line it stands on. Without it the service
 // refuses the reading outright, and a line number alone stops meaning anything
 // the moment somebody commits above it.
-func TestANoteCarriesTheLineItStandsOn(t *testing.T) {
+func TestRepoANoteCarriesTheLineItStandsOn(t *testing.T) {
 	var got repoNotesShot
 	runFixture(t, "reponotes.html", &got)
 
@@ -83,9 +83,8 @@ func TestANoteCarriesTheLineItStandsOn(t *testing.T) {
 	}
 }
 
-// The list of the reading is one chip along from the run of changes, and it
-// says how much is in it without being opened.
-func TestTheNotesAreAChipAlongFromTheChanges(t *testing.T) {
+// The file toolbar counts notes before opening their list.
+func TestRepoTheNotesButtonCountsTheReading(t *testing.T) {
 	var got repoNotesShot
 	runFixture(t, "reponotes.html", &got)
 
@@ -103,7 +102,7 @@ func TestTheNotesAreAChipAlongFromTheChanges(t *testing.T) {
 // A reload throws the tab away, and the reading has to survive it: the notes
 // live in the panel, not in the page. And it has to be the same reading — a
 // second one started beside the first is a shelf of halves.
-func TestTheReadingOutlivesTheTab(t *testing.T) {
+func TestRepoTheReadingOutlivesTheTab(t *testing.T) {
 	var got repoNotesShot
 	runFixture(t, "reponotes.html", &got)
 
@@ -120,7 +119,7 @@ func TestTheReadingOutlivesTheTab(t *testing.T) {
 
 // The last note taken back puts the reading down. A reading with nothing
 // written on it is a name on a shelf saying a review happened when none did.
-func TestTheLastNoteTakenBackPutsTheReadingDown(t *testing.T) {
+func TestRepoTheLastNoteTakenBackPutsTheReadingDown(t *testing.T) {
 	var got repoNotesShot
 	runFixture(t, "reponotes.html", &got)
 

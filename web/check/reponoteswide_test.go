@@ -12,7 +12,6 @@ type handedOver struct {
 }
 
 type repoNotesWideShot struct {
-	SideTabs          []string     `json:"sideTabs"`
 	SendDisabledEmpty bool         `json:"sendDisabledEmpty"`
 	EmptyHint         string       `json:"emptyHint"`
 	TreeGoneOnNotes   bool         `json:"treeGoneOnNotes"`
@@ -33,30 +32,18 @@ type repoNotesWideShot struct {
 	FirstStillSent    int          `json:"firstStillSent"`
 }
 
-// At a desk the notes are the second tab of the panel beside the code, not a
-// screen in front of it: what a note is about is the file being read, and a
-// list that covers the file is a list read from memory.
-func TestTheNotesStandBesideTheCodeAsTheSecondTab(t *testing.T) {
+// Notes replace the directory in the sidebar and leave the code in view.
+func TestRepoNotesStandBesideTheCode(t *testing.T) {
 	var got repoNotesWideShot
 	runWideFixture(t, "reponoteswide.html", &got)
-
-	if len(got.SideTabs) != 2 {
-		t.Fatalf("the panel has the tabs %v — the directory and the notes", got.SideTabs)
-	}
-	if !strings.HasPrefix(got.SideTabs[0], "Files") {
-		t.Errorf("the first tab of the panel is %q: the directory keeps its place", got.SideTabs[0])
-	}
-	if !strings.HasPrefix(got.SideTabs[1], "Notes") {
-		t.Errorf("the second tab of the panel is %q", got.SideTabs[1])
-	}
 	if !got.TreeGoneOnNotes {
-		t.Error("the directory is still drawn under the notes: the panel shows both at once")
+		t.Error("the directory is still drawn under the notes")
 	}
 	if !got.BoxInTheCode {
-		t.Error("the box for a note did not open in the middle, where the code is")
+		t.Error("the note editor did not open beside its line")
 	}
 	if !strings.Contains(got.TabCounts, "1") {
-		t.Errorf("the tab reads %q — it says how much is in the reading without being opened", got.TabCounts)
+		t.Errorf("the Notes button reads %q", got.TabCounts)
 	}
 }
 
@@ -64,7 +51,7 @@ func TestTheNotesStandBesideTheCodeAsTheSecondTab(t *testing.T) {
 // line that went out and the line that replaced it wear the same number, and a
 // note pinned by the number alone marks both — which of the two it was about
 // is then anybody's guess.
-func TestANoteMarksTheLineItWasWrittenOnAndNotItsNamesake(t *testing.T) {
+func TestRepoANoteMarksTheLineItWasWrittenOnAndNotItsNamesake(t *testing.T) {
 	var got repoNotesWideShot
 	runWideFixture(t, "reponoteswide.html", &got)
 
@@ -82,7 +69,7 @@ func TestANoteMarksTheLineItWasWrittenOnAndNotItsNamesake(t *testing.T) {
 // The button hands over a reading the panel already holds. An empty reading
 // has nothing to hand over, and a reading sent with the last note still in
 // flight is a file the session reads without it.
-func TestTheReadingIsHandedOverOnlyOnceItIsKept(t *testing.T) {
+func TestRepoTheReadingIsHandedOverOnlyOnceItIsKept(t *testing.T) {
 	var got repoNotesWideShot
 	runWideFixture(t, "reponoteswide.html", &got)
 
@@ -115,7 +102,7 @@ func TestTheReadingIsHandedOverOnlyOnceItIsKept(t *testing.T) {
 // A reading that has gone is settled: nothing in it can be edited or taken
 // back, because the session is holding the file it was made into. What is
 // written afterwards starts the next reading.
-func TestASentReadingIsReadOnlyAndTheNextOneStartsFresh(t *testing.T) {
+func TestRepoASentReadingIsReadOnlyAndTheNextOneStartsFresh(t *testing.T) {
 	var got repoNotesWideShot
 	runWideFixture(t, "reponoteswide.html", &got)
 

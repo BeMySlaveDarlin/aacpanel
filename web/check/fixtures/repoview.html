@@ -2,15 +2,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{height:100%;margin:0}</style>
-<!-- The viewer as a phone reads it: the run of changes, a file unfolded inside
-     it, and the gutter that has to stay out of the sideways scroll. -->
+<!-- A phone opens a changed file directly from Files and reads its diff. -->
 <div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
   <div id="root" style="flex:1;min-height:0;overflow:auto"></div>
 </div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoView } from "/src/screens/repo/view.js";
+import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const CHANGES = {
@@ -67,54 +66,26 @@ window.fetch = async (url) => {
     return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
 };
 
-// The viewer lives inside a conversation that redraws on its own — a feed
-// arrives, a session ticks. A layer that is fine until something above it
-// redraws is a layer that breaks in use and not in a test, so the fixture
-// redraws it the way the run does.
-import { useEffect, useState } from "preact/hooks";
-function Ticking() {
-    const [n, setN] = useState(0);
-    useEffect(() => {
-        const t = setInterval(() => setN((was) => was + 1), 90);
-        return () => clearInterval(t);
-    }, []);
-    return h(RepoView, { cwd: "/srv/proj", name: "work", tick: n, onBack() {} });
-}
 
-render(h(ToastHost, null, h(Ticking)), document.getElementById("root"));
-
-window.done = new Promise((done) => {
-    const wait = () => {
-        const head = document.querySelector(".cdfilehead");
-        if (!head) return setTimeout(wait, 30);
-        head.click();
-        // What a person does on this screen: switch the tab, switch the base.
-        // A layer that is fine on first draw and piles up on the second is a
-        // layer that breaks in the hand and not in a test.
-        const tabs = [...document.querySelectorAll(".cdstrip .chip")];
-        if (tabs[1]) tabs[1].click();
-        if (tabs[0]) tabs[0].click();
-        if (tabs[2]) tabs[2].click();
-        const settle = () => {
-            const line = document.querySelector(".cdln");
-            if (!line) return setTimeout(settle, 30);
-            const gut = line.querySelector(".cdgut");
-            const src = line.querySelector(".cdsrc");
-            const lines = document.querySelector(".cdlines");
-            done({
-                heads: document.querySelectorAll(".phead").length,
-                gutterInsideScroller: Boolean(src && gut && src.contains(gut)),
-                contentVisibility: lines ? getComputedStyle(lines).contentVisibility : "",
-                spanClasses: [...document.querySelectorAll(".cdsrc span")].map((s) => s.className).filter(Boolean),
-                addLines: document.querySelectorAll(".cdln.add").length,
-                delLines: document.querySelectorAll(".cdln.del").length,
-                tags: [...document.querySelectorAll(".cdtag")].map((t) => t.textContent.trim()),
-                dots: [...document.querySelectorAll(".cddot")].map((d) => d.className.replace("cddot ", "")),
-                gutterTouchAction: getComputedStyle(gut).touchAction,
-            });
-        };
-        setTimeout(settle, 60);
+render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work" })), document.getElementById("root"));
+import { until } from "/check/fixtures/repo-scene.js";
+window.done = (async () => {
+    (await until(".cdchangedfile")).click();
+    await until(".cdln");
+    await quiet();
+    const line = document.querySelector(".cdln");
+    const gut = line.querySelector(".cdgut");
+    const src = line.querySelector(".cdsrc");
+    return {
+        heads: document.querySelectorAll(".phead").length,
+        gutterInsideScroller: Boolean(src && gut && src.contains(gut)),
+        contentVisibility: getComputedStyle(document.querySelector(".cdlines")).contentVisibility,
+        spanClasses: [...document.querySelectorAll(".cdsrc span")].map((s) => s.className).filter(Boolean),
+        addLines: document.querySelectorAll(".cdln.add").length,
+        delLines: document.querySelectorAll(".cdln.del").length,
+        tags: [...document.querySelectorAll(".cdtag")].map((t) => t.textContent.trim()),
+        dots: [...document.querySelectorAll(".cdstatus")].map((d) => d.title),
+        gutterTouchAction: getComputedStyle(gut).touchAction,
     };
-    wait();
-});
+})();
 </script>

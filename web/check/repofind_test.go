@@ -20,7 +20,7 @@ type repoFindShot struct {
 // The finder is not on the screen until it is asked for, opens on the keys it
 // is bound to, and takes the typing straight away: a box that opens without
 // the caret in it is a box that eats the first letters of every name.
-func TestTheFinderOpensOnItsKeysAndTakesTheTyping(t *testing.T) {
+func TestRepoTheFinderOpensOnItsKeysAndTakesTheTyping(t *testing.T) {
 	var got repoFindShot
 	runWideFixture(t, "repofind.html", &got)
 
@@ -40,7 +40,7 @@ func TestTheFinderOpensOnItsKeysAndTakesTheTyping(t *testing.T) {
 
 // What comes back is a list to pick from, with the first one already picked so
 // that Enter means something the moment the name is typed.
-func TestWhatIsFoundIsAListWithTheFirstOneReady(t *testing.T) {
+func TestRepoWhatIsFoundIsAListWithTheFirstOneReady(t *testing.T) {
 	var got repoFindShot
 	runWideFixture(t, "repofind.html", &got)
 
@@ -58,24 +58,21 @@ func TestWhatIsFoundIsAListWithTheFirstOneReady(t *testing.T) {
 	}
 }
 
-// Enter opens the file that was picked: it becomes a tab, and the finder gets
-// out of the way. A finder that stays open over what it just opened is one
-// more thing to dismiss.
-func TestEnterOpensThePickedFileAsATab(t *testing.T) {
+// Enter opens the picked file and clears the results in the sidebar.
+func TestRepoEnterOpensThePickedFile(t *testing.T) {
 	var got repoFindShot
 	runWideFixture(t, "repofind.html", &got)
 
 	if !got.Closed {
 		t.Error("the finder is still over the code after opening a file from it")
 	}
-	if len(got.Tabs) != 2 || got.Tabs[1] != "env_test.go" {
-		t.Errorf("the tabs are %v — the file picked with the arrow key is the one that should have opened", got.Tabs)
+	if len(got.Tabs) != 1 || got.Tabs[0] != "pkg/deep/env_test.go" {
+		t.Errorf("the open path is %v — the file picked with the arrow key is the one that should have opened", got.Tabs)
 	}
 }
 
-// Escape is the way out of anything that opens over the page. Without it the
-// only way back is opening a file nobody wanted.
-func TestEscapeLeavesTheFinderWithoutOpeningAnything(t *testing.T) {
+// Escape leaves the search field and clears its results.
+func TestRepoEscapeLeavesTheFinderWithoutOpeningAnything(t *testing.T) {
 	var got repoFindShot
 	runWideFixture(t, "repofind.html", &got)
 

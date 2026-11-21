@@ -44,8 +44,8 @@ func TestAConsoleIsWatchedAsAFeedWithoutMoving(t *testing.T) {
 		streamTip   string
 	}{
 		{"on the wide screen", runWideFixture, "term", "feed",
-			"Feed:false Terminal:true Files:false",
-			"Feed:true Terminal:false:moves Files:false",
+			"Feed:false Terminal:true",
+			"Feed:true Terminal:false:moves",
 			"The session is on the stream: move it to tmux first"},
 		{"on a phone", runFixture, "feed", "term",
 			"Feed:true Terminal:false",

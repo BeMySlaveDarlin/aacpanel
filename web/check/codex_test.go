@@ -167,8 +167,8 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	}
 
 	// The conversation: the feed and its files, no terminal, no move.
-	if strings.Join(got.Tabs, ",") != "Feed,Files" {
-		t.Errorf("the conversation of a codex thread is watched with %v, expected the feed and the files alone", got.Tabs)
+	if strings.Join(got.Tabs, ",") != "Feed" {
+		t.Errorf("the conversation of a codex thread is watched with %v, expected the feed alone, with Files beside the view tabs", got.Tabs)
 	}
 	if !strings.Contains(got.Place, "daemon") {
 		t.Errorf("the session button says %q — the thread lives on the daemon", got.Place)
@@ -320,7 +320,7 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if strings.Join(got.Attach, ",") != "Camera,Photos,Files" {
 		t.Errorf("the paperclip of a codex thread opens %v, expected where files come from, as claude's does", got.Attach)
 	}
-	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,MCP servers,Skills,Role…,Session messages…,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
+	if strings.Join(got.Tools, ",") != "Find in the conversation,With codex,MCP servers,Skills,Role…,Session messages…,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
 		t.Errorf("the tools of a codex thread list %v", got.Tools)
 	}
 	if got.Close == nil || got.Close.Off {

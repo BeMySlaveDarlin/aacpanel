@@ -80,6 +80,7 @@ window.done = (async () => {
         back: Boolean(head.querySelector(".pback")),
         more: Boolean(head.querySelector(".pmore")),
         buttons: head.querySelectorAll("button").length,
+        files: Boolean(head.querySelector(".cdfilesbutton")),
         oldTools: head.querySelectorAll(".viewsw, .viewbtn, .winbtn, .rcbtn").length,
         running: head.querySelectorAll(".marq").length,
         dot: (head.querySelector(".talkdot") || { dataset: {} }).dataset.tone || "",

@@ -1,6 +1,6 @@
 /* Work bar above the composer, its counters, the work list and the composer. */
 
-.body:has(> .deck) {
+.body:has(> .cdsession .deck) {
     --deck-gap: .8rem;
     padding-bottom: var(--deck-gap);
 }

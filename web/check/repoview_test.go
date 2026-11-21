@@ -20,7 +20,7 @@ type repoShot struct {
 // A page has one way back. Two of them stacked is not a cosmetic slip: the
 // second is a live handler over a dead layer, and a tap on it leaves the
 // viewer without leaving the page it was drawn over.
-func TestThePageKeepsOneHeadWhateverItRedraws(t *testing.T) {
+func TestRepoThePageKeepsOneHeadWhateverItRedraws(t *testing.T) {
 	var got repoShot
 	runFixture(t, "repoview.html", &got)
 
@@ -33,7 +33,7 @@ func TestThePageKeepsOneHeadWhateverItRedraws(t *testing.T) {
 // handle a line is picked up with. Inside the sideways scroll of the code it is
 // neither: it slides away with the diff, and a phone is left with nowhere to
 // start a swipe from on a screen full of code.
-func TestTheGutterStaysOutOfTheSidewaysScroll(t *testing.T) {
+func TestRepoTheGutterStaysOutOfTheSidewaysScroll(t *testing.T) {
 	var got repoShot
 	runFixture(t, "repoview.html", &got)
 
@@ -49,7 +49,7 @@ func TestTheGutterStaysOutOfTheSidewaysScroll(t *testing.T) {
 // of code is known, so nothing has to be measured or windowed by hand — and a
 // search of the page still finds what is further down the file, which a
 // hand-written window would have thrown out of the document.
-func TestTheRunOfLinesIsLeftToTheBrowserToSkip(t *testing.T) {
+func TestRepoTheRunOfLinesIsLeftToTheBrowserToSkip(t *testing.T) {
 	var got repoShot
 	runFixture(t, "repoview.html", &got)
 
@@ -60,7 +60,7 @@ func TestTheRunOfLinesIsLeftToTheBrowserToSkip(t *testing.T) {
 
 // The spans the service sends are what colours the code. A class it numbers and
 // the panel does not name paints code in the colour of nothing.
-func TestTheSpansOfTheServiceArePaintedByTheirClasses(t *testing.T) {
+func TestRepoTheSpansOfTheServiceArePaintedByTheirClasses(t *testing.T) {
 	var got repoShot
 	runFixture(t, "repoview.html", &got)
 
@@ -92,7 +92,7 @@ func TestTheSpansOfTheServiceArePaintedByTheirClasses(t *testing.T) {
 // What is in a commit and what is not are told apart on every hunk and every
 // file. A review answers for the two differently, and a screen that shows one
 // mark for both asks a person to remember which is which.
-func TestTheTwoLayersAreMarkedApart(t *testing.T) {
+func TestRepoTheTwoLayersAreMarkedApart(t *testing.T) {
 	var got repoShot
 	runFixture(t, "repoview.html", &got)
 
@@ -114,7 +114,7 @@ func TestTheTwoLayersAreMarkedApart(t *testing.T) {
 	// The dot of a file not yet committed is not the colour of a deletion: a
 	// file marked with it reads as deleted rather than as unfinished.
 	for _, dot := range got.Dots {
-		if dot != "wt" && dot != "done" {
+		if dot != "not yet committed" && dot != "committed" {
 			t.Errorf("a file carries the mark %q, which the panel does not define", dot)
 		}
 	}
@@ -130,12 +130,12 @@ type layerShot struct {
 // redraws while the layer is open. Switching the base there is what a person
 // does first, and a screen that is replaced on its own but stacked in that
 // company is a screen that breaks in the hand and not in a fixture.
-func TestSwitchingTheBaseReplacesTheScreenRatherThanStackingIt(t *testing.T) {
+func TestRepoSwitchingTheBaseReplacesTheScreenRatherThanStackingIt(t *testing.T) {
 	var got layerShot
 	runFixture(t, "repolayer.html", &got)
 
 	if got.Heads != 1 || got.Strips != 1 || got.Pages != 1 {
-		t.Errorf("after two switches of the base and one of the tab: %d heads, %d strips, %d pages — "+
+		t.Errorf("after two base switches and a redraw: %d heads, %d strips, %d pages — "+
 			"each switch left the screen it drew standing", got.Heads, got.Strips, got.Pages)
 	}
 }

@@ -2,15 +2,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{height:100%;margin:0}</style>
-<!-- Finding a file by name: the keys that open it, what comes back, and the
-     tab it leaves behind. -->
+<!-- The sidebar finder opens on Ctrl K and opens its picked file. -->
 <div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
   <div id="root" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
 </div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoView } from "/src/screens/repo/view.js";
+import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const CHANGES = {
@@ -51,7 +50,7 @@ window.addEventListener = function (type, ...args) {
     if (type === "keydown") keysBound = true;
 };
 
-render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {} })), document.getElementById("root"));
+render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", autoOpen: false, onBack() {} })), document.getElementById("root"));
 
 const sel = (q) => document.querySelector(q);
 const all = (q) => [...document.querySelectorAll(q)];
@@ -75,13 +74,13 @@ async function type(text, ready) {
 }
 
 window.done = (async () => {
-    await until(() => sel(".cdwide") && keysBound, "the finder key binding");
+    await until(() => sel(".cdsession") && keysBound, "the finder key binding");
     window.addEventListener = listen;
 
-    const beforeKeys = Boolean(sel(".cdfind"));
+    const beforeKeys = Boolean(sel(".cdside:not([hidden])"));
     press("k");
-    await until(() => sel(".cdfind"), "the open finder");
-    const opened = Boolean(sel(".cdfind"));
+    await until(() => sel(".cdside:not([hidden])"), "the open finder");
+    const opened = Boolean(sel(".cdside:not([hidden])"));
     await until(() => sel(".cdfindin") && document.activeElement === sel(".cdfindin"), "the focused input");
     const focused = document.activeElement === sel(".cdfindin");
 
@@ -105,18 +104,20 @@ window.done = (async () => {
     const secondOn = all(".cdfindrow")[1] ? all(".cdfindrow")[1].classList.contains("on") : false;
 
     press("Enter", sel(".cdfindin"));
-    await until(() => !sel(".cdfind") && all(".cdtab").length === 2, "the picked file tab");
+    await until(() => sel(".cdfilepath")?.textContent.includes("env_test.go") && !sel(".cdfindlist"), "the picked file");
 
-    const closed = !sel(".cdfind");
-    const tabs = all(".cdtab").map((t) => t.textContent.replace("×", "").trim());
+    const closed = !sel(".cdfindlist");
+    const tabs = [sel(".cdfilepath")?.textContent.replace(/\s/g, "") || ""];
 
     // Escape leaves without opening anything.
     press("k");
-    await until(() => sel(".cdfind"), "the reopened finder");
-    const reopened = Boolean(sel(".cdfind"));
-    press("Escape");
-    await until(() => !sel(".cdfind"), "the dismissed finder");
-    const escaped = !sel(".cdfind");
+    await until(() => sel(".cdside:not([hidden])"), "the reopened finder");
+    const reopened = Boolean(sel(".cdside:not([hidden])"));
+    await quiet();
+    await type("env", found);
+    press("Escape", sel(".cdfindin"));
+    await quiet();
+    const escaped = document.activeElement !== sel(".cdfindin") && !sel(".cdfindlist");
 
     return {
         beforeKeys,

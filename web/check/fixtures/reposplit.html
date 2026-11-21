@@ -11,7 +11,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoView } from "/src/screens/repo/view.js";
+import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const CHANGES = {
@@ -75,22 +75,16 @@ async function until(q, tries = 60) {
 const chip = (text) => all(".chip").find((c) => c.textContent.trim() === text);
 
 window.done = (async () => {
-    const head = await until(".cdfilehead");
-    if (head) head.click();
-    await tick(90);
-    const open = all(".cdopen").find((b) => b.textContent.includes("Open the file"));
-    if (open) open.click();
-    await tick(120);
-
-    const diffChip = chip("Diff");
-    if (diffChip) diffChip.click();
-    await tick(150);
+    const head = await until(".cdchangedfile");
+    head.click();
+    await until(".cdln");
+    await quiet();
 
     const unifiedRows = all(".cdln").length;
     const pick = sel(".cdsplitpick");
     const pickLabel = pick ? pick.textContent.trim() : "";
     if (pick) pick.click();
-    await tick(150);
+    await quiet();
 
     const rows = all(".cdsprow");
 

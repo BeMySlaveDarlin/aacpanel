@@ -11,7 +11,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoView } from "/src/screens/repo/view.js";
+import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 // What the collector answers for a directory that is not a repository: the
@@ -54,113 +54,52 @@ window.fetch = async (url) => {
 
 render(h(ToastHost, null, h(RepoView, { cwd: "/srv/notes", name: "shelf", onBack() {} })), document.getElementById("root"));
 
-const sel = (q) => document.querySelector(q);
-const all = (q) => [...document.querySelectorAll(q)];
-const tick = (ms) => new Promise((r) => setTimeout(r, ms));
-const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-async function until(q, tries = 60) {
-    for (let i = 0; i < tries; i++) {
-        const el = sel(q);
-        if (el) return el;
-        await tick(30);
-    }
-    return null;
-}
-const press = (key, on) => (on || window).dispatchEvent(
-    new KeyboardEvent("keydown", { key, ctrlKey: key === "k", bubbles: true, cancelable: true }));
-const chips = () => all(".cdstrip .chip, .cdsidetabs .chip").map(text);
-const tabs = () => all(".cdtab").map((t) => text(t).replace("×", "").trim());
 
-async function openNode(name) {
-    const node = all(".cdnode").find((n) => text(n).includes(name));
-    if (node) node.click();
-    await tick(120);
-    return Boolean(node);
-}
-
+import { sel, all, text, until } from "/check/fixtures/repo-scene.js";
+const type = async (what) => {
+    const box = sel(".cdfindin");
+    box.value = what;
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    await quiet();
+};
 window.done = (async () => {
-    // The tree is the first thing on the screen, not a tap away behind a chip.
-    const tree = await until(".cdtree .cdnode");
-    // Effects bind a turn after the first paint.
-    await tick(150);
-    const wide = Boolean(sel(".cdwide"));
-
-    const first = {
-        treeShown: Boolean(tree),
-        chips: chips(),
-        tabs: tabs(),
-        title: text(sel(".chathead h2")),
-        crumb: text(sel(".cdcrumb")),
-        idle: text(sel(".cdscroll .hint")),
-        refusal: document.getElementById("root").textContent.includes("nothing here to compare"),
+    await until(".cdtree .cdnode");
+    await quiet();
+    const wide = matchMedia("(min-width:1100px)").matches;
+    const branchControls = () => all(".cdmodes, .cdnotetab, .cdbasepick, .cdchanged, .cdstatus").length;
+    const out = {
+        wide, treeShown: !sel(".cdside").hidden,
+        branchBefore: branchControls(), button: text(sel(".cdfilesbutton")),
     };
-
-    // A directory opens by a tap, and its crumb says where it is.
-    await openNode("drafts");
-    const inner = all(".cdnode").map(text);
-    const up = all(".cdnode").find((n) => text(n).includes(".."));
-    if (up) up.click();
-    await tick(120);
-
-    // A file opens, and nothing about a branch comes with it.
-    const opened = await openNode("todo.md");
+    sel('.cdnode[data-path="drafts"]').click();
+    await until('.cdnode[data-path="drafts/plan.md"]');
+    await quiet();
+    out.inner = all(".cdnode").map(text);
+    if (!wide) { sel(".cdup").click(); await quiet(); }
+    sel('.cdnode[data-path="todo.md"]').click();
     await until(".cdln");
-    const file = {
-        opened,
-        lines: all(".cdln .cdsrc").map(text),
-        chips: chips(),
-        tabs: tabs(),
-    };
-
-    // A line is not picked up for a note: there is nowhere to keep one.
-    const gutter = sel(".cdln .cdgut");
-    if (gutter) gutter.click();
-    await tick(120);
-    const noteBox = Boolean(sel(".cdnote"));
-    const picked = Boolean(sel(".cdln.picked"));
-
-    let found = null;
-    if (wide) {
-        // Finding by name works the same with no git: the finder asks the
-        // same endpoint, and the file it picks opens as a tab of its own.
-        press("k");
-        await tick(90);
-        const box = await until(".cdfindin");
-        const type = async (what) => {
-            if (!box) return;
-            box.value = what;
-            box.dispatchEvent(new Event("input", { bubbles: true }));
-            await tick(150);
-        };
-        await type("todo");
-        const partial = all(".cdfindlist .cdcut").map(text);
-        await type("plan");
-        const rows = all(".cdfindrow").map(text);
-        press("Enter", sel(".cdfindin"));
-        await tick(150);
-        await until(".cdln");
-        found = { partial, rows, tabs: tabs(), lines: all(".cdln .cdsrc").map(text) };
-
-        // Every tab closed leaves the middle saying how to get to a file,
-        // rather than a strip of nothing above a blank panel.
-        for (let i = 0; i < 4; i++) {
-            const x = sel(".cdtabx");
-            if (!x) break;
-            x.click();
-            await tick(90);
-        }
-        found.afterClose = { tabs: tabs(), strip: Boolean(sel(".cdtabs")), idle: text(sel(".cdscroll .hint")) };
-    }
-
-    return {
-        wide,
-        first,
-        inner,
-        file,
-        noteBox,
-        picked,
-        found,
-        askedBranch: window.__asked.filter((u) => u.includes("/api/repo/diff") || u.includes("/api/repo/refs")),
-    };
+    await quiet();
+    out.lines = all(".cdsrc").map(text);
+    out.branchWithFile = branchControls();
+    sel(".cdgut").click();
+    await quiet();
+    out.noteBox = Boolean(sel(".cdnote"));
+    out.picked = Boolean(sel(".cdln.picked"));
+    sel(".cdtofeed").click();
+    await quiet();
+    await type("todo");
+    out.partial = all(".cdfindlist .cdcut").map(text);
+    await type("plan");
+    out.rows = all(".cdfindrow").map(text);
+    sel(".cdfindrow").click();
+    await until(() => sel(".cdfilepath")?.textContent.includes("plan.md"));
+    await quiet();
+    out.foundLines = all(".cdsrc").map(text);
+    out.path = text(sel(".cdfilepath")).replace(/\s/g, "");
+    sel(".cdtofeed").click();
+    await quiet();
+    out.returned = !sel(".cdfileview") && !sel(".cdside").hidden && !sel(".cdfeedslot").hidden;
+    out.askedBranch = window.__asked.filter((u) => /\/api\/repo\/(diff|refs|blame)|\/api\/reviews/.test(u));
+    return out;
 })();
 </script>

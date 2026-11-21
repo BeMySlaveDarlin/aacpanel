@@ -12,7 +12,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 import { h, render } from "preact";
-import { RepoView } from "/src/screens/repo/view.js";
+import { RepoScene as RepoView, quiet } from "/check/fixtures/repo-scene.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const CHANGES = {
@@ -124,7 +124,7 @@ async function until(q, tries = 80) {
     for (let i = 0; i < tries; i++) {
         const el = sel(q);
         if (el) return el;
-        await tick(30);
+        await quiet();
     }
     return null;
 }
@@ -140,21 +140,18 @@ const rows = () => all(".cdnrow").map((r) => text(r.querySelector(".cdnat")));
 const puts = () => panel.calls.filter((c) => c.method === "PUT");
 
 window.done = (async () => {
-    // Into a file, the way a phone gets there: the run of changes, one file,
-    // its lines.
-    const head = await until(".cdfilehead");
-    head.click();
-    const open = await until(".cdopen");
-    open.click();
+    (await until(".cdchangedfile")).click();
+    await quiet();
+    all('.cdmodes .cdcontrol').find((b) => text(b) === "File").click();
     await until(".cdln");
-    await tick(200);
+    await quiet();
 
     // A line is picked up by its number, and the box opens under that line
     // rather than over the screen.
     const line = all(".cdln")[2];
     line.querySelector(".cdgut").click();
     await until(".cdnote");
-    await tick(60);
+    await quiet();
     const picked = sel(".cdln.picked");
     const boxUnderTheLine = Boolean(picked && picked.nextElementSibling
         && picked.nextElementSibling.classList.contains("cdnote"));
@@ -162,24 +159,22 @@ window.done = (async () => {
     const emptyRefuses = sel(".cdnotekeep").disabled;
 
     type(sel(".cdnotein"), "this name says nothing about what it reads");
-    await tick(60);
+    await quiet();
     sel(".cdnotekeep").click();
     await until(".cdln.noted");
-    await tick(200);
+    await quiet();
 
     const boxClosed = !sel(".cdnote");
     const notedLines = all(".cdln.noted").map((l) => text(l.querySelector(".cdno")));
     const kept = puts().length ? puts()[puts().length - 1].body.notes : [];
     const started = panel.calls.filter((c) => c.method === "POST").length;
 
-    // The list of the reading: on a phone it is a page of the same stack, one
-    // chip along from the changes.
-    sel(".pback").click();
+    // Notes opens the reading from the file toolbar.
     const chip = await until(".cdnotetab");
     const chipReads = text(chip);
     chip.click();
     await until(".cdnotes");
-    await tick(120);
+    await quiet();
     const listed = rows();
     const trouble = text(sel(".cdnotes .hint.crit"));
 
@@ -187,14 +182,15 @@ window.done = (async () => {
     // written has to still be there, and it has to be the same reading rather
     // than a second one started beside it.
     render(null, root);
-    await tick(60);
+    await quiet();
     draw();
+    (await until(".cdchangedfile")).click();
     await until(".cdstrip");
-    await tick(120);
+    await quiet();
     const backChip = await until(".cdnotetab");
     backChip.click();
     await until(".cdnotes");
-    await tick(150);
+    await quiet();
     const afterReload = rows();
     const startedAfterReload = panel.calls.filter((c) => c.method === "POST").length;
 
@@ -202,7 +198,7 @@ window.done = (async () => {
     // on a shelf saying a review happened when none did.
     const cross = sel(".cdnx");
     if (cross) cross.click();
-    await tick(250);
+    await quiet();
     const afterRemove = rows();
     const dropped = panel.calls.some((c) => c.method === "DELETE");
     const left = Object.keys(panel.readings).length;

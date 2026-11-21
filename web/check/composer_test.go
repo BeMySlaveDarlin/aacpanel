@@ -92,7 +92,7 @@ func TestGapsUnderComposerComeFromOneNumber(t *testing.T) {
 			"repeats it with a number of its own, and the two values drift apart silently: %s", cssFile, page)
 	}
 
-	under := cssBlock(t, css, ".body:has(> .deck)")
+	under := cssBlock(t, css, ".body:has(> .cdsession .deck)")
 	if !strings.Contains(under, "padding-bottom: var(--deck-gap)") {
 		t.Errorf("%s: the bottom margin of the chat page does not come from the shared number: %s", cssFile, under)
 	}

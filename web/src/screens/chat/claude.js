@@ -118,8 +118,8 @@ export function ClaudeChat(props) {
             return { label, node };
         },
         sheets: () => html`<${PickSheet} what=${picking} onClose=${() => setPicking("")} name=${name} live=${live} exec=${exec} />`,
-        aside: ({ wide: desk, feedShown, feedRef }) => asksAside && feedShown
-            && html`<${SideChat} chat=${sideChat} wide=${desk} feedRef=${feedRef} />`,
+        aside: ({ wide: desk, feedShown, asideRef }) => asksAside && feedShown
+            && html`<${SideChat} chat=${sideChat} wide=${desk} feedRef=${asideRef} />`,
     };
     return html`<${Conversation} ...${props} parts=${parts} />`;
 }

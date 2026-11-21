@@ -1,92 +1,116 @@
 package check
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 type repoWideShot struct {
-	LaidOut          bool     `json:"laidOut"`
-	PaneAfterMain    bool     `json:"paneAfterMain"`
-	TabNames         []string `json:"tabNames"`
-	ActiveName       string   `json:"activeName"`
-	AfterClose       []string `json:"afterClose"`
-	ActiveAfter      string   `json:"activeAfter"`
-	PaneGone         bool     `json:"paneGone"`
-	PhoneStripHidden bool     `json:"phoneStripHidden"`
+	BaseLabel          string   `json:"baseLabel"`
+	BaseTitle          string   `json:"baseTitle"`
+	HeaderFeedPressed  bool     `json:"headerFeedPressed"`
+	HeaderFilesPressed bool     `json:"headerFilesPressed"`
+	FolderCrumb        string   `json:"folderCrumb"`
+	TreeBackRoot       bool     `json:"treeBackRoot"`
+	Wide               bool     `json:"wide"`
+	Closed             bool     `json:"closed"`
+	Opened             bool     `json:"opened"`
+	ButtonText         string   `json:"buttonText"`
+	FeedWithSidebar    bool     `json:"feedWithSidebar"`
+	FolderCount        string   `json:"folderCount"`
+	ChangedMarks       string   `json:"changedMarks"`
+	TwoActionsOpened   bool     `json:"twoActionsOpened"`
+	DefaultChanges     string   `json:"defaultChanges"`
+	KeptFeed           bool     `json:"keptFeed"`
+	KeptComposer       bool     `json:"keptComposer"`
+	Selected           bool     `json:"selected"`
+	FileLines          []string `json:"fileLines"`
+	Wrap               bool     `json:"wrap"`
+	Returned           bool     `json:"returned"`
+	TreeMarks          string   `json:"treeMarks"`
+	TreeOpened         string   `json:"treeOpened"`
+	BackToFolder       bool     `json:"backToFolder"`
+	BackToConversation bool     `json:"backToConversation"`
+	Folded             bool     `json:"folded"`
+	NoTabs             bool     `json:"noTabs"`
+	ToolFileEntry      bool     `json:"toolFileEntry"`
 }
 
-// At a desk the directory is a panel of its own after the code, not a tab in
-// front of it: the whole point of the wide screen is reading a file while
-// still seeing where it sits.
-func TestTheDirectoryIsAPanelBesideTheCodeNotATab(t *testing.T) {
-	var got repoWideShot
-	runWideFixture(t, "repowide.html", &got)
-
-	if !got.LaidOut {
-		t.Fatal("the wide shape did not draw at all — there is no panel and no middle")
-	}
-	if !got.PaneAfterMain {
-		t.Error("the panel of the directory does not come after the code")
-	}
-	if !got.PhoneStripHidden {
-		t.Error("the phone's Files tab is still in the strip: the tree is drawn twice, once beside the code and once in front of it")
+func TestRepoFilesStayWithTheConversation(t *testing.T) {
+	parallel(t)
+	for _, shape := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+		wide bool
+	}{
+		{"phone", runFixture, false}, {"desk", runWideFixture, true},
+	} {
+		t.Run(shape.name, func(t *testing.T) {
+			var got repoWideShot
+			shape.run(t, "repowide.html", &got)
+			if got.Wide != shape.wide {
+				t.Fatalf("wrong screen shape: %+v", got)
+			}
+			if !got.Closed || !got.Opened || !got.FeedWithSidebar {
+				t.Errorf("Files did not open beside the mounted feed: %+v", got)
+			}
+			if !got.TwoActionsOpened || got.DefaultChanges != "Changes" {
+				t.Errorf("the header button and one file press did not open its changes: %+v", got)
+			}
+			if !got.KeptFeed || !got.KeptComposer {
+				t.Error("opening a file discarded the feed or its composer")
+			}
+			if got.BaseLabel != "vs main" || !strings.Contains(got.BaseTitle, "project") {
+				t.Errorf("the comparison base reads %q (%q)", got.BaseLabel, got.BaseTitle)
+			}
+			if !got.HeaderFilesPressed || shape.wide && got.HeaderFeedPressed {
+				t.Error("the header must select Files, not Feed, while the file is in view")
+			}
+			if !strings.Contains(got.FolderCrumb, "pkg") || !got.TreeBackRoot {
+				t.Error("the folder crumbs or the way up are missing from All files")
+			}
+			if !got.Selected {
+				t.Error("the file in view has no selection in Files")
+			}
+			if len(got.FileLines) != 3 || got.FileLines[0] != "package pkg" {
+				t.Errorf("File did not show the file contents: %v", got.FileLines)
+			}
+			if !got.Wrap {
+				t.Error("the wrap control did not wrap the file")
+			}
+			if !got.Returned {
+				t.Error("returning from the file did not restore the feed and keep Files open")
+			}
+			if got.TreeOpened != "pkg/env.go" {
+				t.Errorf("the tree opened %q", got.TreeOpened)
+			}
+			if !got.NoTabs || got.ToolFileEntry {
+				t.Error("file tabs or the tools entry still stand")
+			}
+			if shape.wide && !got.Folded {
+				t.Error("Files did not close the sidebar")
+			}
+			if !shape.wide && (!got.BackToFolder || !got.BackToConversation) {
+				t.Error("system back did not return through the same folder to the conversation")
+			}
+		})
 	}
 }
 
-// Every file opened gets a tab, and the changes keep the first one. A viewer
-// whose every tab can be shut leaves a blank panel and no way back to the run.
-func TestEveryOpenFileGetsATabAndTheChangesKeepTheFirst(t *testing.T) {
+func TestRepoTreeAndChangedShowTheSameMarks(t *testing.T) {
 	var got repoWideShot
 	runWideFixture(t, "repowide.html", &got)
-
-	if len(got.TabNames) != 4 {
-		t.Fatalf("tabs are %v — three files were opened beside the changes", got.TabNames)
+	if got.FolderCount != "2" {
+		t.Errorf("the folder says %q changed files, want 2", got.FolderCount)
 	}
-	if got.TabNames[0] != "Changes" {
-		t.Errorf("the first tab is %q: the run of changes is where a reading starts", got.TabNames[0])
-	}
-	for _, want := range []string{"README.md", "fresh.txt", "env.go"} {
-		if !hasTab(got.TabNames, want) {
-			t.Errorf("%q was opened and has no tab of its own: %v", want, got.TabNames)
+	for _, row := range []string{got.ChangedMarks, got.TreeMarks} {
+		for _, mark := range []string{"M", "+6", "−1"} {
+			if !strings.Contains(row, mark) {
+				t.Errorf("%q lacks %q", row, mark)
+			}
 		}
 	}
-	if got.ActiveName != "env.go" {
-		t.Errorf("the tab in front is %q — the file opened last is the one being read", got.ActiveName)
+	if !strings.Contains(got.ButtonText, "2 changed") {
+		t.Errorf("the header says %q", got.ButtonText)
 	}
-}
-
-// Closing the tab being read hands the screen to the tab beside it: that is
-// where the eye already is. Dropping back to the changes every time makes
-// closing a file cost the place in the reading.
-func TestClosingTheReadTabHandsTheScreenToItsNeighbour(t *testing.T) {
-	var got repoWideShot
-	runWideFixture(t, "repowide.html", &got)
-
-	if len(got.AfterClose) != 3 {
-		t.Fatalf("after closing one tab there are %v — one of four should have gone", got.AfterClose)
-	}
-	if hasTab(got.AfterClose, "env.go") {
-		t.Error("the closed tab is still there")
-	}
-	if got.ActiveAfter != "fresh.txt" {
-		t.Errorf("after the close the screen reads %q — the neighbour of what was closed is fresh.txt", got.ActiveAfter)
-	}
-}
-
-// The panel folds away for a file whose lines are wider than what is left of
-// the middle.
-func TestThePanelFoldsAway(t *testing.T) {
-	var got repoWideShot
-	runWideFixture(t, "repowide.html", &got)
-
-	if !got.PaneGone {
-		t.Error("the panel is still drawn after it was folded away")
-	}
-}
-
-func hasTab(tabs []string, want string) bool {
-	for _, t := range tabs {
-		if t == want {
-			return true
-		}
-	}
-	return false
 }

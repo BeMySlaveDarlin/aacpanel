@@ -383,7 +383,7 @@ a.mcprow.toolrow { text-decoration: none; }
 
 /* With nothing under the feed on the phone, its edge is the edge of the screen,
    and the button has to clear the home indicator. */
-.body > .chatfeed:not(:has(~ .composerbox)) .feedjump {
+.cdmain:not(:has(> .composerbox)) .feedjump {
     bottom: calc(.5rem + env(safe-area-inset-bottom));
 }
 
