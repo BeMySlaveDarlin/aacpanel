@@ -3,120 +3,327 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>aacpanel — Atlas Agents Control Panel</title>
-<meta name="description" content="Answer your agents from your phone. aacpanel runs one Linux machine and the Claude Code sessions on it.">
+<title>aacpanel — run a team of agents, not a couple of chats</title>
+<meta name="description" content="A self-hosted control panel for dozens of Claude Code and Codex sessions: who leads whom, how agents reach you and each other, and the team's routine — from your phone and from your desk.">
 <meta name="theme-color" content="#06070f">
-<meta property="og:title" content="aacpanel — Atlas Agents Control Panel">
-<meta property="og:description" content="Answer your agents from your phone: see what one is doing, answer what it is stuck on, restart the container that went unhealthy.">
+<meta property="og:title" content="aacpanel — run a team of agents, not a couple of chats">
+<meta property="og:description" content="A self-hosted control panel for dozens of Claude Code and Codex sessions, from your phone and from your desk.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://aacpanel.bemyslavedarlin.ru/">
 <meta property="og:image" content="https://aacpanel.bemyslavedarlin.ru/shots/og.webp">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-3 -3 30 30'%3E%3Crect x='-3' y='-3' width='30' height='30' rx='7' fill='%2306070f'/%3E%3Cg fill='none' stroke='%2363a8ff' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='5.2'/%3E%3Cellipse cx='12' cy='12' rx='10' ry='4.2' transform='rotate(-24 12 12)'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="scenes.css">
-<script src="page.js" defer></script>
+<style>
+/* One variable file carries every weight the page uses. */
+@font-face { font-family: Inter; font-style: normal; font-weight: 400 800; font-display: swap;
+             src: url(fonts/inter-latin.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap;
+             src: url(fonts/jetbrains-mono-400-latin.woff2) format("woff2"); }
+</style>
 </head>
 <body>
 
-<header class="hero" id="top">
-    <div class="measure">
-        <div class="masthead">
-            <a class="logo" href="#top"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg><span>aacpanel</span></a>
-            <a class="topdoc" target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/wiki">Docs</a>
-        </div>
-
-        <div class="hhead">
-            <h1>Answer your agents from your phone.</h1>
-            <div class="hside">
-                <p class="lede">aacpanel runs one Linux machine and the Claude&nbsp;Code sessions on it.</p>
-                <div class="cta">
-                    <a class="primary" href="#night">See one night</a>
-                    <a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>The code</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="same">
-            <div class="bracket" aria-hidden="true"><span>same session</span></div>
-            <div class="trio">
-                <div class="pair">
-                    <figure class="hf f28">
-                        <div class="bezel"><div class="crop">{{screen:P28}}</div></div>
-                        <figcaption><b>Over ssh</b><span>a typo and a stray Ctrl-C</span></figcaption>
-                    </figure>
-                    <figure class="hf f1" data-live-slot>
-                        <div class="bezel"><div class="crop">{{screen:P1}}</div></div>
-                        <figcaption><b>In a hand</b><span>one tap</span></figcaption>
-                    </figure>
-                </div>
-                <figure class="hf fdesk">
-                    <div class="bezel"><div class="crop">{{screen:hero-desk}}</div></div>
-                    <figcaption><b>At a desk</b><span>the same conversation, wider</span></figcaption>
-                </figure>
-            </div>
-        </div>
-
-        <p class="price"><b>Free.</b> MIT, self-hosted, no account, nothing calls home.</p>
-
-        <nav class="night" id="night" aria-label="One night, board by board">
-            <div class="seg" data-phase="evening"><span class="pw">Evening</span><a href="#machine">Keep the machine up</a><a href="#work">Watch it work</a></div>
-            <div class="seg" data-phase="night"><span class="pw">Night</span><a href="#tell">Tell it</a><a href="#asks">It asks</a><a href="#wheel">Take the wheel</a><a href="#itself">Sessions use it too</a></div>
-            <div class="seg" data-phase="morning"><span class="pw">Morning</span><a href="#wrote">Read what it wrote</a><a href="#costs">What it costs</a></div>
-            <div class="seg" data-phase="setup"><span class="pw">Setting up</span><a href="#start">How sessions start</a><a href="#trust">Only you get in</a><a href="#install">Install</a></div>
+<header class="masthead">
+    <div class="measure bar">
+        <a class="logo" href="#top"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg><span>aacpanel</span></a>
+        <span class="alpha" title="Early software: it works every day, and it has rough edges">Alpha</span>
+        <nav class="toplinks" aria-label="Elsewhere">
+            <a href="https://github.com/BeMySlaveDarlin/aacpanel/wiki">Docs</a>
+            <a href="https://github.com/BeMySlaveDarlin/aacpanel">GitHub</a>
         </nav>
     </div>
 </header>
 
-<main>
-    <div class="zone" data-phase="evening">
-        <div class="measure">
-            <div class="phase"><span>Evening</span></div>
-            {{boards:evening}}
-        </div>
-    </div>
-    <div class="zone" data-phase="night">
-        <div class="measure">
-            <div class="phase"><span>Night</span></div>
-            {{boards:night}}
-        </div>
-    </div>
-    <div class="zone" data-phase="morning">
-        <div class="measure">
-            <div class="phase"><span>Morning</span></div>
-            {{boards:morning}}
-        </div>
-    </div>
-    <div class="zone" data-phase="setup">
-        <div class="measure">
-            <div class="phase"><span>Setting up</span></div>
-            {{boards:setup}}
+<main id="top">
 
-            <section class="board" id="install" data-phase="setup">
-                <div class="bhead">
-                    <h2>About half an hour on a fresh machine</h2>
-                    <p>INSTALL.md goes through it in order. The one piece that acts on the machine you build yourself.</p>
+<!-- 1. The objection and the answer, on the first screen -->
+<section class="hero">
+    <div class="measure">
+        <div class="hero-grid">
+            <h1>Run a team of agents, not a&nbsp;couple of&nbsp;chats.</h1>
+            <div class="hero-text">
+                <p class="sub">A self-hosted control panel for dozens of <b class="w-claude">Claude Code</b> and <b class="w-codex">Codex</b> sessions: who leads whom, how agents reach you and each other, and the team's routine — from your phone and from your desk.</p>
+                <div class="cta">
+                    <a class="btn primary" href="#install">Install</a>
+                    <a class="btn" href="https://github.com/BeMySlaveDarlin/aacpanel">Source on GitHub</a>
                 </div>
-                <div class="installrow">
-                    <div class="cmds" aria-label="three commands of the install">
-                        <div class="line"><span class="typed t1"><span>docker compose up -d</span></span></div>
-                        <div class="line"><span class="typed t2"><span>go build -o ~/bin/ ./cmd/aacpanel-exec</span></span></div>
-                        <div class="line"><span class="typed t3"><span>systemctl --user start aacpanel-exec</span></span></div>
+            </div>
+            <figure class="before" aria-label="Twelve terminal tabs, each with an agent">
+                <div class="tty">
+                    <div class="tty-bar">tmux · 12 windows</div>
+                    <div class="tty-tabs">
+                        <span>1 claude</span><span>2 claude</span><span>3 codex</span><span>4 claude</span>
+                        <span>5 codex</span><span>6 claude</span><span class="on">7 claude</span><span>8 codex</span>
+                        <span>9 claude</span><span>10 claude</span><span>11 codex</span><span>12 claude</span>
                     </div>
-                    <ul class="needs" aria-label="what it needs">
-                        <li>Linux + systemd</li><li>docker</li><li>Go</li><li>tmux</li><li>python3</li><li>claude, signed in</li>
-                    </ul>
+                    <div class="tty-body">
+                        <p>● Reading 0043_orders_idx.sql</p>
+                        <p>● Running tests… 41 passed</p>
+                        <p class="dim">  Updated docs/migration-plan.md</p>
+                        <div class="tty-in">&gt; <i class="caret"></i></div>
+                        <p class="dim">which one is waiting for you?</p>
+                    </div>
                 </div>
-            </section>
-
-            <footer class="foot">
-                <svg class="orbit" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg>
-                <p class="sign">One person, one machine, used there every day.</p>
-                <p class="links"><a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel">GitHub</a><a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/wiki">Wiki</a><a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/LICENSE">MIT</a><a target="_blank" rel="noopener" href="https://claude.com/claude-code">Claude Code</a></p>
-            </footer>
+            </figure>
+            <div class="to" aria-hidden="true"><span>aacpanel</span></div>
+            <figure class="after">
+                <div class="desk win" style="--wx: 0; --wy: 48; --ww: 500"><div class="scr">
+                    <img src="shots/team.webp" width="1600" height="1000" fetchpriority="high" decoding="async"
+                        alt="Sessions at a desk: three accounts, the session waiting for an answer on top, a Claude lead with the Codex helpers it opened under it, and the lead's conversation with their reports">
+                </div></div>
+            </figure>
         </div>
+        <p class="line">Whoever waits for you stands on top. Helpers stand under the session that opened them.</p>
     </div>
+</section>
+
+<!-- 2. Who it is for, right under the first screen -->
+<section class="fit">
+    <div class="measure">
+        <h2>Two sessions? You don't need&nbsp;this.</h2>
+        <p class="line">With a couple of sessions the vendor's own client is enough. aacpanel is for when there are dozens of them, many projects and several accounts — and the agents keep working while you are away.</p>
+        <p class="fact">Built and used daily on ~40 sessions across three accounts.</p>
+    </div>
+</section>
+
+<!-- 3. Hierarchy -->
+<section class="scene" id="hierarchy">
+    <div class="measure">
+        <p class="kicker">Hierarchy</p>
+        <h2>A lead, its helpers, and their&nbsp;helpers.</h2>
+        <div class="pair">
+            <figure class="before" aria-label="A flat list of chats">
+                <div class="tty chat">
+                    <div class="tty-bar">Chats</div>
+                    <ul class="chats">
+                        <li>Fix the orders migration</li>
+                        <li class="on">Review the index plan</li>
+                        <li>Dry-run on a copy</li>
+                        <li>Rollback for 0043</li>
+                        <li>billing-api lock</li>
+                        <li>Incident note</li>
+                        <li>Pricing table</li>
+                    </ul>
+                    <div class="toast">Copied 42 lines — paste them into the next chat</div>
+                </div>
+            </figure>
+            <div class="to" aria-hidden="true"><span>aacpanel</span></div>
+            <figure class="after">
+                <div class="phone"><div class="scr">
+                    <img src="shots/tree.webp" width="786" height="1704" loading="lazy" decoding="async"
+                        alt="Sessions on a phone: a Claude lead, two Codex helpers it opened, and a helper's own helper, each with its checklist">
+                </div></div>
+            </figure>
+        </div>
+        <p class="line">A <b class="w-claude">Claude</b> lead opens <b class="w-codex">Codex</b> helpers. Their reports come back to it, and it answers them, gives the next step and closes them when they are done.</p>
+    </div>
+</section>
+
+<!-- 4. Agent to you -->
+<section class="scene" id="you">
+    <div class="measure">
+        <p class="kicker">Agent → you</p>
+        <h2>Every way an agent needs you — not just a chat&nbsp;box.</h2>
+        <div class="pair">
+            <figure class="before" aria-label="A prompt waiting in a terminal tab">
+                <div class="tty">
+                    <div class="tty-bar">7: claude</div>
+                    <div class="tty-body">
+                        <p>● Bash psql -c "ALTER TABLE …"</p>
+                        <p class="dim">  Allow this command?</p>
+                        <p>  › 1. Yes</p>
+                        <p class="dim">    2. Yes, don't ask again</p>
+                        <p class="dim">    3. No</p>
+                        <p class="dim">&nbsp;</p>
+                        <p class="dim">waiting since 01:46 <i class="caret"></i></p>
+                    </div>
+                </div>
+            </figure>
+            <div class="to" aria-hidden="true"><span>aacpanel</span></div>
+            <figure class="after">
+                <div class="phone"><div class="scr">
+                    <img src="shots/feed-forms.webp" width="786" height="1704" loading="lazy" decoding="async"
+                        alt="A session's feed: a brief for later, a question with options, a permission it was given, and a letter from another session">
+                </div></div>
+            </figure>
+        </div>
+        <p class="line">A question with options, a permission, a brief for later, a task for your hands, a key it needs: each comes as its own card, and the queue over the composer says what the session waits on now.</p>
+    </div>
+</section>
+
+<!-- 5. Agent to agent -->
+<section class="scene" id="letters">
+    <div class="measure">
+        <p class="kicker">Agent → agent</p>
+        <h2>Sessions write to each other — across projects and&nbsp;accounts.</h2>
+        <div class="pair">
+            <figure class="before" aria-label="Two terminal panes, output copied from one into the other">
+                <div class="tty">
+                    <div class="tty-bar">claude · shopfront │ codex · billing-api</div>
+                    <div class="split">
+                        <div class="tty-body">
+                            <p>Plan for 0043:</p>
+                            <p>1. build the new index</p>
+                            <p>2. drop the old one</p>
+                            <p><mark>3. same transaction</mark></p>
+                        </div>
+                        <div class="tty-body">
+                            <p>&gt; the other agent</p>
+                            <p>  says: "drop the</p>
+                            <p>  old index in the</p>
+                            <p>  same transaction"<i class="caret"></i></p>
+                        </div>
+                    </div>
+                </div>
+            </figure>
+            <div class="to" aria-hidden="true"><span>aacpanel</span></div>
+            <figure class="after">
+                <div class="phone"><div class="scr">
+                    <img src="shots/letter.webp" width="786" height="1704" loading="lazy" decoding="async"
+                        alt="A Codex session in another account: a letter from the Claude lead that expects the work done by a deadline, the work, and the reply marked done">
+                </div></div>
+            </figure>
+        </div>
+        <p class="line">A letter can wait for an answer or for the work to be done, by a deadline. <b class="w-claude">Claude</b> writes to <b class="w-codex">Codex</b> and back, from a work account to a personal one, and both feeds keep the thread.</p>
+    </div>
+</section>
+
+<!-- 6. Longer than a context -->
+<section class="scene" id="long">
+    <div class="measure">
+        <p class="kicker">Long work</p>
+        <h2>Work that outlives a context&nbsp;window.</h2>
+        <div class="pair">
+            <figure class="before" aria-label="A full context and a session that lost the thread">
+                <div class="tty">
+                    <div class="tty-bar">4: claude</div>
+                    <div class="tty-body">
+                        <p class="ctx">context <span class="meter"><i></i></span> 97%</p>
+                        <p>&gt; morning. where were we?</p>
+                        <p class="dim">● I don't have the earlier</p>
+                        <p class="dim">  details. Could you describe</p>
+                        <p class="dim">  the task again?</p>
+                        <div class="tty-in">&gt; <i class="caret"></i></div>
+                    </div>
+                </div>
+            </figure>
+            <div class="to" aria-hidden="true"><span>aacpanel</span></div>
+            <figure class="after">
+                <div class="phone"><div class="scr">
+                    <img src="shots/restart.webp" width="786" height="1704" loading="lazy" decoding="async"
+                        alt="The lead after a restart at its context cap: the note it left itself, the context nearly empty, and the work going on from step 5 of its checklist">
+                </div></div>
+            </figure>
+        </div>
+        <p class="line">Near its limit a session saves its tasks and a handoff to the panel, restarts clean and goes on from the same step. It can sleep until an alarm, and a closed conversation resumes from the archive.</p>
+    </div>
+</section>
+
+<!-- 7. Accounts and projects -->
+<section class="scene" id="map">
+    <div class="measure">
+        <p class="kicker">Accounts</p>
+        <h2>Several accounts, dozens of projects, one&nbsp;map.</h2>
+        <div class="pair wide">
+            <figure class="before" aria-label="A shell history of launch commands">
+                <div class="tty">
+                    <div class="tty-bar">~/.bash_history</div>
+                    <div class="tty-body">
+                        <p>$ CLAUDE_CONFIG_DIR=~/.claude-work \</p>
+                        <p>    claude --model opus \</p>
+                        <p>    --permission-mode plan</p>
+                        <p>$ CODEX_HOME=~/.codex-client codex</p>
+                        <p>$ claude --append-system-prompt \</p>
+                        <p>    "You review. You don't write."</p>
+                        <p class="dim"># which account was this one on?<i class="caret"></i></p>
+                    </div>
+                </div>
+            </figure>
+            <div class="to" aria-hidden="true"><span>aacpanel</span></div>
+            <figure class="after">
+                <div class="desk win" style="--wx: 20; --wy: 20; --ww: 480"><div class="scr">
+                    <img src="shots/map.webp" width="1600" height="1000" loading="lazy" decoding="async"
+                        alt="Launch settings at a desk: accounts and their project groups on the left, a group's model, effort, permissions and first message on the right">
+                </div></div>
+            </figure>
+        </div>
+        <p class="line">Model, permission mode, context cap and the message after a restart are set once — on a project or on a whole account. Every account's limits stay in view.</p>
+    </div>
+</section>
+
+<!-- 8. Review -->
+<section class="scene" id="review">
+    <div class="measure">
+        <p class="kicker">Review</p>
+        <h2>Review what twenty agents did — without a&nbsp;scrollback.</h2>
+        <div class="pair">
+            <figure class="before" aria-label="git diff and git blame over ssh">
+                <div class="tty">
+                    <div class="tty-bar">ssh devbox</div>
+                    <div class="tty-body">
+                        <p>$ git diff --stat</p>
+                        <p class="dim"> 0043_orders_idx.sql | 15 ++++---</p>
+                        <p class="dim"> migration-plan.md   |  8 ++++++</p>
+                        <p>$ git blame -L 8,8 0043_orders_idx.sql</p>
+                        <p class="dim">3f2a91c (you) -- Rollback: …</p>
+                        <p class="dim"># which of twenty sessions wrote it?<i class="caret"></i></p>
+                    </div>
+                </div>
+            </figure>
+            <div class="to" aria-hidden="true"><span>aacpanel</span></div>
+            <figure class="after">
+                <div class="phone"><div class="scr">
+                    <img src="shots/blame.webp" width="786" height="1704" loading="lazy" decoding="async"
+                        alt="Who wrote a line: the commit, its author and a button that opens the conversation that wrote it">
+                </div></div>
+            </figure>
+        </div>
+        <p class="line">The conversation reads like a book. The diff and who wrote each line sit beside it, a tap away from the session that wrote it — and the project's tasks and handoffs are kept in the panel too.</p>
+    </div>
+</section>
+
+<!-- 9. Who gets in -->
+<section class="scene trust" id="trust">
+    <div class="measure">
+        <p class="kicker">Who gets in</p>
+        <h2>Your machine. Your accounts. No cloud in&nbsp;between.</h2>
+        <ul class="facts">
+            <li><b>A passkey</b> signs you in. No passwords to leak.</li>
+            <li><b>The panel runs on your machine</b>, reached by your domain, your home network or your tailnet.</li>
+            <li><b>Agents work on your own accounts.</b> The panel's container never reads their transcripts.</li>
+        </ul>
+    </div>
+</section>
+
+<!-- 10. Install, and honesty -->
+<section class="scene install" id="install">
+    <div class="measure">
+        <p class="kicker">Install</p>
+        <h2>One command. Alpha — expect rough&nbsp;edges.</h2>
+        <div class="cmd" aria-label="The install command">
+            <code><span class="p">$</span> git clone https://github.com/BeMySlaveDarlin/aacpanel ~/aacpanel &amp;&amp; ~/aacpanel/install.sh</code>
+        </div>
+        <p class="line">It shows its plan before it changes anything, and <code>install.sh uninstall</code> takes back exactly what it did.</p>
+        <p class="needs">Linux with systemd · Docker with Compose v2 · tmux and python3 · <b class="w-claude">Claude Code</b>, signed in · <b class="w-codex">Codex</b>, if you want it</p>
+        <p class="issues">Hit a rough edge? <a href="https://github.com/BeMySlaveDarlin/aacpanel/issues">Open an issue</a>.</p>
+    </div>
+</section>
+
 </main>
+
+<footer class="foot">
+    <div class="measure">
+        <svg class="orbit" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg>
+        <p class="links">
+            <a href="https://github.com/BeMySlaveDarlin/aacpanel">GitHub</a>
+            <a href="https://github.com/BeMySlaveDarlin/aacpanel/wiki">Docs</a>
+            <a href="https://github.com/BeMySlaveDarlin/aacpanel/issues">Issues</a>
+            <a href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/LICENSE">MIT</a>
+        </p>
+    </div>
+</footer>
 
 </body>
 </html>
