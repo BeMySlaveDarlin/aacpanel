@@ -531,6 +531,10 @@ span.pjname { cursor: default; }
 }
 /* A hairline parts the cards of a block, and a fold from the cards. */
 .pjblock > :not(:first-child), .pjtree > * + * { border-top: var(--hair) solid var(--line); }
+/* The rows of a project stand in a box only so a fold can hide them; laid out
+   they are rows of the block, divided as before. */
+.pjrows:not([hidden]) { display: contents; }
+.pjrows > :not(:first-child), .pjhead + .pjrows > :first-child { border-top: var(--hair) solid var(--line); }
 /* Every line starts at the card's edge; the glyph stands on the state's line
    beside its word rather than keeping a column of its own. */
 .sc > :not(.scopen, .scedge) { grid-column: 1 / -1; min-width: 0; }

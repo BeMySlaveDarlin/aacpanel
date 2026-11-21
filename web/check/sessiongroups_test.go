@@ -262,3 +262,39 @@ func TestForeignProjectChildrenNameTheirProject(t *testing.T) {
 		t.Errorf("the foreign child leaves a block in its own project: %v", got.ProjectLabels.Blocks)
 	}
 }
+
+// A project on the phone folds by its name, as in the desktop column: the
+// folded heading says how many sessions it holds, the fold is kept with the
+// desktop's, and the page of the project is a button of the heading.
+func TestSessionsAProjectFoldsByItsNameOnThePhone(t *testing.T) {
+	var got struct {
+		PhoneFold struct {
+			RowsBefore int `json:"rowsBefore"`
+			Folded     struct {
+				Hidden   bool   `json:"hidden"`
+				Expanded string `json:"expanded"`
+				Count    string `json:"count"`
+				Stored   int    `json:"stored"`
+			} `json:"folded"`
+			Pages     []string `json:"pages"`
+			Reopened  bool     `json:"reopened"`
+			Expanded  string   `json:"expanded"`
+			CountGone bool     `json:"countGone"`
+		} `json:"phoneFold"`
+	}
+	runFixture(t, "sessiongroups.html", &got)
+
+	f := got.PhoneFold
+	if f.RowsBefore == 0 {
+		t.Fatal("the fixture has no project with live sessions to fold")
+	}
+	if !f.Folded.Hidden || f.Folded.Expanded != "false" || !strings.HasSuffix(f.Folded.Count, "sessions") && !strings.HasSuffix(f.Folded.Count, "session") || f.Folded.Stored != 1 {
+		t.Errorf("a tap on the name folded nothing as it should: %+v", f.Folded)
+	}
+	if len(f.Pages) != 1 {
+		t.Errorf("the page button of the heading opened %v", f.Pages)
+	}
+	if !f.Reopened || f.Expanded != "true" || !f.CountGone {
+		t.Errorf("a second tap did not unfold the project: reopened %v, expanded %q, count gone %v", f.Reopened, f.Expanded, f.CountGone)
+	}
+}

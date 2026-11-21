@@ -8,6 +8,7 @@
 <div class="phone" id="phone1"></div>
 <div class="phone" id="phone2"></div>
 <div class="phone" id="plain"></div>
+<div class="phone" id="phonefold"></div>
 <div id="shell"></div>
 </div>
 <script type="module">
@@ -27,6 +28,7 @@ import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { blocksOf, ProjectBlock } from "/src/screens/sessions/blocks.js";
+import { useFolds } from "/src/screens/sessions/folds.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -97,6 +99,20 @@ page("phone1", 1, sessions.filter((s) => s.contour === 1));
 page("phone2", 2, sessions.filter((s) => s.contour === 2));
 // Nobody opened anybody: the same sessions with no parent.
 page("plain", 1, sessions.filter((s) => s.contour === 1).map(({ parent, ...s }) => s));
+// The contour page of the phone folds a project by its name, as the desktop column does.
+localStorage.removeItem("aacpanel.project-folds");
+const pages = [];
+function FoldingPage() {
+    const profile = profileMap.find((p) => p.id === 1);
+    const blocks = blocksOf({ profile, sessions: sessions.filter((s) => s.contour === 1) });
+    const [folded, toggle] = useFolds("aacpanel.project-folds");
+    return html`${blocks.map((block) => html`
+        <${ProjectBlock} key=${block.key} block=${block} profile=${profile} exec=${exec} live=${sessions} past=${archive}
+                         onProject=${(project) => pages.push(project.name)}
+                         folded=${folded.has(block.key)} onToggle=${() => toggle(block.key)} />
+    `)}`;
+}
+render(wrap(h(FoldingPage)), document.getElementById("phonefold"));
 
 const until = async (ok) => {
     const end = performance.now() + 3000;
@@ -232,6 +248,21 @@ window.done = (async () => {
     out.pins = await sessionPins();
     const { sessionLevels } = await import("/check/fixtures/sessionlevels.js");
     out.levels = await sessionLevels();
+    {
+        const root = document.getElementById("phonefold");
+        const block = Array.from(root.querySelectorAll(".pjblock")).find((b) => b.querySelector(".pjrows .sc"));
+        const name = block.querySelector("button.pjname");
+        const rowsBefore = block.querySelectorAll(".pjrows .sc").length;
+        name.click();
+        await until(() => block.querySelector(".pjrows").hidden);
+        const foldedState = { hidden: block.querySelector(".pjrows").hidden, expanded: name.getAttribute("aria-expanded"),
+            count: text(block.querySelector(".pjfoldcount")), stored: JSON.parse(localStorage.getItem("aacpanel.project-folds") || "[]").length };
+        block.querySelector('[aria-label^="conversations of project"]').click();
+        name.click();
+        await until(() => !block.querySelector(".pjrows").hidden);
+        out.phoneFold = { rowsBefore, folded: foldedState, pages: pages.slice(), reopened: !block.querySelector(".pjrows").hidden,
+            expanded: name.getAttribute("aria-expanded"), countGone: !block.querySelector(".pjfoldcount") };
+    }
     const { sessionPause } = await import("/check/fixtures/sessionpause.js");
     out.pause = await sessionPause();
     return out;

@@ -433,7 +433,7 @@ export function restartable(rows, wait) {
 // restart of every live session under the heading, one after another, each
 // through its own confirmation as a restart of one goes; a cancel stops the
 // rest.
-export function HeadActs({ block, profile, sessions, exec, wait }) {
+export function HeadActs({ block, profile, sessions, exec, wait, onPage = null }) {
     const run = useAction();
     const project = block.project;
     const canNew = project && !block.home;
@@ -457,6 +457,10 @@ export function HeadActs({ block, profile, sessions, exec, wait }) {
             <${Act} label=${`restart the sessions of ${block.name}`} off=${restartWhy}
                     tip=${restartWhy || `Restart ${rows.length} ${rows.length === 1 ? "session" : "sessions"}, each asked for on its own`}
                     onPress=${restartAll}>${Icon.refresh()}<//>
+            ${onPage && html`
+                <${Act} label=${`conversations of project ${block.name}`} tip=${`The conversations of ${block.name}`}
+                        onPress=${onPage}>${Icon.clock()}<//>
+            `}
         </span>
     `;
 }

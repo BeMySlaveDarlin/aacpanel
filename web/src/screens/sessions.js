@@ -12,6 +12,7 @@ import { useSessionsArchive } from "../history.js";
 import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
 import { blocksOf, ProjectBlock, RANK, splitNotes, stateOf, useAnswers } from "./sessions/blocks.js";
+import { useFolds } from "./sessions/folds.js";
 import { CardPieHost } from "./sessions/cardpie.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
@@ -244,6 +245,8 @@ function Page({ name, profile, limits, stale, sessions, everyone, snapshot, open
     const keep = useKeptScroll(name);
     const blocks = blocksOf({ profile, sessions, recent, opening, wait, limits });
     const toProject = (project, group) => onProject({ ...project, profile: name, contour: profile ? profile.id : 0, group });
+    // The same folds as the desktop column: one device keeps one set of folded projects.
+    const [projectFolds, toggleProject] = useFolds("aacpanel.project-folds");
     return html`
         <${ProfileLimits} limits=${limits} profile=${name} contour=${profile ? profile.id : 0} stale=${stale}
                           entry=${profile} snapshot=${snapshot} exec=${exec} onTasks=${() => onTasks(profile)} onSettings=${onSettings} />
@@ -259,7 +262,8 @@ function Page({ name, profile, limits, stale, sessions, everyone, snapshot, open
                     ${list.map((block) => html`
                         <${ProjectBlock} limits=${limits} key=${block.key} block=${block} profile=${profile} exec=${exec} wait=${wait} notes=${notes}
                                          live=${everyone} past=${recent} profiles=${snapshot?.profileMap || []}
-                                         onOpen=${onChat} onProject=${toProject} />
+                                         onOpen=${onChat} onProject=${toProject}
+                                         folded=${projectFolds.has(block.key)} onToggle=${() => toggleProject(block.key)} />
                     `)}
                 `;
             })}

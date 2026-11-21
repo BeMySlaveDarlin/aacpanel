@@ -240,28 +240,42 @@ export function knownOf(block) {
 
 // ProjectBlock is one project: a heading with its name, its group and its
 // controls (see headed); its live sessions, those being raised and, with
-// none, its last conversation.
-export function ProjectBlock({ block, profile, profiles, exec, wait, notes, live, past, onOpen, onProject, limits }) {
+// none, its last conversation. Given onToggle, the name folds the project the
+// way the desktop column does — the folded heading keeps how many sessions it
+// holds and who of them waits — and the page of the project moves to a button
+// of the heading; the rows stay mounted so their own folds survive.
+export function ProjectBlock({ block, profile, profiles, exec, wait, notes, live, past, onOpen, onProject, limits, folded = false, onToggle = null }) {
     const project = block.project;
     const known = knownOf(block);
     const sessions = live || block.live;
+    const closed = headed(block) && folded;
+    const waits = closed ? block.live.filter((s) => stateOf(s, limits).tone === "wait").length : 0;
+    const toPage = project && onProject ? () => onProject(project, block.group) : null;
     return html`
-        <section class=${`pjblock${block.live.length === 0 && block.ghosts.length === 0 ? " pjquiet" : ""}`}>
+        <section class=${`pjblock${block.live.length === 0 && block.ghosts.length === 0 ? " pjquiet" : ""}${closed ? " pjfolded" : ""}`}>
             ${headed(block) && html`
                 <div class="pjhead">
-                    ${project && onProject
+                    ${onToggle
+                        ? html`<button class="pjname" type="button" aria-expanded=${closed ? "false" : "true"}
+                                       onClick=${onToggle}>${block.name}</button>`
+                        : toPage
                         ? html`<button class="pjname" type="button" aria-label=${`project ${block.name}`}
-                                       onClick=${() => onProject(project, block.group)}>${block.name}</button>`
+                                       onClick=${toPage}>${block.name}</button>`
                         : html`<span class="pjname">${block.name}</span>`}
                     ${block.group && html`<span class="pjgroup">${block.group}</span>`}
-                    <${HeadActs} block=${block} profile=${profile} sessions=${sessions} exec=${exec} wait=${wait} />
+                    ${closed && html`<span class="pjgroup pjfoldcount">${block.live.length} ${plural(block.live.length, "session", "sessions")}</span>`}
+                    ${closed && waits > 0 && html`<span class="waitn" role="img" aria-label=${`${waits} waiting for you`}><i></i>${waits}</span>`}
+                    <${HeadActs} block=${block} profile=${profile} sessions=${sessions} exec=${exec} wait=${wait}
+                                 onPage=${onToggle ? toPage : null} />
                 </div>
             `}
-            <${LiveLines} limits=${limits} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
-                          onOpen=${onOpen} exec=${exec} profile=${profile} profiles=${profiles} project=${project} known=${known} />
-            ${block.ghosts.map((task) => html`<${GhostCard} key=${task.target} task=${task} known=${known} />`)}
-            ${block.past && html`<${PastCard} row=${block.past} about=${aboutOf(block.past, project)} exec=${exec} known=${known}
-                                            onOpen=${(row) => onOpen && onOpen(row.name, row.sessionId)} />`}
+            <div class="pjrows" hidden=${closed}>
+                <${LiveLines} limits=${limits} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
+                              onOpen=${onOpen} exec=${exec} profile=${profile} profiles=${profiles} project=${project} known=${known} />
+                ${block.ghosts.map((task) => html`<${GhostCard} key=${task.target} task=${task} known=${known} />`)}
+                ${block.past && html`<${PastCard} row=${block.past} about=${aboutOf(block.past, project)} exec=${exec} known=${known}
+                                                onOpen=${(row) => onOpen && onOpen(row.name, row.sessionId)} />`}
+            </div>
         </section>
     `;
 }

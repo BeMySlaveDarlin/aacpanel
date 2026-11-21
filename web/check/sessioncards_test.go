@@ -236,6 +236,10 @@ func checkSessionCards(t *testing.T, got sessionCardsRun) {
 			pause = "continue sessions in project " + head.Name
 		}
 		want := []string{"new session in project " + head.Name, pause, "restart the sessions of " + head.Name}
+		// On the phone the name folds the project, so its page is a button of the heading.
+		if !got.Desk {
+			want = append(want, "conversations of project "+head.Name)
+		}
 		if strings.Join(head.Acts, "|") != strings.Join(want, "|") {
 			t.Errorf("the heading of %s has %v, want %v", head.Name, head.Acts, want)
 		}
