@@ -187,29 +187,58 @@ def _created_from(cwd, branch):
     return moves[-1] if moves else ""
 
 
-def base_of(cwd, branch, named=""):
-    """Returns the branch a review is measured against, and how it was chosen.
-
-    The order is the one the panel promises: what the project says, then what
-    the branch itself points at, then what the reflog remembers, then a merge
-    base with the usual trunk. The choice is named out loud because it cannot
-    be guessed right every time — the screen shows it and lets it be changed.
-    """
-    if named:
-        return named, "project"
-    up = _upstream(cwd, branch)
-    if up:
-        return up, "upstream"
-    born = _created_from(cwd, branch)
-    if born:
-        return born, "reflog"
+def _trunk(cwd, branch):
+    """Returns the usual trunk of the repository other than the branch itself, or ""."""
     for trunk in ("main", "master"):
         try:
             _run(cwd, "rev-parse", "--verify", f"{trunk}^{{commit}}")
         except RepoError:
             continue
         if trunk != branch:
-            return trunk, "trunk"
+            return trunk
+    return ""
+
+
+def _trunk_holds_more(cwd, base, trunk, branch):
+    """Says whether the trunk already holds commits of the branch that the base does not.
+
+    A branch fast-forwarded onto the trunk after its upstream was merged keeps
+    pointing at that old upstream, and measured from it every commit the trunk
+    made since reads as the branch's own work.
+    """
+    if not trunk or base == trunk:
+        return False
+    from_base = _merge_base(cwd, base, branch)
+    from_trunk = _merge_base(cwd, trunk, branch)
+    if not from_base or not from_trunk or from_base == from_trunk:
+        return False
+    try:
+        _run(cwd, "merge-base", "--is-ancestor", from_base, from_trunk)
+    except RepoError:
+        return False
+    return True
+
+
+def base_of(cwd, branch, named=""):
+    """Returns the branch a review is measured against, and how it was chosen.
+
+    The order is the one the panel promises: what the project says, then what
+    the branch itself points at, then what the reflog remembers, then a merge
+    base with the usual trunk. What git remembers gives way to the trunk when
+    the trunk already holds more of the branch: commits the trunk has are not
+    the branch's work. The choice is named out loud because it cannot be
+    guessed right every time — the screen shows it and lets it be changed.
+    """
+    if named:
+        return named, "project"
+    trunk = _trunk(cwd, branch)
+    remembered, how = _upstream(cwd, branch), "upstream"
+    if not remembered:
+        remembered, how = _created_from(cwd, branch), "reflog"
+    if remembered and not _trunk_holds_more(cwd, remembered, trunk, branch):
+        return remembered, how
+    if trunk:
+        return trunk, "trunk"
     return "", "none"
 
 

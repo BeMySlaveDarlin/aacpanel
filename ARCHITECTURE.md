@@ -87,7 +87,10 @@ to ask again under.
 **Where a branch came from is named, not guessed.** Git keeps no record of it.
 The order is the project's own setting, then the upstream of the branch, then
 the reflog, then the trunk — and which of them answered is said on the screen,
-because none of them is right every time.
+because none of them is right every time. An upstream or a parent from the
+reflog that the trunk has outgrown gives way to the trunk: a branch
+fast-forwarded onto the trunk after its upstream was merged would otherwise
+count every later commit of the trunk as its own work.
 
 **Colour travels as spans, not as html.** The service colours a file and sends a
 run length and a class number per span: the same file as html is six to ten

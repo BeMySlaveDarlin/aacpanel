@@ -95,6 +95,29 @@ class Base(Repo):
         self.assertEqual(how, "reflog", f"the base came from {how} instead of the reflog")
         self.assertEqual(base, "main")
 
+    def test_an_upstream_the_trunk_has_outgrown_gives_way_to_the_trunk(self):
+        # The upstream was merged into the trunk and the branch was then
+        # fast-forwarded onto it: measured from the upstream, every commit the
+        # trunk made since would read as the branch's own work.
+        git(self.dir, "branch", "pushed")
+        write(self.dir, "keep.txt", "one\ntwo\nthree\nfour\n")
+        git(self.dir, "commit", "-qam", "on the trunk since")
+        git(self.dir, "checkout", "-qb", "work")
+        git(self.dir, "branch", "--set-upstream-to=pushed", "work")
+        base, how = repo.base_of(self.dir, "work")
+        self.assertEqual((base, how), ("main", "trunk"))
+        self.assertEqual(repo.changes(self.dir)["files"], [],
+                         "a branch standing on the trunk has changed nothing of its own")
+
+    def test_an_upstream_ahead_of_the_trunk_still_measures_the_branch(self):
+        git(self.dir, "checkout", "-qb", "work")
+        write(self.dir, "keep.txt", "one\ntwo\nthree\nfour\n")
+        git(self.dir, "commit", "-qam", "pushed work")
+        git(self.dir, "branch", "pushed")
+        git(self.dir, "branch", "--set-upstream-to=pushed", "work")
+        base, how = repo.base_of(self.dir, "work")
+        self.assertEqual((base, how), ("pushed", "upstream"))
+
     def test_the_trunk_is_the_last_resort_and_says_so(self):
         # A reflog is trimmed by git itself in time, and then there is nothing
         # left to read the parent out of: both journals go, as they would after
