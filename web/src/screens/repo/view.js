@@ -175,6 +175,8 @@ function FilesPane({ repo }) {
     const { data, plain, changes, base } = repo;
     const files = data && !plain ? data.files || [] : [];
     const [tab, setTab] = useState("files");
+    // The service leaves a count of nothing out of its answer.
+    const total = (data && data.total) || 0;
     const listTab = (id, label) => html`
         <button class="cdcontrol cdlisttab" type="button" role="tab" data-tab=${id}
                 aria-selected=${tab === id ? "true" : "false"} onClick=${() => setTab(id)}>${label}</button>
@@ -186,7 +188,7 @@ function FilesPane({ repo }) {
     return html`
         ${data && !plain && html`
             <div class="cdbranch">
-                <b>${data.branch}</b><span>${data.total} changed</span>
+                <b>${data.branch}</b><span>${total} changed</span>
                 <span class="cdstat"><span class="plus">+${totals.add}</span> <span class="minus">−${totals.delete}</span></span>
                 ${comparison && html`
                     <button class="cdcontrol cdbasepick" type="button" onClick=${() => repo.setBase(base ? "" : data.base)}
@@ -203,7 +205,7 @@ function FilesPane({ repo }) {
         ${data && !plain && html`
             <div class="cdlisttabs" role="tablist" aria-label="what the list shows">
                 ${listTab("files", "All files")}
-                ${listTab("changed", html`Changed <span class="cdtabcount">${data.total}</span>`)}
+                ${listTab("changed", html`Changed <span class="cdtabcount">${total}</span>`)}
             </div>
         `}
         ${data && !plain && tab === "changed" && html`
