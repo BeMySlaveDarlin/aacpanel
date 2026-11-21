@@ -471,6 +471,7 @@
 .slashitem.off { cursor: default; }
 .slashitem.off .slashname { color: var(--ink-faint); }
 .slashname { flex: none; color: var(--accent); }
+.slashbox.references .slashname { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .slashtag {
     flex: none;
     padding: 0 .3rem;

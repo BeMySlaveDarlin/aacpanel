@@ -5,7 +5,7 @@ import { stopsOf } from "../screens/chat/head.js";
 import { openedBy } from "../screens/sessions/kin.js";
 
 let hostName = "";
-let profileMap = [];
+let profileMap = null;
 let liveSessions = [];
 
 export function setHostName(name) {
@@ -20,7 +20,11 @@ export function hostLabel() {
 // setProfileMap keeps the map the host last gave: the sheet of New reads
 // from it which agent a project starts and whether its contour has codex.
 export function setProfileMap(map) {
-    profileMap = Array.isArray(map) ? map : [];
+    profileMap = Array.isArray(map) ? map : null;
+}
+
+export function completionSources() {
+    return { profiles: profileMap, sessions: liveSessions };
 }
 
 // setLiveSessions keeps the live sessions the host last listed: the sheet of
@@ -100,7 +104,7 @@ function closeChoice(target) {
 // onTheMap finds a project of the map by its id, with its contour.
 function onTheMap(id) {
     if (!id) return null;
-    for (const contour of profileMap) {
+    for (const contour of profileMap || []) {
         for (const group of contour.groups || []) {
             const project = (group.projects || []).find((p) => p.id === id);
             if (project) return { contour, project };

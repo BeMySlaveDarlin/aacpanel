@@ -12,6 +12,7 @@ type slashRow struct {
 	Hint   string `json:"hint"`
 	Off    bool   `json:"off"`
 	Screen bool   `json:"screen"`
+	Tag    string `json:"tag"`
 }
 
 type sideAsk struct {
@@ -54,7 +55,87 @@ type slashBtwShot struct {
 		Kind string `json:"kind"`
 		Text string `json:"text"`
 	} `json:"termSent"`
-	TermSide int `json:"termSide"`
+	TermSide     int        `json:"termSide"`
+	Names        []slashRow `json:"names"`
+	NamePicked   string     `json:"namePicked"`
+	EmailRows    int        `json:"emailRows"`
+	InlineRows   int        `json:"inlineRows"`
+	PlainRows    int        `json:"plainRows"`
+	MiddleRows   []slashRow `json:"middleRows"`
+	MiddlePicked string     `json:"middlePicked"`
+	MiddleCaret  int        `json:"middleCaret"`
+	MovedRows    []slashRow `json:"movedRows"`
+	NumberRows   []slashRow `json:"numberRows"`
+	WordRows     []slashRow `json:"wordRows"`
+	TaskPicked   string     `json:"taskPicked"`
+	WordPicked   string     `json:"wordPicked"`
+	TaskQueries  []struct {
+		Project string `json:"project"`
+		Q       string `json:"q"`
+		Status  string `json:"status"`
+	} `json:"taskQueries"`
+	MapRequests       int        `json:"mapRequests"`
+	NoProjectRows     int        `json:"noProjectRows"`
+	NoProjectRequests int        `json:"noProjectRequests"`
+	Aborted           int        `json:"aborted"`
+	AfterAbort        []slashRow `json:"afterAbort"`
+	FallbackMaps      int        `json:"fallbackMaps"`
+	FallbackNames     []slashRow `json:"fallbackNames"`
+}
+
+func TestComposerCompletesNamesAndProjectTasks(t *testing.T) {
+	got := slashBtwFixture(t)
+	wantNames := map[string]string{"shared session": "session · Claude", "shared codex": "session · Codex", "shared project": "project", "shared group": "group", "shared contour": "contour"}
+	for _, row := range got.Names {
+		if wantNames[row.Label] != row.Tag {
+			t.Errorf("name row: %+v", row)
+		}
+		delete(wantNames, row.Label)
+	}
+	if len(wantNames) != 0 {
+		t.Errorf("missing name rows: %v", wantNames)
+	}
+	if got.NamePicked != "shared codex " {
+		t.Errorf("Tab inserted %q", got.NamePicked)
+	}
+	if got.EmailRows != 0 || got.InlineRows != 0 || got.PlainRows != 0 {
+		t.Errorf("ordinary words opened a list: email %d, inline %d, plain %d", got.EmailRows, got.InlineRows, got.PlainRows)
+	}
+	if len(got.MiddleRows) != 5 || len(got.MovedRows) != 5 || got.MiddlePicked != "before (shared codex ) after" || got.MiddleCaret != len("before (shared codex ") {
+		t.Errorf("completion at the caret: %+v / %+v, %q at %d", got.MiddleRows, got.MovedRows, got.MiddlePicked, got.MiddleCaret)
+	}
+	want := []string{"#101 [Landing page]", "#103 [Landing deferred]", "#104 [Landing low]", "#102 [Landing closed]", "#105 [Landing cancelled]"}
+	for _, rows := range [][]slashRow{got.NumberRows, got.WordRows} {
+		if !reflect.DeepEqual(labels(rows), want) {
+			t.Errorf("tasks in order: %v, want %v", labels(rows), want)
+		}
+		if len(rows) == 5 && (rows[3].Tag != "done" || rows[4].Tag != "cancelled") {
+			t.Errorf("closed tasks lost their status: %+v", rows)
+		}
+	}
+	if got.TaskPicked != "#101 [Landing page] " || got.WordPicked != got.TaskPicked {
+		t.Errorf("task insertion: %q / %q", got.TaskPicked, got.WordPicked)
+	}
+	if len(got.TaskQueries) != 4 {
+		t.Errorf("task queries: %+v", got.TaskQueries)
+	}
+	for _, query := range got.TaskQueries {
+		if query.Project != "7" {
+			t.Errorf("wrong task project: %+v", query)
+		}
+		if query.Q != "10" && query.Q != "land" {
+			t.Errorf("typing was not debounced: %+v", query)
+		}
+	}
+	if got.MapRequests != 0 || got.NoProjectRows != 0 || got.NoProjectRequests != 0 {
+		t.Errorf("map requests %d, unplaced task rows %d, requests %d", got.MapRequests, got.NoProjectRows, got.NoProjectRequests)
+	}
+	if got.Aborted != 2 || !reflect.DeepEqual(labels(got.AfterAbort), want) {
+		t.Errorf("stale search: %d aborted, rows %v", got.Aborted, labels(got.AfterAbort))
+	}
+	if got.FallbackMaps != 1 || len(got.FallbackNames) != 5 {
+		t.Errorf("fallback map: %d requests, names %v", got.FallbackMaps, labels(got.FallbackNames))
+	}
 }
 
 func slashBtwFixture(t *testing.T) slashBtwShot {

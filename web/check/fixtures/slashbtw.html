@@ -14,6 +14,32 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { setLiveSessions, setProfileMap } from "/src/actions/registry.js";
+import { COMPLETION_DELAY } from "/src/screens/chat/autocomplete.js";
+import { until } from "/check/fixtures/pie.js";
+
+const setTimer = window.setTimeout;
+window.setTimeout = (fn, ms, ...args) => setTimer(fn, ms === COMPLETION_DELAY ? 40 : ms, ...args);
+
+const profiles = [{ id: 1, profile: "shared contour", groups: [{ name: "shared group", projects: [
+    { id: 7, name: "shared project", session: "proj", path: "/srv/proj" },
+] }] }];
+setProfileMap(profiles);
+setLiveSessions([
+    { session: "proj", cwd: "/srv/proj/.worktrees/edit", project: { id: 7 } },
+    { session: "shared session", agent: "claude" },
+    { session: "b-session", agent: "claude" },
+    { session: "codex-address", title: "shared codex", agent: "codex" },
+    { session: "term", project: null },
+]);
+const tasks = [
+    { projectId: 7, number: 102, title: "Landing closed", status: "done", priority: "HIGH" },
+    { projectId: 7, number: 104, title: "Landing low", status: "open", priority: "LOW" },
+    { projectId: 7, number: 103, title: "Landing deferred", status: "deferred", priority: "MEDIUM" },
+    { projectId: 7, number: 101, title: "Landing page", status: "open", priority: "HIGH" },
+    { projectId: 7, number: 105, title: "Landing cancelled", status: "cancelled", priority: "LOW" },
+    { projectId: 8, number: 100, title: "Landing elsewhere", status: "open", priority: "HIGH" },
+];
 
 const long = "Publishes a brief to the panel: a long piece the person reads and walks through — several "
     + "questions with what each rests on, the options and their cost, and a place to answer.";
@@ -29,10 +55,27 @@ const theirs = [
     { name: "restart-session", description: "Restart a Claude Code session" },
 ];
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-const log = { lists: [], actions: [], side: [] };
+const log = { lists: [], actions: [], side: [], tasks: [], maps: 0, pending: 0, aborted: 0 };
 let sideAnswers = [];
 window.fetch = counted(async (url, init) => {
     const u = String(url);
+    if (u === "/api/profiles") { log.maps += 1; return json({ profiles }); }
+    if (u.startsWith("/api/tasks?")) {
+        const params = new URL(u, location.origin).searchParams;
+        log.tasks.push({ project: params.get("project"), q: params.get("q"), status: params.get("status") });
+        if (params.get("q") === "stale") {
+            log.pending += 1;
+            return new Promise((resolve) => init.signal.addEventListener("abort", () => {
+                log.aborted += 1;
+                resolve(json({ tasks: [{ number: 999, title: "Stale result", status: "done" }] }));
+            }, { once: true }));
+        }
+        const pr = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+        return json({ tasks: tasks.filter((task) => task.projectId === Number(params.get("project"))
+            && params.get("status").split(",").includes(task.status)
+            && `${task.number} ${task.title}`.toLowerCase().includes(params.get("q")))
+            .sort((a, b) => pr[a.priority] - pr[b.priority] || a.number - b.number) });
+    }
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u.startsWith("/api/session/commands")) {
@@ -65,22 +108,34 @@ const root = document.getElementById("root");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((e) => e.textContent.trim().replace(/\s+/g, " "));
 const area = () => document.querySelector(".composer textarea");
-const type = async (value) => {
+const input = (value, cursor = value.length) => {
     const el = area();
     el.value = value;
+    el.setSelectionRange(cursor, cursor);
     el.dispatchEvent(new Event("input", { bubbles: true }));
-    await quiet();
 };
-const send = async () => {
+const type = async (value, cursor = value.length, ready = null) => {
+    input(value, cursor);
+    if (ready) await until(ready, "the composer suggestions");
+    else await quiet();
+};
+const send = async (pause = true) => {
     document.querySelector(".composer .iconbtn.accent").click();
-    await sleep(80);
+    if (pause) await sleep(80);
 };
 const rows = () => Array.from(document.querySelectorAll(".slashbox .slashitem")).map((b) => ({
     label: b.querySelector(".slashname").textContent.trim(),
     hint: b.querySelector(".slashhint") ? b.querySelector(".slashhint").textContent.trim() : "",
     off: b.classList.contains("off"),
     screen: Boolean(b.querySelector(".slashtag")),
+    tag: b.querySelector(".slashtag")?.textContent.trim() || "",
 }));
+const tab = async () => {
+    const before = area().value;
+    area().dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+    await until(() => area().value !== before, "the picked suggestion");
+    return area().value;
+};
 
 async function mount(name, live) {
     render(null, root);
@@ -96,7 +151,6 @@ window.done = (async () => {
     await mount("proj", stream);
 
     await type("/");
-    await quiet();
     out.theirs = Boolean(document.querySelector(".slashbox.theirs"));
     out.rows = rows();
     await type("/us");
@@ -106,7 +160,7 @@ window.done = (async () => {
     out.refused = refused ? refused.querySelector(".slashname").textContent.trim() : "";
     out.refusedHint = rows().find((r) => r.off) ? rows().find((r) => r.off).hint : "";
     if (refused) refused.click();
-    await sleep(80);
+    await quiet();
     out.afterRefused = area().value;
     // The list is the session's for as long as the session is: a slash typed
     // again after a plain line does not ask for it again.
@@ -119,9 +173,9 @@ window.done = (async () => {
     const mcp = Array.from(document.querySelectorAll(".slashitem")).find((b) => b.textContent.includes("/mcp"));
     out.mcpTag = Boolean(mcp && mcp.querySelector(".slashtag"));
     if (mcp) mcp.click();
-    await sleep(80);
+    await until(() => area().value === "/mcp ", "the picked command");
     out.picked = area().value;
-    await send();
+    await send(false);
     await quiet();
     out.screen = document.querySelector(".sheet.on") ? document.querySelector(".sheet.on").getAttribute("aria-label") : "";
     out.actionsAfterScreen = log.actions.length;
@@ -148,13 +202,13 @@ window.done = (async () => {
     const follow = document.querySelector(".sheet.on .btwask input");
     follow.value = "and its first letter?";
     follow.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(60);
+    await until(() => !document.querySelector(".sheet.on .btwask button").disabled, "the follow-up button");
     document.querySelector(".sheet.on .btwask button").click();
     await quiet();
     out.answers2 = text(".sheet.on .btwa");
     follow.value = "and the last one?";
     follow.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(60);
+    await until(() => !document.querySelector(".sheet.on .btwask button").disabled, "the follow-up button");
     document.querySelector(".sheet.on .btwask button").click();
     await quiet();
     out.errors = text(".sheet.on .btwerr");
@@ -165,21 +219,66 @@ window.done = (async () => {
     out.afterBin = text(".sheet.on .btwturn").length;
     out.binEmpty = text(".sheet.on .btwempty").length;
 
+    document.querySelector(".sheet.on .sheetclose").click();
+    await type("@sh", 3, () => rows().length === 5);
+    out.names = rows();
+    out.namePicked = await tab();
+    await type("a@b", 3, () => rows().length === 0);
+    out.emailRows = rows().length;
+    await type("x#1");
+    out.inlineRows = rows().length;
+    await type("ordinary words");
+    out.plainRows = rows().length;
+    await type("before (@sh) after", 11, () => rows().length === 5);
+    out.middleRows = rows();
+    out.middlePicked = await tab();
+    out.middleCaret = area().selectionStart;
+    await type("@sh suffix");
+    area().setSelectionRange(3, 3);
+    await until(() => rows().length === 5, "the suggestions under the moved caret");
+    out.movedRows = rows();
+    await type("#10", 3, () => rows().some((r) => r.label.startsWith("#101")));
+    out.numberRows = rows();
+    out.taskPicked = await tab();
+    input("#l");
+    await new Promise((r) => requestAnimationFrame(r));
+    input("#la");
+    await type("#land", 5, () => rows().some((r) => r.label.startsWith("#101")));
+    out.wordRows = rows();
+    out.wordPicked = await tab();
+    out.taskQueries = log.tasks.slice();
+    out.mapRequests = log.maps;
+    input("#stale");
+    await until(() => log.pending === 2, "the pending task search");
+    await type("#land", 5, () => rows().some((r) => r.label.startsWith("#101")));
+    await quiet();
+    out.aborted = log.aborted;
+    out.afterAbort = rows();
+
     // A terminal session keeps the panel's list, and /btw goes to its screen as before.
     const before = log.lists.length;
     const asidesBefore = log.side.length;
     await mount("term", console_);
+    const taskRequests = log.tasks.length;
+    await type("#10");
+    out.noProjectRows = rows().length;
+    out.noProjectRequests = log.tasks.length - taskRequests;
     await type("/");
-    await quiet();
     out.termTheirs = Boolean(document.querySelector(".slashbox.theirs"));
     out.termRows = rows().map((r) => r.label);
     out.termLists = log.lists.length - before;
     await type("/btw hello");
-    await send();
+    await send(false);
     await quiet();
     const last = log.actions[log.actions.length - 1] || {};
     out.termSent = { kind: last.kind, text: (last.params || {}).text };
     out.termSide = log.side.length - asidesBefore;
+    setProfileMap(null);
+    await type("@sh", 3, () => rows().length === 5);
+    await type("@sha", 4, () => rows().length === 5);
+    await quiet();
+    out.fallbackMaps = log.maps;
+    out.fallbackNames = rows();
     return out;
 })();
 </script>

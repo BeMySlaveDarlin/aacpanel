@@ -14,6 +14,7 @@ import { withQuote } from "./quote.js";
 import { canRunShell, sendShell, shellOf } from "./shell.js";
 import { watchKeyboard } from "../../ui/keyboard.js";
 import { PlaceCard, placeText, readPlace } from "./place.js";
+import { completionAt, useCompletions } from "./autocomplete.js";
 
 const MAX_COMPOSER = 112;
 
@@ -242,6 +243,14 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const toast = useToast();
     const area = useRef(null);
     const [text, setText] = useDraft(id);
+    const [selection, setSelection] = useState(null);
+    const caret = useRef(null);
+    const select = (e) => setSelection({ text: e.currentTarget.value, start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd });
+    useLayoutEffect(() => {
+        if (caret.current === null || !area.current) return;
+        area.current.setSelectionRange(caret.current, caret.current);
+        caret.current = null;
+    }, [text]);
     const [place, setPlace] = useState(null);
     useEffect(() => { setPlace(null); }, [name, id]);
     const [sending, setSending] = useState(false);
@@ -313,9 +322,12 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     // On the stream the list is the session's own, every command and skill it
     // takes; until it has come, and in tmux, the panel's own list stands.
     const theirs = useSessionCommands(name, id, stream && listing && text.startsWith("/"));
-    const hints = listing ? (stream && theirs ? sessionHints(text, theirs) : commandHints(text, stream)) : [];
+    const at = completionAt(text, selection?.text === text ? selection.start : text.length,
+        selection?.text === text ? selection.end : text.length);
+    const completions = useCompletions(name, at);
+    const hints = at ? completions : listing ? (stream && theirs ? sessionHints(text, theirs) : commandHints(text, stream)) : [];
     const [hot, setHot] = useState(0);
-    useEffect(() => { setHot(0); }, [text]);
+    useEffect(() => { setHot(0); }, [text, at?.from, at?.query]);
     const wideNow = typeof window !== "undefined" && window.matchMedia(WIDE).matches;
     // With dictation on, an empty field shows the microphone rather than the
     // arrow: there is nothing to send yet, and a disabled button takes no press
@@ -359,7 +371,11 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
 
     const pick = (item) => {
         if (!item || item.off) return;
-        const value = item.value;
+        const value = at ? text.slice(0, at.from) + item.value + text.slice(at.to) : item.value;
+        if (at) {
+            caret.current = at.from + item.value.length;
+            setSelection({ text: value, start: caret.current, end: caret.current });
+        }
         setText(value);
         const el = area.current;
         if (el) el.focus();
@@ -479,7 +495,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     return html`
         <div class="composer">
             ${hints.length > 0 && html`<${SlashList} hints=${hints} hot=${Math.min(hot, hints.length - 1)}
-                                                   theirs=${Boolean(stream && theirs)} wide=${wideNow}
+                                                   theirs=${Boolean(!at && stream && theirs)} references=${Boolean(at)} wide=${wideNow}
                                                    onHot=${setHot} onPick=${pick} />`}
             ${place && html`<div class="placedraft">
                 <${PlaceCard} place=${place} draft />
@@ -508,7 +524,10 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
                 placeholder=${hint}
                 disabled=${!ready || sending}
                 value=${text}
-                onInput=${(e) => setText(e.target.value)}
+                onInput=${(e) => { setText(e.currentTarget.value); select(e); }}
+                onSelect=${select}
+                onSelectionChange=${select}
+                onClick=${select}
                 onPaste=${paste}
                 onKeyDown=${keys}
             ></textarea>
@@ -557,7 +576,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
 // its description on a second line, cut; on a wide screen the rows carry the
 // names alone, and the description of the row under the pointer stands beside
 // the list, whole, the way the native client shows it.
-function SlashList({ hints, hot, theirs, wide, onHot, onPick }) {
+function SlashList({ hints, hot, theirs, references, wide, onHot, onPick }) {
     const box = useRef(null);
     const [tip, setTip] = useState(null);
     const item = hints[hot];
@@ -585,17 +604,17 @@ function SlashList({ hints, hot, theirs, wide, onHot, onPick }) {
         place();
     }, [hot, beside, hints.length]);
     return html`
-        <div class=${`slashbox${theirs ? " theirs" : ""}`}>
+        <div class=${`slashbox${theirs ? " theirs" : ""}${references ? " references" : ""}`}>
             <div class="slashlist" ref=${box} onScroll=${place}>
                 ${hints.map((one, n) => html`
                     <button class=${`slashitem${n === hot ? " hot" : ""}${one.off ? " off" : ""}`} type="button"
-                            key=${one.label + one.value}
+                            key=${one.label + one.value + n}
                             aria-disabled=${one.off ? "true" : "false"}
                             title=${one.off ? one.hint : ""}
                             onPointerEnter=${() => onHot(n)}
                             onClick=${() => onPick(one)}>
                         <span class="slashname">${one.label}</span>
-                        ${one.screen && html`<span class="slashtag">screen</span>`}
+                        ${(one.screen || one.tag) && html`<span class="slashtag">${one.tag || "screen"}</span>`}
                         ${one.hint && !beside && html`<span class="slashhint">${one.hint}</span>`}
                     </button>
                 `)}

@@ -80,7 +80,7 @@ func taskWhere(f TaskFilter) (string, []any, error) {
 		add("$%d=ANY(t.tags)", f.Tag)
 	}
 	if f.Text != "" {
-		add("strpos(lower(t.title || E'\\n' || t.markdown),lower($%d))>0", f.Text)
+		add("strpos(lower(t.number::text || E'\\n' || t.title || E'\\n' || t.markdown),lower($%d))>0", f.Text)
 	}
 	if f.External != "" {
 		add("upper($%d)=ANY(t.external_refs)", f.External)

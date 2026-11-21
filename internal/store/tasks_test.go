@@ -228,6 +228,7 @@ func TestTaskQueriesAndPeriodPG(t *testing.T) {
 		{"status", TaskFilter{ProjectID: p.ID, Statuses: []string{"open", "deferred"}}, 2},
 		{"tag", TaskFilter{ProjectID: p.ID, Tag: "backend"}, 1},
 		{"body text", TaskFilter{ProjectID: p.ID, Text: "every source FIELD"}, 1},
+		{"number", TaskFilter{ProjectID: p.ID, Text: "4", Statuses: []string{"cancelled"}}, 1},
 		{"literal text", TaskFilter{ProjectID: p.ID, Text: "%"}, 0},
 		{"external", TaskFilter{ProjectID: p.ID, External: "lms-42"}, 1},
 		{"native binding", TaskFilter{ProjectID: p.ID, External: "16"}, 0},
