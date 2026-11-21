@@ -14,6 +14,9 @@ const (
 	StackDown        Kind = "stack.down"
 	SessionOpen      Kind = "session.open"
 	SessionResume    Kind = "session.resume"
+	SessionBGAttach  Kind = "session.bgattach"
+	SessionBGStop    Kind = "session.bgstop"
+	SessionBGAdopt   Kind = "session.bgadopt"
 	SessionClose     Kind = "session.close"
 	// SessionFreeze and SessionThaw keep a paused stream session alive in its
 	// unit, so its process and working directory remain visible to the host.
@@ -177,7 +180,7 @@ const (
 // Kinds is the full list of what the executor can do.
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown, CodexUpdate, ClaudeUpdate,
-	SessionOpen, SessionResume, SessionClose, SessionFreeze, SessionThaw, SessionRestart, SessionKill, SessionSend, SessionLetter,
+	SessionOpen, SessionResume, SessionBGAttach, SessionBGStop, SessionBGAdopt, SessionClose, SessionFreeze, SessionThaw, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionRole, SessionParent, SessionDetach, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
 	WindowClose, ProjectCreate, ProjectMove, TermStart, TermPeek, TermClose, TermRename, TermConsole, TmuxClose, SecretPut, SecretDrop, SessionIntent, SessionPin, TaskSummary,

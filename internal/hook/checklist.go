@@ -300,7 +300,7 @@ func sessionFile(pid int) map[string]any {
 	if !ok || !pyEqual(data["pid"], json.Number(strconv.Itoa(pid))) {
 		return nil
 	}
-	if kind := data["kind"]; kind != nil && kind != "" && kind != "interactive" {
+	if kind := data["kind"]; kind != nil && kind != "" && kind != "interactive" && kind != "bg" {
 		return nil
 	}
 	fields := statOf(pid)

@@ -7,6 +7,7 @@ import os
 import re
 
 import archive
+import claude_bg
 import chat
 import checklists
 import codex_archive
@@ -229,13 +230,15 @@ def live_sessions():
         start = proc_start(pid)
         if start is None or (data.get("procStart") and str(data["procStart"]) != start):
             continue
-        if _oneshot(pid, sid) or archive.background(data):
+        if _oneshot(pid, sid) or data.get("kind") not in (None, "", "interactive", "bg"):
             continue
         name = data.get("name") or os.path.basename(cwd.rstrip("/")) or cwd
         out.append({
             "name": name, "sessionId": sid, "cwd": cwd, "pid": pid,
             "transcript": chat.claude_path(sid),
             "procStartedAt": started_at(pid),
+            **({"transport": "bg", "configDir": os.path.dirname(os.path.dirname(path))}
+               if data.get("kind") == "bg" else {}),
         })
     return out
 
@@ -1100,6 +1103,8 @@ def sessions():
     for live in lives:
         row = _row(live)
         row.update(lineage(live.get("pid"), owners))
+        if live.get("transport") == "bg":
+            row.update(claude_bg.row(live))
         if runs.get(live["sessionId"]):
             row["codexRuns"] = runs[live["sessionId"]]
         rows.append(row)

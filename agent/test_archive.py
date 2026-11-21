@@ -523,11 +523,12 @@ class Names(unittest.TestCase):
         self.index.observe()
         self.assertNotIn(UUID_B, self.index.names)
 
-    def test_a_background_process_of_the_daemon_is_not_remembered(self):
+    def test_a_background_session_is_remembered(self):
         self.put(125, {"sessionId": UUID_B, "name": "demo",
                        "cwd": "/opt/x", "kind": "bg"})
         self.index.observe()
-        self.assertNotIn(UUID_B, self.index.names)
+        self.assertEqual(self.index.names.get(UUID_B), "demo",
+                         "a background session lost its name, so moving it to the panel would bring it back nameless")
 
     def test_an_unknown_kind_of_process_stays_a_session(self):
         self.put(126, {"sessionId": UUID_B, "name": "home", "cwd": "/home/u",

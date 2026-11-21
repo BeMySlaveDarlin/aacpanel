@@ -173,6 +173,15 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		detail, _, err := e.codexResume(ctx, req.Contour, req.Resume, req.ResumeAt)
 		return detail, err
 	}
+	if sessionTarget(req.Kind) && req.Kind != action.SessionBGAttach && req.Kind != action.SessionBGStop && req.Kind != action.SessionBGAdopt {
+		if found, _, err := liveSessionsByName(req.Target); err == nil {
+			for _, s := range found {
+				if s.Kind == "bg" {
+					return "", backgroundReadOnly(req.Target)
+				}
+			}
+		}
+	}
 	if sessionTarget(req.Kind) {
 		th, err := e.codexSession(req.Target)
 		if err != nil {
@@ -196,6 +205,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.stackUp(ctx, req.Target)
 	case action.StackDown:
 		return e.stackDown(ctx, req.Target)
+	case action.SessionBGAttach, action.SessionBGStop, action.SessionBGAdopt:
+		return e.backgroundAction(ctx, req)
 	case action.SessionOpen:
 		detail, _, err := e.sessionOpen(ctx, req)
 		return detail, err

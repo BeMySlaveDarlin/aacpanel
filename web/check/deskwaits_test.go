@@ -203,15 +203,18 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.finalize": "",
 		// A switch keeps the name and the conversation: the wait clears when the
 		// session under the name lives on the other side.
-		"session.switch":  "switch",
-		"session.kill":    "close",
-		"session.send":    "",
-		"act.run":         "",
-		"act.stop":        "",
-		"session.answer":  "",
-		"session.permit":  "",
-		"session.dismiss": "",
-		"session.stop":    "",
+		"session.bgattach": "",
+		"session.bgstop":   "close",
+		"session.bgadopt":  "switch",
+		"session.switch":   "switch",
+		"session.kill":     "close",
+		"session.send":     "",
+		"act.run":          "",
+		"act.stop":         "",
+		"session.answer":   "",
+		"session.permit":   "",
+		"session.dismiss":  "",
+		"session.stop":     "",
 		// A call in the background leaves the session where it stood: the
 		// turn goes on, and the task joins the background work.
 		"session.background": "",

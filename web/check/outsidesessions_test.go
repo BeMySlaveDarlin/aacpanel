@@ -162,3 +162,46 @@ func TestADeskRowSaysRemoteControlIsUp(t *testing.T) {
 		t.Errorf("the rows saying Remote Control is up are %v, expected only the session that has it", got.DeskRemote)
 	}
 }
+
+func TestClaudeBackgroundSessionsShowTheirStateAndPublicActions(t *testing.T) {
+	var got struct {
+		BackgroundRows      []struct{ Name, Mark, State string }
+		BackgroundComposer  bool
+		BackgroundNote      string
+		BackgroundButtons   []string
+		BackgroundTabs      []string
+		BackgroundFeed      string
+		BackgroundActions   []struct{ Kind, Target string }
+		BackgroundTerminals []struct{ ID, Place string }
+	}
+	runWideFixture(t, "outsidesessions.html", &got)
+	if len(got.BackgroundRows) != 4 {
+		t.Fatalf("background rows: %+v", got.BackgroundRows)
+	}
+	for i, want := range []string{"waiting", "working", "idle", "unknown"} {
+		row := got.BackgroundRows[i]
+		if row.Mark != "background" || row.State != want {
+			t.Errorf("background row %+v, want state %s", row, want)
+		}
+	}
+	if got.BackgroundComposer || got.BackgroundNote != "Claude Code background session" {
+		t.Errorf("background composer=%v, note=%q", got.BackgroundComposer, got.BackgroundNote)
+	}
+	if strings.Join(got.BackgroundButtons, ",") != "Open in terminal,Stop background session,Move to panel" {
+		t.Errorf("background controls: %v", got.BackgroundButtons)
+	}
+	for _, tab := range got.BackgroundTabs {
+		if strings.HasPrefix(tab, "Terminal") {
+			t.Errorf("background session offers a tmux view: %v", got.BackgroundTabs)
+		}
+	}
+	if !strings.Contains(got.BackgroundFeed, "Running the suite.") {
+		t.Errorf("background feed is missing: %q", got.BackgroundFeed)
+	}
+	if len(got.BackgroundActions) != 1 || got.BackgroundActions[0].Kind != "session.bgattach" || got.BackgroundActions[0].Target != "bg-waiting" {
+		t.Errorf("background attach sent %+v", got.BackgroundActions)
+	}
+	if len(got.BackgroundTerminals) != 1 || got.BackgroundTerminals[0].ID != "t-1234abcd" || got.BackgroundTerminals[0].Place != "/srv/rotation" {
+		t.Errorf("attachment terminal not opened: %+v", got.BackgroundTerminals)
+	}
+}

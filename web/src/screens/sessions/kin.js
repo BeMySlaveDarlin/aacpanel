@@ -17,6 +17,7 @@ import { isCodex } from "../../agent.js";
 // with it and where it is restarted. Who runs it is said by the line of its
 // model.
 export function placeOf(s) {
+    if (s.transport === "bg") return "background";
     if (isCodex(s)) return s.outside ? "outside" : s.transport === "tmux" ? "tmux" : "daemon";
     if (s.transport === "stream") return "stream";
     if (s.outside) return "outside";

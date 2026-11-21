@@ -62,6 +62,22 @@ func TestWrapperKeepsTheRouteToItself(t *testing.T) {
 	}
 }
 
+func TestBackgroundResumeKeepsItsExplicitAccountWithARealBinary(t *testing.T) {
+	proc := fakeProc(t, fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10"}})
+	log := fakeTmuxLauncher(t, proc, "aacpanel", 200, 4242)
+	fakeWindow(t)
+	t.Setenv("DISPLAY", ":10")
+	binary := machineClaude(t)
+	config := contourHome(t)
+	if _, err := Run(t.Context(), Spec{Dir: t.TempDir(), Session: "aacpanel",
+		ClaudeBin: binary, ConfigDir: config, ConfigOverride: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(readFile(t, envLog(log))); !strings.Contains(got, "CLAUDE_CONFIG_DIR="+config) {
+		t.Fatalf("the background resume lost its own account: %s", got)
+	}
+}
+
 func TestRunRefusesMissingContourConfig(t *testing.T) {
 	proc := fakeProc(t, fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10"}})
 	tmuxLog := fakeTmuxLauncher(t, proc, "aacpanel", 200, 4242)
@@ -177,14 +193,17 @@ func TestDeadSessionFileHoldsNothing(t *testing.T) {
 	}
 }
 
-func TestBackgroundSessionsDoNotHoldNames(t *testing.T) {
-	fakeProc(t, fproc{pid: 200, comm: "node", args: []string{"node", "cli.js", "-n", "aacpanel"}, start: "1000"})
+func TestBackgroundSessionsHoldTheirNames(t *testing.T) {
+	fakeProc(t, fproc{pid: 200, comm: "claude", args: []string{"claude", "bg-spare"}, start: "1000"})
 	conf := contourHome(t)
-	body := `{"pid":200,"name":"aacpanel","kind":"bg","procStart":"1000"}`
+	body := `{"pid":200,"name":"aacpanel","kind":"bg","procStart":"1000","sessionId":"abc","cwd":"/srv/proj"}`
 	if err := os.WriteFile(filepath.Join(conf, "sessions", "200.json"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if taken := takenNames(); taken["aacpanel"] {
-		t.Error("the name is held by a background fork — a live session then gets a suffix for nothing")
+	if taken := takenNames(); !taken["aacpanel"] {
+		t.Error("a background session must hold its name until it exits")
+	}
+	if open := Open(); len(open) != 1 || open[0].Transport != "bg" || open[0].Session != "aacpanel" || open[0].Conversation != "abc" {
+		t.Fatalf("background session missing from the launcher catalogue: %+v", open)
 	}
 }

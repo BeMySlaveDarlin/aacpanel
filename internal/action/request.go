@@ -9,7 +9,9 @@ import (
 
 // Request is what the service asks to be done.
 type Request struct {
-	ID string `json:"id"`
+	// Terminal is the panel terminal created for a background-session attachment.
+	Terminal string `json:"terminal,omitempty"`
+	ID       string `json:"id"`
 
 	Kind Kind `json:"kind"`
 

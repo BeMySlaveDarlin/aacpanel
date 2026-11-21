@@ -22,9 +22,14 @@ import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = counted(async (url) => {
+const bgActions = [];
+window.fetch = counted(async (url, options) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [{ role: "ai", pos: 1, text: "Running the suite." }], first: 1, last: 1, total: 1, moreBefore: false, state: null });
+    if (u === "/api/actions") {
+        bgActions.push(JSON.parse(options.body));
+        return json({ ok: true, id: "t-1234abcd" });
+    }
     if (u === "/api/term") return json({ available: true });
     if (u.startsWith("/api/session/switch")) return json({ to: "stream" });
     if (u.startsWith("/api/session/window")) return json({ state: "closed" });
@@ -97,6 +102,35 @@ window.done = (async () => {
     if (face) face.click();
     await quiet();
     out.panel = names(document, ".dkpanel .toollabel");
+    const background = ["waiting", "busy", "idle", "unknown"].map((status) => ({
+        session: `bg-${status}`, sessionId: `b-${status}`, contour: 4, transport: "bg", outside: true,
+        status, pct: 4, cwd: "/srv/rotation", waitingFor: status === "waiting" ? "input in Claude Code" : "",
+    }));
+    const bgExec = { available: true, kinds: [...exec.kinds, "session.bgattach", "session.bgstop", "session.bgadopt"] };
+    render(h(ToastHost, null, h(GateHost, null, html`
+        <section class="pjblock"><${LiveLines} list=${background} notes=${null} checked=${null} wait=${null}
+                                               onOpen=${() => {}} exec=${bgExec} /></section>
+    `)), phone);
+    const terminals = [];
+    render(h(ToastHost, null, h(GateHost, null, h(Chat, {
+        key: "background", name: background[0].session, id: background[0].sessionId,
+        live: background[0], exec: bgExec, snapshot: { sessions: background }, onBack() {}, onUsage() {},
+        onTerm: (terminal) => terminals.push(terminal),
+    }))), chat);
+    await quiet();
+    out.backgroundRows = Array.from(phone.querySelectorAll(".sc")).map((row) => ({
+        name: row.dataset.name, mark: text(row.querySelector(".scl5 .scb:nth-child(2)")),
+        state: text(row.querySelector(".scword")),
+    }));
+    out.backgroundComposer = Boolean(chat.querySelector(".composer"));
+    out.backgroundNote = text(chat.querySelector(".backgroundsession .outsidenote"));
+    out.backgroundButtons = names(chat, ".composerbox .backgroundsession button");
+    out.backgroundTabs = names(chat, ".dktabs .dktab");
+    out.backgroundFeed = text(chat.querySelector(".chatfeed"));
+    chat.querySelector(".composerbox .backgroundsession button").click();
+    await quiet();
+    out.backgroundActions = bgActions;
+    out.backgroundTerminals = terminals;
     return out;
 })();
 </script>

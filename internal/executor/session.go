@@ -26,15 +26,16 @@ func homeSessionName() string {
 }
 
 type project struct {
-	Name      string
-	Path      string
-	Session   string
-	Alias     string
-	RC        string
-	Launch    []byte
-	ClaudeBin string
-	ConfigDir string
-	FromMap   bool
+	Name           string
+	Path           string
+	Session        string
+	Alias          string
+	RC             string
+	Launch         []byte
+	ClaudeBin      string
+	ConfigDir      string
+	ConfigOverride bool
+	FromMap        bool
 	// Parent is the session that had this one opened, by its name; see
 	// action.Project.
 	Parent   string
@@ -269,6 +270,10 @@ func (e *Executor) sessionResume(ctx context.Context, req action.Request) (strin
 		return "", err
 	}
 	p.RanIn = ranIn
+	return e.resumeChosen(ctx, p, req)
+}
+
+func (e *Executor) resumeChosen(ctx context.Context, p project, req action.Request) (string, error) {
 	if err := historymove.Pending(registry.ConfigDirs(), p.Path); err != nil {
 		return "", err
 	}
@@ -285,10 +290,11 @@ func (e *Executor) sessionResume(ctx context.Context, req action.Request) (strin
 	p.IntentKey = sessionintent.First
 	if req.Silent {
 		p.IntentKey = ""
-		p.Launch, err = restartOpening(p.Launch, "", true)
+		launch, err := restartOpening(p.Launch, "", true)
 		if err != nil {
 			return "", err
 		}
+		p.Launch = launch
 	}
 	rep, err := e.runLauncher(ctx, p, req.Resume)
 	if err != nil {

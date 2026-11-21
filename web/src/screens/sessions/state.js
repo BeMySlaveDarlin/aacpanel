@@ -134,6 +134,10 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
         return state;
     };
 
+    if (s.transport === "bg") {
+        if (s.status === "waiting") return make("wait", "input", "waiting", { subject: "input in Claude Code" });
+        if (s.status === "unknown") return make("idle", "unknown", "unknown");
+    }
     if (s.sleeping) {
         const until = s.pauseAlarm?.name === PAUSE_NO_END ? 0 : Date.parse(s.pauseAlarm?.next || "") || 0;
         return make("paused", "paused", "sleeping", { subject: until ? pauseEnd(until) : "" });

@@ -87,11 +87,20 @@ func sessionOf(path string, pid int) (sessionFile, bool) {
 	if err := json.Unmarshal(raw, &file); err != nil {
 		return sessionFile{}, false
 	}
-	if file.PID != pid || (file.Kind != "" && file.Kind != "interactive") {
+	if file.PID != pid || (file.Kind != "" && file.Kind != "interactive" && file.Kind != "bg") {
 		return sessionFile{}, false
 	}
 	start, ok := procStart(pid)
 	return file, ok && file.ProcStart != "" && file.ProcStart == start
+}
+
+func liveFile(pid int) (sessionFile, bool) {
+	for _, dir := range sessionDirs() {
+		if file, ok := sessionOf(filepath.Join(dir, strconv.Itoa(pid)+".json"), pid); ok {
+			return file, true
+		}
+	}
+	return sessionFile{}, false
 }
 
 // Where returns where a live claude process works, the name of its session

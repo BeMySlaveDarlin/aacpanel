@@ -480,6 +480,24 @@ export const ACTIONS = {
         ok: "Restart",
         danger: true,
     },
+    "session.bgattach": {
+        instant: true,
+        done: (target) => `Attachment terminal opened for ${target}`,
+    },
+    "session.bgstop": {
+        watch: "close",
+        title: (target) => `Stop background session ${target}?`,
+        effect: "Claude Code stops the background process. Its conversation stays on disk and can be resumed.",
+        done: (target) => `Background session ${target} stopped`,
+        ok: "Stop", danger: true,
+    },
+    "session.bgadopt": {
+        watch: "switch",
+        title: (target) => `Move ${target} to the panel?`,
+        effect: "Stop the Claude Code background session, wait for its process to exit, then resume the same conversation on the stream with its project's settings. Running work and open prompts end with the old process.",
+        done: (target) => `${target} is moving to the panel`,
+        ok: "Move to panel", danger: true,
+    },
     "session.switch": {
         watch: "switch",
         title: (target, params) => {
@@ -1156,6 +1174,9 @@ const NAMES = {
     "session.open": "Open session",
     "session.resume": "Resume session",
     "session.switch": "Move between the stream and tmux",
+    "session.bgattach": "Open background session in terminal",
+    "session.bgstop": "Stop background session",
+    "session.bgadopt": "Move background session to panel",
     "session.send": "Write to session",
     "act.run": "Run a chain step",
     "act.stop": "Stop a chain step",

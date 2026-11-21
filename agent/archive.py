@@ -58,13 +58,9 @@ def live_dirs():
     return contours.dirs("sessions", LIVE)
 
 
-BACKGROUND_KINDS = ("bg",)
-
-
-def background(data):
-    """Reports whether this is a background claude process rather than a console session."""
-    kind = data.get("kind") or ""
-    return kind in BACKGROUND_KINDS or kind.startswith("bg-")
+def daemon_helper(data):
+    """Reports whether this is a helper process of the background daemon, such as an unclaimed spare, rather than a session."""
+    return (data.get("kind") or "").startswith("bg-")
 
 
 INDEX_PATH = os.environ.get("AACP_SESSIONS_INDEX", paths.state("sessions-index.json"))
@@ -192,7 +188,7 @@ class Index:
                 continue
             if name.startswith("tmp-"):
                 continue
-            if background(data):
+            if daemon_helper(data):
                 continue
             with self.lock:
                 if self.names.get(sid) != name:

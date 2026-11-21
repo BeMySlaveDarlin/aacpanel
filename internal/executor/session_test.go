@@ -283,7 +283,7 @@ func TestSessionResumeTakesProjectFromService(t *testing.T) {
 	}
 }
 
-func TestSessionCloseSkipsDaemonFork(t *testing.T) {
+func TestSessionCloseRefusesBackgroundSessions(t *testing.T) {
 	ctx := context.Background()
 	fork := []string{"claude", "--session-id", "e6de7b84-c862-4699-b4dc-14af140ca041",
 		"--fork-session", "--resume", "/home/x/.claude/projects/-opt-x/d63546eb.jsonl"}
@@ -305,17 +305,15 @@ func TestSessionCloseSkipsDaemonFork(t *testing.T) {
 		sessionFiles(t, files...)
 	}
 
-	t.Run("the signal goes to the session in tmux, not to a namesake fork", func(t *testing.T) {
+	t.Run("a background namesake cannot be signalled as a console", func(t *testing.T) {
 		stand(t, true)
 		e, _ := newTest(t, "")
 		log := withSignals(t, e, map[int]bool{100: true, 1003: true, 1004: true}, map[int]int{1004: 1})
-
-		if _, err := e.Execute(ctx, req(action.SessionClose, "probe")); err != nil {
-			t.Fatal(err)
+		if _, err := e.Execute(ctx, req(action.SessionClose, "probe")); err == nil {
+			t.Fatal("a background namesake was closed through the console action")
 		}
-		want := []string{"1003:terminated", "1004:terminated"}
-		if strings.Join(log.sent, ",") != strings.Join(want, ",") {
-			t.Errorf("signals %v, expected %v", log.sent, want)
+		if len(log.sent) != 0 {
+			t.Errorf("signals reached background or ambiguous session: %v", log.sent)
 		}
 	})
 
@@ -328,8 +326,8 @@ func TestSessionCloseSkipsDaemonFork(t *testing.T) {
 		if err == nil {
 			t.Fatal("a fork of the daemon passed for a session")
 		}
-		if !strings.Contains(err.Error(), "there is no session") {
-			t.Errorf("the error %q does not say there is no such session", err)
+		if !strings.Contains(err.Error(), "background session") {
+			t.Errorf("the refusal %q does not identify a background session", err)
 		}
 		if len(log.sent) != 0 {
 			t.Errorf("signals %v went out to the fork", log.sent)

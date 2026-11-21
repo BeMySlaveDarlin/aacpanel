@@ -346,7 +346,7 @@ func (s *Server) restartGuard(ctx context.Context, row restartSession, list []st
 	if _, paused := pauseConversation(pauses, row.SessionID); paused {
 		return action.Guard{}, false, nil
 	}
-	if row.Outside || row.SessionID == "" || row.Pause != nil || (row.Agent == schema.AgentCodex && row.Transport == "tmux") {
+	if row.Outside || row.Transport == "bg" || row.SessionID == "" || row.Pause != nil || (row.Agent == schema.AgentCodex && row.Transport == "tmux") {
 		return action.Guard{}, false, nil
 	}
 	found, ok := projectAt(list, row.CWD, s.worktreesFor(ctx, list, row.CWD, s.worktrees()), s.db.ProjectRoots())

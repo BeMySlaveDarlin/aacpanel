@@ -131,7 +131,7 @@ func nameFromSessionFile(pid int) (string, bool) {
 	if err := json.Unmarshal(raw, &file); err != nil {
 		return "", false
 	}
-	if file.PID != pid || file.Name == "" || !consoleKind(file.Kind) {
+	if file.PID != pid || file.Name == "" || (!consoleKind(file.Kind) && file.Kind != "bg") {
 		return "", false
 	}
 	start, ok := procStart(pid)

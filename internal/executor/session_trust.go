@@ -31,7 +31,7 @@ func trustProject(dir string) (bool, error) {
 // wrapper owns the route. Trust must be written where that launch reads it,
 // particularly after a project changes accounts while its cwd stays put.
 func projectTrustFile(p project) (string, error) {
-	if p.ConfigDir != "" && p.ClaudeBin == "" {
+	if p.ConfigDir != "" && (p.ClaudeBin == "" || p.ConfigOverride) {
 		return filepath.Join(p.ConfigDir, ".claude.json"), nil
 	}
 	return configFileFor(p.Path)

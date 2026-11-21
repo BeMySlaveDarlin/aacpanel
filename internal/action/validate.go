@@ -516,8 +516,18 @@ func (r Request) Validate() error {
 	case r.Work != nil:
 		return badRequest("action %s stops no background work", r.Kind)
 	}
+	if r.Kind == SessionBGAttach {
+		if !TermID(r.Terminal) {
+			return badRequest("a background attachment needs a panel terminal id")
+		}
+	} else if r.Terminal != "" {
+		return badRequest("action %s creates no attachment terminal", r.Kind)
+	}
+	if r.Kind == SessionBGAdopt && r.Project == nil {
+		return badRequest("a background adoption needs its mapped project")
+	}
 	if r.Project != nil {
-		if r.Kind != SessionOpen && r.Kind != SessionResume && r.Kind != SessionSwitch && r.Kind != SessionRestart && r.Kind != TaskSummary {
+		if r.Kind != SessionOpen && r.Kind != SessionResume && r.Kind != SessionSwitch && r.Kind != SessionRestart && r.Kind != SessionBGAdopt && r.Kind != TaskSummary {
 			return badRequest("action %s takes no project", r.Kind)
 		}
 		if err := r.Project.validate(); err != nil {

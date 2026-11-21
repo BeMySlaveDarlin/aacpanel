@@ -85,7 +85,7 @@ func seenSocket() string {
 func WakeSessions(kind action.Kind) {
 	switch kind {
 	case action.SessionPin, action.SessionClose, action.SessionKill, action.SessionRestart,
-		action.SessionSwitch, action.SessionOpen, action.SessionResume:
+		action.SessionSwitch, action.SessionOpen, action.SessionResume, action.SessionBGStop, action.SessionBGAdopt:
 		socket := seenSocket()
 		go func() { _, _ = askSeen(socket, seenReq{Wake: "sessions"}) }()
 	}

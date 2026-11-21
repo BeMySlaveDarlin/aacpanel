@@ -46,6 +46,7 @@ import { ChecklistSheet } from "./checklist.js";
 import { CommandsChip, CommandsSheet } from "./commands.js";
 import { QuickCommands } from "./quick.js";
 import { moveKey, movesOf, MovePill, withActReplies } from "./actform.js";
+import { BackgroundActions } from "./claudebg.js";
 import { Composer, deliver, messageID, outcome } from "./composer.js";
 import { knows, whyNot } from "../../exec.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./answered.js";
@@ -384,7 +385,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // it cannot acquire the session's command buttons. What a row asks of
     // queueOf turns on whether the session takes messages back, so that is
     // what the lent things are made again on, with what decides their set.
-    const writable = Boolean(live && !live.outside);
+    const writable = Boolean(live && !live.outside && live.transport !== "bg");
     const placeActions = useMemo(() => ({
         ask: writable && knows(exec, "session.send") ? (place) => {
             setInsert({ key: Date.now(), place });
@@ -578,7 +579,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const openRepo = here ? () => setRepo(true) : null;
     const tools = {
         name, live, archive, pct, spent, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
-        sections: parts.sections, onWindow: place.onWindow, onLook: (kind) => setLook({ kind }),
+        sections: parts.sections, onTerm: term.route ? onTerm : null, onWindow: place.onWindow, onLook: (kind) => setLook({ kind }),
     };
     const deskTools = html`
         <${ViewTabs} view=${view} sides=${live ? sides : {}} canTerm=${canTerm}
@@ -738,7 +739,9 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                checklist=${wide ? null : checklist}
                                onChecklist=${() => setLook({ kind: "checklist" })}
                                onOpen=${(what) => setLook(what)} />
-                ${live.outside
+                ${live.transport === "bg"
+                    ? html`<${BackgroundActions} live=${live} exec=${exec} onTerm=${term.route ? onTerm : null} />`
+                    : live.outside
                     ? html`<p class="outsidenote">${outsideNote(live)}</p>`
                     : html`
                         <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"} stream=${live.transport === "stream"}

@@ -41,15 +41,15 @@ export function ClaudeChat(props) {
     const [picking, setPicking] = useState("");
     // A claude out of the panel's reach lives in no pane of a tmux the panel
     // attaches to: there is no screen of it to attach to.
-    const canTerm = term.ok && Boolean(live) && !live.outside;
+    const canTerm = term.ok && Boolean(live) && !live.outside && live.transport !== "bg";
     // What to watch it with is the session's own choice on this device.
     const [picked, pickView] = useViewPick(name, canTerm, wide);
 
     // Where the session lives decides what the pair of views does: see
     // sidesOf. The window on the host is asked here, since it holds tmux.
     const transport = (live && live.transport) || "";
-    const way = useSwitchWay(live ? name : "", transport);
-    const [win, askWindow] = useWindow(live ? name : "", transport);
+    const way = useSwitchWay(live && live.transport !== "bg" ? name : "", transport);
+    const [win, askWindow] = useWindow(live && live.transport !== "bg" ? name : "", transport);
     const sides = live
         ? sidesOf({ live, way, held: win.kind === "open", picked, canTerm, exec })
         : { view: picked, pair: false, moves: "", tip: "", why: "" };

@@ -107,7 +107,7 @@ def _alive(data):
     start = ctx.proc_start(pid)
     if start is None or (data.get("procStart") and str(data["procStart"]) != start):
         return False
-    return not archive.background(data)
+    return data.get("kind") in (None, "", "interactive", "bg")
 
 
 def live_session_files():
@@ -158,7 +158,7 @@ def live_session_waits():
     out, dropped = {}, set()
     for data in live_session_files():
         label = data.get("name")
-        if not label or data.get("status") != "waiting":
+        if data.get("kind") == "bg" or not label or data.get("status") != "waiting":
             continue
         reason = data.get("waitingFor")
         if not isinstance(reason, str) or not reason.strip():
@@ -214,6 +214,8 @@ def live_session_version():
 def _by_name(value_of):
     out, dropped = {}, set()
     for data in live_session_files():
+        if data.get("kind") == "bg":
+            continue
         label, value = data.get("name"), value_of(data)
         if not label or value is None:
             continue
@@ -365,7 +367,7 @@ def sessions():
         if version:
             s["version"] = version
         status = statuses.get(s.get("session") or "")
-        if status:
+        if status and s.get("transport") != "bg":
             s["status"] = status
             stamp = stamps.get(s.get("session") or "")
             if stamp:

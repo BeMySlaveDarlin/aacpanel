@@ -380,6 +380,13 @@ func findAgent(target string) (agentProc, error) {
 }
 
 func lookupAgent(target string) (agentProc, error) {
+	if found, _, err := liveSessionsByName(target); err == nil {
+		for _, s := range found {
+			if s.Kind == "bg" {
+				return agentProc{}, backgroundReadOnly(target)
+			}
+		}
+	}
 	if strings.TrimSpace(target) == "" {
 		return agentProc{}, fmt.Errorf("the session name is empty")
 	}

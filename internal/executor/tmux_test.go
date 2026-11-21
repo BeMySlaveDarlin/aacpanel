@@ -519,6 +519,7 @@ func TestLiveTmuxPaste(t *testing.T) {
 }
 
 var sessionKinds = []action.Kind{
+	action.SessionBGAttach, action.SessionBGStop, action.SessionBGAdopt,
 	action.SessionFreeze, action.SessionThaw,
 	action.SessionOpen, action.SessionResume, action.SessionClose, action.SessionRestart,
 	action.SessionKill, action.SessionSend, action.SessionAnswer, action.SessionDismiss, action.SessionStop,

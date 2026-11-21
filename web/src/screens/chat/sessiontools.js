@@ -10,6 +10,7 @@
 
 import { useCallback, useState } from "preact/hooks";
 
+import { BackgroundActions } from "./claudebg.js";
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { Popover } from "../../ui/popover.js";
@@ -124,11 +125,12 @@ function Watch({ view, note, onPick }) {
 // SessionSections lists what is done to a live session. Every press that asks
 // for a confirmation puts the list down first: the confirmation is a sheet of
 // its own, and two layers over the run fight for the way back.
-export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, way, work, onDone, onWindow, onLook }) {
+export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, way, work, onDone, onWindow, onLook, onTerm }) {
     const run = useAction();
     // A claude the panel did not start is only read: it has no side to move
     // from, no window, no bridge, and the panel does not end what it did not
     // begin.
+    if (live.transport === "bg") return html`<${BackgroundActions} live=${live} exec=${exec} onTerm=${onTerm} />`;
     if (live.outside) {
         return html`
             <section class="toolsec">

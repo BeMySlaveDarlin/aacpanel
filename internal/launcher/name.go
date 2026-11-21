@@ -11,14 +11,8 @@ const maxOrdinal = 99
 
 func takenNames() map[string]bool {
 	out := map[string]bool{}
-	for _, pid := range claudePIDs() {
-		args := procArgs(pid)
-		if oneShot(pid, args) {
-			continue
-		}
-		if name, ok := argValue(args, "-n", "--name"); ok && name != "" {
-			out[name] = true
-		}
+	for _, session := range Open() {
+		out[session.Session] = true
 	}
 	return out
 }

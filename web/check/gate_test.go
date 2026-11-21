@@ -160,6 +160,7 @@ func TestGateKeepsSendPrivate(t *testing.T) {
 }
 
 var instantActions = map[string]bool{
+	"session.bgattach": true,
 	// The pause sheet names the scope and time before its own Pause or Resume press.
 	"project.pause":  true,
 	"alert.ack":      true,
@@ -245,6 +246,7 @@ var instantActions = map[string]bool{
 }
 
 var instantExecActions = map[string]bool{
+	"session.bgattach":   true,
 	"project.pause":      true,
 	"session.send":       true,
 	"act.run":            true,

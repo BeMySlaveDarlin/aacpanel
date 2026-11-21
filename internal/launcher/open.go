@@ -19,7 +19,7 @@ type Console struct {
 	Agent   int    `json:"agent"`
 	Konsole int    `json:"konsole"`
 	Dir     string `json:"dir"`
-	// Transport is how the session is kept: in tmux or on the stream.
+	// Transport is how the session is kept: in tmux, on the stream, or bg.
 	Transport string `json:"transport"`
 	// Conversation is the id the session writes its transcript under.
 	Conversation string `json:"conversation,omitempty"`
@@ -33,20 +33,33 @@ func Open() []Console {
 		if oneShot(pid, args) {
 			continue
 		}
-		name, ok := argValue(args, "-n", "--name")
-		if !ok {
+		file, _ := liveFile(pid)
+		name := file.Name
+		if name == "" {
+			name, _ = argValue(args, "-n", "--name")
+		}
+		if name == "" {
 			continue
 		}
-		conversation, _ := argValue(args, "--session-id", "--resume", "-r")
+		conversation := file.SessionID
+		if conversation == "" {
+			conversation, _ = argValue(args, "--session-id", "--resume", "-r")
+		}
 		transport := TransportTmux
-		if _, held := stream.Held(conversation, pid); held {
+		if file.Kind == "bg" {
+			transport = "bg"
+		} else if _, held := stream.Held(conversation, pid); held {
 			transport = TransportStream
+		}
+		dir := file.Cwd
+		if dir == "" {
+			dir = procCwd(pid)
 		}
 		out = append(out, Console{
 			Session:      name,
 			Agent:        pid,
 			Konsole:      konsoleOf(pid),
-			Dir:          procCwd(pid),
+			Dir:          dir,
 			Transport:    transport,
 			Conversation: conversation,
 		})

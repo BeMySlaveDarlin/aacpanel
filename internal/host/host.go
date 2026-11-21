@@ -119,7 +119,7 @@ type LiveSession struct {
 	SessionID string `json:"sessionId"`
 	CWD       string `json:"cwd"`
 	// Transport is "stream" for a session its holder keeps on the stream, and
-	// empty for a terminal.
+	// "bg" for Claude Code background sessions, and empty for a terminal.
 	Transport string `json:"transport"`
 	// Outside is a claude out of the panel's reach: on no stream and in no pane
 	// of the user's tmux or of a terminal of the panel, so neither side can take

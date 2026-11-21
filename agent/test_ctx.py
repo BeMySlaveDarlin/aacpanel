@@ -352,9 +352,11 @@ class LiveSessions(unittest.TestCase):
         self.addCleanup(setattr, ctx, "_oneshot", old)
         self.assertEqual(ctx.live_sessions(), [])
 
-    def test_a_background_process_of_the_daemon_does_not_count_as_a_session(self):
+    def test_a_background_session_of_the_daemon_is_live(self):
         self.put("demo", UUID_B, kind="bg")
-        self.assertEqual(ctx.live_sessions(), [])
+        got = ctx.live_sessions()
+        self.assertEqual([s["sessionId"] for s in got], [UUID_B])
+        self.assertEqual(got[0]["transport"], "bg")
 
     def test_an_interactive_session_with_a_kind_stays(self):
         self.put("aacpanel", UUID_A, kind="interactive")

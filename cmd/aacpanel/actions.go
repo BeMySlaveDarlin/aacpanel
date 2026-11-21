@@ -74,6 +74,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		http.Error(w, "the request without a file is longer than allowed", http.StatusRequestEntityTooLarge)
 		return
 	}
+	if s.host != nil {
+		if live, ok := s.host.LiveSession(body.Target); ok && live.Transport == "bg" &&
+			(strings.HasPrefix(body.Kind, "session.") || strings.HasPrefix(body.Kind, "window.") || body.Kind == string(action.SecretPut) || body.Kind == string(action.TaskStop) || body.Kind == string(action.AgentStop)) &&
+			body.Kind != string(action.SessionBGAttach) && body.Kind != string(action.SessionBGStop) && body.Kind != string(action.SessionBGAdopt) {
+			http.Error(w, "Claude Code background sessions accept no panel input: open an attachment terminal, stop, or move to the panel", http.StatusConflict)
+			return
+		}
+	}
 	if body.Kind == string(action.SessionLetter) {
 		if _, report := body.Params["report"]; report {
 			s.helperReport(w, r, body.Params)
@@ -155,7 +163,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 
-	if action.TermKind(req.Kind) && !term {
+	if (action.TermKind(req.Kind) || req.Kind == action.SessionBGAttach) && !term {
 		http.Error(w, "the terminals are not served on this listener", http.StatusNotFound)
 		return
 	}
@@ -703,6 +711,32 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 
+	if req.Kind == action.SessionBGAttach {
+		req.Terminal = newTermID()
+	}
+	if req.Kind == action.SessionBGAdopt {
+		if s.host == nil {
+			http.Error(w, "the host snapshot is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		live, ok := s.host.LiveSession(body.Target)
+		if !ok || live.Transport != "bg" {
+			http.Error(w, "the background session is no longer live", http.StatusConflict)
+			return
+		}
+		want, found, err := s.launchProject(r.Context(), nil, live.CWD, "")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if want == nil {
+			http.Error(w, "the background session needs a project from the map before moving to the panel", http.StatusBadRequest)
+			return
+		}
+		want.Session = live.Name
+		req.Project = want
+		params = map[string]any{"project": found.project.ID, "path": want.Path}
+	}
 	if req.Kind == action.SessionSwitch {
 		to, _ := body.Params["to"].(string)
 		force, _ := body.Params["force"].(bool)
@@ -883,6 +917,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	out := map[string]any{"ok": true, "detail": resp.Detail, "logged": logged}
 	if req.Kind == action.TermStart {
 		out["id"] = req.Target
+	}
+	if req.Kind == action.SessionBGAttach {
+		out["id"] = req.Terminal
 	}
 	if contour != "" {
 		out["contour"] = contour

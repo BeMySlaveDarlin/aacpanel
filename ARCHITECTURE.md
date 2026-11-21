@@ -822,6 +822,32 @@ and the service worker would keep what the link opened on the phone.
 
 ---
 
+## Claude Code background sessions
+
+A `claude --bg` conversation is kept by Claude Code's own daemon, outside the
+panel's holders and tmux sessions. The collector recognises `kind: "bg"` in a
+live process's session file and reports transport `bg`. One-shot `claude -p`
+runs without a panel holder remain excluded. Project placement and the feed
+use the same working directory and transcript as other Claude conversations.
+
+The public `claude agents --json` catalogue is read per config directory with
+a timeout, no more often than the session collection interval. `blocked`
+means waiting for a person, `working` or busy means working, and idle means
+free. A failed or unmatched catalogue entry leaves a live session visible
+with unknown state. These sessions are marked outside the panel's input
+transport, so automatic restart, pause instructions, questions, permissions
+and the composer cannot write to them.
+
+The executor provides `session.bgattach`, `session.bgstop` and
+`session.bgadopt`. Attachment opens a panel terminal running `claude attach`
+with the file's job id; stop calls `claude stop`. Adoption stops the background
+session, waits for its process to exit with a deadline, then resumes the same
+conversation and name on the stream with its mapped project's launch settings.
+An expired wait never starts a second process. All three use the real Claude
+binary and the session's own `CLAUDE_CONFIG_DIR`; a profile wrapper cannot
+reroute the conversation into another account. The feed becomes writable only
+after adoption produces an ordinary panel stream session.
+
 ## Sessions on the stream
 
 A session is kept one of two ways, chosen by the launch parameters of its
@@ -1988,6 +2014,7 @@ The list of actions is closed.
 | stacks | `stack.up`, `stack.down` |
 | agents of the host | `codex.update`, `claude.update` |
 | sessions | `session.open`, `session.resume`, `session.close`, `session.freeze`, `session.thaw`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.role`, `session.remote`, `session.parent`, `session.detach`, `session.intent`, `session.pin` |
+| Claude background sessions | `session.bgattach`, `session.bgstop`, `session.bgadopt` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create`, `project.move` |

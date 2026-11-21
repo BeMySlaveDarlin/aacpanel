@@ -205,7 +205,7 @@ func (s *Server) serve(ctx, launchCtx context.Context, conn net.Conn) {
 	}
 
 	switch req.Kind {
-	case SessionOpen, SessionResume, SessionRestart, SessionSwitch:
+	case SessionOpen, SessionResume, SessionRestart, SessionSwitch, SessionBGAdopt:
 		ctx = launchCtx
 	}
 	resp := s.handle(ctx, req)

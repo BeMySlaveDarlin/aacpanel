@@ -19,6 +19,8 @@ const senderName = "aacpanel-panel"
 var sendTimeout = 5 * time.Second
 
 type liveSession struct {
+	Kind      string
+	JobID     string
 	PID       int
 	Name      string
 	Socket    string
@@ -109,6 +111,14 @@ func sessionWhere(s liveSession) string {
 }
 
 func findOneLiveSession(target string) (liveSession, error) {
+	s, err := findNamedSession(target)
+	if err == nil && s.Kind == "bg" {
+		return liveSession{}, backgroundReadOnly(target)
+	}
+	return s, err
+}
+
+func findNamedSession(target string) (liveSession, error) {
 	found, known, err := liveSessionsByName(target)
 	if err != nil {
 		return liveSession{}, err
@@ -290,6 +300,7 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 		Socket    string `json:"messagingSocketPath"`
 		Status    string `json:"status"`
 		Kind      string `json:"kind"`
+		JobID     string `json:"jobId"`
 		ProcStart string `json:"procStart"`
 		StartedAt int64  `json:"startedAt"`
 		Version   string `json:"version"`
@@ -301,7 +312,7 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 	if file.PID != pid || file.Name == "" {
 		return liveSession{}, false
 	}
-	if !consoleKind(file.Kind) {
+	if !consoleKind(file.Kind) && file.Kind != "bg" {
 		return liveSession{}, false
 	}
 	start, ok := procStart(pid)
@@ -309,7 +320,7 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 		return liveSession{}, false
 	}
 	return liveSession{
-		PID: pid, Name: file.Name, Socket: file.Socket,
+		PID: pid, Name: file.Name, Socket: file.Socket, Kind: file.Kind, JobID: file.JobID,
 		Status: file.Status, CWD: file.CWD, SessionID: file.SessionID,
 		Started: time.UnixMilli(file.StartedAt), Version: file.Version,
 		Config: filepath.Dir(dir), Bridge: file.Bridge,

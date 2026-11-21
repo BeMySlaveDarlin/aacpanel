@@ -36,6 +36,8 @@ type Spec struct {
 	Launch    json.RawMessage `json:"launch,omitempty"`
 	ClaudeBin string          `json:"claudeBin,omitempty"`
 	ConfigDir string          `json:"configDir,omitempty"`
+	// ConfigOverride pairs a real binary with the account of a background session.
+	ConfigOverride bool `json:"configOverride,omitempty"`
 	// Parent is the session that had this one opened, by its name. The
 	// session carries it in its environment as ParentEnv, where the
 	// collector reads it; a session on the stream keeps it in what its
@@ -106,7 +108,11 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 		warns = append(warns, choice.Warn)
 	}
 
-	configDir, err := contourConfig(spec.ClaudeBin, spec.ConfigDir)
+	configBin := spec.ClaudeBin
+	if spec.ConfigOverride {
+		configBin = ""
+	}
+	configDir, err := contourConfig(configBin, spec.ConfigDir)
 	if err != nil {
 		return Report{}, err
 	}

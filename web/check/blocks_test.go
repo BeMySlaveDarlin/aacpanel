@@ -128,6 +128,8 @@ func TestAnIdleSessionWithWorkRunningIsAtWorkInItsBackground(t *testing.T) {
 		{"a question beside an agent", "wait", "", row("idle", work("agents", 1), "ask", map[string]any{"header": "Screens", "count": 1})},
 		{"a permission beside an agent", "wait", "", row("waiting", work("agents", 1))},
 		{"an answer beside an agent", "busy", "working", row("busy", work("agents", 1))},
+		{"a background session answering beside an agent", "busy", "working", row("busy", work("agents", 1), "transport", "bg", "noRequests", true)},
+		{"an idle background session with an agent", "bg", "agents running", row("idle", work("agents", 1), "transport", "bg")},
 	}
 	calls := make([][]any, len(cases))
 	for i, c := range cases {
@@ -241,6 +243,10 @@ func TestEveryWaitMakesTheCardWait(t *testing.T) {
 		row                    map[string]any
 	}{
 		{"a question", "wait", "ask", "asks Layout", row("ask", map[string]any{"header": "Layout", "count": 1})},
+		{"a background session waiting for input", "wait", "input", "waiting input in Claude Code", row("transport", "bg", "status", "waiting", "noRequests", true)},
+		{"a background session with an unknown state", "idle", "unknown", "unknown", row("transport", "bg", "status", "unknown", "work", map[string]any{"agents": 1}, "ask", map[string]any{"header": "Layout"})},
+		{"a background session asking during work", "wait", "ask", "asks Layout", row("transport", "bg", "status", "busy", "ask", map[string]any{"header": "Layout", "count": 1})},
+		{"a background session waiting for permission during work", "wait", "permission", "allow Bash tar -xf", row("transport", "bg", "status", "busy", "permission", map[string]any{"tool": "Bash", "head": "tar -xf"})},
 		{"a permission", "wait", "permission", "allow Bash tar -xf",
 			row("status", "waiting", "waitingFor", "dialog open", "permission", map[string]any{"tool": "Bash", "head": "tar -xf"})},
 		{"a permission the row does not detail", "wait", "permission", "allow a tool", row("status", "waiting", "waitingFor", "dialog open")},
