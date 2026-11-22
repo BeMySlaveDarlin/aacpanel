@@ -19,10 +19,11 @@ import (
 )
 
 type chainExecutor struct {
-	mu     sync.Mutex
-	calls  []action.Request
-	peek   action.TermPeekResult
-	refuse bool
+	mu          sync.Mutex
+	calls       []action.Request
+	peek        action.TermPeekResult
+	refuse      bool
+	refuseClose bool
 }
 
 func (e *chainExecutor) Execute(_ context.Context, req action.Request) (string, error) {
@@ -31,6 +32,9 @@ func (e *chainExecutor) Execute(_ context.Context, req action.Request) (string, 
 	e.calls = append(e.calls, req)
 	if req.Kind == action.SessionSend && e.refuse {
 		return "", errors.New("the session is unavailable")
+	}
+	if req.Kind == action.TermClose && e.refuseClose {
+		return "", errors.New("tmux did not answer")
 	}
 	if req.Kind == action.TermPeek {
 		data, err := json.Marshal(e.peek)
@@ -367,6 +371,105 @@ func TestChainSavedPendingRunIsResumedOnceAfterServiceRestartPG(t *testing.T) {
 	starts := exec.captured(action.TermStart)
 	if len(starts) != 1 || starts[0].ID != "t-1234abcd-start" || starts[0].Target != "t-1234abcd" || chainRecord(t, s, id).Outputs[0].State != "running" {
 		t.Fatalf("resume: %+v", starts)
+	}
+}
+
+// A command's terminal closes as soon as its exit status is read, while the
+// chain goes on waiting on the agent's step or on the failed step.
+func TestChainClosesACommandsTerminalOnceItsExitIsReadPG(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		exit  int
+		state string
+		step  int
+	}{
+		{"exit zero", 0, "open", 2},
+		{"nonzero exit", 3, "failed", 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, exec := newChainServer(t)
+			id := createChain(t, s, personrequest.Step{Who: "you", Text: "Login", Command: "login"}, personrequest.Step{Who: "agent", Text: "Verify"})
+			if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusOK {
+				t.Fatal(w.Body.String())
+			}
+			term := exec.captured(action.TermStart)[0].Target
+			exec.setExit(true, c.exit, "signed in")
+			chainPoll(t, s, id)
+			chainPoll(t, s, id)
+			row := chainRecord(t, s, id)
+			out := row.Outputs[0]
+			if row.State != c.state || *row.Step != c.step || row.Closed != nil || out.Exit == nil || *out.Exit != c.exit || out.Term != "" || out.Tail != "signed in" || out.Log == "" {
+				t.Fatalf("after the exit: %+v %+v", row, out)
+			}
+			closes := exec.captured(action.TermClose)
+			if len(closes) != 1 || closes[0].Target != term {
+				t.Fatalf("closes of %s: %+v", term, closes)
+			}
+			// The capture is read before the pane goes.
+			exec.mu.Lock()
+			defer exec.mu.Unlock()
+			var kinds []action.Kind
+			for _, req := range exec.calls {
+				if req.Kind == action.TermPeek || req.Kind == action.TermClose {
+					kinds = append(kinds, req.Kind)
+				}
+			}
+			if len(kinds) != 2 || kinds[0] != action.TermPeek || kinds[1] != action.TermClose {
+				t.Fatalf("order: %v", kinds)
+			}
+		})
+	}
+}
+
+// A terminal that does not close is tried again on the next poll, and the step
+// it belonged to stays advanced: the agent is woken once.
+func TestChainKeepsTheAdvanceWhenATerminalDoesNotClosePG(t *testing.T) {
+	s, exec := newChainServer(t)
+	id := createChain(t, s, personrequest.Step{Who: "you", Text: "Login", Command: "login"}, personrequest.Step{Who: "agent", Text: "Verify"})
+	if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	term := exec.captured(action.TermStart)[0].Target
+	exec.setExit(true, 0, "signed in")
+	exec.mu.Lock()
+	exec.refuseClose = true
+	exec.mu.Unlock()
+	if err := s.pollChain(t.Context(), id); err == nil {
+		t.Fatal("a terminal that did not close went unreported")
+	}
+	if row := chainRecord(t, s, id); *row.Step != 2 || row.Outputs[0].State != "done" || row.Outputs[0].Term != term {
+		t.Fatalf("after the failed close: %+v %+v", row, row.Outputs[0])
+	}
+	exec.mu.Lock()
+	exec.refuseClose = false
+	exec.mu.Unlock()
+	chainPoll(t, s, id)
+	if row := chainRecord(t, s, id); row.Outputs[0].Term != "" || len(exec.captured(action.TermClose)) != 2 || len(exec.captured(action.SessionSend)) != 1 {
+		t.Fatalf("the retry: %+v, sends %d", row.Outputs[0], len(exec.captured(action.SessionSend)))
+	}
+}
+
+// Only a step that no longer runs gives its terminal up: a running command and
+// a reserved terminal about to start keep theirs.
+func TestChainKeepsTheTerminalOfAStepThatRunsOrIsAboutToStartPG(t *testing.T) {
+	s, exec := newChainServer(t)
+	exit := 0
+	row := &act.Record{ID: strings.Repeat("a", 32), Outputs: []*personrequest.Output{
+		{State: "done", Term: "t-1a1a1a1a", Exit: &exit},
+		{State: "pending", Term: "t-2b2b2b2b"},
+		{State: "running", Term: "t-3c3c3c3c"},
+		{State: "pending"},
+		nil,
+	}}
+	if err := s.closeEndedChainTerms(t.Context(), row); err != nil {
+		t.Fatal(err)
+	}
+	closes := exec.captured(action.TermClose)
+	if len(closes) != 1 || closes[0].Target != "t-1a1a1a1a" {
+		t.Fatalf("closes: %+v", closes)
+	}
+	if terms := []string{row.Outputs[0].Term, row.Outputs[1].Term, row.Outputs[2].Term}; terms[0] != "" || terms[1] != "t-2b2b2b2b" || terms[2] != "t-3c3c3c3c" {
+		t.Fatalf("terms left: %q", terms)
 	}
 }
 

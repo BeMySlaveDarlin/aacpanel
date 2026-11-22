@@ -661,8 +661,13 @@ The service polls running command steps every two seconds through its private
 `term.peek` action. Exit zero advances the chain. A nonzero exit pauses it in
 `failed`, with its current step unchanged and no closing time. The agent can
 reopen that failed human step, withdraw the chain, or replace it. Can't declines
-the chain with the person's reason. Withdrawal, reopening and a completed chain
-close their terminals. An agent reports only its own current step through
+the chain with the person's reason. A step's terminal lives only while its step
+runs: once the poll has read the exit status, saved the capture and advanced
+the step, it closes that terminal, though the chain may wait hours on an agent
+or a failed step; otherwise remain-on-exit leaves a dead pane on the Terminals
+screen. Withdrawal, reopening, Stop and a completed chain close the rest. A
+terminal that did not close is tried again on the next poll and never rolls
+back the step it belonged to. An agent reports only its own current step through
 `request {id, step, outcome, note?}`; it cannot mark a human step done.
 
 A following human step pushes with the title without waking the model. A

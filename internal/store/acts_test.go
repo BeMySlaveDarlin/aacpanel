@@ -240,3 +240,46 @@ func TestAnAskPutAwayClosesDeclinedWithoutAnswersPG(t *testing.T) {
 		t.Fatalf("the question put away: %+v %+v", got, got.Answer)
 	}
 }
+
+// A terminal left on a step that no longer runs is work for the poll, in an
+// open chain and in a failed one alike; a chain whose steps hold no terminal is
+// not.
+func TestActiveChainsListATerminalItsStepNoLongerNeedsPG(t *testing.T) {
+	s := requestStore(t)
+	blocking := true
+	exit, failed := 0, 3
+	chain := func(state string, step int, first *request.Output) string {
+		t.Helper()
+		row, err := s.CreateAct(t.Context(), "act-chain-terms", "work", act.Input{Kind: "do", Title: "Release", Blocking: &blocking,
+			Body: act.Body{Chain: []request.Step{{Who: "you", Text: "Login", Command: "login"}, {Who: "agent", Text: "Verify"}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		lease, err := s.LockChain(t.Context(), row.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { lease.Close(context.Background()) })
+		lease.Record.State, lease.Record.Step, lease.Record.Outputs[0] = state, &step, first
+		if err := lease.SaveChain(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		return row.ID
+	}
+	onAgent := chain("open", 2, &request.Output{State: "done", Term: "t-1a2b3c4d", Exit: &exit, Tail: "signed in"})
+	onFailure := chain("failed", 1, &request.Output{State: "failed", Term: "t-5e6f7a8b", Exit: &failed, Tail: "denied"})
+	closed := chain("open", 2, &request.Output{State: "done", Exit: &exit, Tail: "signed in"})
+	notStarted := chain("open", 1, nil)
+	rows, err := s.ActiveChains(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := map[string]bool{}
+	for _, row := range rows {
+		listed[row.ID] = true
+	}
+	if !listed[onAgent] || !listed[onFailure] || listed[closed] || listed[notStarted] {
+		t.Fatalf("open on the agent's step %v, failed %v, terminal closed %v, not started %v",
+			listed[onAgent], listed[onFailure], listed[closed], listed[notStarted])
+	}
+}

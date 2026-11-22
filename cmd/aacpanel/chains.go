@@ -182,15 +182,40 @@ func (s *Server) peekChainStep(ctx context.Context, row *act.Record) error {
 	return nil
 }
 
+// A terminal the person already closed from the Terminals screen counts as closed.
+func (s *Server) closeChainTerm(ctx context.Context, row *act.Record, out *personrequest.Output) error {
+	if resp, err := s.chainExec(ctx, action.Request{Kind: action.TermClose, Target: out.Term}, map[string]any{"act": row.ID}); err != nil && resp.Code != action.TermNotFound {
+		return err
+	}
+	out.Term = ""
+	return nil
+}
+
 func (s *Server) closeChainTerms(ctx context.Context, row *act.Record) error {
 	for _, out := range row.Outputs {
 		if out == nil || out.Term == "" {
 			continue
 		}
-		if resp, err := s.chainExec(ctx, action.Request{Kind: action.TermClose, Target: out.Term}, map[string]any{"act": row.ID}); err != nil && resp.Code != action.TermNotFound {
+		if err := s.closeChainTerm(ctx, row, out); err != nil {
 			return err
 		}
-		out.Term = ""
+	}
+	return nil
+}
+
+// A step's terminal lives only while its step runs. Once its exit status is
+// read, the capture is in the step's log and its tail in the output, and
+// remain-on-exit would leave a dead pane on the Terminals screen for as long as
+// the chain waits on an agent or a failed step. A reserved terminal that has
+// not started yet is a launch in progress and stays.
+func (s *Server) closeEndedChainTerms(ctx context.Context, row *act.Record) error {
+	for _, out := range row.Outputs {
+		if out == nil || out.Term == "" || out.Running() {
+			continue
+		}
+		if err := s.closeChainTerm(ctx, row, out); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -330,10 +355,14 @@ func (s *Server) pollChain(ctx context.Context, id string) error {
 			return err
 		}
 	}
+	// A terminal that did not close keeps its term and is tried again on the
+	// next poll. It must not roll back the step just advanced: the next poll
+	// would advance it again and push the following human step a second time.
+	ended := s.closeEndedChainTerms(ctx, row)
 	if err := lease.SaveChain(ctx); err != nil {
 		return err
 	}
-	return s.deliverChainNotice(ctx, id)
+	return errors.Join(ended, s.deliverChainNotice(ctx, id))
 }
 
 func (s *Server) operateChain(w http.ResponseWriter, r *http.Request, conversation, session string, input act.Input) {
