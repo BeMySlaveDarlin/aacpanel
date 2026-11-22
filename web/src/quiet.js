@@ -16,7 +16,7 @@ export function quietOf(payload) {
 // to turn the source off, and says how it went in a push of its own, since
 // nothing else on the phone would. A panel that has not answered by the
 // deadline did not take it, as far as the phone can tell.
-export async function quiet(q, icon) {
+export async function quiet(q, icon, badge) {
     let ok = false;
     try {
         const r = await within((signal) => fetch(new URL("/api/push/quiet", self.location.origin).href, {
@@ -37,6 +37,6 @@ export async function quiet(q, icon) {
         tag: `quiet:${q.what}:${q.key}`,
         silent: true,
         icon,
-        badge: icon,
+        badge,
     });
 }

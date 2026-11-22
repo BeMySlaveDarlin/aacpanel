@@ -131,7 +131,7 @@ self.addEventListener("push", (event) => {
             renotify: true,
             requireInteraction: critical,
             icon: ICON,
-            badge: ICON,
+            badge: BADGE,
             actions: button ? [{ action: "quiet", title: button.label }] : [],
             data: { severity: payload.severity, ts: payload.ts, url: screenOf(payload), quiet: button },
         });
@@ -139,6 +139,9 @@ self.addEventListener("push", (event) => {
 });
 
 const ICON = "/static/icons/icon-192.png";
+// The status bar draws a badge by its alpha alone, so it is a white mark on
+// nothing: the icon itself would come out as a solid square.
+const BADGE = "/static/icons/badge-96.png";
 
 // screenOf is the panel screen a tap on the notification opens — a path of
 // the panel and nothing else.
@@ -161,7 +164,7 @@ self.addEventListener("notificationclick", (event) => {
     event.notification.close();
     const data = event.notification.data || {};
     if (event.action === "quiet" && data.quiet) {
-        event.waitUntil(quiet(data.quiet, ICON));
+        event.waitUntil(quiet(data.quiet, ICON, BADGE));
         return;
     }
     const url = data.url || "";
