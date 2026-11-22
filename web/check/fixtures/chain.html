@@ -48,14 +48,18 @@ const req = { id: "a".repeat(32), kind: "do", title: "Log in to Teleport and res
     created: at, step: 1, body: { steps }, outputs: [null, null, null, null] };
 const done = { state: "done", term: "t-1234abcd", exit: 0, started, ended, tail: "Logged in successfully.", log: "/home/u/.local/state/aacpanel/acts/step.log" };
 const running = { state: "running", term: "t-1234abcd", started, tail: "Open the SSO link:\nhttps://tp.example.test/login\nWaiting for the security key…" };
-let acts = [req], actReads = 0;
+let acts = [req], actReads = 0, actsDown = false, holdActs = true;
+const heldActs = [];
+// What only a window around an item reads: rows above the tail.
+let older = [];
 let items = [
     { role: "ai", pos: 1, at, text: "We will go step by step: sign in, check access, restart the API and check sign-in." },
     { role: "request", pos: 2, at, id: req.id, title: req.title, steps },
 ];
 const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport: "stream", status: "idle", model: "claude-opus-5-5",
     waiting: [{ kind: "request", id: req.id, title: req.title, at, pos: 2, blocking: true }] };
-const exec = { available: true, kinds: ["act.run", "act.stop", "session.send", "session.shell"] };
+// The executor comes as a new object whenever what it can do changes, as useExec gives it.
+let exec = { available: true, kinds: ["act.run", "act.stop", "session.send", "session.shell"] };
 let stream, refuse = false, hold = false, release;
 const sent = [], terms = [];
 const copied = [];
@@ -63,8 +67,18 @@ Object.defineProperty(navigator, "clipboard", { configurable: true, value: { wri
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 window.fetch = counted(async (input, options) => {
     const u = new URL(String(input), location.href);
-    if (u.pathname === "/api/chat") return json({ items, first: 1, last: items.at(-1).pos, total: items.length, moreBefore: false, state: {} });
-    if (u.pathname === "/api/acts") { actReads++; return json({ acts }); }
+    if (u.pathname === "/api/chat") {
+        const before = Number(u.searchParams.get("before")), after = Number(u.searchParams.get("after"));
+        if (!before && !after) return json({ items, first: 1, last: items.at(-1).pos, total: items.length, moreBefore: false, state: {} });
+        const all = [...older, ...items];
+        const list = before ? all.filter(item => item.pos < before) : all.filter(item => item.pos > after);
+        return json({ items: list, first: list[0]?.pos, last: list.at(-1)?.pos, total: all.length, moreBefore: false, state: {} });
+    }
+    if (u.pathname === "/api/acts") {
+        actReads++;
+        if (holdActs) await new Promise(resolve => heldActs.push(resolve));
+        return actsDown ? new Response("The acts store is down", { status: 503 }) : json({ acts });
+    }
     if (u.pathname === "/api/actions") {
         const body = JSON.parse(options.body); sent.push(body);
         if (hold) { hold = false; await new Promise(resolve => { release = resolve; }); }
@@ -88,10 +102,17 @@ window.EventSource = class {
     close() {}
 };
 const root = document.querySelector("#root");
-const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec}
+let toAct = null;
+const draw = () => render(html`<${ToastHost}><${GateHost}><${Chat} name="work" id="s1" live=${session} exec=${exec} toAct=${toAct}
     onTerm=${term => terms.push(term)} onBack=${() => {}} /></${GateHost}></${ToastHost}>`, root);
-const form = () => document.querySelector(".actform .mchain");
-const feedCard = () => [...document.querySelectorAll(".chatfeed .mchain")].find(card => !card.closest(".actform"));
+// The chain stands in its own row of the feed; while it is open a step is at hand in it.
+const row = () => document.querySelector('.chatfeed .feedrow[data-pos="2"]');
+const form = () => {
+    const card = row()?.querySelector(".mchain");
+    return card?.querySelector(".chainstep.current") ? card : null;
+};
+const feedCard = () => document.querySelector(".chatfeed .mchain");
+const docked = () => document.querySelector(".actform .mchain");
 const step = n => form()?.querySelector(`[data-step="${n}"]`);
 const button = word => [...(form()?.querySelectorAll("button") || [])].find(b => b.textContent.trim() === word);
 const marker = () => document.querySelector('.actmark[data-act="' + req.id + '"]')?.textContent.replace(/\s+/g, " ");
@@ -110,28 +131,46 @@ function showScene(name) {
             : name === "manual" ? { ...done, tail: "deployment.apps/api restarted" } : null, null];
 }
 window.done = (async () => {
-    if (scene) showScene(scene);
-    draw(); await until(form); await quiet();
+    if (scene) { showScene(scene); holdActs = false; }
+    draw();
+    // Until its act is read a chain is told by its row of the transcript:
+    // nothing is docked for it meanwhile, not even for a moment.
+    let noFlash = false;
+    if (!scene) {
+        await until(() => row() && heldActs.length);
+        noFlash = !document.querySelector(".actform") && Boolean(row().querySelector(".actmarker"));
+        holdActs = false; heldActs.splice(0).forEach(resolve => resolve());
+    }
+    await until(form); await quiet();
     if (scene) { await document.fonts.ready; return { scene }; }
-    const out = {};
+    const out = { noFlash };
     out.pending = form().querySelector(".sentlabel").textContent === "chain · step 1 of 4"
         && step(1).classList.contains("current") && Boolean(button("Run")) && !button("Done") && !button("note")
         && [1, 2, 3, 4].every(n => step(n).querySelector(".chainbody")) && !polls().length;
     // The person's step is the person's move: the head says so, the square is the request's.
     const waits = () => Boolean(document.querySelector('.talkword[data-tone="waiting"], .dkword[data-tone="waiting"]'));
     out.yourMove = document.querySelector(".movepill")?.dataset.kind === "request" && waits();
-    out.markerPending = marker().includes("chain") && marker().includes("4 steps · step 1 is yours · below");
+    // The open chain is worked where it was posted: nothing is docked at the
+    // end of the feed for it, and no marker stands in its place.
+    out.inPlace = row().contains(form()) && !document.querySelector(".actform") && !marker();
+    step(1).querySelector(".mdcopy").click(); await until(() => copied.length);
+    out.openCopy = copied[0] === steps[0].command;
     // Every step stands open: a press on its text or its number closes nothing.
     step(1).querySelector(".chaintext").click(); step(3).querySelector(".chainwho").click(); await quiet();
     out.stepsStayOpen = [1, 3].every(n => step(n).querySelector(".chainbody")) && !form().querySelector("button.chainicon, [aria-expanded]");
     out.future = Boolean(step(3).querySelector(".mdcode")) && !step(3).querySelector(".requestanswer") && !step(3).querySelector(".chainstatus");
-    exec.kinds = exec.kinds.filter(kind => kind !== "act.run"); draw(); await quiet();
-    out.capabilities = !button("Run");
-    exec.kinds = [...exec.kinds, "act.run"]; draw(); await quiet();
+    exec = { ...exec, kinds: exec.kinds.filter(kind => kind !== "act.run") }; draw(); await quiet();
+    out.capabilities = !button("Run") && Boolean(button("Can't"));
+    // A session that takes no answer says so in the card, and so does a failed read of the acts.
+    exec = { ...exec, kinds: [...exec.kinds, "act.run"].filter(kind => kind !== "session.send") }; actsDown = true;
+    await publish(); await until(() => form()?.querySelector(".requeststate.crit"));
+    out.unavailable = !button("Can't") && !button("Run") && form().textContent.includes("This session cannot receive an answer.");
+    out.actError = form().querySelector(".requeststate.crit").textContent === "The acts store is down";
+    exec = { ...exec, kinds: [...exec.kinds, "session.send"] }; actsDown = false;
     // Markdown in a step has no second execution path, even for a shell fence.
     req.body.steps[0] = { ...steps[0], text: steps[0].text + "\n```sh\nprintf do-not-run\n```" };
-    await publish();
-    out.noMarkdownRun = !form().querySelector(".mdrun") && form().textContent.includes("printf do-not-run");
+    await publish(); await until(() => !form()?.querySelector(".requeststate.crit"));
+    out.noMarkdownRun = !form().querySelector(".mdrun") && form().textContent.includes("printf do-not-run") && Boolean(button("Run"));
     req.body.steps[0] = steps[0] = { ...steps[0], text: "Log in to Teleport. Open the SSO link and confirm with your security key." };
     refuse = true; button("Run").click(); await quiet();
     out.refused = Boolean(button("Run")) && !polls().length && document.querySelector(".toast")?.textContent.includes("could not start");
@@ -146,16 +185,16 @@ window.done = (async () => {
     out.running = !button("Run") && !button("Done") && !button("Can't") && Boolean(button("Stop"))
         && /running · \d+:\d\d/.test(step(1).textContent) && step(1).querySelector(".chainout").textContent === running.tail
         && step(1).querySelector(".chainout a")?.href === "https://tp.example.test/login";
-    out.markerRunning = marker().includes("4 steps · step 1 runs · below");
-    exec.kinds = exec.kinds.filter(kind => kind !== "act.stop"); draw(); await quiet();
+    exec = { ...exec, kinds: exec.kinds.filter(kind => kind !== "act.stop") }; draw(); await quiet();
     out.capabilities = out.capabilities && !button("Stop");
-    exec.kinds = [...exec.kinds, "act.stop"]; draw(); await quiet();
     const oldTime = step(1).querySelector(".chainstatus span").textContent;
+    exec = { ...exec, kinds: [...exec.kinds, "act.stop"] }; draw();
     offset += 1000;
     [...intervals.values()].filter(timer => timer.ms === 1000).forEach(timer => timer.fn());
     await quiet();
     out.timer = step(1).querySelector(".chainstatus span").textContent !== oldTime;
-    step(1).querySelector(".chainterm").click(); await quiet();
+    // The press hands the terminal over at once.
+    step(1).querySelector(".chainterm").click();
     out.terminal = JSON.stringify(terms) === JSON.stringify([{ id: "t-1234abcd", place: "/srv/proj" }]);
     out.polls = polls().length === 1;
     const reads = actReads;
@@ -177,7 +216,6 @@ window.done = (async () => {
     await poll(); await until(() => step(2)?.classList.contains("current")); await quiet();
     out.agent = step(2).textContent.includes("the session works on it") && !button("Done") && !button("Run") && !button("Can't")
         && step(1).textContent.includes("exit 0 · 31 s") && Boolean(step(1).querySelector(".chainbody")) && !polls().length;
-    out.markerAgent = marker().includes("1 of 4 done · step 2 is the agent's · below");
     // On the agent's step no move is the person's: the square is the agent's and the head waits on no one.
     out.agentsMove = document.querySelector(".movepill")?.dataset.kind === "agent"
         && document.querySelector(".movepill").getAttribute("aria-label").startsWith("agent's step") && !waits();
@@ -189,13 +227,15 @@ window.done = (async () => {
     out.pastOutput = step(1).querySelector(".chainout")?.textContent === done.tail;
     items = [...items, { role: "me", pos: 3, at, text: `The chain “Release” (${req.id}):\n1 you · Login · exit 0\nFull log: /logs/1\nStep 2 is yours.` }];
     stream.listeners.chat({ data: JSON.stringify({ items, state: {}, first: 1, last: 3, total: items.length }) }); await quiet();
-    out.openReply = document.querySelector(".actmark .chainreply")?.textContent === "→ agent · step 1 done · step 2 is the agent's"
-        && !document.querySelector(".actreply details, .actreply summary")
+    // The reply stands under its own chain, as a line: there is nowhere else to lead.
+    out.openReply = row().querySelector(".chainreply")?.textContent === "→ agent · step 1 done · step 2 is the agent's"
+        && Boolean(row().querySelector(".chainreply")?.compareDocumentPosition(form()) & Node.DOCUMENT_POSITION_PRECEDING)
+        && !document.querySelector("button.chainreply, .actreply details, .actreply summary")
         && ![...document.querySelectorAll(".msg.me")].some(node => node.textContent.includes(req.id));
     showScene("failed"); await publish();
     out.failed = Boolean(form()) && step(3).classList.contains("current") && step(3).textContent.includes("exit 3 · 31 s")
-        && step(3).querySelector(".chainout").textContent.includes("Forbidden") && !button("Run") && !button("Done") && !button("Can't");
-    out.markerFailed = marker().includes("failed at step 3 · below");
+        && step(3).querySelector(".chainout").textContent.includes("Forbidden") && !button("Run") && !button("Done") && !button("Can't")
+        && !docked();
     showScene("manual"); await publish();
     out.manual = Boolean(button("Done")) && Boolean(button("Can't")) && !button("Run") && !step(4).querySelector(".mdcode")
         && Boolean(step(2).querySelector(".chainbody"));
@@ -217,8 +257,8 @@ window.done = (async () => {
     out.closedStaysOpen = Boolean(closedStep(1).querySelector(".chainbody"));
     out.oneResult = !closedStep(1).querySelector(".chainresult") && closedStep(1).querySelector(".chainstatus")?.textContent.trim() === "exit 0 · 31 s"
         && closedStep(1).textContent.match(/exit 0 · 31 s/g)?.length === 1;
-    closedStep(1).querySelector(".mdcopy").click(); await until(() => copied.length);
-    out.closedCopy = copied[0] === steps[0].command;
+    closedStep(1).querySelector(".mdcopy").click(); await until(() => copied.length === 2);
+    out.closedCopy = copied[1] === steps[0].command;
     const link = closedStep(4).querySelector(".chaintext a");
     let followed = false;
     link.addEventListener("click", event => { followed = true; event.preventDefault(); }, { once: true });
@@ -233,13 +273,29 @@ window.done = (async () => {
     out.cant = sent.at(-1).kind === "session.send"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, answer: "cant", note: "No account.", step: 4 })
         && feedCard()?.querySelector(".sentlabel").textContent === "chain · 3 of 4 done · Can't" && !marker();
+    // A plain request still docks in the form. With a chain open beside it the
+    // form keeps the request, and the pill counts both and leads in turn to
+    // the chain's row and to the form.
     const legacy = { id: "b".repeat(32), kind: "do", title: "Legacy request", state: "open", created: at, body: { steps: "Run this:\n```sh\nprintf legacy\n```" } };
     acts = [req, legacy];
+    showScene("manual");
+    // The step at hand is a new item of the host's summary: the one answered before stays settled.
+    session.waiting = [{ kind: "request", id: req.id, title: req.title, at: new Date().toISOString(), pos: 2, blocking: true }];
     items = [...items, { role: "request", pos: 4, at, id: legacy.id, title: legacy.title, steps: legacy.body.steps }];
     stream.listeners.chat({ data: JSON.stringify({ items, state: {}, first: 1, last: 4, total: items.length }) });
-    await until(() => document.querySelector(".actform .requeststeps .mdrun")); await quiet();
+    await until(() => document.querySelector(".actform .requeststeps .mdrun") && form()); await quiet();
     out.legacy = document.querySelector(".actform .requeststeps").textContent.includes("printf legacy")
-        && !document.querySelector(".actform .mchain") && !polls().length;
+        && !docked() && !polls().length;
+    const pill = () => document.querySelector(".movepill");
+    const legacyDocked = () => Boolean(document.querySelector(".actform .requeststeps")?.textContent.includes("printf legacy")) && !docked();
+    out.mixed = pill().querySelector(".movecount").textContent === "2" && legacyDocked() && Boolean(form());
+    pill().click(); await until(() => row().classList.contains("waitingtarget"));
+    out.pillReveals = legacyDocked() && row().contains(form()) && document.querySelectorAll(".waitingtarget").length === 1;
+    row().classList.remove("waitingtarget");
+    pill().click(); await quiet();
+    const toForm = !document.querySelector(".waitingtarget") && legacyDocked();
+    pill().click(); await until(() => row().classList.contains("waitingtarget"));
+    out.pillCycles = toForm && legacyDocked();
 
     const summary = (act, rows) => `The chain “Release” (${act.id}):\n${rows}\nFull log: /logs/step`;
     const range = { ...req, id: "c".repeat(32), state: "open", step: 3,
@@ -262,6 +318,37 @@ window.done = (async () => {
         && feedCard().querySelector(".sentlabel").textContent === "chain · 4 of 4 done"
         && feedCard().querySelectorAll(".chainbody").length === steps.length
         && !feedCard().querySelector(".requestanswer, .requestnote, .chainterm") && !document.querySelector("button.chainreply");
+
+    // An open chain whose row is above what the feed read: its reply line and
+    // a push about it both read a window around the row and reveal the card
+    // there, working.
+    const remote = { ...req, id: "9".repeat(32), title: "Finish the release", state: "open", step: 4,
+        outputs: [{ ...done }, { state: "done" }, { ...done }, null] };
+    acts = [remote];
+    older = [{ role: "request", pos: 2, at, id: remote.id, title: remote.title, steps }];
+    items = [{ role: "ai", pos: 7, at, text: "Meanwhile the session went on." },
+        { role: "me", pos: 8, at, text: summary(remote, "3 you · Restart the API · exit 0") }];
+    session.waiting = [{ kind: "request", id: remote.id, title: remote.title, at, pos: 2, blocking: true }];
+    render(null, root); draw();
+    await until(() => document.querySelector("button.chainreply"));
+    const revealed = () => document.querySelector('.feedrow.waitingtarget[data-pos="2"]');
+    const works = () => Boolean(revealed()?.querySelector(".mchain .chainstep.current") && button("Done") && button("Can't"));
+    out.farRow = !row() && !docked();
+    document.querySelector("button.chainreply").click();
+    await until(works);
+    out.replyReveals = row().contains(form()) && !docked();
+    render(null, root); toAct = { id: remote.id }; draw();
+    await until(works);
+    out.pushReveals = !docked() && document.querySelectorAll(".waitingtarget").length === 1;
+    // Once a tap: the acts read again after it leave the reader where they are; another tap shows it again.
+    revealed().classList.remove("waitingtarget");
+    const readsBefore = actReads;
+    await publish();
+    const once = actReads > readsBefore && !document.querySelector(".waitingtarget");
+    toAct = { id: remote.id }; draw();
+    await until(revealed);
+    out.pushOnce = once;
+    toAct = null;
 
     const samples = [
         { key: "summaryRange", act: range, rows: "1 you · Login · exit 0\n2 you · Check access · done", want: "→ agent · steps 1–2 done · step 3 is the agent's" },
@@ -288,8 +375,12 @@ window.done = (async () => {
     document.querySelector('[data-case="summaryRange"] button.chainreply').click();
     out.detachedOpen = opened.length === 1 && opened[0].id === range.id && opened[0].role === "request"
         && !document.querySelector('[data-case="summaryRange"] .mchain');
+    // Replies under the row of an open chain stand under its card as lines.
     document.querySelector('[data-case="attached"] .chainreply').click();
-    out.attachedOpen = opened.length === 2 && opened[1].id === range.id;
+    const attached = document.querySelector('[data-case="attached"]');
+    out.attachedInPlace = opened.length === 1 && attached.querySelector(".mchain .chainstep.current")?.dataset.step === "3"
+        && !attached.querySelector("button.chainreply, .actmarker")
+        && Boolean(attached.querySelector(".chainreply")?.compareDocumentPosition(attached.querySelector(".mchain")) & Node.DOCUMENT_POSITION_PRECEDING);
     out.missingRecord = Boolean(document.querySelector('[data-case="missing"] .actmarker'))
         && !document.querySelector('[data-case="missing"] .mchain');
     const withdrawn = { ...finished, state: "withdrawn" };

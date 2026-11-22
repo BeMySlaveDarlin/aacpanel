@@ -4,18 +4,12 @@ import { html } from "../../html.js";
 import { render } from "../../md.js";
 import { Icon } from "../../ui/icons.js";
 import { stampText } from "./labels.js";
-import { ChainCard, isChain } from "./chain.js";
-
-export function RequestCard(props) {
-    return isChain(props.record || props.item)
-        ? html`<${ChainCard} ...${props} />`
-        : html`<${MarkdownRequest} ...${props} />`;
-}
 
 // RequestCard keeps the answer with its steps in the form of the feed: a
 // note or a reason above one row of what can be answered.
 // Opening it does not answer it, and an unavailable state offers no send.
-function MarkdownRequest({ item, record, onAnswer, onRun, error = "", unavailable = "" }) {
+// A chain is not one of them: it is answered in its own row (see ChainCard).
+export function RequestCard({ item, record, onAnswer, onRun, error = "", unavailable = "" }) {
     const [note, setNote] = useState("");
     const [writing, setWriting] = useState(false);
     const [cant, setCant] = useState(false);

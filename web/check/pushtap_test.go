@@ -98,8 +98,8 @@ func TestPageOpensTheSessionTheAddressNames(t *testing.T) {
 		t.Error("src/pwa.js: the address sent by the worker is not handed to the page")
 	}
 	for path, want := range map[string]string{
-		"src/mobile/shell.js":  "goHome(jump.name, jump.id)",
-		"src/desktop/shell.js": "openChat({ name: jump.name, id: jump.id })",
+		"src/mobile/shell.js":  "goHome(jump.name, jump.id, jump.toAct)",
+		"src/desktop/shell.js": "openChat({ name: jump.name, id: jump.id, toAct: jump.toAct })",
 	} {
 		if !strings.Contains(withoutComments(files[path]), want) {
 			t.Errorf("%s: the session the address names is not opened — no %s", path, want)

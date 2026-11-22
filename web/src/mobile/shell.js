@@ -94,10 +94,10 @@ export function MobileShell({
     }, []);
 
     const [want, setWant] = useState(null);
-    const goHome = useCallback((name, id) => {
+    const goHome = useCallback((name, id, toAct = null) => {
         setPage(null);
         goTab("sessions");
-        setWant({ name, id });
+        setWant({ name, id, toAct });
     }, [goTab]);
 
     // The terminals exist where the listener has the terminal route; a tab
@@ -114,7 +114,7 @@ export function MobileShell({
     }, [tab, term.known, term.route, goTab]);
     useEffect(() => {
         if (!jump) return;
-        goHome(jump.name, jump.id);
+        goHome(jump.name, jump.id, jump.toAct);
         onJumped();
     }, [jump, goHome, onJumped]);
 

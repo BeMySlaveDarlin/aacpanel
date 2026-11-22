@@ -55,10 +55,13 @@ function trim(points) {
 const THEME_KEY = "aacpanel.theme";
 
 // wanted reads the session an address asks to open: a tap on a push about a
-// session lands on /app?session=<name>.
+// session lands on /app?session=<name>, and one about an act of it adds
+// &act=<id>, which the conversation is opened on (see toAct in Conversation).
 function wanted(search) {
-    const name = new URLSearchParams(search).get("session") || "";
-    return name ? { name, id: null } : null;
+    const params = new URLSearchParams(search);
+    const name = params.get("session") || "";
+    const act = params.get("act") || "";
+    return name ? { name, id: null, toAct: act ? { id: act } : null } : null;
 }
 
 export function App({ updateReady, updating, onApplyUpdate, installable, onInstall }) {

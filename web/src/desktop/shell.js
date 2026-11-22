@@ -270,7 +270,7 @@ export function DesktopShell({
     }, [section, term.known, term.route, goSection]);
     useEffect(() => {
         if (!jump) return;
-        openChat({ name: jump.name, id: jump.id });
+        openChat({ name: jump.name, id: jump.id, toAct: jump.toAct });
         onJumped();
     }, [jump, openChat, onJumped]);
 
@@ -354,6 +354,7 @@ export function DesktopShell({
                 exec=${exec}
                 wait=${wait}
                 archive=${chat.archived ? chat.row : null}
+                toAct=${chat.toAct || null}
                 onBack=${() => setChat(null)}
                 onUsage=${() => { setChat(null); goSection("home"); }}
                 onTerm=${term.route ? openTerm : null}

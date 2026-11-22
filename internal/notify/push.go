@@ -44,6 +44,10 @@ type Message struct {
 	Tag      string
 	Severity Severity
 	Session  string
+	// Act is the act of the session the push is about, which a tap opens the
+	// conversation on: a task left for the person's hands, a step of a chain
+	// among them. Empty for the rest.
+	Act string
 
 	// Kind, Source and Back are what the person's choice is read against:
 	// what the push says, where from, and whether it says a fall is over.
@@ -70,13 +74,18 @@ func (m Message) ttl() time.Duration {
 }
 
 // screen is the panel address a tap on the notification opens: the screen of
-// the session the push is about, and nothing for the rest — those only bring
-// the panel up.
+// the session the push is about, on the act it names, and nothing for the
+// rest — those only bring the panel up. A chain stays open for hours where it
+// was posted, so the end of the feed is not where its step is.
 func (m Message) screen() string {
 	if m.Session == "" {
 		return ""
 	}
-	return "/app?session=" + url.QueryEscape(m.Session)
+	screen := "/app?session=" + url.QueryEscape(m.Session)
+	if m.Act != "" {
+		screen += "&act=" + url.QueryEscape(m.Act)
+	}
+	return screen
 }
 
 func (m Message) urgency() string {

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { list as actList } from "../../data/acts.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
 import { clearWaitingTargets, RequestCard, revealWaiting } from "./request.js";
-import { actOpen, agentsMove } from "./chain.js";
+import { actOpen, agentsMove, isChain } from "./chain.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -92,7 +92,10 @@ import { PlaceContext } from "./place.js";
 // ctx is what the parts may reach of the screen: whether it is wide, the view,
 // whether the feed shows and its box, the work of the turn, and the setters of
 // the sheet over the run and of what goes into the composer.
-export function Conversation({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat, onTerm, parts }) {
+//
+// toAct is the act a tap on a push asked to be shown, as { id }: a new object
+// at every tap, so the same act asked for twice is shown twice.
+export function Conversation({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat, onTerm, toAct, parts }) {
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
@@ -451,6 +454,19 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         && !(goesOn && (permits || pending.some((row) => row.asked === ask.toolUseId))));
     const onRequestAnswer = live && !live.outside && knows(exec, "session.send") ? steadyAnswerRequest : null;
     const requestUnavailable = "This session cannot receive an answer.";
+    // What an open chain is worked with in its own row. The rows are drawn
+    // again only when what they are handed changes, so every hand keeps its
+    // identity, and only the rows of requests are handed it.
+    const steadyRunChain = useSteady(runChain);
+    const steadyChainTerm = useSteady((term) => onTerm({ id: term, place: live?.cwd || "" }));
+    const answerable = Boolean(live && !live.outside);
+    const chainHands = useMemo(() => (answerable ? {
+        onAnswer: onRequestAnswer,
+        onChainRun: writable && knows(exec, "act.run") ? (act, step) => steadyRunChain("act.run", act, step) : null,
+        onChainStop: writable && knows(exec, "act.stop") ? (act, step) => steadyRunChain("act.stop", act, step) : null,
+        onTerm: onTerm ? steadyChainTerm : null,
+        error: actError, unavailable: requestUnavailable,
+    } : { unavailable: requestUnavailable }), [answerable, onRequestAnswer, writable, exec, Boolean(onTerm), actError]);
     // An answer to it goes as a message of the person, and stands as one on
     // its way: the card of the round answered (see panelsaid.js).
     const sentAnswer = (use, text) => setLocal((was) => [...was, {
@@ -462,9 +478,24 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ...(asksTurn ? [{ kind: "asked", id: ask.toolUseId, blocking: !goesOn, at: ask.at || live?.statusUpdatedAt, pos: ask.pos }] : []),
         ...(permits && !asksTurn ? [{ kind: "permit", blocking: true, at: live.statusUpdatedAt, pos: state.items.findLast((row) => row.role === "permitted")?.pos }] : []),
     ]);
-    // A chain on the agent's turn stays in the form, but is no move of the person's.
+    // A chain on the agent's turn is a move, but not the person's.
     const yourMoves = moves.some((item) => !agentsMove(item));
-    const current = moves.find((item) => moveKey(item) === selected) || moves[0];
+    // A chain is never docked in the form: it stays open for hours, and what
+    // the agent writes meanwhile would pile up above it. It is answered in its
+    // row, which the pill and a push lead to. It is told by its act, its row
+    // of the transcript or the host's mark of the agent's turn, whichever is
+    // here first: a chain taken for a plain request would flash in the form.
+    const chained = (item) => isChain(item) || Boolean(item.agent)
+        || drawn.some((row) => row.role === "request" && row.id === item.id && isChain(row));
+    // Where the row of a chain stands: the host's summary of what waits places
+    // it even outside the window drawn, and the drawn feed places the rest.
+    const chainRow = (act) => {
+        const row = moves.find((item) => item.id === act && item.pos != null)
+            || drawn.find((item) => item.role === "request" && item.id === act) || {};
+        return { kind: "request", pos: row.pos, nth: row.nth };
+    };
+    const docked = moves.filter((item) => !chained(item));
+    const current = docked.find((item) => moveKey(item) === selected) || docked[0];
     const currentKey = current ? moveKey(current) : "";
     const openBrief = useSteady((briefId) => {
         const move = moves.find((item) => item.kind === "brief" && item.id === briefId);
@@ -482,13 +513,50 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     });
     // An older render must not undo a newer marker press.
     useEffect(() => { setSelected((was) => was === selected ? currentKey : was); }, [currentKey, selected]);
-    const selectAct = useCallback((item) => setSelected(moveKey({ ...item, kind: item.role || item.kind })), []);
+    // A press on the marker or the reply line of an act: a chain is revealed
+    // in its row, any other move is put into the form.
+    const selectAct = useSteady((item) => {
+        const kind = item.role || item.kind;
+        if (kind === "request" && chained({ ...item, ...acts[item.id] })) {
+            pickWaiting(chainRow(item.id));
+            return;
+        }
+        setSelected(moveKey({ ...item, kind }));
+    });
+    // The pill leads through the moves in turn: one the form takes is put into
+    // it at the end of the feed, and a chain is revealed in its row. The form
+    // does not hold a chain, so the pill keeps the one it led to itself.
+    const led = useRef("");
     const nextAct = () => {
-        const next = moves[(moves.findIndex((item) => moveKey(item) === currentKey) + 1) % moves.length];
+        const from = moves.some((item) => moveKey(item) === led.current && chained(item)) ? led.current : currentKey;
+        const next = moves[(moves.findIndex((item) => moveKey(item) === from) + 1) % moves.length];
         if (!next) return;
+        led.current = moveKey(next);
+        if (chained(next)) {
+            pickWaiting(chainRow(next.id));
+            return;
+        }
         setSelected(moveKey(next));
         toEnd();
     };
+    // A push about an act opens the conversation on it once the feed and the
+    // act are read, once a tap: whatever the reader scrolls to afterwards
+    // stays theirs.
+    const reached = useRef(null);
+    useEffect(() => {
+        if (!toAct || reached.current === toAct || state.kind !== "ready" || !feedShown) return;
+        const act = acts[toAct.id];
+        if (!act) return;
+        reached.current = toAct;
+        if (chained(act)) {
+            pickWaiting(chainRow(act.id));
+            return;
+        }
+        const move = docked.find((item) => item.id === act.id);
+        if (!move) return;
+        setSelected(moveKey(move));
+        toEnd();
+    }, [toAct, state.kind, feedShown, acts]);
     const nativeAnswered = (use, text, summary) => {
         if (goesOn) sentAnswer(use, text);
         else if (summary && summary.length) setSentAsk({ use, summary });
@@ -518,10 +586,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)} onAnswered=${() => mark(answered(live, ""))} />`
         : current.kind === "request"
         ? html`<div onClick=${(event) => codecopy.fromClick(event, toast)}><${RequestCard} key=${currentKey} item=${current} record=${acts[current.id]}
-            error=${actError} onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${lent.onRun}
-            onChainRun=${writable && knows(exec, "act.run") ? (act, step) => runChain("act.run", act, step) : null}
-            onChainStop=${writable && knows(exec, "act.stop") ? (act, step) => runChain("act.stop", act, step) : null}
-            onTerm=${onTerm ? (id) => onTerm({ id, place: live?.cwd || "" }) : null} /></div>`
+            error=${actError} onAnswer=${onRequestAnswer} unavailable=${requestUnavailable} onRun=${lent.onRun} /></div>`
         : current.kind === "secret"
         ? html`<${SecretPad} key=${currentKey} item=${current} session=${name} exec=${exec} shelf=${secrets}
             onSaved=${(state) => finishSecret(current, state)} onDone=${() => {}} />`
@@ -682,6 +747,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         act=${acts[item.claim || item.re || item.actReplyID || item.id]}
                         onClaimWithdraw=${knows(exec, "act.withdraw") ? withdrawClaim : null}
                         onAct=${selectAct}
+                        chain=${item.role === "request" ? chainHands : null}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}
                         onCommand=${onCommand}

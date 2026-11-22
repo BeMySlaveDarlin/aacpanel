@@ -767,15 +767,22 @@ not replace the form the person is filling in. The form stands at the end of
 the feed as its last message on both phone and desktop: the feed above it
 scrolls as ever, and the message field and its strips stay whole under it.
 Sessions outside the panel get no form, since nothing could deliver the answer.
-A press on the counter
-cycles the items and reveals their markers in the feed. Opening the session
+A chain is never put into the form. It stays open for hours, often on the
+agent's step, and everything the session writes meanwhile would pile up above
+a card held at the end; it stands where it was posted and is worked there. A
+press on the counter cycles the items: one the form takes is put into it, and
+a chain is revealed in its own row, read in a window around it when it is above
+the feed on screen. The push of a chain's human step names the act in its
+address, `/app?session=<name>&act=<id>`, and the conversation opens on that row
+once the feed and the act are read, once a tap, so the reader's scrolling after
+it stays theirs. Opening the session
 settles its call through `acts`, on every device, and none of the other items.
 The service adds the summary to the host snapshot: the collector supplies card
 anchors, the database supplies open acts and brief state. The collector indexes
 only these cards and reads new transcript records after the first listing; it
 keeps no second copy of the whole feed.
 
-The form renders a chain with its current step expanded. Human command steps
+A chain's card shows every step open, its current step marked. Human command steps
 have Run, terminal access and Stop; human steps without a command have Done
 and Can't, with a note or reason above the answer row. Agent steps show their
 status and reported note. Archived Markdown requests retain the feed's copy
@@ -785,7 +792,8 @@ title, checks its conversation and locks the row while the executor accepts
 it. Only then is it marked answered. A failed delivery leaves it open, and a
 retry preserves the message id where the transport deduplicates messages.
 
-Request and secret cards are markers in the feed. A reply carrying an id in
+Markdown request and secret cards are markers in the feed; a chain is its card,
+open or closed. A reply carrying an id in
 `GET /api/acts` folds into a quiet line under its act and opens in full on a
 press. Matching by stored id keeps the reply independent of its wording. The
 whole-text parsers remain for history without act data.

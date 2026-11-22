@@ -63,7 +63,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
 
     useEffect(() => {
         if (!want) return;
-        const target = { name: want.name, id: want.id || null };
+        const target = { name: want.name, id: want.id || null, toAct: want.toAct || null };
         if (pick) pick(target);
         else setChat(target);
         if (onWanted) onWanted();
@@ -95,6 +95,7 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
             exec=${exec}
             wait=${wait}
             archive=${recent.find((r) => r.sessionId === chat.id) || null}
+            toAct=${chat.toAct || null}
             onBack=${() => setChat(null)}
             onUsage=${onUsage}
             onTerm=${onTerm}

@@ -42,8 +42,10 @@ export const FeedWrites = createContext(null);
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
-// beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onClaimWithdraw }) {
+// beside the feed (see timeline.js). chain is what the feed lends an open
+// chain to be worked in its row: onAnswer, onChainRun, onChainStop, onTerm,
+// and the error and unavailable lines of ChainCard.
+export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onClaimWithdraw, chain }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -100,8 +102,12 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         if (item.role === "ask") return html`
             <${AskCard} item=${item} record=${act} />
             ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
-        if (item.role === "request" && isChain(act) && !actOpen(act)) return html`
-            <${ChainCard} item=${item} record=${act} />
+        // A chain stands where it was posted, open or closed, and is never
+        // docked at the end of the feed: a chain stays open for hours, and
+        // everything said meanwhile would pile up above it. Its steps are
+        // answered, run and stopped here.
+        if (item.role === "request" && isChain(act)) return html`
+            <${ChainCard} item=${item} record=${act} ...${(actOpen(act) && chain) || {}} />
             ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
         return html`<${ActMarker} item=${item} record=${act} onOpen=${onAct} />`;
     }

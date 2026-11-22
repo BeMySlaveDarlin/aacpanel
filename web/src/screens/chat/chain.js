@@ -20,16 +20,12 @@ export function agentsMove(act) {
     return (act.steps || act.body.steps)[(act.step || 1) - 1]?.who === "agent";
 }
 
+// chainSummary says how a chain ended. An open chain says nothing of the kind:
+// it stands in its own row as its card, with the step at hand in it.
 export function chainSummary(act) {
     const steps = act.steps || act.body.steps;
-    const step = act.step || 1;
     const done = (act.outputs || []).filter((out) => out?.state === "done").length;
-    if (act.state === "failed") return `failed at step ${step} · below`;
-    if (!actOpen(act)) return `${done} of ${steps.length} done${act.state === "withdrawn" ? " · withdrawn" : act.state === "declined" ? " · Can't" : ""}`;
-    const out = act.outputs?.[step - 1];
-    const word = out?.state === "running" ? `step ${step} runs`
-        : `step ${step} is ${steps[step - 1]?.who === "agent" ? "the agent's" : "yours"}`;
-    return `${done ? `${done} of ${steps.length} done` : `${steps.length} steps`} · ${word} · below`;
+    return `${done} of ${steps.length} done${act.state === "withdrawn" ? " · withdrawn" : act.state === "declined" ? " · Can't" : ""}`;
 }
 
 const seconds = (out) => {
