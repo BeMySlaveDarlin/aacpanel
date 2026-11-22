@@ -101,7 +101,7 @@ export function FilesButton({ repo }) {
     if (!repo.cwd) return null;
     const count = !repo.plain && repo.data ? repo.data.total : 0;
     return html`
-        <button class=${`cdfilesbutton ${repo.wide ? "dktab" : "iconbtn"}${repo.open ? " on" : ""}`}
+        <button class=${`cdfilesbutton ${repo.wide ? "dktab" : "pfiles"}${repo.open ? " on" : ""}`}
                 type="button" aria-label="Files" aria-expanded=${repo.open}
                 onClick=${() => repo.setOpen(!repo.open)}>
             ${Icon.files()}${repo.wide ? html`<span>Files${count ? ` · ${count} changed` : ""}</span>`

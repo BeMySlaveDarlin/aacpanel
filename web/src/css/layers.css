@@ -134,7 +134,8 @@
 .phead.talk { align-items: center; }
 .phead.talk .pback { align-self: center; width: 44px; min-height: 44px; }
 .phead.talk .pheadtools { min-width: 0; }
-.pmore {
+/* Files beside the tools is the same button, so the two read as one pair. */
+.pmore, .pfiles {
     display: grid;
     place-items: center;
     width: 44px;
@@ -147,8 +148,8 @@
     color: var(--ink-dim);
     cursor: pointer;
 }
-.pmore:active { background: var(--glass-2); }
-.pmore svg { width: var(--i-md); height: var(--i-md); }
+.pmore:active, .pfiles:active { background: var(--glass-2); }
+.pmore svg, .pfiles svg { width: var(--i-md); height: var(--i-md); }
 
 .phead > .ctxbar { grid-column: 1 / -1; }
 

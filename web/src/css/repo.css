@@ -215,8 +215,8 @@
 .cdfileshead > div { flex: 1; min-width: 0; }
 .cdfileshead h2 { margin: 0; font-size: var(--t-xl); }
 .cdfileshead span { font-size: var(--t-sm); color: var(--ink-faint); }
-.cdfilesbutton { position: relative; display: inline-flex; align-items: center; gap: 6px; flex: none; }
-.cdfilesbutton svg { width: var(--i-md); height: var(--i-md); }
+.cdfilesbutton { position: relative; flex: none; }
+.cdfilesbutton.dktab { display: inline-flex; align-items: center; gap: 6px; }
 .cdfilescount {
     position: absolute; top: -4px; right: -4px;
     min-width: 17px; padding: 1px 4px; border-radius: var(--r-pill);
