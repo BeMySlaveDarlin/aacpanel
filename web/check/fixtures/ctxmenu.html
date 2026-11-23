@@ -161,7 +161,7 @@ function Shell() {
                 <div class="dkbody withpanel">
                     <${SessionColumn} snapshot=${snapshot} limits=${null} current="" currentId=""
                         onPick=${(t) => picked.push(t.name)} onTerm=${(t) => terms.push(t)}
-                        onSettings=${(at) => settings.push(at)} picks=${[]} setPicks=${() => {}}
+                        onSettings=${(at) => settings.push(at)}
                         onNames=${() => {}} onOrder=${() => {}} onArchive=${() => {}} exec=${exec} wait=${wait} />
                     <${ContainersCenter} tree=${tree} stack="shop" current=${null} onPick=${() => {}} exec=${exec}
                         onDone=${() => {}} onLogs=${(c) => logs.push(c.name)} />
@@ -517,7 +517,7 @@ window.done = (async () => {
     out.settingsStart = startOf([{ id: 3, name: "personal", groups: [
         { id: 7, name: "Side", projects: [{ id: 11 }, { id: 13 }] },
         { id: 8, name: "Host", projects: [{ id: 14 }] },
-    ] }], out.settings, []);
+    ] }], out.settings, "");
 
     await openOn(aac, true);
     itemOf("Terminal of the project").click();

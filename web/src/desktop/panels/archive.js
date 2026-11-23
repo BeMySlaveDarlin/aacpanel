@@ -3,7 +3,6 @@ import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
-import { ContourPick } from "../sessions.js";
 import { pct, plural, tokens } from "../../format.js";
 import { agentKey, agentName, isCodex } from "../../agent.js";
 import { knows, whyNot } from "../../exec.js";
@@ -32,6 +31,24 @@ function contourQuery(name, profiles) {
     return byName.has(name)
         ? `&contour=${encodeURIComponent(byName.get(name))}`
         : `&profile=${encodeURIComponent(name)}`;
+}
+
+// ContourPick is the filter of the archive: a button a contour, each pressed
+// on and off by itself, and with none pressed every contour is shown. It
+// looks like the switch of the sessions column beside it and works apart from
+// it: the archive is read across contours at once, the column one at a time.
+function ContourPick({ names, picks, onToggle }) {
+    return html`
+        <div class="dkpick" role="group" aria-label="contours">
+            ${names.map((name) => html`
+                <button class="dkpickbtn" key=${name} type="button" title=${name} aria-label=${name}
+                        aria-pressed=${picks.includes(name) ? "true" : "false"}
+                        onClick=${() => onToggle(name)}>
+                    <span class="dkpickname">${name}</span>
+                </button>
+            `)}
+        </div>
+    `;
 }
 
 // Row is one conversation of the archive. A thread of codex has no fill of its

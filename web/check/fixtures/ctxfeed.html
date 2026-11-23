@@ -445,7 +445,7 @@ window.done = (async () => {
             transport: "stream", status: "idle", pct: 5, cwd: "/srv/proj" }],
     };
     mount(html`<${SessionColumn} snapshot=${snapshot} limits=${null} current="" currentId="" onPick=${() => {}}
-        picks=${[]} setPicks=${() => {}} onNames=${() => {}} onOrder=${() => {}} onArchive=${() => {}}
+        onNames=${() => {}} onOrder=${() => {}} onArchive=${() => {}}
         exec=${oldExec} wait=${{ opening: () => [], of: () => null }} />`, true);
     const plus = () => document.querySelector('.dkproj .scact[aria-label="new session in project proj"]');
     await until(plus);

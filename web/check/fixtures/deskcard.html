@@ -20,8 +20,9 @@ html,body{margin:0}
 <div id="phone"></div>
 <script type="module">
 // The card of a session in the desktop column, with the right panel open:
-// live and closed apart. The live sessions of a contour stand in blocks of
-// their projects, each under its heading, and keep their
+// live and closed apart, every contour read on its tab. The live sessions of
+// a contour stand in blocks of their projects, each under its heading, and
+// keep their
 // places whatever they do; a card says the state in the words of the phone,
 // who runs it on what, its settings and the share of its context; its
 // controls stand on every card in its corner; the heading counts who waits
@@ -125,8 +126,12 @@ window.fetch = counted(async (url, init) => {
         return json({ ok: true, detail: "done" });
     }
     if (u.startsWith("/api/sessions/archive")) {
-        asked.push(new URL(u, location.origin).search);
-        return json({ rows: archive, total: archive.length, limit: 30, offset: 0 });
+        const query = new URL(u, location.origin).searchParams;
+        asked.push(`?${query}`);
+        // The archive answers for the contour asked, as the collector names it.
+        const named = { 3: "personal", 1: "globex" }[query.get("contour")];
+        const rows = named ? archive.filter((r) => r.profile === named) : archive;
+        return json({ rows, total: rows.length, limit: 30, offset: 0 });
     }
     if (u.startsWith("/api/chat?")) return json({ items: [{ role: "ai", pos: 1, text: "Running the suite." }], first: 1, last: 1, total: 1, moreBefore: false, state: null });
     if (u === "/api/term") return json({ available: true });
@@ -145,7 +150,7 @@ let archiveOpened = 0;
 const column = (sessions, current, currentId = "", map = profileMap, pending = wait) => {
     const snapshot = { at: now / 1000, sessions, profileMap: map, limits, profiles: accounts, host: { home: "/home/u" } };
     render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec, wait: pending }, h(SessionColumn, {
-        snapshot, limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
+        snapshot, limits, current, currentId, onPick: (t) => picked.push(t),
         onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait: pending,
     })))), document.getElementById("root"));
 };
@@ -156,7 +161,7 @@ const words = (el) => (el ? Array.from(el.children).map(text).filter(Boolean).jo
 const root = () => document.getElementById("root");
 const live = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf) .sc:not(.scghost)"));
 const rowOf = (name) => live().find((r) => r.dataset.name === name);
-// lay reads every contour of the column: its name, how many wait, and its
+// lay reads the contour the column shows: its name, how many wait, and its
 // cards in order — the heading of a project as "# name · group", and a card
 // by the name of its session.
 const lay = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => ({
@@ -190,43 +195,65 @@ const rows = () => live().map((row) => ({ name: row.dataset.name, icons: row.que
 const calls = () => Object.fromEntries(live().filter((row) => row.dataset.kind === "call")
     .map((row) => [row.dataset.name, `${text(row.querySelector(".scsay"))} · ${text(row.querySelector(".sctime"))}`]));
 
+// The contours of the map, each with a closed conversation its shelf holds.
+const TABS = [["personal", "person-e8"], ["Globex Group", "shop-admin"]];
+// tab moves the column to a contour, through its tab, and waits for its
+// section and the shelf of its own closed conversations.
+const tab = async ([name, closedOne]) => {
+    const button = Array.from(root().querySelectorAll(".dkpick [role=tab]"))
+        .find((b) => text(b.querySelector(".dkpickname")) === name);
+    if (button) button.click();
+    await until(() => text(root().querySelector(".dkcontourname")) === name
+        && root().querySelector(`.dkshelf .sc.scpast[data-name="${closedOne}"]`), `the tab of ${name}`);
+    await quiet();
+};
+const shelfRows = () => Array.from(root().querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({
+    name: r.dataset.name, contour: text(r.querySelector(".sctag")),
+    when: text(r.querySelector(".sctime")), about: text(r.querySelector(".scstep")),
+    dot: Boolean(r.querySelector(".scedge:not(.scpeak)")),
+    resume: Boolean(r.querySelector(".scresume")),
+}));
+
 window.done = (async () => {
     // The clock the times of the conversations are taken from.
     const out = { clock: now };
 
     column(first, "aacpanel");
     await until(() => root().querySelector(".dkshelf .sc.scpast") && orders.length, "the column and its shelf");
-    out.before = lay();
-    out.orderBefore = orders[orders.length - 1];
-    out.ghost = (() => {
+    // Every contour on its tab: the first is the one the column starts on,
+    // and its request went out with the first draw.
+    Object.assign(out, { before: [], orderBefore: [], ghost: null, ghostIn: [], says: {}, runs: {}, tones: {}, facts: {}, bells: {},
+        columnText: "", rows: [], asked: [], shelf: [] });
+    const shownOf = (names, read) => Object.fromEntries(names.filter((n) => rowOf(n)).map((n) => [n, read(n)]));
+    for (const [i, contour] of TABS.entries()) {
+        const from = i === 0 ? 0 : asked.length;
+        await tab(contour);
+        out.before.push(...lay());
+        out.orderBefore.push(orders[orders.length - 1]);
         const g = root().querySelector(".sc.scghost");
-        if (!g) return null;
-        return { section: text(g.closest("section").querySelector(".dkcontourname")),
-                 head: g.dataset.name, say: text(g.querySelector(".scl1 .scword")) };
-    })();
-    out.says = Object.fromEntries(["person", "aacpanel", "api", "shop", "helios"].map((n) => [n, say(n)]));
-    out.runs = Object.fromEntries(["aacpanel", "shop", "helios"].map((n) => [n, runs(n)]));
-    out.tones = Object.fromEntries(["person", "aacpanel", "helios", "shop"].map((n) => [n, rowOf(n).dataset.tone]));
-    out.facts = Object.fromEntries(["aacpanel", "api", "shop", "helios", "scratch", "acme-fingerprint-rotation-review"]
-        .map((n) => [n, facts(n)]));
-    out.bells = calls();
-    out.columnText = text(root().querySelector(".dkscroll"));
-    out.rows = rows();
-
-    // The shelf.
-    out.asked = [...asked];
-    out.shelf = Array.from(root().querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({
-        name: r.dataset.name, contour: text(r.querySelector(".sctag")),
-        when: text(r.querySelector(".sctime")), about: text(r.querySelector(".scstep")),
-        dot: Boolean(r.querySelector(".scedge:not(.scpeak)")),
-        resume: Boolean(r.querySelector(".scresume")),
-    }));
+        if (g) {
+            out.ghostIn.push(contour[0]);
+            out.ghost = { section: text(g.closest("section").querySelector(".dkcontourname")),
+                          head: g.dataset.name, say: text(g.querySelector(".scl1 .scword")) };
+        }
+        Object.assign(out.says, shownOf(["person", "aacpanel", "api", "shop", "helios"], say));
+        Object.assign(out.runs, shownOf(["aacpanel", "shop", "helios"], runs));
+        Object.assign(out.tones, shownOf(["person", "aacpanel", "helios", "shop"], (n) => rowOf(n).dataset.tone));
+        Object.assign(out.facts, shownOf(["aacpanel", "api", "shop", "helios", "scratch", "acme-fingerprint-rotation-review"], facts));
+        Object.assign(out.bells, calls());
+        out.columnText += ` ${text(root().querySelector(".dkscroll"))}`;
+        out.rows.push(...rows());
+        // The shelf.
+        out.asked.push(...asked.slice(from));
+        out.shelf.push(...shelfRows());
+    }
     root().querySelector(".dkshelfall").click();
     out.archiveOpened = archiveOpened;
     Array.from(root().querySelectorAll(".dkshelf .sc.scpast .scopen")).pop().click();
     out.pickedClosed = picked[picked.length - 1];
 
     // The new session of a contour.
+    await tab(TABS[0]);
     root().querySelector(".dkscroll > section .dknew").click();
     await until(() => root().querySelector(".dknewrow"), "the contour's projects");
     out.menu = Array.from(root().querySelectorAll(".dknewpop .dknewgroup, .dknewpop .dknewrow")).map((el) =>
@@ -257,9 +284,14 @@ window.done = (async () => {
     // A minute later: every state has changed, the list comes in another order.
     column(later, "aacpanel");
     await quiet();
-    out.after = lay();
-    out.orderAfter = orders[orders.length - 1];
     out.saysAfter = { aacpanel: say("aacpanel"), person: say("person") };
+    out.after = [];
+    out.orderAfter = [];
+    for (const contour of TABS) {
+        await tab(contour);
+        out.after.push(...lay());
+        out.orderAfter.push(orders[orders.length - 1]);
+    }
 
     // A closed conversation open: Resume on its card resumes it.
     sent.length = 0;
@@ -309,7 +341,7 @@ window.done = (async () => {
     // A right click on a live card opens its pie, the desk's own; Shift keeps
     // the browser's menu; a sector does what the phone's does, through the
     // gate; Escape takes the pie down.
-    await quiet();
+    await tab(TABS[0]);
     await underPies(0);
     const pieCard = rowOf("aacpanel");
     const pr = pieCard.getBoundingClientRect();

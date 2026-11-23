@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// contourPlace is a page of the phone or a section of the desktop column: its
+// contourPlace is a page of the phone or a tab of the desktop column: its
 // contour, how many sessions its tab counts, whether it marks one waiting for
 // the person and the sessions it holds.
 type contourPlace struct {
@@ -20,13 +20,13 @@ type contourPlace struct {
 //
 // The map lists the work contour Acme first and the personal one second. A
 // session that names no contour and lives outside every project is on the
-// page of Personal on the phone, counted on its tab, and in the section of
-// Personal in the desktop column. Taken for the first contour instead, it
+// page of Personal on the phone and under the tab of Personal in the desktop
+// column, counted on the tab of both. Taken for the first contour instead, it
 // would stand among the work of Acme. A map that marks no contour puts it in
 // the first: nothing else says which one is personal.
 //
-// The session of Acme waits for the person: the tab of Acme and the heading
-// of its section say so, the place of Personal does not.
+// The session of Acme waits for the person: the tab of Acme says so on both
+// lists, the tab of Personal does not.
 func TestASessionNoContourClaimsStandsInThePersonalOne(t *testing.T) {
 	parallel(t)
 	marked := []contourPlace{
@@ -55,13 +55,6 @@ func TestASessionNoContourClaimsStandsInThePersonalOne(t *testing.T) {
 				t.Fatalf("the fixture drew the %s list on a screen it takes for wide=%v", screen.name, got.Wide)
 			}
 			for key, want := range map[string][]contourPlace{"marked": marked, "unmarked": unmarked} {
-				if screen.wide {
-					// The column counts no sessions in a heading.
-					want = append([]contourPlace(nil), want...)
-					for i := range want {
-						want[i].Count = 0
-					}
-				}
 				if !reflect.DeepEqual(got.Cases[key], want) {
 					t.Errorf("the %s with the map %s lays the sessions out as\n%v\nexpected\n%v", screen.name, key, got.Cases[key], want)
 				}

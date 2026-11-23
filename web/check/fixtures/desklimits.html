@@ -6,11 +6,13 @@
 <script>document.documentElement.style.setProperty("--ui-scale", "1.2");</script>
 <div class="deskshell"><div class="dkbody" id="root"></div></div>
 <script type="module">
-// The sessions column at a desk: every contour has its section — a heading
-// with two rings of its limit, each saying how long until its window starts
+// The sessions column at a desk, walked tab by tab: the contour of a tab has
+// its section — a heading with the actions of the contour and two rings of
+// its limit after claude's word, each saying how long until its window starts
 // over, that open the details of both windows, and its live sessions, or a
-// word that nothing lives in it — and the closed conversations of all of them
-// stand on a shelf of their own below.
+// word that nothing lives in it — and its closed conversations stand on a
+// shelf of their own below. A contour the collector knows and the map does
+// not has its tab, and neither a registry of tasks nor a page of settings.
 import { h, render } from "preact";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -25,6 +27,7 @@ const limits = { contours: [
     { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2.2), sevenDay: part(24, 100) },
     { profile: "globex", contour: 1, ageSec: 30, fiveHour: part(93, 1.5), sevenDay: part(57, 118) },
     { profile: "acme", contour: 4, ageSec: 3600, fiveHour: part(7, 0.795), sevenDay: { pct: 41 } },
+    { profile: "lab", contour: 9, ageSec: 30, sevenDay: part(5, 50) },
 ] };
 const profileMap = [
     { id: 4, profile: "Acme", name: "Acme", groups: [] },
@@ -58,13 +61,24 @@ window.fetch = counted(async (url) => {
     return new Response("", { status: 404 });
 });
 
+// What the actions of a heading hand on: the entry of the map a press on
+// Tasks names, and where a press on Profile opens the settings.
+const handed = { tasks: [], settings: [] };
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     snapshot: { at: now, sessions, profileMap, limits }, limits,
-    current: "aacpanel", currentId: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {},
+    current: "aacpanel", currentId: "", onPick() {}, onNames() {}, onOrder() {},
+    onTasks(entry) { handed.tasks.push(entry ? entry.id : null); },
+    onSettings(at) { handed.settings.push(at); },
     exec: { available: true, kinds: ["session.resume", "session.close"] }, wait: null,
 }))), document.getElementById("root"));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// until waits on a condition of the screen frame by frame, for three seconds
+// at most.
+const until = async (ok) => {
+    const end = performance.now() + 3000;
+    while (!ok() && performance.now() < end) await new Promise((r) => requestAnimationFrame(r));
+    return ok();
+};
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const sections = () => Array.from(document.querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => {
     const head = sec.querySelector(".dkcontour");
@@ -75,36 +89,75 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
             value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")), tip: r.getAttribute("data-tip") || "",
         })),
         old: Boolean(head.querySelector(".dkrings.dkold")),
+        words: Array.from(head.querySelectorAll(".dkringsword")).map((w) => `${text(w)}:${w.dataset.agent || ""}`),
+        acts: Array.from(head.querySelectorAll(".dkcontouracts button"))
+            .map((b) => `${b.getAttribute("aria-label")}${b.disabled ? " off" : ""}`),
         live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),
         closed: sec.querySelectorAll(".sc.scpast").length,
         empty: text(sec.querySelector(".dkempty")),
     };
 });
 
-window.done = (async () => {
-    for (let i = 0; i < 60 && !document.querySelector(".dkshelf .sc.scpast"); i++) await sleep(50);
-    await quiet();
-    const shelf = document.querySelector(".dkshelf");
-    const out = { clock,
-        sections: sections(),
-        asked,
-        shelf: Array.from(document.querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({
-            name: r.dataset.name, contour: text(r.querySelector(".sctag")),
-            about: text(r.querySelector(".scstep")), when: text(r.querySelector(".sctime")),
-        })),
-        shelfLast: Boolean(shelf) && shelf === shelf.parentElement.lastElementChild,
-    };
-    const globex = Array.from(document.querySelectorAll(".dkrings"))[1];
-    globex.click();
+const tabOf = (name) => Array.from(document.querySelectorAll(".dkpick [role=tab]"))
+    .find((b) => text(b.querySelector(".dkpickname")) === name);
+const shelfOf = (contour) => document.querySelector(`.dkshelf .sc.scpast[data-name^="old-${contour}-"]`);
+// details opens the limit of the contour shown and reads it, then puts it
+// down with Escape.
+const details = async () => {
+    document.querySelector(".dkrings").click();
     await quiet();
     const pop = document.querySelector(".dklimpop");
-    out.pop = pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null;
+    const out = {
+        windows: pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null,
+        note: text(document.querySelector(".dklimpopnote")),
+    };
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    await sleep(80);
-    out.closed = !document.querySelector(".dklimpop");
-    Array.from(document.querySelectorAll(".dkrings"))[0].click();
+    out.closed = await until(() => !document.querySelector(".dklimpop"));
+    return out;
+};
+
+// hand presses Tasks and Profile in the heading shown and says what they
+// handed on; a button that is off hands nothing.
+const hand = async () => {
+    const from = { tasks: handed.tasks.length, settings: handed.settings.length };
+    for (const label of ["Tasks", "Profile"]) {
+        const button = document.querySelector(`.dkcontouracts button[aria-label="${label}"]`);
+        if (button) button.click();
+    }
     await quiet();
-    out.oldNote = text(document.querySelector(".dklimpopnote"));
+    return { tasks: handed.tasks.slice(from.tasks), settings: handed.settings.slice(from.settings) };
+};
+
+window.done = (async () => {
+    const out = { clock, tabs: [] };
+    for (const entry of profileMap) {
+        const from = asked.length;
+        const tab = tabOf(entry.profile);
+        if (!tab) break;
+        tab.click();
+        await until(() => shelfOf(entry.id));
+        await quiet();
+        const shelf = document.querySelector(".dkshelf");
+        out.tabs.push({
+            tab: entry.profile,
+            sections: sections(),
+            // The first tab is the one the column starts on: its request went
+            // out with the first draw.
+            asked: asked.slice(out.tabs.length === 0 ? 0 : from),
+            shelf: Array.from(document.querySelectorAll(".dkshelf .sc.scpast")).map((r) => ({
+                name: r.dataset.name, contour: text(r.querySelector(".sctag")),
+                about: text(r.querySelector(".scstep")), when: text(r.querySelector(".sctime")),
+            })),
+            shelfLast: Boolean(shelf) && shelf === shelf.parentElement.lastElementChild,
+            details: await details(),
+            handed: await hand(),
+        });
+    }
+    // The contour the map does not hold.
+    tabOf("lab").click();
+    await until(() => text(document.querySelector(".dkcontourname")) === "lab");
+    await quiet();
+    out.loose = { sections: sections(), handed: await hand() };
     return out;
 })();
 </script>

@@ -13,6 +13,7 @@ import { Alerts } from "../screens/alerts.js";
 import { HeadLoad } from "./load.js";
 import { Devices } from "../screens/devices.js";
 import { Settings } from "../screens/settings.js";
+import { Tasks } from "../screens/tasks.js";
 import { SessionColumn } from "./sessions.js";
 import { TermsDesk } from "./terms.js";
 import { useTermAvailable } from "../screens/chat/term.js";
@@ -159,6 +160,14 @@ export function DesktopShell({
     const { section, from } = place;
     const [chat, setChat] = useState(start.chat);
     useEffect(() => { keepPlace(section, from, chat); }, [section, from, chat]);
+    // The task registry of a contour, by its entry of the map, stands in the
+    // centre over the conversation, and the conversation is there again once
+    // it closes. A conversation picked while it is open takes its place.
+    const [tasks, setTasks] = useState(null);
+    const showChat = useCallback((target) => {
+        setTasks(null);
+        setChat(target);
+    }, []);
     const [stack, setStack] = useState(null);
     const [cont, setCont] = useState(null);
     const [cat, setCat] = useState("cpu");
@@ -174,8 +183,10 @@ export function DesktopShell({
         const next = follow((snapshot && snapshot.sessions) || [], chat);
         if (next !== chat) setChat(next);
     }, [snapshot, chat]);
-    const [picks, setPicks] = useState([]);
     const [names, setNames] = useState([]);
+    // The contour the sessions column stands on: the settings of the map open
+    // on it.
+    const [shown, setShown] = useState("");
     // The archive filters by contour on its own: the panel stands beside the
     // column, and a pick made in one list that quietly moved the other read as
     // the archive having no filter at all.
@@ -236,7 +247,9 @@ export function DesktopShell({
                 return;
             }
 
-            if (section !== "sessions" || order.length === 0) return;
+            // Over the registry the arrow keys scroll it: the conversations
+            // they walk are under it.
+            if (section !== "sessions" || order.length === 0 || tasks) return;
 
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 const at = order.findIndex((t) => chat && t.name === chat.name);
@@ -250,12 +263,12 @@ export function DesktopShell({
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [section, order, chat, panel, settings, mapOpen]);
+    }, [section, order, chat, panel, settings, mapOpen, tasks]);
 
     const openChat = useCallback((target) => {
-        setChat(target);
+        showChat(target);
         goSection("sessions");
-    }, [goSection]);
+    }, [goSection, showChat]);
 
     // The terminals are a section where the listener has the terminal route:
     // elsewhere the section has no button, and a kept one opens home.
@@ -286,12 +299,12 @@ export function DesktopShell({
             limits=${snapshot && snapshot.limits}
             current=${chat && chat.name}
             currentId=${chat && chat.id}
-            onPick=${setChat}
+            onPick=${showChat}
             onTerm=${term.route ? openTerm : null}
             onSettings=${openMapAt}
-            picks=${picks}
-            setPicks=${setPicks}
+            onTasks=${setTasks}
             onNames=${setNames}
+            onShown=${setShown}
             onOrder=${setOrder}
             onArchive=${() => setPanel("archive")}
             exec=${exec}
@@ -342,6 +355,14 @@ export function DesktopShell({
         if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${goBack} /></div>`;
         if (section === "alerts") {
             return html`<div class="dkpage"><${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${goBack} /></div>`;
+        }
+        // The registry draws its sheets beside its page: one box under the
+        // page takes the width the page gives its children, and the sheets
+        // inside it keep the whole window.
+        if (tasks) {
+            return html`<div class="dkpage"><div>
+                <${Tasks} key=${tasks.id} contour=${tasks.id} name=${tasks.profile} onClose=${() => setTasks(null)} />
+            </div></div>`;
         }
         if (!chat) return html`<${ChatEmpty} />`;
         const live = liveOf((snapshot && snapshot.sessions) || [], chat);
@@ -471,7 +492,7 @@ export function DesktopShell({
 
                 ${mapOpen && html`
                     <${MapSettings}
-                        picks=${picks}
+                        shown=${shown}
                         last=${mapAt}
                         exec=${exec}
                         sessions=${snapshot && snapshot.sessions}

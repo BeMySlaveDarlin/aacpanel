@@ -5,10 +5,14 @@
 <div id="root"></div>
 <script type="module">
 // The Projects button of the sessions section at a desk opens the settings of
-// the map in three columns straight away, with no list in a panel before them,
-// and they open again where they were left. The tree finds a group or a
+// the map in three columns straight away, on the contour the sessions column
+// shows, with no list in a panel before them, and they open again where they
+// were left. The tree finds a group or a
 // project by name and adds a contour; a project page starts a new session of
-// it from its heading and deletes it at its foot.
+// it from its heading and deletes it at its foot. The heading of a contour
+// in the sessions column opens the registry of its tasks in the centre, over
+// the conversation that is there again once it closes, and its page in the
+// settings.
 import { h, render } from "preact";
 import { DesktopShell } from "/src/desktop/shell.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -36,9 +40,14 @@ let profiles = [
 const profileMap = profiles.map((p) => ({ id: p.id, profile: p.name, name: p.name,
     groups: p.groups.map((g) => ({ id: g.id, name: g.name, projects: g.projects.map((x) => ({ id: x.id, name: x.name, path: x.path, session: x.session })) })) }));
 const now = Math.floor(Date.now() / 1000);
-const snapshot = { at: now, hostName: "helios", sessions: [], profileMap, limits: { contours: [] } };
+const live = (id, name) => ({ session: name, sessionId: `live-${name}`, status: "idle", transport: "stream", pct: 10, tokens: 100000,
+    limit: 1000000, model: "claude-opus-5-5", cwd: `/srv/proj/${name}`, profile: "personal", contour: 3,
+    project: { id, name } });
+const snapshot = { at: now, hostName: "helios", sessions: [live(11, "helios"), live(13, "blog")], profileMap, limits: { contours: [] } };
 
 const sent = [];
+// The contours the registry of tasks was asked for.
+const boards = [];
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const real = window.fetch.bind(window);
 window.fetch = async (url, init) => {
@@ -58,6 +67,12 @@ window.fetch = async (url, init) => {
     }
     if (u.pathname === "/api/profiles") return json({ profiles, models: null, disk: { state: "ok", roots: [], dirs: [] }, accounts: [] });
     if (u.pathname === "/api/sessions/archive") return json({ rows: [], total: 0, limit: 30, offset: 0 });
+    if (u.pathname === "/api/tasks/board") {
+        boards.push(u.searchParams.get("contour"));
+        return json({ tasks: [], noTask: [], notes: [] });
+    }
+    if (u.pathname === "/api/chat") return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.pathname === "/api/term") return json({ available: false });
     if (u.pathname.startsWith("/api/usage")) return new Response("", { status: 503 });
     if (u.pathname === "/api/probes") return json({ probes: [] });
     if (u.pathname.startsWith("/api/history")) return json({ rows: [] });
@@ -72,13 +87,13 @@ render(h(ToastHost, null, h(GateHost, null, h(DesktopShell, {
     updateReady: false, updating: false, onApplyUpdate() {}, route: null, jump: null, onJumped() {},
 }))), document.getElementById("root"));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// until waits on a condition of the screen frame by frame.
 const until = async (fn, ms = 4000) => {
     const end = Date.now() + ms;
     while (Date.now() < end) {
         const got = fn();
         if (got) return got;
-        await sleep(30);
+        await new Promise((r) => requestAnimationFrame(r));
     }
     return fn();
 };
@@ -103,9 +118,14 @@ const find = (query) => {
 
 // Each step reads what it finds and stops the page at the first thing that
 // is not there, so the test says what was missing rather than the script.
+const tabOf = (name) => all(".dkleft .dkpick [role=tab]").find((b) => text(b.querySelector(".dkpickname")) === name);
+const shown = () => text(document.querySelector(".dkleft .dkcontourname"));
+
 window.done = (async () => {
     const out = {};
-    await until(() => projectsButton());
+    await until(() => projectsButton() && tabOf("Acme"));
+    tabOf("Acme").click();
+    await until(() => shown() === "Acme");
     projectsButton().click();
     await until(() => heads()[0]);
     out.opened = heads();
@@ -169,6 +189,62 @@ window.done = (async () => {
     document.querySelector(".dkcols .dkcolsclose").click();
     await until(() => !document.querySelector(".dkcols"));
     out.closed = !document.querySelector(".dkcols");
+
+    // The heading of the contour shown opens its registry of tasks in the
+    // centre over the conversation; the arrow keys leave the conversation
+    // under it as it is, the way back brings it back, and a conversation
+    // picked over the registry takes its place.
+    const lit = () => { const on = document.querySelector(".dkleft .sc.sccur"); return on ? on.dataset.name : ""; };
+    const center = () => {
+        const tasks = document.querySelector(".dkpage .tqscreen");
+        if (tasks) return `tasks: ${text(document.querySelector(".dkpage .phead h2"))}`;
+        if (document.querySelector(".dkchat")) return `conversation: ${lit()}`;
+        return document.querySelector(".chatnone") ? "nothing" : "";
+    };
+    const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+    const act = (label) => document.querySelector(`.dkleft .dkcontouracts button[aria-label="${label}"]`);
+    const card = (name) => document.querySelector(`.dkleft .sc[data-name="${name}"] .scopen`);
+    tabOf("personal").click();
+    await until(() => shown() === "personal");
+    const acts = { before: center(), heading: all(".dkleft .dkcontouracts button").map((b) => b.getAttribute("aria-label")) };
+    out.acts = acts;
+    if (!card("helios") || !act("Tasks")) return out;
+    card("helios").click();
+    await until(() => center() === "conversation: helios");
+    acts.picked = center();
+    act("Tasks").click();
+    await until(() => center().startsWith("tasks") && boards.length);
+    acts.opened = center();
+    acts.boards = boards.slice();
+    acts.column = Boolean(document.querySelector(".dkleft"));
+    // ArrowDown would go on to blog; over the registry it does nothing, and
+    // two frames are what a conversation it moved to would take to show.
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await frame();
+    await frame();
+    document.querySelector(".dkpage .pback").click();
+    await until(() => center().startsWith("conversation"));
+    acts.closed = center();
+    act("Tasks").click();
+    await until(() => center().startsWith("tasks"));
+    card("blog").click();
+    await until(() => center().startsWith("conversation"));
+    acts.pickedOver = center();
+
+    // The tab of another contour: its own registry and its own page.
+    tabOf("Acme").click();
+    await until(() => shown() === "Acme");
+    boards.length = 0;
+    act("Tasks").click();
+    await until(() => center() === "tasks: Tasks · Acme" && boards.length);
+    acts.other = { opened: center(), boards: boards.slice() };
+    document.querySelector(".dkpage .pback").click();
+    await until(() => center().startsWith("conversation"));
+    act("Profile").click();
+    await until(() => heads()[0]);
+    acts.profile = heads();
+    document.querySelector(".dkcols .dkcolsclose").click();
+    await until(() => !document.querySelector(".dkcols"));
     return out;
 })();
 </script>

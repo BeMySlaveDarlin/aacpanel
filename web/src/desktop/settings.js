@@ -29,12 +29,12 @@ import { EditLayer } from "../screens/profiles/forms.js";
 const FIND_FROM = 5;
 
 // startOf says where the columns open: where they were left while that is
-// still on the map, else the first contour the sessions column shows, else
-// the first contour of the map; nothing on a map with no contour at all. A
+// still on the map, else the contour the sessions column shows, else the
+// first contour of the map; nothing on a map with no contour at all. A
 // place that names a project and not its group — the menu of a project in
 // the sessions column, which knows the groups by name alone — opens on the
 // group that holds the project.
-export function startOf(profiles, last, picks) {
+export function startOf(profiles, last, shown) {
     const list = profiles || [];
     const contour = last ? list.find((p) => p.id === last.contour) : null;
     if (contour) {
@@ -48,7 +48,7 @@ export function startOf(profiles, last, picks) {
         if (project) at.project = project.id;
         return at;
     }
-    const first = list.find((p) => (picks || []).includes(p.name)) || list[0];
+    const first = list.find((p) => p.name === shown) || list[0];
     return first ? { contour: first.id } : null;
 }
 
@@ -69,7 +69,7 @@ export function findIn(groups, query) {
 // MapSettings is the settings of the map opened from the sessions section:
 // the columns at the place they were left, a note while the map loads or when
 // it cannot, and on a map with no contour yet the way to the first one.
-export function MapSettings({ picks, last, exec, sessions, onPick, onClose }) {
+export function MapSettings({ shown, last, exec, sessions, onPick, onClose }) {
     const map = useProfileMap();
     const { profiles, error } = map;
     if (!error && profiles !== null && profiles.length === 0) {
@@ -85,7 +85,7 @@ export function MapSettings({ picks, last, exec, sessions, onPick, onClose }) {
             onRemove=${map.remove}
         />`;
     }
-    const start = profiles ? startOf(profiles, last, picks) : null;
+    const start = profiles ? startOf(profiles, last, shown) : null;
     if (error || !start) {
         return html`
             <div class="dkscrim dkcolscrim">

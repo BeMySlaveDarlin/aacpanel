@@ -102,7 +102,7 @@ const snapshot = { sessions, profileMap: [{ ...profileMap[0], codexHome: "/home/
 const deskSnapshot = { at: 1, sessions, profileMap, limits: null };
 render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, h(CardPieHost, { snapshot: deskSnapshot, exec, wait: null }, h(SessionColumn, {
     snapshot: deskSnapshot, limits: null,
-    current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+    current: "", onPick() {}, onNames() {}, onOrder() {}, exec, wait: null,
 }))))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${null}>
@@ -172,7 +172,7 @@ function Lifecycle({ initial, executor = exec }) {
     lifecycle = { snapshot, update, wait, ready };
     return html`
         <${SessionColumn} snapshot=${snapshot} limits=${null} current="" onPick=${() => {}}
-                          picks=${[]} setPicks=${() => {}} onNames=${() => {}} onOrder=${() => {}}
+                          onNames=${() => {}} onOrder=${() => {}}
                           exec=${executor} wait=${wait} />
         <${CardPieHost} snapshot=${snapshot} exec=${executor} wait=${wait}>
             <section class="pjblock"><${LiveLines} list=${snapshot.sessions} wait=${wait} exec=${executor} onOpen=${() => {}} /></section>

@@ -225,7 +225,7 @@ async function limitStatuses() {
         const phone = card.querySelector(".scword");
         const result = { name, expected, phone: phone.textContent, phoneTone: card.dataset.tone,
             phoneEnds: card.querySelector(".sctime").textContent };
-        mount(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait }));
+        mount(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, onNames() {}, exec, wait }));
         await quiet();
         const desk = root.querySelector(".dkleft .sc");
         result.desk = desk.querySelector(".scword").textContent;
@@ -261,7 +261,7 @@ async function limitStatuses() {
         const first = root.querySelector(".pjblock");
         result.phoneWaits = root.querySelector(".scfoldwaits")?.textContent || "";
         result.firstShown = first.querySelector(".pjname")?.textContent || first.querySelector(".sc").dataset.name;
-        mount(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait }));
+        mount(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, onNames() {}, exec, wait }));
         await quiet();
         result.deskWaits = root.querySelector(".dkleft .scfoldwaits")?.textContent || "";
         folds.push(result);

@@ -62,8 +62,10 @@ func TestPinnedGroupsKeepTheirChildrenAndTheirContour(t *testing.T) {
 	}
 	runWideFixture(t, "sessiongroups.html", &got)
 	p := got.Pins
-	if len(p.Before.Phone) != 6 || len(p.Before.Desk) != 7 {
-		t.Fatalf("the lists did not start with all sessions: %+v", p.Before)
+	// Both lists stand on the first contour; the order of the whole map
+	// keeps gamma of the second one after the pins of the first.
+	if len(p.Before.Phone) != 6 || len(p.Before.Desk) != 6 || len(p.Before.Ordered) != 7 {
+		t.Fatalf("the lists did not start with all sessions of the first contour: %+v", p.Before)
 	}
 	first := []string{"review", "child", "thread", "alpha"}
 	if len(p.Pinned.Phone) < len(first) || !slices.Equal(p.Pinned.Phone[:len(first)], first) ||
@@ -71,14 +73,14 @@ func TestPinnedGroupsKeepTheirChildrenAndTheirContour(t *testing.T) {
 		t.Errorf("the pinned group did not stand first, alone with its children: %+v", p.Pinned)
 	}
 	multiple := []string{"review", "child", "thread", "audit", "alpha", "beta", "gamma"}
-	if !slices.Equal(p.Multiple.Desk, multiple) || !slices.Equal(p.Multiple.Phone, multiple[:6]) ||
-		!slices.Equal(p.Multiple.Ordered, multiple) || !slices.Equal(p.Multiple.Keys, multiple) {
+	if !slices.Equal(p.Multiple.Desk, multiple[:6]) || !slices.Equal(p.Multiple.Phone, multiple[:6]) ||
+		!slices.Equal(p.Multiple.Ordered, multiple) || !slices.Equal(p.Multiple.Keys, multiple[:6]) {
 		t.Errorf("pins lost their creation order, children or contour: %+v", p.Multiple)
 	}
 	if !reflect.DeepEqual(p.Multiple, p.Reopened) {
 		t.Errorf("a new conversation or state moved the pinned group: %+v", p.Reopened)
 	}
-	if len(p.Unpinned.Desk) != 7 || p.Unpinned.Desk[0] != "audit" || p.Unpinned.Phone[0] != "audit" {
+	if len(p.Unpinned.Desk) != 6 || p.Unpinned.Desk[0] != "audit" || p.Unpinned.Phone[0] != "audit" {
 		t.Errorf("unpinning the first group moved the second: %+v", p.Unpinned)
 	}
 	if !reflect.DeepEqual(p.Restored, p.Before) {
@@ -134,7 +136,7 @@ func TestPinPressMovesBothListsBeforeTheSnapshot(t *testing.T) {
 				t.Errorf("the press did not move the group before the answer and snapshot: %+v", p)
 			}
 			want := []string{"review", "child", "thread", "audit", "alpha", "beta", "gamma"}
-			if !slices.Equal(p.SecondPinning.Desk, want) || !slices.Equal(p.SecondPinning.Keys, want) ||
+			if !slices.Equal(p.SecondPinning.Desk, want[:6]) || !slices.Equal(p.SecondPinning.Keys, want[:6]) ||
 				!slices.Equal(p.SecondPinning.Ordered, want) || !slices.Equal(p.SecondPinning.Phone, want[:6]) {
 				t.Errorf("the next press did not follow the existing pin: %+v", p.SecondPinning)
 			}

@@ -298,7 +298,7 @@
 
     .dkpickn { flex: none; font-size: var(--t-xs); font-variant-numeric: tabular-nums; color: var(--ink-faint); }
 
-    .dkpickbtn[aria-pressed="true"] .dkpickn { color: inherit; opacity: .7; }
+    .dkpickbtn[aria-selected="true"] .dkpickn { color: inherit; opacity: .7; }
 
     .dkpickbtn .waitn { flex: none; }
 
@@ -472,18 +472,18 @@
        name and at the same place on every row, so they read down one
        edge; a long name or its marks give way to it. */
 
-    /* The heading of a contour counts the sessions that wait for the person,
-       and holds the way to a new session before its limit. */
+    /* The heading of a contour counts the sessions that wait for the person
+       beside its name. */
     .dkwaitn { flex: none; font-size: var(--t-xs); }
 
     .dklimhead ~ .dkempty { margin: 0; border-bottom: var(--hair) solid var(--line); }
 
     /* The plus lays its projects over the width of the column: the heading,
        sticky, is what it drops from. */
-    .dknewctl { flex: none; display: flex; margin-left: auto; }
+    .dknewctl { flex: none; display: flex; }
 
-    .dknewctl + .dkringsctl, .dknewctl + .dkrings { margin-left: 0; }
-
+    /* The plus, and the tasks and the profile beside it in the heading of a
+       contour: a bare icon, always there, lit under the pointer. */
     .dknew {
         display: grid;
         place-items: center;
@@ -499,6 +499,8 @@
     .dknew svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dknew.on { color: var(--ink); background: var(--glass); }
+
+    .dknew:disabled { opacity: .4; cursor: default; }
 
     .dknewctl .dkpop { left: .4rem; right: .4rem; width: auto; }
 
@@ -663,8 +665,16 @@
        a press drops the details. A ring is one flat colour that steps at the
        warning and the critical share, never a blend of the share: how much is
        spent is said by the fill and the number, the colour says only which
-       band it is in. Numbers the snapshot has not renewed are dimmed. */
-    .dkcontour.dklimhead { padding: .2rem .45rem .2rem .55rem; }
+       band it is in. Numbers the snapshot has not renewed are dimmed.
+
+       The heading stands in two rows: the name with its wait, whole however
+       long, and the actions of the contour at the edge; under them the rings,
+       each agent's after its word. */
+    .dkcontour.dklimhead { flex-direction: column; align-items: stretch; gap: .15rem; padding: .3rem .45rem .3rem .55rem; }
+
+    .dkcontourrow { display: flex; align-items: center; gap: .45rem; min-width: 0; min-height: 1.65rem; }
+
+    .dkcontouracts { flex: none; display: flex; gap: .1rem; margin-left: auto; }
 
     /* The heading of a contour among its sessions is a band of glass a step
        denser than a row under the pointer, laid over the ground of the page so
@@ -672,15 +682,15 @@
        contour, not as one list. The sky heading is frosted glass already. */
     .dkcontour.dklimhead { background: var(--glass-2), var(--bg); }
 
-    .dklimhead .dkcontourname { font-size: var(--t-base); }
+    .dklimhead .dkcontourname { font-size: var(--t-base); white-space: normal; overflow-wrap: anywhere; }
 
-    .dkringsctl { position: relative; flex: none; margin-left: auto; display: flex; }
+    .dkringsctl { position: relative; flex: none; display: flex; }
 
     .dkrings {
         display: flex;
         align-items: center;
-        gap: .55rem;
-        padding: .05rem .2rem;
+        gap: .45rem;
+        padding: .05rem .2rem .05rem 0;
         border: 0;
         border-radius: var(--r-small);
         background: none;
@@ -695,7 +705,13 @@
 
     .dkringsage { font-size: var(--t-xs); color: var(--warn); white-space: nowrap; }
 
-    .dkrings.dknone { margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); cursor: default; }
+    .dkrings.dknone { font-size: var(--t-xs); color: var(--ink-faint); cursor: default; }
+
+    .dkringsword { font-size: var(--t-xs); }
+
+    .dkringsword + .dkring { margin-left: -.1rem; }
+
+    .dkring + .dkringsword { margin-left: .5rem; }
 
     .dkring { display: flex; align-items: center; gap: .25rem; }
 
@@ -919,9 +935,9 @@
 
     .dktab:hover, .dkpickbtn:hover { color: var(--ink); background: var(--glass); }
 
-    .dktab.on, .dkpickbtn[aria-pressed="true"] { color: var(--ink); background: var(--accent-bg); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
+    .dktab.on, .dkpickbtn:is([aria-pressed="true"], [aria-selected="true"]) { color: var(--ink); background: var(--accent-bg); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
 
-    .dkpickbtn[aria-pressed="true"] { color: var(--accent); }
+    .dkpickbtn:is([aria-pressed="true"], [aria-selected="true"]) { color: var(--accent); }
 
     .dktab.moves { color: var(--ink-faint); }
 
@@ -1866,7 +1882,7 @@
     .dkbrand:hover { color: var(--ink); background: var(--glass); }
     .dkib:hover { color: var(--ink); background: var(--glass); }
     .dksess:not(.on):hover { background: var(--glass); }
-    .dknew:hover, .dkshelfall:hover { color: var(--ink); background: var(--glass); }
+    .dknew:not(:disabled):hover, .dkshelfall:hover { color: var(--ink); background: var(--glass); }
     .dknewrow:not(:disabled):hover { background: var(--glass); }
     .dktr:hover .dkc-acts { opacity: 1; }
     .dkact:hover { color: var(--ink); }

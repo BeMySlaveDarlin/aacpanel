@@ -77,7 +77,7 @@ export async function sessionPins(phoneOnly = false) {
         return html`<${ToastHost}><${GateHost}><${MenuHost}>
             <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${wait}><div class="deskshell"><div class="dkbody">
                 <${SessionColumn} snapshot=${snapshot} limits=${null} wait=${wait}
-                    current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec}
+                    current="" onPick=${() => {}} exec=${exec}
                     onOrder=${(list) => { order = list.map((s) => s.name); }} />
             </div></div><//>
             <div class="phone">

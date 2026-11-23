@@ -43,7 +43,7 @@ window.fetch = async (url, init) => {
 window.EventSource = class { constructor() {} addEventListener() {} close() {} };
 
 render(h(ToastHost, null, h(GateHost, null, h(MapSettings, {
-    picks: [], last: { contour: 3, group: 3 }, exec: { available: true, kinds: ["session.open"] }, sessions: [],
+    last: { contour: 3, group: 3 }, exec: { available: true, kinds: ["session.open"] }, sessions: [],
     onPick() {}, onClose() {},
 }))), document.getElementById("root"));
 

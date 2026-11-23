@@ -53,7 +53,7 @@ const desk = document.getElementById("desk");
 // browser's.
 const mountDesk = (host = exec, wait = null) => render(h(ToastHost, null, h(GateHost, null, h(CardPieHost, { snapshot, exec: host, wait },
     h(SessionColumn, {
-        snapshot, limits: null, current: "", onPick(p) { opened.push(p); }, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec: host, wait,
+        snapshot, limits: null, current: "", onPick(p) { opened.push(p); }, onNames() {}, onOrder() {}, exec: host, wait,
     })))), desk);
 mountDesk();
 

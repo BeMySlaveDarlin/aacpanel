@@ -42,8 +42,9 @@ type deskCardAction struct {
 type deskCard struct {
 	Before      []deskCardSection `json:"before"`
 	After       []deskCardSection `json:"after"`
-	OrderBefore string            `json:"orderBefore"`
-	OrderAfter  string            `json:"orderAfter"`
+	OrderBefore []string          `json:"orderBefore"`
+	OrderAfter  []string          `json:"orderAfter"`
+	GhostIn     []string          `json:"ghostIn"`
 	Ghost       *struct {
 		Section string `json:"section"`
 		Head    string `json:"head"`
@@ -177,7 +178,7 @@ func TestDeskProjectHeadingFoldsItsWholeBlock(t *testing.T) {
 // stand in blocks of their projects in the order of the project map, each
 // under the heading of its project, a project of one session as well; the
 // sessions no project holds after them with no heading, and the arrow keys
-// go down the column in that order. A session being raised stands in the
+// go down the contour shown in that order. A session being raised stands in the
 // block of its project, under its heading, at the place the project has in
 // the map. The collector lists the
 // sessions by how full they are, which changes by the minute; a place that
@@ -203,11 +204,15 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	}
 	check("at first", got.Before)
 	check("a minute later, every state changed", got.After)
-	if got.OrderBefore != "aacpanel,person,helios,scratch,shop,api,acme-fingerprint-rotation-review" || got.OrderAfter != got.OrderBefore {
-		t.Errorf("the arrow keys of the shell go %q, then %q — the same places the column shows, before and after", got.OrderBefore, got.OrderAfter)
+	if want := "aacpanel,person,helios,scratch|shop,api,acme-fingerprint-rotation-review"; strings.Join(got.OrderBefore, "|") != want ||
+		strings.Join(got.OrderAfter, "|") != want {
+		t.Errorf("the arrow keys of the shell go %q, then %q on the tabs of the two contours — expected the places the column shows, before and after: %q",
+			got.OrderBefore, got.OrderAfter, want)
 	}
-	if got.Ghost == nil || got.Ghost.Section != "Globex Group" || got.Ghost.Head != "shop-admin" || got.Ghost.Say != "starting" {
-		t.Errorf("the console being raised stands as %+v: in the contour of its project, saying it starts", got.Ghost)
+	if got.Ghost == nil || got.Ghost.Section != "Globex Group" || got.Ghost.Head != "shop-admin" || got.Ghost.Say != "starting" ||
+		strings.Join(got.GhostIn, ",") != "Globex Group" {
+		t.Errorf("the console being raised stands as %+v on the tabs %v: under the tab of its project's contour alone, saying it starts",
+			got.Ghost, got.GhostIn)
 	}
 }
 
@@ -344,17 +349,19 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 	}
 }
 
-// The closed conversations of every contour shown stand on a shelf below all
-// of them: one request for all the contours, newest first, one per project
-// and none where nothing was said; each a card of the live skeleton, dimmed,
-// with its name, its contour, what it was about and how long ago, and the bar
-// of its edge drawn as the peak it reached rather than a fill. The time and
-// Resume are on every card. The archive is a press away.
+// The closed conversations of the contour shown stand on a shelf below it:
+// one request for the contour, by the id of its entry, newest first, one per
+// project and none where nothing was said; each a card of the live skeleton,
+// dimmed, with its name, what it was about and how long ago — no contour, the
+// tab says it — and the bar of its edge drawn as the peak it reached rather
+// than a fill. The time and Resume are on every card. The archive is a press
+// away.
 func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	got := runDeskCard(t)
 
-	if len(got.Asked) != 1 || !strings.Contains(got.Asked[0], "contour=3") || !strings.Contains(got.Asked[0], "contour=1") {
-		t.Fatalf("the shelf asked %v — once, for both contours", got.Asked)
+	if len(got.Asked) != 2 || !strings.Contains(got.Asked[0], "contour=3") || strings.Contains(got.Asked[0], "contour=1") ||
+		!strings.Contains(got.Asked[1], "contour=1") || strings.Contains(got.Asked[1], "contour=3") {
+		t.Fatalf("the shelf asked %v on the tabs of personal and Globex — once a tab, for its contour alone", got.Asked)
 	}
 	var names []string
 	for _, row := range got.Shelf {
@@ -365,8 +372,10 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	}
 	if len(got.Shelf) == 3 {
 		first, last := got.Shelf[0], got.Shelf[2]
-		if first.Contour != "personal" || got.Shelf[1].Contour != "personal" || last.Contour != "Globex Group" {
-			t.Errorf("the shelf names the contours %q, %q, %q", first.Contour, got.Shelf[1].Contour, last.Contour)
+		for _, row := range got.Shelf {
+			if row.Contour != "" {
+				t.Errorf("%s on the shelf names the contour %q — the shelf holds the contour of its tab alone", row.Name, row.Contour)
+			}
 		}
 		if !spokeAgo(first.When, time.UnixMilli(got.Clock), 70*time.Minute) || !spokeAgo(last.When, time.UnixMilli(got.Clock), 26*time.Hour) || !strings.Contains(last.About, "move the report exports") {
 			t.Errorf("the shelf says %q and %q, %q", first.When, last.When, last.About)

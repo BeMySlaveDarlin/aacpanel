@@ -118,7 +118,7 @@ const exec = { available: true, kinds: ["session.close", "session.restart", "ses
 const wait = { opening: () => [], of: () => null };
 const wrap = (node) => h(ToastHost, null, h(GateHost, null, node));
 if (desk) {
-    render(wrap(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait })),
+    render(wrap(h(SessionColumn, { snapshot, limits, current: "", onPick() {}, onNames() {}, exec, wait })),
         document.getElementById("col"));
 } else {
     render(wrap(h(Sessions, { snapshot, ageSec: 1, exec, wait, faults: [] })), document.querySelector("#phone .body"));

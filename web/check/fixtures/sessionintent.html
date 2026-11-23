@@ -50,7 +50,7 @@ const exec = { available: true, kinds: ["session.intent", "session.role", "sessi
 const snapshot = { at: 1, sessions: [live], profileMap: [{ id: 4, profile: "Work", name: "Work", groups: [] }] };
 const component = () => wide
     ? h("div", { class: "deskshell" }, h("div", { class: "dkbody" }, h(SessionColumn, {
-        snapshot, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec,
+        snapshot, current: "", onPick() {}, onNames() {}, onOrder() {}, exec,
     })))
     : h(Chat, { name: live.session, id: live.sessionId, live, exec, snapshot, onBack() {}, onUsage() {} });
 render(h(ToastHost, null, h(GateHost, null, h(MenuHost, null, component()))), document.getElementById("app"));

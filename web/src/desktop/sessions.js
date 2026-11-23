@@ -1,6 +1,6 @@
-// The left column of the sessions section: the contour picker, the live
-// sessions of every contour shown under a heading with its limit, and the
-// closed conversations of all of them on a shelf of their own below.
+// The left column of the sessions section: the switch of contours, the live
+// sessions of the contour it stands on under a heading with its limit, and the
+// closed conversations of that contour on a shelf of their own below.
 //
 // Live and closed stand apart. A contour holds its live sessions only, in
 // blocks of their projects as the phone has them — a heading over every
@@ -19,7 +19,7 @@ import { useAction } from "../actions/gate.js";
 import { settled } from "../catchup.js";
 import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
-import { pageNames } from "../screens/sessions/pages.js";
+import { pageNames, useProfilePage } from "../screens/sessions/pages.js";
 import { contourOfLive } from "../screens/sessions/map.js";
 import { kinOf, layoutOf } from "../screens/sessions/kin.js";
 import { comparePins, pinAt } from "../screens/sessions/pin.js";
@@ -41,23 +41,24 @@ const SHELF = 6;
 
 const SHELF_ASK = 30;
 
-// ContourPick chooses which contours the column shows. Given live and waits,
-// maps by name, a contour says how many of its sessions are open and, with a
-// dot before its name as the tab on the phone, that some wait for the person.
-export function ContourPick({ names, picks, onToggle, live = null, waits = null }) {
+// ContourTabs is the switch of the column, as the tabs of the phone are: a tab
+// a contour, and the column shows the one pressed. live and waits, maps by
+// name, give how many of a contour's sessions are open, said after its name,
+// and how many of them wait for the person, a dot before it.
+export function ContourTabs({ names, current, onPick, live, waits }) {
     return html`
-        <div class="dkpick" role="group" aria-label="contours">
+        <div class="dkpick" role="tablist" aria-label="contours">
             ${names.map((name) => {
-                const open = (live && live.get(name)) || 0;
-                const waiting = (waits && waits.get(name)) || 0;
+                const open = live.get(name) || 0;
+                const waiting = waits.get(name) || 0;
                 const said = [name, open > 0 && `${open} open`, waiting > 0 && `${waiting} waiting for you`].filter(Boolean).join(", ");
                 return html`
-                    <button class="dkpickbtn" key=${name} type="button" title=${said} aria-label=${said}
-                            aria-pressed=${picks.includes(name) ? "true" : "false"}
-                            onClick=${() => onToggle(name)}>
+                    <button class="dkpickbtn" key=${name} type="button" role="tab" title=${said} aria-label=${said}
+                            aria-selected=${name === current ? "true" : "false"}
+                            onClick=${() => onPick(name)}>
                         ${waiting > 0 && html`<span class="waitn" aria-hidden="true"><i></i></span>`}
                         <span class="dkpickname">${name}</span>
-                        ${live && html`<span class="dkpickn" aria-hidden="true">${open}</span>`}
+                        <span class="dkpickn" aria-hidden="true">${open}</span>
                     </button>
                 `;
             })}
@@ -187,8 +188,9 @@ function Window({ title, part }) {
 
 // ContourLimits is the subscription limit of a contour in its heading: a ring
 // a window claude tells, and their details under them on a press; an account
-// with no five-hour window has the week alone. Numbers the
-// snapshot has not renewed for a while are dimmed and say how old they are.
+// with no five-hour window has the week alone. The rings of each agent stand
+// after its word, claude's and codex's apart. Numbers the snapshot has not
+// renewed for a while are dimmed and say how old they are.
 export function ContourLimits({ limits, name, profiles }) {
     const [open, setOpen] = useState(false);
     const close = useCallback(() => setOpen(false), []);
@@ -206,8 +208,10 @@ export function ContourLimits({ limits, name, profiles }) {
             <button class=${`dkrings${old ? " dkold" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
                     aria-label=${`the limits of contour ${name}`} onClick=${() => setOpen(!open)}>
                 ${old && html`<span class="dkringsage">${agoText(c.ageSec)}</span>`}
+                ${(c.fiveHour || c.sevenDay) && html`<span class="agentword dkringsword" data-agent="claude">claude</span>`}
                 ${c.fiveHour && html`<${Ring} label="5h" title="Five hours" part=${c.fiveHour} />`}
                 ${c.sevenDay && html`<${Ring} label="7d" title="Seven days" part=${c.sevenDay} />`}
+                ${week && html`<span class="agentword dkringsword" data-agent="codex">codex</span>`}
                 ${week && html`<${Ring} label="7d" title="Codex, seven days" part=${week} agent="codex" />`}
             </button>
             <${Popover} open=${open} onClose=${close} label=${`the limits of contour ${name}`}>
@@ -235,7 +239,8 @@ function NewSession({ name, entry, snapshot, exec }) {
     return html`
         <span class="dknewctl">
             <button class=${`dknew${open ? " on" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
-                    aria-label=${`a new session in contour ${name}`} onClick=${() => setOpen(!open)}><${Icon.plus} /></button>
+                    aria-label=${`a new session in contour ${name}`} data-tip="New session"
+                    onClick=${() => setOpen(!open)}><${Icon.plus} /></button>
             <${Popover} open=${open} onClose=${close} label=${`a new session in contour ${name}`}>
                 <div class="dknewpop">
                     <div class="dklimpophead">A new session in ${name}</div>
@@ -277,13 +282,17 @@ function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings, f
     `;
 }
 
-// ContourSection is one contour in the column: its heading with how many of
-// its sessions wait for the person, the way to a new one and the limit; then
-// its projects, each under its heading, with the cards of their live
-// sessions, the sessions those opened and the runs they started under them,
-// and the sessions being raised in them. blocks holds the projects as the
-// column lays them out.
-function ContourSection({ name, entry, list, blocks, archive, folds, projectFolds, limits, map, snapshot, current, onPick, onTerm, onSettings, exec, wait }) {
+// ContourSection is one contour in the column: its heading in two rows — the
+// name with how many of its sessions wait for the person, and at the edge the
+// contour's actions as the phone has them over its page: its task registry
+// (onTasks, with its entry of the map), its page in the settings of the map
+// (onSettings) and a new session; under them the limit. A contour the map
+// does not hold has neither a registry nor a page, and says so with the two
+// buttons off. Then its projects, each under its heading, with the cards of
+// their live sessions, the sessions those opened and the runs they started
+// under them, and the sessions being raised in them. blocks holds the
+// projects as the column lays them out.
+function ContourSection({ name, entry, list, blocks, archive, folds, projectFolds, limits, map, snapshot, current, onPick, onTerm, onSettings, onTasks, exec, wait }) {
     const menu = useMenu();
     const waits = list.filter((s) => stateOf(s, snapshot && snapshot.limits).tone === "wait").length;
     const open = (session, id) => onPick({ name: session, id });
@@ -295,14 +304,28 @@ function ContourSection({ name, entry, list, blocks, archive, folds, projectFold
     return html`
         <section>
             <div class="dkcontour dklimhead">
-                <span class="dkcontourname">${name}</span>
-                ${waits > 0 && html`
-                    <span class="waitn dkwaitn" data-tip=${`${waits} ${plural(waits, "session waits", "sessions wait")} for you`}>
-                        <i></i>${waits}
+                <div class="dkcontourrow">
+                    <span class="dkcontourname">${name}</span>
+                    ${waits > 0 && html`
+                        <span class="waitn dkwaitn" data-tip=${`${waits} ${plural(waits, "session waits", "sessions wait")} for you`}>
+                            <i></i>${waits}
+                        </span>
+                    `}
+                    <span class="dkcontouracts" role="group" aria-label=${`the actions of contour ${name}`}>
+                        ${onTasks && html`
+                            <button class="dknew" type="button" aria-label="Tasks" data-tip="Tasks" disabled=${!entry}
+                                    onClick=${() => onTasks(entry)}><${Icon.checklist} /></button>
+                        `}
+                        ${onSettings && html`
+                            <button class="dknew" type="button" aria-label="Profile" data-tip="Profile" disabled=${!entry}
+                                    onClick=${() => onSettings({ contour: entry.id })}><${Icon.badge} /></button>
+                        `}
+                        <${NewSession} name=${name} entry=${entry} snapshot=${snapshot} exec=${exec} />
                     </span>
-                `}
-                <${NewSession} name=${name} entry=${entry} snapshot=${snapshot} exec=${exec} />
-                <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
+                </div>
+                <div class="dkcontourrow">
+                    <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
+                </div>
             </div>
             ${blocks.map((block) => {
                 const known = knownOf(block);
@@ -345,11 +368,11 @@ export function shelfOf(rows, max = SHELF) {
     return out;
 }
 
-// Shelf is the closed conversations of the contours shown, newest first, under
-// a heading of its own below all of them, each a card of its own dimmed, its
-// contour beside its name when the column shows more than one; the archive
-// panel holds the rest. A right click opens the menu of a closed one.
-function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec, snapshot }) {
+// Shelf is the closed conversations of the contour shown, newest first, under
+// a heading of its own below its live sessions, each a card of its own
+// dimmed; the archive panel holds the rest. A right click opens the menu of a
+// closed one.
+function Shelf({ past, projectOf, currentId, onPick, onArchive, exec, snapshot }) {
     const menu = useMenu();
     if (past.kind === "loading") return null;
     const rows = past.kind === "ready" ? shelfOf((past.archive && past.archive.rows) || []) : [];
@@ -366,7 +389,7 @@ function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec, s
             ${past.kind !== "ready" && html`<p class="dkempty">${past.error}</p>`}
             ${rows.map((row) => html`
                 <${PastCard} key=${row.sessionId || row.name} row=${row} about=${aboutOf(row, projectOf(row))} exec=${exec}
-                             contour=${labelOf(row)} desk current=${Boolean(currentId) && currentId === row.sessionId}
+                             desk current=${Boolean(currentId) && currentId === row.sessionId}
                              onOpen=${open}
                              onMenu=${menu && menu(ClosedMenu, { row, exec, onOpen: () => open(row), snapshot }, `conversation ${row.name}`)} />
             `)}
@@ -374,10 +397,10 @@ function Shelf({ past, labelOf, projectOf, currentId, onPick, onArchive, exec, s
     `;
 }
 
-// sectionOfTask finds the contour a session is being raised in: by the project
-// it was opened from, then by its name among the projects of the map; one the
-// map does not know stands in the first contour shown.
-function sectionOfTask(task, map, sections) {
+// contourOfTask finds the contour a session is being raised in: by the project
+// it was opened from, then by its name among the projects of the map; nothing
+// for one the map does not know.
+function contourOfTask(task, map) {
     const project = task.params && task.params.project;
     for (const entry of map) {
         for (const group of entry.groups || []) {
@@ -386,10 +409,10 @@ function sectionOfTask(task, map, sections) {
             }
         }
     }
-    return sections[0] || "";
+    return "";
 }
 
-export function SessionColumn({ snapshot, limits, current, currentId, onPick, onTerm, onSettings, picks, setPicks, onNames, onOrder, onArchive, exec, wait }) {
+export function SessionColumn({ snapshot, limits, current, currentId, onPick, onTerm, onSettings, onTasks, onNames, onShown, onOrder, onArchive, exec, wait }) {
     const all = (snapshot && snapshot.sessions) || [];
     // A row stops waiting with the head of its conversation, not at the next
     // snapshot.
@@ -403,14 +426,22 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
 
     // A session that names no contour and that no contour of the map claims
     // stands in the personal contour of the map, as on the phone; with no map
-    // at all, in the one the panel calls personal.
+    // at all, in the one the panel calls personal. Either way it stands in one
+    // of names, so every live session has a tab to be found under.
     const pageOf = useMemo(() => contourOfLive(map, all), [map, all]);
     useEffect(() => { if (onNames) onNames(names); }, [names.join("\n")]);
 
-    const ordered = useMemo(() => orderOf(all, map, wait), [all, map, wait]);
-    const shown = picks.length ? ordered.filter((s) => picks.includes(pageOf(s))) : ordered;
+    // The contour the switch stands on is kept as the phone keeps the page of
+    // its sessions tab, under the same key: one device keeps one choice of
+    // contour, as it keeps one set of folded projects. With none kept, or one
+    // no longer among the contours, it is the first contour.
+    const [shown, show] = useProfilePage(names);
+    useEffect(() => { if (onShown) onShown(shown); }, [shown]);
 
-    // What the picker says of every contour, shown or not: its open sessions
+    const ordered = useMemo(() => orderOf(all, map, wait), [all, map, wait]);
+    const list = ordered.filter((s) => pageOf(s) === shown);
+
+    // What the switch says of every contour, shown or not: its open sessions
     // and those of them that wait for the person.
     const live = new Map();
     const waits = new Map();
@@ -420,108 +451,64 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
         if (stateOf(s, snapshot && snapshot.limits).tone === "wait") waits.set(key, (waits.get(key) || 0) + 1);
     }
 
+    // A session being raised stands in its contour, and one the map does not
+    // know in the contour shown, so it is seen while it comes up.
     const ghosts = raising(all, wait ? wait.opening() : [], (snapshot && snapshot.at) || 0);
+    const opening = ghosts.filter((task) => [shown, ""].includes(contourOfTask(task, map)));
 
-    const byProfile = useMemo(() => {
-        const map = new Map();
-        for (const s of shown) {
-            const key = pageOf(s);
-            if (!map.has(key)) map.set(key, []);
-            map.get(key).push(s);
-        }
-        return map;
-    }, [shown]);
-
-    // Every contour shown has its section, with live sessions or without:
-    // those of the map in its order, then any a session names that the map
-    // does not.
-    const sections = useMemo(() => {
-        const wanted = picks.length ? names.filter((n) => picks.includes(n)) : names;
-        return [...wanted, ...[...byProfile.keys()].filter((n) => !wanted.includes(n))];
-    }, [names.join("\n"), picks.join("\n"), byProfile]);
-
-    const ghostsIn = new Map();
-    for (const task of ghosts) {
-        const name = sectionOfTask(task, map, sections);
-        if (!ghostsIn.has(name)) ghostsIn.set(name, []);
-        ghostsIn.get(name).push(task);
-    }
-
-    // The rows of every contour as they stand: its projects in the order of
-    // the map, a block each as the phone lays them out, and in a block its
-    // live sessions with the sessions a session opened under it while their
-    // fold is open. The arrow keys go down the same rows, block after block;
-    // a run and a session still being raised are not among them.
-    const entryOf = (name) => map.find((p) => p.profile === name) || null;
+    // The rows of the contour as they stand: its projects in the order of the
+    // map, a block each as the phone lays them out, and in a block its live
+    // sessions with the sessions a session opened under it while their fold is
+    // open. The arrow keys go down the same rows, block after block; a run and
+    // a session still being raised are not among them.
+    const entry = map.find((p) => p.profile === shown) || null;
     const folds = useFolds();
     const projectFolds = useFolds("aacpanel.project-folds");
     const [folded] = folds;
     const [projectsFolded] = projectFolds;
-    const blocksIn = new Map(sections.map((n) => [n, liveBlocksOf({
-        profile: entryOf(n), sessions: byProfile.get(n) || [], opening: ghostsIn.get(n) || [], wait,
-    }).map((block) => ({ block, rows: layoutOf(block.live, all, folded) }))]));
-    const flat = [...blocksIn.values()].flat().flatMap(({ block, rows }) =>
-        headed(block) && projectsFolded.has(block.key) ? [] : rows)
+    const blocks = liveBlocksOf({ profile: entry, sessions: list, opening, wait });
+    const flat = blocks.flatMap((block) =>
+        headed(block) && projectsFolded.has(block.key) ? [] : layoutOf(block.live, all, folded))
         .filter((e) => e.kind === "row").map((e) => e.s);
 
     useEffect(() => {
         if (onOrder) onOrder(flat.map((s) => ({ name: s.session, id: s.sessionId })));
     }, [flat.map((s) => s.session).join("\n")]);
 
-    // The shelf asks for every contour shown at once: those of the map by the
-    // id of their entry, the rest by the name the collector knows them by.
-    const ids = sections.map((n) => (entryOf(n) || {}).id).filter(Boolean);
-    const others = sections.filter((n) => !(entryOf(n) || {}).id);
+    // The shelf asks for the contour shown: one of the map by the id of its
+    // entry, any other by the name the collector knows it by.
     const skip = all.map((s) => s.sessionId).filter(Boolean);
     // The closed conversations are read once for the shelf and for the
     // parents that closed: a stub says when its parent closed and opens it.
-    const past = useSessionsArchive({ limit: SHELF_ASK, contour: ids, profile: others, skip });
+    const past = useSessionsArchive(entry && entry.id
+        ? { limit: SHELF_ASK, contour: entry.id, skip }
+        : { limit: SHELF_ASK, profile: shown, skip });
     const archive = past.kind === "ready" ? (past.archive && past.archive.rows) || [] : [];
-    const labels = useMemo(() => {
-        const byProject = new Map();
-        const byId = new Map(map.map((p) => [p.id, p.profile]));
-        for (const entry of map) {
-            for (const group of entry.groups || []) {
-                for (const p of group.projects || []) byProject.set(p.id, { label: entry.profile, project: p });
+    const projects = useMemo(() => {
+        const byId = new Map();
+        for (const e of map) {
+            for (const group of e.groups || []) {
+                for (const p of group.projects || []) byId.set(p.id, p);
             }
         }
-        const byCollector = new Map(((limits && limits.contours) || [])
-            .map((c) => [c.profile, byId.get(c.contour) || c.profile]));
-        return { byProject, byCollector };
-    }, [map, limits]);
-    const labelOf = (row) => {
-        if (sections.length < 2) return "";
-        const known = row.project && labels.byProject.get(row.project.id);
-        return (known && known.label) || labels.byCollector.get(row.profile) || row.profile || "";
-    };
-    const projectOf = (row) => {
-        const known = row.project && labels.byProject.get(row.project.id);
-        return known ? known.project : null;
-    };
+        return byId;
+    }, [map]);
+    const projectOf = (row) => (row.project && projects.get(row.project.id)) || null;
 
     return html`
         <aside class="dkleft">
-            <${ContourPick}
-                names=${names}
-                picks=${picks}
-                live=${live}
-                waits=${waits}
-                onToggle=${(name) => setPicks((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]))}
-            />
-            <div class="dkscroll">
-                ${sections.map((name) => html`
-                    <${ContourSection} key=${name} name=${name} entry=${entryOf(name)}
-                                       list=${byProfile.get(name) || []} blocks=${(blocksIn.get(name) || []).map((b) => b.block)}
+            <${ContourTabs} names=${names} current=${shown} onPick=${show} live=${live} waits=${waits} />
+            <div class="dkscroll" role=${shown ? "tabpanel" : undefined} aria-label=${shown || undefined}>
+                ${shown && html`
+                    <${ContourSection} key=${shown} name=${shown} entry=${entry} list=${list} blocks=${blocks}
                                        archive=${archive} folds=${folds} projectFolds=${projectFolds} limits=${limits} map=${map}
                                        snapshot=${snapshot} current=${current} onPick=${onPick}
-                                       onTerm=${onTerm} onSettings=${onSettings} exec=${exec} wait=${wait} />
-                `)}
-                ${sections.length === 0 && ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} />`)}
-                ${sections.length === 0 && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}
-                ${sections.length > 0 && html`
-                    <${Shelf} past=${past} labelOf=${labelOf} projectOf=${projectOf}
+                                       onTerm=${onTerm} onSettings=${onSettings} onTasks=${onTasks} exec=${exec} wait=${wait} />
+                    <${Shelf} past=${past} projectOf=${projectOf}
                               currentId=${currentId} onPick=${onPick} onArchive=${onArchive} exec=${exec} snapshot=${snapshot} />
                 `}
+                ${!shown && ghosts.map((task) => html`<${GhostCard} key=${`+${task.target}`} task=${task} />`)}
+                ${!shown && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}
             </div>
         </aside>
     `;

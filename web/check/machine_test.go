@@ -1,6 +1,7 @@
 package check
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -145,6 +146,8 @@ type deskRing struct {
 type deskSection struct {
 	Name   string     `json:"name"`
 	Head   string     `json:"head"`
+	Words  []string   `json:"words"`
+	Acts   []string   `json:"acts"`
 	Rings  []deskRing `json:"rings"`
 	Old    bool       `json:"old"`
 	Live   []string   `json:"live"`
@@ -159,51 +162,74 @@ type deskShelfRow struct {
 	When    string `json:"when"`
 }
 
-// Every contour shown in the sessions column at a desk has its section: a
-// heading with its name and two rings of its limit — the share of each window
-// inside, and beside it how long until the window starts over, short and
-// rounded up (the window itself when the snapshot does not know), no count of
-// live sessions — which a press opens
-// into the details of both windows, each with when it resets; and its live
-// sessions, or a word that nothing lives in it. No closed conversation stands
-// among them: the closed ones of every contour shown share a shelf below all
-// the contours, asked for in one request that leaves the live ones out,
-// newest first, each with its contour and what it was about.
-func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.T) {
-	var got struct {
+// A tab of the sessions column at a desk shows its contour alone: a heading
+// with its name, the actions of the contour — Tasks hands on its entry of the
+// map, Profile its place in the settings — and two rings of its limit after
+// claude's word — the share of each window inside, and beside it how long
+// until the window starts over, short and rounded up (the window itself when
+// the snapshot does not know), no count of live sessions — which a press
+// opens into the details of both windows, each with when it resets; and its
+// live sessions, or a word that nothing lives in it. A contour the map does
+// not hold has its tab with the two actions off: it has neither a registry
+// nor a page.
+// No closed conversation stands among them: the closed ones of the contour
+// stand on a shelf below it, asked for in one request by the id of its entry
+// that leaves the live ones out, newest first, each with what it was about.
+func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *testing.T) {
+	type handed struct {
+		Tasks    []*int           `json:"tasks"`
+		Settings []map[string]int `json:"settings"`
+	}
+	type tab struct {
+		Tab       string         `json:"tab"`
 		Sections  []deskSection  `json:"sections"`
 		Asked     []string       `json:"asked"`
 		Shelf     []deskShelfRow `json:"shelf"`
 		ShelfLast bool           `json:"shelfLast"`
-		Pop       []string       `json:"pop"`
-		Closed    bool           `json:"closed"`
-		OldNote   string         `json:"oldNote"`
-		Clock     int64          `json:"clock"`
+		Details   struct {
+			Windows []string `json:"windows"`
+			Note    string   `json:"note"`
+			Closed  bool     `json:"closed"`
+		} `json:"details"`
+		Handed handed `json:"handed"`
+	}
+	var got struct {
+		Tabs  []tab `json:"tabs"`
+		Loose struct {
+			Sections []deskSection `json:"sections"`
+			Handed   handed        `json:"handed"`
+		} `json:"loose"`
+		Clock int64 `json:"clock"`
 	}
 	runWideFixture(t, "desklimits.html", &got)
 
-	if len(got.Sections) != 3 {
-		t.Fatalf("the column shows %d contours, expected all three of the map, with live sessions or without: %+v", len(got.Sections), got.Sections)
+	want := []struct {
+		name, rings, live, shelf string
+		id                       int
+	}{
+		{"Acme", "7:48m|41:7d", "", "old-4-0,old-4-1,old-4-2", 4},
+		{"Globex Group and every project of it", "93:2h|57:5d", "shop", "old-1-0,old-1-1,old-1-2", 1},
+		{"personal", "12:3h|24:5d", "aacpanel,blog,helios", "old-3-0,old-3-1,old-3-2", 3},
 	}
-	acme, globex, personal := got.Sections[0], got.Sections[1], got.Sections[2]
-	for sec, want := range map[*deskSection]string{
-		&acme: "7:48m|41:7d", &globex: "93:2h|57:5d", &personal: "12:3h|24:5d",
-	} {
+	if len(got.Tabs) != len(want) {
+		t.Fatalf("the fixture read %d tabs, expected one for each of the three contours of the map: %+v", len(got.Tabs), got.Tabs)
+	}
+	for i, w := range want {
+		tab := got.Tabs[i]
+		if len(tab.Sections) != 1 || tab.Sections[0].Name != w.name {
+			t.Errorf("the tab of %q shows the sections %+v, expected its contour alone", w.name, tab.Sections)
+			continue
+		}
+		sec := tab.Sections[0]
 		var rings []string
 		for _, r := range sec.Rings {
 			rings = append(rings, r.Value+":"+r.Label)
 		}
-		if strings.Join(rings, "|") != want {
+		if strings.Join(rings, "|") != w.rings {
 			t.Errorf("%q: the rings read %v, expected %s — the share inside, and beside it how long until the window starts over, "+
-				"rounded up, or the window when the snapshot does not know", sec.Name, rings, want)
+				"rounded up, or the window when the snapshot does not know", sec.Name, rings, w.rings)
 		}
-	}
-	for _, sec := range got.Sections {
-		if len(sec.Rings) != 2 {
-			t.Errorf("%q: the heading holds rings %+v, expected five hours and seven days", sec.Name, sec.Rings)
-			continue
-		}
-		if !strings.HasPrefix(sec.Rings[0].Tip, "Five hours") || !strings.HasPrefix(sec.Rings[1].Tip, "Seven days") {
+		if len(sec.Rings) == 2 && (!strings.HasPrefix(sec.Rings[0].Tip, "Five hours") || !strings.HasPrefix(sec.Rings[1].Tip, "Seven days")) {
 			t.Errorf("%q: the rings are tipped %q and %q — a label that says the time left has to name its window somewhere",
 				sec.Name, sec.Rings[0].Tip, sec.Rings[1].Tip)
 		}
@@ -213,55 +239,80 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		if sec.Closed != 0 {
 			t.Errorf("%q holds %d closed conversations among its live sessions — the closed ones stand on the shelf", sec.Name, sec.Closed)
 		}
-	}
-	if !strings.Contains(acme.Head, "1 h ago") {
-		t.Errorf("the heading of numbers an hour old reads %q — how old they are has to show without a press", acme.Head)
-	}
-	if len(acme.Live) != 0 || acme.Empty != "nothing live" || !acme.Old {
-		t.Errorf("the contour with no live session shows live %v, says %q, dimmed %v: expected a word that nothing lives there and old numbers dimmed",
-			acme.Live, acme.Empty, acme.Old)
-	}
-	if strings.Join(globex.Live, ",") != "shop" || strings.Join(personal.Live, ",") != "aacpanel,blog,helios" {
-		t.Errorf("the contours hold live %v and %v, expected shop and the three of personal", globex.Live, personal.Live)
+		if strings.Join(sec.Live, ",") != w.live {
+			t.Errorf("%q holds live %v, expected %q", sec.Name, sec.Live, w.live)
+		}
+		if strings.Join(sec.Acts, ",") != "Tasks,Profile" {
+			t.Errorf("%q: the heading holds the actions %v, expected Tasks and Profile, both on", sec.Name, sec.Acts)
+		}
+		if strings.Join(sec.Words, ",") != "claude:claude" {
+			t.Errorf("%q: the rings of the heading stand after the words %v, expected claude's in its hue", sec.Name, sec.Words)
+		}
+		h := tab.Handed
+		if len(h.Tasks) != 1 || h.Tasks[0] == nil || *h.Tasks[0] != w.id {
+			t.Errorf("%q: Tasks handed on %v, expected the entry of the map with id %d", w.name, h.Tasks, w.id)
+		}
+		if len(h.Settings) != 1 || h.Settings[0]["contour"] != w.id || len(h.Settings[0]) != 1 {
+			t.Errorf("%q: Profile opened the settings at %v, expected the page of contour %d", w.name, h.Settings, w.id)
+		}
+
+		if len(tab.Asked) != 1 {
+			t.Errorf("%q: the shelf asked the archive %d times (%v), expected one request for the contour shown", w.name, len(tab.Asked), tab.Asked)
+		} else {
+			for _, other := range want {
+				in := strings.Contains(tab.Asked[0], fmt.Sprintf("contour=%d", other.id))
+				if in != (other.id == w.id) {
+					t.Errorf("%q: the shelf asked %q — the contour shown goes by the id of its entry, and no other contour with it", w.name, tab.Asked[0])
+				}
+			}
+			if !strings.Contains(tab.Asked[0], "skip=shop%2Caacpanel%2Chelios%2Cblog") {
+				t.Errorf("%q: the shelf asked %q without leaving the live conversations out", w.name, tab.Asked[0])
+			}
+		}
+		if !tab.ShelfLast {
+			t.Errorf("%q: the shelf is not the last of the column: it goes under the contour", w.name)
+		}
+		var names []string
+		for _, row := range tab.Shelf {
+			names = append(names, row.Name)
+			if row.Contour != "" {
+				t.Errorf("%q: a closed conversation on the shelf is tagged %q — the shelf holds the contour of the tab alone, and a tag says nothing", w.name, row.Contour)
+			}
+		}
+		if strings.Join(names, ",") != w.shelf {
+			t.Errorf("%q: the shelf shows %v, expected the closed conversations of the contour, newest first: %s", w.name, names, w.shelf)
+		}
+		if !tab.Details.Closed {
+			t.Errorf("%q: Escape does not put the details of the limit down", w.name)
+		}
 	}
 
-	if len(got.Asked) != 1 {
-		t.Fatalf("the shelf asked the archive %d times (%v), expected one request for every contour shown", len(got.Asked), got.Asked)
+	loose := got.Loose
+	if len(loose.Sections) != 1 || loose.Sections[0].Name != "lab" || strings.Join(loose.Sections[0].Acts, ",") != "Tasks off,Profile off" ||
+		len(loose.Handed.Tasks) != 0 || len(loose.Handed.Settings) != 0 {
+		t.Errorf("the contour the map does not hold shows %+v and its actions handed on %+v — expected its tab with Tasks and Profile off",
+			loose.Sections, loose.Handed)
 	}
-	for _, want := range []string{"contour=4", "contour=1", "contour=3", "skip=shop%2Caacpanel%2Chelios%2Cblog"} {
-		if !strings.Contains(got.Asked[0], want) {
-			t.Errorf("the shelf asked %q without %s — every contour shown goes by the id of its entry, and the live conversations are left out", got.Asked[0], want)
-		}
+
+	acme, globex := got.Tabs[0], got.Tabs[1]
+	if head := acme.Sections[0]; !strings.Contains(head.Head, "1 h ago") || len(head.Live) != 0 || head.Empty != "nothing live" || !head.Old {
+		t.Errorf("the contour with no live session and numbers an hour old reads %q, shows live %v, says %q, dimmed %v: "+
+			"expected how old the numbers are without a press, a word that nothing lives there and old numbers dimmed",
+			head.Head, head.Live, head.Empty, head.Old)
 	}
-	if !got.ShelfLast {
-		t.Error("the shelf is not the last of the column: it goes under all the contours")
+	if !strings.Contains(acme.Details.Note, "from 1 h ago") {
+		t.Errorf("the details of numbers an hour old say %q — they have to say how old they are", acme.Details.Note)
 	}
-	var names []string
-	for _, row := range got.Shelf {
-		names = append(names, row.Name)
+	pop := globex.Details.Windows
+	if len(pop) != 2 || !strings.Contains(pop[0], "Five hours") || !strings.Contains(pop[0], "93%") ||
+		!strings.Contains(pop[0], "resets in 2 h") || !strings.Contains(pop[1], "Seven days") || !strings.Contains(pop[1], "resets in 5 d") {
+		t.Errorf("the details of the limit read %q: both windows, each with its share and when it resets", pop)
 	}
-	if want := "old-1-0,old-3-0,old-4-0,old-1-1,old-3-1,old-4-1"; strings.Join(names, ",") != want {
-		t.Errorf("the shelf shows %v, expected the six newest of all the contours, newest first: %s", names, want)
-	}
-	if len(got.Shelf) > 0 {
-		first := got.Shelf[0]
-		if first.Contour != "Globex Group and every project of it" {
-			t.Errorf("a closed conversation of the contour the collector calls globex is labelled %q — the shelf names contours the way the map does", first.Contour)
-		}
+	if len(globex.Shelf) > 0 {
+		first := globex.Shelf[0]
 		if !strings.Contains(first.About, "what conversation 0 of contour 1 was about") || !spokeAgo(first.When, time.UnixMilli(got.Clock), 66*time.Minute) {
 			t.Errorf("a closed conversation says %q, %q — what it was about, and the local date and time 66 minutes ago", first.About, first.When)
 		}
-	}
-
-	if len(got.Pop) != 2 || !strings.Contains(got.Pop[0], "Five hours") || !strings.Contains(got.Pop[0], "93%") ||
-		!strings.Contains(got.Pop[0], "resets in 2 h") || !strings.Contains(got.Pop[1], "Seven days") || !strings.Contains(got.Pop[1], "resets in 5 d") {
-		t.Errorf("the details of the limit read %q: both windows, each with its share and when it resets", got.Pop)
-	}
-	if !got.Closed {
-		t.Error("Escape does not put the details down")
-	}
-	if !strings.Contains(got.OldNote, "from 1 h ago") {
-		t.Errorf("the details of numbers an hour old say %q — they have to say how old they are", got.OldNote)
 	}
 }
 

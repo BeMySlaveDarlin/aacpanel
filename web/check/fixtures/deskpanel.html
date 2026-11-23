@@ -5,10 +5,12 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="deskshell"><div class="dkbody withpanel"><div id="left" style="display:contents"></div><section class="dkcenter"></section><div id="root"></div></div></div>
 <script type="module">
-// The right-hand panel of the desktop under the styles it ships with: the
-// archive over a fake service, on a screen wide enough for the desktop rules
-// to apply: what the contour filter of the panel offers, how its buttons
-// toggle, and what it sends out.
+// The contour buttons of the desktop under the styles they ship with, on a
+// screen wide enough for the desktop rules to apply: the filter of the
+// archive in the right-hand panel over a fake service — what it offers, how
+// its buttons toggle, and what it sends out — and the switch of the sessions
+// column beside it — which contour a press shows, and which one it comes back
+// to when the column is drawn again.
 import { h, render } from "preact";
 import { useState } from "preact/hooks";
 import { RightPanel } from "/src/desktop/panels.js";
@@ -69,20 +71,25 @@ function Panel({ names }) {
     });
 }
 
-function Column({ names }) {
-    const [picks, setPicks] = useState([]);
-    chosen.left = picks;
-    return h(SessionColumn, {
-        snapshot: { sessions: [], profileMap: names.map((profile, i) => ({ id: i + 1, profile, groups: [] })) },
-        picks, setPicks, exec, onPick: () => {},
-    });
-}
+// The contour the column stands on is kept where the phone keeps the page of
+// its sessions tab.
+const KEPT = "aacpanel.sessions.profile";
 
-function paint(names) {
-    render(h(ToastHost, null, h(GateHost, null, h(Panel, { names }))), document.getElementById("root"));
-    render(h(ToastHost, null, h(GateHost, null, h(Column, { names }))), document.getElementById("left"));
-}
-paint(names);
+const left = document.getElementById("left");
+const column = () => render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { sessions: [], profileMap: names.map((profile, i) => ({ id: i + 1, profile, groups: [] })) },
+    exec, onPick: () => {}, onShown: (name) => { chosen.left = name; },
+}))), left);
+// The column drawn again, as the shell draws it on the way back from another
+// section: what it stands on then is only what it kept.
+const again = () => {
+    render(null, left);
+    column();
+};
+
+localStorage.setItem(KEPT, names[4]);
+render(h(ToastHost, null, h(GateHost, null, h(Panel, { names }))), document.getElementById("root"));
+column();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const settle = async () => {
@@ -94,10 +101,20 @@ const query = () => (asked.length ? new URL(asked[asked.length - 1], location.or
 const buttons = (side) => [...document.querySelectorAll(`.dk${side} .dkpick button`)];
 const nameOf = (b) => (b.querySelector(".dkpickname") || b).textContent.trim();
 const pickButton = (side, name) => buttons(side).find((b) => nameOf(b) === name);
-const selection = (side) => ({
-    picks: chosen[side],
-    pressed: buttons(side).map((b) => b.getAttribute("aria-pressed")),
-    shown: [...document.querySelectorAll(`.dk${side} .dkscroll .dkcontourname`)].map((e) => e.textContent.trim()),
+const shownIn = (side) => [...document.querySelectorAll(`.dk${side} .dkscroll .dkcontourname`)].map((e) => e.textContent.trim());
+const selection = () => ({
+    picks: chosen.right,
+    pressed: buttons("right").map((b) => b.getAttribute("aria-pressed")),
+    shown: shownIn("right"),
+});
+const tab = () => ({
+    shown: chosen.left || "",
+    roles: buttons("left").map((b) => b.getAttribute("role") || ""),
+    selected: buttons("left").map((b) => b.getAttribute("aria-selected") || ""),
+    pressed: buttons("left").filter((b) => b.hasAttribute("aria-pressed")).length,
+    sections: shownIn("left"),
+    panel: (document.querySelector(".dkleft .dkscroll") || {}).getAttribute?.("aria-label") || "",
+    kept: localStorage.getItem(KEPT) || "",
 });
 
 window.done = (async () => {
@@ -105,18 +122,34 @@ window.done = (async () => {
     const long = pickButton("right", names[6]);
     const title = long ? long.title : "";
     const pickRows = buttons("right").map(nameOf);
-    const toggles = {};
+    const tabRows = buttons("left").map(nameOf);
+    const group = (document.querySelector(".dkleft .dkpick") || {}).getAttribute?.("role") || "";
+    const toggles = [selection()];
     let picked = "";
-    for (const side of ["right", "left"]) {
-        toggles[side] = [selection(side)];
-        for (const name of [names[0], names[6], names[0], names[6]]) {
-            asked.length = 0;
-            pickButton(side, name).click();
-            await settle();
-            toggles[side].push(selection(side));
-            if (side === "right" && toggles[side].length === 2) picked = query();
-        }
+    for (const name of [names[0], names[6], names[0], names[6]]) {
+        asked.length = 0;
+        pickButton("right", name).click();
+        await settle();
+        toggles.push(selection());
+        if (toggles.length === 2) picked = query();
     }
-    return { picked, pickRows, title, toggles };
+    // The switch starts on the contour kept, a press moves it to another
+    // and a second press on the same tab leaves it there; drawn again, the
+    // column comes back to the last one pressed, and to the first contour
+    // once the one kept is not among the contours any more.
+    const tabs = [tab()];
+    for (const name of [names[0], names[6], names[6]]) {
+        pickButton("left", name).click();
+        await settle();
+        tabs.push(tab());
+    }
+    again();
+    await settle();
+    tabs.push(tab());
+    localStorage.setItem(KEPT, "a contour gone from the map");
+    again();
+    await settle();
+    tabs.push(tab());
+    return { picked, pickRows, title, toggles, tabRows, group, tabs };
 })();
 </script>

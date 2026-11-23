@@ -45,7 +45,7 @@ export async function sessionLevels() {
             block=${block} exec=${exec} live=${list} onOpen=${() => {}} />`)}`), panels[0].root);
         render(wrap(h(SessionColumn, {
             snapshot: { at: Date.now() / 1000, sessions: list, profileMap: [profile], limits: null },
-            limits: null, current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, exec, wait: null,
+            limits: null, current: "", onPick() {}, onNames() {}, exec, wait: null,
             onOrder(rows) { order = rows.map((s) => s.name); },
         })), panels[1].root);
     };

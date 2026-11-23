@@ -107,7 +107,7 @@ func TestColumnDrawsWhatItIsWaitingFor(t *testing.T) {
 	if !strings.Contains(controls, "closing ?") || !strings.Contains(card, "busy=${busy}") {
 		t.Error("the close wait changes nothing on the card — it is counted and not shown")
 	}
-	if !strings.Contains(src, "sections.length === 0 && ghosts.length === 0") {
+	if !strings.Contains(src, "!shown && ghosts.length === 0") {
 		t.Error("the column says \"there are no live sessions\" over the console row it shows " +
 			"itself")
 	}

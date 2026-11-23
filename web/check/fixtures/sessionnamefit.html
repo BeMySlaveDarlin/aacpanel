@@ -38,7 +38,7 @@ window.EventSource = class { constructor() { this.readyState = 1; } addEventList
 const exec = { available: true, kinds: ["session.close", "session.restart"] };
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     snapshot: { at: now / 1000, sessions, profileMap, limits: null }, limits: null, current: "",
-    onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+    onPick() {}, onNames() {}, onOrder() {}, exec, wait: null,
 }))), document.getElementById("desk"));
 
 window.done = (async () => {

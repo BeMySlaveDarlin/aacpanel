@@ -7,13 +7,22 @@ import (
 )
 
 // The Projects button of the sessions section at a desk opens the settings of
-// the map in three columns straight away — the first contour on its page, no
-// list in a panel at the right before them — and they open again where they
-// were left. What the list used to hold lives in the columns: the tree finds
+// the map in three columns straight away — the contour the sessions column
+// shows on its page, no list in a panel at the right before them — and they
+// open again where they were left. What the list used to hold lives in the
+// columns: the tree finds
 // a group or a project by name and opens the project it found, and adds a new
 // contour at its foot; the page of a project starts a new session of it from
 // its heading, the start closing the settings, and deletes it at its foot,
 // leaving the group on its page.
+//
+// The heading of the contour the sessions column shows holds the actions the
+// phone has over the page of a contour. Tasks opens the registry of the
+// contour, the phone's own screen asking for it by the id of its entry, in
+// the centre beside the column and over the conversation open there; its way
+// back brings the conversation back, the arrow keys having left it as it was,
+// and a conversation picked over it takes its place. Profile opens the
+// settings on the page of the contour.
 func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built: the columns are laid out by the stylesheet — run make front first")
@@ -38,11 +47,20 @@ func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 		TreeAfterDelete  []string        `json:"treeAfterDelete"`
 		NewContour       string          `json:"newContour"`
 		Closed           bool            `json:"closed"`
+		Acts             struct {
+			Before, Picked, Opened, Closed, PickedOver string
+			Heading, Boards, Profile                   []string
+			Column                                     bool
+			Other                                      struct {
+				Opened string
+				Boards []string
+			}
+		} `json:"acts"`
 	}
 	runFixtureServing(t, "deskprojects.html", deskScreen, deskPointer, schemaAnswer(map[string]any{}), &got)
 
-	if strings.Join(got.Opened, "|") != "personal|" || got.Panel || !got.Active {
-		t.Errorf("the Projects button opened %v, a panel at the right %v, the button lit %v — expected the columns on the first contour and no panel",
+	if strings.Join(got.Opened, "|") != "Acme|" || got.Panel || !got.Active {
+		t.Errorf("the Projects button opened %v, a panel at the right %v, the button lit %v — expected the columns on Acme, the contour the sessions column shows, and no panel",
 			got.Opened, got.Panel, got.Active)
 	}
 	if want := "personal2|Home1|Side3|Acme2|Common1|Infra1|Globex Group1|SHOP1"; strings.Join(got.Tree, "|") != want {
@@ -83,5 +101,29 @@ func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 	}
 	if !got.Closed {
 		t.Error("the cross does not close the settings")
+	}
+
+	a := got.Acts
+	if strings.Join(a.Heading, ",") != "Tasks,Profile,a new session in contour personal" {
+		t.Fatalf("the heading of personal holds %v, expected Tasks, Profile and the new session", a.Heading)
+	}
+	if a.Before != "nothing" || a.Picked != "conversation: helios" {
+		t.Errorf("the centre read %q, then %q after a press on the card — the fixture did not open the conversation", a.Before, a.Picked)
+	}
+	if a.Opened != "tasks: Tasks · personal" || strings.Join(a.Boards, ",") != "3" || !a.Column {
+		t.Errorf("Tasks of personal opened %q, asking the registry for the contours %v, the column beside it %v — expected the registry of personal, asked for by the id of its entry, beside the column",
+			a.Opened, a.Boards, a.Column)
+	}
+	if a.Closed != "conversation: helios" {
+		t.Errorf("the way back from the registry, ArrowDown pressed over it, left %q in the centre, expected the conversation it was opened over", a.Closed)
+	}
+	if a.PickedOver != "conversation: blog" {
+		t.Errorf("blog picked over the registry left %q in the centre, expected its conversation", a.PickedOver)
+	}
+	if a.Other.Opened != "tasks: Tasks · Acme" || strings.Join(a.Other.Boards, ",") != "4" {
+		t.Errorf("Tasks on the tab of Acme opened %q, asking for %v — expected the registry of Acme by the id of its entry", a.Other.Opened, a.Other.Boards)
+	}
+	if strings.Join(a.Profile, "|") != "Acme|" {
+		t.Errorf("Profile on the tab of Acme opened the settings on %v, expected the page of Acme", a.Profile)
 	}
 }

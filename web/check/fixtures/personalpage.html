@@ -67,7 +67,7 @@ for (const c of cases) {
         box.className = "deskshell";
         box.innerHTML = '<div class="dkbody"></div>';
         render(wrap(h(SessionColumn, {
-            snapshot, limits: null, current: "", onPick() {}, picks: [], setPicks() {},
+            snapshot, limits: null, current: "", onPick() {},
             onNames() {}, onOrder() {}, exec, wait: null,
         })), box.firstChild);
         continue;
@@ -104,23 +104,35 @@ const phoneOf = (box) => {
         sessions: Array.from((pages[i] || tab).querySelectorAll(".pjblock .sc")).map((c) => c.dataset.name),
     }));
 };
-// deskOf reads the column: each section by its name, whether its heading
-// marks a wait and its live sessions.
-const deskOf = (box) => Array.from(box.querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((section) => ({
-    name: text(section.querySelector(".dkcontourname")),
-    waiting: Boolean(section.querySelector(".waitn")),
-    sessions: Array.from(section.querySelectorAll(".sc")).map((c) => c.dataset.name),
-}));
+// deskOf reads the column tab by tab: the name of a tab, the number it
+// counts, whether it marks a wait, and the live sessions of the section a
+// press on it shows.
+const deskOf = async (box) => {
+    const out = [];
+    const section = () => box.querySelector(".dkscroll > section:not(.dkshelf)");
+    for (const tab of Array.from(box.querySelectorAll(".dkpick [role=tab]"))) {
+        const name = text(tab.querySelector(".dkpickname"));
+        const count = Number(text(tab.querySelector(".dkpickn")) || 0);
+        tab.click();
+        if (!await until(() => section() && text(section().querySelector(".dkcontourname")) === name
+            && section().querySelectorAll(".sc").length === count)) {
+            throw new Error(`the tab of ${name} did not show the ${count} sessions it counts`);
+        }
+        out.push({ name, count, waiting: Boolean(tab.querySelector(".waitn")),
+            sessions: Array.from(section().querySelectorAll(".sc")).map((c) => c.dataset.name) });
+    }
+    return out;
+};
 
 window.done = (async () => {
     const out = { wide, cases: {} };
     for (const c of cases) {
         const box = document.getElementById(c.key);
         const ready = wide
-            ? () => box.querySelectorAll(".dkleft .sc").length === sessions.length
+            ? () => box.querySelectorAll(".dkpick [role=tab]").length === c.map.length
             : () => box.querySelectorAll(".pfpage .pjblock").length === sessions.length;
         if (!await until(ready)) throw new Error(`the ${c.key} map did not lay out all ${sessions.length} sessions`);
-        out.cases[c.key] = wide ? deskOf(box) : phoneOf(box);
+        out.cases[c.key] = wide ? await deskOf(box) : phoneOf(box);
     }
     return out;
 })();

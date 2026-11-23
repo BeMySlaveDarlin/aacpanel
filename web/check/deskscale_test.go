@@ -112,18 +112,18 @@ func TestTheArchiveFiltersByTheContoursOfTheMap(t *testing.T) {
 	}
 }
 
-// Each contour button of both panels filters by its name and releases that
-// filter again; a long name is whole in its tip.
-func TestDesktopContoursToggleTheirFilter(t *testing.T) {
+// Each contour button of the archive filters by its name and releases that
+// filter again, several at once or none; a long name is whole in its tip.
+func TestDesktopArchiveContoursToggleTheirFilter(t *testing.T) {
 	type selection struct {
 		Picks   []string `json:"picks"`
 		Pressed []string `json:"pressed"`
 		Shown   []string `json:"shown"`
 	}
 	var got struct {
-		PickRows []string               `json:"pickRows"`
-		Title    string                 `json:"title"`
-		Toggles  map[string][]selection `json:"toggles"`
+		PickRows []string    `json:"pickRows"`
+		Title    string      `json:"title"`
+		Toggles  []selection `json:"toggles"`
 	}
 	runWideFixture(t, "deskpanel.html", &got)
 	if len(got.PickRows) != 7 {
@@ -132,40 +132,110 @@ func TestDesktopContoursToggleTheirFilter(t *testing.T) {
 	if got.Title != got.PickRows[6] {
 		t.Errorf("the long name has the tip %q", got.Title)
 	}
-	for _, side := range []string{"left", "right"} {
-		states := got.Toggles[side]
-		wantPicks := [][]string{nil, {got.PickRows[0]}, {got.PickRows[0], got.PickRows[6]}, {got.PickRows[6]}, nil}
-		if len(states) != len(wantPicks) {
-			t.Errorf("%s: read %d toggle states, expected %d", side, len(states), len(wantPicks))
+	wantPicks := [][]string{nil, {got.PickRows[0]}, {got.PickRows[0], got.PickRows[6]}, {got.PickRows[6]}, nil}
+	if len(got.Toggles) != len(wantPicks) {
+		t.Fatalf("read %d toggle states, expected %d", len(got.Toggles), len(wantPicks))
+	}
+	for step, picks := range wantPicks {
+		state := got.Toggles[step]
+		if !equalStrings(state.Picks, picks) {
+			t.Errorf("step %d: picked %v, expected %v", step, state.Picks, picks)
+		}
+		shown := picks
+		if len(shown) == 0 {
+			shown = got.PickRows
+		}
+		if !equalStrings(state.Shown, shown) {
+			t.Errorf("step %d: visible contours %v, expected %v", step, state.Shown, shown)
+		}
+		if len(state.Pressed) != len(got.PickRows) {
+			t.Errorf("step %d: read %d pressed states for %d buttons", step, len(state.Pressed), len(got.PickRows))
 			continue
 		}
-		for step, picks := range wantPicks {
-			state := states[step]
-			if !equalStrings(state.Picks, picks) {
-				t.Errorf("%s step %d: picked %v, expected %v", side, step, state.Picks, picks)
-			}
-			shown := picks
-			if len(shown) == 0 {
-				shown = got.PickRows
-			}
-			if !equalStrings(state.Shown, shown) {
-				t.Errorf("%s step %d: visible contours %v, expected %v", side, step, state.Shown, shown)
-			}
-			if len(state.Pressed) != len(got.PickRows) {
-				t.Errorf("%s step %d: read %d pressed states for %d buttons", side, step, len(state.Pressed), len(got.PickRows))
-				continue
-			}
-			for i, name := range got.PickRows {
-				want := "false"
-				for _, pick := range picks {
-					if name == pick {
-						want = "true"
-					}
+		for i, name := range got.PickRows {
+			want := "false"
+			for _, pick := range picks {
+				if name == pick {
+					want = "true"
 				}
-				if state.Pressed[i] != want {
-					t.Errorf("%s step %d: %q has aria-pressed %q, expected %q", side, step, name, state.Pressed[i], want)
-				}
+			}
+			if state.Pressed[i] != want {
+				t.Errorf("step %d: %q has aria-pressed %q, expected %q", step, name, state.Pressed[i], want)
 			}
 		}
+	}
+}
+
+// The contours of the sessions column at a desk are a switch, as the tabs of
+// the phone are: the column shows one contour, a press on a tab shows that
+// one and marks it alone selected, and a press on the selected tab keeps it.
+// The choice is kept where the phone keeps the page of its sessions tab, so
+// the column drawn again stands where it was left, and on the first contour
+// once the one kept is gone from the map.
+func TestDesktopColumnContoursAreASwitch(t *testing.T) {
+	type state struct {
+		Shown    string   `json:"shown"`
+		Roles    []string `json:"roles"`
+		Selected []string `json:"selected"`
+		Pressed  int      `json:"pressed"`
+		Sections []string `json:"sections"`
+		Panel    string   `json:"panel"`
+		Kept     string   `json:"kept"`
+	}
+	var got struct {
+		TabRows []string `json:"tabRows"`
+		Group   string   `json:"group"`
+		Tabs    []state  `json:"tabs"`
+	}
+	runWideFixture(t, "deskpanel.html", &got)
+	if len(got.TabRows) != 7 {
+		t.Fatalf("the switch drew %v, expected a tab for each of the seven contours", got.TabRows)
+	}
+	if got.Group != "tablist" {
+		t.Errorf("the switch is a %q, expected a tablist: one of its tabs is chosen, not several", got.Group)
+	}
+	names := got.TabRows
+	// What the column stands on after each step: the contour kept before the
+	// first draw, two presses, a press on the selected tab, the column drawn
+	// again, and drawn again over a kept contour that is not on the map.
+	want := []struct{ shown, why string }{
+		{names[4], "the first draw does not start on the contour kept"},
+		{names[0], "a press on a tab does not show its contour"},
+		{names[6], "a press on another tab does not move the column to it"},
+		{names[6], "a press on the selected tab lets it go"},
+		{names[6], "the column drawn again forgets the contour it stood on"},
+		{names[0], "a kept contour gone from the map does not fall back to the first"},
+	}
+	if len(got.Tabs) != len(want) {
+		t.Fatalf("read %d states of the switch, expected %d: %+v", len(got.Tabs), len(want), got.Tabs)
+	}
+	for step, w := range want {
+		s := got.Tabs[step]
+		if s.Shown != w.shown || !equalStrings(s.Sections, []string{w.shown}) || s.Panel != w.shown {
+			t.Errorf("step %d: %s — the column stands on %q and shows sections %v in a panel named %q, expected %q alone",
+				step, w.why, s.Shown, s.Sections, s.Panel, w.shown)
+		}
+		if s.Pressed != 0 {
+			t.Errorf("step %d: %d tabs say aria-pressed — a tab of a switch is selected, not pressed", step, s.Pressed)
+		}
+		if len(s.Roles) != len(names) || len(s.Selected) != len(names) {
+			t.Errorf("step %d: read %d roles and %d selected states for %d tabs", step, len(s.Roles), len(s.Selected), len(names))
+			continue
+		}
+		for i, name := range names {
+			if s.Roles[i] != "tab" {
+				t.Errorf("step %d: %q has the role %q, expected tab", step, name, s.Roles[i])
+			}
+			mark := "false"
+			if name == w.shown {
+				mark = "true"
+			}
+			if s.Selected[i] != mark {
+				t.Errorf("step %d: %q has aria-selected %q, expected %q", step, name, s.Selected[i], mark)
+			}
+		}
+	}
+	if got.Tabs[2].Kept != names[6] {
+		t.Errorf("after a press on %q the device keeps %q — the next draw would not find the contour pressed", names[6], got.Tabs[2].Kept)
 	}
 }

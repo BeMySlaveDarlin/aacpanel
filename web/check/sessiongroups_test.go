@@ -122,16 +122,18 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 // conversation; a child whose parent lives in another contour stands on its
 // own page and says which session opened it.
 //
-// The desktop column lays a contour out in blocks of its projects as the
-// phone does, in the order of the map: a heading over every project, the
-// only session of one included, with its name, the group of the map and the
-// way to a new session in it; under it the rows, the children of a parent in
-// its block. The rows keep their places whatever the sessions do, so the
-// arrow keys of the shell go down them as they stand, block after block, the
-// children among them while the fold is open; closed, the fold keeps who
-// waits and the dots of the states, the arrow keys pass its children by, and
-// the fold stays closed for its parent until it is opened again. A digit
-// picks nothing.
+// The desktop column lays the contour of its tab out in blocks of its
+// projects as the phone does, in the order of the map: a heading over every
+// project, the only session of one included, with its name, the group of the
+// map and the way to a new session in it; under it the rows, the children of
+// a parent in its block, and a child whose parent lives in another contour on
+// its own under the tab of its contour, naming the session that opened it.
+// The rows keep their places whatever the sessions do, so the arrow keys of
+// the shell go down them as they stand, block after block, to the last row of
+// the contour shown, the children among them while the fold is open; closed,
+// the fold keeps who waits and the dots of the states, the arrow keys pass
+// its children by, and the fold stays closed for its parent until it is
+// opened again. A digit picks nothing.
 //
 // A list where nobody opened anybody shows none of it.
 func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
@@ -142,6 +144,8 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		PlainMarks int          `json:"plainMarks"`
 		Desk       []string     `json:"desk"`
 		Order      []string     `json:"order"`
+		DeskAlgo   []string     `json:"deskAlgo"`
+		OrderAlgo  []string     `json:"orderAlgo"`
 		StubOpens  struct {
 			Phone []struct{ Name, ID string } `json:"phone"`
 			Desk  []struct {
@@ -176,26 +180,29 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		"head: lead · work +", "lead", "fold: 2 opened · person", "› person", "› review the protocol",
 		"head: wiki · work +", "stub: docsclosed 40 min ago", "› wiki",
 		"head: shop · side +", "shop",
-		"head: rotation · trading +", "rotation",
-		"head: quotes · trading +", "quotes (opened by lead)",
 	}
 	if !reflect.DeepEqual(got.Desk, desk) {
 		t.Errorf("the desktop column reads\n%v\nexpected\n%v", got.Desk, desk)
 	}
-	order := []string{"lead", "person", "codex-5afc361b", "wiki", "shop", "rotation", "quotes"}
+	order := []string{"lead", "person", "codex-5afc361b", "wiki", "shop"}
 	if !reflect.DeepEqual(got.Order, order) || !reflect.DeepEqual(got.OrderOpen, order) {
-		t.Errorf("the arrow keys go down %v, and %v once the fold is opened again; expected the rows in the order they stand, %v",
+		t.Errorf("the arrow keys go down %v, and %v once the fold is opened again; expected the rows of the contour shown in the order they stand, %v",
 			got.Order, got.OrderOpen, order)
 	}
-	if walk := []string{"shop", "rotation"}; !reflect.DeepEqual(got.Walk, walk) {
-		t.Errorf("ArrowDown from shop lit %v, expected the row under it as the column stands, in the next contour: %v",
+	algo := []string{"head: rotation · trading +", "rotation", "head: quotes · trading +", "quotes (opened by lead)"}
+	if !reflect.DeepEqual(got.DeskAlgo, algo) || strings.Join(got.OrderAlgo, ",") != "rotation,quotes" {
+		t.Errorf("the tab of the other contour reads\n%v\nwith the arrow keys going down %v; expected\n%v\nthe child of lead on its own, naming lead",
+			got.DeskAlgo, got.OrderAlgo, algo)
+	}
+	if walk := []string{"shop", "shop"}; !reflect.DeepEqual(got.Walk, walk) {
+		t.Errorf("ArrowDown from shop lit %v, expected it to stay on shop: the rows of the contour shown end there, and the next contour is behind its tab: %v",
 			got.Walk, walk)
 	}
-	if got.Digit != "rotation" {
-		t.Errorf("a press of 1 on rotation left %q open — a digit picks no session", got.Digit)
+	if got.Digit != "shop" {
+		t.Errorf("a press of 1 on shop left %q open — a digit picks no session", got.Digit)
 	}
-	if got.Back != "shop" {
-		t.Errorf("ArrowUp from rotation opened %q, expected the row above it, shop", got.Back)
+	if got.Back != "wiki" {
+		t.Errorf("ArrowUp from shop opened %q, expected the row above it, wiki", got.Back)
 	}
 
 	if len(got.StubOpens.Phone) != 1 || got.StubOpens.Phone[0].Name != "docs" || got.StubOpens.Phone[0].ID != "d0" {
@@ -212,12 +219,11 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 			got.PhoneFolded)
 	}
 	deskFolded := []string{"head: lead · work +", "lead", "fold: 2 opened · person",
-		"head: wiki · work +", "stub: docsclosed 40 min ago", "› wiki", "head: shop · side +", "shop",
-		"head: rotation · trading +", "rotation", "head: quotes · trading +", "quotes (opened by lead)"}
+		"head: wiki · work +", "stub: docsclosed 40 min ago", "› wiki", "head: shop · side +", "shop"}
 	if !reflect.DeepEqual(got.DeskFolded, deskFolded) {
 		t.Errorf("the column with the fold closed reads\n%v\nexpected\n%v", got.DeskFolded, deskFolded)
 	}
-	if strings.Join(got.OrderFolded, ",") != "lead,wiki,shop,rotation,quotes" {
+	if strings.Join(got.OrderFolded, ",") != "lead,wiki,shop" {
 		t.Errorf("with the fold closed the arrow keys go down %v: a hidden row is passed by", got.OrderFolded)
 	}
 	if strings.Join(got.Kept, ",") != "lead" {

@@ -49,7 +49,7 @@ const exec = { available: true, kinds: ["session.close", "session.restart", "ses
 const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }];
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     snapshot: { at: 1, sessions, profileMap, limits: null }, limits: null,
-    current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+    current: "", onPick() {}, onNames() {}, onOrder() {}, exec, wait: null,
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} checked=${null} wait=${null}

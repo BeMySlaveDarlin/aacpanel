@@ -70,7 +70,7 @@ export async function sessionPause() {
         const block = { key: 501, name: project.name, project, group: "backend", live: live.filter((s) => !s.outside && s.project.id === project.id), ghosts: [] };
         render(html`<${ToastHost}><${GateHost}><${MenuHost}><${CardPieHost} snapshot=${snap} exec=${exec}>
             ${wide ? html`<div class="deskshell" style="position:static;height:650px"><div class="dkbody">
-                <${SessionColumn} snapshot=${snap} limits=${null} current="" onPick=${() => {}} picks=${[]} setPicks=${() => {}} exec=${exec} />
+                <${SessionColumn} snapshot=${snap} limits=${null} current="" onPick=${() => {}} exec=${exec} />
             </div></div><${MenuProbe} live=${live} />` : html`<div class="page"><${ProjectBlock} block=${block} profile=${profile} live=${live} exec=${exec} /></div>`}
             ${chat && html`<div class="pausechat" style="height:500px;display:flex;flex-direction:column">
                 <${Chat} name="evirma-api" id="api-id" live=${live[0]} snapshot=${snap} exec=${exec} onBack=${() => {}} />

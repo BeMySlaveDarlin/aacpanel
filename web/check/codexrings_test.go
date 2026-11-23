@@ -6,9 +6,10 @@ import (
 	"testing"
 )
 
-// At a desk each contour's heading carries claude's two rings and, beside
-// them, codex's week in codex's own hue, and the details under them name every
-// window; a contour codex alone spent in has codex's ring alone, and an
+// At a desk each contour's heading carries claude's two rings after claude's
+// word and, beside them, codex's week in codex's own hue after codex's word,
+// and the details under them name every window; a contour codex alone spent
+// in has codex's ring alone, and an
 // account claude tells no five-hour window has its week alone. A codex
 // thread with a title is listed by it on the desk and on the phone, while a
 // press still opens it by its address.
@@ -23,8 +24,9 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	}
 	var got struct {
 		Heads []struct {
-			Name  string `json:"name"`
-			Rings []ring `json:"rings"`
+			Name  string   `json:"name"`
+			Words []string `json:"words"`
+			Rings []ring   `json:"rings"`
 		} `json:"heads"`
 		Pop      []string `json:"pop"`
 		DeskName struct {
@@ -49,6 +51,11 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	}
 	if len(home.Rings) != 1 || home.Rings[0].Value != "9" || !strings.HasPrefix(home.Rings[0].Tip, "Seven days") {
 		t.Errorf("an account with no five-hour window carries %+v, expected claude's week alone", home.Rings)
+	}
+	for i, want := range []string{"claude:claude,codex:codex", "codex:codex", "claude:claude"} {
+		if head := got.Heads[i]; strings.Join(head.Words, ",") != want {
+			t.Errorf("the rings of %s stand after the words %v, expected %s — each agent's rings after its word, in its hue", head.Name, head.Words, want)
+		}
 	}
 	if strings.Join(got.Pop, "|") != "Five hours|Seven days|Codex · seven days" {
 		t.Errorf("the details of Acme's limits name %v", got.Pop)
