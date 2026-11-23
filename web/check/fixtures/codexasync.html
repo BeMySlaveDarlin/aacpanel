@@ -245,9 +245,9 @@ window.done = (async () => {
     if (!await until(() => sheet() && one(".chatfeed .msg"))) throw new Error("codex's question did not come");
     await settled();
     const go = () => sheet().querySelector(".askfoot .btn.primary");
-    // The way to put it away is codex's own: for claude the field under the
-    // form dismisses the question, and it is read on its own below.
-    out.codex = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), skeleton: skeleton(sheet(), ".askfoot, .askdrop"),
+    // Both sheets draw the way to put the question away; what it says is
+    // codex's own, and it is read on its own.
+    out.codex = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), skeleton: skeleton(sheet(), ".askfoot"),
                   send: text(go()), sendOff: Boolean(go() && go().disabled),
                   drop: text(sheet().querySelector(".askdropwhy")), ...screen() };
     out.codexAsks = stands("codex-0000abcd");

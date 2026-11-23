@@ -581,7 +581,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     };
     const form = !current ? null : current.kind === "asked"
         ? html`<${Ask} key=${currentKey} ask=${ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
-            field=${Boolean(dismissBeforeSend)} onAnswered=${nativeAnswered} />`
+            onAnswered=${nativeAnswered} />`
         : current.kind === "permit"
         ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)} onAnswered=${() => mark(answered(live, ""))} />`
         : current.kind === "request"

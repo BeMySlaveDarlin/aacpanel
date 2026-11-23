@@ -48,7 +48,7 @@ func TestACodexRoundIsAnsweredByItsProtocolInTmux(t *testing.T) {
 		t.Error("the free answer is shut for a codex thread in tmux: the limits of a terminal dialog were carried over")
 	}
 	if !r.Drop {
-		t.Error("the field does not dismiss the question of a codex thread, or the form draws a second way to dismiss it")
+		t.Error("the question of a codex thread lost a way to be dismissed: the form's own button is missing or shut, or the field under it no longer dismisses it")
 	}
 	if r.Second.Tag != "input" || r.Second.Type != "password" {
 		t.Errorf("the secret question is answered in a %s of type %q: its words are shown as they are typed",

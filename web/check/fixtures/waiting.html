@@ -210,8 +210,9 @@ window.done = (async () => {
         && Boolean(document.querySelector(".chatfeed .actsent .spin"));
     state = { ask: { toolUseId: "discussion", at, questions: [{ text: "What next?", options: [{ label: "Proceed" }] }] } };
     await publish();
-    // The field under the form dismisses the question: the form does not draw a second way to.
-    out.oneWay = Boolean(form()?.querySelector(".askpick")) && !form().querySelector(".askdrop");
+    // The field under the form dismisses the question with words, and the form
+    // keeps a way of its own for a person with nothing to type.
+    out.twoWays = Boolean(form()?.querySelector(".askpick")) && Boolean(form()?.querySelector(".askdrop:enabled"));
     const start = sent.length;
     await type(document.querySelector(".composer > textarea"), "Let's discuss.");
     out.dismissHint = document.querySelector(".composer > textarea").placeholder === "your words dismiss the question";
@@ -222,6 +223,18 @@ window.done = (async () => {
     out.dismissFirst = sent.length === start + 1 && sent.at(-1).kind === "session.dismiss";
     release(); await quiet();
     out.discussion = sent.length === start + 2 && sent.at(-1).kind === "session.send" && sent.at(-1).params.text === "Let's discuss.";
+    // The form's own way dismisses the next question as the field does before
+    // its words go: by the question's id, through the same confirmation, and
+    // the form goes with it.
+    state = { ask: { toolUseId: "set-aside", at, questions: [{ text: "Which branch?", options: [{ label: "main" }] }] } };
+    await publish();
+    const beforeDrop = sent.length;
+    form()?.querySelector(".askdrop")?.click(); await quiet();
+    document.querySelector('.sheet.on[aria-label="action confirmation"] .btn.primary')?.click(); await quiet();
+    out.dropPress = sent.length === beforeDrop + 1 && sent.at(-1).kind === "session.dismiss" && sent.at(-1).target === "work"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ ask: "set-aside" }) && !document.querySelector(".askround");
+    state = {};
+    await publish();
     // Both sources agree that only an open act counts; a closed API row wins.
     const normalized = Object.fromEntries(acts.map(a => [a.id, a]));
     const ordered = movesOf({ [req.id]: { ...req, state: "open" } }, [{ kind: "brief", id: "review", at }],

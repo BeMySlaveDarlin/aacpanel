@@ -1075,8 +1075,9 @@ pick, and a permission shows the tool's whole input rather than what fits a
 screen. A round of several questions goes one question at a time under thin
 strips of its steps, a single pick moving on by itself, and ends in a review
 of every answer before it is sent. The message field under the form dismisses
-the question with the words typed into it, so the form draws no second way to
-dismiss; a question codex asked without waiting keeps its own, which tells
+the question with the words typed into it, and the form still draws its own way
+to dismiss for a person with nothing to type, which does what the field does
+before its words go; for a question codex asked without waiting, that way tells
 codex the person will answer in the conversation. A note
 sent to a terminal session is refused with the answer: its dialog has no field
 for one, and an answer that silently lost it would say less than the person did.

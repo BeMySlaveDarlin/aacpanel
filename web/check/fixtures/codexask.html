@@ -124,8 +124,10 @@ async function round() {
     const out = { label: sheet().querySelector(".askhead").getAttribute("aria-label"), prose: readQuestion(sheet()) };
     const own = sheet().querySelector(".askown .askpick");
     out.own = Boolean(own && !own.disabled);
-    // Dismissing is open, and it is the field under the form that does it.
-    out.drop = !sheet().querySelector(".askdrop")
+    // Dismissing is open two ways: the field under the form with words, and
+    // the form's own button with none.
+    const dismiss = sheet().querySelector(".askdrop");
+    out.drop = Boolean(dismiss && !dismiss.disabled)
         && root.querySelector(".composer > textarea")?.placeholder === "your words dismiss the question";
 
     sheet().querySelectorAll(".askopts .askopt:not(.askown) .askpick")[1].click();

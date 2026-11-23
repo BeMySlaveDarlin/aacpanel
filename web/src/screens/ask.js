@@ -110,9 +110,13 @@ function blankAnswer(questions) {
 // naming the question; putting it away sends that the person will answer in
 // the conversation.
 //
-// field says the message field under the form dismisses the question with the
-// words typed into it: a second way to dismiss it in the form is not drawn.
-function Round({ ask, name, exec, stream, codex, field = false, onSend, onDrop, onAnswered }) {
+// The form always draws its own way to dismiss the question, whether or not
+// the message field under it dismisses the question too: the field does it
+// only with words typed into it, and a person with nothing to type yet
+// dismisses with a press. The press does what the field does before its words
+// go — the question dismissed by its id — and a question codex did not wait
+// for is put away as above.
+function Round({ ask, name, exec, stream, codex, onSend, onDrop, onAnswered }) {
     const run = useAction();
     const [step, setStep] = useState(0);
     const [review, setReview] = useState(false);
@@ -319,7 +323,7 @@ function Round({ ask, name, exec, stream, codex, field = false, onSend, onDrop, 
                         disabled=${sending} onInput=${(e) => setNote(n, e.target.value)}></textarea>`}
                 </div>`;
             })}
-            ${!field && (!onSend || onDrop) && html`<button class="askdrop" type="button" disabled=${!dropReady || Boolean(dropBlocked) || sending} onClick=${drop}>
+            ${(!onSend || onDrop) && html`<button class="askdrop" type="button" disabled=${!dropReady || Boolean(dropBlocked) || sending} onClick=${drop}>
                 <span class="askdropname">Dismiss the question and discuss</span>
                 <span class="askdropwhy">${dropBlocked || (!dropReady ? dropWhy : onDrop ? "the session hears that you will answer in the conversation"
                     : goesOn ? "codex hears that you will answer in the conversation" : "the session will wait for an ordinary message")}</span>
