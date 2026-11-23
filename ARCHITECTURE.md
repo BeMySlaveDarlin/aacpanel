@@ -1270,7 +1270,12 @@ directories, so this needs no Go program in its PATH. TMPDIR is writable through
 the daemon's environment and is not added as another root. A `config/read`
 that fails leaves the preset in force and is named among the warnings of the
 open or the restart. These choices affect the helper and leave the map intact;
-ordinary sessions keep the map's policy.
+ordinary sessions keep the map's policy. An ordinary session given Codex
+options by the call passes on only the call's or the map's sandbox, and
+config.toml decides where neither names one. When that sandbox is
+`workspace-write`, the session takes the same network rule, and its roots
+override carries config.toml's roots and the explicit ones, without
+duplicates.
 
 A held helper survives a daemon restart or an executor absent past the daemon's
 unload timeout. Its mark retains the launch parameters, without messages or
@@ -1316,13 +1321,14 @@ be moved is named in the action's detail.
 The model, effort and sandbox come from the live link where it knows them,
 otherwise from the project's launch on the map. Approvals and workspace
 configuration follow the rules of `session_open`, and the panel's tools are
-installed at the new start. The link does not retain extra writable roots:
-the replacement uses roots supplied with the launch, or the Codex home's
-defaults, and the action reports this limitation. Its first message is the
-restart's `intent`, otherwise the saved session message after a restart, then
-the map's `restartIntent`; `clean` suppresses them all. Without a message it
-waits. A restart takes no `resume`, and a thread running in tmux must be
-restarted from the Codex terminal.
+installed at the new start. The link does not retain the writable roots a
+start was given: a replacement that can write has config.toml's roots, those
+supplied with the launch and the panel's own, and the action reports that
+roots given only to the replaced thread's start are not carried over. Its
+first message is the restart's `intent`, otherwise the saved session message
+after a restart, then the map's `restartIntent`; `clean` suppresses them all.
+Without a message it waits. A restart takes no `resume`, and a thread running
+in tmux must be restarted from the Codex terminal.
 
 The old thread stays open until the replacement starts and accepts its first
 message. Failure leaves it and its children alone and releases an incomplete

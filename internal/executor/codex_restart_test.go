@@ -113,9 +113,10 @@ func TestACodexRestartKeepsItsPlaceAndClosesAfterTheCallingTurn(t *testing.T) {
 			if got := keptParent(5002, name); got != "" {
 				t.Fatalf("a detached Claude session was moved under %s", got)
 			}
-			if !strings.Contains(detail, "after this turn") || !strings.Contains(detail, "writable roots") ||
+			// A read-only replacement writes nowhere, so it has no roots to lose.
+			if !strings.Contains(detail, "after this turn") || strings.Contains(detail, rootsNotCarried) ||
 				!srv.Subscribed(old.ID) || !heldMark(t, old.ID) || len(srv.Calls("turn/interrupt")) != 0 {
-				t.Fatalf("the calling turn was cut off or the limitation hidden: %s", detail)
+				t.Fatalf("the calling turn was cut off or a read-only replacement spoke of roots: %s", detail)
 			}
 			if _, err := e.Execute(t.Context(), r); err == nil || len(srv.Calls("thread/start")) != 3 {
 				t.Fatalf("a repeated restart started another replacement: %v", err)

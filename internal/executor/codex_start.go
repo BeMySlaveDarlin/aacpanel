@@ -89,7 +89,7 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 		begin.WritableRoots = p.Codex.WritableRoots
 		begin.Workspace = c.Sandbox == "workspace-write"
 	}
-	warns = append(warns, prepareCodexHelper(ctx, link, &begin)...)
+	warns = append(warns, prepareCodexLaunch(ctx, link, &begin)...)
 	if path, err := toolServer(); err == nil {
 		begin.Tools, begin.Allowed = path, toolset.CodexAllowedFor(p.Path)
 	} else {

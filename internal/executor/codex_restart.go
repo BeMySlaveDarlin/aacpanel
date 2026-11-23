@@ -54,7 +54,7 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	}
 	begin.Owner = stream.OwnerOf(th.ID)
 	begin.Approval = c.Approval
-	// A helper's workspace follows the sandbox prepareCodexHelper settles.
+	// A helper's workspace follows the sandbox prepareCodexLaunch settles.
 	begin.Workspace = begin.Sandbox == "workspace-write" && req.Project.Codex != nil
 	if req.Project.Codex != nil {
 		if err := req.Project.Codex.Validate(); err != nil {
@@ -62,8 +62,14 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 		}
 		begin.WritableRoots = req.Project.Codex.WritableRoots
 	}
-	warns = append(warns, prepareCodexHelper(ctx, th.Link, &begin)...)
-	warns = append(warns, "the replacement uses the launch's writable roots or the Codex home's defaults")
+	warns = append(warns, prepareCodexLaunch(ctx, th.Link, &begin)...)
+	// The link keeps no writable roots of a thread's start, so roots given
+	// only to the replaced thread's start do not come along; a sandbox that
+	// writes nothing or everything has no roots to lose.
+	if begin.Sandbox != "read-only" && begin.Sandbox != "danger-full-access" {
+		warns = append(warns, "writable roots given only to the replaced thread's start are not carried over: the "+
+			"replacement has config.toml's, the launch's and the panel's own")
+	}
 	begin.Message = c.Intent
 	if req.Text != "" {
 		begin.Message = req.Text

@@ -305,8 +305,9 @@ func TestARecoveredOrRestartedHelperKeepsTheSandboxItSettled(t *testing.T) {
 				t.Fatalf("the helper's mark lost its sandbox: %s, the start %v", raw, first)
 			}
 			srv.Sandbox("read-only", tc.table)
-			if _, _, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name,
-				Conversation: old.ID, Project: p}); err != nil {
+			detail, _, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name,
+				Conversation: old.ID, Project: p})
+			if err != nil {
 				t.Fatal(err)
 			}
 			starts := srv.Calls("thread/start")
@@ -316,6 +317,141 @@ func TestARecoveredOrRestartedHelperKeepsTheSandboxItSettled(t *testing.T) {
 			again := paramsOf(t, starts[1])
 			if again["sandbox"] != tc.sandbox || !reflect.DeepEqual(again["config"], first["config"]) {
 				t.Fatalf("the replacement started with %v, the helper with %v", again, first)
+			}
+			// Full access has no roots to lose, and the restart does not say it has.
+			if strings.Contains(detail, rootsNotCarried) != (tc.roots != nil) {
+				t.Fatalf("the restart said %q", detail)
+			}
+		})
+	}
+}
+
+// rootsNotCarried is how a restart says the roots of the replaced thread's
+// start stay behind.
+const rootsNotCarried = "writable roots given only to the replaced thread's start are not carried over"
+
+// An ordinary session given Codex options keeps the sandbox of the call or
+// the map, config.toml deciding where neither names one, and the person's
+// network and roots where it writes in its workspace: config.toml's table
+// decides the network, and the roots override carries config.toml's roots and
+// the explicit ones. A helper's git and Go roots and its approvals are not
+// an ordinary session's.
+func TestAnOrdinaryCodexSessionKeepsThePersonsNetworkAndRoots(t *testing.T) {
+	const shared, explicit = "/srv/shared", "/srv/explicit"
+	cases := []struct {
+		name    string
+		launch  string
+		call    action.CodexLaunch
+		mode    string
+		table   map[string]any
+		refuse  bool
+		sandbox any
+		network any
+		roots   any
+		warn    string
+	}{
+		{name: "nothing in config.toml takes the preset network", launch: `{"agent":"codex"}`,
+			call:    action.CodexLaunch{Sandbox: "workspace-write", WritableRoots: []string{explicit}},
+			sandbox: "workspace-write", network: true, roots: []any{explicit}},
+		{name: "config.toml's workspace without network", launch: `{"agent":"codex"}`, mode: "workspace-write",
+			table:   map[string]any{"network_access": false, "writable_roots": []any{shared}},
+			call:    action.CodexLaunch{Sandbox: "workspace-write", WritableRoots: []string{explicit}},
+			sandbox: "workspace-write", roots: []any{shared, explicit}},
+		{name: "a table of roots that says nothing of the network", launch: `{"agent":"codex"}`,
+			table:   map[string]any{"writable_roots": []any{shared, explicit}},
+			call:    action.CodexLaunch{Sandbox: "workspace-write", WritableRoots: []string{explicit}},
+			sandbox: "workspace-write", roots: []any{shared, explicit}},
+		{name: "the map's workspace with config.toml's roots", launch: `{"agent":"codex","codexSandbox":"workspace-write"}`,
+			table:   map[string]any{"network_access": true, "writable_roots": []any{shared}},
+			call:    action.CodexLaunch{WritableRoots: []string{explicit}},
+			sandbox: "workspace-write", roots: []any{shared, explicit}},
+		{name: "config.toml decides a sandbox nothing else names", launch: `{"agent":"codex"}`,
+			mode: "danger-full-access", call: action.CodexLaunch{Model: "gpt-6.1-sol"}},
+		{name: "the call's read-only", launch: `{"agent":"codex","codexSandbox":"workspace-write"}`,
+			call: action.CodexLaunch{Sandbox: "read-only"}, sandbox: "read-only"},
+		{name: "an unread config.toml takes the preset network", launch: `{"agent":"codex"}`, refuse: true,
+			call:    action.CodexLaunch{Sandbox: "workspace-write", WritableRoots: []string{explicit}},
+			sandbox: "workspace-write", network: true, roots: []any{explicit},
+			warn: "config.toml of the Codex home was not read"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, e, p := onCodexContour(t)
+			newGitFixture(t, p.Path)
+			cacheFixture(t)
+			srv.Sandbox(tc.mode, tc.table)
+			if tc.refuse {
+				srv.Refuse("config/read")
+			}
+			p.Codex = &tc.call
+			detail, _, err := open(t, e, p, tc.launch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			starts := srv.Calls("thread/start")
+			if len(starts) != 1 {
+				t.Fatalf("the session did not start once: %s", starts)
+			}
+			start := paramsOf(t, starts[0])
+			config := start["config"].(map[string]any)
+			if start["sandbox"] != tc.sandbox || config["sandbox_workspace_write.network_access"] != tc.network ||
+				!reflect.DeepEqual(config["sandbox_workspace_write.writable_roots"], tc.roots) {
+				t.Fatalf("the session started with sandbox %v, network %v, roots %v; want %v, %v, %v",
+					start["sandbox"], config["sandbox_workspace_write.network_access"],
+					config["sandbox_workspace_write.writable_roots"], tc.sandbox, tc.network, tc.roots)
+			}
+			if start["approvalsReviewer"] != nil {
+				t.Fatalf("an ordinary session got a helper's reviewer: %v", start)
+			}
+			warned := strings.Contains(detail, "WARNING")
+			if tc.warn != "" && !strings.Contains(detail, "WARNING: "+tc.warn) || tc.warn == "" && warned {
+				t.Fatalf("the open said %q, want the warning %q", detail, tc.warn)
+			}
+		})
+	}
+}
+
+// A restart of an ordinary session with explicit Codex options reads
+// config.toml's network and roots again, and says which roots stay behind
+// only where the replacement writes at all.
+func TestAnOrdinaryCodexRestartKeepsThePersonsNetworkAndRoots(t *testing.T) {
+	for _, sandbox := range []string{"workspace-write", "read-only"} {
+		t.Run(sandbox, func(t *testing.T) {
+			srv, e, p := onCodexContour(t)
+			newTmuxStub(t, nil, "")
+			srv.Sandbox("", map[string]any{"network_access": false, "writable_roots": []any{"/srv/shared"}})
+			p.Codex = &action.CodexLaunch{Sandbox: sandbox}
+			if sandbox == "workspace-write" {
+				p.Codex.WritableRoots = []string{"/srv/explicit"}
+			}
+			_, name, err := open(t, e, p, `{"agent":"codex"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := e.codex.Find(name)[0]
+			detail, _, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name,
+				Conversation: old.ID, Project: p})
+			if err != nil {
+				t.Fatal(err)
+			}
+			starts := srv.Calls("thread/start")
+			if len(starts) != 2 {
+				t.Fatalf("the session was not restarted: %s", starts)
+			}
+			want := any(nil)
+			if sandbox == "workspace-write" {
+				want = []any{"/srv/shared", "/srv/explicit"}
+			}
+			for _, raw := range starts {
+				start := paramsOf(t, raw)
+				config := start["config"].(map[string]any)
+				if start["sandbox"] != sandbox || config["sandbox_workspace_write.network_access"] != nil ||
+					!reflect.DeepEqual(config["sandbox_workspace_write.writable_roots"], want) {
+					t.Fatalf("the session started as %v, want sandbox %s and roots %v", start, sandbox, want)
+				}
+			}
+			if strings.Contains(detail, rootsNotCarried) != (sandbox == "workspace-write") {
+				t.Fatalf("the restart said %q", detail)
 			}
 		})
 	}
