@@ -22,7 +22,9 @@ func TestPanelClaimMailRequiresItsIdentityAndBoundRecipient(t *testing.T) {
 			t.Errorf("accepted invalid panel claim mail: %+v", bad)
 		}
 	}
-	if Valid(ActWithdraw) {
-		t.Fatal("a service withdrawal reached the host action list")
+	for _, kind := range []Kind{ActRun, ActStop, ActWithdraw, ActCancel} {
+		if Valid(kind) {
+			t.Fatalf("the service action %s reached the host action list", kind)
+		}
 	}
 }

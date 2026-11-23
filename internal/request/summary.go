@@ -69,6 +69,8 @@ func Summary(id, title string, steps []Step, outputs []*Output, step, from int, 
 		b.WriteString("It failed; reopen, withdraw or start another chain.")
 	case "declined":
 		b.WriteString("The person can't continue. The chain is declined.")
+	case "cancelled":
+		b.WriteString("The person cancelled the chain: stop waiting on it and report none of its steps.")
 	default:
 		fmt.Fprintf(&b, "Step %d is yours: %s Report it with request {id: %q, step: %d, outcome}.", step, Sentence(steps[step-1].Text), id, step)
 	}

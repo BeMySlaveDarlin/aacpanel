@@ -194,7 +194,7 @@ func (s *Store) LockChain(ctx context.Context, id string) (*ActAnswer, error) {
 
 func (a *ActAnswer) SaveChain(ctx context.Context) error {
 	r := a.Record
-	_, err := a.tx.Exec(ctx, `UPDATE acts SET step=$2,outputs=$3,state=$4,closed_at=$5,notice=$6,notified=$7,answered_by=$8 WHERE id=$1`, r.ID, r.Step, r.Outputs, r.State, r.Closed, r.Notice, r.Notified, r.AnsweredBy)
+	_, err := a.tx.Exec(ctx, `UPDATE acts SET step=$2,outputs=$3,state=$4,closed_at=$5,notice=$6,notified=$7,answered_by=$8,answer=$9 WHERE id=$1`, r.ID, r.Step, r.Outputs, r.State, r.Closed, r.Notice, r.Notified, r.AnsweredBy, r.Answer)
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,15 @@ func (a *ActAnswer) QueueNotice() {
 	r := &a.Record
 	var id [16]byte
 	rand.Read(id[:])
-	r.Notice = &act.Notice{ID: act.MessageID(hex.EncodeToString(id[:])), Text: request.Summary(r.ID, r.Title, r.Body.Chain, r.Outputs, *r.Step, r.Notified, r.State)}
+	state := r.State
+	if r.Cancelled() {
+		state = "cancelled"
+	}
+	text := request.Summary(r.ID, r.Title, r.Body.Chain, r.Outputs, *r.Step, r.Notified, state)
+	if r.Cancelled() && r.Answer.Note != "" {
+		text += "\n\nTheir reason:\n" + r.Answer.Note
+	}
+	r.Notice = &act.Notice{ID: act.MessageID(hex.EncodeToString(id[:])), Text: text}
 	r.Notified = *r.Step - 1
 	if !r.Open() {
 		r.Notified = *r.Step
@@ -231,4 +239,17 @@ func (a *ActAnswer) QueueNotice() {
 
 func (a *ActAnswer) WithdrawChain(now time.Time, session string) {
 	a.Record.State, a.Record.Closed, a.Record.AnsweredBy, a.Record.Notice = "withdrawn", &now, session, nil
+}
+
+// CancelChain closes the chain for the person, withdrawn as the session's own
+// withdrawal is. The session did not take it back and may be waiting on it,
+// so the summary that tells it is queued with the close.
+func (a *ActAnswer) CancelChain(now time.Time, note string) {
+	r := &a.Record
+	// The failed step was in the summary of its failure and has not run since.
+	if r.State == "failed" {
+		r.Notified = *r.Step
+	}
+	r.State, r.Closed, r.AnsweredBy, r.Answer = "withdrawn", &now, "person", &act.Answer{Outcome: act.Cancel, Note: note}
+	a.QueueNotice()
 }

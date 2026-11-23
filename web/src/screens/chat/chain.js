@@ -20,12 +20,17 @@ export function agentsMove(act) {
     return (act.steps || act.body.steps)[(act.step || 1) - 1]?.who === "agent";
 }
 
+// A chain the person cancelled is withdrawn, as one its session takes back
+// is; its answer says the person did it.
+export const cancelled = (act) => act?.state === "withdrawn" && act.answer?.outcome === "cancel";
+
 // chainSummary says how a chain ended. An open chain says nothing of the kind:
 // it stands in its own row as its card, with the step at hand in it.
 export function chainSummary(act) {
     const steps = act.steps || act.body.steps;
     const done = (act.outputs || []).filter((out) => out?.state === "done").length;
-    return `${done} of ${steps.length} done${act.state === "withdrawn" ? " · withdrawn" : act.state === "declined" ? " · Can't" : ""}`;
+    const end = cancelled(act) ? " · cancelled by you" : act.state === "withdrawn" ? " · withdrawn" : act.state === "declined" ? " · Can't" : "";
+    return `${done} of ${steps.length} done${end}`;
 }
 
 const seconds = (out) => {
@@ -35,11 +40,12 @@ const seconds = (out) => {
 const resultOf = (out) => out?.exit != null ? `exit ${out.exit} · ${duration(seconds(out))}`
     : out?.state === "cant" ? "Can't" : out?.state === "stopped" ? "stopped" : out?.state === "done" ? "done" : "";
 
-export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onTerm, unavailable = "", error = "" }) {
+export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onChainCancel, onTerm, unavailable = "", error = "" }) {
     useTick();
     const act = record || item;
     const steps = act.steps || act.body.steps;
     const open = record && actOpen(record);
+    const reason = record && cancelled(record) ? record.answer.note : "";
     return html`<article class=${`sent mrequest mchain${open && act.blocking ? " blocking" : ""}`}>
         <div class="senthead"><span class="sentico">${Icon.list()}</span>
             <span class="sentlabel">chain · ${record && !open ? chainSummary(act) : `step ${act.step || 1} of ${steps.length}`}</span>
@@ -48,6 +54,8 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onT
         <div class="chainsteps">${steps.map((step, i) => html`<${ChainStep} key=${`${act.id}:${i}`}
             step=${step} number=${i + 1} current=${open && i + 1 === act.step} act=${act}
             output=${act.outputs?.[i]} onAnswer=${onAnswer} onRun=${onChainRun} onStop=${onChainStop} onTerm=${onTerm} />`)}</div>
+        ${reason && html`<p class="requeststate">Your reason: ${reason}</p>`}
+        ${open && onChainCancel && html`<${ChainCancel} key=${act.id} act=${act.id} onCancel=${onChainCancel} />`}
         ${error && html`<p class="requeststate crit" role="status">${error}</p>`}
         ${!record && !error && html`<p class="requeststate" role="status">Reading request state…</p>`}
         ${open && !onAnswer && html`<p class="requeststate" role="status">${unavailable}</p>`}
@@ -120,5 +128,29 @@ function StepAnswer({ act, step, command, onAnswer, run }) {
             <button class="btn" type="button" disabled=${busy} onClick=${() => cant ? answer("cant") : setCant(true)}>Can't</button>
             ${command ? run && html`<${ChainButton} word="Run" primary disabled=${busy} action=${run} />`
                 : html`<button class="btn primary" type="button" disabled=${busy} onClick=${() => answer("done")}>${busy ? "Sending…" : "Done"}</button>`}
+        </div>`;
+}
+
+// Cancel ends the chain on whatever step it stands, a running command
+// included. Its first press opens the reason, optional, and turns into the
+// button that confirms, as Can't does: a chain stays open for hours, and a
+// press on the way past must not end it.
+function ChainCancel({ act, onCancel }) {
+    const [asking, setAsking] = useState(false);
+    const [note, setNote] = useState("");
+    const [busy, setBusy] = useState(false);
+    const sending = useRef(false);
+    const cancel = async () => {
+        if (sending.current) return;
+        sending.current = true;
+        setBusy(true);
+        try { await onCancel(act, note); } finally { sending.current = false; setBusy(false); }
+    };
+    if (!asking) return html`<div class="actfoot"><button class="actnote" type="button" onClick=${() => setAsking(true)}>Cancel chain</button></div>`;
+    return html`
+        <label class="requestnote">Reason (optional)<textarea rows="2" maxLength="2000"
+            value=${note} disabled=${busy} onInput=${(event) => setNote(event.currentTarget.value)}></textarea></label>
+        <div class="actfoot requestanswer">
+            <button class="btn danger" type="button" disabled=${busy} onClick=${cancel}>${busy ? "Cancelling…" : "Cancel chain"}</button>
         </div>`;
 }

@@ -139,6 +139,13 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		s.runChainAction(w, r, req.Kind, req.Target, body.Params, term)
 		return
 	}
+	// Cancel reads and closes a chain's terminals and starts none, so it is
+	// served wherever Can't is: the person ends a chain from any listener
+	// that answers it, a running command included.
+	if req.Kind == action.ActCancel {
+		s.chainHumanAction(w, r, req.Kind, req.Target, body.Params, func(out http.ResponseWriter) { s.cancelChain(out, r, req.Target, body.Params) })
+		return
+	}
 	if req.Kind == action.SessionFreeze || req.Kind == action.SessionThaw {
 		if internal, _ := r.Context().Value(sleepActionKey{}).(bool); !internal {
 			http.Error(w, "only the panel's sleeper freezes or thaws sessions", http.StatusForbidden)
@@ -1568,6 +1575,10 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if slices.Contains(kinds, action.TermStart) && slices.Contains(kinds, action.TermClose) && slices.Contains(kinds, action.TermPeek) {
 		kinds = append(kinds, action.ActRun, action.ActStop)
+	}
+	// Cancelling captures and closes a chain's terminals and tells the session.
+	if slices.Contains(kinds, action.TermPeek) && slices.Contains(kinds, action.TermClose) && slices.Contains(kinds, action.SessionSend) {
+		kinds = append(kinds, action.ActCancel)
 	}
 	writeJSON(w, map[string]any{"available": true, "kinds": kinds})
 }

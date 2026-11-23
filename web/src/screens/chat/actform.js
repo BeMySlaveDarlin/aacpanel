@@ -1,7 +1,7 @@
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { actOpen, agentsMove, ChainCard, chainSummary, isChain } from "./chain.js";
+import { actOpen, agentsMove, cancelled, ChainCard, chainSummary, isChain } from "./chain.js";
 
 const kindOf = { do: "request" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -137,6 +137,10 @@ function chainReply(text, act) {
     const numbers = [...new Set([...text.matchAll(/^(\d+) (you|agent) · /gm)].map(match => Number(match[1])))]
         .filter(number => number > 0 && number <= steps.length).sort((a, b) => a - b);
     const prefix = "→ agent · ";
+    // The summary of a cancel ends on the sentence the service writes for it.
+    // The steps it lists, those since the session last heard, say nothing of
+    // the cancel: they may be done, stopped or none at all.
+    if (cancelled(act) && /^The person cancelled the chain\b/m.test(text)) return prefix + "cancelled by you";
     if (!numbers.length) return prefix + "chain update";
     const stopped = numbers.find(number => ["failed", "cant"].includes(act.outputs?.[number - 1]?.state));
     if (stopped) {

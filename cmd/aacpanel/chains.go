@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"aacpanel/internal/act"
 	"aacpanel/internal/action"
@@ -260,6 +261,62 @@ func (s *Server) answerChain(w http.ResponseWriter, r *http.Request, reply *actR
 	writeJSON(w, map[string]any{"ok": true, "logged": true})
 }
 
+// cancelChain closes a chain for the person from its card, whatever step it
+// stands on and whether or not it failed. A running command is captured
+// before its terminal goes, as Stop does, every terminal of the chain is
+// closed, and the session gets the summary that says the person cancelled
+// it: it may be working on its own step or waiting on the person's.
+func (s *Server) cancelChain(w http.ResponseWriter, r *http.Request, target string, params map[string]any) {
+	if s.exec == nil {
+		http.Error(w, "the executor is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	reply, err := s.prepareActAnswer(r, target, params)
+	if err != nil {
+		actError(w, err)
+		return
+	}
+	defer reply.close()
+	row := &reply.lease.Record
+	if !row.Chain() {
+		http.Error(w, "only a request chain is cancelled from its card", http.StatusConflict)
+		return
+	}
+	note := strings.TrimSpace(reply.note)
+	if utf8.RuneCountInString(note) > personrequest.NoteMax {
+		http.Error(w, "the reason is longer than 2000 characters", http.StatusBadRequest)
+		return
+	}
+	if row.Notice != nil {
+		http.Error(w, "the preceding summary still waits for delivery", http.StatusConflict)
+		return
+	}
+	now := time.Now().UTC()
+	if out := row.Outputs[*row.Step-1]; out.Running() {
+		if out.State == "running" {
+			if err := s.peekChainStep(reply.ctx, row); err != nil {
+				actError(w, err)
+				return
+			}
+		}
+		out.State, out.Ended, out.Exit = "stopped", &now, nil
+	}
+	if err := s.closeChainTerms(reply.ctx, row); err != nil {
+		actError(w, err)
+		return
+	}
+	reply.lease.CancelChain(now, note)
+	id := row.ID
+	if err := reply.lease.SaveChain(reply.ctx); err != nil {
+		actError(w, err)
+		return
+	}
+	if err := s.deliverChainNotice(reply.ctx, id); err != nil {
+		log.Printf("chain notice: %v", err)
+	}
+	writeJSON(w, map[string]any{"ok": true, "logged": true})
+}
+
 func (s *Server) chainAdvanced(lease *store.ActAnswer) {
 	row := &lease.Record
 	if row.WakesAgent() {
@@ -456,7 +513,12 @@ func (s *Server) runChainAction(w http.ResponseWriter, r *http.Request, kind act
 }
 
 func (s *Server) chainHumanAction(w http.ResponseWriter, r *http.Request, kind action.Kind, target string, params map[string]any, run func(http.ResponseWriter)) {
-	clean := map[string]any{"act": params["act"], "step": params["step"]}
+	// A note or a reason stays out of the journal: it is the person's words to
+	// the session, as a message is.
+	clean := map[string]any{"act": params["act"]}
+	if step, ok := params["step"]; ok {
+		clean["step"] = step
+	}
 	if answer, ok := params["answer"].(string); ok {
 		clean["answer"] = answer
 	}

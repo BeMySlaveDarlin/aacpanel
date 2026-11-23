@@ -59,7 +59,7 @@ let items = [
 const session = { session: "work", sessionId: "s1", cwd: "/srv/proj", transport: "stream", status: "idle", model: "claude-opus-5-5",
     waiting: [{ kind: "request", id: req.id, title: req.title, at, pos: 2, blocking: true }] };
 // The executor comes as a new object whenever what it can do changes, as useExec gives it.
-let exec = { available: true, kinds: ["act.run", "act.stop", "session.send", "session.shell"] };
+let exec = { available: true, kinds: ["act.run", "act.stop", "act.cancel", "session.send", "session.shell"] };
 let stream, refuse = false, hold = false, release;
 const sent = [], terms = [];
 const copied = [];
@@ -85,6 +85,10 @@ window.fetch = counted(async (input, options) => {
         if (refuse) return json({ error: "The command could not start" }, 502);
         if (body.kind === "act.run") req.outputs[req.step - 1] = { ...running };
         if (body.kind === "act.stop") req.outputs[req.step - 1] = { ...running, state: "stopped", ended: new Date().toISOString() };
+        if (body.kind === "act.cancel" && body.params.act === req.id) {
+            req.state = "withdrawn"; req.closed = new Date().toISOString(); req.answeredBy = "person";
+            req.answer = { outcome: "cancel", note: body.params.note };
+        }
         if (body.kind === "session.send" && body.params.act === req.id) {
             const cant = body.params.answer === "cant";
             req.outputs[req.step - 1] = { state: cant ? "cant" : "done", note: body.params.note };
@@ -144,6 +148,10 @@ window.done = (async () => {
     await until(form); await quiet();
     if (scene) { await document.fonts.ready; return { scene }; }
     const out = { noFlash };
+    // Cancel stands on an open chain whatever its step and state.
+    const cancelOn = [];
+    const offersCancel = (state) => cancelOn.push(`${state}:${Boolean(button("Cancel chain"))}`);
+    offersCancel("pending");
     out.pending = form().querySelector(".sentlabel").textContent === "chain · step 1 of 4"
         && step(1).classList.contains("current") && Boolean(button("Run")) && !button("Done") && !button("note")
         && [1, 2, 3, 4].every(n => step(n).querySelector(".chainbody")) && !polls().length;
@@ -159,14 +167,15 @@ window.done = (async () => {
     step(1).querySelector(".chaintext").click(); step(3).querySelector(".chainwho").click(); await quiet();
     out.stepsStayOpen = [1, 3].every(n => step(n).querySelector(".chainbody")) && !form().querySelector("button.chainicon, [aria-expanded]");
     out.future = Boolean(step(3).querySelector(".mdcode")) && !step(3).querySelector(".requestanswer") && !step(3).querySelector(".chainstatus");
-    exec = { ...exec, kinds: exec.kinds.filter(kind => kind !== "act.run") }; draw(); await quiet();
-    out.capabilities = !button("Run") && Boolean(button("Can't"));
+    exec = { ...exec, kinds: exec.kinds.filter(kind => kind !== "act.run" && kind !== "act.cancel") }; draw(); await quiet();
+    out.capabilities = !button("Run") && !button("Cancel chain") && Boolean(button("Can't"));
     // A session that takes no answer says so in the card, and so does a failed read of the acts.
+    // An executor without session.send is offered no cancel either: the service tells the session by it.
     exec = { ...exec, kinds: [...exec.kinds, "act.run"].filter(kind => kind !== "session.send") }; actsDown = true;
     await publish(); await until(() => form()?.querySelector(".requeststate.crit"));
     out.unavailable = !button("Can't") && !button("Run") && form().textContent.includes("This session cannot receive an answer.");
     out.actError = form().querySelector(".requeststate.crit").textContent === "The acts store is down";
-    exec = { ...exec, kinds: [...exec.kinds, "session.send"] }; actsDown = false;
+    exec = { ...exec, kinds: [...exec.kinds, "session.send", "act.cancel"] }; actsDown = false;
     // Markdown in a step has no second execution path, even for a shell fence.
     req.body.steps[0] = { ...steps[0], text: steps[0].text + "\n```sh\nprintf do-not-run\n```" };
     await publish(); await until(() => !form()?.querySelector(".requeststate.crit"));
@@ -185,6 +194,7 @@ window.done = (async () => {
     out.running = !button("Run") && !button("Done") && !button("Can't") && Boolean(button("Stop"))
         && /running · \d+:\d\d/.test(step(1).textContent) && step(1).querySelector(".chainout").textContent === running.tail
         && step(1).querySelector(".chainout a")?.href === "https://tp.example.test/login";
+    offersCancel("running");
     exec = { ...exec, kinds: exec.kinds.filter(kind => kind !== "act.stop") }; draw(); await quiet();
     out.capabilities = out.capabilities && !button("Stop");
     const oldTime = step(1).querySelector(".chainstatus span").textContent;
@@ -216,6 +226,7 @@ window.done = (async () => {
     await poll(); await until(() => step(2)?.classList.contains("current")); await quiet();
     out.agent = step(2).textContent.includes("the session works on it") && !button("Done") && !button("Run") && !button("Can't")
         && step(1).textContent.includes("exit 0 · 31 s") && Boolean(step(1).querySelector(".chainbody")) && !polls().length;
+    offersCancel("agent");
     // On the agent's step no move is the person's: the square is the agent's and the head waits on no one.
     out.agentsMove = document.querySelector(".movepill")?.dataset.kind === "agent"
         && document.querySelector(".movepill").getAttribute("aria-label").startsWith("agent's step") && !waits();
@@ -232,13 +243,40 @@ window.done = (async () => {
         && Boolean(row().querySelector(".chainreply")?.compareDocumentPosition(form()) & Node.DOCUMENT_POSITION_PRECEDING)
         && !document.querySelector("button.chainreply, .actreply details, .actreply summary")
         && ![...document.querySelectorAll(".msg.me")].some(node => node.textContent.includes(req.id));
+    // Cancel ends the chain on the agent's step as on any other. Its first
+    // press asks for the reason, optional, and sends nothing.
+    const cancelSends = sent.length;
+    const cancelNote = () => form()?.querySelector(".mchain > .requestnote textarea");
+    button("Cancel chain").click(); await until(cancelNote);
+    out.cancelAsks = sent.length === cancelSends && button("Cancel chain")?.classList.contains("danger");
+    await type(cancelNote(), "Wrong cluster.");
+    button("Cancel chain").click(); await until(() => !form());
+    out.cancel = sent.length === cancelSends + 1 && sent.at(-1).kind === "act.cancel" && sent.at(-1).target === "work"
+        && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, note: "Wrong cluster." });
+    // The closed card says the person cancelled it, with the reason; the
+    // reply sent before the cancel keeps its own line.
+    out.cancelled = feedCard()?.querySelector(".sentlabel").textContent === "chain · 1 of 4 done · cancelled by you"
+        && feedCard().textContent.includes("Your reason: Wrong cluster.")
+        && !feedCard().querySelector(".requestnote, .requestanswer, .chainterm")
+        && ![...feedCard().querySelectorAll("button")].some(b => b.textContent.trim() === "Cancel chain")
+        && !feedCard().textContent.includes("the session works on it")
+        && row().querySelector(".chainreply")?.textContent === "→ agent · step 1 done · step 2 is the agent's";
+    delete req.answer; delete req.answeredBy;
     showScene("failed"); await publish();
     out.failed = Boolean(form()) && step(3).classList.contains("current") && step(3).textContent.includes("exit 3 · 31 s")
         && step(3).querySelector(".chainout").textContent.includes("Forbidden") && !button("Run") && !button("Done") && !button("Can't")
         && !docked();
+    offersCancel("failed");
     showScene("manual"); await publish();
     out.manual = Boolean(button("Done")) && Boolean(button("Can't")) && !button("Run") && !step(4).querySelector(".mdcode")
         && Boolean(step(2).querySelector(".chainbody"));
+    offersCancel("manual");
+    out.cancelEverywhere = cancelOn.join(" ") === "pending:true running:true agent:true failed:true manual:true";
+    // A session outside the panel takes no answer, and no cancel either.
+    session.outside = true; draw(); await quiet();
+    out.outsideNoCancel = Boolean(form()) && !button("Cancel chain") && !button("Done");
+    delete session.outside; draw(); await quiet();
+    out.outsideNoCancel = out.outsideNoCancel && Boolean(button("Cancel chain"));
     out.agentNote = step(2).textContent.includes("Access confirmed: role stage-deployer.");
     req.outputs[1].note = ""; await publish();
     out.agentClosed = !step(2).textContent.includes("waits for the session") && !step(2).textContent.includes("the session works on it");
@@ -251,7 +289,8 @@ window.done = (async () => {
     out.closedCard = Boolean(feedCard()) && feedCard().querySelectorAll(".chainbody").length === steps.length
         && !feedCard().querySelector(".requestanswer, .requestnote, .chainterm, button.chainicon, [aria-expanded]")
         && !document.querySelector(".actreply button, .actreply details, .actreply summary")
-        && !document.querySelector(".chatfeed").textContent.includes("Full log:");
+        && !document.querySelector(".chatfeed").textContent.includes("Full log:")
+        && ![...feedCard().querySelectorAll("button")].some(b => b.textContent.trim() === "Cancel chain");
     const closedStep = n => feedCard().querySelector(`[data-step="${n}"]`);
     closedStep(1).querySelector(".chaintext p").click(); closedStep(1).querySelector(".chainwho").click(); await quiet();
     out.closedStaysOpen = Boolean(closedStep(1).querySelector(".chainbody"));
@@ -314,6 +353,9 @@ window.done = (async () => {
     const cant = { ...req, id: "e".repeat(32), state: "declined", step: 3,
         outputs: [{ state: "done" }, { state: "done" }, { state: "cant" }, null] };
     const finished = { ...req, id: "f".repeat(32), state: "answered", outputs: steps.map(() => ({ state: "done" })) };
+    const dropped = { ...req, id: "8".repeat(32), state: "withdrawn", step: 2, answer: { outcome: "cancel", note: "" },
+        outputs: [{ state: "done" }, null, null, null] };
+    const cancelLine = "The person cancelled the chain: stop waiting on it and report none of its steps.";
     // A finished chain whose own row is out of the feed stands open under the
     // last of its replies, once however many replies it took.
     acts = [finished]; items = [{ role: "me", pos: 5, at, text: summary(finished, "3 you · Deploy · done") },
@@ -366,6 +408,9 @@ window.done = (async () => {
         { key: "summaryDone", act: finished, rows: "4 you · Sign-in · failed", want: "→ agent · step 4 done · chain done" },
         { key: "summaryScattered", act: finished, rows: "1 you · Login · done\n3 you · Deploy · done", want: "→ agent · steps 1, 3 done" },
         { key: "summaryFallback", act: finished, rows: "A changed summary format", want: "→ agent · chain update" },
+        // The summary of a cancel says so whatever steps it carries; one sent before it keeps its own line.
+        { key: "summaryCancelled", act: dropped, rows: `1 you · Login · done\n${cancelLine}`, want: "→ agent · cancelled by you" },
+        { key: "summaryBeforeCancel", act: dropped, rows: "1 you · Login · done", want: "→ agent · step 1 done · step 2 is the agent's" },
     ];
     const opened = [];
     const reply = sample => withActReplies([{ role: "me", at, text: summary(sample.act, sample.rows) }], { [sample.act.id]: sample.act })[0];

@@ -158,6 +158,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         const result = await run(kind, name, { act, step });
         if (result.ok) refreshActs((n) => n + 1);
     };
+    const cancelChain = async (act, note) => {
+        const result = await run("act.cancel", name, { act, note });
+        if (result.ok) refreshActs((n) => n + 1);
+    };
     const withdrawClaim = useSteady(async (act) => {
         const result = await run("act.withdraw", act.session, { act: act.id });
         if (result.ok) setActs((was) => ({ ...was, [act.id]: { ...was[act.id], state: "withdrawn", withdrawn: new Date().toISOString() } }));
@@ -458,12 +462,14 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // again only when what they are handed changes, so every hand keeps its
     // identity, and only the rows of requests are handed it.
     const steadyRunChain = useSteady(runChain);
+    const steadyCancelChain = useSteady(cancelChain);
     const steadyChainTerm = useSteady((term) => onTerm({ id: term, place: live?.cwd || "" }));
     const answerable = Boolean(live && !live.outside);
     const chainHands = useMemo(() => (answerable ? {
         onAnswer: onRequestAnswer,
         onChainRun: writable && knows(exec, "act.run") ? (act, step) => steadyRunChain("act.run", act, step) : null,
         onChainStop: writable && knows(exec, "act.stop") ? (act, step) => steadyRunChain("act.stop", act, step) : null,
+        onChainCancel: writable && knows(exec, "act.cancel") ? steadyCancelChain : null,
         onTerm: onTerm ? steadyChainTerm : null,
         error: actError, unavailable: requestUnavailable,
     } : { unavailable: requestUnavailable }), [answerable, onRequestAnswer, writable, exec, Boolean(onTerm), actError]);

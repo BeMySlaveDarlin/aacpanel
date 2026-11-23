@@ -661,20 +661,30 @@ The service polls running command steps every two seconds through its private
 `term.peek` action. Exit zero advances the chain. A nonzero exit pauses it in
 `failed`, with its current step unchanged and no closing time. The agent can
 reopen that failed human step, withdraw the chain, or replace it. Can't declines
-the chain with the person's reason. A step's terminal lives only while its step
+the chain with the person's reason. The person cancels an open or failed chain
+from its card, whatever step it stands on: `act.cancel` captures and stops a
+running command as Stop does, closes every terminal of the chain, and withdraws
+it with the person as its closer and `cancel` as its outcome, beside their
+optional reason. The session's own withdrawal carries no outcome, so the two
+are told apart. A cancel starts no terminal, so it is served wherever Can't is,
+a running command included; like Done and Can't, it waits while a preceding
+summary is undelivered. A step's terminal lives only while its step
 runs: once the poll has read the exit status, saved the capture and advanced
 the step, it closes that terminal, though the chain may wait hours on an agent
 or a failed step; otherwise remain-on-exit leaves a dead pane on the Terminals
-screen. Withdrawal, reopening, Stop and a completed chain close the rest. A
+screen. Withdrawal, a cancel, reopening, Stop and a completed chain close the rest. A
 terminal that did not close is tried again on the next poll and never rolls
 back the step it belonged to. An agent reports only its own current step through
 `request {id, step, outcome, note?}`; it cannot mark a human step done.
 
 A following human step pushes with the title without waking the model. A
-following agent step, a failure and the end of a chain each deliver one summary
-through `session.send`, for Claude and Codex alike. The summary names the act,
-steps since the preceding wake, exit codes, durations and log paths; only the
-failed step and the last step with output include their tails. Each tail is
+following agent step, a failure, the end of a chain and the person's cancel
+each deliver one summary through `session.send`, for Claude and Codex alike.
+The summary names the act, steps since the preceding wake, exit codes,
+durations and log paths; only the failed step and the last step with output
+include their tails. The summary of a cancel tells the session to stop waiting
+on the chain and carries the person's reason; a failed step its failure
+already told is not told again. Each tail is
 bounded to forty lines and four thousand characters. The full terminal capture
 is kept on the host under `~/.local/state/aacpanel/acts/<id>/<step>.log`, mode
 0600. Neither capture nor command text enters the action journal. A pending
@@ -785,7 +795,12 @@ keeps no second copy of the whole feed.
 A chain's card shows every step open, its current step marked. Human command steps
 have Run, terminal access and Stop; human steps without a command have Done
 and Can't, with a note or reason above the answer row. Agent steps show their
-status and reported note. Archived Markdown requests retain the feed's copy
+status and reported note. An open chain, failed or not and on any step, has
+Cancel chain at its foot: the first press opens an optional reason and turns
+into the button that confirms, as Can't does, since a chain stays open for
+hours and a press on the way past must not end it. A cancelled chain's head
+says it was cancelled by the person, its reason under the steps, and the line
+of its summary says the same. Archived Markdown requests retain the feed's copy
 and Run buttons. For those requests and secret refusals, `session.send`
 accepts the act id and answer; the service builds the message from the stored
 title, checks its conversation and locks the row while the executor accepts
@@ -2077,7 +2092,7 @@ The list of actions is closed.
 | terminals | `term.start`, `term.peek`, `term.close`, `term.rename`, `term.console`, `tmux.close` |
 | secrets | `secret.put`, `secret.drop` |
 
-`act.run`, `act.stop`, `act.withdraw` and `session.ready` belong to the service alone: it records readiness in the
+`act.run`, `act.stop`, `act.cancel`, `act.withdraw` and `session.ready` belong to the service alone: it records readiness in the
 database, appears in the journal and grants the executor no new action.
 
 What is deliberately not on the list: removing containers, images and volumes,

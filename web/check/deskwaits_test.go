@@ -211,6 +211,7 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.send":     "",
 		"act.run":          "",
 		"act.stop":         "",
+		"act.cancel":       "",
 		"session.answer":   "",
 		"session.permit":   "",
 		"session.dismiss":  "",

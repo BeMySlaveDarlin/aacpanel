@@ -172,6 +172,9 @@ var instantActions = map[string]bool{
 	"session.stop":   true,
 	"session.file":   true,
 	"session.permit": true,
+	// A chain is cancelled on its card: the press opens the reason and the
+	// button that sends it, so a sheet of the gate would ask the same twice.
+	"act.cancel": true,
 	// Esc is pressed only into a session that is holding a screen of its own,
 	// and the executor reads the screen before the key: on a free composer it
 	// presses nothing. It takes a session out of a dialog it put up, which is
@@ -251,6 +254,7 @@ var instantExecActions = map[string]bool{
 	"session.send":       true,
 	"act.run":            true,
 	"act.stop":           true,
+	"act.cancel":         true,
 	"act.withdraw":       true,
 	"session.shell":      true,
 	"session.answer":     true,
@@ -434,10 +438,10 @@ func TestEveryActionButtonChecksHostKnowsIt(t *testing.T) {
 	call := regexp.MustCompile(`run\("([a-z]+\.[a-zA-Z]+)"`)
 	check := regexp.MustCompile(`knows\(exec, "([a-z]+\.[a-zA-Z]+)"\)`)
 
-	// A project pause, a step of a request chain and a claim withdrawn by the
-	// person are coordinated and journaled by the service.
+	// A project pause, a step of a request chain, and a chain cancelled or a
+	// claim withdrawn by the person are coordinated and journaled by the service.
 	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true,
-		string(action.ActRun): true, string(action.ActStop): true, string(action.ActWithdraw): true}
+		string(action.ActRun): true, string(action.ActStop): true, string(action.ActCancel): true, string(action.ActWithdraw): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}
@@ -658,10 +662,10 @@ func TestJournalClaimOnlyForJournaledActions(t *testing.T) {
 	}
 	body := actionsBlock(t, registry)
 
-	// A project pause, a step of a request chain and a claim withdrawn by the
-	// person are coordinated and journaled by the service.
+	// A project pause, a step of a request chain, and a chain cancelled or a
+	// claim withdrawn by the person are coordinated and journaled by the service.
 	onHost := map[string]bool{string(action.ProjectPause): true, string(action.SessionFinalize): true,
-		string(action.ActRun): true, string(action.ActStop): true, string(action.ActWithdraw): true}
+		string(action.ActRun): true, string(action.ActStop): true, string(action.ActCancel): true, string(action.ActWithdraw): true}
 	for _, k := range action.Kinds {
 		onHost[string(k)] = true
 	}

@@ -44,8 +44,9 @@ export const FeedWrites = createContext(null);
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js). chain is what the feed lends an open
-// chain to be worked in its row: onAnswer, onChainRun, onChainStop, onTerm,
-// and the error and unavailable lines of ChainCard. onAct leads to an act from
+// chain to be worked in its row: onAnswer, onChainRun, onChainStop,
+// onChainCancel, onTerm, and the error and unavailable lines of ChainCard.
+// onAct leads to an act from
 // its marker or the line of its reply; onDock puts an open request into the
 // form at the end of the feed, and is absent where no form stands.
 export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onDock, onClaimWithdraw, chain }) {

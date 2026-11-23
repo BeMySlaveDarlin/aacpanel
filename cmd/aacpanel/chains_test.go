@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -470,6 +471,287 @@ func TestChainKeepsTheTerminalOfAStepThatRunsOrIsAboutToStartPG(t *testing.T) {
 	}
 	if terms := []string{row.Outputs[0].Term, row.Outputs[1].Term, row.Outputs[2].Term}; terms[0] != "" || terms[1] != "t-2b2b2b2b" || terms[2] != "t-3c3c3c3c" {
 		t.Fatalf("terms left: %q", terms)
+	}
+}
+
+func chainCancel(t *testing.T, s *Server, target, id, note string) *httptest.ResponseRecorder {
+	t.Helper()
+	data, _ := json.Marshal(map[string]any{"kind": "act.cancel", "target": target, "params": map[string]any{"act": id, "note": note}})
+	return post(t, s, string(data))
+}
+
+// The person cancels a chain from its card on whatever step it stands: their
+// own, the agent's, a command that runs, a step that failed. The chain closes
+// as cancelled by the person, its terminals go, and the session is told once.
+func TestChainCancelClosesItOnEveryStepAndTellsTheSessionPG(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		steps []personrequest.Step
+		reach func(*testing.T, *Server, *chainExecutor, string)
+		check func(*testing.T, act.Record, *chainExecutor, string)
+	}{
+		{name: "the person's step", steps: []personrequest.Step{{Who: "you", Text: "Approve"}, {Who: "agent", Text: "Check"}},
+			reach: func(*testing.T, *Server, *chainExecutor, string) {},
+			check: func(t *testing.T, row act.Record, exec *chainExecutor, text string) {
+				if row.Outputs[0] != nil || len(exec.captured(action.TermClose)) != 0 || strings.Contains(text, "1 you") {
+					t.Fatalf("a step without output: %+v %q", row.Outputs, text)
+				}
+			}},
+		{name: "the agent's step", steps: []personrequest.Step{{Who: "you", Text: "Approve"}, {Who: "agent", Text: "Check"}},
+			reach: func(t *testing.T, s *Server, _ *chainExecutor, id string) {
+				if w := chainPress(t, s, "session.send", id, 1, "done"); w.Code != http.StatusOK {
+					t.Fatal(w.Body.String())
+				}
+			},
+			check: func(t *testing.T, row act.Record, _ *chainExecutor, text string) {
+				if *row.Step != 2 || row.Outputs[0].State != "done" || strings.Contains(text, "1 you") || strings.Contains(text, "2 agent") {
+					t.Fatalf("the agent's step: %+v %q", row, text)
+				}
+			}},
+		{name: "a running command", steps: []personrequest.Step{{Who: "you", Text: "Login", Command: "login"}, {Who: "you", Text: "Deploy", Command: "deploy"}},
+			reach: func(t *testing.T, s *Server, exec *chainExecutor, id string) {
+				// The first step's terminal does not close at its exit, so the
+				// chain holds two terminals when it is cancelled.
+				if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusOK {
+					t.Fatal(w.Body.String())
+				}
+				exec.setExit(true, 0, "signed in")
+				exec.mu.Lock()
+				exec.refuseClose = true
+				exec.mu.Unlock()
+				if err := s.pollChain(t.Context(), id); err == nil {
+					t.Fatal("a terminal that did not close went unreported")
+				}
+				exec.mu.Lock()
+				exec.refuseClose = false
+				exec.mu.Unlock()
+				if w := chainPress(t, s, "act.run", id, 2, ""); w.Code != http.StatusOK {
+					t.Fatal(w.Body.String())
+				}
+				exec.setExit(false, 0, "waiting for the rollout")
+				exec.mu.Lock()
+				exec.calls = nil
+				exec.mu.Unlock()
+			},
+			check: func(t *testing.T, row act.Record, exec *chainExecutor, text string) {
+				out := row.Outputs[1]
+				if out.State != "stopped" || out.Ended == nil || out.Exit != nil || out.Term != "" || out.Tail != "waiting for the rollout" || out.Log == "" || row.Outputs[0].Term != "" {
+					t.Fatalf("the stopped step: %+v %+v", row.Outputs[0], out)
+				}
+				exec.mu.Lock()
+				var kinds []action.Kind
+				var closed []string
+				for _, req := range exec.calls {
+					if req.Kind == action.TermPeek || req.Kind == action.TermClose {
+						kinds = append(kinds, req.Kind)
+					}
+					if req.Kind == action.TermClose {
+						closed = append(closed, req.Target)
+					}
+				}
+				exec.mu.Unlock()
+				// The capture is read before any pane goes, and both go.
+				if len(kinds) != 3 || kinds[0] != action.TermPeek || len(closed) != 2 || closed[0] == closed[1] {
+					t.Fatalf("terminal calls: %v closed %v", kinds, closed)
+				}
+				// Nothing woke the session since the chain began, so the
+				// summary carries both steps, and the tail of the last one.
+				if !strings.Contains(text, "1 you · Login · exit 0") || !strings.Contains(text, "2 you · Deploy · stopped") ||
+					!strings.Contains(text, "waiting for the rollout") || strings.Contains(text, "signed in") {
+					t.Fatalf("the summary of a stopped step: %q", text)
+				}
+			}},
+		{name: "a failed step", steps: []personrequest.Step{{Who: "you", Text: "Login", Command: "login"}, {Who: "agent", Text: "Verify"}},
+			reach: func(t *testing.T, s *Server, exec *chainExecutor, id string) {
+				if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusOK {
+					t.Fatal(w.Body.String())
+				}
+				exec.setExit(true, 3, "SSO denied")
+				chainPoll(t, s, id)
+				if row := chainRecord(t, s, id); row.State != "failed" {
+					t.Fatalf("not failed: %+v", row)
+				}
+			},
+			check: func(t *testing.T, row act.Record, exec *chainExecutor, text string) {
+				if row.Outputs[0].State != "failed" || *row.Outputs[0].Exit != 3 || len(exec.captured(action.TermClose)) != 1 {
+					t.Fatalf("the failed step: %+v", row.Outputs[0])
+				}
+				// The failure was told already; the cancel does not tell it again.
+				if strings.Contains(text, "1 you") || strings.Contains(text, "SSO denied") {
+					t.Fatalf("the failure told twice: %q", text)
+				}
+			}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, exec := newChainServer(t)
+			id := createChain(t, s, c.steps...)
+			c.reach(t, s, exec, id)
+			before := len(exec.captured(action.SessionSend))
+			if w := chainCancel(t, s, "sentinel", id, "  No longer needed  "); w.Code != http.StatusOK {
+				t.Fatalf("cancel: %d %s", w.Code, w.Body.String())
+			}
+			row := chainRecord(t, s, id)
+			if row.State != "withdrawn" || !row.Cancelled() || row.AnsweredBy != "person" || row.Closed == nil || row.Answer.Note != "No longer needed" || row.Notice != nil {
+				t.Fatalf("cancelled: %+v %+v", row, row.Answer)
+			}
+			sends := exec.captured(action.SessionSend)
+			if len(sends) != before+1 {
+				t.Fatalf("the session was told %d times", len(sends)-before)
+			}
+			text := sends[len(sends)-1].Text
+			if !strings.Contains(text, "The chain “Release” ("+id+")") || !strings.Contains(text, "The person cancelled the chain") ||
+				!strings.HasSuffix(text, "\n\nTheir reason:\nNo longer needed") || strings.Contains(text, "is yours") {
+				t.Fatalf("the summary: %q", text)
+			}
+			c.check(t, row, exec, text)
+			// A closed chain is cancelled once.
+			if w := chainCancel(t, s, "sentinel", id, ""); w.Code != http.StatusConflict {
+				t.Fatalf("second cancel: %d %s", w.Code, w.Body.String())
+			}
+			chainPoll(t, s, id)
+			if len(exec.captured(action.SessionSend)) != before+1 {
+				t.Fatal("a cancelled chain told the session twice")
+			}
+		})
+	}
+}
+
+// A summary the session has not taken yet is not overwritten by the cancel's:
+// the cancel waits for it, and its own summary is retried as any other.
+func TestChainCancelKeepsTheReasonOutOfTheJournalAndRetriesTheSummaryPG(t *testing.T) {
+	s, exec := newChainServer(t)
+	id := createChain(t, s, personrequest.Step{Who: "you", Text: "Approve"}, personrequest.Step{Who: "agent", Text: "Check"})
+	refuse := func(on bool) {
+		exec.mu.Lock()
+		exec.refuse = on
+		exec.mu.Unlock()
+	}
+	refuse(true)
+	if w := chainPress(t, s, "session.send", id, 1, "done"); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	if w := chainCancel(t, s, "sentinel", id, ""); w.Code != http.StatusConflict || chainRecord(t, s, id).State != "open" {
+		t.Fatalf("a cancel over an undelivered summary: %d %s", w.Code, w.Body.String())
+	}
+	refuse(false)
+	chainPoll(t, s, id)
+	refuse(true)
+	if w := chainCancel(t, s, "sentinel", id, ""); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	row := chainRecord(t, s, id)
+	if !row.Cancelled() || row.Notice == nil || !strings.HasSuffix(row.Notice.Text, "report none of its steps.") {
+		t.Fatalf("an undelivered summary: %+v", row.Notice)
+	}
+	refuse(false)
+	chainPoll(t, s, id)
+	sends := exec.captured(action.SessionSend)
+	if len(sends) != 4 || !strings.Contains(sends[1].Text, "Step 2 is yours") || sends[2].MessageID != sends[3].MessageID ||
+		!strings.Contains(sends[3].Text, "The person cancelled the chain") || chainRecord(t, s, id).Notice != nil {
+		t.Fatalf("retry: %+v", sends)
+	}
+	pool, err := s.db.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var params map[string]any
+	if err := pool.QueryRow(t.Context(), `SELECT params FROM actions WHERE kind='act.cancel' AND result='ok' AND params->>'act'=$1`, id).Scan(&params); err != nil {
+		t.Fatal(err)
+	}
+	if len(params) != 1 {
+		t.Fatalf("journal: %+v", params)
+	}
+	second := createChain(t, s, personrequest.Step{Who: "you", Text: "Approve"})
+	if w := chainCancel(t, s, "sentinel", second, "Secret words"); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	var raw string
+	if err := pool.QueryRow(t.Context(), `SELECT params::text FROM actions WHERE kind='act.cancel' AND params->>'act'=$1`, second).Scan(&raw); err != nil || strings.Contains(raw, "Secret words") {
+		t.Fatalf("the reason reached the journal: %s %v", raw, err)
+	}
+}
+
+// Only an open chain of the session the press names is cancelled.
+func TestChainCancelRefusesWhatItDoesNotOwnPG(t *testing.T) {
+	s, exec := newChainServer(t)
+	id := createChain(t, s, personrequest.Step{Who: "you", Text: "Approve"})
+	if w := chainCancel(t, s, "other", id, ""); w.Code == http.StatusOK {
+		t.Fatal("another session cancelled the chain")
+	}
+	blocking := true
+	foreign, err := s.db.CreateAct(t.Context(), "11111111-1111-4111-8111-111111111111", "elsewhere", act.Input{Kind: "do", Title: "Foreign", Blocking: &blocking, Body: act.Body{Chain: []personrequest.Step{{Who: "you", Text: "Approve"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, _ := s.db.Pool()
+	t.Cleanup(func() { pool.Exec(context.Background(), `DELETE FROM acts WHERE id=$1`, foreign.ID) })
+	if w := chainCancel(t, s, "sentinel", foreign.ID, ""); w.Code == http.StatusOK {
+		t.Fatal("a chain of another conversation was cancelled")
+	}
+	legacy := newPersonRequest(t, s)
+	if w := chainCancel(t, s, "sentinel", legacy, ""); w.Code != http.StatusConflict {
+		t.Fatalf("a plain request was cancelled: %d", w.Code)
+	}
+	if w := chainCancel(t, s, "sentinel", id, strings.Repeat("x", personrequest.NoteMax+1)); w.Code != http.StatusBadRequest {
+		t.Fatalf("a long reason: %d", w.Code)
+	}
+	if row := chainRecord(t, s, id); row.State != "open" || len(exec.captured(action.SessionSend)) != 0 {
+		t.Fatalf("a refused cancel changed the chain: %+v", row)
+	}
+	if w := chainAPI(t, s, map[string]any{"conversation": requestConversation, "id": id, "withdraw": true}); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	if row := chainRecord(t, s, id); row.Cancelled() {
+		t.Fatal("the session's withdrawal reads as the person's cancel")
+	}
+	if w := chainCancel(t, s, "sentinel", id, ""); w.Code != http.StatusConflict {
+		t.Fatalf("a withdrawn chain was cancelled: %d", w.Code)
+	}
+}
+
+type capableExecutor []action.Kind
+
+func (capableExecutor) Execute(context.Context, action.Request) (string, error) {
+	return "accepted", nil
+}
+func (e capableExecutor) Kinds() []action.Kind { return e }
+
+// Cancel is offered only by an executor that can read and close a chain's
+// terminals and deliver the summary.
+func TestExecStatusOffersCancelWithWhatItNeeds(t *testing.T) {
+	for _, c := range []struct {
+		kinds []action.Kind
+		want  bool
+	}{
+		{[]action.Kind{action.TermPeek, action.TermClose, action.SessionSend}, true},
+		{[]action.Kind{action.TermClose, action.SessionSend}, false},
+		{[]action.Kind{action.TermPeek, action.SessionSend}, false},
+		{[]action.Kind{action.TermPeek, action.TermClose}, false},
+	} {
+		path := socketPath(t, "status.sock")
+		server := action.NewServer(path, capableExecutor(c.kinds), time.Second)
+		ln, err := server.Listen()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() { defer close(done); server.Run(ctx, ln) }()
+		srv := &Server{exec: action.NewClient(path, time.Second)}
+		w := httptest.NewRecorder()
+		srv.apiExecStatus(w, httptest.NewRequest(http.MethodGet, "/api/exec", nil))
+		cancel()
+		ln.Close()
+		<-done
+		var status struct {
+			Kinds []action.Kind `json:"kinds"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+			t.Fatal(err)
+		}
+		if got := slices.Contains(status.Kinds, action.ActCancel); got != c.want {
+			t.Errorf("%v: act.cancel offered %v, want %v", c.kinds, got, c.want)
+		}
 	}
 }
 

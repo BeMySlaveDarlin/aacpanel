@@ -530,6 +530,12 @@ export const ACTIONS = {
         instant: true,
         done: (target) => `Step stopped in ${target}`,
     },
+    // The card confirms a cancel itself: its press opens the reason and the
+    // button that sends it.
+    "act.cancel": {
+        instant: true,
+        done: (target) => `Chain cancelled in ${target}`,
+    },
     "act.withdraw": {
         instant: true,
         done: (target) => `Claim withdrawn in ${target}`,
@@ -1180,6 +1186,7 @@ const NAMES = {
     "session.send": "Write to session",
     "act.run": "Run a chain step",
     "act.stop": "Stop a chain step",
+    "act.cancel": "Cancel a chain",
     "act.withdraw": "Withdraw a claim",
     "session.shell": "Run a shell command",
     // No screen sends a letter: a session writes one to another with a tool

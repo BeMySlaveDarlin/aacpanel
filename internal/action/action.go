@@ -175,6 +175,7 @@ const (
 	ActRun      Kind = "act.run"
 	ActStop     Kind = "act.stop"
 	ActWithdraw Kind = "act.withdraw"
+	ActCancel   Kind = "act.cancel"
 )
 
 // Kinds is the full list of what the executor can do.

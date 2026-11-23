@@ -61,6 +61,16 @@ func (r Record) AgentsMove() bool {
 	return step >= 1 && step <= len(r.Body.Chain) && r.Body.Chain[step-1].Who == "agent"
 }
 
+// Cancel is the outcome of a chain the person cancelled from its card.
+const Cancel = "cancel"
+
+// Cancelled reports whether the person cancelled the chain. It is withdrawn,
+// as a chain its session takes back is, and its answer says the person did
+// it: answered_by alone holds a session's name as well.
+func (r Record) Cancelled() bool {
+	return r.State == "withdrawn" && r.Answer != nil && r.Answer.Outcome == Cancel
+}
+
 func (r Record) WakesAgent() bool {
 	return r.State != "open" || r.Body.Chain[*r.Step-1].Who == "agent"
 }
