@@ -1,0 +1,220 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { Brief } from "/src/screens/brief.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { until } from "/check/fixtures/pie.js";
+import { state as briefState } from "/src/data/briefs.js";
+
+// The queue and debounce are exercised without waiting for the typing interval.
+const timer = window.setTimeout;
+window.setTimeout = (fn, ms, ...args) => timer(fn, ms === 900 ? 20 : ms, ...args);
+const doc = { sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/srv/proj" };
+const decisionDoc = {
+    id: "search-plan", title: "Move the catalogue search", sessionId: doc.sessionId, cwd: doc.cwd,
+    task: "Move search from the cluster to Postgres.", why: "The cluster is idle and costs half the bill.",
+    context: [{ title: "The measurements", text: "The trial kept **every result**." }],
+    decisions: [
+        { id: "index", title: "Where the index lives", ask: "Choose the **write path**.", multi: false, options: [
+            { key: "A", label: "Separate table", reason: "Search changes independently.", cost: "Maintain triggers", hours: 6.15, recommended: true },
+            { key: "B", label: "A column on products", reason: "No synchronisation.", cost: "Rebuild pauses writes", hours: 3 },
+        ] },
+        { id: "checks", title: "Which checks run", ask: "Several may run together.", multi: true, options: [
+            { key: "A", label: "Compare results", reason: "Find missing records.", cost: "A second query", hours: 2, recommended: true },
+            { key: "B", label: "Replay traffic", reason: "Check the whole load.", cost: "Keep recordings", hours: 4 },
+            { key: "C", label: "Watch latency", reason: "Keep the search fast.", cost: "One dashboard", hours: 0.1, recommended: true },
+        ] },
+        { title: "When to switch", ask: "Choose the window.", multi: false, options: [
+            { key: "A", label: "Today", reason: "Save the next bill.", cost: "Less observation", hours: 1 },
+            { key: "B", label: "After a week", reason: "Observe the full cycle.", cost: "Keep the cluster a week", hours: 2, recommended: true },
+        ] },
+    ],
+};
+let decisionSaved = { decisions: { index: { picks: ["B"] } } };
+let decisionSent = false;
+let decisionRefused = false;
+let releaseDecisionSave = null;
+let holdDecisionSave = false;
+let releaseDecisionSend = null;
+let holdDecisionSend = false;
+const decisionCalls = [];
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url, init) => {
+    const u = String(url);
+    const method = init?.method || "GET";
+    if (method === "GET") return json({ brief: decisionDoc, draft: { answers: decisionSaved, sentAt: decisionSent ? "2026-01-01T12:00:00Z" : null } });
+    decisionCalls.push({ method, url: u });
+    if (method === "PUT") {
+        if (holdDecisionSave) {
+            holdDecisionSave = false;
+            await new Promise(resolve => { releaseDecisionSave = resolve; });
+        }
+        if (decisionRefused) return new Response("The draft was refused", { status: 503 });
+        decisionSaved = JSON.parse(init.body).answers;
+        return json({ draft: { answers: decisionSaved } });
+    }
+    if (method === "POST") {
+        if (holdDecisionSend) await new Promise(resolve => { releaseDecisionSend = resolve; });
+        decisionSent = true;
+        return json({ ok: true });
+    }
+    return new Response("", { status: 404 });
+};
+const root = document.querySelector("#root");
+const form = () => root.querySelector(".brief-decisions");
+const q = (selector) => form()?.querySelector(selector);
+const all = (selector) => Array.from(form().querySelectorAll(selector));
+const text = (selector) => all(selector).map(n => n.textContent.trim());
+const current = () => q(".bdecision")?.dataset.decision || "summary";
+const copy = () => JSON.parse(JSON.stringify(decisionSaved));
+const input = (el, value) => { el.value = value; el.dispatchEvent(new Event("input", { bubbles: true })); };
+let sent = 0;
+const show = async () => {
+    render(null, root);
+    render(h(ToastHost, null, h(GateHost, null, h(Brief, { id: "search-plan", onSession: () => { sent += 1; } }))), root);
+    await until(() => form(), "the decision form");
+};
+const jump = async (index, id) => {
+    q(`[data-step="${index}"]`).click();
+    await until(() => current() === id, `decision ${id} from the strip`);
+};
+const review = async () => {
+    q(".bdecision-review").click();
+    await until(() => q(".bdecision-summary"), "the summary");
+};
+const key = (el, value) => el.dispatchEvent(new KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true }));
+
+window.done = (async () => {
+    await show();
+    const before = {
+        task: q(".btask").textContent,
+        contextClosed: !q(".bcontext").open,
+        markdown: Boolean(q(".bcontext strong, .bcontext b")),
+        progress: q(".bdecision-progress").textContent.trim(),
+        first: current(),
+        multi: all('input[type="checkbox"]').length,
+        costs: all("summary .bchoice-cost").length,
+        sendHidden: !q(".bdecision-send"),
+        steps: text(".bdecision-segment").length,
+    };
+    if (!before.sendHidden) throw new Error("Send decisions is available before review");
+    await review();
+    const summary = {
+        questions: text(".bsummary-question"),
+        answers: text(".bsummary-answer"),
+        changed: text(".bsummary-changed"),
+        proposals: text(".bsummary-proposal"),
+        sendDisabled: q(".bdecision-send").disabled,
+    };
+    q(".bsummary-row:nth-child(2)").click();
+    await until(() => current() === "checks", "the summary jump");
+    const summaryJump = current();
+    q('input[value="A"]').click();
+    await until(() => q('input[value="A"]')?.checked, "the first multiple pick");
+    q('input[value="C"]').click();
+    await until(() => q('input[value="C"]')?.checked, "the second multiple pick");
+    const multiStayed = current() === "checks";
+    q(".bdecision-next").click();
+    await until(() => current() === "3", "Next after multiple picks");
+    await jump(0, "index");
+    const stripJump = current();
+    const rounding = q(".bchoice-hours").textContent.trim();
+    q(".bchoice-details").open = true;
+    const details = q(".bchoice-details").textContent;
+    q(".bdecision-addnote").open = true;
+    input(q("textarea"), "Keep a fallback");
+    await until(() => q("textarea").value === "Keep a fallback", "the decision note");
+    key(q("textarea"), "ArrowRight");
+    const typingStayed = current() === "index";
+    q('input[value="A"]').click();
+    await until(() => current() === "3", "auto-advance to the next open decision");
+    const autoAdvance = current();
+    key(form(), "ArrowLeft");
+    await until(() => current() === "checks", "the previous key");
+    key(form(), "ArrowRight");
+    await until(() => current() === "3", "the next key");
+    const keyboard = current();
+    await jump(0, "index");
+    q('input[value="B"]').click();
+    await until(() => current() === "3", "auto-advance over answered decisions");
+    await review();
+    before.accept = q(".brecommend").textContent.trim();
+    q(".brecommend").click();
+    await until(() => decisionSaved.decisions?.["3"]?.picks?.includes("B"), "the accepted recommendations saved");
+    const accepted = copy();
+    const summaryNotes = text(".bsummary-row .bdecision-note");
+    const collapsed = all(".bsummary-answer").length;
+    await jump(0, "index");
+    q('input[value="A"]').click();
+    await until(() => q(".bdecision-summary"), "the summary after the final pick");
+    await until(() => decisionSaved.decisions.index.picks[0] === "A", "the changed answer saved");
+    const changed = copy();
+    const unchanged = all(".bsummary-changed").length;
+    await show();
+    const draftReopened = current() === "summary" && text(".bsummary-answer")[0] === "Separate table" &&
+        text(".bsummary-row .bdecision-note")[0] === "Keep a fallback";
+    input(q(".bbrief-note"), "Switch after the measurement");
+    await until(() => q(".bbrief-note").value === "Switch after the measurement", "the general note");
+    holdDecisionSend = true;
+    const go = q(".bdecision-send");
+    go.click();
+    go.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await until(() => releaseDecisionSend, "the send request");
+    const sending = go.disabled;
+    releaseDecisionSend();
+    await until(() => q(".bdecision-send").textContent.trim() === "Sent", "the sent form");
+    const locked = { changes: all(".brecommend").length, fields: all("textarea, input:not(:disabled)").length,
+        disabled: q(".bdecision-send").disabled, sent, answers: text(".bsummary-answer"), notes: text(".bdecision-note") };
+    const final = copy();
+    const calls = decisionCalls.slice();
+    const state = briefState({ decisions: 3, answered: 2 });
+    const sentState = briefState({ decisions: 3, answered: 2, sent: true });
+    await jump(0, "index");
+    const readonly = q('input[value="A"]').checked && all("input:not(:disabled), textarea").length === 0 && q(".bdecision-note").textContent === "Keep a fallback";
+    await show();
+    const reopened = all(".bsummary-answer").length === 3 && !q("textarea");
+
+    decisionSent = false;
+    decisionSaved = {};
+    decisionRefused = true;
+    holdDecisionSend = false;
+    await show();
+    await review();
+    const emptyDisabled = q(".bdecision-send").disabled;
+    q(".brecommend").click();
+    await until(() => !q(".bdecision-send").disabled, "the chosen recommendations");
+    const failedSends = decisionCalls.filter(c => c.method === "POST").length;
+    q(".bdecision-send").click();
+    await until(() => q(".bdecision-error") && !q(".bdecision-send").disabled, "the save failure");
+    const refused = { error: q(".bdecision-error").textContent,
+        sends: decisionCalls.filter(c => c.method === "POST").length - failedSends };
+    decisionRefused = false;
+    q(".bdecision-send").click();
+    await until(() => q(".bdecision-send").textContent.trim() === "Sent", "the retry");
+    refused.retried = decisionCalls.filter(c => c.method === "POST").length - failedSends;
+
+    decisionSent = false;
+    decisionSaved = {};
+    holdDecisionSave = true;
+    await show();
+    await review();
+    q(".brecommend").click();
+    await until(() => releaseDecisionSave, "the delayed save");
+    await jump(0, "index");
+    q('input[value="B"]').click();
+    await until(() => q(".bdecision-summary"), "the final answer during saving");
+    q(".bdecision-send").click();
+    releaseDecisionSave();
+    await until(() => q(".bdecision-send").textContent.trim() === "Sent", "the send after both saves");
+    const raced = decisionSaved.decisions.index.picks;
+    return { before, summary, summaryJump, multiStayed, stripJump, autoAdvance, typingStayed, keyboard, details,
+        summaryNotes, unchanged, emptyDisabled, readonly, draftReopened, accepted, collapsed, rounding, changed, final, calls,
+        sending, locked, state, sentState, reopened, refused, raced };
+})();
+</script>

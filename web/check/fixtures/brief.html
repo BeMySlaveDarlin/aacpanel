@@ -10,9 +10,7 @@ import { h, render } from "preact";
 import { Brief } from "/src/screens/brief.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
-import { counted, quiet } from "/check/fixtures/quiet.js";
 import { until } from "/check/fixtures/pie.js";
-import { state as briefState } from "/src/data/briefs.js";
 
 // The order of saves matters here; the debounce's wall time does not.
 const timer = window.setTimeout;
@@ -88,61 +86,16 @@ const readOnly = {
     questions: [],
 };
 
-const decisionDoc = {
-    id: "search-plan", title: "Move the catalogue search", sessionId: doc.sessionId, cwd: doc.cwd,
-    task: "Move search from the cluster to Postgres.", why: "The cluster is idle and costs half the bill.",
-    context: [{ title: "The measurements", text: "The trial kept **every result**." }],
-    decisions: [
-        { id: "index", title: "Where the index lives", ask: "Choose the **write path**.", multi: false, options: [
-            { key: "A", label: "Separate table", reason: "Search changes independently.", cost: "Maintain triggers", hours: 6.15, recommended: true },
-            { key: "B", label: "A column on products", reason: "No synchronisation.", cost: "Rebuild pauses writes", hours: 3 },
-        ] },
-        { id: "checks", title: "Which checks run", ask: "Several may run together.", multi: true, options: [
-            { key: "A", label: "Compare results", reason: "Find missing records.", cost: "A second query", hours: 2, recommended: true },
-            { key: "B", label: "Replay traffic", reason: "Check the whole load.", cost: "Keep recordings", hours: 4 },
-            { key: "C", label: "Watch latency", reason: "Keep the search fast.", cost: "One dashboard", hours: 0.1, recommended: true },
-        ] },
-        { title: "When to switch", ask: "Choose the window.", multi: false, options: [
-            { key: "A", label: "Today", reason: "Save the next bill.", cost: "Less observation", hours: 1 },
-            { key: "B", label: "After a week", reason: "Observe the full cycle.", cost: "Keep the cluster a week", hours: 2, recommended: true },
-        ] },
-    ],
-};
-let decisionSaved = { decisions: { index: { picks: ["B"] } } };
-let decisionSent = false;
-let decisionRefused = false;
-let releaseDecisionSave = null;
-let holdDecisionSave = false;
-let releaseDecisionSend = null;
-let holdDecisionSend = false;
-const decisionCalls = [];
 let saved = null;
 let sentMark = false;
 let removed = false;
 let readRemoved = false;
 const asked = [];
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = counted(async (url, init) => {
+window.fetch = async (url, init) => {
     const u = String(url);
     const method = (init && init.method) || "GET";
     asked.push(`${method} ${u}`);
-    if (u === "/api/briefs/search-plan" && method === "GET") return json({ brief: decisionDoc, draft: { answers: decisionSaved, sentAt: decisionSent ? "2026-01-01T12:00:00Z" : null } });
-    if (u === "/api/briefs/search-plan" && method === "PUT") {
-        decisionCalls.push({ method, url: u, body: JSON.parse(init.body) });
-        if (holdDecisionSave) {
-            holdDecisionSave = false;
-            await new Promise(resolve => { releaseDecisionSave = resolve; });
-        }
-        if (decisionRefused) return new Response("The draft was refused", { status: 503 });
-        decisionSaved = JSON.parse(init.body).answers;
-        return json({ draft: { answers: decisionSaved } });
-    }
-    if (u === "/api/briefs/search-plan/send" && method === "POST") {
-        decisionCalls.push({ method, url: u, body: init.body || "" });
-        if (holdDecisionSend) await new Promise(resolve => { releaseDecisionSend = resolve; });
-        decisionSent = true;
-        return json({ ok: true });
-    }
     if (u === "/api/briefs/seven-after-twelve" && method === "GET") {
         return new Response(JSON.stringify({
             brief: doc,
@@ -181,7 +134,7 @@ window.fetch = counted(async (url, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-});
+};
 
 const snapshot = { sessions: [{ session: "lab", sessionId: doc.sessionId, cwd: "/srv/proj" }] };
 const exec = { available: true, kinds: ["session.send"] };
@@ -196,7 +149,7 @@ render(
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 
 (async () => {
-    await quiet();
+    await until(() => document.querySelector("#root .bmast h1"), "the brief document");
     const before = {
         title: (document.querySelector(".bmast h1") || {}).textContent || "",
         // A table written in the prose of a brief is drawn as a table.
@@ -224,7 +177,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     };
 
     document.querySelectorAll(".bq")[0].querySelectorAll(".bopt")[0].click();
-    await quiet();
+    await until(() => saved?.r1?.picks?.includes("A"), "the saved pick");
 
     const after = {
         pressed: text('.bopt[aria-pressed="true"] .bopt-k'),
@@ -234,7 +187,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     };
 
     document.querySelector(".bbtn.go").click();
-    await quiet();
+    await until(() => sentMark && document.querySelector("#root .bbtn.go")?.textContent.trim() === "Sent", "the sent document");
 
     // Once the answers have gone, the document is read and not answered: the
     // session already holds the text, and a second send would arrive as a
@@ -247,7 +200,8 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         note.value = "typed after the send";
         note.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    await quiet();
+    // A forbidden edit must stay quiet beyond the shortened save debounce.
+    await new Promise(resolve => timer(resolve, 60));
     const go = document.querySelector(".bbtn.go");
     const locked = {
         button: go ? go.textContent.trim() : "",
@@ -263,7 +217,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     const out = document.querySelector(".brief .pback");
     const exit = { there: Boolean(out) };
     if (out) out.click();
-    await quiet();
+    await until(() => left.length > 0, "the document put down");
     exit.left = left.length;
 
     // Removing asks once before it does anything, and the second press is what
@@ -272,12 +226,12 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     const dropBtn = document.querySelector(".bbtn.drop");
     const removing = { there: Boolean(dropBtn), label: dropBtn ? dropBtn.textContent.trim() : "" };
     if (dropBtn) dropBtn.click();
-    await quiet();
+    await until(() => document.querySelector("#root .bbtn.drop")?.textContent.toLowerCase().includes("remove it"), "the removal question");
     removing.asking = (document.querySelector(".bbtn.drop") || {}).textContent || "";
     removing.afterFirst = removed;
     const again = document.querySelector(".bbtn.drop");
     if (again) again.click();
-    await quiet();
+    await until(() => removed && left.length > leftBefore, "the document removed");
     removing.afterSecond = removed;
     removing.left = left.length - leftBefore;
 
@@ -289,7 +243,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         h(ToastHost, null, h(GateHost, null,
             h(Brief, { id: "only-to-read", snapshot, exec, onBack: () => left.push("back") }))),
         root);
-    await quiet();
+    await until(() => document.querySelector("#root .bmast h1")?.textContent === readOnly.title, "the reading document");
     const reading = {
         title: (document.querySelector(".bmast h1") || {}).textContent || "",
         buttons: text(".bdock .bbtn"),
@@ -297,107 +251,15 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     const readLeft = left.length;
     const readDrop = document.querySelector(".bdock .bbtn.drop");
     if (readDrop) readDrop.click();
-    await quiet();
+    await until(() => document.querySelector("#root .bbtn.drop")?.textContent.toLowerCase().includes("remove it"), "the reading removal question");
     const readAgain = document.querySelector(".bdock .bbtn.drop");
     if (readAgain) readAgain.click();
-    await quiet();
+    await until(() => readRemoved && left.length > readLeft, "the reading document removed");
     reading.removed = readRemoved;
     reading.left = left.length - readLeft;
 
-    const decisions = await decisionScene();
-    window.done = { before, after, asked, sentMark, exit, locked, removing, reading, decisions,
+    window.done = { before, after, asked, sentMark, exit, locked, removing, reading,
         reply: (document.querySelector(".breply") || {}).textContent || "" };
 })();
 
-async function decisionScene() {
-    const root = document.querySelector("#root");
-    let sent = 0;
-    const show = () => {
-        render(null, root);
-        render(h(ToastHost, null, h(GateHost, null, h(Brief, { id: "search-plan", snapshot, exec, onBack: () => {}, onSession: () => { sent += 1; } }))), root);
-    };
-    const form = () => document.querySelector(".brief-decisions");
-    const change = (id) => form().querySelector(`[data-decision="${id}"] .bchange`).click();
-    const input = (el, value) => { el.value = value; el.dispatchEvent(new Event("input", { bubbles: true })); };
-    show();
-    await until(() => form()?.querySelector(".brecommend"), "the decision form");
-    const before = {
-        task: form().querySelector(".btask").textContent,
-        contextClosed: !form().querySelector(".bcontext").open,
-        markdown: Boolean(form().querySelector(".bcontext strong, .bcontext b, .bdecision-ask strong, .bdecision-ask b")),
-        accept: form().querySelector(".brecommend").textContent.trim(),
-        progress: form().querySelector(".bdecision-progress").textContent.trim(),
-        multi: form().querySelectorAll('input[type="checkbox"]').length,
-        costs: form().querySelectorAll(".bchoice-cost").length,
-        hours: Array.from(form().querySelectorAll(".bchoice-hours")).map(n => n.textContent.trim()),
-    };
-    form().querySelector(".brecommend").click();
-    await quiet();
-    const accepted = JSON.parse(JSON.stringify(decisionSaved));
-    const collapsed = form().querySelectorAll(".bdecision.decided").length;
-    change("index");
-    await until(() => form().querySelector('[data-decision="index"] input'), "the reopened decision");
-    const rounding = form().querySelector('[data-decision="index"] .bchoice-hours').textContent.trim();
-    input(form().querySelector('[data-decision="index"] textarea'), "Keep a fallback");
-    form().querySelector('[data-decision="index"] input[value="A"]').click();
-    await quiet();
-    form().querySelector('[data-decision="index"] .bdecision-done').click();
-    await quiet();
-    const changed = JSON.parse(JSON.stringify(decisionSaved));
-    input(form().querySelector(".bbrief-note"), "Switch after the measurement");
-    await until(() => form().querySelector(".bbrief-note").value === "Switch after the measurement", "the general note");
-    holdDecisionSend = true;
-    const go = form().querySelector(".bdecision-send");
-    go.click();
-    go.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await until(() => releaseDecisionSend, "the send request");
-    const sending = go.disabled;
-    releaseDecisionSend();
-    await until(() => form().querySelector(".bdecision-send").textContent.trim() === "Sent", "the sent form");
-    const locked = { changes: form().querySelectorAll(".bchange, .brecommend").length,
-        fields: form().querySelectorAll("textarea, input:not(:disabled)").length, disabled: go.disabled, sent };
-    const final = JSON.parse(JSON.stringify(decisionSaved));
-    const calls = decisionCalls.slice();
-    const state = briefState({ decisions: 3, answered: 2 });
-    const sentState = briefState({ decisions: 3, answered: 2, sent: true });
-    show();
-    await until(() => form()?.querySelector(".bdecision-send")?.textContent.trim() === "Sent", "the saved sent form");
-    const reopened = form().querySelectorAll(".bchange, textarea, input:not(:disabled)").length === 0;
-
-    decisionSent = false;
-    decisionSaved = {};
-    decisionRefused = true;
-    holdDecisionSend = false;
-    show();
-    await until(() => form()?.querySelector(".brecommend"), "a fresh form");
-    form().querySelector(".brecommend").click();
-    await quiet();
-    const failedSends = decisionCalls.filter(c => c.method === "POST").length;
-    form().querySelector(".bdecision-send").click();
-    await until(() => form().querySelector(".bdecision-error") && !form().querySelector(".bdecision-send").disabled, "the save failure");
-    await quiet();
-    const refused = { error: form().querySelector(".bdecision-error").textContent,
-        sends: decisionCalls.filter(c => c.method === "POST").length - failedSends };
-    decisionRefused = false;
-    form().querySelector(".bdecision-send").click();
-    await until(() => form().querySelector(".bdecision-send").textContent.trim() === "Sent", "the retry");
-    refused.retried = decisionCalls.filter(c => c.method === "POST").length - failedSends;
-
-    decisionSent = false;
-    decisionSaved = {};
-    holdDecisionSave = true;
-    show();
-    await until(() => form()?.querySelector(".brecommend"), "the form before the delayed save");
-    form().querySelector(".brecommend").click();
-    await until(() => releaseDecisionSave, "the delayed save");
-    change("index");
-    await until(() => form().querySelector('[data-decision="index"] input'), "the decision during saving");
-    form().querySelector('[data-decision="index"] input[value="B"]').click();
-    await until(() => form().querySelector('[data-decision="index"] input[value="B"]').checked, "the last pick");
-    form().querySelector(".bdecision-send").click();
-    releaseDecisionSave();
-    await until(() => form().querySelector(".bdecision-send").textContent.trim() === "Sent", "the send after both saves");
-    const raced = decisionSaved.decisions.index.picks;
-    return { before, accepted, collapsed, rounding, changed, final, calls, sending, locked, state, sentState, reopened, refused, raced };
-}
 </script>

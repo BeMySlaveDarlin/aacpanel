@@ -18,7 +18,7 @@ import { h, render } from "preact";
 import { Brief } from "/src/screens/brief.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
-import { counted, quiet } from "/check/fixtures/quiet.js";
+import { until } from "/check/fixtures/pie.js";
 
 // The order of saves matters here; the debounce's wall time does not.
 const timer = window.setTimeout;
@@ -47,7 +47,7 @@ const doc = {
 };
 
 let sent = "";
-window.fetch = counted(async (input, init) => {
+window.fetch = async (input, init) => {
     const u = typeof input === "string" ? input : input.url;
     const method = (init && init.method) || "GET";
     if (u === "/api/briefs/at-the-desk" && method === "GET") {
@@ -64,7 +64,7 @@ window.fetch = counted(async (input, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-});
+};
 
 // The snapshot is how the document finds the session its answers go into. The
 // panel hands it down through the conversation; a screen that forgets to pass
@@ -77,16 +77,17 @@ render(
     document.getElementById("root"));
 
 window.done = (async () => {
-    await quiet();
+    await until(() => document.querySelector("#root .bdecision-review"), "the desk brief");
     const go = document.querySelector(".bdecision-send");
     const before = {
-        sendDisabled: Boolean(go && go.disabled),
+        sendDisabled: !go || go.disabled,
         say: (document.querySelector(".bdecision-progress") || {}).textContent || "",
     };
 
     document.querySelector('[data-decision="d1"] input[value="A"]').click();
-    // The pick saves after a pause of its own, which quiet waits out.
-    await quiet();
+    await until(() => document.querySelector('[data-decision="d2"]'), "the next decision");
+    document.querySelector(".bdecision-review").click();
+    await until(() => document.querySelector(".bdecision-summary"), "review at the desk");
 
     const after = {
         sendDisabled: Boolean(document.querySelector(".bdecision-send").disabled),
@@ -94,7 +95,7 @@ window.done = (async () => {
     };
 
     document.querySelector(".bdecision-send").click();
-    await quiet();
+    await until(() => sent, "the decisions sent from the desk");
 
     return { before, after, sent };
 })();

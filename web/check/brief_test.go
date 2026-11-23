@@ -63,8 +63,7 @@ type briefShot struct {
 		Removed bool     `json:"removed"`
 		Left    int      `json:"left"`
 	} `json:"reading"`
-	Decisions decisionsShot `json:"decisions"`
-	Exit      struct {
+	Exit struct {
 		There bool `json:"there"`
 		Left  int  `json:"left"`
 	} `json:"exit"`
@@ -82,30 +81,53 @@ type decisionDraft struct {
 
 type decisionsShot struct {
 	Before struct {
-		Task          string   `json:"task"`
-		ContextClosed bool     `json:"contextClosed"`
-		Markdown      bool     `json:"markdown"`
-		Accept        string   `json:"accept"`
-		Progress      string   `json:"progress"`
-		Multi         int      `json:"multi"`
-		Costs         int      `json:"costs"`
-		Hours         []string `json:"hours"`
+		Task          string `json:"task"`
+		First         string `json:"first"`
+		SendHidden    bool   `json:"sendHidden"`
+		Steps         int    `json:"steps"`
+		ContextClosed bool   `json:"contextClosed"`
+		Markdown      bool   `json:"markdown"`
+		Accept        string `json:"accept"`
+		Progress      string `json:"progress"`
+		Multi         int    `json:"multi"`
+		Costs         int    `json:"costs"`
 	} `json:"before"`
-	Accepted  decisionDraft `json:"accepted"`
-	Changed   decisionDraft `json:"changed"`
-	Final     decisionDraft `json:"final"`
-	Collapsed int           `json:"collapsed"`
-	Rounding  string        `json:"rounding"`
-	Calls     []struct {
+	Summary struct {
+		Questions    []string `json:"questions"`
+		Answers      []string `json:"answers"`
+		Changed      []string `json:"changed"`
+		Proposals    []string `json:"proposals"`
+		SendDisabled bool     `json:"sendDisabled"`
+	} `json:"summary"`
+	SummaryJump   string        `json:"summaryJump"`
+	MultiStayed   bool          `json:"multiStayed"`
+	StripJump     string        `json:"stripJump"`
+	AutoAdvance   string        `json:"autoAdvance"`
+	TypingStayed  bool          `json:"typingStayed"`
+	Keyboard      string        `json:"keyboard"`
+	Details       string        `json:"details"`
+	SummaryNotes  []string      `json:"summaryNotes"`
+	Unchanged     int           `json:"unchanged"`
+	EmptyDisabled bool          `json:"emptyDisabled"`
+	Readonly      bool          `json:"readonly"`
+	DraftReopened bool          `json:"draftReopened"`
+	Accepted      decisionDraft `json:"accepted"`
+	Changed       decisionDraft `json:"changed"`
+	Final         decisionDraft `json:"final"`
+	Collapsed     int           `json:"collapsed"`
+	Rounding      string        `json:"rounding"`
+	Calls         []struct {
 		Method string `json:"method"`
 		URL    string `json:"url"`
 	} `json:"calls"`
 	Sending bool `json:"sending"`
 	Locked  struct {
-		Changes  int  `json:"changes"`
-		Fields   int  `json:"fields"`
-		Disabled bool `json:"disabled"`
-		Sent     int  `json:"sent"`
+		Answers  []string `json:"answers"`
+		Notes    []string `json:"notes"`
+		Changes  int      `json:"changes"`
+		Fields   int      `json:"fields"`
+		Disabled bool     `json:"disabled"`
+		Sent     int      `json:"sent"`
 	} `json:"locked"`
 	State struct {
 		Word string `json:"word"`
@@ -123,14 +145,13 @@ type decisionsShot struct {
 }
 
 func TestBriefDecisionsShowTheTaskAndChooseOnlyUnresolvedRecommendations(t *testing.T) {
-	var got briefShot
-	runFixture(t, "brief.html", &got)
-	d := got.Decisions
+	var d decisionsShot
+	runFixture(t, "briefdecisions.html", &d)
 	if !strings.Contains(d.Before.Task, "Move search from the cluster to Postgres.") || !strings.Contains(d.Before.Task, "half the bill") ||
-		!d.Before.ContextClosed || !d.Before.Markdown || d.Before.Multi != 3 || d.Before.Costs != 5 {
+		!d.Before.ContextClosed || !d.Before.Markdown || d.Before.Multi != 3 || d.Before.Costs != 3 {
 		t.Errorf("the task, context or options are incomplete: %+v", d.Before)
 	}
-	if d.Before.Accept != "Accept recommended · 2" || d.Before.Progress != "1 of 3 decided" {
+	if d.Before.Accept != "Take recommended · 1" || d.Before.Progress != "1 of 3 decided" {
 		t.Errorf("the form does not count only unresolved decisions: %+v", d.Before)
 	}
 	for id, want := range map[string][]string{"index": {"B"}, "checks": {"A", "C"}, "3": {"B"}} {
@@ -139,7 +160,7 @@ func TestBriefDecisionsShowTheTaskAndChooseOnlyUnresolvedRecommendations(t *test
 		}
 	}
 	if d.Collapsed != 3 || d.Rounding != "≈ 6.2 h" {
-		t.Errorf("the chosen decisions did not fold or hours did not round: %+v", d)
+		t.Errorf("the summary lost answers or hours did not round: %+v", d)
 	}
 	if d.State.Word != "2 of 3 decided" || d.SentState.Word != "sent" {
 		t.Errorf("the shelf states read %q and %q", d.State.Word, d.SentState.Word)
@@ -147,14 +168,13 @@ func TestBriefDecisionsShowTheTaskAndChooseOnlyUnresolvedRecommendations(t *test
 }
 
 func TestBriefDecisionsKeepChangesAndNotesAndSendOnce(t *testing.T) {
-	var got briefShot
-	runFixture(t, "brief.html", &got)
-	d := got.Decisions
+	var d decisionsShot
+	runFixture(t, "briefdecisions.html", &d)
 	if !reflect.DeepEqual(d.Changed.Decisions["index"].Picks, []string{"A"}) || d.Changed.Decisions["index"].Note != "Keep a fallback" ||
 		!reflect.DeepEqual(d.Changed.Decisions["checks"].Picks, []string{"A", "C"}) {
 		t.Errorf("change lost a pick, a note or another decision: %+v", d.Changed)
 	}
-	if d.Final.Note != "Switch after the measurement" || d.Final.Decisions["index"].Note != "Keep a fallback" {
+	if !d.DraftReopened || d.Final.Note != "Switch after the measurement" || d.Final.Decisions["index"].Note != "Keep a fallback" {
 		t.Errorf("the send lost a note: %+v", d.Final)
 	}
 	sends := 0
@@ -175,6 +195,44 @@ func TestBriefDecisionsKeepChangesAndNotesAndSendOnce(t *testing.T) {
 	}
 	if !reflect.DeepEqual(d.Raced, []string{"B"}) {
 		t.Errorf("an earlier save overwrote the final pick before sending: %v", d.Raced)
+	}
+}
+
+func TestBriefDecisionsNavigateOneDecisionAtATime(t *testing.T) {
+	var d decisionsShot
+	runFixture(t, "briefdecisions.html", &d)
+	if d.Before.First != "checks" || d.Before.Steps != 3 || !d.Before.SendHidden {
+		t.Errorf("the card does not open on the first unresolved decision with sending held for review: %+v", d.Before)
+	}
+	if d.AutoAdvance != "3" || d.StripJump != "index" || d.SummaryJump != "checks" || !d.MultiStayed {
+		t.Errorf("picking, the strip or the summary did not navigate: auto=%q strip=%q summary=%q multi=%v", d.AutoAdvance, d.StripJump, d.SummaryJump, d.MultiStayed)
+	}
+	if d.Keyboard != "3" || !d.TypingStayed {
+		t.Errorf("arrows did not navigate outside text fields: next=%q typing stayed=%v", d.Keyboard, d.TypingStayed)
+	}
+	if !strings.Contains(d.Details, "Maintain triggers") || !strings.Contains(d.Details, "Search changes independently.") {
+		t.Errorf("the option details lost the reason or cost: %q", d.Details)
+	}
+}
+
+func TestBriefDecisionsReviewEveryAnswerAndPreviewRecommendations(t *testing.T) {
+	var d decisionsShot
+	runFixture(t, "briefdecisions.html", &d)
+	if !reflect.DeepEqual(d.Summary.Questions, []string{"1 · Where the index lives", "2 · Which checks run", "3 · When to switch"}) ||
+		!reflect.DeepEqual(d.Summary.Answers, []string{"A column on products"}) {
+		t.Errorf("the summary lost a question or an answer: %+v", d.Summary)
+	}
+	if !reflect.DeepEqual(d.Summary.Changed, []string{"changed · recommended Separate table"}) || d.Unchanged != 0 {
+		t.Errorf("the summary marks changes incorrectly: changed=%v unchanged=%d", d.Summary.Changed, d.Unchanged)
+	}
+	if !reflect.DeepEqual(d.Summary.Proposals, []string{"Take recommended: Compare results, Watch latency", "Take recommended: After a week"}) {
+		t.Errorf("the unanswered decisions do not preview the recommendations: %v", d.Summary.Proposals)
+	}
+	if d.Summary.SendDisabled || !d.EmptyDisabled || !reflect.DeepEqual(d.SummaryNotes, []string{"Keep a fallback"}) {
+		t.Errorf("review lost notes or changed send gating: partial disabled=%v empty disabled=%v notes=%v", d.Summary.SendDisabled, d.EmptyDisabled, d.SummaryNotes)
+	}
+	if len(d.Locked.Answers) != 3 || !d.Readonly || !reflect.DeepEqual(d.Locked.Notes, []string{"Keep a fallback", "Switch after the measurement"}) {
+		t.Errorf("sent or read-only answers lost their content: %+v, readonly=%v", d.Locked, d.Readonly)
 	}
 }
 

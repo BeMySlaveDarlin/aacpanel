@@ -21,7 +21,6 @@ import { until } from "/check/fixtures/pie.js";
 import { Sheet } from "/src/ui/sheet.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
-import { counted, quiet } from "/check/fixtures/quiet.js";
 
 // The order of saves matters here; the debounce's wall time does not.
 const timer = window.setTimeout;
@@ -52,7 +51,7 @@ const doc = {
 let sent = "";
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 window.EventSource = class { addEventListener() {} close() {} };
-window.fetch = counted(async (input, init) => {
+window.fetch = async (input, init) => {
     const u = typeof input === "string" ? input : input.url;
     const method = (init && init.method) || "GET";
     if (u === "/api/briefs/at-the-desk" && method === "GET") {
@@ -73,7 +72,7 @@ window.fetch = counted(async (input, init) => {
     if (u === "/api/acts") return json({ acts: [] });
     if (u.startsWith("/api/term")) return json({ available: false });
     return json({});
-});
+};
 
 // The snapshot is how the document finds the session its answers go into. The
 // panel hands it down through the conversation; a screen that forgets to pass
@@ -89,7 +88,7 @@ render(
 
 
 window.done = (async () => {
-    await quiet();
+    await until(() => document.querySelector("#root .bdecision-review"), "the document sheet");
     const sheet = document.querySelector(".sheet.doc");
     const out = {
         // A document carries one way out — the arrow drawn inside it. The
@@ -98,24 +97,26 @@ window.done = (async () => {
         exitKinds: Array.from(sheet.querySelectorAll(":scope > .sheetclose, :scope > .grab, :scope > .sheetbody > .brief-decisions > .phead .pback")).map((n) => n.className).join(" | "),
         win: sheet.classList.contains("win"),
         doc: sheet.classList.contains("doc"),
-        decisions: document.querySelectorAll(".brief-decisions .bdecision").length,
+        decisions: document.querySelectorAll(".brief-decisions .bdecision-segment").length,
         task: document.querySelector(".btask")?.textContent || "",
     };
     const root = document.querySelector("#root");
     render(null, root);
-    await quiet();
+    await until(() => !document.querySelector("#root .brief-decisions"), "the document put down");
     const live = { session: "lab", sessionId: doc.sessionId, cwd: doc.cwd, transport: "stream", status: "idle",
         waiting: [{ kind: "brief", id: doc.id, title: doc.title, at: "2026-01-01T09:00:00Z", questions: 2 }] };
     render(h(ToastHost, null, h(GateHost, null, h(Chat, { name: "lab", id: doc.sessionId, live, snapshot, exec, onBack: () => {} }))), root);
-    await until(() => document.querySelector(".actform .brief-decisions .brecommend"), "the brief in the move slot");
+    await until(() => document.querySelector(".actform .brief-decisions .bdecision-review"), "the brief in the move slot");
     out.inline = Boolean(document.querySelector(".chatfeed .actform .btask")) && Boolean(document.querySelector(".composer > textarea")) && !document.querySelector(".sheet.on");
     out.marker = document.querySelector(".briefmark")?.textContent || "";
     out.icon = document.querySelector('.movepill[data-kind="brief"] svg')?.outerHTML === document.querySelector(".bdecision-head svg")?.outerHTML;
+    document.querySelector(".actform .bdecision-review").click();
+    await until(() => document.querySelector(".actform .bdecision-summary"), "the move summary");
     document.querySelector(".actform .brecommend").click();
     await until(() => !document.querySelector(".actform .bdecision-send").disabled, "the decision pick");
     document.querySelector(".briefmark .actmarker").click();
-    await quiet();
-    out.single = document.querySelectorAll(".brief-decisions").length === 1 && !document.querySelector(".sheet.on") && document.querySelectorAll(".actform .bdecision.decided").length === 2;
+    await until(() => document.querySelectorAll(".actform .bsummary-answer").length === 2, "the answers in the move");
+    out.single = document.querySelectorAll(".brief-decisions").length === 1 && !document.querySelector(".sheet.on") && document.querySelectorAll(".actform .bsummary-answer").length === 2;
     document.querySelector(".actform .bdecision-send").click();
     await until(() => !document.querySelector(".actform"), "the move after sending");
     out.closed = !document.querySelector('.movepill[data-kind="brief"]') && Boolean(document.querySelector(".composer > textarea"));
