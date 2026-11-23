@@ -16,7 +16,7 @@ import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { knows } from "../exec.js";
 import { useAction } from "../actions/gate.js";
-import { settled } from "../catchup.js";
+import { liveOf, settled } from "../catchup.js";
 import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames, useProfilePage } from "../screens/sessions/pages.js";
@@ -412,7 +412,25 @@ function contourOfTask(task, map) {
     return "";
 }
 
-export function SessionColumn({ snapshot, limits, current, currentId, onPick, onTerm, onSettings, onTasks, onNames, onShown, onOrder, onArchive, exec, wait }) {
+// contourOfTalk finds the contour of a conversation opened in the centre: a
+// live one stands where its session stands (pageOf); a closed one stands in
+// the contour of the map that holds its project, else in the one the
+// collector names it by — through the id the limits give that name, or the
+// name itself where there is no map. Nothing when its row is not at hand.
+function contourOfTalk(talk, { all, pageOf, map, limits }) {
+    const live = liveOf(all, talk);
+    if (live) return pageOf(live);
+    const row = talk && talk.row;
+    if (!row) return "";
+    const project = row.project && row.project.id;
+    const holder = project && map.find((e) => (e.groups || []).some((g) => (g.projects || []).some((p) => p.id === project)));
+    if (holder) return holder.profile;
+    const known = ((limits && limits.contours) || []).find((c) => c.profile === row.profile);
+    const entry = known && map.find((e) => e.id === known.contour);
+    return entry ? entry.profile : contourName(row.profile);
+}
+
+export function SessionColumn({ snapshot, limits, current, currentId, onPick, onTerm, onSettings, onTasks, onNames, onShown, onOrder, onArchive, reveal, onRevealed, exec, wait }) {
     const all = (snapshot && snapshot.sessions) || [];
     // A row stops waiting with the head of its conversation, not at the next
     // snapshot.
@@ -437,6 +455,19 @@ export function SessionColumn({ snapshot, limits, current, currentId, onPick, on
     // no longer among the contours, it is the first contour.
     const [shown, show] = useProfilePage(names);
     useEffect(() => { if (onShown) onShown(shown); }, [shown]);
+
+    // A conversation opened from outside the column — a push, home, a
+    // terminal, the archive — moves the switch to its contour as a press on
+    // its tab would, so its row stands lit and the arrow keys go on from it.
+    // One whose contour has no tab leaves the switch where it is. It is read
+    // once the snapshot is there, and once only: the shell lets go of it on
+    // onRevealed, so the column drawn again later keeps the tab it was left on.
+    useEffect(() => {
+        if (!reveal || !snapshot) return;
+        const contour = contourOfTalk(reveal, { all, pageOf, map, limits });
+        if (names.includes(contour) && contour !== shown) show(contour);
+        if (onRevealed) onRevealed();
+    }, [reveal, snapshot]);
 
     const ordered = useMemo(() => orderOf(all, map, wait), [all, map, wait]);
     const list = ordered.filter((s) => pageOf(s) === shown);

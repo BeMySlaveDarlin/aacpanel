@@ -197,13 +197,14 @@ window.done = (async () => {
     // row lit as open.
     const shell = document.getElementById("shell");
     const { DesktopShell } = await import("/src/desktop/shell.js");
-    render(wrap(h(DesktopShell, {
-        snapshot, tree: [], treeError: null, hostError: null, ageSec: 1, history: [], faults: [],
+    const desktop = (jump, at = snapshot) => render(wrap(h(DesktopShell, {
+        snapshot: at, tree: [], treeError: null, hostError: null, ageSec: 1, history: [], faults: [],
         alerts: { kind: "ready", list: [], reload() {} }, openAlerts: 0, exec, onRefresh() {},
         wait: { opening: () => [], of: () => null }, theme: "space", onTheme() {}, updateReady: false,
         updating: false, onApplyUpdate() {}, route: { here: "", via: "", why: "", onRecheck() {}, onOpen() {} },
-        jump: { name: "shop", id: "id-shop" }, onJumped() {},
+        jump, onJumped() {},
     })), shell);
+    desktop({ name: "shop", id: "id-shop" });
     const lit = () => { const on = shell.querySelector(".sc.sccur"); return on ? on.dataset.name : ""; };
     await until(() => lit() === "shop");
     await quiet();
@@ -216,6 +217,23 @@ window.done = (async () => {
     out.walk = [lit(), await press("ArrowDown")];
     out.digit = await press("1");
     out.back = await press("ArrowUp");
+    // A push opens rotation, a conversation of the other contour: the column
+    // goes to the tab of Algo as a press on it would, the row of rotation lit
+    // there, and ArrowDown goes on from it.
+    const selected = () => text(shell.querySelector('.dkpick [aria-selected="true"] .dkpickname'));
+    const push = { name: "rotation", id: "id-rotation" };
+    desktop(push);
+    await until(() => lit() === "rotation");
+    await quiet();
+    out.pushed = { tab: selected(), lit: lit(), kept: localStorage.getItem("aacpanel.sessions.profile") || "" };
+    out.pushed.down = await press("ArrowDown");
+    // The push moved the column once: the tab pressed after it stays through
+    // the next snapshot, which comes with the push gone, as onJumped leaves it.
+    Array.from(shell.querySelectorAll(".dkpick [role=tab]")).find((b) => text(b.querySelector(".dkpickname")) === "Personal").click();
+    await until(() => selected() === "Personal");
+    desktop(null, { ...snapshot, at: snapshot.at + 1 });
+    await quiet();
+    out.pushed.after = selected();
     render(null, shell);
     // The tab of the other contour lays out its blocks alone, the child of
     // lead among them naming lead, and the arrow keys go down its rows; the

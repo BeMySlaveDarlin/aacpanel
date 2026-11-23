@@ -133,7 +133,10 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 // the contour shown, the children among them while the fold is open; closed,
 // the fold keeps who waits and the dots of the states, the arrow keys pass
 // its children by, and the fold stays closed for its parent until it is
-// opened again. A digit picks nothing.
+// opened again. A digit picks nothing. A conversation of another contour
+// opened from outside the column, by a push here, takes the column to the tab
+// of its contour, kept as a press on the tab is, its row lit and the arrow
+// keys going on from it.
 //
 // A list where nobody opened anybody shows none of it.
 func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
@@ -159,8 +162,11 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 		Kept        []string     `json:"kept"`
 		OrderOpen   []string     `json:"orderOpen"`
 		Walk        []string     `json:"walk"`
-		Digit       string       `json:"digit"`
-		Back        string       `json:"back"`
+		Pushed      struct {
+			Tab, Lit, Kept, Down, After string
+		} `json:"pushed"`
+		Digit string `json:"digit"`
+		Back  string `json:"back"`
 	}
 	runWideFixture(t, "sessiongroups.html", &got)
 
@@ -203,6 +209,14 @@ func TestSessionsAnotherOpenedStandUnderIt(t *testing.T) {
 	}
 	if got.Back != "wiki" {
 		t.Errorf("ArrowUp from shop opened %q, expected the row above it, wiki", got.Back)
+	}
+	if p := got.Pushed; p.Tab != "Algo" || p.Kept != "Algo" || p.Lit != "rotation" || p.Down != "quotes" {
+		t.Errorf("a push to rotation left the column on the tab %q, kept %q, lit %q, and ArrowDown went to %q — "+
+			"expected the tab of Algo, kept, rotation lit and quotes under it", p.Tab, p.Kept, p.Lit, p.Down)
+	}
+	if got.Pushed.After != "Personal" {
+		t.Errorf("the tab of Personal pressed after the push gave way to %q at the next snapshot — the push moves the column once",
+			got.Pushed.After)
 	}
 
 	if len(got.StubOpens.Phone) != 1 || got.StubOpens.Phone[0].Name != "docs" || got.StubOpens.Phone[0].ID != "d0" {

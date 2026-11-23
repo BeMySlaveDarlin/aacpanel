@@ -12,7 +12,8 @@
 // it from its heading and deletes it at its foot. The heading of a contour
 // in the sessions column opens the registry of its tasks in the centre, over
 // the conversation that is there again once it closes, and its page in the
-// settings.
+// settings. A conversation opened from the archive takes the column to the
+// tab of its contour.
 import { h, render } from "preact";
 import { DesktopShell } from "/src/desktop/shell.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -43,7 +44,19 @@ const now = Math.floor(Date.now() / 1000);
 const live = (id, name) => ({ session: name, sessionId: `live-${name}`, status: "idle", transport: "stream", pct: 10, tokens: 100000,
     limit: 1000000, model: "claude-opus-5-5", cwd: `/srv/proj/${name}`, profile: "personal", contour: 3,
     project: { id, name } });
-const snapshot = { at: now, hostName: "helios", sessions: [live(11, "helios"), live(13, "blog")], profileMap, limits: { contours: [] } };
+// The collector names the contour of Globex Group globex.
+const snapshot = { at: now, hostName: "helios", sessions: [live(11, "helios"), live(13, "blog")], profileMap,
+    limits: { contours: [{ profile: "globex", contour: 1 }] } };
+// Closed conversations of the archive: one in a project of personal, under a
+// name of the collector nothing else knows, one off the map in the contour
+// the collector calls globex, one in a contour nobody knows. Nothing was said in them, so the shelf of the column leaves them out.
+const closed = (name, profile, project) => ({ sessionId: `closed-${name}`, name, profile, project, cwd: `/srv/proj/${name}`,
+    messages: 0, model: "claude-opus-5-5", lastAt: new Date(now * 1000 - 3600e3).toISOString() });
+const archived = [
+    closed("old-helios", "home-dir", { id: 11, name: "helios", group: "Home", path: "/srv/proj/helios" }),
+    closed("globex-scratch", "globex", null),
+    closed("stray-notes", "lab", null),
+];
 
 const sent = [];
 // The contours the registry of tasks was asked for.
@@ -66,7 +79,7 @@ window.fetch = async (url, init) => {
         return json({ ok: true, detail: "done" });
     }
     if (u.pathname === "/api/profiles") return json({ profiles, models: null, disk: { state: "ok", roots: [], dirs: [] }, accounts: [] });
-    if (u.pathname === "/api/sessions/archive") return json({ rows: [], total: 0, limit: 30, offset: 0 });
+    if (u.pathname === "/api/sessions/archive") return json({ rows: archived, total: archived.length, limit: 30, offset: 0 });
     if (u.pathname === "/api/tasks/board") {
         boards.push(u.searchParams.get("contour"));
         return json({ tasks: [], noTask: [], notes: [] });
@@ -245,6 +258,32 @@ window.done = (async () => {
     acts.profile = heads();
     document.querySelector(".dkcols .dkcolsclose").click();
     await until(() => !document.querySelector(".dkcols"));
+
+    // A closed conversation opened from the archive takes the column to the
+    // tab of its contour, kept as a press on the tab is: by the project of
+    // its row, else by the contour the collector names it by. One in a
+    // contour nobody knows leaves the column where it stands.
+    const selected = () => text(document.querySelector('.dkleft .dkpick [aria-selected="true"] .dkpickname'));
+    const talking = () => text(document.querySelector(".dkchat .dkchatname"));
+    const archiveRow = (name) => all(".dkright .dkarch").find((r) => text(r.querySelector(".dkname")) === name);
+    // opened waits for the column to reach the tab it should, or, with none
+    // to reach, two frames: what a moved switch would take to show.
+    const opened = async (name, tab) => {
+        archiveRow(name).click();
+        await until(() => talking() === name && (!tab || selected() === tab));
+        if (!tab) {
+            await frame();
+            await frame();
+        }
+        return { talk: talking(), tab: selected(), kept: localStorage.getItem("aacpanel.sessions.profile") || "" };
+    };
+    document.querySelector('.dktop button[aria-label="Session archive"]').click();
+    await until(() => archiveRow("stray-notes"));
+    if (!archiveRow("stray-notes")) return out;
+    out.reveal = { before: selected() };
+    out.reveal.project = await opened("old-helios", "personal");
+    out.reveal.collector = await opened("globex-scratch", "Globex Group");
+    out.reveal.unknown = await opened("stray-notes");
     return out;
 })();
 </script>

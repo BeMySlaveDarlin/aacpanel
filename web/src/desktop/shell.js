@@ -168,6 +168,10 @@ export function DesktopShell({
         setTasks(null);
         setChat(target);
     }, []);
+    // A conversation opened from outside the sessions column, held until the
+    // column has moved its switch to the conversation's contour.
+    const [reveal, setReveal] = useState(null);
+    const revealed = useCallback(() => setReveal(null), []);
     const [stack, setStack] = useState(null);
     const [cont, setCont] = useState(null);
     const [cat, setCat] = useState("cpu");
@@ -267,6 +271,7 @@ export function DesktopShell({
 
     const openChat = useCallback((target) => {
         showChat(target);
+        setReveal(target);
         goSection("sessions");
     }, [goSection, showChat]);
 
@@ -305,6 +310,8 @@ export function DesktopShell({
             onTasks=${setTasks}
             onNames=${setNames}
             onShown=${setShown}
+            reveal=${reveal}
+            onRevealed=${revealed}
             onOrder=${setOrder}
             onArchive=${() => setPanel("archive")}
             exec=${exec}

@@ -23,6 +23,11 @@ import (
 // back brings the conversation back, the arrow keys having left it as it was,
 // and a conversation picked over it takes its place. Profile opens the
 // settings on the page of the contour.
+//
+// A closed conversation opened from the archive takes the column to the tab
+// of its contour, kept as a press on the tab is: the contour of the map that
+// holds its project, else the contour the collector names it by. One in a
+// contour nobody knows opens and leaves the column where it stands.
 func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built: the columns are laid out by the stylesheet — run make front first")
@@ -56,6 +61,10 @@ func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 				Boards []string
 			}
 		} `json:"acts"`
+		Reveal struct {
+			Before                      string
+			Project, Collector, Unknown struct{ Talk, Tab, Kept string }
+		} `json:"reveal"`
 	}
 	runFixtureServing(t, "deskprojects.html", deskScreen, deskPointer, schemaAnswer(map[string]any{}), &got)
 
@@ -125,5 +134,24 @@ func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 	}
 	if strings.Join(a.Profile, "|") != "Acme|" {
 		t.Errorf("Profile on the tab of Acme opened the settings on %v, expected the page of Acme", a.Profile)
+	}
+
+	r := got.Reveal
+	if r.Before != "Acme" {
+		t.Fatalf("the column stood on %q before the archive was opened, expected Acme", r.Before)
+	}
+	for _, c := range []struct {
+		what      string
+		got       struct{ Talk, Tab, Kept string }
+		talk, tab string
+	}{
+		{"by the project of its row", r.Project, "old-helios", "personal"},
+		{"by the contour the collector names", r.Collector, "globex-scratch", "Globex Group"},
+		{"in a contour nobody knows", r.Unknown, "stray-notes", "Globex Group"},
+	} {
+		if c.got.Talk != c.talk || c.got.Tab != c.tab || c.got.Kept != c.tab {
+			t.Errorf("%s opened from the archive shows %q with the column on %q, keeping %q — expected %q on the tab of %q, kept",
+				c.what, c.got.Talk, c.got.Tab, c.got.Kept, c.talk, c.tab)
+		}
 	}
 }
