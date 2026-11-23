@@ -1250,14 +1250,27 @@ contour's daemon and takes a letter as soon as the open returns. It starts
 without the map's opening message; the task arrives in an envelope naming the
 opening session as its parent. Model and effort inherit the map unless the
 call overrides them. Helpers start and restart with `approvalPolicy: on-request`
-and `approvalsReviewer: auto_review`, taken from the Auto preset, with
-`workspace-write` and network on, or explicit `read-only`. Workspace helpers
-add both their common git directory and their checkout's own gitdir, plus
-existing Go build and module caches, to the caller's explicit writable roots,
-without duplicates. The executor uses cache environment values or Go's standard
-cache directories, so this needs no Go program in its PATH. TMPDIR is writable
-through the daemon's environment and is not added as another root. These choices
-affect the helper and leave the map intact; ordinary sessions keep the map's policy.
+and `approvalsReviewer: auto_review`, taken from the Auto preset. The sandbox
+is the person's where they set one, and the panel's preset fills only what
+nothing says: the call's `sandbox`, else the map's `codexSandbox` of the project
+or contour, the held `danger-full-access` included, else the `sandbox_mode` that
+`config/read` of the home gives the helper's directory, else `workspace-write`.
+The thread starts with that sandbox by name, so its mark carries it through a
+recovery, and a restart keeps the sandbox the replaced thread ran with.
+Read-only and full-access helpers get no workspace overrides. A workspace
+helper's network is config.toml's when it has a `sandbox_workspace_write`
+table: codex answers such a table with every key filled in, so a table without
+`network_access` reads as network off, which is how codex runs an ordinary
+session under it; with no table the preset turns the network on. The override
+of writable roots replaces codex's list rather than adding to it, so it carries
+config.toml's roots, the caller's explicit ones, both the common git directory
+and the checkout's own gitdir, and existing Go build and module caches, without
+duplicates. The executor uses cache environment values or Go's standard cache
+directories, so this needs no Go program in its PATH. TMPDIR is writable through
+the daemon's environment and is not added as another root. A `config/read`
+that fails leaves the preset in force and is named among the warnings of the
+open or the restart. These choices affect the helper and leave the map intact;
+ordinary sessions keep the map's policy.
 
 A held helper survives a daemon restart or an executor absent past the daemon's
 unload timeout. Its mark retains the launch parameters, without messages or

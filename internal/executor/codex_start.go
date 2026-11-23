@@ -67,10 +67,6 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 	}
 	if owner.Conversation != "" {
 		c.Transport, c.Intent = launcher.CodexInDaemon, ""
-		c.Sandbox = "workspace-write"
-		if p.Codex != nil && p.Codex.Sandbox != "" {
-			c.Sandbox = p.Codex.Sandbox
-		}
 	}
 	home, ok := registry.CodexHomeOf(p.ConfigDir)
 	if !ok {
@@ -88,12 +84,12 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 
 	tmux := c.Transport == launcher.TransportTmux
 	begin := codex.Begin{CWD: p.Path, Model: c.Model, Approval: c.Approval, Sandbox: c.Sandbox, Effort: c.Effort,
-		Parent: p.Parent, Owner: owner, Workspace: owner.Conversation != "" && c.Sandbox == "workspace-write"}
+		Parent: p.Parent, Owner: owner}
 	if p.Codex != nil {
 		begin.WritableRoots = p.Codex.WritableRoots
 		begin.Workspace = c.Sandbox == "workspace-write"
 	}
-	prepareCodexHelper(ctx, &begin)
+	warns = append(warns, prepareCodexHelper(ctx, link, &begin)...)
 	if path, err := toolServer(); err == nil {
 		begin.Tools, begin.Allowed = path, toolset.CodexAllowedFor(p.Path)
 	} else {

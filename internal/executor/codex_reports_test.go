@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -33,9 +32,11 @@ func TestACodexHelperReportsEveryTurnToItsOpeningSession(t *testing.T) {
 	th := e.codex.Find(name)[0]
 	start := paramsOf(t, srv.Calls("thread/start")[0])
 	config := start["config"].(map[string]any)
-	if start["model"] != "gpt-6.1-sol" || start["approvalPolicy"] != "on-request" || start["approvalsReviewer"] != "auto_review" || start["sandbox"] != "workspace-write" ||
-		config["model_reasoning_effort"] != "high" || config["sandbox_workspace_write.network_access"] != true ||
-		!reflect.DeepEqual(config["sandbox_workspace_write.writable_roots"], []any{p.Path}) {
+	// The map's full access is the person's choice and stands for the helper:
+	// it writes anywhere, so the caller's roots have nothing to add.
+	if start["model"] != "gpt-6.1-sol" || start["approvalPolicy"] != "on-request" || start["approvalsReviewer"] != "auto_review" || start["sandbox"] != "danger-full-access" ||
+		config["model_reasoning_effort"] != "high" || config["sandbox_workspace_write.network_access"] != nil ||
+		config["sandbox_workspace_write.writable_roots"] != nil {
 		t.Fatalf("the helper started with %v", start)
 	}
 	if len(srv.Calls("turn/start")) != 0 || !heldMark(t, th.ID) {

@@ -174,6 +174,10 @@ type Server struct {
 	onLoad []map[string]any
 	// stalls are the requests answered late, by method and thread, each once.
 	stalls map[string]time.Duration
+	// sandboxMode and sandboxTable are what config.toml says of the sandbox:
+	// see Sandbox.
+	sandboxMode  string
+	sandboxTable map[string]any
 	// Shell commands use a supplied result without executing on the host.
 	shellOutput string
 	shellCode   int
@@ -323,6 +327,16 @@ func (s *Server) McpChanged(servers ...map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.changed = servers
+}
+
+// Sandbox sets what config.toml of the home says of the sandbox, as config/read
+// answers it: mode is sandbox_mode, empty for none, and table the keys of a
+// sandbox_workspace_write table, nil for none. codex answers a table with every
+// key, those it leaves out at their defaults, and so does the fake.
+func (s *Server) Sandbox(mode string, table map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sandboxMode, s.sandboxTable = mode, table
 }
 
 // McpOnLoad sets the MCP servers as a thread the daemon loads from now on
@@ -1214,9 +1228,10 @@ func (s *Server) mcpList(t *thread, raw json.RawMessage) map[string]any {
 	return map[string]any{"data": data, "nextCursor": nil}
 }
 
-// configRead is config/read with the servers config.toml names: those of the
+// configRead is config/read with the servers config.toml names — those of the
 // threads and the changed ones that come from no plugin and not from the
-// start of a thread. The rest of a config the panel does not read.
+// start of a thread — and its sandbox, null where it says none, as codex
+// answers. The rest of a config the panel does not read.
 func (s *Server) configRead() map[string]any {
 	servers := map[string]any{}
 	for _, m := range append(slices.Clone(s.mcp), s.changed...) {
@@ -1225,7 +1240,18 @@ func (s *Server) configRead() map[string]any {
 			servers[name] = map[string]any{"command": "mcp-" + name, "enabled": m["runtimeStatus"] != "disabled"}
 		}
 	}
-	return map[string]any{"config": map[string]any{"model": "gpt-home", "mcp_servers": servers}, "origins": map[string]any{}}
+	config := map[string]any{"model": "gpt-home", "mcp_servers": servers, "sandbox_mode": nil,
+		"sandbox_workspace_write": nil}
+	if s.sandboxMode != "" {
+		config["sandbox_mode"] = s.sandboxMode
+	}
+	if s.sandboxTable != nil {
+		table := map[string]any{"writable_roots": []any{}, "network_access": false, "exclude_tmpdir_env_var": false,
+			"exclude_slash_tmp": false}
+		maps.Copy(table, s.sandboxTable)
+		config["sandbox_workspace_write"] = table
+	}
+	return map[string]any{"config": config, "origins": map[string]any{}}
 }
 
 // pluginServers are the MCP servers of every plugin by its id, name@market,

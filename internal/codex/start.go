@@ -52,8 +52,50 @@ type Begin struct {
 	Parent string
 	Owner  stream.SessionOwner
 	// Workspace overrides only this thread's write roots and network policy.
-	Workspace     bool
+	Workspace bool
+	// HomeNetwork leaves a workspace thread's network to config.toml, whose
+	// sandbox_workspace_write table codex reads for it; without it Workspace
+	// turns the network on.
+	HomeNetwork   bool
 	WritableRoots []string
+}
+
+// HomeSandbox is what config.toml of a home, with the layers of a directory,
+// says of the sandbox. Mode is empty where nothing names one. codex answers a
+// sandbox_workspace_write table with every key filled in, a key the table
+// leaves out at codex's default, so Table says only that the table is there:
+// Network is codex's reading of it, off without network_access.
+type HomeSandbox struct {
+	Mode    string
+	Table   bool
+	Network bool
+	Roots   []string
+}
+
+// HomeSandbox reads the sandbox config.toml gives a directory, without
+// starting a thread.
+func (l *Link) HomeSandbox(ctx context.Context, cwd string) (HomeSandbox, error) {
+	c, err := l.client()
+	if err != nil {
+		return HomeSandbox{}, err
+	}
+	var out struct {
+		Config struct {
+			Mode  string `json:"sandbox_mode"`
+			Table *struct {
+				Network bool     `json:"network_access"`
+				Roots   []string `json:"writable_roots"`
+			} `json:"sandbox_workspace_write"`
+		} `json:"config"`
+	}
+	if err := within(ctx, c, "config/read", map[string]any{"cwd": cwd}, &out); err != nil {
+		return HomeSandbox{}, err
+	}
+	home := HomeSandbox{Mode: out.Config.Mode}
+	if t := out.Config.Table; t != nil {
+		home.Table, home.Network, home.Roots = true, t.Network, t.Roots
+	}
+	return home, nil
 }
 
 // toolsConfig is the panel's MCP server as a thread's configuration names
@@ -113,7 +155,9 @@ func (b Begin) params() map[string]any {
 	}
 	config := map[string]any{}
 	if b.Workspace {
-		config["sandbox_workspace_write.network_access"] = true
+		if !b.HomeNetwork {
+			config["sandbox_workspace_write.network_access"] = true
+		}
 		if len(b.WritableRoots) > 0 {
 			config["sandbox_workspace_write.writable_roots"] = b.WritableRoots
 		}

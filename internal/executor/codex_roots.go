@@ -11,20 +11,58 @@ import (
 	"aacpanel/internal/codex"
 )
 
-// prepareCodexHelper applies the same permissions to every helper launch;
-// the link retains the resulting parameters for a daemon's later recovery.
-func prepareCodexHelper(ctx context.Context, begin *codex.Begin) {
+// presetSandbox is the sandbox of a helper that neither the call, the map nor
+// config.toml of its home gives one.
+const presetSandbox = "workspace-write"
+
+// sandboxModes are the sandbox modes thread/start takes.
+var sandboxModes = []string{"read-only", "workspace-write", "danger-full-access"}
+
+// prepareCodexHelper applies the same permissions to every helper launch and
+// returns what the start should say about them; the link retains the
+// resulting parameters for a daemon's later recovery, so a recovered helper
+// keeps the sandbox it started with. The person's settings win and the
+// panel's preset fills only what none of them says: the sandbox is the one
+// already chosen — by the call, the map or the thread a restart replaces —
+// else the one config.toml gives the helper's directory, else workspace-write.
+// The thread gets that sandbox by name, read-only and full access with no
+// workspace overrides. A workspace helper's writable roots replace codex's
+// list, so they carry config.toml's roots beside the caller's and the
+// checkout's. Its network is config.toml's where config.toml has a
+// sandbox_workspace_write table, as codex reads that table for an ordinary
+// session — off without network_access — and on where it has none.
+func prepareCodexHelper(ctx context.Context, link *codex.Link, begin *codex.Begin) []string {
 	if begin.Owner.Conversation == "" {
-		return
+		return nil
 	}
 	begin.ReviewAutomatically()
+	var warns []string
+	var home codex.HomeSandbox
+	if begin.Sandbox == "" || begin.Sandbox == "workspace-write" {
+		read, err := link.HomeSandbox(ctx, begin.CWD)
+		if err != nil {
+			warns = append(warns, "config.toml of the Codex home was not read, so the helper runs with the panel's "+
+				"preset where the call and the map chose nothing — workspace-write with network, without "+
+				"config.toml's writable roots: "+err.Error())
+		}
+		home = read
+	}
+	if begin.Sandbox == "" && slices.Contains(sandboxModes, home.Mode) {
+		begin.Sandbox = home.Mode
+	}
 	if begin.Sandbox == "" {
-		begin.Sandbox = "workspace-write"
+		begin.Sandbox = presetSandbox
 	}
 	begin.Workspace = begin.Sandbox == "workspace-write"
-	if begin.Workspace {
-		begin.WritableRoots = helperWritableRoots(ctx, begin.CWD, begin.WritableRoots)
+	if !begin.Workspace {
+		if begin.Sandbox == "read-only" && len(begin.WritableRoots) > 0 {
+			warns = append(warns, "the writable roots are not applied: the helper's sandbox is read-only")
+		}
+		return warns
 	}
+	begin.HomeNetwork = home.Table
+	begin.WritableRoots = helperWritableRoots(ctx, begin.CWD, append(slices.Clone(home.Roots), begin.WritableRoots...))
+	return warns
 }
 
 // A worktree needs both git directories: Codex protects its own gitdir even

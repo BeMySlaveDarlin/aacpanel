@@ -54,14 +54,15 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	}
 	begin.Owner = stream.OwnerOf(th.ID)
 	begin.Approval = c.Approval
-	begin.Workspace = begin.Sandbox == "workspace-write" && (begin.Owner.Conversation != "" || req.Project.Codex != nil)
+	// A helper's workspace follows the sandbox prepareCodexHelper settles.
+	begin.Workspace = begin.Sandbox == "workspace-write" && req.Project.Codex != nil
 	if req.Project.Codex != nil {
 		if err := req.Project.Codex.Validate(); err != nil {
 			return "", nil, err
 		}
 		begin.WritableRoots = req.Project.Codex.WritableRoots
 	}
-	prepareCodexHelper(ctx, &begin)
+	warns = append(warns, prepareCodexHelper(ctx, th.Link, &begin)...)
 	warns = append(warns, "the replacement uses the launch's writable roots or the Codex home's defaults")
 	begin.Message = c.Intent
 	if req.Text != "" {

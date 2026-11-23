@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"aacpanel/internal/action"
@@ -152,5 +153,170 @@ func TestHelperCacheDefaultsWorkWithoutGoAndSkipMissingDirectories(t *testing.T)
 	}
 	if got := helperWritableRoots(t.Context(), dir, nil); len(got) != 0 {
 		t.Fatalf("disabled build cache or a file added a root: %v", got)
+	}
+}
+
+// A helper's sandbox is the person's wherever they set one — the call, the
+// map, config.toml of the home — and the panel's preset fills only what none
+// of them says. The override of writable roots replaces codex's list, so a
+// workspace helper's carries config.toml's roots, then the caller's, then the
+// checkout's and the Go caches; its network is config.toml's where config.toml
+// has a sandbox_workspace_write table.
+func TestAHelpersSandboxIsThePersonsBeforeThePanelsPreset(t *testing.T) {
+	const shared, explicit = "/srv/shared", "/srv/explicit"
+	cases := []struct {
+		name   string
+		launch string
+		call   action.CodexLaunch
+		mode   string
+		table  map[string]any
+		refuse bool
+		// sandbox and network are what thread/start gets, nil network for no
+		// override; workspace says the roots are overridden, roots leading
+		// the panel's own.
+		sandbox   string
+		network   any
+		workspace bool
+		roots     []string
+		warn      string
+	}{
+		{name: "nothing anywhere takes the preset", launch: `{"agent":"codex"}`,
+			sandbox: "workspace-write", network: true, workspace: true},
+		{name: "the map's full access", launch: `{"agent":"codex","codexSandbox":"danger-full-access"}`,
+			call: action.CodexLaunch{WritableRoots: []string{explicit}}, sandbox: "danger-full-access"},
+		{name: "config.toml's full access", launch: `{"agent":"codex"}`, mode: "danger-full-access",
+			sandbox: "danger-full-access"},
+		{name: "config.toml's workspace without network", launch: `{"agent":"codex"}`, mode: "workspace-write",
+			table:   map[string]any{"network_access": false, "writable_roots": []any{shared}},
+			call:    action.CodexLaunch{WritableRoots: []string{explicit}},
+			sandbox: "workspace-write", workspace: true, roots: []string{shared, explicit}},
+		{name: "a table of roots that says nothing of the network", launch: `{"agent":"codex"}`,
+			table:   map[string]any{"writable_roots": []any{shared, explicit}},
+			call:    action.CodexLaunch{WritableRoots: []string{explicit}},
+			sandbox: "workspace-write", workspace: true, roots: []string{shared, explicit}},
+		{name: "config.toml's roots with the network on", launch: `{"agent":"codex","codexSandbox":"workspace-write"}`,
+			mode: "workspace-write", table: map[string]any{"network_access": true, "writable_roots": []any{shared}},
+			sandbox: "workspace-write", workspace: true, roots: []string{shared}},
+		{name: "the call's read-only before the map's full access",
+			launch: `{"agent":"codex","codexSandbox":"danger-full-access"}`, call: action.CodexLaunch{Sandbox: "read-only"},
+			sandbox: "read-only"},
+		{name: "the map's workspace before config.toml's full access",
+			launch: `{"agent":"codex","codexSandbox":"workspace-write"}`, mode: "danger-full-access",
+			sandbox: "workspace-write", network: true, workspace: true},
+		{name: "the map's read-only before config.toml's full access",
+			launch: `{"agent":"codex","codexSandbox":"read-only"}`, mode: "danger-full-access",
+			call: action.CodexLaunch{WritableRoots: []string{explicit}}, sandbox: "read-only",
+			warn: "the writable roots are not applied: the helper's sandbox is read-only"},
+		{name: "an unread config.toml takes the preset", launch: `{"agent":"codex"}`, refuse: true,
+			sandbox: "workspace-write", network: true, workspace: true,
+			warn: "config.toml of the Codex home was not read"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, e, p := onCodexContour(t)
+			onTheStream(t, true)
+			newGitFixture(t, p.Path)
+			build, mod := cacheFixture(t)
+			srv.Sandbox(tc.mode, tc.table)
+			if tc.refuse {
+				srv.Refuse("config/read")
+			}
+			p.OpenedBy = streamSID
+			if tc.call.Sandbox != "" || tc.call.WritableRoots != nil {
+				p.Codex = &tc.call
+			}
+			detail, _, err := open(t, e, p, tc.launch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			starts := srv.Calls("thread/start")
+			if len(starts) != 1 {
+				t.Fatalf("the helper did not start once: %s", starts)
+			}
+			start := paramsOf(t, starts[0])
+			config := start["config"].(map[string]any)
+			var roots any
+			if tc.workspace {
+				want := []any{}
+				for _, root := range append(tc.roots, filepath.Join(p.Path, ".git"), build, mod) {
+					want = append(want, root)
+				}
+				roots = want
+			}
+			if start["sandbox"] != tc.sandbox || config["sandbox_workspace_write.network_access"] != tc.network ||
+				!reflect.DeepEqual(config["sandbox_workspace_write.writable_roots"], roots) {
+				t.Fatalf("the helper started with sandbox %v, network %v, roots %v; want %s, %v, %v",
+					start["sandbox"], config["sandbox_workspace_write.network_access"],
+					config["sandbox_workspace_write.writable_roots"], tc.sandbox, tc.network, roots)
+			}
+			if start["approvalPolicy"] != "on-request" || start["approvalsReviewer"] != "auto_review" {
+				t.Fatalf("the helper lost its approvals: %v", start)
+			}
+			warned := strings.Contains(detail, "WARNING")
+			if tc.warn != "" && !strings.Contains(detail, "WARNING: "+tc.warn) || tc.warn == "" && warned {
+				t.Fatalf("the open said %q, want the warning %q", detail, tc.warn)
+			}
+		})
+	}
+}
+
+// The sandbox a helper settled at its start is what its mark keeps for a
+// recovery and what a restart gives its replacement, whatever config.toml
+// names by then; a workspace replacement reads config.toml's network and
+// roots again.
+func TestARecoveredOrRestartedHelperKeepsTheSandboxItSettled(t *testing.T) {
+	cases := []struct {
+		name    string
+		mode    string
+		table   map[string]any
+		sandbox string
+		roots   any
+	}{
+		{name: "config.toml's full access", mode: "danger-full-access", sandbox: "danger-full-access"},
+		{name: "config.toml's workspace without network", mode: "workspace-write",
+			table:   map[string]any{"network_access": false, "writable_roots": []any{"/srv/shared"}},
+			sandbox: "workspace-write", roots: []any{"/srv/shared"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, e, p := onCodexContour(t)
+			onTheStream(t, true)
+			newTmuxStub(t, nil, "")
+			srv.Sandbox(tc.mode, tc.table)
+			p.OpenedBy = streamSID
+			_, name, err := open(t, e, p, `{"agent":"codex"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := e.codex.Find(name)[0]
+			first := paramsOf(t, srv.Calls("thread/start")[0])
+			config := first["config"].(map[string]any)
+			if first["sandbox"] != tc.sandbox || config["sandbox_workspace_write.network_access"] != nil ||
+				!reflect.DeepEqual(config["sandbox_workspace_write.writable_roots"], tc.roots) {
+				t.Fatalf("the helper started with %v", first)
+			}
+			// A recovery resumes the thread with its mark, as the recovery
+			// tests show; the mark is read here rather than waited for.
+			raw, err := os.ReadFile(filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "aacpanel-stream", "codex-held", "acme", old.ID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mark := paramsOf(t, raw); mark["sandbox"] != tc.sandbox || !reflect.DeepEqual(mark["config"], first["config"]) {
+				t.Fatalf("the helper's mark lost its sandbox: %s, the start %v", raw, first)
+			}
+			srv.Sandbox("read-only", tc.table)
+			if _, _, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name,
+				Conversation: old.ID, Project: p}); err != nil {
+				t.Fatal(err)
+			}
+			starts := srv.Calls("thread/start")
+			if len(starts) != 2 {
+				t.Fatalf("the helper was not restarted: %s", starts)
+			}
+			again := paramsOf(t, starts[1])
+			if again["sandbox"] != tc.sandbox || !reflect.DeepEqual(again["config"], first["config"]) {
+				t.Fatalf("the replacement started with %v, the helper with %v", again, first)
+			}
+		})
 	}
 }

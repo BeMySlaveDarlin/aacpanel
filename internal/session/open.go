@@ -40,8 +40,9 @@ const openDescription = "Opens only on the person's request: another session spe
 	"overrides the map's; a busy name gets a free one. To resume a closed Claude conversation, give resume, " +
 	"its id; dir may be omitted or belong to that project, and agent and Codex options are forbidden. A " +
 	"same-project session opens under the caller. Account and launch come from the map; agent and Codex options " +
-	"override this start only. Codex uses on-request + auto_review and workspace-write with network, unless read-only; writableRoots adds absolute paths only " +
-	"with workspace-write. Git metadata and existing Go caches are writable too. For an existing session use send_to_session, for an internal subagent use the " +
+	"override this start only. Codex uses on-request + auto_review; sandbox: call, map, config.toml, else " +
+	"workspace-write. Workspace-write: config.toml's network (else on) and roots, writableRoots (absolute), git " +
+	"metadata, Go caches. For an existing session use send_to_session, for an internal subagent use the " +
 	"client's agent tools. Tell the person the returned name and account, then send the task: immediately " +
 	"for Codex, after Claude appears in send_to_session's list. Check that list before retrying an unknown outcome. " +
 	"Continue independent work or end the turn for the report. Reports reach stream or daemon " +

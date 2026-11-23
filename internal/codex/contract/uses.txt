@@ -275,7 +275,8 @@ call mcpServerStatus/list
 
 # The names the servers are asked by, said without starting any. The servers
 # of config.toml are the keys under mcp_servers of the config, a key the
-# schema does not declare: the config is open to any key, and stays so.
+# schema does not declare: the config is open to any key, and stays so. A
+# helper's start reads sandbox_mode and sandbox_workspace_write there too.
 call config/read
   send cwd
   read config{}
