@@ -75,6 +75,9 @@ export async function revealWaiting(item, show, box) {
     if (!row) return false;
     for (const was of box.querySelectorAll(".waitingtarget")) was.classList.remove("waitingtarget");
     row.classList.add("waitingtarget");
-    box.scrollTop += row.getBoundingClientRect().top - box.getBoundingClientRect().top - 12;
+    // A chain opens on its step at hand, not on its head: the steps above it
+    // are finished, and a long chain would leave the step below the screen.
+    const at = row.querySelector(".chainstep.current") || row;
+    box.scrollTop += at.getBoundingClientRect().top - box.getBoundingClientRect().top - 12;
     return true;
 }
