@@ -52,20 +52,25 @@ export function MovePill({ items, onNext }) {
     </button>`;
 }
 
-export function ActMarker({ item, record, onOpen }) {
-    const kind = item.role;
-    const open = record ? actOpen(record) : true;
-    const chain = isChain(record || item);
-    const outcome = chain ? chainSummary(record || item) : record?.withdrawn ? "Withdrawn" : record?.outcome === "done" ? "Done"
-        : record?.outcome === "cant" ? "Can't" : record?.state === "declined" ? "Won't give"
-        : record?.answered || record?.state === "answered" ? "Filled in" : "yours · below";
-    return html`<div class=${`actmark${open ? " open" : " done"}`} data-act=${item.id}>
-        <button type="button" class="actmarker" onClick=${() => onOpen && onOpen(item)} disabled=${!open || !onOpen}>
-            ${kind === "secret" ? Icon.key() : Icon.list()}<span class="actkind">${chain ? "chain" : kind}</span>
-            <span class="acttitle">${record?.title || item.title}</span>
-            <small>${outcome}</small>
+// actState is the word the head of an act's card says it stands at: how the
+// person answered it, or that it is theirs to answer.
+export function actState(act) {
+    if (actOpen(act)) return "yours";
+    if (act.state === "withdrawn") return "withdrawn";
+    if (act.kind === "secret") return act.state === "declined" ? "won't give" : "filled in";
+    return act.outcome === "done" ? "done" : "can't";
+}
+
+// ActMarker stands in the row of a chain until its act is read: the
+// transcript tells a chain by its steps, and its card is drawn from the act.
+export function ActMarker({ item, onOpen }) {
+    return html`<div class="actmark open" data-act=${item.id}>
+        <button type="button" class="actmarker" onClick=${() => onOpen && onOpen(item)} disabled=${!onOpen}>
+            ${Icon.list()}<span class="actkind">chain</span>
+            <span class="acttitle">${item.title}</span>
+            <small>${chainSummary(item)}</small>
         </button>
-        ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${record} onOpen=${onOpen} />`)}
+        ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} onOpen=${onOpen} />`)}
     </div>`;
 }
 

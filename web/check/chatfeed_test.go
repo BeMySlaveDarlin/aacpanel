@@ -454,7 +454,7 @@ func TestARowIsDrawnAgainOnlyWhenItChanges(t *testing.T) {
 		t.Errorf("an answer brought again drew %d rows, want the one that changed", got.Rewritten.Rows)
 	}
 	if got.ActRows.Arrival != 0 || got.ActRows.Changed != 1 || got.ActRows.Title != "Read the router label" {
-		t.Errorf("an act update drew unrelated rows or missed its marker: %+v", got.ActRows)
+		t.Errorf("an act update drew unrelated rows or missed its card: %+v", got.ActRows)
 	}
 	if got.Cleared.Value != "" || got.Cleared.Fitted == 0 {
 		t.Errorf("after a send the field holds %q and was fitted %d times — the cleared field keeps the height of what was sent",

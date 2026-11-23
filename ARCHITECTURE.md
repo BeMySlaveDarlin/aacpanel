@@ -792,11 +792,23 @@ title, checks its conversation and locks the row while the executor accepts
 it. Only then is it marked answered. A failed delivery leaves it open, and a
 retry preserves the message id where the transport deduplicates messages.
 
-Markdown request and secret cards are markers in the feed; a chain is its card,
-open or closed. A reply carrying an id in
-`GET /api/acts` folds into a quiet line under its act and opens in full on a
-press. Matching by stored id keeps the reply independent of its wording. The
-whole-text parsers remain for history without act data.
+Every act stands in the feed as its card where it was posted: a chain, a
+Markdown request, a secret, a question. The head of a request or a secret
+says where it stands — the person's to answer, done, can't, filled in, won't
+give, withdrawn. An open request or secret is answered in the form at the end
+of the feed: its card carries no steps, only a button that puts it into the
+form, and no button where no form stands, in an archived session or one
+outside the panel. A closed one keeps what it was answered with: a request
+its steps and the person's note, a secret the time and the path it was saved
+to, or the reason it was refused — never its value or template. A chain whose
+act has not been read yet stands as a marker until it is.
+
+A reply carrying an id in `GET /api/acts` is matched to its act by that id.
+Under a chain or a question it stays a quiet line; under a request or a
+secret it is not drawn, since the card says the same. A reply whose act's row
+is outside the loaded window stands as a quiet line of its own that opens in
+full on a press. Matching by stored id keeps the reply independent of its
+wording. The whole-text parsers remain for history without act data.
 The time over the composer and in the desktop graph says "last reply" so it
 does not read as the time of a task for the person's hands.
 

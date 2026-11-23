@@ -54,8 +54,9 @@ const sameItem = (a, b) => a.pos === b.pos && a.role === b.role && (a.nth || 0) 
 
 // What a row draws around its words and is not the conversation: the time
 // under a message, a note that it was cut, the state of one on its way, the
-// head of a card or a letter, who a letter is from, the buttons of a card.
-const CHROME = ".mstamp, .hint, .mwait, .magain, .senthead, .mletterwho, .mlettermore, .sksaved, .skfill";
+// head of a card or a letter, who a letter is from, the buttons of a card,
+// the file a secret went to and the reason one was refused.
+const CHROME = ".mstamp, .hint, .mwait, .magain, .senthead, .mletterwho, .mlettermore, .sksaved, .skfill, .skcard .pnmpath, .skcard .pnmnote";
 
 // Blocks: the text of two of them meets with a space between, the way the host
 // reads the line break between two paragraphs.

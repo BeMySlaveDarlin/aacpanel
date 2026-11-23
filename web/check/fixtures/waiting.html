@@ -67,6 +67,9 @@ const draw = (live = session) => render(html`<${ToastHost}><${GateHost}><${Chat}
     onBack=${() => {}} onTerm=${wide ? (target) => terminals.push(target) : null} /></${GateHost}></${ToastHost}>`, root);
 const count = () => Number(document.querySelector(".movepill .movecount")?.textContent || 0);
 const form = () => document.querySelector(".actform:not(.actsent)");
+// The card of an act in its own row of the feed, not the form docked at its end.
+const rowCard = (role, id) => document.querySelector(`.chatfeed .feedrow.r-${role} [data-act="${id}"]`);
+const label = (el) => el?.querySelector(".sentlabel")?.textContent;
 const button = (word) => [...form().querySelectorAll("button")].find(b => b.textContent.trim() === word);
 const input = (el, text) => { el.value = text; el.dispatchEvent(new Event("input", { bubbles: true })); };
 const type = async (el, text) => { input(el, text); await quiet(); };
@@ -92,12 +95,18 @@ window.done = (async () => {
     out.waitTime = document.querySelector(".movepill").getAttribute("aria-label").includes("5 min ago")
         && document.querySelector(".movepill").textContent.trim() === String(count())
         && Boolean(document.querySelector(".movepill svg"));
-    out.markers = document.querySelectorAll(".chatfeed .actmark").length === 2 && !document.querySelector(".chatfeed .actmark .requeststeps, .chatfeed .actmark .skpad");
+    // An open act is a card in its row saying it waits, and its steps stand only in the form.
+    out.markers = !document.querySelector(".chatfeed .actmark")
+        && label(rowCard("request", req.id)) === "request · yours" && label(rowCard("secret", sec.id)) === "secret · yours"
+        && !document.querySelector(".chatfeed .feedrow:is(.r-request, .r-secret) :is(.requeststeps, .skpad)");
     out.head = document.querySelector('.talkword, .dkword[data-tone="waiting"]')?.textContent === "your move";
     out.noteQuiet = !form().querySelector("textarea");
-    // A tap on the marker of an open act shows it in the form; the field stays.
-    document.querySelector(".chatfeed .actmarker").click(); await quiet();
-    out.markerKeeps = Boolean(document.querySelector(".composer > textarea")) && Boolean(form()?.textContent.includes(req.title));
+    // A press on the card of an open act shows it in the form; the field stays.
+    await next();
+    const wasSecret = Boolean(form()?.querySelector(".skpad"));
+    rowCard("request", req.id).querySelector(".actfoot .btn.primary").click(); await quiet();
+    out.markerKeeps = wasSecret && Boolean(document.querySelector(".composer > textarea"))
+        && Boolean(form()?.querySelector(".requestanswer")) && form().textContent.includes(req.title);
     await next();
     out.next = Boolean(form().querySelector(".skpad")) && count() === 2;
     // The form is the last message of the feed, not a part of the composer.
@@ -168,9 +177,12 @@ window.done = (async () => {
     // Changed reply wording still folds under the act identified by the API.
     items = [...items, { role: "me", pos: 40, text: `Different wording for act ${req.id}: unavailable`, at }];
     stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 40, total: items.length }) }); await quiet();
-    out.quietReply = document.querySelector(".actreply summary")?.textContent.startsWith("to the agent: Different wording") && ![...document.querySelectorAll(".msg.me")].some(el => el.textContent.includes("Different wording"));
-    const panel = document.querySelector(".actreply"); panel.open = true;
-    out.fullReply = panel.querySelector("p").textContent.includes(req.id);
+    out.quietReply = !document.querySelector(".chatfeed .actreply")
+        && !document.querySelector(".chatfeed").textContent.includes("Different wording");
+    // The card of the closed request says how it was answered, with its steps and the reason.
+    const closed = rowCard("request", req.id);
+    out.fullReply = label(closed) === "request · can't" && closed.querySelector(".requeststeps")?.textContent.includes("printf ready")
+        && closed.querySelector(".requestreply")?.textContent === "No power." && !closed.querySelector(".actfoot, .requeststate");
     // A round goes a question at a time under strips of its steps; Back
     // returns to an answered step, and a review comes before the answer goes.
     state = { ask: { toolUseId: "round", at, questions: [
@@ -308,8 +320,17 @@ window.done = (async () => {
     await until(() => badge(overdue.id).endsWith(" · withdrawn"));
     out.claimArchive = sent.at(-1).kind === "act.withdraw" && sent.at(-1).target === "saved-sender"
         && sent.at(-1).params.act === overdue.id;
+    // A request still open in a session outside the panel has no form to dock into.
+    const late = { id: "f".repeat(32), kind: "do", title: "Plug the cable back", state: "open", created: at, body: { steps: "Plug it in." } };
+    acts = [...acts, late];
+    items = [...items, { role: "request", id: late.id, title: late.title, steps: late.body.steps, pos: 68, at }];
+    draw();
+    stream.listeners.chat({ data: JSON.stringify({ items, state, first: 10, last: 68, total: items.length }) });
+    await until(() => rowCard("request", late.id)?.querySelector(".actfoot .btn") && form()?.textContent.includes(late.title));
+    const docks = label(rowCard("request", late.id)) === "request · yours";
     draw({ ...session, outside: true }); await quiet();
     out.outsideDeck = !document.querySelector(".cstrip") && Boolean(document.querySelector(".deck .pkcmds"));
+    out.outsideCard = docks && !form() && Boolean(rowCard("request", late.id)) && !rowCard("request", late.id).querySelector("button");
     return out;
 })();
 </script>

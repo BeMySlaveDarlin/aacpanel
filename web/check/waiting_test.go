@@ -12,7 +12,7 @@ func TestMoveFormsOnPhoneAndDesktop(t *testing.T) {
 		t.Run(screen.name, func(t *testing.T) {
 			var got map[string]bool
 			screen.run(t, "waiting.html", &got)
-			for _, key := range []string{"toolsHome", "terminal", "outsideDeck"} {
+			for _, key := range []string{"toolsHome", "terminal", "outsideDeck", "outsideCard"} {
 				if !got[key] {
 					t.Errorf("%s: the conversation tools lost their home or action: %+v", key, got)
 				}

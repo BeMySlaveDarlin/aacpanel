@@ -212,20 +212,22 @@ window.done = (async () => {
         return { row, stack, left, stayed: box.scrollTop, awayGap: gap() };
     };
     const grown = await growth();
-    // Act updates touch their marker alone, even while the host replaces its
-    // waiting summary and the API returns fresh objects for every act.
+    // Act updates touch the card of their row alone, even while the host
+    // replaces its waiting summary and the API returns fresh objects for every
+    // act.
     const actId = "e".repeat(32);
     const beforeAct = draws.row;
     acts = [{ id: actId, kind: "do", state: "open", title: "Check the router", body: { steps: "Read the label." } }];
     snap(); await until(() => document.querySelector(".requesttitle")?.textContent === acts[0].title); await quiet();
     const actRows = { arrival: draws.row - beforeAct };
     stream.emit("chat", { items: [{ role: "request", id: actId, title: acts[0].title, pos: pos + 20 }], total: items.length + 2 });
-    await until(() => document.querySelector(".actmark")); await quiet();
+    const rowTitle = () => document.querySelector(".feedrow.r-request .requesttitle");
+    await until(() => rowTitle()); await quiet();
     const beforeChange = draws.row;
     acts = [{ ...acts[0], title: "Read the router label" }];
-    snap(); await until(() => document.querySelector(".actmark .acttitle")?.textContent === acts[0].title); await quiet();
+    snap(); await until(() => rowTitle()?.textContent === acts[0].title); await quiet();
     actRows.changed = draws.row - beforeChange;
-    actRows.title = document.querySelector(".actmark .acttitle")?.textContent;
+    actRows.title = rowTitle()?.textContent;
     render(h(ToastHost, null, h(SubChat, { session: "acme", id: "s1:agent-1",
         agent: { name: "Worker", kind: "subagent" }, live, onBack: () => {} })), document.getElementById("root"));
     await until(() => document.querySelectorAll(".feedrow").length === items.length);

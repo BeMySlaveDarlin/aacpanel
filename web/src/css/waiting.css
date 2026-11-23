@@ -67,12 +67,13 @@
 .actform .senthead, .actform .sentico, .actform .sentlabel { color: var(--ink-dim); }
 /* The foot of a form is one row: a quiet note at the left, the other answer
    and the main one at the right, of one height with the foot of a question.
-   A chain is answered in its own row of the feed, and its step has the same foot. */
-:is(.actform, .mchain) .actfoot { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; margin-top: .6rem; }
-:is(.actform, .mchain) .actfoot > .btn { flex: 0 0 auto; height: 2.5rem; min-height: 0; padding-block: 0; }
-:is(.actform, .mchain) .actfoot > .btn.primary { min-width: 7.5rem; }
-:is(.actform, .mchain) .actfoot > .actnote { margin-right: auto; }
-:is(.actform, .mchain) .requestnote { margin-top: .6rem; }
+   A chain is answered in its own row of the feed, and its step has the same
+   foot; so has the card of an open request in its row, leading to the form. */
+:is(.actform, .mrequest) .actfoot { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; margin-top: .6rem; }
+:is(.actform, .mrequest) .actfoot > .btn { flex: 0 0 auto; height: 2.5rem; min-height: 0; padding-block: 0; }
+:is(.actform, .mrequest) .actfoot > .btn.primary { min-width: 7.5rem; }
+:is(.actform, .mrequest) .actfoot > .actnote { margin-right: auto; }
+:is(.actform, .mrequest) .requestnote { margin-top: .6rem; }
 .actnote, .actbrief { border: 0; padding: .4rem 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--t-sm); cursor: pointer; }
 .composeclip { display: none; }
 .movepill { position: relative; flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--r-small); background: color-mix(in srgb, var(--wait) 8%, transparent); box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--wait) 35%, transparent); color: var(--wait); font: inherit; cursor: pointer; }

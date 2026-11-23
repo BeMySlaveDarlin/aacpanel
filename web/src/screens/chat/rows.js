@@ -22,7 +22,8 @@ import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { pauseEnd } from "../sessions/pause.js";
 import { savedAfter } from "../../data/secrets.js";
-import { ActMarker, ActReply, AskCard } from "./actform.js";
+import { ActMarker, ActReply, actState, AskCard } from "./actform.js";
+import { RequestCard } from "./request.js";
 import { actOpen, ChainCard, isChain } from "./chain.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
@@ -44,8 +45,10 @@ export const FeedWrites = createContext(null);
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js). chain is what the feed lends an open
 // chain to be worked in its row: onAnswer, onChainRun, onChainStop, onTerm,
-// and the error and unavailable lines of ChainCard.
-export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onClaimWithdraw, chain }) {
+// and the error and unavailable lines of ChainCard. onAct leads to an act from
+// its marker or the line of its reply; onDock puts an open request into the
+// form at the end of the feed, and is absent where no form stands.
+export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onDock, onClaimWithdraw, chain }) {
     const menu = useMenu();
     const writes = useContext(FeedWrites) || {};
     if (item.role === "shots") {
@@ -95,21 +98,25 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         return html`<${PageCard} item=${item} copy=${copies && copies.of(item)} onOpen=${onPage} />`;
     }
 
-    if (item.role === "secret" && !item.id) {
-        return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
+    // A secret and a plain request are their cards, and what the panel told
+    // the session of their answer is not drawn under them: the card already
+    // says how each was answered.
+    if (item.role === "secret") {
+        return html`<${SecretCard} item=${item} record=${act} shelf=${secrets} onOpen=${onSecret} />`;
     }
-    if (["request", "secret", "ask"].includes(item.role)) {
-        if (item.role === "ask") return html`
-            <${AskCard} item=${item} record=${act} />
-            ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
+    if (item.role === "ask") return html`
+        <${AskCard} item=${item} record=${act} />
+        ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
+    if (item.role === "request") {
         // A chain stands where it was posted, open or closed, and is never
         // docked at the end of the feed: a chain stays open for hours, and
         // everything said meanwhile would pile up above it. Its steps are
         // answered, run and stopped here.
-        if (item.role === "request" && isChain(act)) return html`
+        if (isChain(act)) return html`
             <${ChainCard} item=${item} record=${act} ...${(actOpen(act) && chain) || {}} />
             ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
-        return html`<${ActMarker} item=${item} record=${act} onOpen=${onAct} />`;
+        if (!act && isChain(item)) return html`<${ActMarker} item=${item} onOpen=${onAct} />`;
+        return html`<${RequestCard} item=${item} record=${act} placed onOpen=${onDock} onRun=${writes.onRun} />`;
     }
     if (item.role === "brief") {
         const card = (briefs || []).find((c) => c.id === item.id) || null;
@@ -883,28 +890,35 @@ function BriefDoc({ item, card, onOpen }) {
 }
 
 // SecretCard is a secret a session asked for: what it wants, the name of the
-// file it will get, and the button that opens the notepad. Once the host holds
-// a file of that name written after the question, the card says when; the
-// text itself is never on the card, not even the template.
-function SecretCard({ item, shelf, onOpen }) {
-    const saved = savedAfter(shelf, item);
+// file it will get, and the button that opens the notepad. The act of a
+// secret asked through the panel says on the head where it stands, and once
+// saved, when and the file it went to; a refused one gives the person's
+// reason. Without an act read, the card says when once the host holds a file
+// of that name written after the question. The text itself is never on the
+// card, not even the template.
+function SecretCard({ item, record, shelf, onOpen }) {
+    const open = !record || actOpen(record);
+    const saved = record ? record.state === "answered" && { at: record.answered, path: record.answer?.path }
+        : savedAfter(shelf, item);
     return html`
-        <div class="sent msecret">
+        <div class="sent msecret" data-act=${item.id}>
             <div class="senthead">
                 <span class="sentico">${Icon.key()}</span>
-                <span class="sentlabel">secret</span>
+                <span class="sentlabel">${record ? `secret · ${actState(record)}` : "secret"}</span>
                 ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
             </div>
             <div class="mflist">
                 <div class="artifact skcard">
                     <span class="arbody">
-                        <span class="artitle">${item.title}</span>
+                        <span class="artitle">${record?.title || item.title}</span>
                         <span class="armeta">
                             <span>${item.name}</span>
-                            ${saved && html`<span class="sksaved">saved ${stampText(saved.at)}</span>`}
+                            ${saved?.at && html`<span class="sksaved">saved ${stampText(saved.at)}</span>`}
                         </span>
+                        ${saved?.path && html`<span class="armeta"><${PathText} path=${saved.path} /></span>`}
+                        ${record?.state === "declined" && record.note && html`<span class="pnmnote">${record.note}</span>`}
                     </span>
-                    ${onOpen && html`
+                    ${open && onOpen && html`
                         <button class="btn primary skfill" type="button" onClick=${() => onOpen(item)}>Fill in</button>
                     `}
                 </div>

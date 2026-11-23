@@ -747,6 +747,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                         act=${acts[item.claim || item.re || item.actReplyID || item.id]}
                         onClaimWithdraw=${knows(exec, "act.withdraw") ? withdrawClaim : null}
                         onAct=${selectAct}
+                        onDock=${answerable ? selectAct : null}
                         chain=${item.role === "request" ? chainHands : null}
                         secrets=${secrets}
                         onSecret=${live && !live.outside ? openSecret : null}

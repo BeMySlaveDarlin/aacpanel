@@ -11,7 +11,7 @@ func TestSecretNotepad(t *testing.T) {
 		t.Run(screen.name, func(t *testing.T) {
 			var got map[string]bool
 			screen.run(t, "secretpad.html", &got)
-			for _, key := range []string{"auto", "path", "replaces", "attrs", "hidden", "shown", "dropped", "fresh", "blank", "reset", "once", "noConfirmation", "saved", "carried", "next", "toast"} {
+			for _, key := range []string{"auto", "cards", "filled", "refused", "noReply", "noTemplate", "path", "replaces", "attrs", "hidden", "shown", "dropped", "fresh", "blank", "reset", "once", "noConfirmation", "saved", "carried", "next", "toast", "outside"} {
 				if !got[key] {
 					t.Errorf("%s: %+v", key, got)
 				}
