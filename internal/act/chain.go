@@ -72,6 +72,24 @@ func (r Record) CommandRunning() bool {
 		r.Body.Chain[index].Who == "you" && r.Body.Chain[index].Command != "" && r.Outputs[index].Running()
 }
 
+// CommandWindow reads only the current open human command, leaving failed
+// steps to the agent and completed steps in history.
+func (r Record) CommandWindow() (from, until string) {
+	if !r.Chain() || r.State != "open" {
+		return "", ""
+	}
+	step, err := r.Current(*r.Step, "you")
+	if err != nil || step.Command == "" {
+		return "", ""
+	}
+	return step.From, step.Until
+}
+
+func (r Record) CommandScheduled(now time.Time) bool {
+	from, _ := r.CommandWindow()
+	return !r.CommandRunning() && (request.Step{From: from}).Scheduled(now)
+}
+
 // Cancel is the outcome of a chain the person cancelled from its card.
 const Cancel = "cancel"
 

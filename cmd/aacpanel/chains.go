@@ -63,9 +63,14 @@ func (s *Server) runChainCommand(w http.ResponseWriter, r *http.Request, kind ac
 		}
 
 		now := time.Now().UTC()
+		if err := spec.RunWindow(now); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		next := &personrequest.Output{State: "pending", Term: newTermID(), Started: &now}
 		if out != nil {
 			next.Tail, next.Log = out.Tail, out.Log
+			next.WindowSoon, next.WindowOpened = out.WindowSoon, out.WindowOpened
 		}
 		row.Outputs[step-1] = next
 		id := row.ID
@@ -323,6 +328,9 @@ func (s *Server) chainAdvanced(lease *store.ActAnswer) {
 		lease.QueueNotice()
 		return
 	}
+	if from, _ := row.CommandWindow(); from != "" {
+		return
+	}
 	if s.push != nil && s.host != nil {
 		if live, ok := s.host.LiveSessionOf(row.Conversation); ok {
 			s.push.Send(notify.Requested(notify.Session{ID: live.SessionID, Name: live.Name, CWD: live.CWD}, row.ID, row.Title))
@@ -382,6 +390,9 @@ func (s *Server) pollChains(ctx context.Context) error {
 func (s *Server) pollChain(ctx context.Context, id string) error {
 	ctx, cancel := context.WithTimeout(ctx, execTimeout)
 	defer cancel()
+	if err := s.pushChainWindow(ctx, id, time.Now().UTC()); err != nil {
+		return err
+	}
 	if err := s.startChainStep(ctx, id); err != nil {
 		return err
 	}
@@ -391,6 +402,15 @@ func (s *Server) pollChain(ctx context.Context, id string) error {
 	}
 	defer lease.Close(ctx)
 	row := &lease.Record
+	if row.CommandScheduled(time.Now()) && row.Notice == nil {
+		hasTerm := false
+		for _, out := range row.Outputs {
+			hasTerm = hasTerm || (out != nil && out.Term != "")
+		}
+		if !hasTerm {
+			return nil
+		}
+	}
 	if row.State == "open" {
 		out := row.Outputs[*row.Step-1]
 		if out != nil && out.State == "running" {
@@ -420,6 +440,68 @@ func (s *Server) pollChain(ctx context.Context, id string) error {
 		return err
 	}
 	return errors.Join(ended, s.deliverChainNotice(ctx, id))
+}
+
+func (s *Server) pushChainWindow(ctx context.Context, id string, now time.Time) error {
+	if s.push == nil || s.host == nil {
+		return nil
+	}
+	lease, err := s.db.LockChain(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer lease.Close(ctx)
+	row := &lease.Record
+	fromText, untilText := row.CommandWindow()
+	if fromText == "" || row.CommandRunning() {
+		return nil
+	}
+	live, ok := s.host.LiveSessionOf(row.Conversation)
+	if !ok || live.Outside {
+		return nil
+	}
+	from, _ := time.Parse(time.RFC3339, fromText)
+	until, _ := time.Parse(time.RFC3339, untilText)
+	soon := from.Add(-5 * time.Minute)
+	if now.Before(soon) {
+		return nil
+	}
+	index := *row.Step - 1
+	out := row.Outputs[index]
+	if out == nil {
+		out = &personrequest.Output{State: "pending"}
+		row.Outputs[index] = out
+	}
+	var messages []notify.Message
+	session := notify.Session{ID: live.SessionID, Name: live.Name, CWD: live.CWD}
+	closed := !until.IsZero() && !now.Before(until)
+	changed := false
+	if !out.WindowSoon {
+		out.WindowSoon = true
+		changed = true
+		if !row.Created.After(soon) && now.Before(from) && !closed {
+			messages = append(messages, notify.CommandWindow(session, row.ID, row.Title, *row.Step, personrequest.WindowTime(fromText), false))
+		}
+	}
+	if !now.Before(from) && !out.WindowOpened {
+		out.WindowOpened = true
+		changed = true
+		if !closed {
+			messages = append(messages, notify.CommandWindow(session, row.ID, row.Title, *row.Step, personrequest.WindowTime(fromText), true))
+		}
+	}
+	if !changed {
+		return nil
+	}
+	// Spending the marks before delivery bounds pushes across restarts. A crash
+	// between commit and send can lose a push, but cannot send it twice.
+	if err := lease.SaveChain(ctx); err != nil {
+		return err
+	}
+	for _, message := range messages {
+		s.push.Send(message)
+	}
+	return nil
 }
 
 func (s *Server) operateChain(w http.ResponseWriter, r *http.Request, conversation, session string, input act.Input) {

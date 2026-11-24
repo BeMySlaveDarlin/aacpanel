@@ -680,7 +680,7 @@ terminal that did not close is tried again on the next poll and never rolls
 back the step it belonged to. An agent reports only its own current step through
 `request {id, step, outcome, note?}`; it cannot mark a human step done.
 
-A following human step pushes with the title without waking the model. A
+A following human step without `from` pushes with the title without waking the model. A
 following agent step, a failure, the end of a chain and the person's cancel
 each deliver one summary through `session.send`, for Claude and Codex alike.
 The summary names the act, steps since the preceding wake, exit codes,
@@ -799,6 +799,19 @@ A chain whose current human command is running, including a reserved terminal
 awaiting launch, carries `running` in the waiting summary. Its card, move pill
 and session state stay calm: Run hands the step to the command, so it is no
 longer the person's move until the command stops or another human step begins.
+
+A human command step accepts optional `from` and `until` in RFC 3339 with an
+offset. Run is admitted only from the opening until the closing time; a command
+admitted inside the window finishes even after it closes. Before the opening
+the chain is quiet and is not the person's move. Its waiting summary carries
+`scheduled`, `from` and `until`; screens follow those times with a timer, and
+the session card puts the opening in its time corner without the task title.
+After the closing the person must answer Can't or cancel. A step with `from`
+replaces its ordinary request push with one five minutes before opening and
+one when it opens. A chain created less than five minutes before opening skips
+the advance push; a poll after closing sends neither. Each push spends a mark
+in the step's output before delivery, under the act's row lock. A restart
+cannot repeat it; a crash between commit and delivery can lose it.
 
 A chain's card shows every step open, its current step marked. Human command steps
 have Run, terminal access and Stop; human steps without a command have Done

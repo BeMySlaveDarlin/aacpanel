@@ -96,7 +96,8 @@ func (s *Server) createAct(w http.ResponseWriter, r *http.Request, conversation 
 		return
 	}
 	// secret_ask calls the phone after it has a durable act.
-	if row.Kind == "do" && s.push != nil {
+	from, _ := row.CommandWindow()
+	if row.Kind == "do" && s.push != nil && from == "" {
 		s.push.Send(notify.Requested(notify.Session{ID: live.SessionID, Name: live.Name, CWD: live.CWD}, row.ID, row.Title))
 	}
 	writeJSON(w, map[string]string{"id": row.ID})

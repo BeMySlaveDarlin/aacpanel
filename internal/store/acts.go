@@ -202,15 +202,16 @@ func (a *ActAnswer) SaveChain(ctx context.Context) error {
 }
 
 // ActiveChains lists the chains the poll has work on: a step that runs or is
-// about to start, an undelivered notice, or a terminal its step no longer
-// needs. An output saves its term only while it has one, so the key's presence
+// about to start, a command window with an opening push left, an undelivered
+// notice, or a terminal its step no longer needs. An output saves its term
+// only while it has one, so the key's presence
 // is the test for a terminal.
 func (s *Store) ActiveChains(ctx context.Context) ([]act.Record, error) {
 	pool, err := s.Pool()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := pool.Query(ctx, `SELECT `+actColumns+` FROM acts WHERE step IS NOT NULL AND ((state='open' AND outputs @? '$[*] ? (@.state == "running" || (@.state == "pending" && @.term != ""))') OR notice IS NOT NULL OR (state NOT IN ('open','failed') AND outputs @? '$[*].term') OR (state IN ('open','failed') AND outputs @? '$[*] ? (exists(@.term) && @.state != "running" && @.state != "pending")')) ORDER BY created_at,id`)
+	rows, err := pool.Query(ctx, `SELECT `+actColumns+` FROM acts WHERE step IS NOT NULL AND ((state='open' AND coalesce(body->'steps'->(step-1)->>'from','') <> '' AND coalesce(outputs->(step-1)->>'windowOpened','false') <> 'true') OR (state='open' AND outputs @? '$[*] ? (@.state == "running" || (@.state == "pending" && @.term != ""))') OR notice IS NOT NULL OR (state NOT IN ('open','failed') AND outputs @? '$[*].term') OR (state IN ('open','failed') AND outputs @? '$[*] ? (exists(@.term) && @.state != "running" && @.state != "pending")')) ORDER BY created_at,id`)
 	if err != nil {
 		return nil, err
 	}

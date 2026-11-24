@@ -42,7 +42,7 @@ const GLYPHS = {
     ask: Icon.ask, question: Icon.ask, held: Icon.ask, permission: Icon.lock, request: Icon.hand, brief: Icon.plan,
     secret: Icon.key, call: Icon.alerts, input: Icon.hourglass, compact: Icon.compact, saving: Icon.refresh,
     restarting: Icon.refresh, limit: Icon.limit, paused: Icon.pause, done: Icon.check, agentstep: Icon.robot,
-    claim: Icon.envelope,
+    claim: Icon.envelope, scheduled: Icon.clock,
 };
 
 // The short words of the modes, each fitting the place the mode keeps.

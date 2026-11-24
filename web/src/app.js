@@ -17,6 +17,7 @@ import { failed, pick } from "./router.js";
 import * as api from "./api.js";
 import { tellEndpoints, watchOpen } from "./pwa.js";
 import { tellViewing } from "./viewing.js";
+import { useWindowTimer, windowMoments } from "./commandwindow.js";
 
 
 const REFRESH_MS = 15000;
@@ -67,6 +68,7 @@ function wanted(search) {
 export function App({ updateReady, updating, onApplyUpdate, installable, onInstall }) {
     const [tree, setTree] = useState(null);
     const [snapshot, setSnapshot] = useState(null);
+    useWindowTimer(windowMoments((snapshot?.sessions || []).flatMap((s) => s.waiting || [])));
     const [treeError, setTreeError] = useState(null);
     const [hostError, setHostError] = useState(null);
     const [hostHistory, setHostHistory] = useState([]);

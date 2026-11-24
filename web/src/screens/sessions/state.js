@@ -12,7 +12,7 @@
 
 import { alarmTime, plural } from "../../format.js";
 import { contourOf, limitState } from "../../contour.js";
-import { agentStepsOf, runningStepsOf, waitingOf } from "../../waiting.js";
+import { agentStepsOf, runningStepsOf, scheduledStepsOf, waitingOf } from "../../waiting.js";
 import { waitWords } from "../../ui/waits.js";
 import { seenAt as seenHere } from "../../viewing.js";
 import { shown } from "../chat/answered.js";
@@ -220,6 +220,10 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
             subject: `${outgoing[0].peer}${outgoing.length > 1 ? ` +${outgoing.length - 1}` : ""}`,
             note: late ? `overdue ${overdueMinutes(late)}m` : "", since: outgoing[0].at,
         });
+    }
+    const scheduled = scheduledStepsOf(s);
+    if (scheduled.length > 0) {
+        return make("idle", "scheduled", "scheduled", { until: Math.min(...scheduled.map((item) => Date.parse(item.from))), clock: true });
     }
     if (s.noRequests) return make("idle", "fresh", "no replies yet");
     if (s.pauseAlarm) {

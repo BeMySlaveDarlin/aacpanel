@@ -2,9 +2,49 @@ package act
 
 import (
 	"testing"
+	"time"
 
 	"aacpanel/internal/request"
 )
+
+func TestCommandScheduledKeepsOnlyAnUnstartedHumanCommandQuiet(t *testing.T) {
+	now := time.Now().UTC()
+	from := now.Add(time.Hour).Format(time.RFC3339)
+	until := now.Add(2 * time.Hour).Format(time.RFC3339)
+	step := 1
+	row := Record{Kind: "do", State: "open", Step: &step,
+		Body: Body{Chain: []request.Step{{Who: "you", Command: "deploy", From: from, Until: until}}}, Outputs: make([]*request.Output, 1)}
+	if !row.CommandScheduled(now) {
+		t.Fatal("the future command is the person's move")
+	}
+	if gotFrom, gotUntil := row.CommandWindow(); gotFrom != from || gotUntil != until {
+		t.Fatal("the window was lost")
+	}
+	opening, _ := time.Parse(time.RFC3339, from)
+	if row.CommandScheduled(opening) || row.CommandScheduled(opening.Add(3*time.Hour)) {
+		t.Fatal("an open or closed window is still scheduled")
+	}
+	row.Outputs[0] = &request.Output{State: "running"}
+	if row.CommandScheduled(now) {
+		t.Fatal("a launched command waits for its opening")
+	}
+	row.Outputs[0] = nil
+	for _, state := range []string{"failed", "answered", "withdrawn"} {
+		row.State = state
+		if row.CommandScheduled(now) {
+			t.Fatalf("a %s chain is scheduled", state)
+		}
+	}
+	row.State = "open"
+	row.Body.Chain[0].Command = ""
+	if row.CommandScheduled(now) {
+		t.Fatal("a manual step is scheduled")
+	}
+	row.Step = nil
+	if row.CommandScheduled(now) {
+		t.Fatal("a plain act is scheduled")
+	}
+}
 
 func TestCommandRunningHandsOnlyTheCurrentHumanCommandToTheExecutor(t *testing.T) {
 	for _, c := range []struct {

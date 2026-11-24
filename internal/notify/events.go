@@ -376,6 +376,22 @@ func Requested(s Session, id, title string) Message {
 	return m
 }
 
+// CommandWindow is a push of a run window: five minutes before it opens and
+// when it opens. opens is the moment as the person reads it. It shares the
+// request's delivery preferences and its act anchor.
+func CommandWindow(s Session, id, title string, step int, opens string, opened bool) Message {
+	m := Requested(s, id, title)
+	m.Tag += fmt.Sprintf(":%d:window", step)
+	if opened {
+		m.Tag += ":open"
+		m.Body = fmt.Sprintf("Step %d is ready to Run. Open the session.", step)
+	} else {
+		m.Tag += ":soon"
+		m.Body = fmt.Sprintf("Step %d opens at %s. Open the session to prepare.", step, opens)
+	}
+	return m
+}
+
 // callMemory is how long a carried call is remembered: longer than the
 // collector keeps a call standing, so one it still lists is not carried twice.
 const callMemory = 10 * time.Minute

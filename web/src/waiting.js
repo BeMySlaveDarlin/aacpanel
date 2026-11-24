@@ -3,6 +3,7 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { calledMark } from "./viewing.js";
+import { scheduled, useWindowTimer, windowMoments } from "./commandwindow.js";
 
 const settled = new Set();
 const listeners = new Set();
@@ -15,7 +16,7 @@ const keyOf = (session, item) => `${session.sessionId}|${item.kind}|${item.id ||
 export function waitingOf(session, viewed = false, includeBackground = false) {
     if (!session) return [];
     const items = session.waiting || (session.called ? [{ kind: "call", title: "Called you", at: session.called }] : []);
-    return items.filter((item) => kinds.has(item.kind) && (includeBackground || (!item.agent && !item.running)) && !settled.has(keyOf(session, item))
+    return items.filter((item) => kinds.has(item.kind) && (includeBackground || (!item.agent && !item.running && !scheduled(item))) && !settled.has(keyOf(session, item))
         && (item.kind !== "call" || (!viewed && calledMark({ ...session, called: item.at }))));
 }
 
@@ -26,6 +27,10 @@ export function agentStepsOf(session) {
 
 export function runningStepsOf(session) {
     return (session?.waiting || []).filter((item) => item.running && !settled.has(keyOf(session, item)));
+}
+
+export function scheduledStepsOf(session) {
+    return (session?.waiting || []).filter((item) => scheduled(item) && !settled.has(keyOf(session, item)));
 }
 
 // settleWaiting hides an item after its successful answer, never after a tap.
@@ -40,6 +45,7 @@ export function settleWaiting(session, kind, id) {
 
 // useWaiting keeps a row beside the conversation in step with its answers.
 export function useWaiting(session, viewed = false, includeBackground = false) {
+    useWindowTimer(windowMoments(session?.waiting || []));
     const [, redraw] = useState(0);
     useEffect(() => {
         const changed = () => redraw((n) => n + 1);

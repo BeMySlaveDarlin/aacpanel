@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 
 import { list as actList } from "../../data/acts.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
+import { commandWindow, useWindowTimer, windowMoments } from "../../commandwindow.js";
 import { clearWaitingTargets, RequestCard, revealWaiting } from "./request.js";
 import { actOpen, agentsMove, commandRunning, isChain, personsMove } from "./chain.js";
 import { html } from "../../html.js";
@@ -116,6 +117,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // would replace.
     const [secrets, setSecrets] = useState(null);
     const [acts, setActs] = useState({});
+    useWindowTimer(windowMoments(Object.values(acts)));
     const [actError, setActError] = useState("");
     const [actRefresh, refreshActs] = useState(0);
     const actRunning = Object.values(acts).some(commandRunning);
@@ -490,7 +492,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // row, which the pill and a push lead to. It is told by its act, its row
     // of the transcript or the host's mark of the agent's turn, whichever is
     // here first: a chain taken for a plain request would flash in the form.
-    const chained = (item) => isChain(item) || Boolean(item.agent || item.running)
+    const chained = (item) => isChain(item) || Boolean(item.agent || item.running || item.scheduled || item.from || item.until)
         || drawn.some((row) => row.role === "request" && row.id === item.id && isChain(row));
     // Where the row of a chain stands: the host's summary of what waits places
     // it even outside the window drawn, and the drawn feed places the rest.
@@ -629,7 +631,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const spent = pastCodex ? (spoke(archive) ? `${tokens(archive.tokensUsed)} tokens` : "") : null;
     // Acts refresh on Run before the host snapshot catches up, so the head
     // takes the same current turns as the pill and the chain card.
-    const standing = live ? { ...live, waiting: moves.map((item) => ({ ...item, agent: agentsMove(item), running: commandRunning(item) })) } : live;
+    const standing = live ? { ...live, waiting: moves.map((item) => {
+        const { from, until } = commandWindow(item);
+        return { ...item, from, until, agent: agentsMove(item), running: commandRunning(item) };
+    }) } : live;
     const stand = stateOf(standing, still, move, snapshot && snapshot.limits);
     const tools = {
         name, live, archive, pct, spent, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,

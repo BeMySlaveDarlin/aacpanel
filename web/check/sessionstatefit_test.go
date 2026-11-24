@@ -8,15 +8,16 @@ import "testing"
 // the state. A long state is said in full.
 func TestTheQuietWordsOfAStateStandOnALineOfTheirOwn(t *testing.T) {
 	var got struct {
-		Text         string
-		Marks        int
-		LongText     string
-		CommandState bool
-		MixedState   bool
-		StoppedState bool
+		Text           string
+		Marks          int
+		LongText       string
+		CommandState   bool
+		ScheduledState bool
+		MixedState     bool
+		StoppedState   bool
 	}
 	runFixture(t, "sessionstatefit.html", &got)
-	if !got.CommandState || !got.MixedState || !got.StoppedState {
+	if !got.ScheduledState || !got.CommandState || !got.MixedState || !got.StoppedState {
 		t.Errorf("a running command must be calm while another person's move keeps its wait: %+v", got)
 	}
 	if got.Text != "working" || got.Marks < 4 {

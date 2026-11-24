@@ -1,7 +1,7 @@
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { actOpen, chainSummary, commandRunning, isChain, personsMove } from "./chain.js";
+import { actOpen, chainSummary, commandRunning, commandScheduled, isChain, personsMove } from "./chain.js";
 
 const kindOf = { do: "request" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -46,10 +46,11 @@ export function MovePill({ items, onNext }) {
     const oldest = shown.reduce((a, b) => timeOf(a) < timeOf(b) ? a : b);
     const first = shown[0];
     const running = agent && shown.some(commandRunning);
-    const label = `${running ? "command running" : agent ? "agent's step" : "your move"} · ${shown.length} · ${ago(oldest.at)}`;
-    return html`<button class=${`movepill${agent ? " agent" : ""}`} type="button" data-kind=${running ? "running" : agent ? "agent" : first.kind}
+    const scheduled = agent && shown.every(commandScheduled);
+    const label = `${running ? "command running" : scheduled ? "scheduled" : agent ? "agent's step" : "your move"} · ${shown.length} · ${ago(oldest.at)}`;
+    return html`<button class=${`movepill${agent ? " agent" : ""}`} type="button" data-kind=${running ? "running" : scheduled ? "scheduled" : agent ? "agent" : first.kind}
         aria-label=${label} title=${label} onClick=${onNext}>
-        ${(running ? Icon.terminal : agent ? Icon.robot : moveIcon[first.kind] || Icon.hand)()}<span class="movecount" aria-hidden="true">${shown.length}</span>
+        ${(running ? Icon.terminal : scheduled ? Icon.clock : agent ? Icon.robot : moveIcon[first.kind] || Icon.hand)()}<span class="movecount" aria-hidden="true">${shown.length}</span>
     </button>`;
 }
 
@@ -57,6 +58,7 @@ export function MovePill({ items, onNext }) {
 // person answered it, or that it is theirs to answer.
 export function actState(act) {
     if (commandRunning(act)) return "command running";
+    if (commandScheduled(act)) return "scheduled";
     if (actOpen(act)) return "yours";
     if (act.state === "withdrawn") return "withdrawn";
     if (act.kind === "secret") return act.state === "declined" ? "won't give" : "filled in";

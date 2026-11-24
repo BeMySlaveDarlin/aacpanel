@@ -3,6 +3,7 @@ package request
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -27,17 +28,47 @@ type Step struct {
 	Who     string `json:"who"`
 	Text    string `json:"text"`
 	Command string `json:"command,omitempty"`
+	From    string `json:"from,omitempty"`
+	Until   string `json:"until,omitempty"`
+}
+
+func (s Step) Scheduled(now time.Time) bool {
+	from, _ := time.Parse(time.RFC3339, s.From)
+	return now.Before(from)
+}
+
+func (s Step) RunWindow(now time.Time) error {
+	if s.Scheduled(now) {
+		return fmt.Errorf("the command opens at %s", WindowTime(s.From))
+	}
+	until, _ := time.Parse(time.RFC3339, s.Until)
+	if !until.IsZero() && !now.Before(until) {
+		return fmt.Errorf("the command window closed at %s; answer Can't or cancel the chain", WindowTime(s.Until))
+	}
+	return nil
+}
+
+// WindowTime says a boundary of a run window for a person: the day and the
+// time in the offset the agent gave, which is the clock it planned by.
+func WindowTime(at string) string {
+	t, err := time.Parse(time.RFC3339, at)
+	if err != nil {
+		return at
+	}
+	return t.Format("2 Jan 15:04")
 }
 
 type Output struct {
-	State   string     `json:"state"`
-	Term    string     `json:"term,omitempty"`
-	Exit    *int       `json:"exit,omitempty"`
-	Started *time.Time `json:"started,omitempty"`
-	Ended   *time.Time `json:"ended,omitempty"`
-	Tail    string     `json:"tail,omitempty"`
-	Log     string     `json:"log,omitempty"`
-	Note    string     `json:"note,omitempty"`
+	State        string     `json:"state"`
+	Term         string     `json:"term,omitempty"`
+	Exit         *int       `json:"exit,omitempty"`
+	Started      *time.Time `json:"started,omitempty"`
+	Ended        *time.Time `json:"ended,omitempty"`
+	Tail         string     `json:"tail,omitempty"`
+	Log          string     `json:"log,omitempty"`
+	Note         string     `json:"note,omitempty"`
+	WindowSoon   bool       `json:"windowSoon,omitempty"`
+	WindowOpened bool       `json:"windowOpened,omitempty"`
 }
 
 // A saved terminal reservation is already a launch in progress; pending steps
@@ -91,6 +122,7 @@ func ValidateSteps(steps []Step) error {
 	if steps[0].Who != "you" {
 		return errors.New("the first step belongs to the person")
 	}
+	now := time.Now()
 	for _, s := range steps {
 		if s.Who != "you" && s.Who != "agent" {
 			return errors.New("who must be you or agent")
@@ -100,6 +132,32 @@ func ValidateSteps(steps []Step) error {
 		}
 		if strings.IndexByte(s.Command, 0) >= 0 || utf8.RuneCountInString(s.Command) > CommandMax || (s.Who == "agent" && s.Command != "") || (s.Command != "" && strings.TrimSpace(s.Command) == "") {
 			return errors.New("command needs 1 to 2000 characters and belongs only to the person")
+		}
+		if s.From == "" && s.Until == "" {
+			continue
+		}
+		if s.Who != "you" || s.Command == "" {
+			return errors.New("from and until belong only to a human command step")
+		}
+		var from, until time.Time
+		for _, field := range []struct {
+			name, value string
+			target      *time.Time
+		}{{"from", s.From, &from}, {"until", s.Until, &until}} {
+			if field.value == "" {
+				continue
+			}
+			parsed, err := time.Parse(time.RFC3339, field.value)
+			if err != nil {
+				return fmt.Errorf("%s must be RFC 3339 with a time zone offset", field.name)
+			}
+			*field.target = parsed
+		}
+		if s.From != "" && s.Until != "" && !until.After(from) {
+			return errors.New("until must be later than from")
+		}
+		if s.Until != "" && !until.After(now) {
+			return errors.New("until must be in the future")
 		}
 	}
 	return nil

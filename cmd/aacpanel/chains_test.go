@@ -813,3 +813,199 @@ func TestWaitingMarksOnlyALaunchedHumanCommandRunning(t *testing.T) {
 		})
 	}
 }
+
+func TestWaitingMarksACommandBeforeItsOpening(t *testing.T) {
+	now := time.Now().UTC()
+	from, until := now.Add(time.Hour).Format(time.RFC3339), now.Add(2*time.Hour).Format(time.RFC3339)
+	step := 1
+	row := act.Record{ID: "scheduled", Kind: "do", State: "open", Step: &step,
+		Body: act.Body{Chain: []personrequest.Step{{Who: "you", Text: "Deploy", Command: "deploy", From: from, Until: until}}}, Outputs: make([]*personrequest.Output, 1)}
+	got := waitingFor([]act.Record{row}, nil, nil, nil)
+	if len(got) != 1 || !got[0].Scheduled || got[0].From != from || got[0].Until != until || got[0].Agent || got[0].Running {
+		t.Fatalf("scheduled waiting summary: %+v", got)
+	}
+	wire, err := json.Marshal(got[0])
+	if err != nil || !strings.Contains(string(wire), `"scheduled":true`) || !strings.Contains(string(wire), `"from":"`+from+`"`) {
+		t.Fatalf("window on the wire: %s %v", wire, err)
+	}
+	row.Body.Chain[0].From = now.Add(-time.Hour).Format(time.RFC3339)
+	if got := waitingFor([]act.Record{row}, nil, nil, nil); got[0].Scheduled {
+		t.Fatal("the opening did not hand the step to the person")
+	}
+	row.Body.Chain[0].From = from
+	row.Outputs[0] = &personrequest.Output{State: "running"}
+	if got := waitingFor([]act.Record{row}, nil, nil, nil); got[0].Scheduled || !got[0].Running {
+		t.Fatal("a running step is scheduled")
+	}
+}
+
+func setChainWindow(t *testing.T, s *Server, id, from, until string) {
+	t.Helper()
+	row := chainRecord(t, s, id)
+	row.Body.Chain[*row.Step-1].From, row.Body.Chain[*row.Step-1].Until = from, until
+	pool, err := s.db.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE acts SET body=$2 WHERE id=$1`, id, row.Body); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestChainRunIsAdmittedOnlyInsideItsWindowPG(t *testing.T) {
+	s, exec := newChainServer(t)
+	now := time.Now().UTC()
+	future, end := now.Add(time.Hour).Format(time.RFC3339), now.Add(2*time.Hour).Format(time.RFC3339)
+	past, closed := now.Add(-2*time.Hour).Format(time.RFC3339), now.Add(-time.Hour).Format(time.RFC3339)
+	id := createChain(t, s, personrequest.Step{Who: "you", Text: "Deploy", Command: "deploy", From: future, Until: end})
+	if row := chainRecord(t, s, id); row.Body.Chain[0].From != future || !row.CommandScheduled(now) {
+		t.Fatal("the stored window was lost")
+	}
+	if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "opens at "+personrequest.WindowTime(future)) {
+		t.Fatalf("before the opening: %d %s", w.Code, w.Body.String())
+	}
+	setChainWindow(t, s, id, past, closed)
+	if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "closed at "+personrequest.WindowTime(closed)) {
+		t.Fatalf("after the closing: %d %s", w.Code, w.Body.String())
+	}
+	if len(exec.captured(action.TermStart)) != 0 || chainRecord(t, s, id).Outputs[0] != nil {
+		t.Fatal("an out-of-window Run reserved or started a terminal")
+	}
+	setChainWindow(t, s, id, past, end)
+	if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	setChainWindow(t, s, id, past, closed)
+	// A repeated Run is idempotent even when its admitted command has outlived the window.
+	if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	chainPoll(t, s, id)
+	if row := chainRecord(t, s, id); !row.CommandRunning() || len(exec.captured(action.TermClose)) != 0 {
+		t.Fatal("closing the window stopped its command")
+	}
+	exec.setExit(true, 0, "deployed")
+	chainPoll(t, s, id)
+	if row := chainRecord(t, s, id); row.State != "answered" || row.Outputs[0].Tail != "deployed" || len(exec.captured(action.TermStart)) != 1 {
+		t.Fatalf("completion: %+v", row)
+	}
+	for _, from := range []string{future, ""} {
+		id := createChain(t, s, personrequest.Step{Who: "you", Text: "Deploy", Command: "deploy", From: from, Until: end})
+		setChainWindow(t, s, id, from, closed)
+		if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusConflict {
+			t.Fatalf("closing-only window admitted Run: %d", w.Code)
+		}
+		if w := chainPress(t, s, "session.send", id, 1, "cant"); w.Code != http.StatusOK {
+			t.Fatal(w.Body.String())
+		}
+	}
+}
+
+func chainPushQueue(t *testing.T, s *Server) *pushStore {
+	t.Helper()
+	queue := &pushStore{taken: make(chan time.Time, 16)}
+	s.push = notify.New(queue, "")
+	return queue
+}
+
+func drainChainPushes(t *testing.T, s *Server, queue *pushStore, count int) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() { defer close(done); s.push.Run(ctx) }()
+	defer func() { cancel(); <-done }()
+	for range count {
+		taken(t, queue, time.Second, "the command window")
+	}
+	nothingTaken(t, queue, 30*time.Millisecond, "more than once for a window boundary")
+}
+
+func TestChainWindowPushesOnceAcrossDatabaseReadsAndServiceRestartPG(t *testing.T) {
+	s, _ := newChainServer(t)
+	queue := chainPushQueue(t, s)
+	now := time.Now().UTC().Truncate(time.Second)
+	from, until := now.Add(10*time.Minute), now.Add(20*time.Minute)
+	id := createChain(t, s, personrequest.Step{Who: "you", Text: "Deploy", Command: "deploy", From: from.Format(time.RFC3339), Until: until.Format(time.RFC3339)})
+	active := func(want bool) {
+		t.Helper()
+		rows, err := s.db.ActiveChains(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := slices.ContainsFunc(rows, func(row act.Record) bool { return row.ID == id })
+		if found != want {
+			t.Fatalf("the window is polled=%v, want %v", found, want)
+		}
+	}
+	active(true)
+	push := func(server *Server, at time.Time) {
+		t.Helper()
+		if err := server.pushChainWindow(t.Context(), id, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	push(s, from.Add(-5*time.Minute-time.Nanosecond))
+	if chainRecord(t, s, id).Outputs[0] != nil {
+		t.Fatal("a reminder was spent before it was due")
+	}
+	push(s, from.Add(-5*time.Minute))
+	if out := chainRecord(t, s, id).Outputs[0]; out == nil || !out.WindowSoon || out.WindowOpened {
+		t.Fatalf("advance push marks: %+v", out)
+	}
+	restarted := &Server{db: s.db, exec: s.exec, host: s.host, home: s.home, push: s.push}
+	push(restarted, from.Add(-time.Minute))
+	push(restarted, from)
+	push(restarted, from.Add(time.Second))
+	if out := chainRecord(t, s, id).Outputs[0]; !out.WindowSoon || !out.WindowOpened {
+		t.Fatalf("opening push marks: %+v", out)
+	}
+	active(false)
+	// A new Run and a later Stop keep the marks, so neither boundary repeats.
+	setChainWindow(t, s, id, now.Add(-time.Minute).Format(time.RFC3339), until.Format(time.RFC3339))
+	if w := chainPress(t, s, "act.run", id, 1, ""); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	if w := chainPress(t, s, "act.stop", id, 1, ""); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	push(restarted, from.Add(time.Minute))
+	drainChainPushes(t, s, queue, 2)
+}
+
+func TestChainWindowSkipsLateRemindersAndSuppressesOrdinaryStepPushesPG(t *testing.T) {
+	s, _ := newChainServer(t)
+	queue := chainPushQueue(t, s)
+	now := time.Now().UTC().Truncate(time.Second)
+	for _, from := range []time.Time{now.Add(4 * time.Minute), now.Add(-time.Minute)} {
+		id := createChain(t, s, personrequest.Step{Who: "you", Text: "Deploy", Command: "deploy", From: from.Format(time.RFC3339)})
+		if from.Before(now) {
+			for range 2 {
+				if err := s.pollChains(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if out := chainRecord(t, s, id).Outputs[0]; out == nil || !out.WindowOpened {
+				t.Fatal("the poll did not announce an already open window")
+			}
+			continue
+		}
+		for _, at := range []time.Time{from.Add(-time.Second), from, from.Add(time.Minute)} {
+			if err := s.pushChainWindow(t.Context(), id, at); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	from := now.Add(time.Hour)
+	id := createChain(t, s, personrequest.Step{Who: "you", Text: "Approve"}, personrequest.Step{Who: "you", Text: "Deploy", Command: "deploy", From: from.Format(time.RFC3339), Until: from.Add(time.Hour).Format(time.RFC3339)})
+	if w := chainPress(t, s, "session.send", id, 1, "done"); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	if err := s.pushChainWindow(t.Context(), id, from.Add(2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if out := chainRecord(t, s, id).Outputs[1]; out == nil || !out.WindowSoon || !out.WindowOpened {
+		t.Fatalf("expired window marks: %+v", out)
+	}
+	// Two late windows push at opening only; the manual first step pushes as usual.
+	drainChainPushes(t, s, queue, 3)
+}

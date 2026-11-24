@@ -5,6 +5,7 @@ import { ago, duration } from "../../format.js";
 import { autolink, render } from "../../md.js";
 import { Icon } from "../../ui/icons.js";
 import { clock, useTick } from "./now.js";
+import { scheduled } from "../../commandwindow.js";
 
 export const isChain = (act) => Array.isArray(act?.steps || act?.body?.steps);
 export const actOpen = (act) => act.state === "open" || act.state === "failed";
@@ -31,7 +32,8 @@ export function commandRunning(act) {
     return step?.who === "you" && Boolean(step.command) && outputRunning(act.outputs?.[index]);
 }
 
-export const personsMove = (act) => !agentsMove(act) && !commandRunning(act);
+export const commandScheduled = (act) => !commandRunning(act) && scheduled(act);
+export const personsMove = (act) => !agentsMove(act) && !commandRunning(act) && !commandScheduled(act);
 
 // A chain the person cancelled is withdrawn, as one its session takes back
 // is; its answer says the person did it.
@@ -59,7 +61,7 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onC
     const steps = act.steps || act.body.steps;
     const open = record && actOpen(record);
     const reason = record && cancelled(record) ? record.answer.note : "";
-    return html`<article class=${`sent mrequest mchain${open && act.blocking && !commandRunning(act) ? " blocking" : ""}`}>
+    return html`<article class=${`sent mrequest mchain${open && act.blocking && !commandRunning(act) && !commandScheduled(act) ? " blocking" : ""}`}>
         <div class="senthead"><span class="sentico">${Icon.list()}</span>
             <span class="sentlabel">chain · ${record && !open ? chainSummary(act) : `step ${act.step || 1} of ${steps.length}`}</span>
             <span class="sentat">${ago(act.created || item.at)}</span></div>
@@ -79,6 +81,14 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onC
 // read in place, in an open chain and in a finished one alike.
 function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop, onTerm }) {
     const running = act.state === "open" && outputRunning(output);
+    const before = Date.parse(step.from || "") > Date.now();
+    const closed = Date.parse(step.until || "") <= Date.now();
+    const windowTime = (at) => {
+        const date = new Date(at);
+        const today = date.toDateString() === new Date(Date.now()).toDateString();
+        return `${today ? "" : `${date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} `}${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+    };
+    const windowText = before ? `opens ${windowTime(step.from)}` : closed ? `closed ${windowTime(step.until)}` : step.until ? `until ${windowTime(step.until)}` : "";
     const state = running ? "running" : output?.state || (current ? "current" : "pending");
     const terminal = output?.term && actOpen(act) && onTerm
         ? html`<button class="chainterm" type="button" onClick=${() => onTerm(output.term)}>terminal ${output.term}</button>` : null;
@@ -98,11 +108,12 @@ function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop
         ${actOpen(act) && step.who === "agent" && !output?.note && (!output || output.state === "pending" || output.state === "running")
             && html`<p class="requeststate">${current ? "the session works on it" : "waits for the session"}</p>`}
         ${output?.note && html`<div class="chainnote">${output.note}</div>`}
+        ${step.command && windowText && html`<p class="requeststate chainwindow">${windowText}</p>`}
         ${current && act.state === "failed" && html`<p class="requeststate">The session is reviewing the failed step.</p>`}
         ${canAnswer && onAnswer && !running && html`<${StepAnswer} key=${number} act=${act.id} step=${number} command=${Boolean(step.command)}
-            onAnswer=${onAnswer} run=${onRun ? () => onRun(act.id, number) : null} />`}
+            onAnswer=${onAnswer} run=${onRun ? () => onRun(act.id, number) : null} runDisabled=${before || closed} />`}
     </div>`;
-    return html`<section class=${`chainstep ${state}${current ? " current" : ""}`} data-step=${number}>
+    return html`<section class=${`chainstep ${state}${current ? " current" : ""}${before && !running ? " scheduled" : ""}`} data-step=${number}>
         <div class="chainhead">
             <span class=${`chainicon${running ? " spin" : ""}`} role="img" aria-label=${`Step ${number}: ${state}`}>
                 ${running ? "" : state === "done" ? "✓" : state === "failed" ? "!" : state === "cant" ? "×" : current ? "●" : "○"}</span>
@@ -124,7 +135,7 @@ function ChainButton({ word, action, primary = false, disabled = false }) {
     return html`<button class=${`btn${primary ? " primary" : ""}`} type="button" disabled=${disabled || busy} onClick=${press}>${word}</button>`;
 }
 
-function StepAnswer({ act, step, command, onAnswer, run }) {
+function StepAnswer({ act, step, command, onAnswer, run, runDisabled }) {
     const [note, setNote] = useState("");
     const [writing, setWriting] = useState(false);
     const [cant, setCant] = useState(false);
@@ -142,7 +153,7 @@ function StepAnswer({ act, step, command, onAnswer, run }) {
         <div class="actfoot requestanswer">
             ${!command && !writing && !cant && html`<button class="actnote" type="button" onClick=${() => setWriting(true)}>note</button>`}
             <button class="btn" type="button" disabled=${busy} onClick=${() => cant ? answer("cant") : setCant(true)}>Can't</button>
-            ${command ? run && html`<${ChainButton} word="Run" primary disabled=${busy} action=${run} />`
+            ${command ? run && html`<${ChainButton} word="Run" primary disabled=${busy || runDisabled} action=${run} />`
                 : html`<button class="btn primary" type="button" disabled=${busy} onClick=${() => answer("done")}>${busy ? "Sending…" : "Done"}</button>`}
         </div>`;
 }

@@ -15,6 +15,16 @@ func TestRequestPushCannotBeQuietedAndSkipsTheWatchingDevice(t *testing.T) {
 	if !prefs.Allows(m) || quietOf(m.Kind, m.Source) != nil {
 		t.Fatal("a request push can be quieted")
 	}
+	soon := CommandWindow(Session{ID: "conversation", Name: "work"}, "task", m.Title, 2, "2099-01-01T21:00:00+07:00", false)
+	open := CommandWindow(Session{ID: "conversation", Name: "work"}, "task", m.Title, 2, "2099-01-01T21:00:00+07:00", true)
+	if soon.Tag == open.Tag || soon.Tag == m.Tag {
+		t.Fatal("window pushes share an identity")
+	}
+	for _, window := range []Message{soon, open} {
+		if window.Kind != KindRequest || kindOf(window.Tag) != KindRequest || !prefs.Allows(window) || quietOf(window.Kind, window.Source) != nil {
+			t.Fatalf("a command window changed its request preferences: %+v", window)
+		}
+	}
 	s, got := twoDevices(t)
 	s.UseViews(&memViews{by: map[string][]int64{"work": {1}}})
 	s.deliver(context.Background(), m)
@@ -34,6 +44,8 @@ func TestRequestPushOpensTheConversationOnItsAct(t *testing.T) {
 		want string
 	}{
 		{"request", Requested(s, "a1b2c3", "Restart the router"), "/app?session=harness+rework&act=a1b2c3"},
+		{"command soon", CommandWindow(s, "a1b2c3", "Restart the router", 2, "2099-01-01T21:00:00+07:00", false), "/app?session=harness+rework&act=a1b2c3"},
+		{"command open", CommandWindow(s, "a1b2c3", "Restart the router", 2, "2099-01-01T21:00:00+07:00", true), "/app?session=harness+rework&act=a1b2c3"},
 		{"question", asked(s).raised(), "/app?session=harness+rework"},
 		{"question cleared", asked(s).gone(), "/app?session=harness+rework"},
 	} {

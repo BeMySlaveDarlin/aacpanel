@@ -52,6 +52,55 @@ func TestRequestValidatesChainOperations(t *testing.T) {
 	}
 }
 
+func TestCommandWindowValidatesTimesAndOwner(t *testing.T) {
+	now := time.Now().UTC()
+	from := now.Add(time.Hour).Format(time.RFC3339)
+	until := now.Add(2 * time.Hour).Format(time.RFC3339)
+	past := now.Add(-time.Hour).Format(time.RFC3339)
+	for _, c := range []struct {
+		name, who, command, from, until, want string
+	}{
+		{"both", "you", "deploy", from, until, ""},
+		{"opening only", "you", "deploy", from, "", ""},
+		{"closing only", "you", "deploy", "", until, ""},
+		{"already open", "you", "deploy", past, until, ""},
+		{"bad opening", "you", "deploy", "tomorrow", until, "from must be RFC 3339"},
+		{"no offset", "you", "deploy", "2099-01-01T21:00:00", until, "from must be RFC 3339"},
+		{"bad closing", "you", "deploy", from, "later", "until must be RFC 3339"},
+		{"equal", "you", "deploy", from, from, "until must be later"},
+		{"reversed", "you", "deploy", until, from, "until must be later"},
+		{"expired", "you", "deploy", "", past, "until must be in the future"},
+		{"manual opening", "you", "", from, "", "human command step"},
+		{"manual closing", "you", "", "", until, "human command step"},
+		{"agent opening", "agent", "", from, "", "human command step"},
+		{"agent closing", "agent", "", "", until, "human command step"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			err := ValidateSteps([]Step{{Who: "you", Text: "Approve"}, {Who: c.who, Text: "Deploy", Command: c.command, From: c.from, Until: c.until}})
+			if c.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("error = %v, want %q", err, c.want)
+			}
+		})
+	}
+	step := Step{From: from, Until: until}
+	opening, _ := time.Parse(time.RFC3339, from)
+	closing, _ := time.Parse(time.RFC3339, until)
+	for _, c := range []struct {
+		at      time.Time
+		allowed bool
+	}{
+		{opening.Add(-time.Nanosecond), false}, {opening, true}, {closing.Add(-time.Nanosecond), true}, {closing, false},
+	} {
+		if got := step.RunWindow(c.at) == nil; got != c.allowed {
+			t.Errorf("Run at %s allowed=%v, want %v", c.at, got, c.allowed)
+		}
+	}
+}
+
 func TestRequestTakesItsConversationOnlyFromTheCaller(t *testing.T) {
 	const id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	var got []map[string]any
@@ -215,6 +264,13 @@ func TestRequestSchemaAndOperationReplies(t *testing.T) {
 	properties := tool.InputSchema["properties"].(map[string]any)
 	if properties["steps"].(map[string]any)["type"] != "array" || len(tool.InputSchema["oneOf"].([]any)) != 3 {
 		t.Fatal(tool.InputSchema)
+	}
+	stepFields := properties["steps"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	for _, key := range []string{"from", "until"} {
+		field, ok := stepFields[key].(map[string]any)
+		if !ok || field["type"] != "string" || field["format"] != "date-time" {
+			t.Fatalf("window schema %s: %+v", key, field)
+		}
 	}
 	bind := func() (mcp.Binding, error) { return mcp.Binding{SessionID: "caller"}, nil }
 	for _, raw := range []string{`{"id":"` + id + `","step":2,"outcome":"done","note":"Checked"}`, `{"id":"` + id + `","reopen":1}`} {

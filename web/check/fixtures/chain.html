@@ -10,6 +10,7 @@ import { Chat } from "/src/screens/chat.js";
 import { Row } from "/src/screens/chat/rows.js";
 import { actState, movesOf, MovePill } from "/src/screens/chat/actform.js";
 import { stateOf } from "/src/screens/sessions/state.js";
+import { waitingOf } from "/src/waiting.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -22,6 +23,21 @@ const until = async (ready) => {
 const wall = Date.now.bind(Date);
 let offset = 0;
 Date.now = () => wall() + offset;
+const deadlines = new Map();
+const setDeadline = window.setTimeout.bind(window), clearDeadline = window.clearTimeout.bind(window);
+window.setTimeout = (fn, ms, ...args) => {
+    const at = Date.now() + Number(ms);
+    const id = setDeadline(() => { deadlines.delete(id); fn(...args); }, ms);
+    deadlines.set(id, { fn: () => fn(...args), at });
+    return id;
+};
+window.clearTimeout = (id) => { deadlines.delete(id); clearDeadline(id); };
+const reachWindow = (at) => {
+    offset = at - wall();
+    for (const [id, timer] of [...deadlines]) {
+        if (timer.at <= Date.now()) { window.clearTimeout(id); timer.fn(); }
+    }
+};
 // Polls are driven explicitly: the fixture checks their cadence without
 // spending two seconds on every state of the same chain.
 const intervals = new Map();
@@ -161,6 +177,42 @@ window.done = (async () => {
     // The person's step is the person's move: the head says so, the square is the request's.
     const waits = () => Boolean(document.querySelector('.talkword[data-tone="waiting"], .dkword[data-tone="waiting"]'));
     out.yourMove = document.querySelector(".movepill")?.dataset.kind === "request" && waits();
+    // A quiet chain opens itself by its boundary timer, with no host poll or redraw.
+    const savedStep = steps[0], savedOffset = offset;
+    const opening = Date.now() + 10 * 60000, closing = opening + 20 * 60000;
+    steps[0] = { ...savedStep, from: new Date(opening).toISOString(), until: new Date(closing).toISOString() };
+    await publish();
+    await until(() => button("Run")?.disabled && step(1)?.classList.contains("scheduled"));
+    out.windowBefore = step(1).querySelector(".chainwindow")?.textContent.startsWith("opens ")
+        && !form().classList.contains("blocking") && !waitingStep() && !waits()
+        && document.querySelector(".movepill")?.dataset.kind === "scheduled"
+        && actState(req) === "scheduled";
+    const scheduledItem = { kind: "request", id: "window-summary", at, scheduled: true, from: steps[0].from, until: steps[0].until };
+    const summarySession = { ...session, waiting: [scheduledItem] };
+    const scheduledState = stateOf(summarySession);
+    const mixedHost = document.createElement("div");
+    const otherMove = { kind: "secret", id: "window-key", at };
+    render(html`<${MovePill} items=${movesOf({}, [scheduledItem, otherMove], [])} />`, mixedHost);
+    out.windowSummary = waitingOf(summarySession).length === 0 && waitingOf(summarySession, false, true).length === 1
+        && scheduledState.kind === "scheduled" && scheduledState.tone === "idle" && scheduledState.until === opening
+        && scheduledState.clock && !scheduledState.subject
+        && mixedHost.querySelector("button")?.getAttribute("aria-label").startsWith("your move · 1");
+    render(null, mixedHost);
+    reachWindow(opening + 1);
+    await until(() => button("Run") && !button("Run").disabled && waits());
+    out.windowOpen = step(1).querySelector(".chainwindow")?.textContent.startsWith("until ")
+        && !step(1).classList.contains("scheduled") && form().classList.contains("blocking") && waitingStep()
+        && document.querySelector(".movepill")?.dataset.kind === "request" && waitingOf(summarySession).length === 1;
+    reachWindow(closing + 1);
+    await until(() => button("Run")?.disabled && step(1)?.querySelector(".chainwindow")?.textContent.startsWith("closed "));
+    out.windowClosed = Boolean(button("Can't")) && waits() && waitingStep()
+        && document.querySelector(".movepill")?.dataset.kind === "request" && actState(req) === "yours";
+    // A date belongs beside an opening outside today.
+    steps[0] = { ...savedStep, from: new Date(Date.now() + 2 * 86400e3).toISOString() };
+    await publish();
+    out.windowDate = /opens \d+ [A-Z][a-z]+ \d\d:\d\d/.test(step(1).querySelector(".chainwindow")?.textContent || "");
+    steps[0] = savedStep; offset = savedOffset;
+    await publish(); await until(() => !button("Run")?.disabled && waits());
     // The open chain is worked where it was posted: nothing is docked at the
     // end of the feed for it, and no marker stands in its place.
     out.inPlace = row().contains(form()) && !document.querySelector(".actform") && !marker();

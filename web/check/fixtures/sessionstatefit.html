@@ -27,6 +27,10 @@ const sessions = [{
     session: "Long", sessionId: "id-long", profile: "Personal", contour: 1, transport: "stream", status: "waiting",
     waitingFor: "input needed", ask: { count: 1, header: "Which of the three migration plans goes first, and who reviews the rollback script" },
     pct: 12, cwd: "/srv/long", project: { id: 2, name: "Long" }, startedAt: iso(30), lastRequestAt: iso(2),
+}, {
+    session: "Later", sessionId: "id-later", transport: "stream", status: "idle",
+    waiting: [{ kind: "request", id: "window-card", title: "Deploy the API", scheduled: true,
+        from: new Date(now + 600000).toISOString(), until: new Date(now + 1200000).toISOString() }],
 }];
 
 window.fetch = counted(async () => new Response("", { status: 404 }));
@@ -48,8 +52,20 @@ window.done = (async () => {
     const watched = stateOf({ ...base, work: { observers: 1 } });
     const mixed = stateOf({ ...base, waiting: [command, { kind: "secret", id: "key", title: "API key", at: iso(1) }] });
     const agent = stateOf({ ...base, waiting: [{ ...command, running: false, agent: true }] });
+    const from = new Date(now + 600000).toISOString(), until = new Date(now + 1200000).toISOString();
+    const scheduled = { ...base, waiting: [{ ...command, running: false, scheduled: true, from, until }] };
+    const window = stateOf(scheduled);
+    const later = document.querySelector('.sc[data-name="Later"]');
+    const other = stateOf({ ...scheduled, waiting: [...scheduled.waiting, { kind: "secret", id: "window-key" }] });
+    const working = stateOf({ ...scheduled, status: "busy" });
     const stopped = stateOf({ ...base, waiting: [{ ...command, running: false }] });
     return {
+        scheduledState: window.kind === "scheduled" && window.tone === "idle" && window.until === now + 600000 && window.clock
+            && !window.subject && !window.text.includes(command.title) && waitingOf(scheduled).length === 0
+            && later?.dataset.kind === "scheduled" && later.dataset.tone === "idle"
+            && later.querySelector(".scsay")?.textContent.trim() === "scheduled"
+            && /→\d\d:\d\d/.test(later.querySelector(".sctime")?.textContent || "")
+            && other.tone === "wait" && other.kind === "secret" && working.kind === "work",
         commandState: running.kind === "inside" && running.tone === "bg" && running.word === "commands running" && !running.subject
             && watched.word === "commands running" && !watched.subject
             && waitingOf(base).length === 0,
