@@ -367,13 +367,23 @@ window.done = (async () => {
     out.pillReveals = legacyDocked() && row().contains(form()) && document.querySelectorAll(".waitingtarget").length === 1;
     // The feed stands on the step at hand, not on the head of the card: the
     // step at the top of the feed, or as near as the end of the feed lets it.
-    const feed = document.querySelector(".chatfeed");
-    const feedTop = feed.getBoundingClientRect().top;
-    const stepTop = row().querySelector(".chainstep.current")?.getBoundingClientRect().top;
-    const atEnd = feed.scrollTop >= feed.scrollHeight - feed.clientHeight - 1;
-    out.pillStep = stepTop != null && row().getBoundingClientRect().top < feedTop
-        && stepTop >= feedTop && stepTop < feedTop + feed.clientHeight
-        && (Math.abs(stepTop - feedTop - 12) < 2 || atEnd);
+    // The feed may still settle a frame or two after the reveal under load,
+    // so the place is waited for, not sampled once.
+    const standsOnStep = () => {
+        const feed = document.querySelector(".chatfeed");
+        const feedTop = feed.getBoundingClientRect().top;
+        const stepTop = row().querySelector(".chainstep.current")?.getBoundingClientRect().top;
+        const atEnd = feed.scrollTop >= feed.scrollHeight - feed.clientHeight - 1;
+        return stepTop != null && row().getBoundingClientRect().top < feedTop
+            && stepTop >= feedTop && stepTop < feedTop + feed.clientHeight
+            && (Math.abs(stepTop - feedTop - 12) < 2 || atEnd);
+    };
+    let stands = standsOnStep();
+    for (let frame = 0; !stands && frame < 60; frame++) {
+        await new Promise((done) => requestAnimationFrame(done));
+        stands = standsOnStep();
+    }
+    out.pillStep = stands;
     row().classList.remove("waitingtarget");
     pill().click(); await quiet();
     const toForm = !document.querySelector(".waitingtarget") && legacyDocked();
