@@ -173,7 +173,7 @@ function ChainCancel({ act, onCancel }) {
         setBusy(true);
         try { await onCancel(act, note); } finally { sending.current = false; setBusy(false); }
     };
-    if (!asking) return html`<div class="actfoot"><button class="btn" type="button" onClick=${() => setAsking(true)}>Cancel chain</button></div>`;
+    if (!asking) return html`<div class="actfoot"><button class="btn chaincancel" type="button" onClick=${() => setAsking(true)}>Cancel chain</button></div>`;
     return html`
         <label class="requestnote">Reason (optional)<textarea rows="2" maxLength="2000"
             value=${note} disabled=${busy} onInput=${(event) => setNote(event.currentTarget.value)}></textarea></label>

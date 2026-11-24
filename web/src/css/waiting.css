@@ -77,6 +77,9 @@
 :is(.actform, .mrequest) .actfoot > .btn { flex: 0 0 auto; height: 2.5rem; min-height: 0; padding-block: 0; }
 :is(.actform, .mrequest) .actfoot > .btn.primary { min-width: 7.5rem; }
 :is(.actform, .mrequest) .actfoot > .actnote { margin-right: auto; }
+/* Cancel stands apart from the step's own answers, on the left, in the red the
+   confirming danger button and a failed toast already use for their edge. */
+:is(.actform, .mrequest) .actfoot > .chaincancel { margin-right: auto; color: color-mix(in srgb, rgb(255, 111, 92) 75%, var(--ink)); border-color: rgba(255, 111, 92, .3); }
 :is(.actform, .mrequest) .requestnote { margin-top: .6rem; }
 .actnote, .actbrief { border: 0; padding: .4rem 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--t-sm); cursor: pointer; }
 .composeclip { display: none; }
