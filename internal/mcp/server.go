@@ -194,7 +194,7 @@ func (s *Server) list() []any {
 			"name":        t.Name,
 			"title":       t.Title,
 			"description": t.Description,
-			"inputSchema": t.InputSchema,
+			"inputSchema": nullableSchema(t.InputSchema),
 		})
 	}
 	return out
@@ -220,6 +220,13 @@ func (s *Server) call(ctx context.Context, id json.RawMessage, params json.RawMe
 	bind := s.Bind
 	if s.Caller != nil {
 		bind = s.Caller(c.Meta)
+	}
+	if raw := bytes.TrimSpace(c.Arguments); len(raw) > 0 && raw[0] == '{' {
+		var err error
+		c.Arguments, err = withoutNullMembers(c.Arguments)
+		if err != nil {
+			return failed(id, codeInvalidParams, "the arguments are not parsed: "+err.Error())
+		}
 	}
 	text, isError := tools[at].Call(ctx, bind, c.Arguments)
 	return done(id, toolText(text, isError))

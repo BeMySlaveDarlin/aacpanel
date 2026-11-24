@@ -3174,6 +3174,15 @@ says when to reach for it; its description gives the arguments, limits, alternat
 and whether to continue work or end the turn. Question and permission dialogs
 already call the person, so they need no extra `notify`.
 
+The MCP server publishes optional properties as nullable for strict-schema
+clients, including properties of nested objects and dynamically supplied tools.
+It copies the schemas, adds null to types and enums, and uses an `anyOf` null
+branch for untyped schemas or constraints such as references and `const` that
+can independently reject null. Required properties and non-null constraints stay
+intact. Before calling a tool, it recursively removes null-valued object members
+from object arguments, including objects in arrays: null means omitted. Array
+elements and numeric values retain their meaning and precision.
+
 Claude's MCP handshake keeps the lead and standing alone — its checklist, role
 and answered briefs — so the tool lines reach the conversation once. Codex keeps
 the full MCP instructions and receives no hook guide: its SessionStart context

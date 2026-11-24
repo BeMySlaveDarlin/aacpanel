@@ -2,12 +2,14 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -197,7 +199,9 @@ func TestTheServerIntroducesItselfAndListsItsTools(t *testing.T) {
 	}
 	for i, want := range []Tool{first, second} {
 		got := tools[i].(map[string]any)
-		schema, _ := json.Marshal(want.InputSchema)
+		schema, _ := json.Marshal(map[string]any{"type": "object", "properties": map[string]any{
+			want.Name: map[string]any{"type": []string{"string", "null"}},
+		}})
 		listed, _ := json.Marshal(got["inputSchema"])
 		if got["name"] != want.Name || got["title"] != want.Title || got["description"] != want.Description ||
 			string(listed) != string(schema) || len(got) != 4 {
@@ -210,6 +214,154 @@ func TestTheServerIntroducesItselfAndListsItsTools(t *testing.T) {
 
 	if got := c.result("ping", nil); len(got) != 0 {
 		t.Errorf("ping answered %v", got)
+	}
+}
+
+func TestToolsListMakesOnlyOptionalPropertiesNullable(t *testing.T) {
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(`{
+		"type":"object","required":["required","steps"],"additionalProperties":false,
+		"properties":{
+			"required":{"type":"string","pattern":"^[a-z]+$","minLength":1},
+			"label":{"type":"string","pattern":"^[a-z]+$","minLength":1,"maxLength":50},
+			"mode":{"type":"string","enum":["reply","done"]},
+			"enumOnly":{"enum":[1,2]},
+			"union":{"type":["integer","string"],"maximum":1440},
+			"already":{"type":["string","null"],"enum":["reply",null]},
+			"choice":{"anyOf":[{"type":"string","minLength":1},{"type":"integer","minimum":1}]},
+			"reference":{"$ref":"#/$defs/record"},
+			"untyped":{"description":"Any value."},
+			"constant":{"type":"boolean","const":true},
+			"disabled":false,
+			"steps":{"type":"array","minItems":1,"maxItems":4,"items":{
+				"type":"object","required":["text"],"additionalProperties":false,
+				"properties":{
+					"text":{"type":"string","minLength":1},
+					"command":{"type":"string","maxLength":100},
+					"status":{"type":"string","enum":["done","failed"]}
+				}
+			}}
+		},
+		"$defs":{"record":{"type":"object","properties":{"note":{"type":"string"}}}},
+		"default":{"properties":{"literal":{"type":"string"}}}
+	}`), &schema); err != nil {
+		t.Fatal(err)
+	}
+	original, err := json.Marshal(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want map[string]any
+	if err := json.Unmarshal([]byte(`{
+		"type":"object","required":["required","steps"],"additionalProperties":false,
+		"properties":{
+			"required":{"type":"string","pattern":"^[a-z]+$","minLength":1},
+			"label":{"type":["string","null"],"pattern":"^[a-z]+$","minLength":1,"maxLength":50},
+			"mode":{"type":["string","null"],"enum":["reply","done",null]},
+			"enumOnly":{"enum":[1,2,null]},
+			"union":{"type":["integer","string","null"],"maximum":1440},
+			"already":{"type":["string","null"],"enum":["reply",null]},
+			"choice":{"anyOf":[{"anyOf":[{"type":"string","minLength":1},{"type":"integer","minimum":1}]},{"type":"null"}]},
+			"reference":{"anyOf":[{"$ref":"#/$defs/record"},{"type":"null"}]},
+			"untyped":{"anyOf":[{"description":"Any value."},{"type":"null"}]},
+			"constant":{"anyOf":[{"type":["boolean","null"],"const":true},{"type":"null"}]},
+			"disabled":{"anyOf":[false,{"type":"null"}]},
+			"steps":{"type":"array","minItems":1,"maxItems":4,"items":{
+				"type":"object","required":["text"],"additionalProperties":false,
+				"properties":{
+					"text":{"type":"string","minLength":1},
+					"command":{"type":["string","null"],"maxLength":100},
+					"status":{"type":["string","null"],"enum":["done","failed",null]}
+				}
+			}}
+		},
+		"$defs":{"record":{"type":"object","properties":{"note":{"type":["string","null"]}}}},
+		"default":{"properties":{"literal":{"type":"string"}}}
+	}`), &want); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the []string form used by Go-authored tools as well as the
+	// []any form obtained by decoding schemas from JSON.
+	schema["required"] = []string{"required", "steps"}
+	props := schema["properties"].(map[string]any)
+	props["mode"].(map[string]any)["enum"] = []string{"reply", "done"}
+	props["union"].(map[string]any)["type"] = []string{"integer", "string"}
+	props["already"].(map[string]any)["type"] = []string{"string", "null"}
+
+	c := serve(t, &Server{Tools: []Tool{{Name: "fixed", InputSchema: schema}}, More: func() []Tool {
+		return []Tool{{Name: "dynamic", InputSchema: schema}}
+	}})
+	for range 2 {
+		tools, _ := c.result("tools/list", nil)["tools"].([]any)
+		if len(tools) != 2 {
+			t.Fatalf("listed %d tools, meant the fixed and dynamic tools", len(tools))
+		}
+		for _, value := range tools {
+			tool := value.(map[string]any)
+			if !reflect.DeepEqual(tool["inputSchema"], want) {
+				t.Errorf("%s listed schema %v, want %v", tool["name"], tool["inputSchema"], want)
+			}
+		}
+		if after, err := json.Marshal(schema); err != nil || string(after) != string(original) {
+			t.Fatalf("listing mutated the shared schema: %s (error %v)", after, err)
+		}
+	}
+}
+
+func TestToolsCallOmitsNullObjectMembersRecursively(t *testing.T) {
+	var calls []called
+	c := serve(t, &Server{Tools: []Tool{fake("first", &calls)}, Bind: placed})
+	args := json.RawMessage(`{
+		"omit":null,"empty":"","false":false,"zero":0,"emptyArray":[],"emptyObject":{},
+		"big":9007199254740993,"fraction":1.234567890123456789,"exponent":1e+100,
+		"nested":{"omit":null,"keep":"null"},
+		"steps":[null,{"omit":null,"keep":7,"inner":{"omit":null}},[{"omit":null,"keep":true}]]
+	}`)
+	res := c.result("tools/call", map[string]any{"name": "first", "arguments": args})
+	if res["isError"] != nil || len(calls) != 1 {
+		t.Fatalf("the tool was not called: %v; calls %v", res, calls)
+	}
+	var got, want any
+	decode := func(raw string, to *any) {
+		t.Helper()
+		d := json.NewDecoder(strings.NewReader(raw))
+		d.UseNumber()
+		if err := d.Decode(to); err != nil {
+			t.Fatal(err)
+		}
+	}
+	decode(calls[0].args, &got)
+	decode(`{
+		"empty":"","false":false,"zero":0,"emptyArray":[],"emptyObject":{},
+		"big":9007199254740993,"fraction":1.234567890123456789,"exponent":1e+100,
+		"nested":{"keep":"null"},
+		"steps":[null,{"keep":7,"inner":{}},[{"keep":true}]]
+	}`, &want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the handler received %v, want %v", got, want)
+	}
+}
+
+func TestToolsCallPreservesOtherArguments(t *testing.T) {
+	var calls []called
+	c := serve(t, &Server{Tools: []Tool{fake("first", &calls)}, Bind: placed})
+	for _, raw := range []string{"", "null", `[{"keep":null}]`, `"null"`, "9007199254740993", "false", `{ "z": 1, "a": [null] }`} {
+		t.Run(raw, func(t *testing.T) {
+			params := map[string]any{"name": "first"}
+			if raw != "" {
+				params["arguments"] = json.RawMessage(raw)
+			}
+			c.result("tools/call", params)
+			var compact bytes.Buffer
+			if raw != "" {
+				if err := json.Compact(&compact, []byte(raw)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := calls[len(calls)-1].args; got != compact.String() {
+				t.Errorf("arguments changed from %q to %q", compact.String(), got)
+			}
+		})
 	}
 }
 
