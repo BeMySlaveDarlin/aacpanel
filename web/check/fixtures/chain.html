@@ -166,7 +166,7 @@ window.done = (async () => {
     const out = { noFlash };
     const waitingStepRule = [...document.styleSheets].flatMap(sheet => [...sheet.cssRules])
         .find(rule => rule.selectorText?.includes(".chainstep.current") && rule.selectorText.includes(".chainwho"));
-    const waitingStep = () => Boolean(waitingStepRule && step(1).querySelector(".chainwho").matches(waitingStepRule.selectorText));
+    const waitingStep = (n = 1) => Boolean(waitingStepRule && step(n).querySelector(".chainwho").matches(waitingStepRule.selectorText));
     // Cancel stands on an open chain whatever its step and state.
     const cancelOn = [];
     const offersCancel = (state) => cancelOn.push(`${state}:${Boolean(button("Cancel chain"))}`);
@@ -308,9 +308,11 @@ window.done = (async () => {
     out.agent = step(2).textContent.includes("the session works on it") && !button("Done") && !button("Run") && !button("Can't")
         && step(1).textContent.includes("exit 0 · 31 s") && Boolean(step(1).querySelector(".chainbody")) && !polls().length;
     offersCancel("agent");
-    // On the agent's step no move is the person's: the square is the agent's and the head waits on no one.
+    // On the agent's step no move is the person's: the square is the agent's, the head waits on no one,
+    // and neither the card nor its current step wears the yellow of the person's move.
     out.agentsMove = document.querySelector(".movepill")?.dataset.kind === "agent"
-        && document.querySelector(".movepill").getAttribute("aria-label").startsWith("agent's step") && !waits();
+        && document.querySelector(".movepill").getAttribute("aria-label").startsWith("agent's step") && !waits()
+        && !form().classList.contains("blocking") && !waitingStep(2);
     // The card of the session in a list says the same from the waiting summary alone.
     // An item of its own: the act of this page was settled once already.
     const card = (agent) => stateOf({ ...session, status: "idle", waiting: [{ kind: "request", id: "9".repeat(32), title: req.title, at, agent }] });
@@ -350,7 +352,7 @@ window.done = (async () => {
     showScene("failed"); await publish();
     out.failed = Boolean(form()) && step(3).classList.contains("current") && step(3).textContent.includes("exit 3 · 31 s")
         && step(3).querySelector(".chainout").textContent.includes("Forbidden") && !button("Run") && !button("Done") && !button("Can't")
-        && !docked() && form().classList.contains("blocking") && !step(3).classList.contains("running")
+        && !docked() && !form().classList.contains("blocking") && !step(3).classList.contains("running")
         && document.querySelector(".movepill")?.dataset.kind === "agent";
     offersCancel("failed");
     showScene("manual"); await publish();

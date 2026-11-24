@@ -19,7 +19,7 @@
 .chainhead { display: flex; align-items: baseline; gap: .55rem; min-width: 0; }
 .chainicon { flex: 0 0 1rem; width: 1rem; height: 1rem; align-self: flex-start; margin-top: .2rem; text-align: center; color: var(--ink-faint); font-size: var(--t-sm); line-height: 1rem; }
 .chainicon.spin { box-sizing: border-box; }
-.chainstep.current:not(.running):not(.scheduled) .chainicon, .chainstep.current:not(.running):not(.scheduled) .chainwho { color: var(--wait); }
+.chainstep.current:not(.running):not(.scheduled):not(.agentturn) .chainicon, .chainstep.current:not(.running):not(.scheduled):not(.agentturn) .chainwho { color: var(--wait); }
 .chainstep.running .chainicon, .chainstatus.running { color: var(--accent); }
 .chainstep.done .chainicon, .chainstatus.done { color: var(--ok); }
 .chainstep.failed .chainicon, .chainstatus.failed { color: var(--crit); }
@@ -28,7 +28,7 @@
 .chainstep.done .chaintext, .chainstep.cant .chaintext,
 .chainstep.done .chaincommand .mdcode code, .chainstep.cant .chaincommand .mdcode code { color: var(--ink-faint); }
 .chainstep.current .chaintext { color: var(--ink); }
-.chainstep.current:not(.running):not(.scheduled) .chainicon { animation: pulse 1.6s ease-in-out infinite; }
+.chainstep.current:not(.running):not(.scheduled):not(.agentturn) .chainicon { animation: pulse 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .chainstep.current .chainicon { animation: none; } }
 .chainlead { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .45rem; flex: 1; min-width: 0; color: var(--ink); }
 .chainwho { flex: none; color: var(--ink-faint); font: var(--t-sm) var(--mono); }

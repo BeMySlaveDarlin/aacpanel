@@ -61,7 +61,7 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onC
     const steps = act.steps || act.body.steps;
     const open = record && actOpen(record);
     const reason = record && cancelled(record) ? record.answer.note : "";
-    return html`<article class=${`sent mrequest mchain${open && act.blocking && !commandRunning(act) && !commandScheduled(act) ? " blocking" : ""}`}>
+    return html`<article class=${`sent mrequest mchain${open && act.blocking && personsMove(act) ? " blocking" : ""}`}>
         <div class="senthead"><span class="sentico">${Icon.list()}</span>
             <span class="sentlabel">chain · ${record && !open ? chainSummary(act) : `step ${act.step || 1} of ${steps.length}`}</span>
             <span class="sentat">${ago(act.created || item.at)}</span></div>
@@ -113,7 +113,7 @@ function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop
         ${canAnswer && onAnswer && !running && html`<${StepAnswer} key=${number} act=${act.id} step=${number} command=${Boolean(step.command)}
             onAnswer=${onAnswer} run=${onRun ? () => onRun(act.id, number) : null} runDisabled=${before || closed} />`}
     </div>`;
-    return html`<section class=${`chainstep ${state}${current ? " current" : ""}${before && !running ? " scheduled" : ""}`} data-step=${number}>
+    return html`<section class=${`chainstep ${state}${current ? " current" : ""}${current && step.who === "agent" ? " agentturn" : ""}${before && !running ? " scheduled" : ""}`} data-step=${number}>
         <div class="chainhead">
             <span class=${`chainicon${running ? " spin" : ""}`} role="img" aria-label=${`Step ${number}: ${state}`}>
                 ${running ? "" : state === "done" ? "✓" : state === "failed" ? "!" : state === "cant" ? "×" : current ? "●" : "○"}</span>
