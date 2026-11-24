@@ -131,9 +131,22 @@ func TestLimitsStalenessHasOneOwner(t *testing.T) {
 	}
 
 	const footer = "src/desktop/sessions.js"
-	if body := files[footer]; !strings.Contains(body, "staleLimits(") {
+	// The desk asks either itself or through the shared limit groups, which ask
+	// staleLimits for every provider.
+	if body := files[footer]; !strings.Contains(body, "staleLimits(") && !strings.Contains(body, "limitGroups(") {
 		t.Errorf("%s never asks about the age of the snapshot — the footer again shows yesterday's numbers "+
 			"next to fresh ones", footer)
+	}
+	body := withoutComments(files[owner])
+	groups := ""
+	if at := strings.Index(body, "function limitGroups("); at >= 0 {
+		groups = body[at:]
+		if end := strings.Index(groups, "\n}\n"); end >= 0 {
+			groups = groups[:end]
+		}
+	}
+	if !strings.Contains(groups, "staleLimits(") {
+		t.Errorf("limitGroups in %s does not ask staleLimits — the groups the desk draws would hide stale numbers", owner)
 	}
 }
 
@@ -162,19 +175,8 @@ type deskShelfRow struct {
 	When    string `json:"when"`
 }
 
-// A tab of the sessions column at a desk shows its contour alone: a heading
-// with its name, the actions of the contour — Tasks hands on its entry of the
-// map, Profile its place in the settings — and two rings of its limit after
-// claude's word — the share of each window inside, and beside it how long
-// until the window starts over, short and rounded up (the window itself when
-// the snapshot does not know), no count of live sessions — which a press
-// opens into the details of both windows, each with when it resets; and its
-// live sessions, or a word that nothing lives in it. A contour the map does
-// not hold has its tab with the two actions off: it has neither a registry
-// nor a page.
-// No closed conversation stands among them: the closed ones of the contour
-// stand on a shelf below it, asked for in one request by the id of its entry
-// that leaves the live ones out, newest first, each with what it was about.
+// A contour tab keeps its limits, actions and archive scoped to its map id.
+// Each reading names its window and opens the shared details independently.
 func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *testing.T) {
 	type handed struct {
 		Tasks    []*int           `json:"tasks"`
@@ -207,9 +209,9 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 		name, rings, live, shelf string
 		id                       int
 	}{
-		{"Acme", "7:48m|41:7d", "", "old-4-0,old-4-1,old-4-2", 4},
-		{"Globex Group and every project of it", "93:2h|57:5d", "shop", "old-1-0,old-1-1,old-1-2", 1},
-		{"personal", "12:3h|24:5d", "aacpanel,blog,helios", "old-3-0,old-3-1,old-3-2", 3},
+		{"Acme", "7:resets in 48 min|41:", "", "old-4-0,old-4-1,old-4-2", 4},
+		{"Globex Group and every project of it", "93:resets in 1 h|57:resets in 118 h", "shop", "old-1-0,old-1-1,old-1-2", 1},
+		{"personal", "12:resets in 2 h|24:resets in 100 h", "aacpanel,blog,helios", "old-3-0,old-3-1,old-3-2", 3},
 	}
 	if len(got.Tabs) != len(want) {
 		t.Fatalf("the fixture read %d tabs, expected one for each of the three contours of the map: %+v", len(got.Tabs), got.Tabs)
@@ -227,9 +229,9 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 		}
 		if strings.Join(rings, "|") != w.rings {
 			t.Errorf("%q: the rings read %v, expected %s — the share inside, and beside it how long until the window starts over, "+
-				"rounded up, or the window when the snapshot does not know", sec.Name, rings, w.rings)
+				"with the same reset labels as on the phone", sec.Name, rings, w.rings)
 		}
-		if len(sec.Rings) == 2 && (!strings.HasPrefix(sec.Rings[0].Tip, "Five hours") || !strings.HasPrefix(sec.Rings[1].Tip, "Seven days")) {
+		if len(sec.Rings) == 2 && (!strings.HasPrefix(sec.Rings[0].Tip, "Claude, 5 hours") || !strings.HasPrefix(sec.Rings[1].Tip, "Claude, 7 days")) {
 			t.Errorf("%q: the rings are tipped %q and %q — a label that says the time left has to name its window somewhere",
 				sec.Name, sec.Rings[0].Tip, sec.Rings[1].Tip)
 		}
@@ -300,12 +302,12 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 			"expected how old the numbers are without a press, a word that nothing lives there and old numbers dimmed",
 			head.Head, head.Live, head.Empty, head.Old)
 	}
-	if !strings.Contains(acme.Details.Note, "from 1 h ago") {
+	if !strings.Contains(acme.Details.Note, "Updated 1 h ago") {
 		t.Errorf("the details of numbers an hour old say %q — they have to say how old they are", acme.Details.Note)
 	}
 	pop := globex.Details.Windows
-	if len(pop) != 2 || !strings.Contains(pop[0], "Five hours") || !strings.Contains(pop[0], "93%") ||
-		!strings.Contains(pop[0], "resets in 2 h") || !strings.Contains(pop[1], "Seven days") || !strings.Contains(pop[1], "resets in 5 d") {
+	if len(pop) != 2 || !strings.Contains(pop[0], "Claude, 5 hours") || !strings.Contains(pop[0], "93%") ||
+		!strings.Contains(pop[0], "resets in 1 h") || !strings.Contains(pop[1], "Claude, 7 days") || !strings.Contains(pop[1], "resets in 118 h") {
 		t.Errorf("the details of the limit read %q: both windows, each with its share and when it resets", pop)
 	}
 	if len(globex.Shelf) > 0 {
@@ -316,52 +318,57 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 	}
 }
 
-// The rings of a contour's limit at a desk say the share spent and, under
-// it, how long until the window starts over, rounded up to one whole unit; a
-// ring takes the tone of a warning from 70 and the critical one from 90, the
-// usual tone under that; a press opens the details of both windows in their
-// words.
-func TestDeskLimitRingsStepTheirToneAndSayTheTimeLeft(t *testing.T) {
+// Desktop readings share the phone's values, thresholds and reset wording,
+// including stale Codex snapshots and accounts without a weekly window.
+func TestDeskLimitReadingsShowValuesResetsAndMissingWindows(t *testing.T) {
 	var got struct {
-		Rings []struct {
-			Value string `json:"value"`
-			Label string `json:"label"`
-			Tone  string `json:"tone"`
-		} `json:"rings"`
-		Details []string `json:"details"`
-		Past    []string `json:"past"`
+		Readings      []struct{ Value, Label, Tone string }
+		Details, Past []string
+		Stale         struct {
+			Vendors, Ages, Notes []string
+			Details              string
+		}
+		NoWeek, Empty string
 	}
 	runWideFixture(t, "deskrings.html", &got)
-
-	// Share and the time left of each ring, five hours then seven days a
-	// contour: 2h13m, 4d3h; 59m30s, 23h10m; 30s, 36h; past, unknown;
-	// unknown, 46m20s.
-	want := []struct{ value, label, tone string }{
-		{"20", "3h", ""}, {"60", "5d", ""},
-		{"69", "1h", ""}, {"70", "1d", "dkwarn"},
-		{"89", "1m", "dkwarn"}, {"90", "2d", "dkcrit"},
-		{"99", "0m", "dkcrit"}, {"41", "7d", ""},
-		{"0", "5h", ""}, {"85", "47m", "dkwarn"},
+	want := []struct{ value, reset, tone string }{
+		{"20%", "resets in 2 h", "ok"}, {"60%", "resets in 99 h", "warn"},
+		{"59%", "resets in 60 min", "ok"}, {"84%", "resets in 23 h", "warn"},
+		{"85%", "resets in 1 min", "crit"}, {"90%", "resets in 36 h", "crit"},
+		{"99%", "resets any moment", "crit"}, {"41%", "", "ok"},
+		{"0%", "", "ok"}, {"100%", "resets in 46 min", "crit"},
+		{"99%", "", "crit"}, {"105%", "", "crit"},
 	}
-	if len(got.Rings) != len(want) {
-		t.Fatalf("the fixture drew %d rings, expected %d: %+v", len(got.Rings), len(want), got.Rings)
+	if len(got.Readings) != len(want) {
+		t.Fatalf("readings: %+v, expected %d windows", got.Readings, len(want))
 	}
 	for i, w := range want {
-		r := got.Rings[i]
-		if r.Value != w.value || r.Label != w.label {
-			t.Errorf("ring %d reads %s under %s, expected %s under %s — the time left rounded up to one whole unit, "+
-				"a day from 24 hours, 0m once past, the window when unknown", i, r.Value, r.Label, w.value, w.label)
-		}
-		if r.Tone != w.tone {
-			t.Errorf("ring %d at %s%% is marked %q, expected %q — the warning from 70, the critical from 90", i, w.value, r.Tone, w.tone)
+		r := got.Readings[i]
+		if r.Value != w.value || r.Tone != w.tone || (w.reset != "" && !strings.Contains(r.Label, w.reset)) ||
+			(w.reset == "" && strings.Contains(r.Label, "reset")) {
+			t.Errorf("reading %d: %+v, expected %+v", i, r, w)
 		}
 	}
-
-	if strings.Join(got.Details, "|") != "Five hours89%resets in 1 min|Seven days90%resets in 36 h" {
-		t.Errorf("the details read %q: they keep their words, hours up to two days", got.Details)
+	for i, want := range []string{"Claude, 5 hours|85% used|resets in 1 min", "Claude, 7 days|90% used|resets in 36 h"} {
+		for _, part := range strings.Split(want, "|") {
+			if len(got.Details) <= i || !strings.Contains(got.Details[i], part) {
+				t.Errorf("details %d: %v, missing %q", i, got.Details, part)
+			}
+		}
 	}
-	if strings.Join(got.Past, "|") != "Five hours99%resets in any moment|Seven days41%when it resets, the snapshot does not say" {
-		t.Errorf("the details of a moment past and of an unknown reset read %q", got.Past)
+	if len(got.Past) != 2 || !strings.Contains(got.Past[0], "resets any moment") ||
+		strings.Contains(got.Past[1], "reset") || !strings.Contains(got.Past[1], "41% used") {
+		t.Errorf("past and unknown resets: %v", got.Past)
+	}
+	if strings.Join(got.Stale.Vendors, ",") != "codex" ||
+		strings.Join(got.Stale.Ages, ",") != "1 h ago" ||
+		!strings.Contains(got.Stale.Details, "Updated 1 h ago") || !strings.Contains(got.Stale.Details, "last known numbers") ||
+		!strings.Contains(got.Stale.Details, "codex says the limit is reached") {
+		t.Errorf("stale and reached Codex limits: %+v", got.Stale)
+	}
+	if !strings.Contains(got.NoWeek, "codex has told no weekly window yet") ||
+		!strings.Contains(got.NoWeek, "codex says the limit is reached") || got.Empty != "no numbers yet" {
+		t.Errorf("missing windows: %q; empty contour: %q", got.NoWeek, got.Empty)
 	}
 }
 

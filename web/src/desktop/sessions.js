@@ -17,7 +17,7 @@ import { Icon } from "../ui/icons.js";
 import { knows } from "../exec.js";
 import { useAction } from "../actions/gate.js";
 import { liveOf, settled } from "../catchup.js";
-import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
+import { contourOf, limitGroups, LimitGroup, LimitNotes } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames, useProfilePage } from "../screens/sessions/pages.js";
 import { contourOfLive } from "../screens/sessions/map.js";
@@ -111,119 +111,28 @@ export function orderOf(sessions, map, wait = null) {
     });
 }
 
-// leftOf is how long a window of a limit has before it starts over, rounded
-// up in the one unit it is said in: minutes under an hour, hours under
-// dayFrom of them, days past that. Rounding up that reaches the next unit is
-// said in it: 59.5 minutes are an hour. Nothing when the snapshot does not
-// say; nought once the moment has passed and the snapshot has not caught up.
-function leftOf(part, dayFrom) {
-    const at = part && part.resetsAt;
-    if (!at) return null;
-    const left = at * 1000 - Date.now();
-    if (left <= 0) return { n: 0, unit: "" };
-    const minutes = Math.ceil(left / 60000);
-    if (minutes < 60) return { n: minutes, unit: "m" };
-    const hours = Math.ceil(left / 3600000);
-    if (hours < dayFrom) return { n: hours, unit: "h" };
-    return { n: Math.ceil(left / 86400000), unit: "d" };
-}
-
-// resetIn says in the details when a window of a limit starts over, or
-// nothing when the snapshot does not say. The details keep hours up to two
-// days: they are where the finer figure is read.
-function resetIn(part) {
-    const left = leftOf(part, 48);
-    if (!left) return "";
-    if (left.n === 0) return "any moment";
-    return `${left.n} ${left.unit === "m" ? "min" : left.unit}`;
-}
-
-// shortLeft is the time left under a ring: a number and one letter, a day
-// from twenty-four hours on. A moment already past reads 0m: the name of the
-// window beside a countdown would read as hours left. Nothing when the
-// snapshot does not say.
-function shortLeft(part) {
-    const left = leftOf(part, 24);
-    if (!left) return "";
-    return left.n === 0 ? "0m" : `${left.n}${left.unit}`;
-}
-
-// limitLevel is the tone of a share of a limit: warning from 70, critical
-// from 90, the usual colour under that.
-function limitLevel(value) {
-    return value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
-}
-
-// Ring is one window of a contour's limit: a circle filled by the share spent,
-// the share inside it, and under it how long until the window starts over —
-// or the window itself when that is not known. The fill is one colour, which
-// steps at the thresholds of limitLevel.
-function Ring({ label, title, part, agent = "" }) {
-    const value = Math.round((part && part.pct) || 0);
-    const when = resetIn(part);
-    return html`
-        <span class=${`dkring ${limitLevel(value)}`.trim()} data-agent=${agent || undefined}
-              data-tip=${when ? `${title}: resets in ${when}` : title}>
-            <span class="dkringdial" style=${`--share:${Math.min(100, value)}`}><b>${value}</b></span>
-            <span class="dkringlabel">${shortLeft(part) || label}</span>
-        </span>
-    `;
-}
-
-// Window is one window of a limit in the details: the share, a bar and when
-// it starts over.
-function Window({ title, part }) {
-    const value = Math.round((part && part.pct) || 0);
-    const level = limitLevel(value);
-    const left = resetIn(part);
-    return html`
-        <div class=${`dklimwin ${level}`.trim()}>
-            <span class="dklimwintitle">${title}</span>
-            <span class="dklimwinpct">${value}%</span>
-            <span class="dklimwinbar"><i style=${`width:${Math.min(100, value)}%`}></i></span>
-            <span class="dklimwinreset">${left ? `resets in ${left}` : "when it resets, the snapshot does not say"}</span>
-        </div>
-    `;
-}
-
-// ContourLimits is the subscription limit of a contour in its heading: a ring
-// a window claude tells, and their details under them on a press; an account
-// with no five-hour window has the week alone. The rings of each agent stand
-// after its word, claude's and codex's apart. Numbers the snapshot has not
-// renewed for a while are dimmed and say how old they are.
+// The heading uses the phone's compact readings, with a vendor name on each
+// group so the same windows remain identifiable when more providers join.
 export function ContourLimits({ limits, name, profiles }) {
-    const [open, setOpen] = useState(false);
-    const close = useCallback(() => setOpen(false), []);
+    const [opened, setOpened] = useState(null);
+    const close = useCallback(() => setOpened(null), []);
+    const toggle = (key, event) => {
+        const reading = event.currentTarget.getBoundingClientRect();
+        const row = event.currentTarget.closest(".dklimitrow").getBoundingClientRect();
+        setOpened((current) => current && current.key === key ? null : { key, x: reading.left + reading.width / 2 - row.left });
+    };
     const id = ((profiles || []).find((p) => p.profile === name) || {}).id || 0;
     const c = contourOf(limits, name, id);
-    if (!c) return html`<span class="dkrings dknone">no numbers yet</span>`;
-    // Codex's week stands beside claude's windows, a ring of its own in
-    // codex's hue; a contour codex alone has spent in has that ring alone.
-    const week = (c.codex && c.codex.sevenDay) || null;
-    const old = staleLimits(c)
-        ? `The numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers`
-        : "";
+    const groups = limitGroups(c);
     return html`
-        <span class="dkringsctl">
-            <button class=${`dkrings${old ? " dkold" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
-                    aria-label=${`the limits of contour ${name}`} onClick=${() => setOpen(!open)}>
-                ${old && html`<span class="dkringsage">${agoText(c.ageSec)}</span>`}
-                ${(c.fiveHour || c.sevenDay) && html`<span class="agentword dkringsword" data-agent="claude">claude</span>`}
-                ${c.fiveHour && html`<${Ring} label="5h" title="Five hours" part=${c.fiveHour} />`}
-                ${c.sevenDay && html`<${Ring} label="7d" title="Seven days" part=${c.sevenDay} />`}
-                ${week && html`<span class="agentword dkringsword" data-agent="codex">codex</span>`}
-                ${week && html`<${Ring} label="7d" title="Codex, seven days" part=${week} agent="codex" />`}
-            </button>
-            <${Popover} open=${open} onClose=${close} label=${`the limits of contour ${name}`}>
-                <div class="dklimpop">
-                    <div class="dklimpophead">${name}</div>
-                    ${c.fiveHour && html`<${Window} title="Five hours" part=${c.fiveHour} />`}
-                    ${c.sevenDay && html`<${Window} title="Seven days" part=${c.sevenDay} />`}
-                    ${week && html`<${Window} title="Codex · seven days" part=${week} />`}
-                    ${old && html`<p class="dklimpopnote">${old}</p>`}
-                </div>
-            <//>
-        </span>
+        <div class="dklimitsummary">
+            <div class="dklimitrow" role="group" aria-label=${`the limits of contour ${name}`}>
+                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group} tucked named
+                    opened=${opened} onToggle=${toggle} onClose=${close} />`)}
+                ${groups.length === 0 && html`<span class="dklimitnone">no numbers yet</span>`}
+            </div>
+            <${LimitNotes} contour=${c} groups=${groups} compact />
+        </div>
     `;
 }
 
@@ -243,7 +152,7 @@ function NewSession({ name, entry, snapshot, exec }) {
                     onClick=${() => setOpen(!open)}><${Icon.plus} /></button>
             <${Popover} open=${open} onClose=${close} label=${`a new session in contour ${name}`}>
                 <div class="dknewpop">
-                    <div class="dklimpophead">A new session in ${name}</div>
+                    <div class="dknewhead">A new session in ${name}</div>
                     <${NewSessionList} entry=${entry} snapshot=${snapshot} exec=${exec} onClose=${close} desktop />
                 </div>
             <//>

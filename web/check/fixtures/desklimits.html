@@ -6,13 +6,8 @@
 <script>document.documentElement.style.setProperty("--ui-scale", "1.2");</script>
 <div class="deskshell"><div class="dkbody" id="root"></div></div>
 <script type="module">
-// The sessions column at a desk, walked tab by tab: the contour of a tab has
-// its section — a heading with the actions of the contour and two rings of
-// its limit after claude's word, each saying how long until its window starts
-// over, that open the details of both windows, and its live sessions, or a
-// word that nothing lives in it — and its closed conversations stand on a
-// shelf of their own below. A contour the collector knows and the map does
-// not has its tab, and neither a registry of tasks nor a page of settings.
+// The contour tabs retain their limits, actions and archive while each
+// reading opens its own shared details.
 import { h, render } from "preact";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -20,6 +15,7 @@ import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const now = Math.floor(Date.now() / 1000);
+Date.now = () => now * 1000;
 const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
 // Windows that start over in minutes, hours and days, none of them on a
 // whole unit, and one whose reset the snapshot does not know.
@@ -85,11 +81,11 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
     return {
         name: text(head.querySelector(".dkcontourname")),
         head: text(head),
-        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => ({
-            value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")), tip: r.getAttribute("data-tip") || "",
+        rings: Array.from(head.querySelectorAll(".limit-reading")).map((r) => ({
+            value: r.querySelector(".limit-percent").firstChild.textContent, label: (r.title.match(/resets (?:in [^,]+|any moment)/) || [""])[0], tip: r.title,
         })),
-        old: Boolean(head.querySelector(".dkrings.dkold")),
-        words: Array.from(head.querySelectorAll(".dkringsword")).map((w) => `${text(w)}:${w.dataset.agent || ""}`),
+        old: Boolean(head.querySelector(".limit-reading.old")),
+        words: Array.from(head.querySelectorAll(".limit-group .agentword")).map((w) => `${w.firstChild.textContent.trim()}:${w.dataset.agent || ""}`),
         acts: Array.from(head.querySelectorAll(".dkcontouracts button"))
             .map((b) => `${b.getAttribute("aria-label")}${b.disabled ? " off" : ""}`),
         live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),
@@ -101,18 +97,17 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
 const tabOf = (name) => Array.from(document.querySelectorAll(".dkpick [role=tab]"))
     .find((b) => text(b.querySelector(".dkpickname")) === name);
 const shelfOf = (contour) => document.querySelector(`.dkshelf .sc.scpast[data-name^="old-${contour}-"]`);
-// details opens the limit of the contour shown and reads it, then puts it
-// down with Escape.
+// Read each window separately, then put its details down with Escape.
 const details = async () => {
-    document.querySelector(".dkrings").click();
-    await quiet();
-    const pop = document.querySelector(".dklimpop");
-    const out = {
-        windows: pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null,
-        note: text(document.querySelector(".dklimpopnote")),
-    };
+    const windows = [];
+    for (const reading of document.querySelectorAll(".dklimitrow .limit-reading")) {
+        reading.click();
+        await quiet();
+        windows.push(text(document.querySelector(".limit-popover")));
+    }
+    const out = { windows, note: windows.join(" | ") };
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    out.closed = await until(() => !document.querySelector(".dklimpop"));
+    out.closed = await until(() => !document.querySelector(".limit-popover"));
     return out;
 };
 

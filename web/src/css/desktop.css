@@ -506,7 +506,7 @@
 
     .dknewpop { display: flex; flex-direction: column; gap: .1rem; }
 
-    .dknewpop .dklimpophead { margin-bottom: .3rem; }
+    .dknewpop .dknewhead { margin-bottom: .3rem; }
 
     .dknewgroup {
         padding: .45rem .4rem .15rem;
@@ -660,16 +660,7 @@
         border-top: var(--hair) solid var(--line);
     }
 
-    /* The limit of a contour in its heading: two rings filled by the share
-       spent, the share inside, how long until the window starts over beside;
-       a press drops the details. A ring is one flat colour that steps at the
-       warning and the critical share, never a blend of the share: how much is
-       spent is said by the fill and the number, the colour says only which
-       band it is in. Numbers the snapshot has not renewed are dimmed.
-
-       The heading stands in two rows: the name with its wait, whole however
-       long, and the actions of the contour at the edge; under them the rings,
-       each agent's after its word. */
+    /* Keep the name and actions above the shared compact vendor groups. */
     .dkcontour.dklimhead { flex-direction: column; align-items: stretch; gap: .15rem; padding: .3rem .45rem .3rem .55rem; }
 
     .dkcontourrow { display: flex; align-items: center; gap: .45rem; min-width: 0; min-height: 1.65rem; }
@@ -684,110 +675,27 @@
 
     .dklimhead .dkcontourname { font-size: var(--t-base); white-space: normal; overflow-wrap: anywhere; }
 
-    .dkringsctl { position: relative; flex: none; display: flex; }
+    .dklimitsummary { min-width: 0; }
 
-    .dkrings {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .05rem .2rem .05rem 0;
-        border: 0;
-        border-radius: var(--r-small);
-        background: none;
-        color: inherit;
-        font: inherit;
-        cursor: pointer;
-    }
+    .dklimitrow { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 
-    .dkrings:hover { background: var(--glass); }
+    .dklimitrow .limit-group.compact { height: 2.1rem; padding-inline: .5rem; gap: .55rem; border-radius: .65rem; }
 
-    .dkrings.dkold .dkring { opacity: .55; }
+    .dklimitrow .agentword { font-size: var(--t-xs); }
 
-    .dkringsage { font-size: var(--t-xs); color: var(--warn); white-space: nowrap; }
+    .dklimitrow .limit-group-age { display: block; font-size: var(--t-xs); line-height: 1; font-weight: 400; color: var(--ink-faint); white-space: nowrap; }
 
-    .dkrings.dknone { font-size: var(--t-xs); color: var(--ink-faint); cursor: default; }
+    .dklimitrow .limit-mini { min-width: 2.2rem; }
 
-    .dkringsword { font-size: var(--t-xs); }
+    .dklimitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 
-    .dkringsword + .dkring { margin-left: -.1rem; }
+    .dklimitsummary .limits-note { margin: .25rem 0 0; font-size: var(--t-xs); }
 
-    .dkring + .dkringsword { margin-left: .5rem; }
+    /* The bubble is bounded by the heading's row, above the sticky headings
+       that follow it in the column. */
+    .dkcontour.dklimhead:has(.dkpop, .limit-popover) { z-index: 5; }
 
-    .dkring { display: flex; align-items: center; gap: .25rem; }
-
-    /* The dial is a ring cut out of a conic fill: the share of the window
-       from the top, clockwise, over the track. It is sized to keep the heading
-       of a contour low, and the share inside is a step under the small print:
-       a window spent to the end reads 100, and three digits fit the ring. */
-    .dkringdial {
-        --ring: var(--accent);
-        position: relative;
-        display: grid;
-        place-items: center;
-        width: 1.65rem;
-        height: 1.65rem;
-        font-size: var(--t-xs);
-    }
-
-    .dkringdial::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 50%;
-        background: conic-gradient(var(--ring) calc(var(--share) * 1%), var(--line) 0);
-        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.4px), #000 calc(100% - 2px));
-        mask: radial-gradient(farthest-side, transparent calc(100% - 2.4px), #000 calc(100% - 2px));
-    }
-
-    /* Codex's week is a ring in codex's hue beside claude's two, until it
-       nears its end and takes the tone every ring takes then. */
-    .dkring[data-agent="codex"] .dkringdial { --ring: var(--agent-codex); }
-
-    .dkring.dkwarn .dkringdial { --ring: var(--warn); }
-
-    .dkring.dkcrit .dkringdial { --ring: var(--crit); }
-
-    .dkringdial b { position: relative; font-size: .9em; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
-
-    .dkring.dkwarn b { color: var(--warn); }
-
-    .dkring.dkcrit b { color: var(--crit); }
-
-    /* The time left is two letters or three: the label holds the room of
-       three, so the rings of every heading stand one under another. */
-    .dkringlabel { min-width: 2.1em; font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-faint); }
-
-    /* The rings stand at the left of the heading's second row: their details
-       open to the right, into the column, not past the edge of the screen. */
-    .dkringsctl .dkpop { left: 0; right: auto; width: 17rem; }
-
-    /* Headings stick one over another on the same level: the one with its
-       details open stands above the next, or they drop under it. */
-    .dkcontour.dklimhead:has(.dkpop) { z-index: 5; }
-
-    .dklimpop { display: flex; flex-direction: column; gap: .6rem; }
-
-    .dklimpophead { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
-
-    .dklimwin { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .25rem .5rem; align-items: baseline; }
-
-    .dklimwintitle { font-size: var(--t-sm); color: var(--ink-dim); }
-
-    .dklimwinpct { font-size: var(--t-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
-
-    .dklimwin.dkwarn .dklimwinpct { color: var(--warn); }
-
-    .dklimwin.dkcrit .dklimwinpct { color: var(--crit); }
-
-    .dklimwinbar { grid-column: 1 / -1; height: 3px; border-radius: var(--r-small); background: var(--line); overflow: hidden; }
-
-    .dklimwinbar i { display: block; height: 100%; background: var(--accent); }
-
-    .dklimwin.dkwarn .dklimwinbar i { background: var(--warn); }
-
-    .dklimwin.dkcrit .dklimwinbar i { background: var(--crit); }
-
-    .dklimwinreset { grid-column: 1 / -1; font-size: var(--t-xs); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+    .dknewhead { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
 
     .dklimpopnote { margin: 0; font-size: var(--t-xs); color: var(--ink-faint); }
 

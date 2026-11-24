@@ -812,7 +812,8 @@ button.scstub { cursor: pointer; }
 /* Who runs a session, as the word that opens the line of its model — on its
    row and under the name in its conversation: in the hue of
    its agent and a step heavier than the quiet words after it. */
-.agentword { font-weight: 600; color: var(--word-claude); }
+.agentword { font-weight: 600; color: var(--ink-dim); }
+.agentword:not([data-agent]), .agentword[data-agent="claude"] { color: var(--word-claude); }
 .agentword[data-agent="codex"] { color: var(--word-codex); }
 
 .pjlink {

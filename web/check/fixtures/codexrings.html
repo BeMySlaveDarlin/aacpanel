@@ -6,13 +6,8 @@
 <div class="deskshell"><div class="dkbody" id="desk"></div></div>
 <div id="phone"></div>
 <script type="module">
-// The column of sessions at a desk, a contour a tab: in each contour's
-// heading claude's two rings after claude's word and, beside them, codex's
-// week in codex's hue after codex's word, opening to the details of every
-// window; a contour codex alone spent in has that ring alone, and an account
-// claude tells no five-hour window has its week alone. A
-// codex thread with a title of its own is listed by it, on the desk and on the
-// phone and in its sheet, and the panel still finds it by its address.
+// Providers arrive as data. Each group keeps its own readings and details,
+// and named Codex threads still open by their address on both shells.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
@@ -20,12 +15,15 @@ import { LiveLines } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const now = Math.floor(Date.now() / 1000);
+Date.now = () => now * 1000;
 const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
 const limits = { contours: [
     { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(7, 3.4), sevenDay: part(41, 98),
-      codex: { ageSec: 30, windows: [], sevenDay: part(63, 52) } },
+      codex: { ageSec: 30, windows: [], sevenDay: part(63, 52) },
+      gemini: { ageSec: 30, fiveHour: part(27, 2), sevenDay: part(55, 120) } },
     { profile: "Lab", contour: 5, codex: { ageSec: 30, windows: [], sevenDay: part(18, 130) } },
     { profile: "Home", contour: 6, ageSec: 30, sevenDay: part(9, 120) },
 ] };
@@ -63,9 +61,12 @@ window.done = (async () => {
     const out = { heads: [] };
     const headOf = (head) => ({
         name: text(head.querySelector(".dkcontourname")),
-        words: Array.from(head.querySelectorAll(".dkringsword")).map((w) => `${text(w)}:${w.dataset.agent || ""}`),
-        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => ({
-            tip: r.dataset.tip || "", value: text(r.querySelector(".dkringdial b")), agent: r.dataset.agent || "",
+        groups: Array.from(head.querySelectorAll(".limit-group")).map((group) => ({
+            agent: group.dataset.agent, label: group.getAttribute("aria-label"), windows: group.querySelectorAll(".limit-reading").length,
+        })),
+        words: Array.from(head.querySelectorAll(".limit-group .agentword")).map((w) => `${w.firstChild.textContent.trim()}:${w.dataset.agent || ""}`),
+        rings: Array.from(head.querySelectorAll(".limit-reading")).map((r) => ({
+            tip: r.title, value: r.querySelector(".limit-percent").firstChild.textContent, agent: r.dataset.agent || "",
         })),
     });
     for (const tab of tabs().slice(1)) {
@@ -77,9 +78,25 @@ window.done = (async () => {
     tabs()[0].click();
     if (!await until(() => desk.querySelector(".sc:not(.scpast)"))) throw new Error("the first tab did not come back");
     out.heads.unshift(headOf(desk.querySelector(".dklimhead")));
-    desk.querySelector(".dklimhead .dkrings").click();
-    await until(() => document.querySelector(".dklimpop"));
-    out.pop = Array.from(document.querySelectorAll(".dklimpop .dklimwintitle")).map(text);
+    out.pop = [];
+    for (const reading of desk.querySelectorAll(".dklimhead .limit-reading")) {
+        reading.click();
+        await until(() => document.querySelector(".limit-popover")?.getAttribute("aria-label") === reading.title.split(", ").slice(0, 2).join(", "));
+        out.pop.push(text(document.querySelector(".limit-popover strong")));
+    }
+    const last = desk.querySelector('.limit-reading[aria-expanded="true"]');
+    last.click();
+    out.toggledClosed = await until(() => !document.querySelector(".limit-popover"));
+    last.click();
+    await until(() => document.querySelector(".limit-popover"));
+    await quiet();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    out.escapeClosed = await until(() => !document.querySelector(".limit-popover"));
+    last.click();
+    await until(() => document.querySelector(".limit-popover"));
+    await quiet();
+    desk.querySelector(".dkcontourname").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    out.outsideClosed = await until(() => !document.querySelector(".limit-popover"));
     const row = desk.querySelector(".sc:not(.scpast)");
     out.deskName = { text: text(row.querySelector(".scname")), tip: row.querySelector(".scname").title };
     row.querySelector(".scopen").click();

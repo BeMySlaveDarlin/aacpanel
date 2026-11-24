@@ -70,6 +70,40 @@ export function openLimits(snapshot) {
     };
 }
 
+// Claude's snapshot is the contour itself; other providers carry the same
+// windows in nested records. The views consume one list for both shapes.
+export function limitGroups(contour, stale = false) {
+    if (!contour) return [];
+    const sources = [["claude", contour], ...Object.entries(contour).filter(([, source]) =>
+        source && typeof source === "object" && (source.fiveHour || source.sevenDay))];
+    return sources.map(([agent, source]) => ({
+        agent, old: stale || staleLimits(source), ageSec: source.ageSec, reached: source.reached,
+        windows: [
+            { span: "5h", full: `${agent[0].toUpperCase() + agent.slice(1)}, 5 hours`, data: source.fiveHour },
+            { span: "7d", full: `${agent[0].toUpperCase() + agent.slice(1)}, 7 days`, data: source.sevenDay },
+        ].filter((window) => window.data),
+    })).filter((group) => group.windows.length > 0);
+}
+
+export function LimitNotes({ contour, groups, stale, compact }) {
+    const codex = contour && contour.codex;
+    const ages = codex && !codex.sevenDay && !groups.some((group) => group.agent === "codex")
+        ? [...groups, { agent: "codex", old: staleLimits(codex), ageSec: codex.ageSec }]
+        : groups;
+    const renewal = {
+        claude: ": they are renewed when a claude session of the contour answers",
+        codex: ": they are renewed every five minutes while the codex daemon of the contour runs",
+    };
+    return html`
+        ${codex && !codex.sevenDay && html`<p class="limits-note calm">${CODEX_NO_WEEK}</p>`}
+        ${codex && codex.reached && html`<p class="limits-note">${CODEX_REACHED}</p>`}
+        ${stale && html`<p class="limits-note">the limits are the last known ones, the agent is silent</p>`}
+        ${!stale && ages.filter((group) => group.old && (!compact || !groups.includes(group))).map((group) => html`
+            <p class="limits-note calm" key=${group.agent}>${compact ? `${group.agent}: ${agoText(group.ageSec)}` : `${group.agent}'s numbers are from ${agoText(group.ageSec)}${renewal[group.agent] || ""}`}</p>
+        `)}
+    `;
+}
+
 // Full groups carry their vendor on the frame. Past the row, the compact
 // readings keep that meaning in their accessible labels and leave the actions
 // available without taking the list's room for the full rings.
@@ -87,21 +121,7 @@ export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot
     };
     const closeLimit = () => setOpened(null);
     const c = contourOf(limits, profile, contour);
-    const codex = c && c.codex;
-    const claudeOld = Boolean(c) && staleLimits(c);
-    const codexOld = Boolean(codex) && staleLimits(codex);
-    const ages = stale ? [] : [
-        c && (c.fiveHour || c.sevenDay) && claudeOld && `claude's numbers are from ${agoText(c.ageSec)}: they are renewed when a claude session of the contour answers`,
-        codexOld && `codex's numbers are from ${agoText(codex.ageSec)}: they are renewed every five minutes while the codex daemon of the contour runs`,
-    ].filter(Boolean);
-    const group = (agent, old, source, windows) => ({ agent, old, ageSec: source.ageSec, reached: source.reached, windows: windows.filter((window) => window.data) });
-    const groups = [
-        c && group("claude", stale || claudeOld, c, [
-            { span: "5h", full: "Claude, 5 hours", data: c.fiveHour },
-            { span: "7d", full: "Claude, 7 days", data: c.sevenDay },
-        ]),
-        codex && group("codex", stale || codexOld, codex, [{ span: "7d", full: "Codex, 7 days", data: codex.sevenDay }]),
-    ].filter((group) => group && group.windows.length > 0);
+    const groups = limitGroups(c, stale);
     return html`
         <div class=${`pflimits${tucked ? " tucked" : ""}${stuck ? " stuck" : ""}`} ref=${box}>
             <div class="pflimitrow" role="group" aria-label="Contour limits and actions">
@@ -117,10 +137,7 @@ export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot
                 </div>
             </div>
             ${!c && html`<p class="limits-note calm">nobody has worked in this profile yet</p>`}
-            ${codex && !codex.sevenDay && html`<p class="limits-note calm">${CODEX_NO_WEEK}</p>`}
-            ${codex && codex.reached && html`<p class="limits-note">${CODEX_REACHED}</p>`}
-            ${stale && html`<p class="limits-note">the limits are the last known ones, the agent is silent</p>`}
-            ${ages.map((line) => html`<p class="limits-note calm" key=${line}>${line}</p>`)}
+            <${LimitNotes} contour=${c} groups=${groups} stale=${stale} />
         </div>
         <${Sheet} open=${newSession} onClose=${() => setNewSession(false)} label="New session">
             <div class="shead"><span class="stitle">A new session in ${profile}</span></div>
@@ -138,14 +155,18 @@ function ringLeft(resetsAt) {
     return `${Math.max(1, Math.round(left / 60000))}m`;
 }
 
-function LimitGroup({ group, tucked, opened, onToggle, onClose }) {
+export function LimitGroup({ group, tucked, named, opened, onToggle, onClose }) {
     const windows = group.windows.map((window) => {
         const key = `${group.agent}:${window.span}`;
         return html`<${LimitWindow} ...${window} key=${window.span} agent=${group.agent} old=${group.old}
             ageSec=${group.ageSec} reached=${group.reached} tucked=${tucked} opened=${opened && opened.key === key ? opened : null}
             onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
     });
-    if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent}>${windows}</div>`;
+    if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent} role="group" aria-label=${`${group.agent} limits`}>
+        ${named && html`<span class="agentword" data-agent=${group.agent}>${group.agent}
+            ${group.old && html`<small class="limit-group-age">${typeof group.ageSec === "number" ? agoText(group.ageSec) : "unknown age"}</small>`}
+        </span>`}${windows}
+    </div>`;
     return html`<fieldset class="limit-group" data-agent=${group.agent}>
         <legend><span class="agentword" data-agent=${group.agent}>${group.agent}</span></legend>
         <div class="limit-windows">${windows}</div>

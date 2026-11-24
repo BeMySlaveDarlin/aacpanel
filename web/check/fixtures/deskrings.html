@@ -5,52 +5,62 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="deskshell"><div id="root"></div></div>
 <script type="module">
-// The rings of a contour's limit at a desk, one pair a contour: the share
-// spent in each ring, and under it how long until the window starts over,
-// short and rounded up.
 import { h, render } from "preact";
 import { ContourLimits } from "/src/desktop/sessions.js";
 import { quiet } from "/check/fixtures/quiet.js";
 
-const at = (sec) => Date.now() / 1000 + sec;
+const now = Date.now();
+Date.now = () => now;
+const at = (sec) => now / 1000 + sec;
 const M = 60, H = 3600, D = 86400;
-// Shares on both sides of each threshold, and times left on both sides of
-// each unit: a rounding up that reaches the next unit, a moment already
-// past, and a reset the snapshot does not know.
 const pairs = [
     [{ pct: 20, resetsAt: at(2 * H + 13 * M) }, { pct: 60, resetsAt: at(4 * D + 3 * H) }],
-    [{ pct: 69, resetsAt: at(59 * M + 30) }, { pct: 70, resetsAt: at(23 * H + 10 * M) }],
-    [{ pct: 89, resetsAt: at(30) }, { pct: 90, resetsAt: at(36 * H) }],
+    [{ pct: 59, resetsAt: at(59 * M + 30) }, { pct: 84, resetsAt: at(23 * H + 10 * M) }],
+    [{ pct: 85, resetsAt: at(30) }, { pct: 90, resetsAt: at(36 * H) }],
     [{ pct: 99, resetsAt: at(-90) }, { pct: 41 }],
-    [{ pct: 0 }, { pct: 85, resetsAt: at(46 * M + 20) }],
+    [{ pct: 0 }, { pct: 100, resetsAt: at(46 * M + 20) }],
+    [{ pct: 99.5 }, { pct: 105 }],
 ];
-const limits = { contours: pairs.map(([fiveHour, sevenDay], i) => ({
+const contours = pairs.map(([fiveHour, sevenDay], i) => ({
     profile: `c${i}`, contour: i + 1, ageSec: 30, fiveHour, sevenDay,
-})) };
-render(h("div", null, pairs.map((_, i) => h("div", { key: i },
-    h(ContourLimits, { limits, name: `c${i}`, profiles: [] })))), document.getElementById("root"));
+}));
+contours.push({ profile: "old", contour: 7, ageSec: 30, fiveHour: { pct: 9 },
+    codex: { ageSec: 3600, reached: true, sevenDay: { pct: 100 } } });
+contours.push({ profile: "no-week", contour: 8, codex: { ageSec: 30, windows: [], reached: true } });
+const limits = { contours };
+render(h("div", null, [...contours.map((contour) => h("section", { key: contour.profile, id: contour.profile },
+    h(ContourLimits, { limits, name: contour.profile, profiles: [] }))),
+    h("section", { id: "empty" }, h(ContourLimits, { limits, name: "empty", profiles: [] })),
+]), document.getElementById("root"));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-
-window.done = (async () => {
-    for (let i = 0; i < 60 && document.querySelectorAll(".dkring").length < pairs.length * 2; i++) await sleep(50);
-    const rings = Array.from(document.querySelectorAll(".dkring")).map((r) => ({
-        value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")),
-        tip: r.getAttribute("data-tip") || "",
-        tone: Array.from(r.classList).filter((c) => c !== "dkring").join(" "),
-    }));
-    // The details of the third contour: a window of a minute and one of a
-    // day and a half.
-    document.querySelectorAll(".dkrings")[2].click();
+const text = (el) => el ? el.textContent.replace(/\s+/g, " ").trim() : "";
+const details = async (section, index) => {
+    document.querySelectorAll(`#${section} .limit-reading`)[index].click();
     await quiet();
-    const pop = document.querySelector(".dklimpop");
-    const details = pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null;
+    const pop = text(document.querySelector(".limit-popover"));
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    await sleep(60);
-    document.querySelectorAll(".dkrings")[3].click();
     await quiet();
-    const past = document.querySelector(".dklimpop");
-    return { rings, details, past: past ? Array.from(past.querySelectorAll(".dklimwin")).map(text) : null };
+    return pop;
+};
+window.done = (async () => {
+    await quiet();
+    const readings = contours.slice(0, pairs.length).flatMap((contour) =>
+        [...document.querySelectorAll(`#${contour.profile} .limit-reading`)].map((r) => ({
+            value: text(r.querySelector(".limit-percent")), label: r.title,
+            tone: ["ok", "warn", "crit"].find((tone) => r.classList.contains(tone)),
+        })));
+    return {
+        readings,
+        details: [await details("c2", 0), await details("c2", 1)],
+        past: [await details("c3", 0), await details("c3", 1)],
+        stale: {
+            vendors: [...document.querySelectorAll("#old .limit-reading.old")].map((r) => r.dataset.agent),
+            ages: [...document.querySelectorAll("#old .limit-group-age")].map(text),
+            notes: [...document.querySelectorAll("#old .limits-note")].map(text),
+            details: await details("old", 1),
+        },
+        noWeek: text(document.querySelector("#no-week")),
+        empty: text(document.querySelector("#empty")),
+    };
 })();
 </script>
