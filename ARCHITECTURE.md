@@ -795,6 +795,15 @@ anchors, the database supplies open acts and brief state. The collector indexes
 only these cards and reads new transcript records after the first listing; it
 keeps no second copy of the whole feed.
 
+The device keeps the reading position of its last fifty scrolled-up conversations
+in one local storage entry: the row's position and its offset from the feed's
+top edge. The map is read once per page; row measurement and storage writes
+wait for a pause in scrolling, with an immediate flush before the feed leaves
+the document or the page becomes hidden. Returning reads a window around an
+anchor outside the fresh tail; a missing row uses the nearest surviving position. The end needs no entry,
+so returning there follows everything that arrived while away. A row anchor
+costs the extra window read when the tail no longer contains it.
+
 A chain whose current human command is running, including a reserved terminal
 awaiting launch, carries `running` in the waiting summary. Its card, move pill
 and session state stay calm: Run hands the step to the command, so it is no

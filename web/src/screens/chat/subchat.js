@@ -46,7 +46,7 @@ export function agentFeedId(session, agent) {
 export function SubChat({ session, id, agent, live, onBack }) {
     const toast = useToast();
     const [sub, setSub] = useState(null);
-    const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({
+    const { state, more, feedRef, bindFeed, topRef, onScroll, atEnd, toEnd } = useFeedWindow({
         name: session, id, live: live && !sub,
     });
     const [calls, setCalls] = useState(null);
@@ -91,7 +91,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
 
         <div
             class="chatfeed"
-            ref=${feedRef}
+            ref=${bindFeed}
             onClick=${(event) => {
                 if (codecopy.fromClick(event, toast)) return;
                 if (codecopy.fromInline(event)) return;

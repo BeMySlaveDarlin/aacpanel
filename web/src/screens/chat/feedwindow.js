@@ -1,7 +1,7 @@
 // The feed window: the first read, paging upwards and the stream of new items,
 // and a window around one item away from the end of the conversation.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -31,28 +31,81 @@ export function nearEnd(box) {
     return box.scrollHeight - box.scrollTop - box.clientHeight < END_SLACK;
 }
 
-// left keeps where every feed was last seen, for as long as the page lives. The box
-// of the feed is thrown away whenever the screen shows the terminal or an agent
-// instead, and built anew on the way back: a position kept inside it would die with
-// it, and the reader would come back to the top of the conversation every time.
-const left = new Map();
+const POSITIONS_KEY = "aacpanel.feedPositions";
+const POSITIONS_MAX = 50;
+const POSITION_WAIT_MS = 300;
+let left = null;
+const pendingPositions = new Map();
+let positionTimer = null;
+let positionsDirty = false;
+
+function positions() {
+    if (left !== null) return left;
+    left = {};
+    try {
+        const all = JSON.parse(localStorage.getItem(POSITIONS_KEY) || "{}");
+        left = Object.fromEntries(Object.entries(all || {}).filter(([, at]) =>
+            at && Number.isSafeInteger(at.pos) && at.pos >= 0 && Number.isFinite(at.offset)).slice(-POSITIONS_MAX));
+    } catch {
+    }
+    return left;
+}
+
+const feedRows = (box) => [...box.querySelectorAll(".feedrow[data-pos]")];
+const edgeOf = (box) => box.getBoundingClientRect().top + box.clientTop;
+const roleOf = (row) => row.className.match(/\br-(\S+)/)?.[1] || "";
+const sameRow = (row, at) => Number(row.dataset.pos) === at.pos
+    && (!at.role || roleOf(row) === at.role) && Number(row.dataset.nth || 0) === (at.nth || 0);
 
 // feedKey names a feed: the conversation, and for an agent its own feed inside it.
 export function feedKey(name, id) {
-    return `${name}\u0000${id || ""}`;
+    return id ? `id:${id}` : `name:${name}`;
 }
 
-// keepAt writes down where the box stands: at the end of the feed, or at this offset.
-// Following the end is kept as an answer of its own, not as the offset it happened to
-// have: messages arrive while the feed is away, and the end moves with them.
-export function keepAt(key, box) {
+// A row survives a fresh tail read; a scrollTop does not. The end needs no
+// record: returning there follows the messages that arrived while away.
+export function keepAt(key, box, end = box && nearEnd(box)) {
     if (!box) return;
-    left.set(key, { end: nearEnd(box), top: box.scrollTop });
+    const all = positions();
+    if (end) {
+        positionsDirty ||= Object.hasOwn(all, key);
+        delete all[key];
+        pendingPositions.delete(key);
+    } else {
+        pendingPositions.set(key, box);
+    }
+    clearTimeout(positionTimer);
+    positionTimer = pendingPositions.size || positionsDirty ? setTimeout(flushAt, POSITION_WAIT_MS) : null;
+}
+
+// Flush before the box leaves the document: detached rows have no geometry.
+export function flushAt() {
+    clearTimeout(positionTimer);
+    positionTimer = null;
+    const all = positions();
+    for (const [key, box] of pendingPositions) {
+        const edge = edgeOf(box), rows = feedRows(box);
+        const row = rows.find((el) => el.getBoundingClientRect().bottom > edge) || rows.at(-1);
+        if (!row) continue;
+        delete all[key];
+        all[key] = { pos: Number(row.dataset.pos), offset: edge - row.getBoundingClientRect().top,
+            role: roleOf(row), nth: Number(row.dataset.nth || 0) };
+        positionsDirty = true;
+    }
+    pendingPositions.clear();
+    if (!positionsDirty) return;
+    positionsDirty = false;
+    left = Object.fromEntries(Object.entries(all).slice(-POSITIONS_MAX));
+    try {
+        if (Object.keys(left).length) localStorage.setItem(POSITIONS_KEY, JSON.stringify(left));
+        else localStorage.removeItem(POSITIONS_KEY);
+    } catch {
+    }
 }
 
 // leftAt returns where the feed was left, or null for a feed never seen scrolled.
 export function leftAt(key) {
-    return left.get(key) || null;
+    return positions()[key] || null;
 }
 
 // wakeNeeded reports whether the feed stream should be reopened.
@@ -97,6 +150,9 @@ export function useFeedWindow({ name, id, live }) {
     const stickRef = useRef(true);
     const seenRef = useRef(null);
     const putRef = useRef(null);
+    const putKeyRef = useRef("");
+    const restoringRef = useRef(null);
+    const settledRef = useRef(null);
     const watchRef = useRef(null);
     const contentsRef = useRef(new Set());
     const [atEnd, setAtEnd] = useState(true);
@@ -121,7 +177,33 @@ export function useFeedWindow({ name, id, live }) {
     // box outlives the render that made it, and would go on writing the position of a
     // feed the reader has already left.
     const keyRef = useRef("");
-    keyRef.current = feedKey(name, id);
+    const flushFeed = useCallback(() => {
+        const box = feedRef.current;
+        if (box && !restoringRef.current && putKeyRef.current === keyRef.current) {
+            const at = settledRef.current;
+            const following = stickRef.current && at?.box === box && at.top === box.scrollTop;
+            keepAt(keyRef.current, box, !awayRef.current && (nearEnd(box) || following));
+        }
+        flushAt();
+    }, []);
+    const bindFeed = useCallback((box) => {
+        if (feedRef.current && feedRef.current !== box) flushFeed();
+        feedRef.current = box;
+    }, [flushFeed]);
+    const key = feedKey(name, id);
+    // A key changes during render while the preceding rows are still in place.
+    if (keyRef.current && keyRef.current !== key) flushFeed();
+    keyRef.current = key;
+
+    useEffect(() => {
+        const hidden = () => { if (document.visibilityState === "hidden") flushFeed(); };
+        window.addEventListener("pagehide", flushFeed);
+        document.addEventListener("visibilitychange", hidden);
+        return () => {
+            window.removeEventListener("pagehide", flushFeed);
+            document.removeEventListener("visibilitychange", hidden);
+        };
+    }, [flushFeed]);
 
     // settle reads the position of the box once and tells both sides of it, and the
     // feed is written down where it stands — every scroll of the box comes through
@@ -129,14 +211,16 @@ export function useFeedWindow({ name, id, live }) {
     // window away from the end is not the end: there the feed neither follows new
     // messages nor hides the way back.
     const settle = (box) => {
+        if (restoringRef.current || box !== feedRef.current || putKeyRef.current !== keyRef.current) return;
         const near = !awayRef.current && nearEnd(box);
-        const at = leftAt(keyRef.current);
+        const at = settledRef.current;
         // A queued scroll can arrive after a card grows, with the offset unchanged.
         // That is still following the end; the resize observer catches up with it.
-        if (!near && stickRef.current && at?.end && at.top === box.scrollTop) return;
+        if (!near && stickRef.current && at?.box === box && at.top === box.scrollTop) return;
         stickRef.current = near;
         setAtEnd(near);
-        keepAt(keyRef.current, box);
+        settledRef.current = { box, top: box.scrollTop };
+        keepAt(keyRef.current, box, near);
     };
 
     // leave puts a window on screen in place of the tail, or the tail back in
@@ -150,23 +234,45 @@ export function useFeedWindow({ name, id, live }) {
 
     // put returns a box to where the feed was left: to the end if the feed was
     // following new messages there — the end as it is now, not as it was on leaving —
-    // and to the same offset if it was scrolled up. A feed nobody has scrolled counts
+    // and to the same row if it was scrolled up. A feed nobody has scrolled counts
     // as being at its end, which is where a feed opens. A box with nothing in it yet
     // cannot be scrolled anywhere, and the arriving items try again.
     const put = (box) => {
-        if (box.scrollHeight <= box.clientHeight) return;
+        if (state.kind !== "ready" || restoringRef.current) return;
         const at = leftAt(keyRef.current);
+        if (!at && box.scrollHeight <= box.clientHeight) return;
         putRef.current = box;
-        box.scrollTop = !at || at.end ? box.scrollHeight : at.top;
-        settle(box);
+        putKeyRef.current = keyRef.current;
+        if (!at) {
+            box.scrollTop = box.scrollHeight;
+            settle(box);
+            return;
+        }
+        stickRef.current = false;
+        const restore = { key: keyRef.current, box };
+        restoringRef.current = restore;
+        const finish = () => {
+            if (restoringRef.current !== restore || keyRef.current !== restore.key || feedRef.current !== box) return;
+            const rows = feedRows(box);
+            const row = rows.find((el) => sameRow(el, at)) || rows.reduce((best, el) =>
+                !best || Math.abs(Number(el.dataset.pos) - at.pos) < Math.abs(Number(best.dataset.pos) - at.pos) ? el : best, null);
+            restoringRef.current = null;
+            if (!row) { toEnd(); return; }
+            box.scrollTop += row.getBoundingClientRect().top - edgeOf(box) + (sameRow(row, at) ? at.offset : 0);
+            settle(box);
+        };
+        if (feedRows(box).some((row) => sameRow(row, at))) finish();
+        else show(at.pos, restore).then(finish, finish);
     };
 
     useEffect(() => {
         const at = leftAt(feedKey(name, id));
         awayRef.current = null;
+        restoringRef.current = null;
+        settledRef.current = null;
         homeRef.current = false;
         setAway(null);
-        stickRef.current = !at || at.end;
+        stickRef.current = !at;
         putRef.current = null;
         // A feed left scrolled up gets its button back from the reading of the box it
         // is put into, not before: until then there is nothing to jump away from.
@@ -310,6 +416,8 @@ export function useFeedWindow({ name, id, live }) {
     });
 
     useEffect(() => () => {
+        restoringRef.current = null;
+        if (drawnRef.current) drawnRef.current(false);
         if (watchRef.current) watchRef.current.disconnect();
     }, []);
 
@@ -344,7 +452,7 @@ export function useFeedWindow({ name, id, live }) {
         const box = feedRef.current;
         const win = awayRef.current;
         const before = win ? win.first : firstRef.current;
-        if (before == null || !box || busyRef.current) return;
+        if (before == null || !box || busyRef.current || restoringRef.current) return;
         busyRef.current = true;
         const trip = tripOf();
         const wasHeight = box.scrollHeight;
@@ -385,7 +493,7 @@ export function useFeedWindow({ name, id, live }) {
     const loadDown = async () => {
         const box = feedRef.current;
         const win = awayRef.current;
-        if (!win || !win.moreAfter || !box || busyRef.current) return;
+        if (!win || !win.moreAfter || !box || busyRef.current || restoringRef.current) return;
         busyRef.current = true;
         try {
             const data = await ask(`after=${win.last}`, PAGE);
@@ -408,12 +516,13 @@ export function useFeedWindow({ name, id, live }) {
     // window is two reads side by side — up to the item and past it — since a
     // position names a record, not a count of rows to step back by. Resolves
     // false when the conversation changed under the reads.
-    const show = async (pos) => {
+    const show = async (pos, restore = null) => {
+        if (!restore) restoringRef.current = null;
         const shown = awayRef.current ? awayRef.current.items : tailRef.current;
         if (shown.some((item) => item.pos === pos)) return true;
         const key = keyRef.current;
         const [up, down] = await Promise.all([ask(`before=${pos + 1}`, AROUND), ask(`after=${pos}`, AROUND)]);
-        if (keyRef.current !== key) return false;
+        if (keyRef.current !== key || (restore && restoringRef.current !== restore)) return false;
         const later = (down.items || []).filter((item) => item.pos > pos).length;
         tripRef.current += 1;
         // A window asked for while another was still on its way takes its place:
@@ -469,6 +578,7 @@ export function useFeedWindow({ name, id, live }) {
     const toEnd = () => {
         const box = feedRef.current;
         if (!box) return;
+        restoringRef.current = null;
         if (awayRef.current) {
             homeRef.current = true;
             leave(null);
@@ -480,6 +590,6 @@ export function useFeedWindow({ name, id, live }) {
 
     return {
         state, shown: shownItems, away: Boolean(away), more: upMore, later: downMore,
-        feedRef, topRef, bottomRef, onScroll, atEnd, toEnd, show,
+        feedRef, bindFeed, topRef, bottomRef, onScroll, atEnd, toEnd, show,
     };
 }

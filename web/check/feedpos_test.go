@@ -17,7 +17,7 @@ import (
 // terminal or from an agent, while the window above it lives through both. A
 // new box starts at the top of the conversation, so the feed has to be put back
 // where the reader left it: at its end if it was following new messages there,
-// and at the same offset if it was scrolled up.
+// and at the same row if it was scrolled up.
 func TestFeedComesBackWhereItWasLeft(t *testing.T) {
 	got := runFeedWindow(t)
 
@@ -56,6 +56,16 @@ func TestFeedComesBackWhereItWasLeft(t *testing.T) {
 	}
 }
 
+func TestFeedRestoresItsRowAcrossRemountAndReload(t *testing.T) {
+	var got struct{ Positions map[string]bool }
+	runFixture(t, "feed.html", &got)
+	for _, key := range []string{"deferred", "pagehide", "hidden", "immediateLeave", "inTail", "remount", "around", "reload", "missing", "explicitJump", "endForgotten", "end", "bounded"} {
+		if !got.Positions[key] {
+			t.Errorf("%s: the feed lost its reading position: %+v", key, got.Positions)
+		}
+	}
+}
+
 type feedRun struct {
 	Opened         int  `json:"opened"`
 	AwayButton     bool `json:"awayButton"`
@@ -91,6 +101,13 @@ export function useState(init) {
     if (!(i in slots)) slots[i] = { value: typeof init === "function" ? init() : init };
     const slot = slots[i];
     return [slot.value, (next) => { slot.value = typeof next === "function" ? next(slot.value) : next; }];
+}
+
+export function useCallback(fn, deps) {
+    const i = cursor++;
+    const prev = slots[i];
+    if (!prev || deps.some((d, n) => d !== prev.deps[n])) slots[i] = { value: fn, deps };
+    return slots[i].value;
 }
 
 export function useRef(init) {
@@ -135,6 +152,7 @@ globalThis.EventSource = class {
     addEventListener() {}
     close() {}
 };
+globalThis.window = { addEventListener() {}, removeEventListener() {} };
 globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 globalThis.IntersectionObserver = class { observe() {} disconnect() {} };
@@ -144,6 +162,12 @@ function box(height) {
     let top = 0;
     return {
         children: [],
+        clientTop: 0,
+        getBoundingClientRect: () => ({ top: 0 }),
+        querySelectorAll: () => items.map((item, n) => ({
+            dataset: { pos: String(item.pos) }, className: "feedrow r-" + item.role,
+            getBoundingClientRect: () => ({ top: n * 60 - top, bottom: (n + 1) * 60 - top }),
+        })),
         scrollHeight: height,
         clientHeight: 400,
         get scrollTop() { return top; },
@@ -160,8 +184,8 @@ let win = null;
 const draw = () => { win = __render(() => useFeedWindow({ name: at.name, id: at.id, live })); };
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const scrollTo = (el, top) => { el.scrollTop = top; win.onScroll({ currentTarget: el }); draw(); };
-const takeBox = () => { win.feedRef.current = null; draw(); };
-const giveBox = (height) => { const el = box(height); win.feedRef.current = el; draw(); return el; };
+const takeBox = () => { win.bindFeed(null); draw(); };
+const giveBox = (height) => { const el = box(height); win.bindFeed(el); draw(); return el; };
 
 draw();
 await tick();
@@ -205,6 +229,7 @@ await tick();
 const again = giveBox(3000);
 const subBack = again.scrollTop;
 
+takeBox();
 process.stdout.write(JSON.stringify({
     opened, awayButton, kept, keptButton, followed, followedButton, subOpened, parentBack, subBack,
 }));

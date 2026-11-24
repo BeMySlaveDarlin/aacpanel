@@ -101,7 +101,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
     const {
-        state, shown, away, more, later, feedRef, topRef, bottomRef, onScroll, atEnd, toEnd, show,
+        state, shown, away, more, later, feedRef, bindFeed, topRef, bottomRef, onScroll, atEnd, toEnd, show,
     } = useFeedWindow({ name, id, live: live && !sub });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
@@ -713,7 +713,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         <${FindBar} find=${find} />
         <div
             class="chatfeed"
-            ref=${feedRef}
+            ref=${bindFeed}
             onClick=${(event) => {
                 if (codecopy.fromClick(event, toast)) return;
                 if (codecopy.fromInline(event)) return;
