@@ -1,7 +1,7 @@
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { actOpen, cancelled, ChainCard, chainSummary, commandRunning, isChain, personsMove } from "./chain.js";
+import { actOpen, ChainCard, chainSummary, commandRunning, isChain, personsMove } from "./chain.js";
 
 const kindOf = { do: "request" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -72,7 +72,6 @@ export function ActMarker({ item, onOpen }) {
             <span class="acttitle">${item.title}</span>
             <small>${chainSummary(item)}</small>
         </button>
-        ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} onOpen=${onOpen} />`)}
     </div>`;
 }
 
@@ -100,21 +99,14 @@ export function AskCard({ item, record }) {
     </article>`;
 }
 
-// A finished chain whose own row is out of the feed stands as its card under
-// the last line of its replies, open as it is: one card per chain, whatever
-// number of replies it took.
-export function ActReply({ text, record, onOpen, card = false }) {
-    if (record?.kind === "ask") return html`<div class="actreply">→ agent · answered</div>`;
+// What the panel told the session of a question or a chain is not drawn: the
+// card says how it was answered. A finished chain whose own row is out of the
+// feed stands as its card where the last of its replies was, once however
+// many replies it took.
+export function ActReply({ text, record, card = false }) {
+    if (record?.kind === "ask") return null;
     if (!isChain(record)) return html`<details class="actreply"><summary>to the agent: ${text}</summary><p>${text}</p></details>`;
-    const open = actOpen(record);
-    const line = chainReply(text, record);
-    // The card stands beside the line, not in it: the line's faint small type
-    // would carry over to the card.
-    return html`<div class="actreply">
-        ${open && onOpen ? html`<button class="chainreply" type="button" onClick=${() => onOpen({ ...record, role: "request" })}>${line}</button>`
-            : html`<div class="chainreply">${line}</div>`}
-    </div>
-    ${card && !open && html`<${ChainCard} item=${record} record=${record} />`}`;
+    return card && !actOpen(record) ? html`<${ChainCard} item=${record} record=${record} />` : null;
 }
 
 // Closed asks stay in the feed at their recorded time, even without a transcript marker.
@@ -132,31 +124,6 @@ function withAskMarkers(items, acts, tail) {
         list.splice(n + 1, 0, { role: "ask", id: act.id, title: act.title, at, pos: list[n]?.pos ?? 0 });
     }
     return list;
-}
-
-function chainReply(text, act) {
-    const steps = act.steps || act.body.steps;
-    const numbers = [...new Set([...text.matchAll(/^(\d+) (you|agent) · /gm)].map(match => Number(match[1])))]
-        .filter(number => number > 0 && number <= steps.length).sort((a, b) => a - b);
-    const prefix = "→ agent · ";
-    // The summary of a cancel ends on the sentence the service writes for it.
-    // The steps it lists, those since the session last heard, say nothing of
-    // the cancel: they may be done, stopped or none at all.
-    if (cancelled(act) && /^The person cancelled the chain\b/m.test(text)) return prefix + "cancelled by you";
-    if (!numbers.length) return prefix + "chain update";
-    const stopped = numbers.find(number => ["failed", "cant"].includes(act.outputs?.[number - 1]?.state));
-    if (stopped) {
-        const out = act.outputs[stopped - 1];
-        return prefix + (out.state === "cant" ? `Can't at step ${stopped}`
-            : `step ${stopped} failed${out.exit != null ? ` · exit ${out.exit}` : ""}`);
-    }
-    if (!numbers.every(number => act.outputs?.[number - 1]?.state === "done")) return prefix + "chain update";
-    const first = numbers[0], last = numbers.at(-1);
-    const covered = numbers.length === 1 ? `step ${first}`
-        : `steps ${last - first + 1 === numbers.length ? `${first}–${last}` : numbers.join(", ")}`;
-    const next = last === steps.length && act.state === "answered" ? " · chain done"
-        : steps[last]?.who === "agent" ? ` · step ${last + 1} is the agent's` : "";
-    return prefix + covered + " done" + next;
 }
 
 // Only an id present in the act data identifies a reply; its prose can change

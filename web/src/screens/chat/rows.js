@@ -47,7 +47,7 @@ export const FeedWrites = createContext(null);
 // chain to be worked in its row: onAnswer, onChainRun, onChainStop,
 // onChainCancel, onTerm, and the error and unavailable lines of ChainCard.
 // onAct leads to an act from
-// its marker or the line of its reply; onDock puts an open request into the
+// its marker; onDock puts an open request into the
 // form at the end of the feed, and is absent where no form stands.
 export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret, act, onAct, onDock, onClaimWithdraw, chain }) {
     const menu = useMenu();
@@ -105,17 +105,13 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     if (item.role === "secret") {
         return html`<${SecretCard} item=${item} record=${act} shelf=${secrets} onOpen=${onSecret} />`;
     }
-    if (item.role === "ask") return html`
-        <${AskCard} item=${item} record=${act} />
-        ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
+    if (item.role === "ask") return html`<${AskCard} item=${item} record=${act} />`;
     if (item.role === "request") {
         // A chain stands where it was posted, open or closed, and is never
         // docked at the end of the feed: a chain stays open for hours, and
         // everything said meanwhile would pile up above it. Its steps are
         // answered, run and stopped here.
-        if (isChain(act)) return html`
-            <${ChainCard} item=${item} record=${act} ...${(actOpen(act) && chain) || {}} />
-            ${(item.actReplies || []).map((text) => html`<${ActReply} text=${text} record=${act} />`)}`;
+        if (isChain(act)) return html`<${ChainCard} item=${item} record=${act} ...${(actOpen(act) && chain) || {}} />`;
         if (!act && isChain(item)) return html`<${ActMarker} item=${item} onOpen=${onAct} />`;
         return html`<${RequestCard} item=${item} record=${act} placed onOpen=${onDock} onRun=${writes.onRun} />`;
     }
@@ -177,7 +173,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     // A message the panel wrote on the person's behalf is drawn as what it
     // says. One that did not go out stays a bubble, since sending it again is
     // the bubble's, and so does one cut short: it is not the whole text.
-    if (item.actReply) return html`<${ActReply} text=${item.text} record=${act} onOpen=${onAct} card=${Boolean(item.actReplyCard)} />`;
+    if (item.actReply) return html`<${ActReply} text=${item.text} record=${act} card=${Boolean(item.actReplyCard)} />`;
     const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
     // The answer to a question codex asked without waiting is the card of the
     // round answered, as claude's answer is, standing where it was sent; on

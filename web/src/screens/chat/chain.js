@@ -35,7 +35,7 @@ export const personsMove = (act) => !agentsMove(act) && !commandRunning(act);
 
 // A chain the person cancelled is withdrawn, as one its session takes back
 // is; its answer says the person did it.
-export const cancelled = (act) => act?.state === "withdrawn" && act.answer?.outcome === "cancel";
+const cancelled = (act) => act?.state === "withdrawn" && act.answer?.outcome === "cancel";
 
 // chainSummary says how a chain ended. An open chain says nothing of the kind:
 // it stands in its own row as its card, with the step at hand in it.
@@ -162,7 +162,7 @@ function ChainCancel({ act, onCancel }) {
         setBusy(true);
         try { await onCancel(act, note); } finally { sending.current = false; setBusy(false); }
     };
-    if (!asking) return html`<div class="actfoot"><button class="actnote" type="button" onClick=${() => setAsking(true)}>Cancel chain</button></div>`;
+    if (!asking) return html`<div class="actfoot"><button class="btn" type="button" onClick=${() => setAsking(true)}>Cancel chain</button></div>`;
     return html`
         <label class="requestnote">Reason (optional)<textarea rows="2" maxLength="2000"
             value=${note} disabled=${busy} onInput=${(event) => setNote(event.currentTarget.value)}></textarea></label>

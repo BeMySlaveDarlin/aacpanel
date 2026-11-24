@@ -269,7 +269,7 @@ window.done = (async () => {
         && card(tool.id).querySelector(".sentlabel").textContent === "question · withdrawn"
         && card(tool.id).textContent.includes("Which regions should receive it?")
         && !card(tool.id).querySelector("button, input, textarea");
-    out.askReply = questionRow(prose.id)?.querySelector(".actreply")?.textContent === "→ agent · answered"
+    out.askReply = Boolean(questionRow(prose.id)) && !questionRow(prose.id).querySelector(".actreply")
         && ![...document.querySelectorAll(".msg.me")].some(el => el.textContent.includes("The person answered"));
     out.askDetached = withActReplies([items.at(-1)], { [prose.id]: { ...prose, created: new Date(Date.parse(at) - 1).toISOString() } })[0]?.actReply === true;
     const direct = document.createElement("div");

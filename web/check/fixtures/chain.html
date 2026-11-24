@@ -8,7 +8,7 @@ import { render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { Row } from "/src/screens/chat/rows.js";
-import { actState, movesOf, MovePill, withActReplies } from "/src/screens/chat/actform.js";
+import { actState, movesOf, MovePill } from "/src/screens/chat/actform.js";
 import { stateOf } from "/src/screens/sessions/state.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -271,29 +271,29 @@ window.done = (async () => {
     out.outputCopy = copied.at(-1) === done.tail;
     items = [...items, { role: "me", pos: 3, at, text: `The chain “Release” (${req.id}):\n1 you · Login · exit 0\nFull log: /logs/1\nStep 2 is yours.` }];
     stream.listeners.chat({ data: JSON.stringify({ items, state: {}, first: 1, last: 3, total: items.length }) }); await quiet();
-    // The reply stands under its own chain, as a line: there is nowhere else to lead.
-    out.openReply = row().querySelector(".chainreply")?.textContent === "→ agent · step 1 done · step 2 is the agent's"
-        && Boolean(row().querySelector(".chainreply")?.compareDocumentPosition(form()) & Node.DOCUMENT_POSITION_PRECEDING)
-        && !document.querySelector("button.chainreply, .actreply details, .actreply summary")
+    // The reply is not drawn, neither as a line nor as a bubble: the card says how far the chain went.
+    out.openReply = Boolean(form()) && !document.querySelector(".actreply")
         && ![...document.querySelectorAll(".msg.me")].some(node => node.textContent.includes(req.id));
     // Cancel ends the chain on the agent's step as on any other. Its first
     // press asks for the reason, optional, and sends nothing.
     const cancelSends = sent.length;
     const cancelNote = () => form()?.querySelector(".mchain > .requestnote textarea");
+    // The first press stands as a button of its own, not as faint text.
+    const cancelLooks = button("Cancel chain")?.classList.contains("btn") && !button("Cancel chain").classList.contains("danger");
     button("Cancel chain").click(); await until(cancelNote);
-    out.cancelAsks = sent.length === cancelSends && button("Cancel chain")?.classList.contains("danger");
+    out.cancelAsks = cancelLooks && sent.length === cancelSends && button("Cancel chain")?.classList.contains("danger");
     await type(cancelNote(), "Wrong cluster.");
     button("Cancel chain").click(); await until(() => !form());
     out.cancel = sent.length === cancelSends + 1 && sent.at(-1).kind === "act.cancel" && sent.at(-1).target === "work"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, note: "Wrong cluster." });
     // The closed card says the person cancelled it, with the reason; the
-    // reply sent before the cancel keeps its own line.
+    // reply sent before the cancel draws nothing under it.
     out.cancelled = feedCard()?.querySelector(".sentlabel").textContent === "chain · 1 of 4 done · cancelled by you"
         && feedCard().textContent.includes("Your reason: Wrong cluster.")
         && !feedCard().querySelector(".requestnote, .requestanswer, .chainterm")
         && ![...feedCard().querySelectorAll("button")].some(b => b.textContent.trim() === "Cancel chain")
         && !feedCard().textContent.includes("the session works on it")
-        && row().querySelector(".chainreply")?.textContent === "→ agent · step 1 done · step 2 is the agent's";
+        && !row().querySelector(".actreply");
     delete req.answer; delete req.answeredBy;
     showScene("failed"); await publish();
     out.failed = Boolean(form()) && step(3).classList.contains("current") && step(3).textContent.includes("exit 3 · 31 s")
@@ -394,30 +394,22 @@ window.done = (async () => {
     const range = { ...req, id: "c".repeat(32), state: "open", step: 3,
         body: { steps: [{ ...steps[0] }, { ...steps[1], who: "you" }, { ...steps[2], who: "agent" }, steps[3]] },
         outputs: [{ state: "done" }, { state: "done" }, null, null] };
-    const failed = { ...req, id: "d".repeat(32), state: "failed", step: 2, outputs: [{ state: "done" }, { state: "failed", exit: 1 }] };
-    const cant = { ...req, id: "e".repeat(32), state: "declined", step: 3,
-        outputs: [{ state: "done" }, { state: "done" }, { state: "cant" }, null] };
     const finished = { ...req, id: "f".repeat(32), state: "answered", outputs: steps.map(() => ({ state: "done" })) };
-    const dropped = { ...req, id: "8".repeat(32), state: "withdrawn", step: 2, answer: { outcome: "cancel", note: "" },
-        outputs: [{ state: "done" }, null, null, null] };
-    const cancelLine = "The person cancelled the chain: stop waiting on it and report none of its steps.";
-    // A finished chain whose own row is out of the feed stands open under the
-    // last of its replies, once however many replies it took.
+    // A finished chain whose own row is out of the feed stands open where the
+    // last of its replies was, once however many replies it took.
     acts = [finished]; items = [{ role: "me", pos: 5, at, text: summary(finished, "3 you · Deploy · done") },
         { role: "me", pos: 6, at, text: summary(finished, "4 you · Check sign-in · done") }];
     render(null, root); session.waiting = []; draw();
-    const replyLines = () => [...document.querySelectorAll(".chatfeed .chainreply")];
-    await until(() => replyLines().at(-1)?.textContent === "→ agent · step 4 done · chain done" && feedCard());
+    await until(feedCard);
     const cards = [...document.querySelectorAll(".chatfeed .mchain")];
-    out.detachedCard = cards.length === 1 && replyLines().length === 2
-        && Boolean(replyLines()[1].compareDocumentPosition(cards[0]) & Node.DOCUMENT_POSITION_FOLLOWING)
+    out.detachedCard = cards.length === 1 && !document.querySelector(".chatfeed .actreply")
         && feedCard().querySelector(".sentlabel").textContent === "chain · 4 of 4 done"
         && feedCard().querySelectorAll(".chainbody").length === steps.length
-        && !feedCard().querySelector(".requestanswer, .requestnote, .chainterm") && !document.querySelector("button.chainreply");
+        && !feedCard().querySelector(".requestanswer, .requestnote, .chainterm");
 
-    // An open chain whose row is above what the feed read: its reply line and
-    // a push about it both read a window around the row and reveal the card
-    // there, working.
+    // An open chain whose row is above what the feed read: its reply draws
+    // nothing, and a push about it reads a window around the row and reveals
+    // the card there, working.
     const remote = { ...req, id: "9".repeat(32), title: "Finish the release", state: "open", step: 4,
         outputs: [{ ...done }, { state: "done" }, { ...done }, null] };
     acts = [remote];
@@ -426,13 +418,10 @@ window.done = (async () => {
         { role: "me", pos: 8, at, text: summary(remote, "3 you · Restart the API · exit 0") }];
     session.waiting = [{ kind: "request", id: remote.id, title: remote.title, at, pos: 2, blocking: true }];
     render(null, root); draw();
-    await until(() => document.querySelector("button.chainreply"));
+    await until(() => document.querySelector(".chatfeed")?.textContent.includes("Meanwhile the session went on."));
     const revealed = () => document.querySelector('.feedrow.waitingtarget[data-pos="2"]');
     const works = () => Boolean(revealed()?.querySelector(".mchain .chainstep.current") && button("Done") && button("Can't"));
-    out.farRow = !row() && !docked();
-    document.querySelector("button.chainreply").click();
-    await until(works);
-    out.replyReveals = row().contains(form()) && !docked();
+    out.farRow = !row() && !docked() && !document.querySelector(".chatfeed .actreply");
     render(null, root); toAct = { id: remote.id }; draw();
     await until(works);
     out.pushReveals = !docked() && document.querySelectorAll(".waitingtarget").length === 1;
@@ -446,40 +435,18 @@ window.done = (async () => {
     out.pushOnce = once;
     toAct = null;
 
-    const samples = [
-        { key: "summaryRange", act: range, rows: "1 you · Login · exit 0\n2 you · Check access · done", want: "→ agent · steps 1–2 done · step 3 is the agent's" },
-        { key: "summaryFailed", act: failed, rows: "2 agent · Check access · exit 0", want: "→ agent · step 2 failed · exit 1" },
-        { key: "summaryCant", act: cant, rows: "3 you · Deploy · done", want: "→ agent · Can't at step 3" },
-        { key: "summaryDone", act: finished, rows: "4 you · Sign-in · failed", want: "→ agent · step 4 done · chain done" },
-        { key: "summaryScattered", act: finished, rows: "1 you · Login · done\n3 you · Deploy · done", want: "→ agent · steps 1, 3 done" },
-        { key: "summaryFallback", act: finished, rows: "A changed summary format", want: "→ agent · chain update" },
-        // The summary of a cancel says so whatever steps it carries; one sent before it keeps its own line.
-        { key: "summaryCancelled", act: dropped, rows: `1 you · Login · done\n${cancelLine}`, want: "→ agent · cancelled by you" },
-        { key: "summaryBeforeCancel", act: dropped, rows: "1 you · Login · done", want: "→ agent · step 1 done · step 2 is the agent's" },
-    ];
+    // The replies under the row of an open chain draw nothing: its card stands in place.
     const opened = [];
-    const reply = sample => withActReplies([{ role: "me", at, text: summary(sample.act, sample.rows) }], { [sample.act.id]: sample.act })[0];
     const openItem = { role: "request", id: range.id, title: range.title, steps: range.body.steps,
-        actReplies: [summary(range, samples[0].rows)] };
-    render(html`<div>${samples.map(sample => html`<div data-case=${sample.key}>
-        <${Row} item=${reply(sample)} act=${sample.act} onAct=${act => opened.push(act)} /></div>`)}
+        actReplies: [summary(range, "1 you · Login · exit 0\n2 you · Check access · done")] };
+    render(html`<div>
         <div data-case="attached"><${Row} item=${openItem} act=${range} onAct=${act => opened.push(act)} /></div>
         <div data-case="missing"><${Row} item=${openItem} /></div>
     </div>`, root);
-    await until(() => document.querySelector('[data-case="summaryRange"] .chainreply'));
-    for (const sample of samples) {
-        const node = document.querySelector(`[data-case="${sample.key}"]`);
-        out[sample.key] = node.querySelector(".chainreply")?.textContent === sample.want && !node.textContent.includes("Full log:");
-    }
-    document.querySelector('[data-case="summaryRange"] button.chainreply').click();
-    out.detachedOpen = opened.length === 1 && opened[0].id === range.id && opened[0].role === "request"
-        && !document.querySelector('[data-case="summaryRange"] .mchain');
-    // Replies under the row of an open chain stand under its card as lines.
-    document.querySelector('[data-case="attached"] .chainreply').click();
+    await until(() => document.querySelector('[data-case="attached"] .mchain'));
     const attached = document.querySelector('[data-case="attached"]');
-    out.attachedInPlace = opened.length === 1 && attached.querySelector(".mchain .chainstep.current")?.dataset.step === "3"
-        && !attached.querySelector("button.chainreply, .actmarker")
-        && Boolean(attached.querySelector(".chainreply")?.compareDocumentPosition(attached.querySelector(".mchain")) & Node.DOCUMENT_POSITION_PRECEDING);
+    out.attachedInPlace = opened.length === 0 && attached.querySelector(".mchain .chainstep.current")?.dataset.step === "3"
+        && !attached.querySelector(".actreply, .actmarker") && !attached.textContent.includes("Full log:");
     out.missingRecord = Boolean(document.querySelector('[data-case="missing"] .actmarker'))
         && !document.querySelector('[data-case="missing"] .mchain');
     const withdrawn = { ...finished, state: "withdrawn" };

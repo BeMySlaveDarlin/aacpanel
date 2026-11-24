@@ -94,8 +94,6 @@
 .actreply { color: var(--ink-faint); font-size: var(--t-sm); }
 .actreply summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .actreply p { white-space: pre-wrap; overflow-wrap: anywhere; }
-.chainreply { display: block; width: 100%; padding: .25rem 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; overflow-wrap: anywhere; }
-button.chainreply { cursor: pointer; }
 .cstrip .deckuse { font-size: var(--t-xs); padding: 0 .3rem; gap: .25rem; box-shadow: none; }
 @media (max-width: 1099px) {
     [data-keyboard="open"] .composerbox .cstrip, [data-keyboard="open"] .composerbox + :is(.deck) { display: none; }
