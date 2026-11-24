@@ -247,9 +247,9 @@ window.done = (async () => {
     return {
         command: (() => {
             const el = accountHost.querySelector('.sc[data-name="command-running"]');
-            return el.dataset.kind === "command" && el.dataset.tone === "bg" && !el.classList.contains("scwait")
-                && text(el.querySelector(".scsay")).startsWith("command running Login") && Boolean(el.querySelector(".scglyph svg"))
-                && Boolean(el.querySelector(".scl2 .scrun"));
+            return el.dataset.kind === "inside" && el.dataset.tone === "bg" && !el.classList.contains("scwait")
+                && text(el.querySelector(".scsay")) === "commands running"
+                && [...el.querySelectorAll(".scl2 .scrun")].map((n) => n.title).join(" | ") === "1 background commands running | 1 observers watching";
         })(),
         restartAll: { asked, restarted, cancelled },
         continued,

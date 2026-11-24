@@ -41,6 +41,13 @@ export function runsOf(work) {
     };
 }
 
+// sessionRuns is what a session runs, by the counters of its card: a command
+// the person ran from one of its chains counts among its commands.
+export function sessionRuns(s) {
+    const runs = runsOf(s.work);
+    return { ...runs, commands: runs.commands + runningStepsOf(s).length };
+}
+
 // runningOf is the whole of what runs in the background: one with only
 // timers ahead is idle.
 export function runningOf(work) {
@@ -190,16 +197,9 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     }
     if (s.compacting) return make("busy", "compact", "compacting", { since: s.compacting });
     if (s.status === "busy" && !s.turnOver) return make("busy", "work", "working");
-    // A command the person ran from a chain is named before the counters of
-    // the background: those stand on the line as glyphs anyway, and a bare
-    // "watching" would hide which command runs.
-    const runningSteps = runningStepsOf(s);
-    if (runningSteps.length > 0) {
-        return make("bg", "command", "command running", { subject: runningSteps[0].title || "", since: runningSteps[0].at || "" });
-    }
     // The answer is over and what it started still runs: the session takes a
     // message, but it is not quiet.
-    const runs = runsOf(s.work);
+    const runs = sessionRuns(s);
     if (runs.agents > 0 || (s.status === "busy" && runningOf(s.work) === 0)) return make("bg", "inside", "agents running");
     if (runs.commands > 0) return make("bg", "inside", "commands running");
     if (runs.watchers > 0) return make("bg", "inside", "watching");

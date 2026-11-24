@@ -73,7 +73,7 @@ type sessionCardsRun struct {
 // line, and a card with nothing running counts nothing.
 func checkSessionCards(t *testing.T, got sessionCardsRun) {
 	if !got.Command {
-		t.Error("a session with a command already running must show its calm state and command glyph")
+		t.Error("a session with a command already running must count it among its running commands, calm and unnamed")
 	}
 	t.Helper()
 	for name, want := range map[string][]string{

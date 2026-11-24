@@ -135,8 +135,8 @@ window.done = (async () => {
         if (!await until(ready)) throw new Error(`the ${c.key} map did not lay out all ${sessions.length} sessions`);
         out.cases[c.key] = wide ? await deskOf(box) : phoneOf(box);
         const command = box.querySelector('.sc[data-name="notes"]');
-        if (!command || command.dataset.kind !== "command" || command.dataset.tone !== "bg" || command.classList.contains("scwait")
-            || !text(command.querySelector(".scsay")).startsWith("command running Login")) {
+        if (!command || command.dataset.kind !== "inside" || command.dataset.tone !== "bg" || command.classList.contains("scwait")
+            || text(command.querySelector(".scsay")) !== "commands running") {
             throw new Error("The running command must keep its session card calm in the personal contour");
         }
     }

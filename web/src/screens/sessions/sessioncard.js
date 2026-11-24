@@ -34,7 +34,7 @@ import { busyOf } from "./controls.js";
 import { placeOf } from "./kin.js";
 import { continueProject, pauseWhy } from "./pause.js";
 import { PausePie } from "./pausedial.js";
-import { runsOf, stateOf, timeOf } from "./state.js";
+import { sessionRuns, stateOf, timeOf } from "./state.js";
 
 // The glyph of each kind of state; a kind with none draws a shape of its own
 // (a dot at work, a ring for the background, a hollow ring for a closed one).
@@ -42,7 +42,7 @@ const GLYPHS = {
     ask: Icon.ask, question: Icon.ask, held: Icon.ask, permission: Icon.lock, request: Icon.hand, brief: Icon.plan,
     secret: Icon.key, call: Icon.alerts, input: Icon.hourglass, compact: Icon.compact, saving: Icon.refresh,
     restarting: Icon.refresh, limit: Icon.limit, paused: Icon.pause, done: Icon.check, agentstep: Icon.robot,
-    claim: Icon.envelope, command: Icon.terminal,
+    claim: Icon.envelope,
 };
 
 // The short words of the modes, each fitting the place the mode keeps.
@@ -343,7 +343,7 @@ export function SessionCard({ s, limits, wait, exec, profile = null, profiles = 
                 <${Name} full=${name} address=${s.session} own=${nameOf(name, known)} project=${projectName} tag=${from ? `opened by ${from}` : ""} />
                 <${Resources} res=${s.res} account=${account} />
             </div>
-            <${Line} state=${state} runs=${runsOf(s.work)} alarm=${wakeOf(s)} notes=${notes} busy=${busy} time=${time} tone=${timeTone} />
+            <${Line} state=${state} runs=${sessionRuns(s)} alarm=${wakeOf(s)} notes=${notes} busy=${busy} time=${time} tone=${timeTone} />
             <${Steps} ...${steps} />
             <${Agent} who=${s} model=${modelOf(s.model)} effort=${s.effort ? effortName(s.effort) : ""}
                       queued=${s.queued || 0} compacts=${s.compacts || 0} />

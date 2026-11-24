@@ -201,7 +201,7 @@ window.done = (async () => {
         && document.querySelector(".movepill").classList.contains("agent")
         && document.querySelector(".movepill").getAttribute("aria-label").startsWith("command running")
         && !waits() && !form().classList.contains("blocking") && step(1).classList.contains("running") && !waitingStep()
-        && [...document.querySelectorAll(".talkword, .dkword")].some(node => node.textContent.startsWith("command running"));
+        && [...document.querySelectorAll(".talkword, .dkword")].some(node => node.textContent.startsWith("commands running"));
     out.runningMove = runningMove() && actState(req) === "command running";
     // The snapshot can arrive before the act or lag behind Stop. A full act
     // wins, and a summary alone still keeps a move available to reveal.
