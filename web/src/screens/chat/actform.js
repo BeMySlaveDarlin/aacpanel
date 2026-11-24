@@ -1,7 +1,7 @@
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { actOpen, ChainCard, chainSummary, commandRunning, isChain, personsMove } from "./chain.js";
+import { actOpen, chainSummary, commandRunning, isChain, personsMove } from "./chain.js";
 
 const kindOf = { do: "request" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -97,16 +97,6 @@ export function AskCard({ item, record }) {
             ${answers?.[i]?.text && html`<span class="pnmnote">${answers[i].text}</span>`}
         </div>`)}</div>
     </article>`;
-}
-
-// What the panel told the session of a question or a chain is not drawn: the
-// card says how it was answered. A finished chain whose own row is out of the
-// feed stands as its card where the last of its replies was, once however
-// many replies it took.
-export function ActReply({ text, record, card = false }) {
-    if (record?.kind === "ask") return null;
-    if (!isChain(record)) return html`<details class="actreply"><summary>to the agent: ${text}</summary><p>${text}</p></details>`;
-    return card && !actOpen(record) ? html`<${ChainCard} item=${record} record=${record} />` : null;
 }
 
 // Closed asks stay in the feed at their recorded time, even without a transcript marker.

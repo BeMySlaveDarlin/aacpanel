@@ -17,7 +17,7 @@ func TestMoveFormsOnPhoneAndDesktop(t *testing.T) {
 					t.Errorf("%s: the conversation tools lost their home or action: %+v", key, got)
 				}
 			}
-			for _, key := range []string{"head", "markerKeeps", "next", "inFeed", "sentStays", "runConfirms", "run", "auto", "waitTime", "markers", "noteQuiet", "focus", "clipTap", "replyKeeps", "keepsCurrent", "cantReason", "failureKeeps", "cant", "done", "nextForm", "secretPath", "decline", "quietReply", "fullReply", "oneStep", "steps", "back", "review", "round", "twoWays", "dismissHint", "dismissFirst", "discussion", "dropPress", "order", "closedWins", "detachedReply", "askHistory", "askReply", "askDetached", "askOneTitle", "askDeclined", "claimOut", "claimAnswered", "claimIncoming", "claimOverdue", "claimClosed", "claimReply", "claimNotMove", "claimCapability", "claimRefused", "claimWithdraw", "claimArchive"} {
+			for _, key := range []string{"head", "markerKeeps", "next", "inFeed", "sentStays", "runConfirms", "run", "auto", "waitTime", "markers", "noteQuiet", "focus", "clipTap", "replyKeeps", "keepsCurrent", "cantReason", "failureKeeps", "cant", "done", "nextForm", "secretPath", "decline", "quietReply", "fullReply", "oneStep", "steps", "back", "review", "round", "twoWays", "dismissHint", "dismissFirst", "discussion", "dropPress", "order", "closedWins", "detachedReply", "detachedCard", "askHistory", "askReply", "askDetached", "askOneTitle", "askDeclined", "claimOut", "claimAnswered", "claimIncoming", "claimOverdue", "claimClosed", "claimReply", "claimNotMove", "claimCapability", "claimRefused", "claimWithdraw", "claimArchive"} {
 				if !got[key] {
 					t.Errorf("%s: %+v", key, got)
 				}

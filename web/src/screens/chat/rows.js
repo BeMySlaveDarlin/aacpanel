@@ -22,7 +22,7 @@ import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { pauseEnd } from "../sessions/pause.js";
 import { savedAfter } from "../../data/secrets.js";
-import { ActMarker, ActReply, actState, AskCard } from "./actform.js";
+import { ActMarker, actState, AskCard } from "./actform.js";
 import { RequestCard } from "./request.js";
 import { actOpen, ChainCard, isChain } from "./chain.js";
 import { state as briefState } from "../../data/briefs.js";
@@ -173,7 +173,16 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     // A message the panel wrote on the person's behalf is drawn as what it
     // says. One that did not go out stays a bubble, since sending it again is
     // the bubble's, and so does one cut short: it is not the whole text.
-    if (item.actReply) return html`<${ActReply} text=${item.text} record=${act} card=${Boolean(item.actReplyCard)} />`;
+    // What the panel told the session of an act whose own row is out of the
+    // feed stands as the act's card where the last of its replies was, closed
+    // as it is; the other replies, and those of an open act, draw nothing.
+    if (item.actReply) {
+        if (!item.actReplyCard || !act || actOpen(act)) return null;
+        if (act.kind === "secret") return html`<${SecretCard} item=${act} record=${act} />`;
+        if (isChain(act)) return html`<${ChainCard} item=${act} record=${act} />`;
+        if (act.kind === "do") return html`<${RequestCard} item=${act} record=${act} />`;
+        return null;
+    }
     const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
     // The answer to a question codex asked without waiting is the card of the
     // round answered, as claude's answer is, standing where it was sent; on

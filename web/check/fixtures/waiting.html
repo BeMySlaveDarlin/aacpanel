@@ -11,6 +11,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 import { AskCard, movesOf, withActReplies } from "/src/screens/chat/actform.js";
+import { Row } from "/src/screens/chat/rows.js";
 
 const until = async (ready) => {
     await Promise.resolve();
@@ -242,6 +243,29 @@ window.done = (async () => {
     out.order = ordered.map(item => item.kind).join(",") === "request,permit,brief";
     out.closedWins = movesOf(normalized, session.waiting, []).length === 0;
     out.detachedReply = withActReplies([items.at(-1)], normalized)[0]?.actReply === true;
+    // A closed request or secret whose own row is out of the feed stands as its
+    // card where the last of its replies was; an earlier reply draws nothing.
+    const shaped = (row) => ({ ...row, ...row.body, answered: row.closed, withdrawn: null,
+        outcome: row.answer?.outcome, note: row.answer?.note || "" });
+    const doneReq = shaped({ ...req, id: "6".repeat(32), state: "answered", closed: at, answer: { outcome: "done", note: "Rebooted." } });
+    const savedSec = shaped({ ...sec, id: "5".repeat(32), state: "answered", closed: at, answer: { outcome: "done", path: "/srv/keys/release" } });
+    const far = { [doneReq.id]: doneReq, [savedSec.id]: savedSec };
+    const farRows = withActReplies([
+        { role: "me", pos: 1, at, text: `Answer to act ${doneReq.id}: first` },
+        { role: "me", pos: 2, at, text: `Answer to act ${doneReq.id}: done` },
+        { role: "me", pos: 3, at, text: `Secret act ${savedSec.id}: saved` },
+    ], far);
+    const farHost = document.createElement("div");
+    document.body.append(farHost);
+    render(html`<div>${farRows.map((item) => html`<div class="farrow"><${Row} item=${item} act=${far[item.actReplyID]} /></div>`)}</div>`, farHost);
+    await quiet();
+    const farCells = [...farHost.querySelectorAll(".farrow")];
+    out.detachedCard = farCells.length === 3 && !farCells[0].firstElementChild
+        && farCells[1].querySelector(".mrequest .requesttitle")?.textContent === req.title
+        && farCells[1].querySelector(".mrequest .requeststate")?.textContent === "Done"
+        && farCells[2].querySelector(".msecret .artitle")?.textContent === sec.title
+        && !farHost.querySelector(".actreply, .msg.me") && !farHost.textContent.includes("to the agent");
+    render(null, farHost); farHost.remove();
 
     const prose = { id: "d".repeat(32), kind: "ask", title: "Release plan", state: "answered", created: new Date().toISOString(),
         body: { source: "prose", message: "prose-message", what: "Choose the release plan", questions: [
