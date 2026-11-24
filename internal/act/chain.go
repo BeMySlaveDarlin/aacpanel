@@ -61,6 +61,17 @@ func (r Record) AgentsMove() bool {
 	return step >= 1 && step <= len(r.Body.Chain) && r.Body.Chain[step-1].Who == "agent"
 }
 
+// CommandRunning keeps a launched command off the person's waiting work:
+// reserving its terminal already hands the step over to the executor.
+func (r Record) CommandRunning() bool {
+	if !r.Chain() || r.State != "open" {
+		return false
+	}
+	index := *r.Step - 1
+	return index >= 0 && index < len(r.Body.Chain) && index < len(r.Outputs) &&
+		r.Body.Chain[index].Who == "you" && r.Body.Chain[index].Command != "" && r.Outputs[index].Running()
+}
+
 // Cancel is the outcome of a chain the person cancelled from its card.
 const Cancel = "cancel"
 

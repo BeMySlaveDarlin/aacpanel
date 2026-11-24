@@ -22,9 +22,10 @@ type waitingItem struct {
 	Blocking bool   `json:"blocking,omitempty"`
 	// Agent marks a chain standing on the agent's turn: open, but not the
 	// person's move.
-	Agent bool   `json:"agent,omitempty"`
-	Pos   *int64 `json:"pos,omitempty"`
-	Nth   int    `json:"nth,omitempty"`
+	Agent   bool   `json:"agent,omitempty"`
+	Running bool   `json:"running,omitempty"`
+	Pos     *int64 `json:"pos,omitempty"`
+	Nth     int    `json:"nth,omitempty"`
 }
 
 func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, sent map[string]bool) []waitingItem {
@@ -50,7 +51,7 @@ func waitingFor(acts []act.Record, cards []chat.Item, briefs []chat.BriefCard, s
 			continue
 		}
 		kind := map[string]string{"do": "request", "secret": "secret", "call": "call"}[row.Kind]
-		item := waitingItem{Kind: kind, ID: row.ID, Title: row.Title, Blocking: row.Blocking, Agent: row.AgentsMove(), At: row.Created.Format(time.RFC3339Nano)}
+		item := waitingItem{Kind: kind, ID: row.ID, Title: row.Title, Blocking: row.Blocking, Agent: row.AgentsMove(), Running: row.CommandRunning(), At: row.Created.Format(time.RFC3339Nano)}
 		card := anchor(kind, row.ID)
 		if row.Kind == "call" {
 			card = nil

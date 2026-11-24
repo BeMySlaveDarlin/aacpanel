@@ -13,6 +13,8 @@ import { html } from "/src/html.js";
 import { LiveLines } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { stateOf } from "/src/screens/sessions/state.js";
+import { waitingOf } from "/src/waiting.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const now = Date.now();
@@ -40,7 +42,17 @@ window.done = (async () => {
     const cards = document.querySelectorAll("#phone .sc");
     const text = cards[0] && cards[0].querySelector(".scsay");
     const long = cards[1] && cards[1].querySelector(".scsay");
+    const command = { kind: "request", id: "command", title: "Login", at: iso(2), blocking: true, running: true };
+    const base = { session: "command", sessionId: "command", status: "idle", waiting: [command] };
+    const running = stateOf(base);
+    const mixed = stateOf({ ...base, waiting: [command, { kind: "secret", id: "key", title: "API key", at: iso(1) }] });
+    const agent = stateOf({ ...base, waiting: [{ ...command, running: false, agent: true }] });
+    const stopped = stateOf({ ...base, waiting: [{ ...command, running: false }] });
     return {
+        commandState: running.kind === "command" && running.tone === "bg" && running.word === "command running" && running.subject === "Login"
+            && waitingOf(base).length === 0,
+        mixedState: mixed.kind === "secret" && mixed.tone === "wait",
+        stoppedState: stopped.kind === "request" && stopped.tone === "wait" && agent.kind === "agentstep" && agent.tone === "bg",
         longText: long ? long.textContent.replace(/\s+/g, " ").trim() : "",
         text: text ? text.textContent.trim() : "",
         marks: cards[0] ? cards[0].querySelectorAll(".scl5 .scb").length : 0,

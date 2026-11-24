@@ -1,7 +1,7 @@
 import { html } from "../../html.js";
 import { ago } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
-import { actOpen, agentsMove, cancelled, ChainCard, chainSummary, isChain } from "./chain.js";
+import { actOpen, cancelled, ChainCard, chainSummary, commandRunning, isChain, personsMove } from "./chain.js";
 
 const kindOf = { do: "request" };
 const timeOf = (item) => new Date(item.at || 0).getTime() || 0;
@@ -25,8 +25,8 @@ export function movesOf(acts, waiting, native) {
         moves.set(key, { ...moves.get(key), ...act, kind, at: act.created });
     }
     for (const item of native) moves.set(moveKey(item), item);
-    // The person's moves come before the chains standing on the agent's turn.
-    return [...moves.values()].sort((a, b) => Number(agentsMove(a)) - Number(agentsMove(b))
+    // Work already handed over leaves the person's moves first.
+    return [...moves.values()].sort((a, b) => Number(personsMove(b)) - Number(personsMove(a))
         || Number(Boolean(b.blocking)) - Number(Boolean(a.blocking)) || timeOf(a) - timeOf(b));
 }
 
@@ -37,24 +37,26 @@ const moveIcon = { asked: Icon.ask, request: Icon.list, secret: Icon.key, permit
 // waits: the icon says what the first move is, the corner how many there are,
 // and the words and the time stand in its label. A pill as wide as its words
 // pushed the tools of the row onto a second line. With no move of the
-// person's left, the chains on the agent's turn stand in it as the agent's.
+// person's left, the pill names the work already handed over.
 export function MovePill({ items, onNext }) {
     if (!items.length) return null;
-    const yours = items.filter((item) => !agentsMove(item));
+    const yours = items.filter(personsMove);
     const agent = yours.length === 0;
     const shown = agent ? items : yours;
     const oldest = shown.reduce((a, b) => timeOf(a) < timeOf(b) ? a : b);
     const first = shown[0];
-    const label = `${agent ? "agent's step" : "your move"} · ${shown.length} · ${ago(oldest.at)}`;
-    return html`<button class=${`movepill${agent ? " agent" : ""}`} type="button" data-kind=${agent ? "agent" : first.kind}
+    const running = agent && shown.some(commandRunning);
+    const label = `${running ? "command running" : agent ? "agent's step" : "your move"} · ${shown.length} · ${ago(oldest.at)}`;
+    return html`<button class=${`movepill${agent ? " agent" : ""}`} type="button" data-kind=${running ? "running" : agent ? "agent" : first.kind}
         aria-label=${label} title=${label} onClick=${onNext}>
-        ${(agent ? Icon.robot : moveIcon[first.kind] || Icon.hand)()}<span class="movecount" aria-hidden="true">${shown.length}</span>
+        ${(running ? Icon.terminal : agent ? Icon.robot : moveIcon[first.kind] || Icon.hand)()}<span class="movecount" aria-hidden="true">${shown.length}</span>
     </button>`;
 }
 
 // actState is the word the head of an act's card says it stands at: how the
 // person answered it, or that it is theirs to answer.
 export function actState(act) {
+    if (commandRunning(act)) return "command running";
     if (actOpen(act)) return "yours";
     if (act.state === "withdrawn") return "withdrawn";
     if (act.kind === "secret") return act.state === "declined" ? "won't give" : "filled in";

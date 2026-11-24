@@ -778,3 +778,38 @@ func TestWaitingMarksAChainOnTheAgentsTurn(t *testing.T) {
 		}
 	}
 }
+
+func TestWaitingMarksOnlyALaunchedHumanCommandRunning(t *testing.T) {
+	step := 1
+	row := act.Record{ID: "command", Kind: "do", State: "open", Step: &step,
+		Body: act.Body{Chain: []personrequest.Step{{Who: "you", Text: "Login", Command: "login"}}}, Outputs: make([]*personrequest.Output, 1)}
+	for _, c := range []struct {
+		name   string
+		state  string
+		output *personrequest.Output
+		want   bool
+	}{
+		{"before Run", "open", nil, false},
+		{"pending", "open", &personrequest.Output{State: "pending"}, false},
+		{"reserved", "open", &personrequest.Output{State: "pending", Term: "t-login"}, true},
+		{"running", "open", &personrequest.Output{State: "running", Term: "t-login"}, true},
+		{"exited", "open", &personrequest.Output{State: "done", Term: "t-login"}, false},
+		{"stopped", "open", &personrequest.Output{State: "stopped", Term: "t-login"}, false},
+		{"failed", "failed", &personrequest.Output{State: "failed", Term: "t-login"}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			row.State, row.Outputs[0] = c.state, c.output
+			got := waitingFor([]act.Record{row}, nil, nil, nil)
+			if len(got) != 1 || got[0].Running != c.want || got[0].Agent != (c.state == "failed") {
+				t.Fatalf("waiting summary: %+v, want running=%v and agent=%v", got, c.want, c.state == "failed")
+			}
+			wire, err := json.Marshal(got[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(wire), `"running":true`) != c.want {
+				t.Fatalf("running mark on the wire: %s", wire)
+			}
+		})
+	}
+}

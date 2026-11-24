@@ -8,7 +8,7 @@ import { render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { Row } from "/src/screens/chat/rows.js";
-import { withActReplies } from "/src/screens/chat/actform.js";
+import { actState, movesOf, MovePill, withActReplies } from "/src/screens/chat/actform.js";
 import { stateOf } from "/src/screens/sessions/state.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -148,13 +148,16 @@ window.done = (async () => {
     await until(form); await quiet();
     if (scene) { await document.fonts.ready; return { scene }; }
     const out = { noFlash };
+    const waitingStepRule = [...document.styleSheets].flatMap(sheet => [...sheet.cssRules])
+        .find(rule => rule.selectorText?.includes(".chainstep.current") && rule.selectorText.includes(".chainwho"));
+    const waitingStep = () => Boolean(waitingStepRule && step(1).querySelector(".chainwho").matches(waitingStepRule.selectorText));
     // Cancel stands on an open chain whatever its step and state.
     const cancelOn = [];
     const offersCancel = (state) => cancelOn.push(`${state}:${Boolean(button("Cancel chain"))}`);
     offersCancel("pending");
     out.pending = form().querySelector(".sentlabel").textContent === "chain · step 1 of 4"
         && step(1).classList.contains("current") && Boolean(button("Run")) && !button("Done") && !button("note")
-        && [1, 2, 3, 4].every(n => step(n).querySelector(".chainbody")) && !polls().length;
+        && [1, 2, 3, 4].every(n => step(n).querySelector(".chainbody")) && !polls().length && waitingStep();
     // The person's step is the person's move: the head says so, the square is the request's.
     const waits = () => Boolean(document.querySelector('.talkword[data-tone="waiting"], .dkword[data-tone="waiting"]'));
     out.yourMove = document.querySelector(".movepill")?.dataset.kind === "request" && waits();
@@ -194,9 +197,28 @@ window.done = (async () => {
     out.running = !button("Run") && !button("Done") && !button("Can't") && Boolean(button("Stop"))
         && /running · \d+:\d\d/.test(step(1).textContent) && step(1).querySelector(".chainout").textContent === running.tail
         && step(1).querySelector(".chainout a")?.href === "https://tp.example.test/login";
+    const runningMove = () => document.querySelector(".movepill")?.dataset.kind === "running"
+        && document.querySelector(".movepill").classList.contains("agent")
+        && document.querySelector(".movepill").getAttribute("aria-label").startsWith("command running")
+        && !waits() && !form().classList.contains("blocking") && step(1).classList.contains("running") && !waitingStep()
+        && [...document.querySelectorAll(".talkword, .dkword")].some(node => node.textContent.startsWith("command running"));
+    out.runningMove = runningMove() && actState(req) === "command running";
+    // The snapshot can arrive before the act or lag behind Stop. A full act
+    // wins, and a summary alone still keeps a move available to reveal.
+    const marked = { kind: "request", id: req.id, title: req.title, at, running: true };
+    const pillHost = document.createElement("div");
+    const pillFor = (moves) => { render(html`<${MovePill} items=${moves} onNext=${() => {}} />`, pillHost); return pillHost.querySelector("button"); };
+    out.runningSummary = pillFor(movesOf({}, [marked], [])).dataset.kind === "running";
+    const other = { kind: "secret", id: "other", at, blocking: true };
+    const mixedMoves = movesOf({ [req.id]: req }, [marked, other], []);
+    const mixedPill = pillFor(mixedMoves);
+    out.runningMixed = mixedMoves[0].id === other.id && mixedPill.dataset.kind === "secret"
+        && mixedPill.getAttribute("aria-label").startsWith("your move · 1") && !mixedPill.classList.contains("agent");
+    render(null, pillHost);
     offersCancel("running");
     exec = { ...exec, kinds: exec.kinds.filter(kind => kind !== "act.stop") }; draw(); await quiet();
     out.capabilities = out.capabilities && !button("Stop");
+    out.runningSummary = out.runningSummary && !document.querySelector(".actform");
     const oldTime = step(1).querySelector(".chainstatus span").textContent;
     exec = { ...exec, kinds: [...exec.kinds, "act.stop"] }; draw();
     offset += 1000;
@@ -208,12 +230,19 @@ window.done = (async () => {
     out.terminal = JSON.stringify(terms) === JSON.stringify([{ id: "t-1234abcd", place: "/srv/proj" }]);
     out.polls = polls().length === 1;
     const reads = actReads;
+    req.outputs[0] = { ...running, state: "pending" };
     await poll();
     out.polls = out.polls && actReads === reads + 1;
+    out.pendingRun = runningMove() && Boolean(button("Stop")) && !button("Run") && polls().length === 1;
     button("Stop").click(); await until(() => step(1)?.classList.contains("stopped") && !polls().length);
     out.stop = sent.at(-1).kind === "act.stop" && sent.at(-1).target === "work"
         && JSON.stringify(sent.at(-1).params) === JSON.stringify({ act: req.id, step: 1 })
         && step(1).querySelector(".chainout").textContent === running.tail && Boolean(button("Run")) && !polls().length;
+    out.stoppedMove = form().classList.contains("blocking") && waits()
+        && document.querySelector(".movepill")?.dataset.kind === "request" && !step(1).classList.contains("running")
+        && actState(req) === "yours" && waitingStep()
+        && pillFor(movesOf({ [req.id]: req }, [marked], [])).dataset.kind === "request";
+    render(null, pillHost);
     button("Can't").click(); await quiet();
     await type(step(1).querySelector("textarea"), "No security key.");
     button("Can't").click(); await until(() => !form());
@@ -223,7 +252,7 @@ window.done = (async () => {
     await publish(); await until(form);
     button("Run").click(); await until(() => polls().length);
     req.outputs[0] = { ...done }; req.step = 2;
-    await poll(); await until(() => step(2)?.classList.contains("current")); await quiet();
+    await poll(); await until(() => step(2)?.classList.contains("current"));
     out.agent = step(2).textContent.includes("the session works on it") && !button("Done") && !button("Run") && !button("Can't")
         && step(1).textContent.includes("exit 0 · 31 s") && Boolean(step(1).querySelector(".chainbody")) && !polls().length;
     offersCancel("agent");
@@ -269,7 +298,8 @@ window.done = (async () => {
     showScene("failed"); await publish();
     out.failed = Boolean(form()) && step(3).classList.contains("current") && step(3).textContent.includes("exit 3 · 31 s")
         && step(3).querySelector(".chainout").textContent.includes("Forbidden") && !button("Run") && !button("Done") && !button("Can't")
-        && !docked();
+        && !docked() && form().classList.contains("blocking") && !step(3).classList.contains("running")
+        && document.querySelector(".movepill")?.dataset.kind === "agent";
     offersCancel("failed");
     showScene("manual"); await publish();
     out.manual = Boolean(button("Done")) && Boolean(button("Can't")) && !button("Run") && !step(4).querySelector(".mdcode")

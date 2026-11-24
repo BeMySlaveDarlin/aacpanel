@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { list as actList } from "../../data/acts.js";
 import { settleWaiting, useWaiting } from "../../waiting.js";
 import { clearWaitingTargets, RequestCard, revealWaiting } from "./request.js";
-import { actOpen, agentsMove, isChain } from "./chain.js";
+import { actOpen, agentsMove, commandRunning, isChain, personsMove } from "./chain.js";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -118,8 +118,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const [acts, setActs] = useState({});
     const [actError, setActError] = useState("");
     const [actRefresh, refreshActs] = useState(0);
-    const actRunning = Object.values(acts).some((act) => act.state === "open" && act.outputs?.some((out) => out?.state === "running"));
-    const waitingItems = useWaiting(live, true);
+    const actRunning = Object.values(acts).some(commandRunning);
+    const waitingItems = useWaiting(live, true, true);
     useEffect(() => clearWaitingTargets(waitingItems, feedRef.current), [waitingItems]);
     const actCards = [...state.items, ...(away ? shown : [])].filter((item) => ["request", "secret", "ask"].includes(item.role) || item.claim || item.re).map((item) => item.id || item.claim || item.re).join("|");
     useEffect(() => {
@@ -484,14 +484,13 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         ...(asksTurn ? [{ kind: "asked", id: ask.toolUseId, blocking: !goesOn, at: ask.at || live?.statusUpdatedAt, pos: ask.pos }] : []),
         ...(permits && !asksTurn ? [{ kind: "permit", blocking: true, at: live.statusUpdatedAt, pos: state.items.findLast((row) => row.role === "permitted")?.pos }] : []),
     ]);
-    // A chain on the agent's turn is a move, but not the person's.
-    const yourMoves = moves.some((item) => !agentsMove(item));
+    const yourMoves = moves.some(personsMove);
     // A chain is never docked in the form: it stays open for hours, and what
     // the agent writes meanwhile would pile up above it. It is answered in its
     // row, which the pill and a push lead to. It is told by its act, its row
     // of the transcript or the host's mark of the agent's turn, whichever is
     // here first: a chain taken for a plain request would flash in the form.
-    const chained = (item) => isChain(item) || Boolean(item.agent)
+    const chained = (item) => isChain(item) || Boolean(item.agent || item.running)
         || drawn.some((row) => row.role === "request" && row.id === item.id && isChain(row));
     // Where the row of a chain stands: the host's summary of what waits places
     // it even outside the window drawn, and the drawn feed places the rest.
@@ -628,7 +627,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const pastCodex = !live && isCodex(archive);
     const pct = live ? live.pct : (archive && !pastCodex ? archive.pctMax : null);
     const spent = pastCodex ? (spoke(archive) ? `${tokens(archive.tokensUsed)} tokens` : "") : null;
-    const stand = stateOf(live, still, move, snapshot && snapshot.limits);
+    // Acts refresh on Run before the host snapshot catches up, so the head
+    // takes the same current turns as the pill and the chain card.
+    const standing = live ? { ...live, waiting: moves.map((item) => ({ ...item, agent: agentsMove(item), running: commandRunning(item) })) } : live;
+    const stand = stateOf(standing, still, move, snapshot && snapshot.limits);
     const tools = {
         name, live, archive, pct, spent, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
         sections: parts.sections, onTerm: term.route ? onTerm : null, onWindow: place.onWindow, onLook: (kind) => setLook({ kind }),
@@ -661,7 +663,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     return html`
         <${PlaceContext.Provider} value=${placeActions}>
         ${wide
-            ? html`<${DeskHead} limits=${snapshot && snapshot.limits} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} spent=${spent}
+            ? html`<${DeskHead} limits=${snapshot && snapshot.limits} name=${shownName(live, name)} live=${standing} archive=${archive} pct=${pct} spent=${spent}
                                 move=${move} yours=${yourMoves} tools=${deskTools} exec=${exec} taken=${takenNames(snapshot)} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"

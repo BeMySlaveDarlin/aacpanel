@@ -795,6 +795,11 @@ anchors, the database supplies open acts and brief state. The collector indexes
 only these cards and reads new transcript records after the first listing; it
 keeps no second copy of the whole feed.
 
+A chain whose current human command is running, including a reserved terminal
+awaiting launch, carries `running` in the waiting summary. Its card, move pill
+and session state stay calm: Run hands the step to the command, so it is no
+longer the person's move until the command stops or another human step begins.
+
 A chain's card shows every step open, its current step marked. Human command steps
 have Run, terminal access and Stop; human steps without a command have Done
 and Can't, with a note or reason above the answer row. Agent steps show their

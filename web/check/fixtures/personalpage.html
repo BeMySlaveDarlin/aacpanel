@@ -46,7 +46,8 @@ const run = (session, o) => ({ session, sessionId: `${session}-id`, status: "idl
     tokens: 120000, limit: 1000000, model: "claude-opus-5-5", ...o });
 const sessions = [
     run("shop", { contour: 1, profile: "Acme", status: "waiting", cwd: shop.path, project: { id: shop.id, name: shop.name } }),
-    run("notes", { contour: 2, profile: "Personal", cwd: notes.path, project: { id: notes.id, name: notes.name } }),
+    run("notes", { contour: 2, profile: "Personal", cwd: notes.path, project: { id: notes.id, name: notes.name },
+        waiting: [{ kind: "request", id: "command", title: "Login", blocking: true, running: true, at: new Date().toISOString() }] }),
     // The stray: no contour named, no project, a directory the map does not list.
     run("stray", { cwd: "/srv/scratch", project: null }),
 ];
@@ -133,6 +134,11 @@ window.done = (async () => {
             : () => box.querySelectorAll(".pfpage .pjblock").length === sessions.length;
         if (!await until(ready)) throw new Error(`the ${c.key} map did not lay out all ${sessions.length} sessions`);
         out.cases[c.key] = wide ? await deskOf(box) : phoneOf(box);
+        const command = box.querySelector('.sc[data-name="notes"]');
+        if (!command || command.dataset.kind !== "command" || command.dataset.tone !== "bg" || command.classList.contains("scwait")
+            || !text(command.querySelector(".scsay")).startsWith("command running Login")) {
+            throw new Error("The running command must keep its session card calm in the personal contour");
+        }
     }
     return out;
 })();

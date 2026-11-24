@@ -12,7 +12,7 @@
 
 import { alarmTime, plural } from "../../format.js";
 import { contourOf, limitState } from "../../contour.js";
-import { agentStepsOf, waitingOf } from "../../waiting.js";
+import { agentStepsOf, runningStepsOf, waitingOf } from "../../waiting.js";
 import { waitWords } from "../../ui/waits.js";
 import { seenAt as seenHere } from "../../viewing.js";
 import { shown } from "../chat/answered.js";
@@ -196,6 +196,10 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     if (runs.agents > 0 || (s.status === "busy" && runningOf(s.work) === 0)) return make("bg", "inside", "agents running");
     if (runs.commands > 0) return make("bg", "inside", "commands running");
     if (runs.watchers > 0) return make("bg", "inside", "watching");
+    const runningSteps = runningStepsOf(s);
+    if (runningSteps.length > 0) {
+        return make("bg", "command", "command running", { subject: runningSteps[0].title || "", since: runningSteps[0].at || "" });
+    }
     // A chain on the agent's step is the session's to do, not the person's.
     const agentSteps = agentStepsOf(s);
     if (agentSteps.length > 0) {

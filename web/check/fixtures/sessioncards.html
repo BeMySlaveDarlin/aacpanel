@@ -235,7 +235,9 @@ window.done = (async () => {
     ];
     const accountHost = document.createElement("div");
     document.body.append(accountHost);
-    render(wrap(h("div", null, accountCases.map(([name, fields, profile]) => h(SessionCard, {
+    const command = { ...sessions[0], session: "command-running", sessionId: "command-running", status: "idle", work: null,
+        waiting: [{ kind: "request", id: "command", title: "Login", blocking: true, running: true, at: iso(2) }] };
+    render(wrap(h("div", null, h(SessionCard, { s: command, desk, exec }), accountCases.map(([name, fields, profile]) => h(SessionCard, {
         key: name, s: { ...sessions[0], session: `account-${name}`, ...fields }, profile, profiles: accountMap, desk, exec,
     })))), accountHost);
     await quiet();
@@ -243,6 +245,11 @@ window.done = (async () => {
         [...accountHost.querySelectorAll(`.sc[data-name="account-${name}"] .scl1 .scres > .scmeter`)].map(text),
     ]));
     return {
+        command: (() => {
+            const el = accountHost.querySelector('.sc[data-name="command-running"]');
+            return el.dataset.kind === "command" && el.dataset.tone === "bg" && !el.classList.contains("scwait")
+                && text(el.querySelector(".scsay")).startsWith("command running Login") && Boolean(el.querySelector(".scglyph svg"));
+        })(),
         restartAll: { asked, restarted, cancelled },
         continued,
         accounts,

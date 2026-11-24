@@ -14,11 +14,24 @@ export const actOpen = (act) => act.state === "open" || act.state === "failed";
 // the way the host marks it agent in the waiting summary.
 export function agentsMove(act) {
     if (!act) return false;
-    if (act.agent) return true;
-    if (!isChain(act) || !actOpen(act)) return false;
+    if (!isChain(act)) return Boolean(act.agent);
+    if (!actOpen(act)) return false;
     if (act.state === "failed") return true;
     return (act.steps || act.body.steps)[(act.step || 1) - 1]?.who === "agent";
 }
+
+const outputRunning = (output) => output?.state === "running" || (output?.state === "pending" && Boolean(output.term));
+
+export function commandRunning(act) {
+    if (!act) return false;
+    if (!isChain(act)) return Boolean(act.running);
+    if (act.state !== "open") return false;
+    const index = (act.step || 1) - 1;
+    const step = (act.steps || act.body.steps)[index];
+    return step?.who === "you" && Boolean(step.command) && outputRunning(act.outputs?.[index]);
+}
+
+export const personsMove = (act) => !agentsMove(act) && !commandRunning(act);
 
 // A chain the person cancelled is withdrawn, as one its session takes back
 // is; its answer says the person did it.
@@ -46,7 +59,7 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onC
     const steps = act.steps || act.body.steps;
     const open = record && actOpen(record);
     const reason = record && cancelled(record) ? record.answer.note : "";
-    return html`<article class=${`sent mrequest mchain${open && act.blocking ? " blocking" : ""}`}>
+    return html`<article class=${`sent mrequest mchain${open && act.blocking && !commandRunning(act) ? " blocking" : ""}`}>
         <div class="senthead"><span class="sentico">${Icon.list()}</span>
             <span class="sentlabel">chain · ${record && !open ? chainSummary(act) : `step ${act.step || 1} of ${steps.length}`}</span>
             <span class="sentat">${ago(act.created || item.at)}</span></div>
@@ -65,8 +78,8 @@ export function ChainCard({ item, record, onAnswer, onChainRun, onChainStop, onC
 // Every step stands open: what it asked, its command, its output and note are
 // read in place, in an open chain and in a finished one alike.
 function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop, onTerm }) {
-    const running = output?.state === "running";
-    const state = output?.state || (current ? "current" : "pending");
+    const running = act.state === "open" && outputRunning(output);
+    const state = running ? "running" : output?.state || (current ? "current" : "pending");
     const terminal = output?.term && actOpen(act) && onTerm
         ? html`<button class="chainterm" type="button" onClick=${() => onTerm(output.term)}>terminal ${output.term}</button>` : null;
     const canAnswer = current && act.state === "open" && step.who === "you";

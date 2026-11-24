@@ -25,6 +25,7 @@ type sessionCardSeen struct {
 }
 
 type sessionCardsRun struct {
+	Command     bool                        `json:"command"`
 	Desk        bool                        `json:"desk"`
 	Six         map[string]*sessionCardSeen `json:"six"`
 	Accounts    map[string][]string         `json:"accounts"`
@@ -71,6 +72,9 @@ type sessionCardsRun struct {
 // a long press on the phone — and an archived one its resume; what runs is counted on the state's
 // line, and a card with nothing running counts nothing.
 func checkSessionCards(t *testing.T, got sessionCardsRun) {
+	if !got.Command {
+		t.Error("a session with a command already running must show its calm state and command glyph")
+	}
 	t.Helper()
 	for name, want := range map[string][]string{
 		"mapped":                  {"Client account", "512M", "3%"},
