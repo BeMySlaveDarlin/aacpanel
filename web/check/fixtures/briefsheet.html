@@ -108,7 +108,9 @@ window.done = (async () => {
     render(h(ToastHost, null, h(GateHost, null, h(Chat, { name: "lab", id: doc.sessionId, live, snapshot, exec, onBack: () => {} }))), root);
     await until(() => document.querySelector(".actform .brief-decisions .bdecision-review"), "the brief in the move slot");
     out.inline = Boolean(document.querySelector(".chatfeed .actform .btask")) && Boolean(document.querySelector(".composer > textarea")) && !document.querySelector(".sheet.on");
-    out.marker = document.querySelector(".briefmark")?.textContent || "";
+    // The marker is a row of the feed, which loads apart from the move slot.
+    await until(() => document.querySelector(".briefmark"), "the brief marker in the feed");
+    out.marker = document.querySelector(".briefmark").textContent;
     out.icon = document.querySelector('.movepill[data-kind="brief"] svg')?.outerHTML === document.querySelector(".bdecision-head svg")?.outerHTML;
     document.querySelector(".actform .bdecision-review").click();
     await until(() => document.querySelector(".actform .bdecision-summary"), "the move summary");
