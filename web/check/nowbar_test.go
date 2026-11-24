@@ -348,7 +348,7 @@ func TestTheBarOfATurnThatEndedSaysTheAgentsAtWork(t *testing.T) {
 		t.Errorf("a turn going on no longer says it is thinking: %q", got.GoingTop)
 	}
 	// The header says the state in the words of the session's card.
-	if got.HeadOver != "agents running" || got.HeadBusy != "working" || got.HeadWaiting != "allow a tool" {
+	if got.HeadOver != "agents running" || got.HeadBusy != "working" || got.HeadWaiting != "allow" {
 		t.Errorf("the header says %q past the end of the turn, %q in it, %q with a dialog open",
 			got.HeadOver, got.HeadBusy, got.HeadWaiting)
 	}

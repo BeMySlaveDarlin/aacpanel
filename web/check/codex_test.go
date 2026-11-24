@@ -127,13 +127,13 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if want := "Close the session,Restart the session,Pause…,Pin the group,More,Stop the turn"; strings.Join(deskActs, ",") != want {
 		t.Errorf("the pie of the codex thread's desktop card offers %v, expected %s", deskActs, want)
 	}
-	if got.DeskSay != "allow a tool" {
+	if got.DeskSay != "allow" {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)
 	}
 	if strings.Join(got.PhoneTags, ",") != "stream,daemon" {
 		t.Errorf("the phone marks the rows %v, expected the claude session on the stream and the codex thread on the daemon", got.PhoneTags)
 	}
-	if got.PhoneState != "allow a tool" {
+	if got.PhoneState != "allow" {
 		t.Errorf("the phone row of a waiting codex thread says %q", got.PhoneState)
 	}
 	if got.PhoneSince != "Codex gpt-6-astra Extra" {

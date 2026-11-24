@@ -226,7 +226,7 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 	for name, want := range map[string]string{
 		"person":   "asks Palette · 2 questions",
 		"aacpanel": "working",
-		"api":      "allow a tool",
+		"api":      "allow",
 		"shop":     "called you",
 		"helios":   "idle",
 	} {

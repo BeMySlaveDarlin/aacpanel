@@ -179,12 +179,12 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
             since: s.ask.at || s.statusUpdatedAt || "",
         });
     }
-    if (s.permission) {
-        return make("wait", "permission", "allow", { subject: s.permission.tool || "a tool", mono: s.permission.head || "" });
-    }
+    // A permission is named by its kind alone: the tool and its command stand
+    // on the question in the conversation.
+    if (s.permission) return make("wait", "permission", "allow");
     if (s.waitingFor || s.status === "waiting") {
         const said = waitWords(s.waitingFor);
-        return make("wait", said.permission ? "permission" : "input", said.word, { subject: said.subject });
+        return make("wait", said.permission ? "permission" : "input", said.word, { subject: said.permission ? "" : said.subject });
     }
     // Outstanding work is named by its kind alone: its title stands in the
     // conversation, and on the line it would run over the card.
