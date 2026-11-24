@@ -186,11 +186,12 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
         const said = waitWords(s.waitingFor);
         return make("wait", said.permission ? "permission" : "input", said.word, { subject: said.subject });
     }
+    // Outstanding work is named by its kind alone: its title stands in the
+    // conversation, and on the line it would run over the card.
     const outstanding = waitingOf(s, viewed);
     if (outstanding.length > 0) {
         const first = outstanding[0];
         return make("wait", first.kind, OUTSTANDING[first.kind], {
-            subject: first.kind === "call" ? "" : first.title || "",
             note: outstanding.length > 1 ? `${outstanding.length - 1} more` : "",
             since: first.at || s.statusUpdatedAt || "",
         });
@@ -206,7 +207,7 @@ export function stateOf(row, limits = null, { viewed = false } = {}) {
     // A chain on the agent's step is the session's to do, not the person's.
     const agentSteps = agentStepsOf(s);
     if (agentSteps.length > 0) {
-        return make("bg", "agentstep", "agent's step", { subject: agentSteps[0].title || "", since: agentSteps[0].at || "" });
+        return make("bg", "agentstep", "agent's step", { since: agentSteps[0].at || "" });
     }
     const incoming = (s.claims?.in || []).find((claim) => overdueMinutes(claim) !== null);
     if (incoming) return make("idle", "claim", "owes", {

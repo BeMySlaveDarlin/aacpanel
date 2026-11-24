@@ -54,7 +54,8 @@ window.done = (async () => {
             && watched.word === "commands running" && !watched.subject
             && waitingOf(base).length === 0,
         mixedState: mixed.kind === "secret" && mixed.tone === "wait",
-        stoppedState: stopped.kind === "request" && stopped.tone === "wait" && agent.kind === "agentstep" && agent.tone === "bg",
+        stoppedState: stopped.kind === "request" && stopped.tone === "wait" && !stopped.subject
+            && agent.kind === "agentstep" && agent.tone === "bg" && !agent.subject,
         longText: long ? long.textContent.replace(/\s+/g, " ").trim() : "",
         text: text ? text.textContent.trim() : "",
         marks: cards[0] ? cards[0].querySelectorAll(".scl5 .scb").length : 0,

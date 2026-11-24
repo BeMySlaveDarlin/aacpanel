@@ -16,7 +16,7 @@ func TestARowWithEveryMarkSaysItsRestartAndItsWaitingWork(t *testing.T) {
 		t.Fatalf("the column shows %d sessions, expected the parent and its child: %+v", len(rows), rows)
 	}
 	for _, r := range rows {
-		if !r.Restart || r.State != "request Rotate the token" {
+		if !r.Restart || r.State != "request" {
 			t.Errorf("%s says %q with the restart marked %v, expected the waiting request and the restart", r.Name, r.State, r.Restart)
 		}
 	}
