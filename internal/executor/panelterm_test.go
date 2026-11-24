@@ -917,6 +917,42 @@ func TestLiveCommandTerminalKeepsExitOutputAndPrivateLog(t *testing.T) {
 	}
 }
 
+// A step's command that asks a question must not hold its chain: its input
+// is closed, so the read meets the end of input at once and a program that
+// asks only on a terminal sees none.
+func TestLiveCommandTerminalGivesItsCommandNoInput(t *testing.T) {
+	ownPanelTmux(t)
+	place := t.TempDir()
+	t.Setenv("HOME", place)
+	id := "t-0000beef"
+	command := `printf 'Delete the branch? (y/N) '; if read -r answer; then echo "read:$answer"; else echo no-input; fi; [ -t 0 ] && echo input-tty || echo input-closed`
+	if _, err := launcher.Term(launcher.TermSpec{Dir: place, Session: id, Socket: string(panelTmux), Command: command}); err != nil {
+		t.Fatal(err)
+	}
+	defer (&Executor{}).termClose(context.Background(), id)
+	var peek action.TermPeekResult
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		raw, err := (&Executor{}).termPeek(t.Context(), id, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(raw), &peek); err != nil {
+			t.Fatal(err)
+		}
+		if peek.Dead {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the command still waits for input: %+v", peek)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if peek.Status != 0 || !strings.Contains(peek.Tail, "no-input") || !strings.Contains(peek.Tail, "input-closed") {
+		t.Fatalf("the command was given input: %+v", peek)
+	}
+}
+
 func TestCommandTerminalPassesItsCommandToTheLauncher(t *testing.T) {
 	stub := newTmuxStub(t, nil, "")
 	stub.reply("list-sessions", "")

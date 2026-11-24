@@ -25,7 +25,8 @@ type TermSpec struct {
 
 // Term starts a terminal of the panel: a tmux session on the server of its
 // own socket, in the given directory, running the user's default shell or the
-// command of a human step. A command keeps its dead pane so the service can read its status and final output.
+// command of a human step. A command keeps its dead pane so the service can read its status and final output,
+// and runs with no input.
 //
 // It runs from a unit of its own, as a session does: the first terminal starts
 // the server, and a server started inside the executor would hand every shell
@@ -65,8 +66,12 @@ func Term(spec TermSpec) (Report, error) {
 func termArgv(spec TermSpec) []string {
 	target := "=" + spec.Session + ":"
 	args := []string{"-L", spec.Socket, "new-session", "-d", "-s", spec.Session, "-c", spec.Dir}
+	// A command reads nothing: its input is /dev/null, so a question it asks
+	// meets the end of input at once, and a program that asks only on a
+	// terminal does not ask. A step waiting on a prompt nobody watches would
+	// hold its chain for good.
 	if spec.Command != "" {
-		args = append(args, "sh", "-c", spec.Command)
+		args = append(args, "sh", "-c", "exec </dev/null\n"+spec.Command)
 	}
 	// tmux processes this command queue before reaping an exited pane.
 	if spec.Command != "" {

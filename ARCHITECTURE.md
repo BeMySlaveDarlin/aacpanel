@@ -657,7 +657,10 @@ the human terminal-place menu does not limit a chain's cwd. Stop captures the
 output, closes the terminal and leaves the step stopped, ready for another Run,
 without waking the agent.
 
-The service polls running command steps every two seconds through its private
+A human command step runs with its input on `/dev/null`: a prompt meets the end
+of input at once, and a program that asks only on a terminal does not ask, so
+a step never waits on a question nobody watches; a step that needs typed input
+is the person's without a command. The service polls running command steps every two seconds through its private
 `term.peek` action. Exit zero advances the chain. A nonzero exit pauses it in
 `failed`, with its current step unchanged and no closing time. The agent can
 reopen that failed human step, withdraw the chain, or replace it. Can't declines
