@@ -190,7 +190,13 @@ window.done = (async () => {
     q(".brecommend").click();
     await until(() => !q(".bdecision-send").disabled, "the chosen recommendations");
     const failedSends = decisionCalls.filter(c => c.method === "POST").length;
+    // The debounced draft may have been refused already and shown its error:
+    // the send's own save is held, so the failure waited for is the send's.
+    holdDecisionSave = true;
     q(".bdecision-send").click();
+    await until(() => releaseDecisionSave, "the refused save in flight");
+    releaseDecisionSave();
+    releaseDecisionSave = null;
     await until(() => q(".bdecision-error") && !q(".bdecision-send").disabled, "the save failure");
     const refused = { error: q(".bdecision-error").textContent,
         sends: decisionCalls.filter(c => c.method === "POST").length - failedSends };
