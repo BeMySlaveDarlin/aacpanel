@@ -128,7 +128,7 @@ func TestFileViewerCarriesCopyButton(t *testing.T) {
 		t.Errorf("%s: the header of the layer page has no button — a file from the work list "+
 			"is left without copying", lookFile)
 	}
-	if !strings.Contains(src, `class="sheethead">${who}${tools}`) {
+	if !strings.Contains(src, "class=\"sheethead\">${who}${tools && html`<span class=\"sheettools\">${tools}</span>`}") {
 		t.Errorf("%s: the sheet header has no button — yet that is how a file opens from the feed, "+
 			"and that is the one that was asked about", lookFile)
 	}

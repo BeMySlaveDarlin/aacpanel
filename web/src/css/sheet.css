@@ -148,6 +148,17 @@
     margin-bottom: .3rem;
 }
 
+/* The tools of what the sheet shows stand together at the right of its head. */
+.sheettools { display: flex; align-items: center; gap: .15rem; margin-left: auto; }
+.sheettools > .mdcopy.filecopy { margin-left: 0; }
+
+/* On the phone the sheet's top row holds the grip and the close button: the
+   tools of a file stand there beside the close, and the title keeps the whole
+   row under it. */
+@media (max-width: 1099px) {
+    .sheet .sheethead > .sheettools { position: absolute; top: .45rem; right: calc(.5rem + 34px + .15rem); z-index: 1; }
+}
+
 .sheethead h2 { margin: 0; font-size: var(--t-lg); font-weight: 800; letter-spacing: -.01em; }
 
 .sheet.on { transform: translateY(0); visibility: visible; transition-delay: 0s; }
