@@ -757,7 +757,9 @@
        three, so the rings of every heading stand one under another. */
     .dkringlabel { min-width: 2.1em; font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-faint); }
 
-    .dkringsctl .dkpop { width: 17rem; }
+    /* The rings stand at the left of the heading's second row: their details
+       open to the right, into the column, not past the edge of the screen. */
+    .dkringsctl .dkpop { left: 0; right: auto; width: 17rem; }
 
     /* Headings stick one over another on the same level: the one with its
        details open stands above the next, or they drop under it. */
