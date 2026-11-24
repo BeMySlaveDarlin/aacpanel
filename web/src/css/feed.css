@@ -543,9 +543,16 @@ code.path {
 /* The desk: a column of entries beside the prose — when, what the work was,
    its calls by name, the files it touched. */
 @media (min-width: 1100px) {
+    .chatfeed {
+        --feed-timeline-width: 16.5rem;
+        --feed-timeline-gap: 1.6rem;
+    }
     .feedgrid.desk {
-        grid-template-columns: minmax(0, 1fr) 16.5rem;
-        column-gap: 1.6rem;
+        grid-template-columns: minmax(0, 1fr) var(--feed-timeline-width);
+        column-gap: var(--feed-timeline-gap);
+    }
+    .chatfeed:has(> .feedgrid.desk) > .feedjump {
+        margin-inline-end: calc(var(--feed-timeline-width) + var(--feed-timeline-gap));
     }
 }
 .tline {
