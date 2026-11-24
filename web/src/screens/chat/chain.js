@@ -74,7 +74,10 @@ function ChainStep({ step, number, current, act, output, onAnswer, onRun, onStop
         ${step.command && html`<div class="chaincommand">
             <div class="mdcode"><pre><code>${step.command}</code></pre><button class="mdcopy" type="button" title="Copy the code" aria-label="Copy the code">${Icon.copy()}</button></div>
         </div>`}
-        ${output?.tail && html`<pre class="chainout" tabIndex="0" aria-label=${`Output of step ${number}`}>${autolink(output.tail)}</pre>`}
+        ${output?.tail && html`<div class="chainoutbox">
+            <pre class="chainout" tabIndex="0" aria-label=${`Output of step ${number}`}>${autolink(output.tail)}</pre>
+            <button class="mdcopy" type="button" title="Copy the output" aria-label="Copy the output" data-md=${output.tail}>${Icon.copy()}</button>
+        </div>`}
         ${(running || resultOf(output) || terminal) && html`<div class=${`chainstatus ${state}`}>
             <span>${running ? `running · ${clock(seconds(output))}` : resultOf(output)}</span>${terminal}
             ${canAnswer && running && onStop && html`<${ChainButton} word="Stop" action=${() => onStop(act.id, number)} />`}

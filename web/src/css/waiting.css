@@ -39,6 +39,9 @@
 .chaincommand .mdcode { margin: .4rem 0; }
 .chaincommand .mdcode pre { padding-right: 2.8rem; }
 .chaincommand .mdcode code { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+/* The output of a step copies whole from the corner, as a block of code does. */
+.chainoutbox { position: relative; }
+.chainoutbox > .chainout { padding-right: 2.8rem; }
 .chainout { max-height: 12rem; overflow: auto; margin: .4rem 0; padding: .6rem; border-radius: var(--r-small); background: var(--void); box-shadow: inset 0 0 0 var(--hair) var(--line); color: var(--ink-dim); font: var(--t-sm)/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .chainout a { color: var(--accent); }
 .chainstatus { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .5rem; color: var(--ink-dim); font-size: var(--t-sm); }

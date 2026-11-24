@@ -112,7 +112,7 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
 
 /* The copy button of a block lies over its corner: half seen through, with
    the text under it blurred rather than struck through. */
-:is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun) {
+:is(.mdcode, .mdtab, .chainoutbox) > :is(.mdcopy, .mdrun) {
     position: absolute;
     top: .3rem;
     right: .3rem;
@@ -125,8 +125,8 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
     color: var(--ink-dim);
     opacity: .78;
 }
-:is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun):active { opacity: 1; color: var(--ink); background: var(--glass-2); }
-:is(.mdcode, .mdtab) > :is(.mdcopy, .mdrun) svg { width: var(--i-sm); height: var(--i-sm); }
+:is(.mdcode, .mdtab, .chainoutbox) > :is(.mdcopy, .mdrun):active { opacity: 1; color: var(--ink); background: var(--glass-2); }
+:is(.mdcode, .mdtab, .chainoutbox) > :is(.mdcopy, .mdrun) svg { width: var(--i-sm); height: var(--i-sm); }
 .mdcode > .mdrun { right: 2.5rem; }
 .mdcode.runnable.oneline > :is(.mdcopy, .mdrun) { top: 50%; transform: translateY(-50%); }
 
