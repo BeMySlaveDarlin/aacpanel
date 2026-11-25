@@ -38,8 +38,9 @@ func TestACallInTheForegroundGoesToTheBackgroundFromTheBar(t *testing.T) {
 			Target string         `json:"target"`
 			Params map[string]any `json:"params"`
 		} `json:"sent"`
-		View  []pill `json:"view"`
-		Error string `json:"error"`
+		View    []pill `json:"view"`
+		Running bool   `json:"running"`
+		Error   string `json:"error"`
 	}
 	runFixture(t, "tobg.html", &got)
 	if got.Error != "" {
@@ -89,6 +90,9 @@ func TestACallInTheForegroundGoesToTheBackgroundFromTheBar(t *testing.T) {
 	}
 	if got.AfterOne.Text != "in background" || !got.AfterOne.Off {
 		t.Errorf("the button after the move reads %+v", got.AfterOne)
+	}
+	if !got.Running {
+		t.Error("a call the turn still waits on says it never finished, not that it is still running")
 	}
 	if len(got.View) != 1 || got.View[0].Text != "to background" {
 		t.Errorf("the call opened from its row offers %+v", got.View)

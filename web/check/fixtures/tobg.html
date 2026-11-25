@@ -48,6 +48,10 @@ window.fetch = async (url, init) => {
         return new Response(JSON.stringify({ ok: true, detail: "moved", logged: true }),
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
+    if (String(url).startsWith("/api/chat/call?")) {
+        return new Response(JSON.stringify({ args: '{"command":"sleep 30 && echo woke"}', pending: true }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
     return new Response("", { status: 404 });
 };
 const bar = (id, feedOf, to) => html`
@@ -104,8 +108,11 @@ window.done = (async () => {
 
         // The call opened from its row carries the button too.
         document.querySelector("#sheet .callrow .callnode").click();
-        await until(() => document.querySelector("#sheet .callbg"));
+        await until(() => document.querySelector("#sheet .callbg") && document.querySelector("#sheet .callpre"));
         out.view = pills("#sheet .callbg");
+        // A call still running says so, not that it never finished.
+        const said = document.querySelector("#sheet .callbody").textContent;
+        out.running = said.includes("still running") && !said.includes("never finished");
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

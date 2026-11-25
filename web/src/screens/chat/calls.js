@@ -173,7 +173,9 @@ function CallView({ session, id, call, place, onBack, onFile, to }) {
             .then((data) => alive && setState({ kind: "ready", ...data }))
             .catch((e) => alive && setState({ kind: "failed", error: String(e.message || e) }));
         return () => { alive = false; };
-    }, [session, id, call.pos, call.index]);
+    // A call still open is read again once it closes: its answer, or the
+    // word that it went to the background, comes only then.
+    }, [session, id, call.pos, call.index, call.open]);
 
     const took = tookText(state.at, state.resultAt);
 
@@ -208,7 +210,9 @@ function CallView({ session, id, call, place, onBack, onFile, to }) {
 
                 <h3 class="callcap">${state.failed ? "returned an error" : "what came out"}</h3>
                 <${Shots} shots=${call.shots} session=${session} id=${id} pos=${call.pos} />
-                ${state.pending
+                ${state.pending && call.open
+                    ? html`<p class="hint">No answer yet: the call is still running.</p>`
+                    : state.pending
                     ? html`<p class="hint warn">There is no answer: the call never finished — the session was
                         interrupted or the window was closed before it came back.</p>`
                     : html`<pre class=${`callpre${state.failed ? " failed" : ""}`}>${state.result || "empty"}</pre>`}
