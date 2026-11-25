@@ -679,11 +679,13 @@
 
     .dklimitrow { --limit-stroke: .11rem; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 
-    .dklimitrow .limit-group { padding: 0 .25rem; border-radius: .5rem; }
+    /* A fieldset draws its top edge through the legend. Its half-height
+       below the rings balances their distance from both edges. */
+    .dklimitrow .limit-group { --limit-legend-scale: .8; padding: .05rem .25rem calc(var(--t-xs) * var(--limit-legend-scale) / 2 + .05rem - var(--hair) / 2); border-radius: .5rem; }
 
-    .dklimitrow .limit-group legend { margin-left: .1rem; padding-inline: .2rem; line-height: .8; }
+    .dklimitrow .limit-group legend { --t-k: var(--limit-legend-scale); margin-left: .1rem; padding-inline: .2rem; line-height: 1; }
 
-    .dklimitrow .limit-windows { gap: .2rem; }
+    .dklimitrow .limit-windows { justify-content: center; gap: .2rem; }
 
     .dklimitrow .limit-ring { width: 2rem; height: 2rem; }
 
