@@ -47,10 +47,13 @@ window.done = (async () => {
     const readings = contours.slice(0, pairs.length).flatMap((contour) =>
         [...document.querySelectorAll(`#${contour.profile} .limit-reading`)].map((r) => ({
             value: text(r.querySelector(".limit-percent")), label: r.title,
+            window: text(r.querySelector(".limit-dial .limit-window")),
+            dial: r.classList.contains("limit-ring") && Boolean(r.querySelector(".limit-gauge")),
             tone: ["ok", "warn", "crit"].find((tone) => r.classList.contains(tone)),
         })));
     return {
         readings,
+        compact: Boolean(document.querySelector(".dklimitrow :is(.limit-mini, .limit-minitrack, .limit-group-age)")),
         details: [await details("c2", 0), await details("c2", 1)],
         past: [await details("c3", 0), await details("c3", 1)],
         stale: {

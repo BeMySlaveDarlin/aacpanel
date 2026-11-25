@@ -85,7 +85,8 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
             value: r.querySelector(".limit-percent").firstChild.textContent, label: (r.title.match(/resets (?:in [^,]+|any moment)/) || [""])[0], tip: r.title,
         })),
         old: Boolean(head.querySelector(".limit-reading.old")),
-        words: Array.from(head.querySelectorAll(".limit-group .agentword")).map((w) => `${w.firstChild.textContent.trim()}:${w.dataset.agent || ""}`),
+        words: Array.from(head.querySelectorAll(".limit-group legend .agentword")).map((w) => `${w.firstChild.textContent.trim()}:${w.dataset.agent || ""}`),
+        compact: Boolean(head.querySelector(".limit-mini, .limit-minitrack, .limit-group-age")),
         acts: Array.from(head.querySelectorAll(".dkcontouracts button"))
             .map((b) => `${b.getAttribute("aria-label")}${b.disabled ? " off" : ""}`),
         live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),

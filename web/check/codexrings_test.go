@@ -23,8 +23,8 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 			Words  []string `json:"words"`
 			Rings  []ring   `json:"rings"`
 			Groups []struct {
-				Agent, Label string
-				Windows      int
+				Agent, Legend string
+				Windows       int
 			}
 		} `json:"heads"`
 		Pop                                        []string `json:"pop"`
@@ -54,13 +54,13 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	}
 	for i, want := range []string{"claude:claude,codex:codex,gemini:gemini", "codex:codex", "claude:claude"} {
 		if head := got.Heads[i]; strings.Join(head.Words, ",") != want {
-			t.Errorf("the rings of %s stand after the words %v, expected %s — each agent's rings after its word, in its hue", head.Name, head.Words, want)
+			t.Errorf("the rings of %s have frame legends %v, expected %s", head.Name, head.Words, want)
 		}
 	}
 	if strings.Join(got.Pop, "|") != "Claude, 5 hours|Claude, 7 days|Codex, 7 days|Gemini, 5 hours|Gemini, 7 days" {
 		t.Errorf("the details of Acme's limits name %v", got.Pop)
 	}
-	if len(acme.Groups) != 3 || acme.Groups[2].Agent != "gemini" || acme.Groups[2].Label != "gemini limits" || acme.Groups[2].Windows != 2 ||
+	if len(acme.Groups) != 3 || acme.Groups[2].Agent != "gemini" || acme.Groups[2].Legend != "gemini" || acme.Groups[2].Windows != 2 ||
 		len(acme.Rings) < 5 || acme.Rings[3].Value != "27" || acme.Rings[4].Value != "55" ||
 		acme.Rings[3].Agent != "gemini" || acme.Rings[4].Agent != "gemini" {
 		t.Errorf("the third provider must come from contour data: groups %+v, readings %+v", acme.Groups, acme.Rings)

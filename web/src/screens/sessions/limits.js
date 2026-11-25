@@ -155,7 +155,7 @@ function ringLeft(resetsAt) {
     return `${Math.max(1, Math.round(left / 60000))}m`;
 }
 
-export function LimitGroup({ group, tucked, named, opened, onToggle, onClose }) {
+export function LimitGroup({ group, tucked, opened, onToggle, onClose }) {
     const windows = group.windows.map((window) => {
         const key = `${group.agent}:${window.span}`;
         return html`<${LimitWindow} ...${window} key=${window.span} agent=${group.agent} old=${group.old}
@@ -163,9 +163,7 @@ export function LimitGroup({ group, tucked, named, opened, onToggle, onClose }) 
             onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
     });
     if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent} role="group" aria-label=${`${group.agent} limits`}>
-        ${named && html`<span class="agentword" data-agent=${group.agent}>${group.agent}
-            ${group.old && html`<small class="limit-group-age">${typeof group.ageSec === "number" ? agoText(group.ageSec) : "unknown age"}</small>`}
-        </span>`}${windows}
+        ${windows}
     </div>`;
     return html`<fieldset class="limit-group" data-agent=${group.agent}>
         <legend><span class="agentword" data-agent=${group.agent}>${group.agent}</span></legend>

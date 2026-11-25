@@ -660,7 +660,7 @@
         border-top: var(--hair) solid var(--line);
     }
 
-    /* Keep the name and actions above the shared compact vendor groups. */
+    /* Keep the name and actions above the shared vendor frames. */
     .dkcontour.dklimhead { flex-direction: column; align-items: stretch; gap: .15rem; padding: .3rem .45rem .3rem .55rem; }
 
     .dkcontourrow { display: flex; align-items: center; gap: .45rem; min-width: 0; min-height: 1.65rem; }
@@ -675,17 +675,27 @@
 
     .dklimhead .dkcontourname { font-size: var(--t-base); white-space: normal; overflow-wrap: anywhere; }
 
-    .dklimitsummary { min-width: 0; }
+    .dklimitsummary { flex: 1; min-width: 0; }
 
-    .dklimitrow { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+    .dklimitrow { --limit-stroke: .11rem; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 
-    .dklimitrow .limit-group.compact { height: 2.1rem; padding-inline: .5rem; gap: .55rem; border-radius: .65rem; }
+    .dklimitrow .limit-group { padding: 0 .25rem; border-radius: .5rem; }
 
-    .dklimitrow .agentword { font-size: var(--t-xs); }
+    .dklimitrow .limit-group legend { margin-left: .1rem; padding-inline: .2rem; line-height: .8; }
 
-    .dklimitrow .limit-group-age { display: block; font-size: var(--t-xs); line-height: 1; font-weight: 400; color: var(--ink-faint); white-space: nowrap; }
+    .dklimitrow .limit-windows { gap: .2rem; }
 
-    .dklimitrow .limit-mini { min-width: 2.2rem; }
+    .dklimitrow .limit-ring { width: 2rem; height: 2rem; }
+
+    .dklimitrow .limit-dial { gap: .03rem; }
+
+    .dklimitrow .limit-percent { font-size: var(--t-xs); }
+
+    .dklimitrow .limit-window { --t-k: .65; }
+
+    .dklimitrow .limit-old { top: -.12rem; right: -.12rem; width: .8rem; height: .8rem; }
+
+    .dklimitrow .limit-old svg { width: var(--i-xs); height: var(--i-xs); }
 
     .dklimitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 

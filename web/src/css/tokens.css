@@ -173,9 +173,11 @@
     --s3: .8rem;
     --s4: 1.4rem;
 
-    /* Icon sizes, by where the icon sits: inside text, on a row, on a tile.
+    /* Icon sizes, by where the icon sits: a badge on a dial, inside text, on a
+       row, on a tile.
        In rem, so an icon grows with the text it stands beside: a mark left in
        pixels shrinks against its own label as the scale goes up. */
+    --i-xs: .65rem;
     --i-sm: 1rem;
     --i-md: 1.2rem;
     --i-lg: 1.47rem;

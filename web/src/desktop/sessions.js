@@ -111,8 +111,8 @@ export function orderOf(sessions, map, wait = null) {
     });
 }
 
-// The heading uses the phone's compact readings, with a vendor name on each
-// group so the same windows remain identifiable when more providers join.
+// The heading shares the phone's framed rings so each provider and window
+// stays identifiable as more providers join.
 export function ContourLimits({ limits, name, profiles }) {
     const [opened, setOpened] = useState(null);
     const close = useCallback(() => setOpened(null), []);
@@ -127,7 +127,7 @@ export function ContourLimits({ limits, name, profiles }) {
     return html`
         <div class="dklimitsummary">
             <div class="dklimitrow" role="group" aria-label=${`the limits of contour ${name}`}>
-                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group} tucked named
+                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group}
                     opened=${opened} onToggle=${toggle} onClose=${close} />`)}
                 ${groups.length === 0 && html`<span class="dklimitnone">no numbers yet</span>`}
             </div>
