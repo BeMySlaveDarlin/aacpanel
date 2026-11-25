@@ -28,6 +28,7 @@
 .mdlist { margin: 0 0 var(--s3); padding-left: 1.3rem; }
 .mdlist li { margin-bottom: var(--s1); }
 .mdlist li::marker { color: var(--ink-faint); }
+.mdlist .mdlist { margin: var(--s1) 0 0; }
 
 .mdrule { height: 1px; background: var(--line); margin: .6rem 0; }
 

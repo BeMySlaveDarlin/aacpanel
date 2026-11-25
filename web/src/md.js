@@ -257,29 +257,50 @@ export function render(text, opts) {
         const bullet = /^\s*([-*+])\s+/;
         const numbered = /^\s*(\d+)[.)]\s+/;
         if (bullet.test(line) || numbered.test(line)) {
-            const ordered = numbered.test(line);
-            const mark = ordered ? numbered : bullet;
-            const items = [];
-            while (i < lines.length && mark.test(lines[i])) {
-                const item = [lines[i].replace(mark, "")];
-                i += 1;
-                // The lines that follow an item with no blank line between
-                // go on with its words, indented or not, until a line that
-                // starts something of its own.
-                while (i < lines.length && lines[i].trim() && !starts(lines[i]) && !bullet.test(lines[i]) && !numbered.test(lines[i])) {
-                    item.push(lines[i].trim());
-                    i += 1;
-                }
-                items.push(item);
-                let next = i;
-                while (next < lines.length && !lines[next].trim()) next += 1;
-                if (next > i && next < lines.length && mark.test(lines[next])) i = next;
-            }
-            const start = ordered ? Number(numbered.exec(line)[1]) : 0;
             const words = (it) => (breaks ? hard(it) : inline(it.join(" ")));
-            out.push(ordered
-                ? html`<ol class="mdlist" start=${start}>${items.map((it, n) => html`<li key=${n}>${words(it)}</li>`)}</ol>`
-                : html`<ul class="mdlist">${items.map((it, n) => html`<li key=${n}>${words(it)}</li>`)}</ul>`);
+            const depthOf = (row) => row.length - row.trimStart().length;
+            const isItem = (row) => bullet.test(row) || numbered.test(row);
+            // list reads the items that stand at the indent of its first line.
+            // An item goes on with the lines after it, indented or not, until
+            // a blank line or a line that starts something of its own; an item
+            // indented past it is a list of its own inside it.
+            const list = (from) => {
+                const head = lines[from];
+                const ordered = numbered.test(head);
+                const mark = ordered ? numbered : bullet;
+                const depth = depthOf(head);
+                const items = [];
+                let at = from;
+                while (at < lines.length && mark.test(lines[at]) && depthOf(lines[at]) === depth) {
+                    const item = { words: [lines[at].replace(mark, "")], kids: [] };
+                    at += 1;
+                    while (at < lines.length) {
+                        let next = at;
+                        while (next < lines.length && !lines[next].trim()) next += 1;
+                        if (next < lines.length && isItem(lines[next]) && depthOf(lines[next]) > depth) {
+                            const inner = list(next);
+                            item.kids.push(inner.node);
+                            at = inner.next;
+                            continue;
+                        }
+                        if (next > at || at >= lines.length || isItem(lines[at]) || starts(lines[at])) break;
+                        item.words.push(lines[at].trim());
+                        at += 1;
+                    }
+                    items.push(item);
+                    let next = at;
+                    while (next < lines.length && !lines[next].trim()) next += 1;
+                    if (next > at && next < lines.length && mark.test(lines[next]) && depthOf(lines[next]) === depth) at = next;
+                }
+                const li = (it, n) => html`<li key=${n}>${words(it.words)}${it.kids}</li>`;
+                const node = ordered
+                    ? html`<ol class="mdlist" start=${Number(numbered.exec(head)[1])}>${items.map(li)}</ol>`
+                    : html`<ul class="mdlist">${items.map(li)}</ul>`;
+                return { node, next: at };
+            };
+            const read = list(i);
+            out.push(read.node);
+            i = read.next;
             continue;
         }
 

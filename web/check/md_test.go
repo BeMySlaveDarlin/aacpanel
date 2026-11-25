@@ -57,11 +57,15 @@ func TestMarkdownListSurvivesBlankLinesBetweenItems(t *testing.T) {
 				plainList(`<ol class="mdlist" start="2"><li>b</li></ol>`),
 		},
 		{
-			"bullets under a numbered item — a list of their own, the numbering continues",
+			"bullets under a numbered item — a list inside it, the numbering goes on",
 			"1. Step\n   - detail\n   - detail\n2. Step",
-			plainList(`<ol class="mdlist" start="1"><li>Step</li></ol>`) +
-				plainList(`<ul class="mdlist"><li>detail</li><li>detail</li></ul>`) +
-				plainList(`<ol class="mdlist" start="2"><li>Step</li></ol>`),
+			plainList(`<ol class="mdlist" start="1"><li>Step<ul class="mdlist"><li>detail</li><li>detail</li></ul></li><li>Step</li></ol>`),
+		},
+		{
+			"bullets nested two deep, then back to the top",
+			"- top\n  - inner\n    - deepest\n  - inner again\n- top again",
+			plainList(`<ul class="mdlist"><li>top<ul class="mdlist"><li>inner<ul class="mdlist"><li>deepest</li></ul></li>` +
+				`<li>inner again</li></ul></li><li>top again</li></ul>`),
 		},
 		{
 			"a list of another kind through a blank line — not the same list",
