@@ -81,12 +81,12 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
     return {
         name: text(head.querySelector(".dkcontourname")),
         head: text(head),
-        rings: Array.from(head.querySelectorAll(".limit-reading")).map((r) => ({
+        readings: Array.from(head.querySelectorAll(".limit-reading")).map((r) => ({
             value: r.querySelector(".limit-percent").firstChild.textContent, label: (r.title.match(/resets (?:in [^,]+|any moment)/) || [""])[0], tip: r.title,
         })),
         old: Boolean(head.querySelector(".limit-reading.old")),
-        words: Array.from(head.querySelectorAll(".limit-group legend .agentword")).map((w) => `${w.firstChild.textContent.trim()}:${w.dataset.agent || ""}`),
-        compact: Boolean(head.querySelector(".limit-mini, .limit-minitrack, .limit-group-age")),
+        agents: Array.from(head.querySelectorAll(".limit-chip .limit-agent")).map((dot) => dot.dataset.agent),
+        framed: Boolean(head.querySelector(".limit-group, legend, .limit-ring, .limit-mini, .limit-minitrack, .limit-group-age")),
         acts: Array.from(head.querySelectorAll(".dkcontouracts button"))
             .map((b) => `${b.getAttribute("aria-label")}${b.disabled ? " off" : ""}`),
         live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),

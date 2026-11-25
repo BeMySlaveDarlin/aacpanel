@@ -111,8 +111,8 @@ export function orderOf(sessions, map, wait = null) {
     });
 }
 
-// The heading shares the phone's framed rings so each provider and window
-// stays identifiable as more providers join.
+// Each window shares the phone's details and takes an equal share of the
+// heading, so adding a provider needs no separate layout.
 export function ContourLimits({ limits, name, profiles }) {
     const [opened, setOpened] = useState(null);
     const close = useCallback(() => setOpened(null), []);
@@ -127,7 +127,7 @@ export function ContourLimits({ limits, name, profiles }) {
     return html`
         <div class="dklimitsummary">
             <div class="dklimitrow" role="group" aria-label=${`the limits of contour ${name}`}>
-                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group}
+                ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group} chip
                     opened=${opened} onToggle=${toggle} onClose=${close} />`)}
                 ${groups.length === 0 && html`<span class="dklimitnone">no numbers yet</span>`}
             </div>

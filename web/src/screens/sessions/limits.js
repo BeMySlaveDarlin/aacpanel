@@ -155,13 +155,14 @@ function ringLeft(resetsAt) {
     return `${Math.max(1, Math.round(left / 60000))}m`;
 }
 
-export function LimitGroup({ group, tucked, opened, onToggle, onClose }) {
+export function LimitGroup({ group, tucked, chip, opened, onToggle, onClose }) {
     const windows = group.windows.map((window) => {
         const key = `${group.agent}:${window.span}`;
         return html`<${LimitWindow} ...${window} key=${window.span} agent=${group.agent} old=${group.old}
-            ageSec=${group.ageSec} reached=${group.reached} tucked=${tucked} opened=${opened && opened.key === key ? opened : null}
+            ageSec=${group.ageSec} reached=${group.reached} tucked=${tucked} chip=${chip} opened=${opened && opened.key === key ? opened : null}
             onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
     });
+    if (chip) return windows;
     if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent} role="group" aria-label=${`${group.agent} limits`}>
         ${windows}
     </div>`;
@@ -171,7 +172,7 @@ export function LimitGroup({ group, tucked, opened, onToggle, onClose }) {
     </fieldset>`;
 }
 
-function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, opened, onToggle, onClose }) {
+function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, chip, opened, onToggle, onClose }) {
     const value = Math.max(0, Number(data.pct) || 0);
     const pct = Math.min(100, value);
     const whole = value < 100 ? Math.min(99, Math.round(value)) : Math.round(value);
@@ -179,10 +180,14 @@ function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, op
     const label = [full, share(data.pct), resetText(data.resetsAt), known].filter(Boolean).join(", ");
     const reading = html`<span class="limit-percent">${whole}<small>%</small></span>`;
     return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
-        <button class=${`limit-reading ${tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old ? " old" : ""}`}
+        <button class=${`limit-reading ${chip ? "limit-chip" : tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old ? " old" : ""}`}
                     data-agent=${agent} type="button" aria-label=${label} title=${label} style=${`--share:${pct}`}
                     aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
-            ${tucked ? html`
+            ${chip ? html`
+                <span class="limit-agent agentword" data-agent=${agent} aria-hidden="true"></span>
+                ${reading}
+                <span class="limit-window limit-left">${ringLeft(data.resetsAt)}</span>
+            ` : tucked ? html`
                 ${reading}
                 <span class="limit-minitrack" aria-hidden="true"></span>
             ` : html`
@@ -192,7 +197,7 @@ function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, op
                     <span class="limit-window">${ringLeft(data.resetsAt)}${data.resetsAt ? "/" : ""}${span}</span>
                 </span>
             `}
-            ${old && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
+            ${old && !chip && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
         </button>
         <${Popover} open=${Boolean(opened)} onClose=${onClose} label=${full} className="limit-popover">
             <strong>${full}</strong>

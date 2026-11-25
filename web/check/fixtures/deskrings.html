@@ -27,6 +27,9 @@ const contours = pairs.map(([fiveHour, sevenDay], i) => ({
 contours.push({ profile: "old", contour: 7, ageSec: 30, fiveHour: { pct: 9 },
     codex: { ageSec: 3600, reached: true, sevenDay: { pct: 100 } } });
 contours.push({ profile: "no-week", contour: 8, codex: { ageSec: 30, windows: [], reached: true } });
+contours.push({ profile: "providers", contour: 9, ageSec: 30, sevenDay: { pct: 12 },
+    codex: { ageSec: 30, sevenDay: { pct: 22 } }, gemini: { ageSec: 30, sevenDay: { pct: 32 } },
+    other: { ageSec: 30, sevenDay: { pct: 42 } } });
 const limits = { contours };
 render(h("div", null, [...contours.map((contour) => h("section", { key: contour.profile, id: contour.profile },
     h(ContourLimits, { limits, name: contour.profile, profiles: [] }))),
@@ -47,13 +50,14 @@ window.done = (async () => {
     const readings = contours.slice(0, pairs.length).flatMap((contour) =>
         [...document.querySelectorAll(`#${contour.profile} .limit-reading`)].map((r) => ({
             value: text(r.querySelector(".limit-percent")), label: r.title,
-            window: text(r.querySelector(".limit-dial .limit-window")),
-            dial: r.classList.contains("limit-ring") && Boolean(r.querySelector(".limit-gauge")),
+            left: text(r.querySelector(".limit-left")), agent: r.dataset.agent, dot: r.querySelector(".limit-agent")?.dataset.agent,
+            chip: r.classList.contains("limit-chip"),
             tone: ["ok", "warn", "crit"].find((tone) => r.classList.contains(tone)),
         })));
     return {
         readings,
-        compact: Boolean(document.querySelector(".dklimitrow :is(.limit-mini, .limit-minitrack, .limit-group-age)")),
+        wrongMode: Boolean(document.querySelector(".dklimitrow :is(.limit-group, legend, .limit-ring, .limit-mini, .limit-minitrack, .limit-group-age)")),
+        providers: [...document.querySelectorAll("#providers .limit-chip")].map((r) => r.dataset.agent),
         details: [await details("c2", 0), await details("c2", 1)],
         past: [await details("c3", 0), await details("c3", 1)],
         stale: {

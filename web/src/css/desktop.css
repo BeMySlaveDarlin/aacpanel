@@ -660,7 +660,7 @@
         border-top: var(--hair) solid var(--line);
     }
 
-    /* Keep the name and actions above the shared vendor frames. */
+    /* Keep the name and actions above the shared limit readings. */
     .dkcontour.dklimhead { flex-direction: column; align-items: stretch; gap: .15rem; padding: .3rem .45rem .3rem .55rem; }
 
     .dkcontourrow { display: flex; align-items: center; gap: .45rem; min-width: 0; min-height: 1.65rem; }
@@ -677,28 +677,27 @@
 
     .dklimitsummary { flex: 1; min-width: 0; }
 
-    .dklimitrow { --limit-stroke: .11rem; position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+    .dklimitrow { position: relative; display: flex; gap: .4rem; }
 
-    /* A fieldset draws its top edge through the legend. Its half-height
-       below the rings balances their distance from both edges. */
-    .dklimitrow .limit-group { --limit-legend-scale: .8; padding: .05rem .25rem calc(var(--t-xs) * var(--limit-legend-scale) / 2 + .05rem - var(--hair) / 2); border-radius: .5rem; }
+    .dklimitrow .limit-anchor { flex: 1 1 0; min-width: 0; }
 
-    .dklimitrow .limit-group legend { --t-k: var(--limit-legend-scale); margin-left: .1rem; padding-inline: .2rem; line-height: 1; }
+    .dklimitrow .limit-chip { flex: 1; min-width: 0; display: flex; align-items: center; gap: .15rem; height: 1.75rem; padding: 0 .3rem; overflow: hidden; border: var(--hair) solid var(--line); border-radius: .45rem; background: var(--glass); }
 
-    .dklimitrow .limit-windows { justify-content: center; gap: .2rem; }
+    .dklimitrow .limit-chip::before { content: ""; position: absolute; inset: 0; width: calc(var(--share) * 1%); box-sizing: border-box; background: color-mix(in srgb, currentColor 22%, transparent); border-right: var(--hair) solid color-mix(in srgb, currentColor 70%, transparent); }
 
-    /* The longest reset captions need space inside the gauge. */
-    .dklimitrow .limit-ring { width: 2.8rem; height: 2.8rem; }
+    .dklimitrow .limit-chip > * { position: relative; }
 
-    .dklimitrow .limit-dial { gap: .03rem; }
+    .dklimitrow .limit-agent { flex: none; width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; }
 
-    .dklimitrow .limit-percent { --t-k: calc(2 / 3); font-size: var(--t-xs); }
+    .dklimitrow .limit-agent[data-agent="gemini"] { color: var(--word-gemini, #8fd18a); }
 
-    .dklimitrow .limit-window { --t-k: calc(.65 * 4 / 3); }
+    .dklimitrow .limit-chip .limit-percent { --t-k: .95; flex: none; font-size: var(--t-sm); color: var(--ink); }
 
-    .dklimitrow .limit-old { top: -.12rem; right: -.12rem; width: .8rem; height: .8rem; }
+    .dklimitrow .limit-chip .limit-percent small { margin: 0; font: inherit; color: inherit; opacity: 1; }
 
-    .dklimitrow .limit-old svg { width: var(--i-xs); height: var(--i-xs); }
+    .dklimitrow .limit-left { --t-k: .95; flex: none; margin-left: auto; white-space: nowrap; }
+
+    .dklimitrow .limit-chip.old { opacity: .45; }
 
     .dklimitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 

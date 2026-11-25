@@ -150,23 +150,23 @@ func TestLimitsStalenessHasOneOwner(t *testing.T) {
 	}
 }
 
-type deskRing struct {
+type deskReading struct {
 	Value string `json:"value"`
 	Label string `json:"label"`
 	Tip   string `json:"tip"`
 }
 
 type deskSection struct {
-	Name    string     `json:"name"`
-	Head    string     `json:"head"`
-	Words   []string   `json:"words"`
-	Acts    []string   `json:"acts"`
-	Rings   []deskRing `json:"rings"`
-	Old     bool       `json:"old"`
-	Compact bool       `json:"compact"`
-	Live    []string   `json:"live"`
-	Closed  int        `json:"closed"`
-	Empty   string     `json:"empty"`
+	Name     string        `json:"name"`
+	Head     string        `json:"head"`
+	Agents   []string      `json:"agents"`
+	Acts     []string      `json:"acts"`
+	Readings []deskReading `json:"readings"`
+	Old      bool          `json:"old"`
+	Framed   bool          `json:"framed"`
+	Live     []string      `json:"live"`
+	Closed   int           `json:"closed"`
+	Empty    string        `json:"empty"`
 }
 
 type deskShelfRow struct {
@@ -225,16 +225,16 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 		}
 		sec := tab.Sections[0]
 		var rings []string
-		for _, r := range sec.Rings {
+		for _, r := range sec.Readings {
 			rings = append(rings, r.Value+":"+r.Label)
 		}
 		if strings.Join(rings, "|") != w.rings {
-			t.Errorf("%q: the rings read %v, expected %s — the share inside, and beside it how long until the window starts over, "+
+			t.Errorf("%q: the readings show %v, expected %s — the share inside, and beside it how long until the window starts over, "+
 				"with the same reset labels as on the phone", sec.Name, rings, w.rings)
 		}
-		if len(sec.Rings) == 2 && (!strings.HasPrefix(sec.Rings[0].Tip, "Claude, 5 hours") || !strings.HasPrefix(sec.Rings[1].Tip, "Claude, 7 days")) {
-			t.Errorf("%q: the rings are tipped %q and %q — a label that says the time left has to name its window somewhere",
-				sec.Name, sec.Rings[0].Tip, sec.Rings[1].Tip)
+		if len(sec.Readings) == 2 && (!strings.HasPrefix(sec.Readings[0].Tip, "Claude, 5 hours") || !strings.HasPrefix(sec.Readings[1].Tip, "Claude, 7 days")) {
+			t.Errorf("%q: the readings are tipped %q and %q — a label that says the time left has to name its window somewhere",
+				sec.Name, sec.Readings[0].Tip, sec.Readings[1].Tip)
 		}
 		if strings.Contains(sec.Head, "live") {
 			t.Errorf("%q: the heading still counts live sessions: %q", sec.Name, sec.Head)
@@ -248,8 +248,8 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 		if strings.Join(sec.Acts, ",") != "Tasks,Profile" {
 			t.Errorf("%q: the heading holds the actions %v, expected Tasks and Profile, both on", sec.Name, sec.Acts)
 		}
-		if strings.Join(sec.Words, ",") != "claude:claude" {
-			t.Errorf("%q: the frame legends read %v, expected claude's name", sec.Name, sec.Words)
+		if strings.Join(sec.Agents, ",") != "claude,claude" {
+			t.Errorf("%q: the chip dots identify %v, expected claude for both windows", sec.Name, sec.Agents)
 		}
 		h := tab.Handed
 		if len(h.Tasks) != 1 || h.Tasks[0] == nil || *h.Tasks[0] != w.id {
@@ -298,9 +298,9 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 	}
 
 	acme, globex := got.Tabs[0], got.Tabs[1]
-	if head := acme.Sections[0]; strings.Contains(head.Head, "ago") || head.Compact || len(head.Live) != 0 || head.Empty != "nothing live" || !head.Old {
+	if head := acme.Sections[0]; strings.Contains(head.Head, "ago") || head.Framed || len(head.Live) != 0 || head.Empty != "nothing live" || !head.Old {
 		t.Errorf("the contour with no live session and numbers an hour old reads %q, shows live %v, says %q, dimmed %v: "+
-			"expected old rings without an age line or tracks, and a word that nothing lives there",
+			"expected old chips without an age line or tracks, and a word that nothing lives there",
 			head.Head, head.Live, head.Empty, head.Old)
 	}
 	if !strings.Contains(acme.Details.Note, "Updated 1 h ago") {
@@ -324,10 +324,11 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 func TestDeskLimitReadingsShowValuesResetsAndMissingWindows(t *testing.T) {
 	var got struct {
 		Readings []struct {
-			Value, Window, Label, Tone string
-			Dial                       bool
+			Value, Left, Label, Tone, Agent, Dot string
+			Chip                                 bool
 		}
-		Compact       bool
+		WrongMode     bool
+		Providers     []string
 		Details, Past []string
 		Stale         struct {
 			Vendors, Ages, Notes []string
@@ -336,26 +337,29 @@ func TestDeskLimitReadingsShowValuesResetsAndMissingWindows(t *testing.T) {
 		NoWeek, Empty string
 	}
 	runWideFixture(t, "deskrings.html", &got)
-	want := []struct{ value, window, reset, tone string }{
-		{"20%", "2h/5h", "resets in 2 h", "ok"}, {"60%", "4d/7d", "resets in 99 h", "warn"},
-		{"59%", "60m/5h", "resets in 60 min", "ok"}, {"84%", "23h/7d", "resets in 23 h", "warn"},
-		{"85%", "1m/5h", "resets in 1 min", "crit"}, {"90%", "1d/7d", "resets in 36 h", "crit"},
-		{"99%", "0m/5h", "resets any moment", "crit"}, {"41%", "7d", "", "ok"},
-		{"0%", "5h", "", "ok"}, {"100%", "46m/7d", "resets in 46 min", "crit"},
-		{"99%", "5h", "", "crit"}, {"105%", "7d", "", "crit"},
+	want := []struct{ value, left, reset, tone string }{
+		{"20%", "2h", "resets in 2 h", "ok"}, {"60%", "4d", "resets in 99 h", "warn"},
+		{"59%", "60m", "resets in 60 min", "ok"}, {"84%", "23h", "resets in 23 h", "warn"},
+		{"85%", "1m", "resets in 1 min", "crit"}, {"90%", "1d", "resets in 36 h", "crit"},
+		{"99%", "0m", "resets any moment", "crit"}, {"41%", "", "", "ok"},
+		{"0%", "", "", "ok"}, {"100%", "46m", "resets in 46 min", "crit"},
+		{"99%", "", "", "crit"}, {"105%", "", "", "crit"},
 	}
 	if len(got.Readings) != len(want) {
 		t.Fatalf("readings: %+v, expected %d windows", got.Readings, len(want))
 	}
 	for i, w := range want {
 		r := got.Readings[i]
-		if r.Value != w.value || r.Window != w.window || !r.Dial || r.Tone != w.tone || (w.reset != "" && !strings.Contains(r.Label, w.reset)) ||
+		if r.Value != w.value || r.Left != w.left || !r.Chip || r.Agent != "claude" || r.Dot != r.Agent || r.Tone != w.tone || (w.reset != "" && !strings.Contains(r.Label, w.reset)) ||
 			(w.reset == "" && strings.Contains(r.Label, "reset")) {
 			t.Errorf("reading %d: %+v, expected %+v", i, r, w)
 		}
 	}
-	if got.Compact {
-		t.Error("the heading contains compact readings, tracks or an age line instead of framed rings")
+	if got.WrongMode {
+		t.Error("the heading contains frames, rings, tracks or an age line instead of one chip per window")
+	}
+	if strings.Join(got.Providers, ",") != "claude,codex,gemini,other" {
+		t.Errorf("providers are not driven by contour data: %v", got.Providers)
 	}
 	for i, want := range []string{"Claude, 5 hours|85% used|resets in 1 min", "Claude, 7 days|90% used|resets in 36 h"} {
 		for _, part := range strings.Split(want, "|") {

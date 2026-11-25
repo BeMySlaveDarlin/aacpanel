@@ -61,12 +61,10 @@ window.done = (async () => {
     const out = { heads: [] };
     const headOf = (head) => ({
         name: text(head.querySelector(".dkcontourname")),
-        groups: Array.from(head.querySelectorAll(".limit-group")).map((group) => ({
-            agent: group.dataset.agent, legend: text(group.querySelector("legend .agentword")), windows: group.querySelectorAll(".limit-ring").length,
-        })),
-        words: Array.from(head.querySelectorAll(".limit-group legend .agentword")).map((w) => `${w.firstChild.textContent.trim()}:${w.dataset.agent || ""}`),
-        rings: Array.from(head.querySelectorAll(".limit-reading")).map((r) => ({
-            tip: r.title, value: r.querySelector(".limit-percent").firstChild.textContent, agent: r.dataset.agent || "",
+        agents: [...new Set([...head.querySelectorAll(".limit-chip")].map((r) => r.dataset.agent))],
+        framed: Boolean(head.querySelector(".limit-group, legend, .limit-ring, .limit-mini")),
+        chips: Array.from(head.querySelectorAll(".limit-chip")).map((r) => ({
+            tip: r.title, value: r.querySelector(".limit-percent").firstChild.textContent, agent: r.dataset.agent || "", dot: r.querySelector(".limit-agent")?.dataset.agent, left: text(r.querySelector(".limit-left")),
         })),
     });
     for (const tab of tabs().slice(1)) {

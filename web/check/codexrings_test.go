@@ -12,20 +12,19 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
-	type ring struct {
+	type chip struct {
 		Tip   string `json:"tip"`
 		Value string `json:"value"`
 		Agent string `json:"agent"`
+		Dot   string `json:"dot"`
+		Left  string `json:"left"`
 	}
 	var got struct {
 		Heads []struct {
 			Name   string   `json:"name"`
-			Words  []string `json:"words"`
-			Rings  []ring   `json:"rings"`
-			Groups []struct {
-				Agent, Legend string
-				Windows       int
-			}
+			Agents []string `json:"agents"`
+			Chips  []chip   `json:"chips"`
+			Framed bool     `json:"framed"`
 		} `json:"heads"`
 		Pop                                        []string `json:"pop"`
 		ToggledClosed, EscapeClosed, OutsideClosed bool
@@ -42,28 +41,35 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 		t.Fatalf("the column has %d contour headings: %+v", len(got.Heads), got.Heads)
 	}
 	acme, lab, home := got.Heads[0], got.Heads[1], got.Heads[2]
-	if len(acme.Rings) != 5 || acme.Rings[0].Value != "7" || acme.Rings[1].Value != "41" ||
-		acme.Rings[2].Value != "63" || acme.Rings[2].Agent != "codex" || !strings.HasPrefix(acme.Rings[2].Tip, "Codex, 7 days") {
-		t.Errorf("the heading of Acme carries %+v, expected Claude and Codex followed by Gemini from the data", acme.Rings)
+	if len(acme.Chips) != 5 || acme.Chips[0].Value != "7" || acme.Chips[1].Value != "41" ||
+		acme.Chips[2].Value != "63" || acme.Chips[2].Agent != "codex" || !strings.HasPrefix(acme.Chips[2].Tip, "Codex, 7 days") {
+		t.Errorf("the heading of Acme carries %+v, expected Claude and Codex followed by Gemini from the data", acme.Chips)
 	}
-	if len(lab.Rings) != 1 || lab.Rings[0].Value != "18" || lab.Rings[0].Agent != "codex" {
-		t.Errorf("a contour codex alone spent in carries %+v, expected codex's week alone", lab.Rings)
+	if len(lab.Chips) != 1 || lab.Chips[0].Value != "18" || lab.Chips[0].Agent != "codex" {
+		t.Errorf("a contour codex alone spent in carries %+v, expected codex's week alone", lab.Chips)
 	}
-	if len(home.Rings) != 1 || home.Rings[0].Value != "9" || !strings.HasPrefix(home.Rings[0].Tip, "Claude, 7 days") {
-		t.Errorf("an account with no five-hour window carries %+v, expected claude's week alone", home.Rings)
+	if len(home.Chips) != 1 || home.Chips[0].Value != "9" || !strings.HasPrefix(home.Chips[0].Tip, "Claude, 7 days") {
+		t.Errorf("an account with no five-hour window carries %+v, expected claude's week alone", home.Chips)
 	}
-	for i, want := range []string{"claude:claude,codex:codex,gemini:gemini", "codex:codex", "claude:claude"} {
-		if head := got.Heads[i]; strings.Join(head.Words, ",") != want {
-			t.Errorf("the rings of %s have frame legends %v, expected %s", head.Name, head.Words, want)
+	for i, want := range []string{"claude,codex,gemini", "codex", "claude"} {
+		if head := got.Heads[i]; strings.Join(head.Agents, ",") != want || head.Framed {
+			t.Errorf("the chips of %s identify agents %v, expected %s without group frames", head.Name, head.Agents, want)
+		}
+	}
+	for _, head := range got.Heads {
+		for _, reading := range head.Chips {
+			if reading.Dot != reading.Agent {
+				t.Errorf("chip dot %q does not identify agent %q", reading.Dot, reading.Agent)
+			}
 		}
 	}
 	if strings.Join(got.Pop, "|") != "Claude, 5 hours|Claude, 7 days|Codex, 7 days|Gemini, 5 hours|Gemini, 7 days" {
 		t.Errorf("the details of Acme's limits name %v", got.Pop)
 	}
-	if len(acme.Groups) != 3 || acme.Groups[2].Agent != "gemini" || acme.Groups[2].Legend != "gemini" || acme.Groups[2].Windows != 2 ||
-		len(acme.Rings) < 5 || acme.Rings[3].Value != "27" || acme.Rings[4].Value != "55" ||
-		acme.Rings[3].Agent != "gemini" || acme.Rings[4].Agent != "gemini" {
-		t.Errorf("the third provider must come from contour data: groups %+v, readings %+v", acme.Groups, acme.Rings)
+	if len(acme.Agents) != 3 || acme.Agents[2] != "gemini" ||
+		len(acme.Chips) < 5 || acme.Chips[3].Value != "27" || acme.Chips[4].Value != "55" ||
+		acme.Chips[3].Agent != "gemini" || acme.Chips[4].Agent != "gemini" {
+		t.Errorf("the third provider must come from contour data: agents %+v, readings %+v", acme.Agents, acme.Chips)
 	}
 	if !got.ToggledClosed || !got.EscapeClosed || !got.OutsideClosed {
 		t.Errorf("details close: toggle=%v, Escape=%v, outside=%v", got.ToggledClosed, got.EscapeClosed, got.OutsideClosed)
