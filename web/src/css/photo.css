@@ -1,22 +1,73 @@
-/* Full-screen attachment layer for looking at a picture. */
+/* Attachments share one dialog above the feed. */
 
 .pv {
     position: fixed;
     inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    background: transparent;
     z-index: 30;
-    display: flex;
-    flex-direction: column;
-    background: #05070f;
+    display: grid;
+    place-items: center;
     color: var(--ink);
     --ink: #eef1ff;
     --ink-faint: #98a0c8;
     --line: rgba(255, 255, 255, .16);
     --glass: rgba(255, 255, 255, .06);
     --accent: #8cc2ff;
-    padding-top: env(safe-area-inset-top);
+    padding: calc(.6rem + env(safe-area-inset-top)) .6rem calc(.6rem + env(safe-area-inset-bottom));
 }
 
 .shell:has(.pv) .body { z-index: 5; }
+.pv::backdrop { background: transparent; }
+
+.pvbackdrop { position: absolute; inset: 0; background: rgba(3, 4, 10, .84); backdrop-filter: blur(4px); }
+.pvpanel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    height: min(88dvh, 48rem);
+    max-height: 100%;
+    overflow: hidden;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: #05070f;
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .45);
+}
+.pvhead { display: flex; align-items: center; gap: .6rem; }
+.pvpanel > :is(.pvhead, .sheethead) { flex: none; margin: 0; padding: .7rem 3.4rem .6rem .9rem; touch-action: none; }
+.pvhead .chatwho { flex: 1; min-width: 0; }
+.pvpanel .chatwho { overflow-wrap: anywhere; }
+.pvhead h2 { margin: 0; font-size: var(--t-lg); font-weight: 600; }
+.pvpanel > .callbody { flex: 1; min-height: 0; padding: .4rem .9rem 1rem; }
+.pvpanel > .callbody:has(.pvstage) { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.pvclose, .pvnav {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: rgba(255, 255, 255, .06);
+    color: var(--ink);
+    cursor: pointer;
+}
+.pvclose { position: absolute; top: .3rem; right: .3rem; z-index: 3; }
+.pvclose svg, .pvnav svg { width: var(--i-md); height: var(--i-md); }
+.pvnav { position: absolute; top: calc(50% - 1.3rem); z-index: 2; display: none; }
+.pvnav.previous { left: .8rem; }
+.pvnav.previous svg { transform: rotate(180deg); }
+.pvnav.next { right: .8rem; }
+.pvnav:disabled { opacity: .25; cursor: default; }
+.pvcount { flex: none; padding: .3rem .6rem .5rem; text-align: center; font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
 
 .pvstage {
     position: relative;
@@ -69,4 +120,10 @@
     text-align: center;
     font-size: var(--t-xs);
     color: var(--ink-faint);
+}
+
+@media (min-width: 1100px) {
+    .pv { padding: 2rem 4rem; }
+    .pvpanel { width: min(100%, 64rem); }
+    .pvnav { display: grid; }
 }

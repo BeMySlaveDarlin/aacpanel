@@ -6,13 +6,13 @@ import (
 )
 
 type pageShot struct {
-	Whole bool  `json:"whole"`
-	Size  int   `json:"size"`
-	Asked []int `json:"asked"`
-	More  int   `json:"more"`
-	Doc   bool  `json:"doc"`
-	Back  bool  `json:"back"`
-	Over  struct {
+	Whole  bool  `json:"whole"`
+	Size   int   `json:"size"`
+	Asked  []int `json:"asked"`
+	More   int   `json:"more"`
+	Dialog bool  `json:"dialog"`
+	Close  bool  `json:"close"`
+	Over   struct {
 		Size  int    `json:"size"`
 		Said  string `json:"said"`
 		Drawn bool   `json:"drawn"`
@@ -55,8 +55,8 @@ func checkPageIsWhole(t *testing.T, got pageShot) {
 	if got.More != 0 {
 		t.Errorf("a page asks for a press to read the rest of it")
 	}
-	if !got.Doc || !got.Back {
-		t.Errorf("a page opens as a document with its own way back: doc %v, back %v", got.Doc, got.Back)
+	if !got.Dialog || !got.Close {
+		t.Errorf("a page opens in the attachment dialog with a close control: dialog %v, close %v", got.Dialog, got.Close)
 	}
 }
 

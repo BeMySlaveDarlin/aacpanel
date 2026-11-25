@@ -69,9 +69,10 @@ export function fileTag(file) {
 // instead of promising an opening. A file that opens
 // has a menu at a desk and on a held press; onSave saves it where the row
 // knows its conversation.
-export function FileCard({ file, onOpen, onSave, tag }) {
+export function FileCard({ file, onOpen, onSave, tag, files }) {
     const ref = useRef(null);
-    const menu = useFileMenu(ref, file, onOpen, onSave);
+    const open = onOpen && ((picked) => onOpen(picked, files));
+    const menu = useFileMenu(ref, file, open, onSave);
     const image = isImage(file);
     const mark = tag
         ? html`<span class="mftag">${tag}</span>`
@@ -91,7 +92,7 @@ export function FileCard({ file, onOpen, onSave, tag }) {
     return html`
         <button class=${`mfile${tag ? " tagged" : ""}`} type="button" ref=${ref} ...${menu}
                 disabled=${!file.path}
-                onClick=${() => onOpen && onOpen(file)}
+                onClick=${() => open && open(file)}
                 data-path=${file.path}
                 aria-label=${`open ${file.name}`}>
             ${mark}
@@ -126,7 +127,7 @@ export function SentCard({ item, onOpen, onSave }) {
             ${item.cut && html`<p class="hint warn">The caption is longer than shown — cut.</p>`}
             <div class="mflist">
                 ${files.map((file) => html`
-                    <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
+                    <${FileCard} key=${file.path} file=${file} files=${files} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
                 `)}
             </div>
         </div>
@@ -136,11 +137,11 @@ export function SentCard({ item, onOpen, onSave }) {
 // HandedFiles renders the files the person sent with a message, under it and
 // on its side of the feed: one row per file with its type, as the files a
 // session delivers stand, and every row opens its file the same way.
-export function HandedFiles({ files, onOpen, onSave }) {
+export function HandedFiles({ files, onOpen, onSave, gallery = files }) {
     return html`
         <div class="mflist mfhanded">
             ${files.map((file) => html`
-                <${FileCard} key=${file.path || file.name} file=${file} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
+                <${FileCard} key=${file.path || file.name} file=${file} files=${gallery} onOpen=${onOpen} onSave=${onSave} tag=${fileTag(file)} />
             `)}
         </div>
     `;
@@ -166,7 +167,7 @@ export function FileAtts({ files, onOpen, onSave }) {
     return html`
         <div class="mfiles">
             <div ref=${box} class=${`mflist${all ? " mfopen" : ""}${more ? " mfmask" : ""}`}>
-                ${shown.map((file) => html`<${FileCard} key=${file.path} file=${file} onOpen=${onOpen} onSave=${onSave} />`)}
+                ${shown.map((file) => html`<${FileCard} key=${file.path} file=${file} files=${list} onOpen=${onOpen} onSave=${onSave} />`)}
             </div>
             ${rest > 0 && html`
                 <button class="mfmore" type="button" onClick=${() => setAll(!all)}

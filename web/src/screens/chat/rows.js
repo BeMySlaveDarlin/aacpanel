@@ -17,7 +17,7 @@ import { useMenu } from "../../ui/menu.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, HandedFiles, SentCard } from "./files.js";
 import { bare } from "./feed.js";
-import { Shots } from "./shots.js";
+import { pictureFiles, Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { pauseEnd } from "../sessions/pause.js";
@@ -211,6 +211,8 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     // the lines of their paths leave its words.
     const sent = mine ? (item.shots || []) : [];
     const handed = mine ? (item.files || []) : [];
+    const gallery = sent.length > 0 && handed.length > 0
+        ? [...pictureFiles(sent, session, id, item.pos), ...handed] : undefined;
     const brought = sent.length > 0 || handed.length > 0;
     const said = brought ? withoutSentPaths(item.text, [...sent, ...handed]) : item.text;
     const placed = mine ? readPlace(said) : null;
@@ -219,7 +221,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     const copied = mine ? bare(item.sent ?? said) : "";
     const save = saverOf(session, id);
     return html`
-        ${sent.length > 0 && html`<${Shots} shots=${sent} session=${session} id=${id} pos=${item.pos} />`}
+        ${sent.length > 0 && html`<${Shots} shots=${sent} session=${session} id=${id} pos=${item.pos} files=${gallery} onFile=${onFile} />`}
         ${(said || !brought || failed) && html`
             <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}
                  onContextMenu=${menu && messageMenu(menu, writes, item, mine ? copied : String(said || ""), again)}>
@@ -234,7 +236,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
                 ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} exec=${writes.exec} />`}
             </div>
         `}
-        ${handed.length > 0 && html`<${HandedFiles} files=${handed} onOpen=${onFile} onSave=${save} />`}
+        ${handed.length > 0 && html`<${HandedFiles} files=${handed} gallery=${gallery} onOpen=${onFile} onSave=${save} />`}
         ${mine && (wait || item.at) && html`<div class="mstamp">${wait || stampText(item.at)}</div>`}
     `;
 }

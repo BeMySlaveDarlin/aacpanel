@@ -82,30 +82,30 @@ const open = async (path) => {
     card().click();
 };
 const close = async () => {
-    // A page goes back by its head, any other file by the close of its sheet.
-    const back = document.querySelector(".sheet.on .pback, .sheet.on .sheetclose");
+    // Every file shares the close control of the attachment gallery.
+    const back = document.querySelector(".pvpanel .pvclose");
     if (back) back.click();
-    await until(() => !document.querySelector(".sheet.on"));
+    await until(() => !document.querySelector(".pvpanel"));
 };
 const hint = () => {
-    const el = document.querySelector(".sheet.on .callbody p.hint");
+    const el = document.querySelector(".pvpanel .callbody p.hint");
     return el ? el.textContent : "";
 };
 
 window.done = (async () => {
     await open("/srv/lab/board.html");
-    await until(() => document.querySelector(".sheet.on .filehtml"));
+    await until(() => document.querySelector(".pvpanel .filehtml"));
     await pause(300);
-    const sheet = document.querySelector(".sheet.on");
-    const frame = document.querySelector(".sheet.on .filehtml");
+    const sheet = document.querySelector(".pvpanel");
+    const frame = document.querySelector(".pvpanel .filehtml");
     const doc = frame ? frame.getAttribute("srcdoc") || "" : "";
     const page = {
         whole: doc.includes("THE START") && doc.includes("THE END"),
         size: board.length,
         asked: asked["/srv/lab/board.html"],
-        more: document.querySelectorAll(".sheet.on .filemore").length,
-        doc: sheet ? sheet.classList.contains("doc") : false,
-        back: Boolean(sheet && sheet.querySelector(".pback")),
+        more: document.querySelectorAll(".pvpanel .filemore").length,
+        dialog: sheet?.closest(".pv")?.getAttribute("role") === "dialog",
+        close: Boolean(sheet?.querySelector(".pvclose")),
     };
 
     await close();
@@ -115,16 +115,16 @@ window.done = (async () => {
     const over = {
         size: huge.length,
         said: hint(),
-        drawn: Boolean(document.querySelector(".sheet.on .filehtml")),
+        drawn: Boolean(document.querySelector(".pvpanel .filehtml")),
         asked: asked["/srv/lab/huge.html"],
     };
 
     await close();
     await open("/srv/lab/notes.log");
-    await until(() => document.querySelector(".sheet.on .filemore"));
+    await until(() => document.querySelector(".pvpanel .filemore"));
     await pause(300);
     const other = {
-        more: document.querySelectorAll(".sheet.on .filemore").length,
+        more: document.querySelectorAll(".pvpanel .filemore").length,
         asked: asked["/srv/lab/notes.log"],
     };
 
@@ -144,9 +144,9 @@ window.done = (async () => {
             said: hint(),
         };
     };
-    const played = await shown("/srv/lab/song.mp3", ".sheet.on .fileaudio audio");
-    const paper = await shown("/srv/lab/atlas.pdf", ".sheet.on .filepdf, .sheet.on .fileopen a");
-    const photo = await shown("/srv/lab/photo.jpg", ".sheet.on .filepic img");
+    const played = await shown("/srv/lab/song.mp3", ".pvpanel .fileaudio audio");
+    const paper = await shown("/srv/lab/atlas.pdf", ".pvpanel .filepdf, .pvpanel .fileopen a");
+    const photo = await shown("/srv/lab/photo.jpg", ".pvpanel .pvpic");
     return { ...page, over, other, played, paper, photo };
 })();
 </script>

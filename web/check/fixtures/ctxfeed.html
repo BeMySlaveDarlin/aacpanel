@@ -306,9 +306,9 @@ window.done = (async () => {
     press1(itemOf("Open"));
     await until(() => asked.length > asks);
     out.pathOpened = asked.at(-1);
-    await until(() => document.querySelector('.sheet.on[aria-label="project file"]'));
-    press1(document.querySelector(".sheet.on .sheetclose"));
-    await until(() => !document.querySelector(".sheet.on"));
+    await until(() => document.querySelector(".pvpanel [data-file]"));
+    press1(document.querySelector(".pvclose"));
+    await until(() => !document.querySelector(".pv"));
     // A link in the words of the answer: its menu too, not the answer's.
     const link = ai.querySelector("a[href]");
     out.link = await open(link);
@@ -332,11 +332,11 @@ window.done = (async () => {
     out.fileSaved = saved.at(-1) || null;
     await open(file);
     press1(itemOf("Open"));
-    await until(() => document.querySelector(".sheet.on a.filecopy[download]"));
-    const viewerSave = document.querySelector(".sheet.on a.filecopy[download]");
+    await until(() => document.querySelector(".pvpanel a.filecopy[download]"));
+    const viewerSave = document.querySelector(".pvpanel a.filecopy[download]");
     out.viewerSave = viewerSave ? { href: viewerSave.getAttribute("href"), name: viewerSave.getAttribute("download") } : null;
-    press1(document.querySelector(".sheet.on .sheetclose"));
-    await until(() => !document.querySelector(".sheet.on"));
+    press1(document.querySelector(".pvclose"));
+    await until(() => !document.querySelector(".pv"));
 
     // The picture: saved as its viewer saves it.
     const shot = document.querySelector(".mshot");
@@ -348,7 +348,7 @@ window.done = (async () => {
     await until(() => document.querySelector(".pv .pvget"));
     const photoSave = document.querySelector(".pv .pvget");
     out.photoSave = photoSave ? { href: photoSave.getAttribute("href"), name: photoSave.getAttribute("download") } : null;
-    press1(document.querySelector('.pv .pback'));
+    press1(document.querySelector('.pv .pvclose'));
     await until(() => !document.querySelector(".pv"));
 
     // On the phone no host stands, and a message there is never the panel's.

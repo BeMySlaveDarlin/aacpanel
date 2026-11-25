@@ -75,10 +75,17 @@ func TestSentFilesAreReadInTheRun(t *testing.T) {
 			"then the disk has a second road with a boundary of its own", filesFile)
 	}
 
-	const chatFile = "src/screens/chat.js"
-	body := screenSrc(t, chatFile)
-	if !strings.Contains(body, `setLook({ kind: "file", ...file })`) {
-		t.Errorf("%s: the run opens a sent file by something other than the file viewer", chatFile)
+	for _, screen := range []struct {
+		name string
+		run  func(*testing.T, string, any)
+	}{{"phone", runFixture}, {"desktop", runWideFixture}} {
+		t.Run(screen.name, func(t *testing.T) {
+			var got struct{ SentFile bool }
+			screen.run(t, "gallery.html", &got)
+			if !got.SentFile {
+				t.Error("the delivered file did not open in the conversation's file viewer with its path, contents and Save control")
+			}
+		})
 	}
 }
 

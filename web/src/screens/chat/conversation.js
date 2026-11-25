@@ -376,7 +376,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // row again (see FeedRow). The handler made further down is reached by late.
     const late = useRef({});
     const onPage = useCallback((card) => setLook({ kind: "artifact", card }), []);
-    const onFile = useCallback((file) => setLook({ kind: "file", ...file }), []);
+    const onFile = useCallback((file, files) => setLook({ kind: "file", ...file, files }), []);
     const onCommand = useCallback((row) => setLook({ kind: "command", item: row }), []);
     const onShell = useCallback((row) => setLook({ kind: "shell", item: row }), []);
     const onAgent = useSteady(openAgent);
@@ -858,13 +858,13 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>
             <${Calls} session=${name} id=${id} calls=${calls ? calls.list : []} turn=${calls && calls.turn}
                       first=${calls && calls.first}
-                      onFile=${(file) => setLook({ kind: "file", ...file })} to=${parts.toBackground} />
+                      onFile=${onFile} to=${parts.toBackground} />
         <//>
 
-        <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
+        <${Sheet} open=${Boolean(look) && look.kind !== "file"} onClose=${() => setLook(null)}
                   label=${look ? (own ? own.label : LOOK_NAMES[look.kind]) : ""} inner
                   doc=${Boolean(look) && (look.kind === "brief" || pageLook(look))}>
-            ${look && (own
+            ${look && look.kind !== "file" && (own
                 ? own.node
                 : look.kind === "brief"
                 ? html`<${Brief} id=${look.id} snapshot=${snapshot} exec=${exec}
@@ -900,6 +900,9 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 : html`<${Look} session=${name} id=${id} look=${look}
                                  onBack=${pageLook(look) ? () => setLook(null) : undefined} />`)}
         <//>
+
+        ${look && look.kind === "file" && html`<${Look} session=${name} id=${id} look=${look}
+            onClose=${() => setLook(null)} onFile=${onFile} />`}
 
         ${parts.aside(ctx)}
 

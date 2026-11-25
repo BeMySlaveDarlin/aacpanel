@@ -1,0 +1,214 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell no-nav"><div id="root" style="display:flex;flex:1;min-height:0"></div></div>
+<script type="module">
+import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { ClaudeChat } from "/src/screens/chat/claude.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { Sheet } from "/src/ui/sheet.js";
+import { Shots } from "/src/screens/chat/shots.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+if (innerWidth >= 1100) document.documentElement.style.setProperty("--ui-scale", "1.2");
+const chart = (n) => `<svg xmlns="http://www.w3.org/2000/svg" width="627" height="460" viewBox="0 0 627 460"><rect width="627" height="460" fill="#172131"/><text x="38" y="56" fill="#e8edf7" font-family="sans-serif" font-size="25">Deployment latency · ${n}</text><text x="38" y="88" fill="#91a4bc" font-family="sans-serif" font-size="15">Last six builds · seconds</text><path d="M58 125V380H580" fill="none" stroke="#61758b"/><path d="M58 185H580M58 250H580M58 315H580" fill="none" stroke="#2c3a4e"/><path d="M70 335L166 288L262 310L358 218L454 232L550 153" fill="none" stroke="${["#83b9dd", "#7fc5a2", "#d6b477", "#c59dd9", "#db9d91"][n - 1]}" stroke-width="6"/><text x="58" y="415" fill="#91a4bc" font-family="sans-serif" font-size="16">1                 2                 3                 4                 5                 6</text></svg>`;
+const shot = (n) => ({ src: `/gallery/image/${n}`, name: `latency-${n}.svg`, media: "image/svg+xml", index: n });
+const at = new Date().toISOString();
+const files = [
+    { path: "/srv/proj/notes.txt", name: "notes.txt", size: 64, media: "text/plain" },
+    { path: "/srv/proj/latency.svg", name: "latency.svg", size: 1200, media: "image/svg+xml" },
+];
+const items = [
+    { role: "me", pos: 1, at, text: "One chart.", shots: [shot(1)] },
+    { role: "me", pos: 2, at, text: "Five charts from the same message.", shots: [1, 2, 3, 4, 5].map(shot) },
+    { role: "ai", pos: 3, at, text: "The notes and their chart.", files },
+    { role: "me", pos: 4, at, text: "A chart and notes together.", shots: [shot(5)],
+        files: [{ path: "/srv/proj/mixed.txt", name: "mixed.txt", size: 64, media: "text/plain" }] },
+    { role: "sent", pos: 5, at, text: "The delivered report.",
+        files: [{ path: "/srv/proj/delivery.txt", name: "delivery.txt", size: 64, media: "text/plain" }] },
+];
+const json = (data) => new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+const fileReads = [];
+window.fetch = counted(async (input) => {
+    const url = new URL(String(input), location.href);
+    if (url.pathname.startsWith("/gallery/image/")) return new Response(chart(Number(url.pathname.split("/").pop())), { headers: { "Content-Type": "image/svg+xml" } });
+    if (url.pathname === "/api/chat/file") {
+        fileReads.push(url.searchParams.get("path"));
+        const picture = url.searchParams.get("path").endsWith(".svg");
+        return json(picture
+            ? { kind: "image", media: "image/svg+xml", name: "latency.svg", size: 1200,
+                data: btoa(String.fromCharCode(...new TextEncoder().encode(chart(2)))) }
+            : { kind: "text", media: "text/plain", name: url.searchParams.get("path").split("/").pop(), size: 64,
+                text: "Build notes\nThe deployment completed successfully.\nNo errors." });
+    }
+    if (url.pathname === "/api/chat") return json({ items, first: 1, last: 5, total: 5, moreBefore: false, state: {} });
+    if (url.pathname === "/api/acts") return json({ acts: [] });
+    if (url.pathname === "/api/term") return json({ available: false });
+    return json({});
+});
+window.EventSource = class { addEventListener() {} close() {} };
+const live = { session: "work", sessionId: "gallery-thread", cwd: "/srv/proj", profile: "personal", status: "idle", transport: "stream" };
+render(h(ToastHost, null, h(GateHost, null, h(ClaudeChat, {
+    name: "work", id: live.sessionId, live, exec: { available: true, kinds: ["session.send"] },
+    snapshot: { sessions: [live] }, onBack() {}, onUsage() {}, wait: { of: () => null, opening: () => [] },
+}))), document.getElementById("root"));
+
+const ready = async (ok, why = "The attachment viewer did not reach the expected state") => {
+    const end = performance.now() + 5000;
+    while (!ok() && performance.now() < end) await new Promise((resolve) => requestAnimationFrame(resolve));
+    if (!ok()) throw new Error(why);
+};
+const text = (el) => el?.textContent.replace(/\s+/g, " ").trim() || "";
+const openPhoto = async (many = false, index = 0) => {
+    const strip = document.querySelectorAll(".mshots")[many ? 1 : 0];
+    strip.querySelectorAll(".mshot")[index].click();
+    await ready(() => document.querySelector(".pvpic")?.naturalWidth > 0);
+    await quiet();
+};
+window.done = window.ready = (async () => {
+    await ready(() => document.querySelectorAll(".mshot").length === 7 && document.querySelectorAll(".mfile").length === 4);
+    await document.fonts.ready;
+    const capture = new URLSearchParams(location.search).get("capture");
+    if (capture) {
+        await openPhoto(capture === "many", capture === "many" ? 1 : 0);
+        return { capture, image: document.querySelector(".pvpic").alt };
+    }
+    const depth = () => Number(history.state?.depth || 0);
+    const baseDepth = depth();
+    const closed = async (action, why) => {
+        action();
+        await ready(() => !document.querySelector(".pv") && depth() === baseDepth, why);
+        await quiet();
+        return true;
+    };
+    const counter = () => text(document.querySelector(".pvcount"));
+    const showing = async (n) => {
+        await ready(() => counter() === `${n} / 5` && document.querySelector(".pvpic")?.alt === `latency-${n}.svg`
+            && document.querySelector(".pvpic").naturalWidth > 0);
+        await quiet();
+    };
+    const pointer = (kind, target, id, x, y) => target.dispatchEvent(new PointerEvent(kind, {
+        bubbles: true, pointerType: "touch", pointerId: id, isPrimary: id === 1, clientX: x, clientY: y,
+    }));
+    const swipe = (dx, dy) => {
+        pointer("pointerdown", document.querySelector(".pvstage"), 1, 180, 220);
+        pointer("pointermove", document, 1, 180 + dx, 220 + dy);
+        pointer("pointerup", document, 1, 180 + dx, 220 + dy);
+    };
+    const doubleTap = () => {
+        for (let n = 0; n < 2; n++) {
+            pointer("pointerdown", document.querySelector(".pvstage"), 1, 180, 220);
+            pointer("pointerup", document, 1, 180, 220);
+        }
+    };
+    await openPhoto();
+    await ready(() => text(document.querySelector(".pvhead")).includes("627 × 460"));
+    const out = {
+        single: !document.querySelector(".pvnav, .pvcount") && !document.querySelector(".pv .pback"),
+        title: text(document.querySelector(".pvhead h2")),
+        dimensions: text(document.querySelector(".pvhead .chatsub")),
+        save: document.querySelector(".pvget")?.getAttribute("download"),
+    };
+    out.cross = await closed(() => document.querySelector(".pvclose").click(), "Close attachment did not dismiss the gallery");
+    await openPhoto();
+    out.escape = await closed(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })), "Escape did not dismiss the gallery");
+    await openPhoto();
+    out.backdrop = await closed(() => document.querySelector(".pvbackdrop").click(), "The backdrop did not dismiss the gallery");
+    await openPhoto();
+    out.back = await closed(() => history.back(), "System back did not dismiss the gallery");
+    await openPhoto();
+    out.down = await closed(() => swipe(0, 140), "A downward swipe did not dismiss the gallery");
+
+    await openPhoto(true, 1);
+    await showing(2);
+    out.many = counter() === "2 / 5" && document.querySelector(".pvget").getAttribute("download") === "latency-2.svg";
+    document.querySelector('.pvnav[aria-label="Next attachment"]').click();
+    await showing(3);
+    document.querySelector('.pvnav[aria-label="Previous attachment"]').click();
+    await showing(2);
+    out.arrows = true;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await showing(3);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    await showing(2);
+    out.keys = true;
+    swipe(-140, 0);
+    await showing(3);
+    swipe(140, 0);
+    await showing(2);
+    out.swipes = depth() === baseDepth + 1;
+    doubleTap();
+    await ready(() => document.querySelector(".pvpic.zoomed"));
+    swipe(-140, 0);
+    swipe(0, 140);
+    await quiet();
+    out.zoomKeepsPicture = counter() === "2 / 5" && Boolean(document.querySelector(".pvpic.zoomed"));
+    doubleTap();
+    await ready(() => document.querySelector(".pvpic:not(.zoomed)"));
+    pointer("pointerdown", document.querySelector(".pvstage"), 1, 120, 220);
+    pointer("pointerdown", document.querySelector(".pvstage"), 2, 200, 220);
+    pointer("pointermove", document, 2, 280, 220);
+    pointer("pointerup", document, 1, 120, 220);
+    pointer("pointerup", document, 2, 280, 220);
+    await ready(() => document.querySelector(".pvpic.zoomed"));
+    out.pinch = counter() === "2 / 5";
+    document.querySelector('.pvnav[aria-label="Next attachment"]').click();
+    await showing(3);
+    await ready(() => document.querySelector(".pvpic:not(.zoomed)"));
+    out.zoomResets = true;
+    await closed(() => document.querySelector(".pvclose").click(), "The gallery did not close after navigation");
+
+    document.querySelector('.mfile[data-path="/srv/proj/notes.txt"]').click();
+    await ready(() => document.querySelector(".pvpanel .callpre")?.textContent.includes("Build notes"));
+    out.file = counter() === "1 / 2" && !document.querySelector(".pv .pback")
+        && document.querySelector(".pv a[download]")?.getAttribute("href").includes("path=%2Fsrv%2Fproj%2Fnotes.txt");
+    document.querySelector('.pvnav[aria-label="Next attachment"]').click();
+    await ready(() => counter() === "2 / 2" && document.querySelector(".pvpic")?.naturalWidth > 0);
+    out.fileImage = document.querySelector(".pvpic").alt === "latency.svg"
+        && document.querySelectorAll(".pv a[download]").length === 1 && depth() === baseDepth + 1;
+    document.querySelector('.pvnav[aria-label="Previous attachment"]').click();
+    await ready(() => counter() === "1 / 2" && document.querySelector(".pvpanel .callpre"));
+    out.fileBack = await closed(() => history.back(), "System back did not dismiss the file gallery");
+    out.feed = document.querySelectorAll(".mshot").length === 7 && document.querySelectorAll(".mfile").length === 4;
+    document.querySelector('.sent .mfile[data-path="/srv/proj/delivery.txt"]').click();
+    await ready(() => document.querySelector(".pvpanel .callpre")?.textContent.includes("Build notes"),
+        "The delivered file did not open in the conversation's file viewer");
+    out.sentFile = fileReads.at(-1) === "/srv/proj/delivery.txt"
+        && text(document.querySelector(".pvpanel h2")) === "delivery.txt"
+        && document.querySelector(".pvpanel a[download]")?.getAttribute("download") === "delivery.txt"
+        && document.querySelector(".pvpanel a[download]").getAttribute("href").includes("path=%2Fsrv%2Fproj%2Fdelivery.txt");
+    await closed(() => document.querySelector(".pvclose").click(), "The delivered file viewer did not close");
+    document.querySelectorAll(".mshots")[2].querySelector(".mshot").click();
+    await ready(() => counter() === "1 / 2" && document.querySelector(".pvpic")?.naturalWidth > 0);
+    document.querySelector('.pvnav[aria-label="Next attachment"]').click();
+    await ready(() => counter() === "2 / 2" && document.querySelector(".pvpanel .callpre"));
+    out.mixed = text(document.querySelector(".pvpanel h2")) === "mixed.txt";
+    document.querySelector('.pvnav[aria-label="Previous attachment"]').click();
+    await ready(() => counter() === "1 / 2" && document.querySelector(".pvpic")?.naturalWidth > 0);
+    out.mixed = out.mixed && document.querySelector(".pvget")?.getAttribute("download") === "latency-5.svg";
+    await closed(() => document.querySelector(".pvclose").click(), "The mixed gallery did not close");
+    const nested = document.createElement("div");
+    document.body.appendChild(nested);
+    function Nested() {
+        const [open, setOpen] = useState(true);
+        return h(Sheet, { open, onClose: () => setOpen(false), label: "Nested attachments" },
+            h(Shots, { shots: [shot(1)], session: "work", id: live.sessionId, pos: 4 }));
+    }
+    render(h(Nested), nested);
+    await ready(() => nested.querySelector(".mshot img")?.naturalWidth > 0);
+    nested.querySelector(".mshot").click();
+    await ready(() => document.querySelector(".pvpic")?.naturalWidth > 0);
+    out.topLayer = document.querySelector(".pv").matches(":modal");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await ready(() => !document.querySelector(".pv") && depth() === baseDepth + 1);
+    out.nested = Boolean(nested.querySelector(".sheet.on"));
+    nested.querySelector(".sheetclose").click();
+    await ready(() => depth() === baseDepth);
+    render(null, nested);
+    nested.remove();
+    return out;
+})();
+</script>

@@ -195,10 +195,10 @@ export async function callPlaces(root) {
     out.fileDraft = words(chip().querySelector(".placehead"));
     out.fileSend = await send();
     all(".chatfeed .placecard").at(-1).click();
-    await until(() => files.length > 0 && one('.sheet.on[aria-label="project file"] [data-file] .callpre'), "the quoted file");
+    await until(() => files.length > 0 && one('.pvpanel [data-file] .callpre'), "the quoted file");
     out.fileRequest = files.at(-1);
-    one('.sheet.on[aria-label="project file"] .sheetclose').click();
-    await until(() => !one('.sheet.on[aria-label="project file"]') && depth() === 1, "the file viewer to close");
+    one('.pvpanel .pvclose').click();
+    await until(() => !one('.pvpanel') && depth() === 1, "the file viewer to close");
 
     await openCalls();
     await openMenu(sheet().querySelectorAll(".callnode")[1]);

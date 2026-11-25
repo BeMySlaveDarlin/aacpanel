@@ -58,7 +58,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
     const pieceMenu = usePieceMenu(openPath);
     // What the rows are handed keeps one identity across renders: a handler
     // made anew would draw every row again (see FeedRow).
-    const openFile = useCallback((file) => setLook({ kind: "file", ...file }), []);
+    const openFile = useCallback((file, files) => setLook({ kind: "file", ...file, files }), []);
     const openAgent = useSteady((next) => {
         const feedId = agentFeedId(session, next);
         if (feedId) setSub({ ...next, feedId });
@@ -131,14 +131,16 @@ export function SubChat({ session, id, agent, live, onBack }) {
 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>
             <${Calls} session=${session} id=${id} calls=${calls ? calls.list : []} turn=${calls && calls.turn}
-                      onFile=${(file) => setLook({ kind: "file", ...file })} />
+                      onFile=${openFile} />
         <//>
 
-        <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
+        <${Sheet} open=${Boolean(look) && look.kind !== "file"} onClose=${() => setLook(null)}
                   label=${look ? LOOK_NAMES[look.kind] : ""} inner doc=${pageLook(look)}>
-            ${look && !WORK_LISTS.has(look.kind)
+            ${look && look.kind !== "file" && !WORK_LISTS.has(look.kind)
                 && html`<${Look} session=${session} id=${id} look=${look}
                                  onBack=${pageLook(look) ? () => setLook(null) : undefined} />`}
         <//>
+        ${look && look.kind === "file" && html`<${Look} session=${session} id=${id} look=${look}
+            onClose=${() => setLook(null)} onFile=${openFile} />`}
     `;
 }

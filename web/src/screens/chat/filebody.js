@@ -7,14 +7,14 @@ import { render } from "../../md.js";
 import { highlight } from "../../code.js";
 import { bytes } from "../../format.js";
 import { useWide } from "../../ui/wide.js";
-import { Photo } from "./photo.js";
+import { Photo, PhotoView } from "./photo.js";
 import { frameDoc, PAGE_WHOLE, pickView, sheet } from "./kinds.js";
 
 // FileBody renders the contents of an open file. open is the address at which
 // the browser shows the file in place: as a document of its own, for the kinds
 // the screen does not draw itself, and as the source a view takes a file past
 // the ceiling of the viewer from.
-export function FileBody({ state, look, open, more, onMore }) {
+export function FileBody({ state, look, open, more, onMore, gallery }) {
     const name = state.name || look.path || "";
     const view = pickView(state, name);
     if (view === "exec") return html`<${ExecPlate} state=${state} name=${name} />`;
@@ -24,7 +24,7 @@ export function FileBody({ state, look, open, more, onMore }) {
         `;
     }
     if (view === "image") {
-        return html`<${Picture} state=${state} name=${name} open=${open} />`;
+        return html`<${Picture} state=${state} name=${name} open=${open} gallery=${gallery} />`;
     }
     if (view === "video" || view === "audio") {
         return html`<${Player} state=${state} open=${open} sound=${view === "audio"} />`;
@@ -102,9 +102,10 @@ function useSource(state, open, media) {
     return state.data ? held : open;
 }
 
-function Picture({ state, name, open: src }) {
+function Picture({ state, name, open: src, gallery }) {
     const url = useSource(state, src, state.media || "image/png");
     const [open, setOpen] = useState(false);
+    if (gallery) return html`<${PhotoView} url=${url} name=${name} ...${gallery} />`;
     return html`
         <button class="filepic" type="button" onClick=${() => setOpen(true)}
                 aria-label=${`open ${name} full screen`}>

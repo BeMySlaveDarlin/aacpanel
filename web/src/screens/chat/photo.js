@@ -1,8 +1,8 @@
-// An attachment full screen: the layer a picture is examined in.
-import { useEffect, useRef, useState } from "preact/hooks";
+// A picture in the attachment gallery, with its own zoom and pan gestures.
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { BackHead, useBackClose } from "../../ui/back.js";
+import { Gallery } from "../../ui/gallery.js";
 import { FIT, mid, nextScale, panBy, span, zoomAt } from "./zoom.js";
 
 const TAP_MS = 300;
@@ -31,25 +31,67 @@ export function shotName(shot, pos) {
     return `attachment-${pos}-${(shot && shot.index) || 0}.${ext}`;
 }
 
-// Photo renders the layer one picture is viewed in.
-export function Photo({ url, name, error, onClose, head: title }) {
+export function Photo({ url, name, error, onClose, head: title, index, total, onPrevious, onNext }) {
+    const [image, setImage] = useState({ w: 0, h: 0 });
+    const [scale, setScale] = useState(1);
+    return html`
+        <${Gallery} label=${title || name || "Attachment"} onClose=${onClose}
+                    index=${index} total=${total} onPrevious=${onPrevious} onNext=${onNext}>
+            <div class="pvhead">
+                <div class="chatwho">
+                    <h2>${title || name || "Attachment"}</h2>
+                    <div class="chatsub">
+                        <span>${image.w > 0 ? `${image.w} × ${image.h}` : "image"}</span>
+                        ${scale > 1.01 && html`<span class="sep">·</span><span>${Math.round(scale * 100)}%</span>`}
+                    </div>
+                </div>
+                ${url && html`<a class="pvget" href=${url} download=${name || "attachment"}>Save</a>`}
+            </div>
+            <${PhotoView} url=${url} name=${name} error=${error} onClose=${onClose}
+                onPrevious=${onPrevious} onNext=${onNext} onImage=${setImage} onScale=${setScale} />
+        <//>
+    `;
+}
+
+export function PhotoView({ url, name, error, onClose, onPrevious, onNext, onImage, onScale }) {
     const stage = useRef(null);
     const [view, setView] = useState(FIT);
     const [image, setImage] = useState({ w: 0, h: 0 });
     const [box, setBox] = useState({ w: 0, h: 0 });
     const [snap, setSnap] = useState(false);
-
-    const boxAt = useRef(box);
-    const imageAt = useRef(image);
-    const viewAt = useRef(view);
+    const boxAt = useRef(box), imageAt = useRef(image), viewAt = useRef(view);
     boxAt.current = box;
     imageAt.current = image;
     viewAt.current = view;
 
-    useBackClose(true, onClose);
-
-    useEffect(() => setView(FIT), [url]);
-
+    const points = useRef(new Map());
+    const gesture = useRef(null);
+    const pinch = useRef(null);
+    const tap = useRef({ at: 0, x: 0, y: 0 });
+    const watching = useRef(null);
+    const unwatch = () => {
+        const on = watching.current;
+        if (!on) return;
+        document.removeEventListener("pointermove", on.move);
+        document.removeEventListener("pointerup", on.up);
+        document.removeEventListener("pointercancel", on.cancel);
+        watching.current = null;
+    };
+    const cancel = () => {
+        points.current.clear();
+        gesture.current = null;
+        pinch.current = null;
+        tap.current = { at: 0, x: 0, y: 0 };
+        unwatch();
+    };
+    useEffect(() => cancel, []);
+    useLayoutEffect(() => {
+        cancel();
+        setView(FIT);
+        setImage({ w: 0, h: 0 });
+    }, [url]);
+    useEffect(() => { onImage?.(image); }, [image, onImage]);
+    useEffect(() => { onScale?.(view.scale); }, [view.scale, onScale]);
     useEffect(() => {
         const el = stage.current;
         if (!el) return undefined;
@@ -61,126 +103,81 @@ export function Photo({ url, name, error, onClose, head: title }) {
         return () => eye.disconnect();
     }, []);
 
-    const points = useRef(new Map());
-    const start = useRef(null);
-    const tap = useRef({ at: 0, x: 0, y: 0 });
-    const watching = useRef(null);
-
     const spot = (event) => {
-        const el = stage.current;
-        if (!el) return { x: 0, y: 0 };
-        const rect = el.getBoundingClientRect();
-        return {
-            x: event.clientX - (rect.left + rect.width / 2),
-            y: event.clientY - (rect.top + rect.height / 2),
-        };
+        const rect = stage.current.getBoundingClientRect();
+        return { x: event.clientX - rect.left - rect.width / 2, y: event.clientY - rect.top - rect.height / 2 };
     };
-
-    const pair = () => {
-        const both = [...points.current.values()];
-        return both.length >= 2 ? [both[0], both[1]] : null;
-    };
-
-    const unwatch = () => {
-        const on = watching.current;
-        if (!on) return;
-        document.removeEventListener("pointermove", on.move);
-        document.removeEventListener("pointerup", on.up);
-        document.removeEventListener("pointercancel", on.up);
-        watching.current = null;
-    };
-    useEffect(() => unwatch, []);
-
+    const pair = () => [...points.current.values()].slice(0, 2);
     const onMove = (event) => {
         if (!points.current.has(event.pointerId)) return;
-        const was = points.current.get(event.pointerId);
+        const was = points.current.get(event.pointerId), now = spot(event);
+        points.current.set(event.pointerId, now);
+        const both = pair();
+        if (both.length === 2 && pinch.current?.span > 0) {
+            const start = pinch.current;
+            setView(zoomAt(start.view, start.view.scale * span(...both) / start.span,
+                mid(...both), boxAt.current, imageAt.current));
+            return;
+        }
+        if (points.current.size === 1 && viewAt.current.scale > 1.01) {
+            setView((v) => panBy(v, now.x - was.x, now.y - was.y, boxAt.current, imageAt.current));
+        }
+    };
+    const onUp = (event) => {
+        if (!points.current.has(event.pointerId)) return;
+        points.current.delete(event.pointerId);
+        pinch.current = null;
+        if (points.current.size > 0) return;
+        unwatch();
+        const start = gesture.current;
+        gesture.current = null;
+        if (!start) return;
+        const now = spot(event), dx = now.x - start.x, dy = now.y - start.y;
+        if (!start.pinched && start.scale <= 1.01 && event.pointerType === "touch") {
+            if (dy > 60 && dy > Math.abs(dx)) { tap.current.at = 0; onClose?.(); return; }
+            if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+                tap.current.at = 0;
+                (dx > 0 ? onPrevious : onNext)?.();
+                return;
+            }
+        }
+        if (start.pinched || Math.hypot(dx, dy) > TAP_MOVE) { tap.current.at = 0; return; }
+        const twice = tap.current.at > 0 && event.timeStamp - tap.current.at < TAP_MS
+            && Math.hypot(now.x - tap.current.x, now.y - tap.current.y) <= TAP_MOVE;
+        if (!twice) { tap.current = { at: event.timeStamp, ...now }; return; }
+        tap.current.at = 0;
+        setSnap(true);
+        setView((v) => zoomAt(v, nextScale(v, boxAt.current, imageAt.current), now, boxAt.current, imageAt.current));
+    };
+    const onDown = (event) => {
+        if (event.button > 0) return;
+        event.stopPropagation();
+        setSnap(false);
         const now = spot(event);
         points.current.set(event.pointerId, now);
-        const two = pair();
-        if (two && start.current && start.current.span > 0) {
-            const k = span(two[0], two[1]) / start.current.span;
-            setView(zoomAt(start.current.view, start.current.view.scale * k,
-                mid(two[0], two[1]), boxAt.current, imageAt.current));
-            return;
+        if (!gesture.current) gesture.current = { ...now, scale: viewAt.current.scale, pinched: false };
+        const both = pair();
+        if (both.length === 2) {
+            gesture.current.pinched = true;
+            pinch.current = { view: viewAt.current, span: span(...both) };
         }
-        if (points.current.size !== 1) return;
-        setView((v) => panBy(v, now.x - was.x, now.y - was.y, boxAt.current, imageAt.current));
-    };
-
-    const onUp = (event) => {
-        const from = points.current.get(event.pointerId);
-        const pinched = Boolean(start.current && start.current.span > 0);
-        points.current.delete(event.pointerId);
-        if (points.current.size > 0) {
-            start.current = { view: viewAt.current, span: 0 };
-            return;
-        }
-        unwatch();
-        start.current = null;
-        const now = spot(event);
-        const moved = from ? Math.hypot(now.x - from.x, now.y - from.y) : 0;
-        if (pinched || moved > TAP_MOVE) {
-            tap.current = { at: 0, x: 0, y: 0 };
-            return;
-        }
-        const twice = event.timeStamp - tap.current.at < TAP_MS
-            && Math.hypot(now.x - tap.current.x, now.y - tap.current.y) <= TAP_MOVE;
-        if (!twice) {
-            tap.current = { at: event.timeStamp, x: now.x, y: now.y };
-            return;
-        }
-        tap.current = { at: 0, x: 0, y: 0 };
-        setSnap(true);
-        setView((v) => zoomAt(v, nextScale(v, boxAt.current, imageAt.current),
-            now, boxAt.current, imageAt.current));
-    };
-
-    const onDown = (event) => {
-        setSnap(false);
-        points.current.set(event.pointerId, spot(event));
-        const two = pair();
-        start.current = {
-            view: viewAt.current,
-            span: two ? span(two[0], two[1]) : 0,
-        };
         if (watching.current) return;
-        const move = (e) => onMove(e);
-        const up = (e) => onUp(e);
+        const move = (e) => onMove(e), up = (e) => onUp(e), stop = () => cancel();
         document.addEventListener("pointermove", move);
         document.addEventListener("pointerup", up);
-        document.addEventListener("pointercancel", up);
-        watching.current = { move, up };
+        document.addEventListener("pointercancel", stop);
+        watching.current = { move, up, cancel: stop };
     };
-
     const zoomed = view.scale > 1.01;
-    const head = html`
-        <div class="chatwho">
-            <h2>${title || "Attachment"}</h2>
-            <div class="chatsub">
-                <span>${image.w > 0 ? `${image.w} × ${image.h}` : "image"}</span>
-                ${zoomed && html`<span class="sep">·</span><span>${Math.round(view.scale * 100)}%</span>`}
-            </div>
-        </div>
-    `;
     return html`
-        <div class="pv">
-            <${BackHead} onBack=${onClose} label="close" tools=${url && html`
-                <a class="pvget" href=${url} download=${name || "attachment"}>Save</a>
-            `}>${head}<//>
-            <div class="pvstage" ref=${stage} onPointerDown=${onDown}>
-                ${error && html`<p class="hint crit">${error}</p>`}
-                ${!url && !error && html`<p class="hint">Reading the attachment…</p>`}
-                ${url && html`
-                    <img class=${`pvpic${zoomed ? " zoomed" : ""}${snap ? " snap" : ""}`} src=${url}
-                         alt=${name || "attachment"} decoding="async" draggable="false"
-                         style=${`transform: translate(${view.x}px, ${view.y}px) scale(${view.scale})`}
-                         onLoad=${(e) => setImage({
-                             w: e.currentTarget.naturalWidth,
-                             h: e.currentTarget.naturalHeight,
-                         })} />
-                `}
-            </div>
-            ${url && !error && html`<p class="pvhint">double tap to zoom in, two fingers to scale</p>`}
+        <div class="pvstage" ref=${stage} onPointerDown=${onDown}>
+            ${error && html`<p class="hint crit">${error}</p>`}
+            ${!url && !error && html`<p class="hint">Reading the attachment…</p>`}
+            ${url && html`<img class=${`pvpic${zoomed ? " zoomed" : ""}${snap ? " snap" : ""}`} src=${url}
+                alt=${name || "attachment"} decoding="async" draggable="false"
+                style=${`transform: translate(${view.x}px, ${view.y}px) scale(${view.scale})`}
+                onLoad=${(event) => setImage({ w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight })} />`}
         </div>
+        ${url && !error && html`<p class="pvhint">double tap to zoom in, two fingers to scale</p>`}
     `;
 }

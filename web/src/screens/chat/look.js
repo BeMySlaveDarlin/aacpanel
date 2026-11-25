@@ -1,15 +1,18 @@
 // The details sheet: background command output, the log of an observer,
 // subagent letters, a project file.
 
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
+import { Gallery } from "../../ui/gallery.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
 import * as copy from "./copy.js";
 import { render } from "../../md.js";
 import { FileBody } from "./filebody.js";
+import { PhotoView } from "./photo.js";
+import { usePicture } from "./shots.js";
 import { isPage, PAGE_WHOLE, PAGE_WINDOW, pickView } from "./kinds.js";
 import { bytes } from "../../format.js";
 import { idParam } from "./api.js";
@@ -93,7 +96,7 @@ function openURL(base, path) {
     return `${saveURL(base, path)}&inline=1`;
 }
 
-export function Look({ session, id, look, onBack }) {
+export function Look({ session, id, look, onBack, onClose, onFile }) {
     const toast = useToast();
     const [state, setState] = useState({ kind: "loading" });
     const [more, setMore] = useState({ busy: false, error: "" });
@@ -102,14 +105,23 @@ export function Look({ session, id, look, onBack }) {
     const observer = look.kind === "observer";
     const task = look.kind === "task" || observer;
     const file = look.kind === "file";
+    const gallery = file && Boolean(onClose);
+    const photo = look.shot;
+    const imageBox = useRef(null);
+    const picture = usePicture(photo?.src, imageBox, Boolean(photo));
+    const [image, setImage] = useState({ w: 0, h: 0 });
     const base = baseOf(session, id);
 
-    useBackClose(Boolean(onBack), onBack);
+    useBackClose(Boolean(onBack) && !gallery, onBack);
 
     useEffect(() => {
         let alive = true;
         setState({ kind: "loading" });
         setMore({ busy: false, error: "" });
+        if (photo) {
+            setState({ kind: picture.error ? "failed" : picture.url ? "ready" : "loading", name: look.name });
+            return undefined;
+        }
         const ask = async () => {
             const url = observer
                 ? `/api/chat/observer?${base}&observer=${encodeURIComponent(look.id)}`
@@ -133,7 +145,7 @@ export function Look({ session, id, look, onBack }) {
             if (document.visibilityState === "visible") ask();
         }, 4000);
         return () => { alive = false; clearInterval(timer); };
-    }, [session, id, look.kind, look.id, look.name, look.path]);
+    }, [session, id, look.kind, look.id, look.name, look.path, photo?.src, picture.url, picture.error]);
 
     const loadMore = async () => {
         if (!state.next || more.busy) return;
@@ -165,9 +177,10 @@ export function Look({ session, id, look, onBack }) {
     const letters = state.letters || [];
     const who = html`
         <div class="chatwho">
-                <h2>${observer ? "Observer" : task ? "Background command" : (file ? (state.name || look.path) : look.name)}</h2>
+                <h2>${observer ? "Observer" : task ? "Background command" : (file ? (photo ? look.name : state.name || look.path) : look.name)}</h2>
             <div class="chatsub">
-                <span>${file ? (look.text || look.path) : (look.text || (observer ? "log" : task ? "output" : "agent letters"))}</span>
+                <span>${photo ? (image.w > 0 ? `${image.w} × ${image.h}` : "image")
+                    : file ? (look.text || look.path) : (look.text || (observer ? "log" : task ? "output" : "agent letters"))}</span>
                 ${file && state.size > 0 && html`<span class="sep">·</span><span>${bytes(state.size)}</span>`}
             </div>
         </div>
@@ -183,25 +196,32 @@ export function Look({ session, id, look, onBack }) {
                     onClick=${() => copy.fileCopy(state, toast)}>${Icon.copy()}</button>
         `}
         ${save && html`
-            <a class="mdcopy filecopy" href=${saveURL(base, look.path)}
+            <a class=${photo ? "pvget" : "mdcopy filecopy"} href=${photo ? picture.url : saveURL(base, look.path)}
                download=${state.name || look.path}
-               title="Save the file" aria-label="Save the file">${Icon.download()}</a>
+               title="Save the file" aria-label="Save the file">${photo ? "Save" : Icon.download()}</a>
         `}
     `;
-    return html`
-        ${onBack
+    const group = (look.files || [look]).filter((entry) => (entry.path || entry.shot) && !entry.outside);
+    const index = Math.max(0, group.findIndex((entry) => photo ? entry.shot?.src === photo.src : entry.path === look.path));
+    const previous = onFile && index > 0 ? () => onFile(group[index - 1], group) : undefined;
+    const next = onFile && index + 1 < group.length ? () => onFile(group[index + 1], group) : undefined;
+    const content = html`
+        ${onBack && !gallery
             ? html`<${BackHead} onBack=${onBack} label="to the list" tools=${tools}>${who}<//>`
             : html`<div class="sheethead">${who}${tools && html`<span class="sheettools">${tools}</span>`}</div>`}
 
         <div class="callbody" data-file=${file ? "" : undefined} onClick=${(event) => copy.fromClick(event, toast)}>
-            ${state.kind === "loading" && html`<p class="hint">Reading…</p>`}
-            ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
+            ${state.kind === "loading" && !photo && html`<p class="hint">Reading…</p>`}
+            ${state.kind === "failed" && !photo && html`<p class="hint crit">${state.error}</p>`}
             ${state.kind === "ready" && task && html`
                 ${state.cut && html`<p class="hint warn">Showing the tail: the ${observer ? "log" : "output"} is longer.</p>`}
                 <pre class="callpre">${state.text || (observer ? "the command has printed nothing yet" : "nothing yet")}</pre>
             `}
-            ${state.kind === "ready" && file && html`<${FileBody} state=${state} look=${look}
-                open=${openURL(base, look.path)} more=${more} onMore=${loadMore} />`}
+            ${photo && html`<${PhotoView} url=${picture.url} error=${picture.error} name=${look.name}
+                onImage=${setImage} onClose=${onClose} onPrevious=${previous} onNext=${next} />`}
+            ${state.kind === "ready" && file && !photo && html`<${FileBody} state=${state} look=${look}
+                open=${openURL(base, look.path)} more=${more} onMore=${loadMore}
+                gallery=${gallery ? { onClose, onPrevious: previous, onNext: next } : undefined} />`}
             ${state.kind === "ready" && !task && !file && (letters.length === 0
                 ? html`<p class="hint">The agent is working and has not reported yet.</p>`
                 : letters.map((letter, n) => html`
@@ -212,4 +232,6 @@ export function Look({ session, id, look, onBack }) {
                 `))}
         </div>
     `;
+    return gallery ? html`<${Gallery} label=${state.name || look.name || look.path} onClose=${onClose}
+        index=${index} total=${group.length} onPrevious=${previous} onNext=${next}>${content}<//>` : content;
 }

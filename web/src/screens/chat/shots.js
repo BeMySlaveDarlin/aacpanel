@@ -1,5 +1,5 @@
 // Pictures of the feed as tiles: a strip beside a message or a call, a thumbnail
-// on the row of a call. A tile opens its picture full screen (see photo.js).
+// on the row of a call. A tile opens the gallery of its message.
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -26,9 +26,9 @@ function shotKey(shot) {
 
 // usePicture fetches a picture once its tile comes near the screen, and
 // returns its address in the page or why it did not come.
-function usePicture(src, box) {
-    const [url, setUrl] = useState("");
-    const [error, setError] = useState("");
+export function usePicture(src, box, eager = false) {
+    const [picture, setPicture] = useState({ src: "", url: "", error: "" });
+    const active = useRef(null);
     const [want, setWant] = useState(typeof IntersectionObserver === "undefined");
 
     useEffect(() => {
@@ -41,7 +41,8 @@ function usePicture(src, box) {
     }, [want]);
 
     useEffect(() => {
-        if (!want) return undefined;
+        if (!src || (!want && !eager)) return undefined;
+        active.current = src;
         let alive = true;
         let object = "";
         (async () => {
@@ -51,48 +52,71 @@ function usePicture(src, box) {
                 const blob = await r.blob();
                 if (!alive) return;
                 object = URL.createObjectURL(blob);
-                setUrl(object);
+                setPicture({ src, url: object, error: "" });
             } catch (e) {
-                if (alive) setError(String(e.message || e));
+                if (alive) setPicture({ src, url: "", error: String(e.message || e) });
             }
         })();
         return () => {
             alive = false;
+            active.current = null;
             if (object) URL.revokeObjectURL(object);
         };
-    }, [src, want]);
+    }, [src, want, eager]);
 
-    return { url, error };
+    return picture.src === src && active.current === src ? picture : { url: "", error: "" };
+}
+
+export function pictureFiles(shots, session, id, pos) {
+    return shots.map((shot) => ({
+        name: shotName(shot, pos), media: shot.media,
+        shot: { src: shotSrc(session, id, pos, shot) },
+    }));
 }
 
 // Shots renders the pictures of one row as a strip of tiles.
-export function Shots({ shots, session, id, pos }) {
+export function Shots({ shots, session, id, pos, files, onFile }) {
+    const [open, setOpen] = useState(null);
     if (!shots || !shots.length) return null;
+    const pictures = files && pictureFiles(shots, session, id, pos);
     return html`
         <div class="mshots">
-            ${shots.map((shot) => html`<${Shot} key=${shotKey(shot)} src=${shotSrc(session, id, pos, shot)}
-                                                name=${shotName(shot, pos)} />`)}
+            ${shots.map((shot, index) => html`<${Shot} key=${shotKey(shot)} src=${shotSrc(session, id, pos, shot)}
+                name=${shotName(shot, pos)} onOpen=${(picture) => files && onFile
+                    ? onFile(pictures[index], files) : setOpen({ index, ...picture })} />`)}
         </div>
+        ${open && html`<${ShotGallery} shots=${shots} session=${session} id=${id} pos=${pos}
+            open=${open} onPick=${(index) => setOpen({ index })} onClose=${() => setOpen(null)} />`}
     `;
+}
+
+function ShotGallery({ shots, session, id, pos, open, onPick, onClose }) {
+    const box = useRef(null);
+    const index = Math.min(open.index, shots.length - 1);
+    const shot = shots[index], src = shotSrc(session, id, pos, shot);
+    const held = open.src === src ? open : null;
+    const picture = usePicture(src, box, !held?.url);
+    return html`<${Photo} url=${held?.url || picture.url} error=${held?.error || picture.error}
+        name=${shotName(shot, pos)} onClose=${onClose} index=${index} total=${shots.length}
+        onPrevious=${index > 0 ? () => onPick(index - 1) : undefined}
+        onNext=${index + 1 < shots.length ? () => onPick(index + 1) : undefined} />`;
 }
 
 // Shot is one tile; at a desk its menu opens the picture as a press does,
 // and saves it as the viewer does.
-function Shot({ src, name }) {
+function Shot({ src, name, onOpen }) {
     const menu = useMenu();
     const box = useRef(null);
     const { url, error } = usePicture(src, box);
-    const [open, setOpen] = useState(false);
+    const show = () => onOpen({ src, url, error });
 
     return html`
-        <button class="mshot" ref=${box} type="button" onClick=${() => setOpen(true)}
-                onContextMenu=${menu && menu(ShotMenu, { url, name, error, onOpen: () => setOpen(true) }, `picture ${name}`)}
+        <button class="mshot" ref=${box} type="button" onClick=${show}
+                onContextMenu=${menu && menu(ShotMenu, { url, name, error, onOpen: show }, `picture ${name}`)}
                 aria-label=${`open attachment ${name}`}>
             ${url && html`<img src=${url} decoding="async" alt="attachment in the message" />`}
             ${error && html`<span class="mshotbad">✕</span>`}
         </button>
-        ${open && html`<${Photo} url=${url} name=${name} error=${error}
-                                 onClose=${() => setOpen(false)} />`}
     `;
 }
 
