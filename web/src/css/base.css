@@ -14,6 +14,17 @@ html, body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* Formatted text stays readable inside narrow cards and dialogs. Preserve
+   the original line breaks without requiring a second scrolling direction. */
+pre, .tcardlast {
+    min-width: 0;
+    max-width: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+pre code { white-space: inherit; overflow-wrap: inherit; }
+
 .shell {
     position: fixed;
     inset: 0;

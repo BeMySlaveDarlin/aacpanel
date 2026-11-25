@@ -81,11 +81,10 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
 .mdcode pre {
     margin: 0;
     padding: .6rem .8rem;
-    overflow-x: auto;
     tab-size: 4;
 }
 
-.mdcode code { font-size: var(--t-sm); line-height: 1.55; color: var(--ink-dim); white-space: pre; }
+.mdcode code { font-size: var(--t-sm); line-height: 1.55; color: var(--ink-dim); }
 
 /* One line is a command to run: it keeps the room of the button at its end
    and wraps rather than sliding under it. */

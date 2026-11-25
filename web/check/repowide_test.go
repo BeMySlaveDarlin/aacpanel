@@ -25,6 +25,8 @@ type repoWideShot struct {
 	KeptComposer       bool     `json:"keptComposer"`
 	Selected           bool     `json:"selected"`
 	FileLines          []string `json:"fileLines"`
+	WrapInitially      bool     `json:"wrapInitially"`
+	Unwrap             bool     `json:"unwrap"`
 	Wrap               bool     `json:"wrap"`
 	Returned           bool     `json:"returned"`
 	TreeMarks          string   `json:"treeMarks"`
@@ -77,8 +79,8 @@ func TestRepoFilesStayWithTheConversation(t *testing.T) {
 			if len(got.FileLines) != 3 || got.FileLines[0] != "package pkg" {
 				t.Errorf("File did not show the file contents: %v", got.FileLines)
 			}
-			if !got.Wrap {
-				t.Error("the wrap control did not wrap the file")
+			if !got.WrapInitially || !got.Unwrap || !got.Wrap {
+				t.Errorf("file wrapping: initially=%v, disabled=%v, enabled again=%v", got.WrapInitially, got.Unwrap, got.Wrap)
 			}
 			if !got.Returned {
 				t.Error("returning from the file did not restore the feed and keep Files open")

@@ -33,7 +33,7 @@ export function useRepo({ cwd, name, onFile }) {
     const [file, setFile] = useState("");
     const [side, setSide] = useState("files");
     const [base, setBase] = useState("");
-    const [wrap, setWrap] = useState(false);
+    const [wrap, setWrap] = useState(true);
     const [focus, setFocus] = useState(0);
     const [picked, setPicked] = useState(null);
     const [jump, setJump] = useState(null);

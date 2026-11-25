@@ -112,9 +112,13 @@ window.done = (async () => {
     await until(".cdsrc");
     await quiet();
     out.fileLines = all(".cdsrc").map(text);
+    out.wrapInitially = sel(".cdwrap").getAttribute("aria-pressed") === "true";
     sel(".cdwrap").click();
     await quiet();
-    out.wrap = sel(".cdfileview").classList.contains("wrap");
+    out.unwrap = sel(".cdwrap").getAttribute("aria-pressed") === "false";
+    sel(".cdwrap").click();
+    await quiet();
+    out.wrap = sel(".cdwrap").getAttribute("aria-pressed") === "true";
     sel(".cdtofeed").click();
     await quiet();
     out.returned = !sel(".cdfileview") && !sel(".cdside").hidden && !sel(".cdfeedslot").hidden;

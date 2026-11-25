@@ -790,7 +790,6 @@
 .bcontext summary { cursor: pointer; font-size: var(--t-sm); }
 .bcontext h3 { font-size: var(--t-base); }
 .bcontext section, .bdecision-ask { overflow-wrap: anywhere; }
-.bcontext pre, .bdecision-ask pre { overflow-x: auto; }
 .bdecision-steps { display: flex; gap: .25rem; }
 .bdecision-segment { flex: 1 1 0; min-width: 0; min-height: 1.65rem; padding: .55rem 0; border: 0; background: none; cursor: pointer; }
 .bdecision-segment span { display: block; height: .25rem; border-radius: var(--r-small); background: var(--edge); }
