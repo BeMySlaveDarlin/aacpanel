@@ -687,13 +687,14 @@
 
     .dklimitrow .limit-windows { justify-content: center; gap: .2rem; }
 
-    .dklimitrow .limit-ring { width: 2rem; height: 2rem; }
+    /* The longest reset captions need space inside the gauge. */
+    .dklimitrow .limit-ring { width: 2.8rem; height: 2.8rem; }
 
     .dklimitrow .limit-dial { gap: .03rem; }
 
-    .dklimitrow .limit-percent { font-size: var(--t-xs); }
+    .dklimitrow .limit-percent { --t-k: calc(2 / 3); font-size: var(--t-xs); }
 
-    .dklimitrow .limit-window { --t-k: .65; }
+    .dklimitrow .limit-window { --t-k: calc(.65 * 4 / 3); }
 
     .dklimitrow .limit-old { top: -.12rem; right: -.12rem; width: .8rem; height: .8rem; }
 
