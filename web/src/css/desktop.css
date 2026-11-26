@@ -1029,6 +1029,17 @@
         color: var(--ink-dim);
     }
 
+    /* Shared content-sized tracks keep readings aligned without reserving
+       space the container name could use. State details give way first. */
+    .dkcontainertable { display: grid; grid-template-columns: 1.6rem minmax(12rem, 1fr) fit-content(7rem) repeat(3, max-content) max-content; column-gap: .6rem; align-content: start; }
+    .dkcontainertable > .dktr { grid-column: 1 / -1; grid-template-columns: subgrid; padding-inline: 0; }
+    .dkcontainertable > .dkempty { grid-column: 1 / -1; }
+    .dkcontainertable .dkc-state { justify-self: end; }
+    .dkcontainertable .dkcont .dkc-name { padding-left: 0; }
+    .dkcontainertable .dkstate { flex: none; }
+    .dkcontainertable .dkuptime { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .dkcontainertable .dkc-acts { padding-right: .8rem; }
+
     .dkhp { flex: none; display: flex; gap: 2px; width: 4.4rem; }
 
     .dkhp i {

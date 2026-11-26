@@ -219,7 +219,7 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
 
             <div class="dksplit">
                 <div class="dkhalf">
-                    <div class="dktable">
+                    <div class="dktable dkcontainertable">
                         <div class="dktr dkth">
                             <span class="dkc-state"></span>
                             <span class="dkc-name">container</span>
@@ -240,7 +240,7 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                                 <span class="dkc-state">
                                     <i class=${`dkdot ${stateClass(c) === "bad" ? "dkbad" : stateClass(c) === "off" ? "dkoff" : "dkok"}`}></i>
                                 </span>
-                                <span class="dkc-name">${c.name}</span>
+                                <span class="dkc-name" data-tip=${c.name}>${c.name}</span>
                                 <span class="dkc-status" title=${c.status}>
                                     <span class=${`dkstate ${stateClass(c)}`}>${stateWord(c)}</span>
                                     <span class="dkuptime">${upFor(c.status)}</span>
