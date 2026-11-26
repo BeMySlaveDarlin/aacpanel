@@ -62,9 +62,13 @@ window.done = (async () => {
     const headOf = (head) => ({
         name: text(head.querySelector(".dkcontourname")),
         agents: [...new Set([...head.querySelectorAll(".limit-chip")].map((r) => r.dataset.agent))],
-        framed: Boolean(head.querySelector(".limit-group, legend, .limit-ring, .limit-mini")),
+        groups: [...head.querySelectorAll(".limit-chip-group")].map((group) => ({
+            agent: group.dataset.agent, label: group.getAttribute("aria-label"), role: group.getAttribute("role"),
+            windows: [...group.querySelectorAll(".limit-reading")].map((r) => r.getAttribute("aria-label")),
+            icon: Boolean(group.querySelector(".limit-vendor svg path")?.getAttribute("d")),
+        })),
         chips: Array.from(head.querySelectorAll(".limit-chip")).map((r) => ({
-            tip: r.title, value: r.querySelector(".limit-percent").firstChild.textContent, agent: r.dataset.agent || "", dot: r.querySelector(".limit-agent")?.dataset.agent, left: text(r.querySelector(".limit-left")),
+            tip: r.title, value: r.querySelector(".limit-percent").firstChild.textContent, agent: r.dataset.agent || "", vendor: r.closest(".limit-chip-group").querySelector(".limit-vendor")?.dataset.agent, left: text(r.querySelector(".limit-left")),
         })),
     });
     for (const tab of tabs().slice(1)) {

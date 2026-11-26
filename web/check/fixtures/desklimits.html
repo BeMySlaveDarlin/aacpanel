@@ -84,9 +84,9 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
         readings: Array.from(head.querySelectorAll(".limit-reading")).map((r) => ({
             value: r.querySelector(".limit-percent").firstChild.textContent, label: (r.title.match(/resets (?:in [^,]+|any moment)/) || [""])[0], tip: r.title,
         })),
-        old: Boolean(head.querySelector(".limit-reading.old")),
-        agents: Array.from(head.querySelectorAll(".limit-chip .limit-agent")).map((dot) => dot.dataset.agent),
-        framed: Boolean(head.querySelector(".limit-group, legend, .limit-ring, .limit-mini, .limit-minitrack, .limit-group-age")),
+        old: Boolean(head.querySelector(".limit-chip-group.old")),
+        agents: Array.from(head.querySelectorAll(".limit-chip-group .limit-vendor")).map((mark) => mark.dataset.agent),
+        grouped: Boolean(head.querySelector('.limit-chip-group[role="group"]')),
         acts: Array.from(head.querySelectorAll(".dkcontouracts button"))
             .map((b) => `${b.getAttribute("aria-label")}${b.disabled ? " off" : ""}`),
         live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),

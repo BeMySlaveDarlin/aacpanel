@@ -12,6 +12,7 @@ import { Sheet } from "../../ui/sheet.js";
 import { NewSessionList } from "./new.js";
 
 const LIMITS_STALE_SEC = 900;
+const LIMIT_ICONS = new Map([["claude", Icon.claude], ["codex", Icon.openai], ["gemini", Icon.gemini]]);
 
 // agoText renders how long ago the limits snapshot was taken.
 export function agoText(sec) {
@@ -162,7 +163,14 @@ export function LimitGroup({ group, tucked, chip, opened, onToggle, onClose }) {
             ageSec=${group.ageSec} reached=${group.reached} tucked=${tucked} chip=${chip} opened=${opened && opened.key === key ? opened : null}
             onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
     });
-    if (chip) return windows;
+    if (chip) {
+        const VendorIcon = LIMIT_ICONS.get(group.agent) || Icon.limit;
+        return html`<div class=${`limit-group limit-chip-group${group.old ? " old" : ""}`} data-agent=${group.agent}
+                        role="group" aria-label=${`${group.agent} limits`} style=${`--limit-windows:${group.windows.length}`}>
+            <span class="limit-vendor agentword" data-agent=${group.agent} aria-hidden="true"><${VendorIcon} /></span>
+            ${windows}
+        </div>`;
+    }
     if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent} role="group" aria-label=${`${group.agent} limits`}>
         ${windows}
     </div>`;
@@ -180,11 +188,10 @@ function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, ch
     const label = [full, share(data.pct), resetText(data.resetsAt), known].filter(Boolean).join(", ");
     const reading = html`<span class="limit-percent">${whole}<small>%</small></span>`;
     return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
-        <button class=${`limit-reading ${chip ? "limit-chip" : tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old ? " old" : ""}`}
+        <button class=${`limit-reading ${chip ? "limit-chip" : tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old && !chip ? " old" : ""}`}
                     data-agent=${agent} type="button" aria-label=${label} title=${label} style=${`--share:${pct}`}
                     aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
             ${chip ? html`
-                <span class="limit-agent agentword" data-agent=${agent} aria-hidden="true"></span>
                 ${reading}
                 <span class="limit-window limit-left">${ringLeft(data.resetsAt)}</span>
             ` : tucked ? html`

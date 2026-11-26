@@ -50,18 +50,23 @@ window.done = (async () => {
     const readings = contours.slice(0, pairs.length).flatMap((contour) =>
         [...document.querySelectorAll(`#${contour.profile} .limit-reading`)].map((r) => ({
             value: text(r.querySelector(".limit-percent")), label: r.title,
-            left: text(r.querySelector(".limit-left")), agent: r.dataset.agent, dot: r.querySelector(".limit-agent")?.dataset.agent,
+            left: text(r.querySelector(".limit-left")), agent: r.dataset.agent, vendor: r.closest(".limit-chip-group").querySelector(".limit-vendor")?.dataset.agent,
             chip: r.classList.contains("limit-chip"),
             tone: ["ok", "warn", "crit"].find((tone) => r.classList.contains(tone)),
         })));
     return {
         readings,
-        wrongMode: Boolean(document.querySelector(".dklimitrow :is(.limit-group, legend, .limit-ring, .limit-mini, .limit-minitrack, .limit-group-age)")),
+        wrongMode: Boolean(document.querySelector(".dklimitrow :is(legend, .limit-ring, .limit-mini, .limit-minitrack, .limit-group-age)")),
         providers: [...document.querySelectorAll("#providers .limit-chip")].map((r) => r.dataset.agent),
+        groups: [...document.querySelectorAll("#providers .limit-chip-group")].map((group) => ({
+            agent: group.dataset.agent, label: group.getAttribute("aria-label"), role: group.getAttribute("role"),
+            windows: [...group.querySelectorAll(".limit-reading")].map((r) => r.getAttribute("aria-label")),
+            icon: Boolean(group.querySelector(".limit-vendor svg path")?.getAttribute("d")),
+        })),
         details: [await details("c2", 0), await details("c2", 1)],
         past: [await details("c3", 0), await details("c3", 1)],
         stale: {
-            vendors: [...document.querySelectorAll("#old .limit-reading.old")].map((r) => r.dataset.agent),
+            vendors: [...document.querySelectorAll("#old .limit-chip-group.old")].map((r) => r.dataset.agent),
             ages: [...document.querySelectorAll("#old .limit-group-age")].map(text),
             notes: [...document.querySelectorAll("#old .limits-note")].map(text),
             details: await details("old", 1),

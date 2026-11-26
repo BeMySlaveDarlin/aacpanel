@@ -6,6 +6,27 @@ import (
 	"testing"
 )
 
+type deskLimitGroup struct {
+	Agent, Label, Role string
+	Windows            []string
+	Icon               bool
+}
+
+func checkDeskLimitGroup(t *testing.T, got deskLimitGroup, agent string, windows int) {
+	t.Helper()
+	if got.Agent != agent || got.Label != agent+" limits" || got.Role != "group" || !got.Icon {
+		t.Errorf("subscription group %+v does not identify %s with a nonempty icon", got, agent)
+	}
+	if len(got.Windows) != windows {
+		t.Errorf("%s holds %d windows, expected %d: %v", agent, len(got.Windows), windows, got.Windows)
+	}
+	for _, label := range got.Windows {
+		if !strings.HasPrefix(strings.ToLower(label), agent+", ") {
+			t.Errorf("%s holds another provider's window %q", agent, label)
+		}
+	}
+}
+
 // Each provider supplied by the contour gets its own group and window
 // details. Thread titles remain separate from the address used to open them.
 func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
@@ -13,18 +34,18 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	type chip struct {
-		Tip   string `json:"tip"`
-		Value string `json:"value"`
-		Agent string `json:"agent"`
-		Dot   string `json:"dot"`
-		Left  string `json:"left"`
+		Tip    string `json:"tip"`
+		Value  string `json:"value"`
+		Agent  string `json:"agent"`
+		Vendor string `json:"vendor"`
+		Left   string `json:"left"`
 	}
 	var got struct {
 		Heads []struct {
-			Name   string   `json:"name"`
-			Agents []string `json:"agents"`
-			Chips  []chip   `json:"chips"`
-			Framed bool     `json:"framed"`
+			Name   string           `json:"name"`
+			Agents []string         `json:"agents"`
+			Chips  []chip           `json:"chips"`
+			Groups []deskLimitGroup `json:"groups"`
 		} `json:"heads"`
 		Pop                                        []string `json:"pop"`
 		ToggledClosed, EscapeClosed, OutsideClosed bool
@@ -52,14 +73,25 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 		t.Errorf("an account with no five-hour window carries %+v, expected claude's week alone", home.Chips)
 	}
 	for i, want := range []string{"claude,codex,gemini", "codex", "claude"} {
-		if head := got.Heads[i]; strings.Join(head.Agents, ",") != want || head.Framed {
-			t.Errorf("the chips of %s identify agents %v, expected %s without group frames", head.Name, head.Agents, want)
+		if head := got.Heads[i]; strings.Join(head.Agents, ",") != want {
+			t.Errorf("the chips of %s identify agents %v, expected %s", head.Name, head.Agents, want)
+		}
+		agents := strings.Split(want, ",")
+		if len(got.Heads[i].Groups) != len(agents) {
+			t.Fatalf("%s has subscription groups %+v, expected %v", got.Heads[i].Name, got.Heads[i].Groups, agents)
+		}
+		for j, agent := range agents {
+			windows := 1
+			if i == 0 && agent != "codex" {
+				windows = 2
+			}
+			checkDeskLimitGroup(t, got.Heads[i].Groups[j], agent, windows)
 		}
 	}
 	for _, head := range got.Heads {
 		for _, reading := range head.Chips {
-			if reading.Dot != reading.Agent {
-				t.Errorf("chip dot %q does not identify agent %q", reading.Dot, reading.Agent)
+			if reading.Vendor != reading.Agent {
+				t.Errorf("subscription mark %q does not identify agent %q", reading.Vendor, reading.Agent)
 			}
 		}
 	}

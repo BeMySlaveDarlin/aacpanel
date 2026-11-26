@@ -163,7 +163,7 @@ type deskSection struct {
 	Acts     []string      `json:"acts"`
 	Readings []deskReading `json:"readings"`
 	Old      bool          `json:"old"`
-	Framed   bool          `json:"framed"`
+	Grouped  bool          `json:"grouped"`
 	Live     []string      `json:"live"`
 	Closed   int           `json:"closed"`
 	Empty    string        `json:"empty"`
@@ -248,8 +248,8 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 		if strings.Join(sec.Acts, ",") != "Tasks,Profile" {
 			t.Errorf("%q: the heading holds the actions %v, expected Tasks and Profile, both on", sec.Name, sec.Acts)
 		}
-		if strings.Join(sec.Agents, ",") != "claude,claude" {
-			t.Errorf("%q: the chip dots identify %v, expected claude for both windows", sec.Name, sec.Agents)
+		if strings.Join(sec.Agents, ",") != "claude" {
+			t.Errorf("%q: the subscription mark identifies %v, expected claude once for both windows", sec.Name, sec.Agents)
 		}
 		h := tab.Handed
 		if len(h.Tasks) != 1 || h.Tasks[0] == nil || *h.Tasks[0] != w.id {
@@ -298,9 +298,9 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 	}
 
 	acme, globex := got.Tabs[0], got.Tabs[1]
-	if head := acme.Sections[0]; strings.Contains(head.Head, "ago") || head.Framed || len(head.Live) != 0 || head.Empty != "nothing live" || !head.Old {
+	if head := acme.Sections[0]; strings.Contains(head.Head, "ago") || !head.Grouped || len(head.Live) != 0 || head.Empty != "nothing live" || !head.Old {
 		t.Errorf("the contour with no live session and numbers an hour old reads %q, shows live %v, says %q, dimmed %v: "+
-			"expected old chips without an age line or tracks, and a word that nothing lives there",
+			"expected an old subscription group without an age line or tracks, and a word that nothing lives there",
 			head.Head, head.Live, head.Empty, head.Old)
 	}
 	if !strings.Contains(acme.Details.Note, "Updated 1 h ago") {
@@ -324,11 +324,12 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 func TestDeskLimitReadingsShowValuesResetsAndMissingWindows(t *testing.T) {
 	var got struct {
 		Readings []struct {
-			Value, Left, Label, Tone, Agent, Dot string
-			Chip                                 bool
+			Value, Left, Label, Tone, Agent, Vendor string
+			Chip                                    bool
 		}
 		WrongMode     bool
 		Providers     []string
+		Groups        []deskLimitGroup
 		Details, Past []string
 		Stale         struct {
 			Vendors, Ages, Notes []string
@@ -350,16 +351,22 @@ func TestDeskLimitReadingsShowValuesResetsAndMissingWindows(t *testing.T) {
 	}
 	for i, w := range want {
 		r := got.Readings[i]
-		if r.Value != w.value || r.Left != w.left || !r.Chip || r.Agent != "claude" || r.Dot != r.Agent || r.Tone != w.tone || (w.reset != "" && !strings.Contains(r.Label, w.reset)) ||
+		if r.Value != w.value || r.Left != w.left || !r.Chip || r.Agent != "claude" || r.Vendor != r.Agent || r.Tone != w.tone || (w.reset != "" && !strings.Contains(r.Label, w.reset)) ||
 			(w.reset == "" && strings.Contains(r.Label, "reset")) {
 			t.Errorf("reading %d: %+v, expected %+v", i, r, w)
 		}
 	}
 	if got.WrongMode {
-		t.Error("the heading contains frames, rings, tracks or an age line instead of one chip per window")
+		t.Error("the heading contains rings, tracks or an age line instead of grouped window readings")
 	}
 	if strings.Join(got.Providers, ",") != "claude,codex,gemini,other" {
 		t.Errorf("providers are not driven by contour data: %v", got.Providers)
+	}
+	if len(got.Groups) != 4 {
+		t.Fatalf("subscription groups: %+v, expected Claude, Codex, Gemini and an unknown provider", got.Groups)
+	}
+	for i, agent := range []string{"claude", "codex", "gemini", "other"} {
+		checkDeskLimitGroup(t, got.Groups[i], agent, 1)
 	}
 	for i, want := range []string{"Claude, 5 hours|85% used|resets in 1 min", "Claude, 7 days|90% used|resets in 36 h"} {
 		for _, part := range strings.Split(want, "|") {

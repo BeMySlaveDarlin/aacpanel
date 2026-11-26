@@ -111,8 +111,8 @@ export function orderOf(sessions, map, wait = null) {
     });
 }
 
-// Each window shares the phone's details and takes an equal share of the
-// heading, so adding a provider needs no separate layout.
+// The desktop groups a subscription's windows while sharing the phone's
+// details, so adding a provider needs no separate layout.
 export function ContourLimits({ limits, name, profiles }) {
     const [opened, setOpened] = useState(null);
     const close = useCallback(() => setOpened(null), []);

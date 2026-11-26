@@ -22,6 +22,7 @@
         --accent-bg: rgba(125, 153, 189, .16);
         --warn: #cbab7f;
         --crit: #cb9490;
+        --word-gemini: #8fd18a;
         --ctx-1: #6b9c83;
         --ctx-2: #6b9c83;
         --ctx-3: #cbab7f;
@@ -36,6 +37,7 @@
         --accent-bg: rgba(164, 77, 49, .08);
         --warn: #966306;
         --crit: #5e4dc2;
+        --word-gemini: #307113;
         --ctx-1: #307113;
         --ctx-2: #307113;
         --ctx-3: #966306;
@@ -717,17 +719,25 @@
 
     .dklimitrow { position: relative; display: flex; gap: .4rem; }
 
+    .dklimitrow .limit-chip-group { display: flex; align-items: stretch; flex: var(--limit-windows) 1 0; min-width: 0; padding: 0; border: var(--hair) solid var(--line); border-radius: .45rem; background: var(--glass); }
+
     .dklimitrow .limit-anchor { flex: 1 1 0; min-width: 0; }
 
-    .dklimitrow .limit-chip { flex: 1; min-width: 0; display: flex; align-items: center; gap: .15rem; height: 1.75rem; padding: 0 .3rem; overflow: hidden; border: var(--hair) solid var(--line); border-radius: .45rem; background: var(--glass); }
+    .dklimitrow .limit-chip-group > .limit-anchor { border-left: var(--hair) solid var(--line); }
+
+    .dklimitrow .limit-chip { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 0 .15rem; min-height: 1.75rem; padding: .1rem .3rem; overflow: hidden; border-radius: 0; }
+
+    .dklimitrow .limit-anchor:last-child .limit-chip { border-radius: 0 .4rem .4rem 0; }
 
     .dklimitrow .limit-chip::before { content: ""; position: absolute; inset: 0; width: calc(var(--share) * 1%); box-sizing: border-box; background: color-mix(in srgb, currentColor 22%, transparent); border-right: var(--hair) solid color-mix(in srgb, currentColor 70%, transparent); }
 
     .dklimitrow .limit-chip > * { position: relative; }
 
-    .dklimitrow .limit-agent { flex: none; width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; }
+    .dklimitrow .limit-vendor { flex: none; display: grid; place-items: center; width: 1.5rem; }
 
-    .dklimitrow .limit-agent[data-agent="gemini"] { color: var(--word-gemini, #8fd18a); }
+    .dklimitrow .limit-vendor svg { width: var(--i-sm); height: var(--i-sm); }
+
+    .dklimitrow .limit-vendor[data-agent="gemini"] { color: var(--word-gemini); }
 
     .dklimitrow .limit-chip .limit-percent { --t-k: .95; flex: none; font-size: var(--t-sm); color: var(--ink); }
 
@@ -735,7 +745,7 @@
 
     .dklimitrow .limit-left { --t-k: .95; flex: none; margin-left: auto; white-space: nowrap; }
 
-    .dklimitrow .limit-chip.old { opacity: .45; }
+    .dklimitrow .limit-chip-group.old { opacity: .45; }
 
     .dklimitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 
