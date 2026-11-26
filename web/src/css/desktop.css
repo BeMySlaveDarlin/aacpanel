@@ -411,7 +411,7 @@
     /* The heading right under the band of the contour needs no air above. */
     .dkcontour + .dkproj { padding-top: .35rem; }
 
-    .dkprojname { display: inline-flex; align-items: center; gap: .25rem; min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-xs); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); text-align: left; cursor: pointer; }
+    .dkprojname { display: inline-flex; align-items: center; gap: .25rem; min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-xs); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); text-align: left; cursor: pointer; }
 
     .dkprojchev { display: flex; flex: none; }
 
@@ -421,7 +421,7 @@
 
     .dkprojlabel { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); opacity: .7; }
+    .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 
     .dkprojcount { flex: none; font-size: var(--t-xs); color: var(--ink-dim); }
 
@@ -488,7 +488,12 @@
 
     .dkproj .scheadacts { margin-block: -.2rem; }
 
-    .dkproj .scact { width: 1.33rem; height: 1.33rem; }
+    /* The band under the heading eats faint ink: its words and buttons take the dim one. */
+    .dkproj .scact { width: 1.33rem; height: 1.33rem; color: var(--ink-dim); }
+
+    .dkproj .scact:hover { color: var(--ink); }
+
+    .dkproj .scact.scon { color: var(--accent); }
 
     .dksessbody { min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
 
