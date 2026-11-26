@@ -805,14 +805,19 @@
 .bdecision-options { border-top: var(--hair) solid var(--line); }
 .bchoice { border-bottom: var(--hair) solid var(--line); padding: .65rem .35rem; }
 .bchoice.picked { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.bchoice-pick { display: flex; align-items: baseline; gap: .6rem; cursor: pointer; }
-.bchoice-pick:focus-within { outline: 1px solid var(--accent); outline-offset: 3px; }
-.bchoice input { flex: none; margin: 0; accent-color: var(--accent); width: 1rem; height: 1rem; }
-.bchoice-body { display: grid; gap: .15rem; min-width: 0; flex: 1; }
+.bchoice-pick { position: relative; display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: baseline; column-gap: .6rem; row-gap: .15rem; font-size: var(--t-sm); cursor: pointer; }
+.bchoice-pick:has(input:focus-visible) { outline: 1px solid var(--accent); outline-offset: 3px; }
+.bchoice input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* The recommendation has its own row; the ring follows the title's first line. */
+.bchoice-tick { grid-column: 1; align-self: start; box-sizing: border-box; width: 1rem; height: 1rem; margin-top: calc((1lh - 1rem) / 2); display: grid; place-items: center; color: var(--on-accent); border: 1px solid color-mix(in srgb, var(--ink-faint) 70%, transparent); border-radius: 50%; }
+.bchoice input[type="checkbox"] ~ .bchoice-tick { border-radius: var(--r-small); }
+.bchoice input:checked ~ .bchoice-tick { background: var(--accent); border-color: var(--accent); }
+.bchoice input:checked ~ .bchoice-tick::after { content: "✓"; font-size: var(--t-xs); font-weight: 800; line-height: 1; }
+.bchoice-body { grid-column: 2; display: grid; gap: .15rem; min-width: 0; }
 .bchoice-label { font-size: var(--t-sm); font-weight: 600; overflow-wrap: anywhere; }
-.brecommended { display: inline-block; margin-left: .3rem; color: var(--ok); font-size: var(--t-xs); font-weight: 400; }
+.brecommended { grid-column: 2; justify-self: start; padding: .15em .45em; border-radius: var(--r-small); background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); font-size: var(--t-xs); font-weight: 600; line-height: 1.4; letter-spacing: .06em; text-transform: uppercase; }
 .bchoice-reason { color: var(--ink-dim); font-size: var(--t-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bchoice-hours { flex: none; color: var(--ink-dim); font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bchoice-hours { grid-column: 3; color: var(--ink-dim); font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bchoice-details { margin: .2rem 0 0 1.6rem; color: var(--ink-dim); font-size: var(--t-xs); }
 .bchoice-details summary { display: flex; gap: .7rem; cursor: pointer; }
 .bchoice-details summary > :last-child { flex: none; color: var(--accent); }

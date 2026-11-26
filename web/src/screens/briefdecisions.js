@@ -31,8 +31,9 @@ function Decision({ decision, index, answer, locked, onAnswer }) {
                     <input type=${decision.multi ? "checkbox" : "radio"} name=${`decision-${decisionID(decision, index)}`}
                         value=${option.key} checked=${Boolean(answer?.picks?.includes(option.key))} disabled=${locked}
                         onChange=${() => pick(option.key)} />
-                    <span class="bchoice-body"><span class="bchoice-label">${option.label}
-                        ${option.recommended && html`<span class="brecommended">recommended</span>`}</span>
+                    ${option.recommended && html`<span class="brecommended">recommended</span>`}
+                    <span class="bchoice-tick" aria-hidden="true"></span>
+                    <span class="bchoice-body"><span class="bchoice-label">${option.label}</span>
                         <span class="bchoice-reason">${option.reason}</span>
                     </span>
                     <span class="bchoice-hours">≈ ${Math.round(option.hours * 10) / 10} h</span>
