@@ -120,54 +120,27 @@ func TestViewIsChosenByKindNotByName(t *testing.T) {
 	}
 }
 
-func TestFramedPageCannotReachTheNetwork(t *testing.T) {
-	page := "<html><body><img src=\"https://tracker.example/pixel.png\"></body></html>"
-	got := runFileKindJS(t, []map[string]any{{"op": "frame", "text": page}})
-	doc, _ := got[0].(string)
-
-	if !strings.HasPrefix(strings.ToLower(doc), "<!doctype html>") {
-		t.Errorf("the document does not start with a doctype — the page will render in quirks mode: %.60s", doc)
-	}
-	head := doc[:len(doc)-len(page)]
-	if !strings.Contains(head, "Content-Security-Policy") {
-		t.Fatalf("the document carries no policy: the frame will fetch a resource from a foreign server\n%s", head)
-	}
-	for _, must := range []string{"default-src 'none'", "base-uri 'none'", "form-action 'none'"} {
-		if !strings.Contains(head, must) {
-			t.Errorf("the policy has no %q:\n%s", must, head)
-		}
-	}
-	for _, never := range []string{"*", "http:", "https:", "'self'", "'unsafe-eval'"} {
-		if strings.Contains(head, never) {
-			t.Errorf("the policy lets %q through — the frame again has somewhere to go:\n%s", never, head)
-		}
-	}
-	if !strings.HasSuffix(doc, page) {
-		t.Error("the file inside the document is changed: the panel does not rewrite foreign markup, " +
-			"safety does not rest on that")
+func TestHTMLFilePageURLKeepsTheSessionAndPath(t *testing.T) {
+	open := "/api/chat/file/download?session=lab&id=thread-1&path=%2Fsrv%2Flab%2Freview.html&inline=1"
+	got := runFileKindJS(t, []map[string]any{{"op": "page", "open": open}})
+	want := "/api/chat/file/page?session=lab&id=thread-1&path=%2Fsrv%2Flab%2Freview.html"
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("page address %v, expected %s", got, want)
 	}
 }
 
 var iframeTag = regexp.MustCompile(`(?s)<iframe\b[^>]*>`)
 
-// Foreign markup runs in one of two frames, and they are not the same frame.
-//
-// A file of the project is inlined with srcdoc, and a document written inline
-// inherits the origin of the page it sits in: scripts there would run with the
-// rights of whoever opened the panel, so that frame stays empty of everything.
-//
-// A page the session published is loaded by address instead. Without
-// allow-same-origin the frame gets an origin of its own, the cookie of the
-// panel is not the page's to read, and the route serving it repeats the sandbox
-// in a header of its own, so the rule holds even when the address is opened
-// outside any frame. That frame may run scripts, because a published page that
-// draws nothing is not the page anybody published.
+// An inline document inherits the surrounding page's origin: any srcdoc
+// therefore keeps an empty sandbox. Scripts are allowed only in frames loaded
+// from a route that sandboxes the HTTP response itself. Those addressed pages
+// get an opaque origin even when their URL is opened outside the viewer.
 func TestForeignMarkupOnlyInsideTheSandbox(t *testing.T) {
 	// Never, in either frame: each of these hands back the isolation the
 	// sandbox stands there to keep.
 	never := []string{"allow-same-origin", "allow-top-navigation"}
 
-	inlined, addressed := 0, 0
+	addressed, files := 0, 0
 	for path, body := range srcFiles(t) {
 		code := stripComments(body)
 		for _, bad := range never {
@@ -179,28 +152,32 @@ func TestForeignMarkupOnlyInsideTheSandbox(t *testing.T) {
 		for _, tag := range iframeTag.FindAllString(code, -1) {
 			switch {
 			case strings.Contains(tag, "srcdoc"):
-				inlined++
 				if !strings.Contains(tag, `sandbox=""`) {
 					t.Errorf("%s: foreign markup goes into a frame without an empty sandbox — "+
 						"that is foreign code running with the rights of whoever opened the panel:\n%s", path, tag)
 				}
 			case strings.Contains(tag, "allow-scripts"):
 				addressed++
+				if strings.Contains(tag, "filePageURL(") {
+					files++
+					if !strings.Contains(tag, `sandbox="allow-scripts allow-downloads"`) || !strings.Contains(tag, `allow="clipboard-write"`) || strings.Contains(tag, "allow-popups") || strings.Contains(tag, "allow-forms") || !strings.Contains(tag, `referrerpolicy="no-referrer"`) {
+						t.Errorf("%s: the HTML file frame must allow isolated scripts, downloads and clipboard writing only: %s", path, tag)
+					}
+				}
 				if strings.Contains(tag, "srcdoc") || !strings.Contains(tag, "src=") {
 					t.Errorf("%s: scripts are allowed in a frame that is not loaded by address:\n%s", path, tag)
 				}
-				if !strings.Contains(tag, "pageURL(") {
-					t.Errorf("%s: scripts are allowed in a frame that is not a kept copy of a published "+
-						"page — only that route sandboxes its own answer:\n%s", path, tag)
+				if !strings.Contains(tag, "pageURL(") && !strings.Contains(tag, "filePageURL(") {
+					t.Errorf("%s: scripts are allowed outside the known routes that sandbox their own answer:\n%s", path, tag)
 				}
 			}
 		}
 	}
-	if inlined == 0 {
-		t.Fatal("no frame with srcdoc found in the frontend — the test is useless, check the path")
-	}
 	if addressed == 0 {
 		t.Fatal("no frame loading a page by address found — the test is useless, check the path")
+	}
+	if files == 0 {
+		t.Fatal("no HTML file frame loading its sandboxed route found")
 	}
 }
 
@@ -243,13 +220,13 @@ func runFileKindJS(t *testing.T, steps []map[string]any) []any {
 
 	script := `
 import { readFileSync } from "node:fs";
-import { frameDoc, pickView, sheet } from ` + jsString("file://"+kinds) + `;
+import { filePageURL, pickView, sheet } from ` + jsString("file://"+kinds) + `;
 import { filePick } from ` + jsString("file://"+clip) + `;
 const steps = JSON.parse(readFileSync(0, "utf8"));
 const out = steps.map((step) => {
     if (step.op === "view") return pickView(step.state, step.name);
     if (step.op === "copy") return Boolean(filePick(step.state));
-    if (step.op === "frame") return frameDoc(step.text);
+    if (step.op === "page") return filePageURL(step.open);
     if (step.op === "sheet") return sheet(step.text, step.name);
     throw new Error("unknown step: " + step.op);
 });

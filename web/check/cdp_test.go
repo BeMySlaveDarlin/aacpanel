@@ -30,13 +30,14 @@ type browser struct {
 	to      io.WriteCloser
 	profile string
 
-	mu       sync.Mutex
-	seq      int
-	received int
-	waiting  map[int]chan cdpMessage
-	pages    map[string]*page
-	dead     error
-	stderr   *tailBuffer
+	mu        sync.Mutex
+	seq       int
+	received  int
+	waiting   map[int]chan cdpMessage
+	pages     map[string]*page
+	downloads map[string]chan json.RawMessage
+	dead      error
+	stderr    *tailBuffer
 	// disposeWait bounds the dispose of a run's browser context; zero is
 	// disposeBound.
 	disposeWait time.Duration
@@ -442,6 +443,15 @@ func (b *browser) read(from io.ReadCloser) {
 		case msg.SessionID != "":
 			if p := b.pages[msg.SessionID]; p != nil {
 				p.note(msg)
+			}
+		case msg.Method == "Browser.downloadWillBegin":
+			var event struct{ SuggestedFilename string }
+			_ = json.Unmarshal(msg.Params, &event)
+			if ch := b.downloads[event.SuggestedFilename]; ch != nil {
+				select {
+				case ch <- msg.Params:
+				default:
+				}
 			}
 		case msg.Method == "Target.detachedFromTarget":
 			var ev struct {

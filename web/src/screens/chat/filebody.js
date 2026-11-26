@@ -8,7 +8,7 @@ import { highlight } from "../../code.js";
 import { bytes } from "../../format.js";
 import { useWide } from "../../ui/wide.js";
 import { Photo, PhotoView } from "./photo.js";
-import { frameDoc, PAGE_WHOLE, pickView, sheet } from "./kinds.js";
+import { filePageURL, PAGE_WHOLE, pickView, sheet } from "./kinds.js";
 
 // FileBody renders the contents of an open file. open is the address at which
 // the browser shows the file in place: as a document of its own, for the kinds
@@ -39,7 +39,7 @@ export function FileBody({ state, look, open, more, onMore, gallery }) {
             ? html`<p class="hint">${state.size > PAGE_WHOLE
                 ? `Too large to draw here: ${bytes(state.size)}. Save it and open it in the browser.`
                 : `Reading the page… ${bytes(state.next)} of ${bytes(state.size)}`}</p>`
-            : html`<${Page} text=${text} name=${name} />`)}
+            : html`<${Page} text=${text} name=${name} open=${open} />`)}
         ${view === "doc" && html`<div class="mmbody doc">${render(text || "the file is empty")}</div>`}
         ${view === "sheet" && html`<${Sheet} text=${text} name=${name} />`}
         ${view === "code" && html`
@@ -160,7 +160,7 @@ function PaperOpen({ open }) {
     `;
 }
 
-function Page({ text, name }) {
+function Page({ text, name, open }) {
     const [source, setSource] = useState(false);
     return html`
         <div class="filetabs">
@@ -171,8 +171,8 @@ function Page({ text, name }) {
         </div>
         ${source
             ? html`<pre class="callpre code">${highlight(text, name)}</pre>`
-            : html`<iframe class="filehtml" sandbox="" referrerpolicy="no-referrer"
-                           title=${name} srcdoc=${frameDoc(text)}></iframe>`}
+            : html`<iframe class="filehtml" sandbox="allow-scripts allow-downloads" allow="clipboard-write" referrerpolicy="no-referrer"
+                           title=${name} src=${filePageURL(open)}></iframe>`}
     `;
 }
 

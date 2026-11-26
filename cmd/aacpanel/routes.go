@@ -79,6 +79,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/chat/agent", g.page(s.apiChatAgent))
 	mux.Handle("GET /api/chat/file", g.page(s.apiChatFile))
 	mux.Handle("GET /api/chat/file/download", g.page(s.apiChatDownload))
+	mux.Handle("GET /api/chat/file/page", g.page(s.apiChatFilePage))
 	mux.Handle("GET /api/sessions/archive", g.page(s.apiSessionsArchive))
 	// The viewer: everything about a repository comes through the agent, and
 	// the diff is cut and coloured here before it goes on the wire.

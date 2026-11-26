@@ -14,6 +14,7 @@ const SHELL_URL = "/app";
 // neither short nor wanted twice — it would be saved to the phone through a
 // copy of itself stored on the same phone.
 const DOWNLOAD_URL = "/api/chat/file/download";
+const FILE_PAGE_URL = "/api/chat/file/page";
 
 // A search of a conversation goes around the worker as well. Its answer belongs
 // to one question at one moment: a copy kept for the time without a connection
@@ -201,7 +202,7 @@ self.addEventListener("fetch", (event) => {
 
     const url = new URL(request.url);
 
-    if (url.pathname === DOWNLOAD_URL || url.pathname === SEARCH_URL) return;
+    if (url.pathname === DOWNLOAD_URL || url.pathname === FILE_PAGE_URL || url.pathname === SEARCH_URL) return;
 
     if (request.headers.get("Accept") === "text/event-stream") return;
 

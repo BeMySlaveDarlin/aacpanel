@@ -602,9 +602,13 @@ the page anybody published, so the frame it opens in may run scripts. What it
 may not have is the origin of the panel: without that the cookie is not the
 page's to read, and the route serving the copy repeats the sandbox in a header
 of its own, so the rule holds even when the address is opened outside any
-frame. This is the one place in the panel where foreign markup runs at all.
-A file of the project, inlined into a frame with the document itself, inherits
-the origin of the page it sits in and therefore stays without scripts.
+frame. HTML project files use a sandboxed response route too, with the same
+session and path check as file downloads. Their policy allows inline scripts
+and styles, file downloads and clipboard writing while denying network access,
+forms, popups, clipboard reading and top navigation.
+When the opaque origin denies local or session storage, an inline shim gives
+the document storage in memory, discarded when that document is left.
+Inline documents keep an empty sandbox; scripts never run in srcdoc.
 
 **The call socket.** A session can also call the person to it: one line through
 `notify.sock`, in the same runtime directory and for the same reason, which the

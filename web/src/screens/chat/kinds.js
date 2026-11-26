@@ -59,20 +59,11 @@ export function pickView(state, name) {
     return "code";
 }
 
-const FRAME_CSP = [
-    "default-src 'none'",
-    "img-src data:",
-    "font-src data:",
-    "style-src 'unsafe-inline'",
-    "base-uri 'none'",
-    "form-action 'none'",
-].join("; ");
-
-// frameDoc returns the document for the sandbox srcdoc.
-export function frameDoc(text) {
-    return "<!doctype html><meta charset=\"utf-8\">"
-        + `<meta http-equiv="Content-Security-Policy" content="${FRAME_CSP}">`
-        + String(text == null ? "" : text);
+// Only the sandboxed response route may run a project file's scripts.
+export function filePageURL(open) {
+    const query = new URLSearchParams(String(open || "").split("?")[1] || "");
+    query.delete("inline");
+    return `/api/chat/file/page?${query}`;
 }
 
 export const MAX_ROWS = 400;

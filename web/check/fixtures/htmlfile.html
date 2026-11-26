@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div id="root" class="callbody"></div></div>
+<script type="module">
+import { h, render } from "preact";
+import { FileBody } from "/src/screens/chat/filebody.js";
+import { quiet } from "/check/fixtures/quiet.js";
+
+const until = async (condition) => {
+    const end = performance.now() + 8000;
+    while (!condition()) {
+        if (performance.now() > end) throw new Error("the sandboxed HTML file did not answer");
+        await new Promise(requestAnimationFrame);
+    }
+};
+document.cookie = "html_file_parent=parent-only; path=/; SameSite=Lax";
+const nativeLocal = localStorage, nativeSession = sessionStorage;
+nativeLocal.setItem("html-native", "kept");
+nativeSession.setItem("html-native", "kept");
+await import("/html-storage-shim.js");
+const out = { parentCookie: document.cookie.includes("html_file_parent=parent-only"),
+    nativeKept: localStorage === nativeLocal && sessionStorage === nativeSession &&
+        localStorage.getItem("html-native") === "kept" && sessionStorage.getItem("html-native") === "kept", storage: [] };
+const seen = new Set();
+addEventListener("message", (event) => {
+    const frame = document.querySelector(".filehtml");
+    if (!frame || event.source !== frame.contentWindow || !event.data?.kind?.startsWith("html-")) return;
+    if (event.data.kind === "html-storage") { out.storage.push(event.data); return; }
+    seen.add(event.data.kind);
+    Object.assign(out, event.data, { origin: event.origin });
+});
+render(h(FileBody, { state: { form: "text", name: "review.html", text: "source", next: 0 }, look: { path: "review.html" },
+    open: "/api/chat/file/download?session=lab&path=%2Fsrv%2Flab%2Freview.html&inline=1", more: {} }), document.getElementById("root"));
+window.done = (async () => {
+    await until(() => ["html-ready", "html-fetch"].every((kind) => seen.has(kind)));
+    await quiet();
+    const frame = document.querySelector(".filehtml");
+    const attributes = { sandbox: frame.getAttribute("sandbox"), allow: frame.getAttribute("allow"), src: frame.getAttribute("src"), referrer: frame.getAttribute("referrerpolicy") };
+    for (const path of ["storage-complete", "storage-head", "storage-fragment", "storage-complete"]) {
+        const count = out.storage.length;
+        frame.src = "/api/chat/file/page?session=lab&path=" + path;
+        await until(() => out.storage.length > count);
+    }
+    return { ...out, ...attributes };
+})();
+</script>

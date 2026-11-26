@@ -122,6 +122,14 @@ func TestWorkerLetsAFileOnItsWayToADevicePastIt(t *testing.T) {
 		},
 		{
 			world: swWorld{
+				Name:     "an HTML file is not taken by the data cache",
+				Requests: []string{"/api/chat/file/page?session=warden&path=review.html"},
+			},
+			asked:  []string{},
+			bodies: []string{"past the worker"},
+		},
+		{
+			world: swWorld{
 				Name:     "the rest of the api is taken as before",
 				Requests: []string{"/api/host", "/api/chat/file?session=warden&path=notes/log.txt"},
 			},

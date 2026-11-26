@@ -139,7 +139,7 @@ func checkLargeFilesAreShown(t *testing.T, got pageShot, wide bool) {
 // ceiling of the viewer as a link to the phone's own viewer.
 func TestAPageOpensOnThePhoneAsADocument(t *testing.T) {
 	var got pageShot
-	runFixture(t, "pagefile.html", &got)
+	runPageFileFixture(t, false, &got)
 	checkPageIsWhole(t, got)
 	checkPageOverTheCap(t, got)
 	checkOtherFileByDefault(t, got)
@@ -150,7 +150,7 @@ func TestAPageOpensOnThePhoneAsADocument(t *testing.T) {
 // of the viewer in a frame of its own.
 func TestAPageOpensAtADeskAsADocument(t *testing.T) {
 	var got pageShot
-	runWideFixture(t, "pagefile.html", &got)
+	runPageFileFixture(t, true, &got)
 	checkPageIsWhole(t, got)
 	checkPageOverTheCap(t, got)
 	checkOtherFileByDefault(t, got)

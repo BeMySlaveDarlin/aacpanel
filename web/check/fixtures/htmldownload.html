@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+import { h, render } from "preact";
+import { FileBody } from "/src/screens/chat/filebody.js";
+window.done = new Promise((resolve) => {
+    addEventListener("message", (event) => {
+        if (event.source === document.querySelector(".filehtml")?.contentWindow && event.data?.kind === "html-download-ready") resolve(true);
+    });
+});
+render(h(FileBody, { state: { form: "text", name: "review.html", text: "source", next: 0 },
+    open: "/api/chat/file/download?session=lab&path=review.html", more: {} }), document.getElementById("root"));
+</script>
