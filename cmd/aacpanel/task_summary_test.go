@@ -39,8 +39,13 @@ func TestTaskSummaryUsesPeriodEventsAndInvalidatesItsCachePG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	longNote := strings.Repeat("Inventory details checked against the ledger. ", 8000)
+	if _, err := srv.db.WriteTask(t.Context(), id, row.Number, author, taskreg.Edit{Markdown: &longNote}); err != nil {
+		t.Fatal(err)
+	}
 	status := "done"
-	if _, err := srv.db.WriteTask(t.Context(), id, row.Number, author, taskreg.Edit{Status: &status}); err != nil {
+	closure := "The inventory matches the ledger."
+	if _, err := srv.db.WriteTask(t.Context(), id, row.Number, author, taskreg.Edit{Status: &status, Markdown: &closure}); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := srv.db.Pool()
@@ -91,10 +96,13 @@ func TestTaskSummaryUsesPeriodEventsAndInvalidatesItsCachePG(t *testing.T) {
 		t.Fatalf("summary metadata: %+v", got)
 	}
 	req := <-fake.got
-	for _, want := range []string{title, note, "created", "closed", "inventory-worker", "en_US.UTF-8", "SER-1063"} {
+	for _, want := range []string{title, note, closure, "created", "changed", "closed", "inventory-worker", "en_US.UTF-8", "SER-1063", "appendedText"} {
 		if !strings.Contains(req.Text, want) {
 			t.Errorf("the prompt omits %q", want)
 		}
+	}
+	if strings.Contains(req.Text, `"body":`) || strings.Count(req.Text, note) != 1 || len(req.Text) > 240<<10 {
+		t.Fatal("the prompt repeats full task bodies or exceeds its records budget")
 	}
 	if req.Kind != action.TaskSummary || req.Project == nil || req.Project.Path != filepath.Join(root, "aacpanel") || req.Contour != strconv.Itoa(contour) {
 		t.Fatalf("wrong contour launch: %+v", req)
@@ -203,6 +211,7 @@ func TestTaskSummaryPromptStaysAboutWorkAndOmitsDates(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rule := range []string{
+		"Write a brief stand-up summary",
 		"Write only about the work: what was completed, started, and remains.",
 		"Keep it to at most five short bullets or paragraphs.",
 		"Combine completed tasks on the same topic into one line; do not enumerate every task.",
@@ -211,6 +220,7 @@ func TestTaskSummaryPromptStaysAboutWorkAndOmitsDates(t *testing.T) {
 		"without a heading or introduction",
 		"Do not describe the input data, its fields, format, missing values, or missing chronology.",
 		"Do not invent results or explanations for missing information.",
+		"The appendedText field contains an excerpt of text added to the task.",
 	} {
 		if !strings.Contains(prompt, rule) {
 			t.Errorf("the summary prompt omits the rule %q", rule)

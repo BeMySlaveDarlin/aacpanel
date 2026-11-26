@@ -168,11 +168,12 @@ func summaryPrompt(source store.SummarySource, participants taskContext) (string
 	if err != nil {
 		return "", fmt.Errorf("the summary records were not encoded: %w", err)
 	}
-	return fmt.Sprintf("Write a brief daily stand-up summary in language %s using Markdown. "+
+	return fmt.Sprintf("Write a brief stand-up summary in language %s using Markdown. "+
 		"Write only about the work: what was completed, started, and remains. Group related work by topic or external issue. "+
 		"Keep it to at most five short bullets or paragraphs. Combine completed tasks on the same topic into one line; do not enumerate every task. "+
 		"Use task titles and issue links only when they help identify the work. Attribute work by session name when known; never print conversation ids. "+
 		"The reader has already chosen the period. Do not print dates, times, timestamps, or period boundaries. Start directly with the work, without a heading or introduction. "+
 		"Do not describe the input data, its fields, format, missing values, or missing chronology. Do not invent results or explanations for missing information. "+
+		"The appendedText field contains an excerpt of text added to the task. "+
 		"Activity records:\n%s", lang, records), nil
 }

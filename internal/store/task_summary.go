@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"aacpanel/internal/taskreg"
@@ -26,12 +27,13 @@ type SummarySource struct {
 }
 
 type SummaryEvent struct {
-	Project string        `json:"project"`
-	Number  int64         `json:"number"`
-	Title   string        `json:"title"`
-	URL     string        `json:"url,omitempty"`
-	Issues  []string      `json:"issues"`
-	Event   taskreg.Event `json:"event"`
+	projectID int
+	Project   string        `json:"project"`
+	Number    int64         `json:"number"`
+	Title     string        `json:"title"`
+	URL       string        `json:"url,omitempty"`
+	Issues    []string      `json:"issues"`
+	Event     taskreg.Event `json:"event"`
 }
 
 // A single ordered read covers the whole period, including deleted tasks.
@@ -46,7 +48,7 @@ func (s *Store) TaskSummarySource(ctx context.Context, f TaskFilter) (out Summar
 	if err != nil {
 		return out, err
 	}
-	rows, err := pool.Query(ctx, `SELECT p.name,t.number,t.title,t.external_url,t.external_refs,
+	rows, err := pool.Query(ctx, `SELECT p.id,p.name,t.number,t.title,t.external_url,t.external_refs,
         e.id,e.kind,e.at,e.precision,e.actor,e.actor_name,e.origin,e.payload
         FROM task_events e JOIN project_tasks t ON t.project_id=e.project_id AND t.number=e.task_number
         JOIN profile_projects p ON p.id=t.project_id JOIN profile_groups g ON g.id=p.group_id
@@ -56,49 +58,119 @@ func (s *Store) TaskSummarySource(ctx context.Context, f TaskFilter) (out Summar
 		return out, err
 	}
 	defer rows.Close()
-	groups := map[string][]SummaryEvent{}
-	actors := map[string]bool{}
-	size := 0
+	events := []SummaryEvent{}
 	for rows.Next() {
 		var row SummaryEvent
 		e := &row.Event
-		if err = rows.Scan(&row.Project, &row.Number, &row.Title, &row.URL, &row.Issues,
+		if err = rows.Scan(&row.projectID, &row.Project, &row.Number, &row.Title, &row.URL, &row.Issues,
 			&e.ID, &e.Kind, &e.At, &e.Precision, &e.Actor, &e.ActorName, &e.Origin, &e.Payload); err != nil {
 			return out, err
 		}
 		e.At = e.At.UTC()
-		if e.Actor != "" && !actors[e.Actor] {
-			actors[e.Actor] = true
-			out.Actors = append(out.Actors, e.Actor)
-		}
-		refs := row.Issues
-		if len(refs) == 0 {
-			refs = []string{"Other work"}
-		}
-		raw, marshalErr := json.Marshal(row)
-		if marshalErr != nil {
-			return out, marshalErr
-		}
-		size += (len(raw) + 1) * len(refs)
-		if size > 240<<10 {
-			return out, badRequest("the period has too much activity for a summary; choose a shorter period")
-		}
-		for _, ref := range refs {
-			groups[ref] = append(groups[ref], row)
-		}
+		events = append(events, row)
 	}
 	if err = rows.Err(); err != nil {
 		return out, err
 	}
-	out.Empty = len(groups) == 0
-	out.Records = groups
+	return taskSummarySource(events)
+}
+
+const summaryRecordsBudget = 240 << 10
+
+func taskSummarySource(events []SummaryEvent) (out SummarySource, err error) {
+	groups := groupSummaryEvents(events)
 	raw, err := json.Marshal(groups)
 	if err != nil {
 		return out, err
 	}
 	sum := sha256.Sum256(raw)
 	out.Fingerprint = hex.EncodeToString(sum[:])
-	return out, nil
+	out.Empty = len(events) == 0
+	actors := map[string]bool{}
+	for _, row := range events {
+		e := row.Event
+		if e.Actor != "" && !actors[e.Actor] {
+			actors[e.Actor] = true
+			out.Actors = append(out.Actors, e.Actor)
+		}
+	}
+	// Cache identity covers the recorded bodies; only the model's copy is shortened.
+	for _, limit := range []int{800, 300, 0} {
+		groups, err = compactSummaryRecords(events, limit)
+		if err != nil {
+			return out, err
+		}
+		raw, err = json.Marshal(groups)
+		if err != nil {
+			return out, err
+		}
+		if len(raw) <= summaryRecordsBudget {
+			out.Records = groups
+			return out, nil
+		}
+	}
+	return out, badRequest("the period has too much activity for a summary; choose a shorter period")
+}
+
+func groupSummaryEvents(events []SummaryEvent) map[string][]SummaryEvent {
+	groups := map[string][]SummaryEvent{}
+	for _, row := range events {
+		refs := row.Issues
+		if len(refs) == 0 {
+			refs = []string{"Other work"}
+		}
+		for _, ref := range refs {
+			groups[ref] = append(groups[ref], row)
+		}
+	}
+	return groups
+}
+
+func compactSummaryRecords(events []SummaryEvent, limit int) (map[string][]SummaryEvent, error) {
+	type taskKey struct {
+		project int
+		number  int64
+	}
+	bodies := map[taskKey]string{}
+	compact := make([]SummaryEvent, 0, len(events))
+	for _, row := range events {
+		var payload, changes map[string]json.RawMessage
+		var body string
+		if json.Unmarshal(row.Event.Payload, &payload) == nil &&
+			json.Unmarshal(payload["changes"], &changes) == nil &&
+			len(changes["body"]) > 0 && changes["body"][0] == '"' &&
+			json.Unmarshal(changes["body"], &body) == nil {
+			key := taskKey{row.projectID, row.Number}
+			previous, seen := bodies[key]
+			bodies[key] = body
+			text := body
+			if seen && strings.HasPrefix(body, previous) {
+				text = body[len(previous):]
+			} else if start := strings.LastIndex(body, "\n## "); start >= 0 {
+				text = body[start+1:]
+			}
+			delete(changes, "body")
+			if limit > 0 {
+				runes := []rune(strings.TrimSpace(text))
+				text = string(runes)
+				if len(runes) > limit {
+					text = string(runes[:limit]) + "…"
+				}
+				changes["appendedText"], _ = json.Marshal(text)
+			}
+			raw, err := json.Marshal(changes)
+			if err != nil {
+				return nil, err
+			}
+			payload["changes"] = raw
+			row.Event.Payload, err = json.Marshal(payload)
+			if err != nil {
+				return nil, err
+			}
+		}
+		compact = append(compact, row)
+	}
+	return groupSummaryEvents(compact), nil
 }
 
 func (s *Store) TaskSummary(ctx context.Context, f TaskFilter, fingerprint string) (out *TaskSummary, err error) {

@@ -2805,6 +2805,11 @@ service reads all registry events in the half-open period in one ordered query,
 groups them by external issue and sends their titles, status changes, notes and
 recorded authors as data. The language comes from `AACP_LANG` in the mounted
 host description, with Russian as the fallback for an unspecified language.
+Body changes carry the appended text, falling back to the last Markdown section
+or the start of a replacement body. Excerpts are limited to 800 runes, then 300,
+then omitted to fit the grouped records into 240 KiB; only records that exceed
+that budget without body text refuse the period. The cache fingerprint uses the
+complete recorded facts independently of these excerpts.
 `GET /api/tasks/summary` reads the cache; `POST` goes through the action gate and
 journal as `task.summary`. A SHA-256 fingerprint covers the complete event records;
 the database keys the text, model and generation time by contour, period and
