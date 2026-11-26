@@ -184,11 +184,12 @@ window.done = window.ready = (async () => {
     document.querySelectorAll(".mshots")[2].querySelector(".mshot").click();
     await ready(() => counter() === "1 / 2" && document.querySelector(".pvpic")?.naturalWidth > 0);
     document.querySelector('.pvnav[aria-label="Next attachment"]').click();
-    await ready(() => counter() === "2 / 2" && document.querySelector(".pvpanel .callpre"));
-    out.mixed = text(document.querySelector(".pvpanel h2")) === "mixed.txt";
+    await ready(() => counter() === "2 / 2" && document.querySelector(".pvpanel .callpre")
+        && text(document.querySelector(".pvpanel h2")) === "mixed.txt", "The file of the mixed gallery did not open");
     document.querySelector('.pvnav[aria-label="Previous attachment"]').click();
-    await ready(() => counter() === "1 / 2" && document.querySelector(".pvpic")?.naturalWidth > 0);
-    out.mixed = out.mixed && document.querySelector(".pvget")?.getAttribute("download") === "latency-5.svg";
+    await ready(() => counter() === "1 / 2" && document.querySelector(".pvpic")?.naturalWidth > 0
+        && document.querySelector(".pvget")?.getAttribute("download") === "latency-5.svg", "The picture of the mixed gallery did not come back");
+    out.mixed = true;
     await closed(() => document.querySelector(".pvclose").click(), "The mixed gallery did not close");
     const nested = document.createElement("div");
     document.body.appendChild(nested);
