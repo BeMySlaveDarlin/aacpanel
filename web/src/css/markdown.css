@@ -225,3 +225,11 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
 }
 
 .msg a { color: var(--accent); }
+
+.mdmermaid { min-width: 0; max-width: 100%; }
+.mdmermaid pre { padding-top: 2.5rem; }
+.mdmermaidview { max-width: 100%; overflow-x: auto; padding: 2.5rem .8rem .6rem; }
+.mdmermaidview > svg { display: block; height: auto; }
+.mdmermaiderror { margin: 0; padding: 0 .8rem .6rem; font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mdmermaid > .mdmode { width: auto; min-width: 3.5rem; padding-inline: .35rem; font: inherit; font-size: var(--t-xs); }
+.mdmermaid > .mdmode:disabled { opacity: .4; cursor: default; }

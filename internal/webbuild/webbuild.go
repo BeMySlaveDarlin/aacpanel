@@ -25,12 +25,13 @@ const (
 	IconsDir  = "web/static/icons"
 	FontsDir  = "web/static/fonts"
 
-	appEntry   = "main.js"
-	appBundle  = "bundle"
-	termEntry  = "term.js"
-	termBundle = "term"
-	swEntry    = "sw.js"
-	swBundle   = "sw"
+	appEntry      = "main.js"
+	appBundle     = "bundle"
+	termEntry     = "term.js"
+	termBundle    = "term"
+	diagramBundle = "mermaid"
+	swEntry       = "sw.js"
+	swBundle      = "sw"
 
 	// VersionFile holds the build version under DistDir, for the page to read
 	// off the server.
@@ -115,6 +116,18 @@ func Build(o Options) ([]string, error) {
 		return nil, err
 	}
 	written = append(written, term...)
+
+	// The diagram engine is fetched on demand, but changing it still changes
+	// the release so the worker cannot keep an older engine with a newer shell.
+	diagrams, err := os.ReadFile(filepath.Join(root, VendorDir, diagramBundle+".min.js"))
+	if err != nil {
+		return nil, fmt.Errorf("diagram engine: %w", err)
+	}
+	diagramPath := filepath.Join(dist, diagramBundle+".js")
+	if err := os.WriteFile(diagramPath, diagrams, 0o644); err != nil {
+		return nil, fmt.Errorf("writing diagram engine: %w", err)
+	}
+	written = append(written, diagramPath)
 
 	assets, err := shellAssets(root)
 	if err != nil {
@@ -302,7 +315,7 @@ func clean(dist string) error {
 		if e.IsDir() {
 			continue
 		}
-		if !strings.HasPrefix(e.Name(), appBundle+".") && !strings.HasPrefix(e.Name(), swBundle+".") {
+		if !strings.HasPrefix(e.Name(), appBundle+".") && !strings.HasPrefix(e.Name(), swBundle+".") && !strings.HasPrefix(e.Name(), diagramBundle+".") {
 			continue
 		}
 		if err := os.Remove(filepath.Join(dist, e.Name())); err != nil {

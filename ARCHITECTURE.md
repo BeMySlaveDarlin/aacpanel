@@ -3641,6 +3641,14 @@ about a session opens that session.
 an ordinary Go library. A `package.json` appearing is a mistake. The built
 bundle goes into the binary through `embed`.
 
+**Mermaid fences share the markdown renderer.** The engine is a separate
+vendored file, fetched once when a diagram nears the screen and cached on
+demand rather than in the shell precache. Its bytes still enter the build
+version. Strict mode, text labels and locked security settings keep diagram
+directives from enabling HTML or interactions. Each block keeps its source
+for copying, a code view and parse errors; visible diagrams redraw from the
+panel's colour tokens when the theme changes.
+
 **Frontend checks share a network of their own.** The test binary restarts in
 a user and network namespace with its uid and gid mapped to themselves and
 raises loopback before starting any fixture servers or Chrome. Host link

@@ -1,0 +1,72 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="spacer" style="height:220vh"></div><div id="root" class="msg"></div>
+<script type="module">
+import { h, render } from "preact";
+import { render as markdown } from "/src/md.js";
+import { fromClick } from "/src/screens/chat/copy.js";
+import { quiet } from "/check/fixtures/quiet.js";
+
+const root = document.getElementById("root");
+const good = "flowchart TD\nA[Start] --> B[Done]";
+const bad = "flowchart TD\nA[broken";
+const attack = '%%{init: {"securityLevel":"loose","htmlLabels":true}}%%\nflowchart LR\nA["<img src=x onerror=window.diagramAttack()> "] --> B["<' + 'script>window.diagramAttack()<' + '/script>"]\nclick A call diagramAttack()';
+let attacks = 0;
+window.diagramAttack = () => { attacks++; };
+let copied = "";
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => { copied = text; } } });
+root.addEventListener("click", (event) => fromClick(event, () => {}));
+const fence = (text) => "```mermaid\n" + text + "\n```";
+const draw = (texts) => render(h("div", null, texts.map((text, i) => h("section", { id: `case${i}` }, markdown(fence(text))))), root);
+const block = (i) => document.querySelector(`#case${i} .mdmermaid`);
+const until = async (condition) => {
+    const end = performance.now() + 10000;
+    while (!condition()) {
+        if (performance.now() > end) throw new Error("the diagram did not settle");
+        await new Promise(requestAnimationFrame);
+    }
+    return condition();
+};
+const show = (i) => block(i).scrollIntoView();
+const loads = () => performance.getEntriesByType("resource").filter((entry) => entry.name.endsWith("/dist/mermaid.js")).length;
+
+window.done = (async () => {
+    draw([good]);
+    await quiet();
+    const out = { lazy: !document.querySelector('script[src="/dist/mermaid.js"]'), initial: block(0).querySelector("code").textContent };
+    show(0);
+    await until(() => block(0).querySelector(".mdmermaidview svg"));
+    out.diagram = block(0).querySelector(".mdmermaidview svg").textContent.includes("Done");
+    block(0).querySelector(".mdcopy").click();
+    await until(() => copied);
+    out.copied = copied;
+    block(0).querySelector(".mdmode").click();
+    await until(() => !block(0).querySelector("pre").hidden);
+    out.code = block(0).querySelector("code").textContent;
+    out.diagramHidden = block(0).querySelector(".mdmermaidview").hidden;
+    block(0).querySelector(".mdmode").click();
+    await until(() => !block(0).querySelector(".mdmermaidview").hidden);
+    const first = block(0).querySelector(".mdmermaidview svg").id;
+    document.documentElement.classList.add("sky");
+    await until(() => block(0).querySelector(".mdmermaidview svg").id !== first);
+    out.themed = true;
+    draw([good, bad, attack]);
+    show(1);
+    await until(() => block(1).querySelector(".mdmermaiderror"));
+    out.bad = { code: block(1).querySelector("code").textContent, shown: !block(1).querySelector("pre").hidden,
+        error: block(1).querySelector(".mdmermaiderror").textContent, errors: block(1).querySelectorAll(".mdmermaiderror").length };
+    show(2);
+    await until(() => block(2).querySelector(".mdmermaidview svg") || block(2).querySelector(".mdmermaiderror"));
+    if (!block(2).querySelector(".mdmermaidview svg")) throw new Error(block(2).textContent);
+    const svg = block(2).querySelector(".mdmermaidview svg");
+    svg.querySelector(".node").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await quiet();
+    const config = globalThis.mermaid.mermaidAPI.getConfig();
+    out.safe = { attacks, unsafe: Boolean(svg.querySelector("script, img, foreignObject, [onerror], [onload], [onclick]")),
+        strict: config.securityLevel === "strict", html: config.htmlLabels };
+    out.loads = loads();
+    return out;
+})();
+</script>

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { html } from "./html.js";
 import { Icon } from "./ui/icons.js";
 import { highlight, kept, langOf } from "./hl.js";
+import { MermaidBlock } from "./mermaid.js";
 
 // The address of a link may stand apart from its brackets, as in
 // "[the report]( /srv/plans/README.md)": markdown allows the spaces, a model
@@ -183,6 +184,10 @@ export function render(text, opts) {
             }
             i += 1;
             const code = body.join("\n");
+            if (lang.toLowerCase() === "mermaid") {
+                out.push(html`<${MermaidBlock} text=${code} />`);
+                continue;
+            }
             const runnable = opts && opts.onRun && /^(sh|bash|shell|zsh|python|py|python3|)$/i.test(lang);
             out.push(html`
                 <div class=${`mdcode${body.length === 1 ? " oneline" : ""}${runnable ? " runnable" : ""}`}>
