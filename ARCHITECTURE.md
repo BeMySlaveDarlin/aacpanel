@@ -2806,8 +2806,11 @@ groups them by external issue and sends their titles, status changes, notes and
 recorded authors as data. The language comes from `AACP_LANG` in the mounted
 host description, with Russian as the fallback for an unspecified language.
 Body changes carry the appended text, falling back to the last Markdown section
-or the start of a replacement body. Excerpts are limited to 800 runes, then 300,
-then omitted to fit the grouped records into 240 KiB; only records that exceed
+or the start of a replacement body. Each issue group lists task headers once
+with their events; events carry their kind, time, author name and changes, with
+status transitions recorded only when the status changes. Excerpts are limited
+to 800 runes, then 300, then 100, then omitted to fit the grouped records into
+240 KiB; only records that exceed
 that budget without body text refuse the period. The cache fingerprint uses the
 complete recorded facts independently of these excerpts.
 `GET /api/tasks/summary` reads the cache; `POST` goes through the action gate and

@@ -104,6 +104,16 @@ func TestTaskSummaryUsesPeriodEventsAndInvalidatesItsCachePG(t *testing.T) {
 	if strings.Contains(req.Text, `"body":`) || strings.Count(req.Text, note) != 1 || len(req.Text) > 240<<10 {
 		t.Fatal("the prompt repeats full task bodies or exceeds its records budget")
 	}
+	_, rawRecords, found := strings.Cut(req.Text, "Activity records:\n")
+	var records map[string][]store.SummaryTask
+	if err := json.Unmarshal([]byte(rawRecords), &records); err != nil || !found || len(records["SER-1063"]) != 1 || len(records["SER-1063"][0].Events) != 3 {
+		t.Fatalf("the prompt does not group events under one task header: %s, %v", rawRecords, err)
+	}
+	for _, event := range records["SER-1063"][0].Events {
+		if event.Actor != author.Name {
+			t.Fatalf("the compact event did not resolve its author: %+v", event)
+		}
+	}
 	if req.Kind != action.TaskSummary || req.Project == nil || req.Project.Path != filepath.Join(root, "aacpanel") || req.Contour != strconv.Itoa(contour) {
 		t.Fatalf("wrong contour launch: %+v", req)
 	}
@@ -186,11 +196,11 @@ func TestTaskSummaryResolvesArchivedAuthorsLikeThePeriodPG(t *testing.T) {
 	}
 	request := <-fake.got
 	_, raw, found := strings.Cut(request.Text, "Activity records:\n")
-	var records map[string][]store.SummaryEvent
-	if err := json.Unmarshal([]byte(raw), &records); err != nil || !found || len(records["SER-1063"]) != 1 {
+	var records map[string][]store.SummaryTask
+	if err := json.Unmarshal([]byte(raw), &records); err != nil || !found || len(records["SER-1063"]) != 1 || len(records["SER-1063"][0].Events) != 1 {
 		t.Fatalf("the summary prompt has no inventory event: %q, %v", raw, err)
 	}
-	if got := records["SER-1063"][0].Event.ActorName; got != periodName {
+	if got := records["SER-1063"][0].Events[0].Actor; got != periodName {
 		t.Fatalf("the summary event names %q instead of the period's archived author %q", got, periodName)
 	}
 	for range 2 {
@@ -221,6 +231,7 @@ func TestTaskSummaryPromptStaysAboutWorkAndOmitsDates(t *testing.T) {
 		"Do not describe the input data, its fields, format, missing values, or missing chronology.",
 		"Do not invent results or explanations for missing information.",
 		"The appendedText field contains an excerpt of text added to the task.",
+		"Activity records are grouped by issue and then by task, with each task's events listed together.",
 	} {
 		if !strings.Contains(prompt, rule) {
 			t.Errorf("the summary prompt omits the rule %q", rule)

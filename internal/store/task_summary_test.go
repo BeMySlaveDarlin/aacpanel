@@ -27,18 +27,12 @@ func summaryEvent(t *testing.T, body string) SummaryEvent {
 			Precision: "instant", Actor: "conversation", ActorName: "worker", Origin: "panel", Payload: payload}}
 }
 
-func summaryAddedText(t *testing.T, row SummaryEvent) (string, bool) {
+func summaryAddedText(t *testing.T, row SummaryActivity) (string, bool) {
 	t.Helper()
-	var payload struct {
-		Changes map[string]json.RawMessage `json:"changes"`
-	}
-	if err := json.Unmarshal(row.Event.Payload, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if _, found := payload.Changes["body"]; found {
+	if _, found := row.Changes["body"]; found {
 		t.Fatal("a model record still contains the full body")
 	}
-	raw, found := payload.Changes["appendedText"]
+	raw, found := row.Changes["appendedText"]
 	var text string
 	if found {
 		if err := json.Unmarshal(raw, &text); err != nil {
@@ -66,13 +60,22 @@ func TestTaskSummaryCompactsAdditionsBeforeIssueGrouping(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, issue := range []string{"INV-1", "INV-2"} {
-		if len(groups[issue]) != len(parts) {
-			t.Fatalf("%s has %d events", issue, len(groups[issue]))
+		if len(groups[issue]) != 1 || len(groups[issue][0].Events) != len(parts) {
+			t.Fatalf("%s has repeated task headers or missing events: %+v", issue, groups[issue])
 		}
-		for i, row := range groups[issue] {
+		for i, row := range groups[issue][0].Events {
 			if got, found := summaryAddedText(t, row); !found || got != parts[i] {
 				t.Errorf("%s event %d: got %q, want %q", issue, i, got, parts[i])
 			}
+		}
+	}
+	raw, _ := json.Marshal(groups)
+	if strings.Count(string(raw), `"title":`) != 2 || strings.Count(string(raw), `"project":`) != 2 || strings.Count(string(raw), `"number":`) != 2 {
+		t.Fatal("the model input repeats a task header for every event")
+	}
+	for _, field := range []string{`"issues":`, `"id":`, `"precision":`, `"origin":`, `"actorName":`, `"status":`, `"from":`, `"to":`, `"conversation"`} {
+		if strings.Contains(string(raw), field) {
+			t.Errorf("the model input retains the redundant field %s", field)
 		}
 	}
 	after, _ := json.Marshal(events)
@@ -99,7 +102,7 @@ func TestTaskSummaryBodyFallbacksAndRuneLimits(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, found := summaryAddedText(t, groups["Other work"][1]); !found || got != test.want {
+			if got, found := summaryAddedText(t, groups["Other work"][0].Events[1]); !found || got != test.want {
 				t.Fatalf("got %q, want %q", got, test.want)
 			}
 		})
@@ -121,14 +124,42 @@ func TestTaskSummaryKeepsTaskBodiesSeparateAndOtherChangesIntact(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := groups["Other work"]
+	if len(rows) != 3 || len(rows[0].Events) != 3 || len(rows[1].Events) != 1 || len(rows[2].Events) != 1 {
+		t.Fatalf("tasks were merged by name or number alone: %+v", rows)
+	}
+	activities := []SummaryActivity{rows[0].Events[0], rows[1].Events[0], rows[2].Events[0], rows[0].Events[1], rows[0].Events[2]}
 	for i, want := range []string{"Shared prefix.", "Shared prefix. Replacement in another project.", "Shared prefix. Replacement in another task.", "", "Added."} {
-		got, found := summaryAddedText(t, rows[i])
+		got, found := summaryAddedText(t, activities[i])
 		if got != want || found != (i != 3) {
 			t.Errorf("event %d: got %q, present %v, want %q", i, got, found, want)
 		}
 	}
-	if !sameJSON(t, rows[4].Event.Payload, `{"changes":{"appendedText":"Added.","title":{"from":"Old","to":"New"},"status":{"from":"open","to":"done"},"external":"https://example.com/INV-1","blockedBy":[2,3]},"from":"open","to":"done","status":"done"}`) {
-		t.Fatalf("compaction lost other changes: %s", rows[4].Event.Payload)
+	raw, _ := json.Marshal(activities[4])
+	if !sameJSON(t, raw, `{"kind":"changed","at":"2026-01-01T00:00:00Z","actor":"worker","changes":{"appendedText":"Added.","title":{"from":"Old","to":"New"},"external":"https://example.com/INV-1","blockedBy":[2,3]},"from":"open","to":"done"}`) {
+		t.Fatalf("compaction lost changes or duplicated the status: %s", raw)
+	}
+}
+
+func TestTaskSummaryKeepsImportedStatusTransitions(t *testing.T) {
+	for _, test := range []struct {
+		kind, payload, from, to string
+	}{
+		{"closed", `{"status":"cancelled"}`, "", "cancelled"},
+		{"status_changed", `{"from":"done","to":"open"}`, "done", "open"},
+		{"changed", `{"from":"open","to":"open","status":"open"}`, "", ""},
+	} {
+		t.Run(test.kind, func(t *testing.T) {
+			row := summaryEvent(t, "")
+			row.Event.Kind, row.Event.Payload = test.kind, json.RawMessage(test.payload)
+			groups, err := compactSummaryRecords([]SummaryEvent{row}, 800)
+			if err != nil {
+				t.Fatal(err)
+			}
+			event := groups["Other work"][0].Events[0]
+			if event.From != test.from || event.To != test.to {
+				t.Fatalf("status transition: %+v", event)
+			}
+		})
 	}
 }
 
@@ -136,7 +167,7 @@ func TestTaskSummaryBudgetShrinksExcerptsBeforeRefusing(t *testing.T) {
 	for _, test := range []struct {
 		count, limit int
 	}{
-		{1, 800}, {250, 300}, {450, 0}, {1500, -1},
+		{1, 800}, {300, 300}, {600, 100}, {1000, 0}, {2000, -1},
 	} {
 		t.Run(fmt.Sprint(test.count), func(t *testing.T) {
 			events := make([]SummaryEvent, test.count)
@@ -159,7 +190,10 @@ func TestTaskSummaryBudgetShrinksExcerptsBeforeRefusing(t *testing.T) {
 				t.Fatal("the budget dropped events")
 			}
 			for _, row := range source.Records["Other work"] {
-				text, found := summaryAddedText(t, row)
+				if len(row.Events) != 1 {
+					t.Fatal("the budget dropped a task's events")
+				}
+				text, found := summaryAddedText(t, row.Events[0])
 				want := ""
 				if test.limit > 0 {
 					want = strings.Repeat("x", test.limit) + "…"
@@ -211,46 +245,122 @@ func TestTaskSummaryFingerprintUsesUnchangedRawRecords(t *testing.T) {
 	}
 }
 
-func TestTaskSummaryBudgetFitsActiveWeek(t *testing.T) {
-	tasks := make([]taskreg.Task, 82)
+func TestTaskSummaryBudgetFitsMeasuredWeek(t *testing.T) {
+	tasks := make([]taskreg.Task, 111)
 	events := []SummaryEvent{}
+	payloads := []map[string]any{}
+	initial := strings.Repeat("Initial inventory details. ", 40)
 	appendEvent := func(index int, kind string, edit taskreg.Edit) {
 		t.Helper()
 		before := tasks[index].Status
 		changes := edit.Apply(&tasks[index])
-		payload, err := json.Marshal(map[string]any{"changes": changes, "from": before, "to": tasks[index].Status, "status": tasks[index].Status})
-		if err != nil {
-			t.Fatal(err)
-		}
+		payload := map[string]any{"changes": changes, "from": before, "to": tasks[index].Status, "status": tasks[index].Status}
 		row := summaryEvent(t, "")
+		row.Project = "inventory"
 		row.Number = int64(index + 1)
-		row.Title = tasks[index].Title
-		row.Event.ID = int64(len(events) + 1)
-		row.Event.At = row.Event.At.Add(time.Duration(len(events)) * 10 * time.Minute)
-		row.Event.Kind, row.Event.Payload = kind, payload
+		row.Issues = []string{fmt.Sprintf("INV-%05d", index+1)}
+		if index == 20 {
+			row.Issues = append(row.Issues, "INV-SHARED")
+		}
+		row.URL = "https://tracker.example.com/" + strings.Repeat("p", 46)
+		headerBytes := len(row.Project) + len(row.URL)
+		for _, ref := range row.Issues {
+			headerBytes += len(ref)
+		}
+		row.Title = "Reconcile inventory " + strings.Repeat("x", 191-headerBytes-len("Reconcile inventory "))
+		row.Event.ID = int64(10000 + len(events))
+		row.Event.At = time.Date(2026, 1, 1, 0, 0, 0, 123456000, time.UTC).Add(time.Duration(len(events)) * 10 * time.Minute)
+		row.Event.Actor = fmt.Sprintf("11111111-2222-4333-8444-%012d", index)
+		row.Event.ActorName = "inventory-worker-" + strings.Repeat("x", 24)
+		row.Event.Kind = kind
 		events = append(events, row)
+		payloads = append(payloads, payload)
 	}
-	initial := strings.Repeat("Existing inventory details. ", 45)
-	note := strings.Repeat("Inventory reconciled with the ledger. ", 80)
 	for i := range tasks {
 		tasks[i].Status = "open"
-		appendEvent(i, "created", taskreg.Edit{Title: taskString("Finish inventory reconciliation"), Markdown: &initial, Replace: true})
+		if i >= 82 {
+			tasks[i].Markdown = initial
+		}
 	}
+	for i := range 82 {
+		appendEvent(i, "created", taskreg.Edit{Title: taskString("Reconcile inventory records"), Markdown: &initial, Replace: true})
+	}
+	// Multibyte notes keep the byte budget distinct from the rune limit.
+	note := strings.Repeat("é", 1600)
 	for i := range 438 {
 		appendEvent(i%len(tasks), "changed", taskreg.Edit{Markdown: &note})
 	}
 	for i := range 68 {
 		appendEvent(i, "closed", taskreg.Edit{Status: taskString("done"), Markdown: taskString("Inventory verified.")})
 	}
-	for i := range 12 {
+	for i := range 14 {
 		appendEvent(i, "status_changed", taskreg.Edit{Status: taskString("open"), Markdown: taskString("Verification reopened.")})
 	}
-	raw, err := json.Marshal(groupSummaryEvents(events))
-	if err != nil {
-		t.Fatal(err)
+	withoutBody := func(payload map[string]any) []byte {
+		t.Helper()
+		changes := payload["changes"].(map[string]any)
+		body, found := changes["body"]
+		delete(changes, "body")
+		raw, err := json.Marshal(payload)
+		if found {
+			changes["body"] = body
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
 	}
-	t.Logf("synthetic week: %d events, raw records %d bytes", len(events), len(raw))
-	for _, limit := range []int{800, 300, 0} {
+	payloadBytes := 0
+	for _, payload := range payloads {
+		payloadBytes += len(withoutBody(payload))
+	}
+	for i, payload := range payloads {
+		if payloadBytes >= 103*len(events) {
+			break
+		}
+		before := len(withoutBody(payload))
+		payload["changes"].(map[string]any)["external"] = fmt.Sprintf("https://example.com/INV-%04d", i)
+		payloadBytes += len(withoutBody(payload)) - before
+	}
+	headerBytes, eventBytes, bodyBytes := 0, 0, 0
+	bodyless := make([]SummaryEvent, len(events))
+	for i := range events {
+		row := &events[i]
+		headerBytes += len(row.Project) + len(row.Title) + len(row.URL)
+		for _, ref := range row.Issues {
+			headerBytes += len(ref)
+		}
+		event := row.Event
+		eventBytes += len(fmt.Sprint(event.ID)) + len(event.Kind) + len(event.At.Format(time.RFC3339Nano)) + len(event.Precision) + len(event.Actor) + len(event.ActorName) + len(event.Origin)
+		bodyBytes += len(payloads[i]["changes"].(map[string]any)["body"].(string))
+		var err error
+		row.Event.Payload, err = json.Marshal(payloads[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		bodyless[i] = *row
+		bodyless[i].Event.Payload = withoutBody(payloads[i])
+	}
+	t.Logf("measured-shape week: %d tasks, %d events, %d body bytes; average header/event/payload bytes: %.1f / %.1f / %.1f",
+		len(tasks), len(events), bodyBytes, float64(headerBytes)/float64(len(events)), float64(eventBytes)/float64(len(events)), float64(payloadBytes)/float64(len(events)))
+	if len(events) != 602 || headerBytes != 191*len(events) || eventBytes < 127*len(events) || eventBytes > 129*len(events) || payloadBytes < 102*len(events) || payloadBytes > 104*len(events) || bodyBytes < 4.5*(1<<20) || bodyBytes > 5.5*(1<<20) {
+		t.Fatal("the fixture does not match the measured week")
+	}
+	groups := groupSummaryEvents(events)
+	count := 0
+	for _, rows := range groups {
+		count += len(rows)
+	}
+	if count != 608 {
+		t.Fatalf("issue grouping has %d records, want 608", count)
+	}
+	raw, _ := json.Marshal(groups)
+	oldBodyless, _ := json.Marshal(groupSummaryEvents(bodyless))
+	t.Logf("raw records: %d bytes; raw records without bodies: %d bytes", len(raw), len(oldBodyless))
+	if len(oldBodyless) <= summaryRecordsBudget {
+		t.Fatal("the fixture does not reproduce the overflow without body text")
+	}
+	for _, limit := range []int{800, 300, 100, 0} {
 		groups, err := compactSummaryRecords(events, limit)
 		if err != nil {
 			t.Fatal(err)
@@ -262,7 +372,21 @@ func TestTaskSummaryBudgetFitsActiveWeek(t *testing.T) {
 		t.Logf("%d-rune excerpts: %d bytes", limit, len(raw))
 	}
 	source, err := taskSummarySource(events)
-	if err != nil || len(source.Records["Other work"]) != len(events) {
-		t.Fatalf("the active week does not fit: %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, taskCount, hasText := 0, 0, false
+	for _, tasks := range source.Records {
+		taskCount += len(tasks)
+		for _, task := range tasks {
+			count += len(task.Events)
+			for _, event := range task.Events {
+				_, found := summaryAddedText(t, event)
+				hasText = hasText || found
+			}
+		}
+	}
+	if count != 608 || taskCount != 112 || !hasText {
+		t.Fatalf("the measured week lost tasks, events or all note excerpts: tasks=%d events=%d text=%v", taskCount, count, hasText)
 	}
 }

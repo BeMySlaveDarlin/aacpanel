@@ -14,6 +14,7 @@ import (
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/store"
+	"aacpanel/internal/taskreg"
 )
 
 func (s *Server) apiTaskSummary(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +162,12 @@ func summaryPrompt(source store.SummarySource, participants taskContext) (string
 	}
 	for _, records := range source.Records {
 		for i := range records {
-			participants.nameEvent(&records[i].Event)
+			for j := range records[i].Events {
+				event := &records[i].Events[j]
+				author := taskreg.Event{Actor: event.ActorID, ActorName: event.Actor}
+				participants.nameEvent(&author)
+				event.Actor = author.ActorName
+			}
 		}
 	}
 	records, err := json.Marshal(source.Records)
@@ -175,5 +181,6 @@ func summaryPrompt(source store.SummarySource, participants taskContext) (string
 		"The reader has already chosen the period. Do not print dates, times, timestamps, or period boundaries. Start directly with the work, without a heading or introduction. "+
 		"Do not describe the input data, its fields, format, missing values, or missing chronology. Do not invent results or explanations for missing information. "+
 		"The appendedText field contains an excerpt of text added to the task. "+
+		"Activity records are grouped by issue and then by task, with each task's events listed together. "+
 		"Activity records:\n%s", lang, records), nil
 }

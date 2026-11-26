@@ -20,10 +20,28 @@ type TaskSummary struct {
 }
 
 type SummarySource struct {
-	Records     map[string][]SummaryEvent
+	Records     map[string][]SummaryTask
 	Fingerprint string
 	Empty       bool
 	Actors      []string
+}
+
+type SummaryTask struct {
+	Project string            `json:"project"`
+	Number  int64             `json:"number"`
+	Title   string            `json:"title"`
+	URL     string            `json:"url,omitempty"`
+	Events  []SummaryActivity `json:"events"`
+}
+
+type SummaryActivity struct {
+	Kind    string                     `json:"kind"`
+	At      time.Time                  `json:"at"`
+	Actor   string                     `json:"actor,omitempty"`
+	Changes map[string]json.RawMessage `json:"changes,omitempty"`
+	From    string                     `json:"from,omitempty"`
+	To      string                     `json:"to,omitempty"`
+	ActorID string                     `json:"-"`
 }
 
 type SummaryEvent struct {
@@ -95,17 +113,17 @@ func taskSummarySource(events []SummaryEvent) (out SummarySource, err error) {
 		}
 	}
 	// Cache identity covers the recorded bodies; only the model's copy is shortened.
-	for _, limit := range []int{800, 300, 0} {
-		groups, err = compactSummaryRecords(events, limit)
+	for _, limit := range []int{800, 300, 100, 0} {
+		records, err := compactSummaryRecords(events, limit)
 		if err != nil {
 			return out, err
 		}
-		raw, err = json.Marshal(groups)
+		raw, err = json.Marshal(records)
 		if err != nil {
 			return out, err
 		}
 		if len(raw) <= summaryRecordsBudget {
-			out.Records = groups
+			out.Records = records
 			return out, nil
 		}
 	}
@@ -126,21 +144,29 @@ func groupSummaryEvents(events []SummaryEvent) map[string][]SummaryEvent {
 	return groups
 }
 
-func compactSummaryRecords(events []SummaryEvent, limit int) (map[string][]SummaryEvent, error) {
+func compactSummaryRecords(events []SummaryEvent, limit int) (map[string][]SummaryTask, error) {
 	type taskKey struct {
 		project int
 		number  int64
 	}
 	bodies := map[taskKey]string{}
-	compact := make([]SummaryEvent, 0, len(events))
+	groups := map[string][]SummaryTask{}
+	indices := map[string]map[taskKey]int{}
 	for _, row := range events {
-		var payload, changes map[string]json.RawMessage
+		key := taskKey{row.projectID, row.Number}
+		var payload struct {
+			Changes map[string]json.RawMessage `json:"changes"`
+			From    string                     `json:"from"`
+			To      string                     `json:"to"`
+			Status  string                     `json:"status"`
+		}
+		if err := json.Unmarshal(row.Event.Payload, &payload); err != nil {
+			return nil, err
+		}
+		changes := payload.Changes
 		var body string
-		if json.Unmarshal(row.Event.Payload, &payload) == nil &&
-			json.Unmarshal(payload["changes"], &changes) == nil &&
-			len(changes["body"]) > 0 && changes["body"][0] == '"' &&
+		if len(changes["body"]) > 0 && changes["body"][0] == '"' &&
 			json.Unmarshal(changes["body"], &body) == nil {
-			key := taskKey{row.projectID, row.Number}
 			previous, seen := bodies[key]
 			bodies[key] = body
 			text := body
@@ -158,19 +184,34 @@ func compactSummaryRecords(events []SummaryEvent, limit int) (map[string][]Summa
 				}
 				changes["appendedText"], _ = json.Marshal(text)
 			}
-			raw, err := json.Marshal(changes)
-			if err != nil {
-				return nil, err
-			}
-			payload["changes"] = raw
-			row.Event.Payload, err = json.Marshal(payload)
-			if err != nil {
-				return nil, err
-			}
 		}
-		compact = append(compact, row)
+		activity := SummaryActivity{Kind: row.Event.Kind, At: row.Event.At, Actor: row.Event.ActorName,
+			ActorID: row.Event.Actor, Changes: changes}
+		if payload.From != payload.To {
+			activity.From, activity.To = payload.From, payload.To
+			delete(changes, "status")
+		} else if row.Event.Kind == "closed" && payload.From == "" && payload.To == "" && payload.Status != "" {
+			// Imported closures record only their terminal status, including cancellation.
+			activity.To = payload.Status
+		}
+		refs := row.Issues
+		if len(refs) == 0 {
+			refs = []string{"Other work"}
+		}
+		for _, ref := range refs {
+			if indices[ref] == nil {
+				indices[ref] = map[taskKey]int{}
+			}
+			index, found := indices[ref][key]
+			if !found {
+				index = len(groups[ref])
+				indices[ref][key] = index
+				groups[ref] = append(groups[ref], SummaryTask{Project: row.Project, Number: row.Number, Title: row.Title, URL: row.URL})
+			}
+			groups[ref][index].Events = append(groups[ref][index].Events, activity)
+		}
 	}
-	return groupSummaryEvents(compact), nil
+	return groups, nil
 }
 
 func (s *Store) TaskSummary(ctx context.Context, f TaskFilter, fingerprint string) (out *TaskSummary, err error) {
