@@ -182,7 +182,10 @@ function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings, f
             onSettings: onSettings && entry ? () => onSettings({ contour: entry.id, project: p.id }) : null,
         }, `project ${block.name}`)}>
             <button class="dkprojname" type="button" data-tip=${block.name}
-                    aria-expanded=${folded ? "false" : "true"} onClick=${onToggle}>${block.name}</button>
+                    aria-expanded=${folded ? "false" : "true"} onClick=${onToggle}>
+                <span class="dkprojchev" aria-hidden="true"><${Icon.chevron} /></span>
+                <span class="dkprojlabel">${block.name}</span>
+            </button>
             ${block.group && html`<span class="dkprojgroup">${block.group}</span>`}
             ${folded && html`<span class="dkprojcount">${block.live.length} ${plural(block.live.length, "session", "sessions")}</span>`}
             ${folded && waits > 0 && html`<span class="waitn dkwaitn" role="img" aria-label=${`${waits} waiting for you`}><i></i>${waits}</span>`}

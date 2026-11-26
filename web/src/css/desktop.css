@@ -397,24 +397,31 @@
 
     .dksess.on { background: var(--accent-bg); }
 
-    /* The heading of a project inside its contour: a quiet line in the ink
-       of the rows under it, the group of the map beside it, a plus at the
-       edge where the action of the rows stands. It is a label, not a band:
-       the contour above is the band. */
+    /* A project is a group label, so matching session names below it still
+       read as a separate level. */
     .dkproj {
         display: flex;
         align-items: center;
         gap: .45rem;
         min-height: 1.75rem;
         padding: .4rem .22rem .1rem .56rem;
+        background: var(--surface-2);
     }
 
     /* The heading right under the band of the contour needs no air above. */
     .dkcontour + .dkproj { padding-top: .35rem; }
 
-    .dkprojname { min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    .dkprojname { display: inline-flex; align-items: center; gap: .25rem; min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-xs); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); text-align: left; cursor: pointer; }
 
-    .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
+    .dkprojchev { display: flex; flex: none; }
+
+    .dkprojchev svg { width: var(--i-sm); height: var(--i-sm); }
+
+    .dkprojname[aria-expanded="true"] .dkprojchev { transform: rotate(90deg); }
+
+    .dkprojlabel { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .dkprojgroup { flex: none; font-size: var(--t-xs); color: var(--ink-faint); opacity: .7; }
 
     .dkprojcount { flex: none; font-size: var(--t-xs); color: var(--ink-dim); }
 
