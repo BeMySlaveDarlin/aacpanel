@@ -22,7 +22,7 @@ import { WIDE } from "/src/ui/wide.js";
 const desk = window.matchMedia(WIDE).matches;
 document.getElementById("frame").outerHTML = desk
     ? `<div class="deskshell" style="height:100vh;display:flex;flex-direction:column">
-           <header class="dktop"><button class="dkbrand" type="button">host</button></header>
+           <nav class="dkrail"><button class="dkhost" type="button">host</button></nav>
            <div class="dkbody full"><div class="dkpage" id="root"></div></div>
        </div>`
     : `<div class="shell no-nav"><main class="body" id="root"></main></div>`;

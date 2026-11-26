@@ -73,13 +73,11 @@ const reload = async () => {
     show(null);
 };
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms = 3000) => {
-    const end = Date.now() + ms;
-    while (Date.now() < end) {
-        const got = fn();
-        if (got) return got;
-        await sleep(30);
+    const end = performance.now() + ms;
+    while (!fn()) {
+        if (performance.now() > end) throw new Error("desktop state did not settle");
+        await new Promise(requestAnimationFrame);
     }
     return fn();
 };
@@ -87,15 +85,22 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const SECTIONS = ["Sessions", "Containers", "Machine", "Devices"];
 // here names what the header lights: home, a section, or the alerts bell.
 const here = () => {
-    if (document.querySelector(".dktop .dklogo.on")) return "home";
-    const lit = Array.from(document.querySelectorAll(".dktop .dkib.on")).map((b) => b.getAttribute("aria-label") || "");
+    if (document.querySelector('.dksections [aria-label="Home"].on')) return "home";
+    const lit = Array.from(document.querySelectorAll(".dkrail .dkrailbtn.on")).map((b) => b.getAttribute("aria-label") || "");
     const got = lit.find((label) => SECTIONS.includes(label) || label.startsWith("Alerts"));
+    if (document.querySelector(".dkpage .phead h2")?.textContent.trim() === "Devices") return "devices";
     return got ? got.split(",")[0].toLowerCase() : "";
 };
 // A press on what is not there is left for the test to see in the stops
 // that follow, rather than breaking the walk halfway.
 const tap = (el) => el && el.click();
-const press = (label) => tap(document.querySelector(`.dktop [aria-label="${label}"]`));
+const press = async (label) => {
+    if (label === "Devices") {
+        tap(document.querySelector('.dkrail [aria-label="You"]'));
+        await until(() => document.querySelector('[role="menu"][aria-label="You"]'));
+        tap([...document.querySelectorAll('[role="menuitem"]')].find((item) => text(item) === "Devices"));
+    } else tap(document.querySelector(`.deskshell [aria-label="${label}"]`));
+};
 const page = () => text(document.querySelector(".dkpage .phead h2"));
 const back = () => tap(document.querySelector(".dkpage .pback"));
 const talk = () => Boolean(document.querySelector(".dkchat"));
@@ -103,10 +108,10 @@ const kept = () => JSON.parse(localStorage.getItem(KEY) || "null");
 // over stands on a section and opens the pages of the header on top of it,
 // one from the other.
 const over = async (section, ...pages) => {
-    press(section);
+    await press(section);
     await until(() => here() === section.toLowerCase());
     for (const name of pages) {
-        press(name);
+        await press(name);
         await until(() => page() === name);
     }
 };
@@ -117,16 +122,114 @@ const seen = async (want) => {
     return { here: here(), page: page(), chat: talk() };
 };
 
+const LABELS = "aacpanel.desktop.labels";
+const COLUMN = "aacpanel.desktop.column";
+const FILES = "aacpanel.desktop.files";
+const compact = () => document.querySelector(".deskshell").classList.contains("compact");
+const columnWidth = () => parseFloat(document.querySelector(".dkbody").style.getPropertyValue("--column-width"));
+const filesWidth = () => parseFloat(document.querySelector(".cdside").style.getPropertyValue("--files-width")) || null;
+const edge = (files = false) => document.querySelector(files ? ".cdside .dkresize" : ".dkcolumn .dkresize");
+// Geometry supplies the pointer's starting point, never the verdict: widths
+// below are read from state, the inline style and storage.
+const resize = async (want, files = false) => {
+    const handle = edge(files);
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const current = handle.parentElement.getBoundingClientRect().width / rem;
+    const x = 500 + (want - current) * rem * (files ? -1 : 1);
+    handle.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 3, clientX: 500 }));
+    const selecting = document.body.style.userSelect;
+    document.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 3, clientX: x }));
+    await until(() => handle.classList.contains("dragging"));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 3, clientX: x }));
+    await until(() => !edge(files).classList.contains("dragging"));
+    return { value: files ? filesWidth() : columnWidth(), state: Number(edge(files).getAttribute("aria-valuenow")), selecting,
+        released: document.body.style.userSelect };
+};
+const navigation = async () => {
+    const result = { labels: [compact()], journal: [], onlyJournal: [], tips: [] };
+    result.onlyJournal = [...document.querySelectorAll(".dkstripe button")].map((b) => b.getAttribute("aria-label"));
+    result.tips = [...document.querySelectorAll(".dkrail button, .dkstripe button")].map((b) => b.getAttribute("data-tip"));
+    await press("Action journal");
+    await until(() => document.querySelector(".dkright .dkpaneltitle")?.textContent === "Action journal");
+    result.journal.push(!!document.querySelector(".dkbody.full.withpanel .dkright"));
+    await press("Containers");
+    await until(() => here() === "containers");
+    result.journal.push(document.querySelector(".dkright .dkpaneltitle")?.textContent === "Action journal");
+    await press("Home");
+    await until(() => here() === "home");
+    result.journal.push(document.querySelector(".dkright .dkpaneltitle")?.textContent === "Action journal");
+    await press("Action journal");
+    await until(() => !document.querySelector(".dkright"));
+    result.journal.push(!document.querySelector(".dkright"));
+    await press("Hide navigation labels");
+    await until(() => compact() && localStorage.getItem(LABELS) === "false");
+    result.labels.push(compact());
+    await reload();
+    await until(() => document.querySelector(".dkrail"));
+    result.labels.push(compact());
+    await press("Show navigation labels");
+    await until(() => !compact() && localStorage.getItem(LABELS) === "true");
+    await reload();
+    await until(() => document.querySelector(".dkrail"));
+    result.labels.push(compact());
+    await press("Sessions");
+    await until(() => edge());
+    result.widths = [await resize(24), await resize(1000), await resize(-1000), await resize(23)];
+    await until(() => Number(localStorage.getItem(COLUMN)) === 23);
+    await reload();
+    await until(() => edge());
+    result.widthReload = columnWidth();
+    for (const section of ["Containers", "Machine", "Sessions"]) {
+        await press(section);
+        await until(() => here() === section.toLowerCase());
+        (result.sharedWidths ||= []).push(columnWidth());
+    }
+    edge().dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    await until(() => columnWidth() === 19.5 && Number(localStorage.getItem(COLUMN)) === 19.5);
+    result.widthReset = columnWidth();
+    await press("Devices");
+    await until(() => page() === "Devices");
+    result.devices = page();
+    await press("Sessions");
+    await until(() => here() === "sessions");
+    return result;
+};
+const filesPreferences = async () => {
+    const open = async () => {
+        await press("Files");
+        await until(() => document.querySelector(".cdside:not([hidden]) .dkresize"));
+        return document.querySelector(".cdsession");
+    };
+    const session = await open();
+    const result = { initial: filesWidth() };
+    session.style.width = "100rem";
+    result.widths = [await resize(24, true), await resize(1000, true), await resize(-1000, true)];
+    session.style.width = "40rem";
+    result.half = await resize(1000, true);
+    session.style.width = "100rem";
+    await resize(24, true);
+    await until(() => Number(localStorage.getItem(FILES)) === 24);
+    await reload();
+    await until(() => document.querySelector(".dkchat .cdfilesbutton"));
+    await open();
+    result.reload = filesWidth();
+    edge(true).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    await until(() => filesWidth() === null && localStorage.getItem(FILES) === null);
+    result.reset = filesWidth();
+    return result;
+};
+
 window.done = (async () => {
     const out = {};
     try {
-        localStorage.removeItem(KEY);
+        for (const key of [KEY, LABELS, COLUMN, FILES]) localStorage.removeItem(key);
         show(null);
         out.first = await seen("home");
         out.first.head = text(document.querySelector(".dkcenter .dkheadname"));
-        out.briefsButton = Boolean(document.querySelector('.dktop [aria-label="Briefs"]'));
+        out.briefsButton = Boolean(document.querySelector('.deskshell [aria-label="Briefs"]'));
 
-        press("Containers");
+        out.navigation = await navigation();
+        await press("Containers");
         await until(() => here() === "containers");
         await reload();
         out.reloadSection = await seen("containers");
@@ -160,6 +263,7 @@ window.done = (async () => {
         out.reloadChat = await seen("sessions");
         out.reloadChat.asked = await until(() => asked.join(","));
         out.reloadChat.composer = Boolean(await until(() => document.querySelector(".dkchat textarea")));
+        out.files = await filesPreferences();
         await over("Sessions", "Alerts");
         back();
         out.chatAlertsBack = await seen("sessions");

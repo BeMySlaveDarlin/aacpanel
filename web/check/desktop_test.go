@@ -54,7 +54,7 @@ func TestDesktopRulesStayInsideMediaQuery(t *testing.T) {
 		}
 	}
 
-	for _, name := range []string{".deskshell", ".dkbody", ".dkleft", ".dkcenter", ".dkright", ".dktop"} {
+	for _, name := range []string{".deskshell", ".dkbody", ".dkleft", ".dkcenter", ".dkright", ".dkrail", ".dkstripe", ".dkstatus"} {
 		if strings.Count(cssSrc(t), name) == 0 {
 			t.Errorf("shell class %s is gone from the styles — the desktop layout is built out of something else", name)
 		}

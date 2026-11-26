@@ -3654,6 +3654,13 @@ half the code, and a second copy of the conversation would part from the first
 silently. What depends on width is the layout around the screens, not the
 screens themselves.
 
+**The desktop has a section rail and a panel strip.** Home and the sections
+stand on the left, their panels on the right; Journal is shared by every
+section and stays open across section changes. The status bar holds the host,
+route, load and scale. Rail labels and the widths of the section column and
+Files list are kept on the device. Both column edges reset on a double click;
+the Files list gives at most half the conversation to its column.
+
 **A contour is asked for by the id of its map entry, never by the name on the
 screen.** The map labels a contour however its owner likes, and the collector
 knows contours by the directory they live in: a label sent as a name matches
@@ -3671,20 +3678,21 @@ answered with the personal one alone.
 
 **The size of the desktop is the person's to set.** Every size in the styles is
 written in rem, so the root font size is the single number the whole interface
-hangs off: the two buttons in the header move it and the columns, the rows, the
-icons and the type follow at once. The scale sits on the root element while the
+hangs off: the two buttons in the status bar move it and the columns, the rows,
+the icons and the type follow at once. The scale sits on the root element while the
 desktop shell is mounted and is taken off with it — left there, it would follow
 the same browser to the phone, where no control can undo it. The starting point
 is larger than the drawing calls for: a panel at a desk is read from further
 away than one in the hand, and every row of it puts a small mark next to a
 destructive one.
 
-**A button explains itself only when it cannot work.** The tooltip of a button
-that does its job repeats what the icon already says, and it covers the row the
+**An action button explains itself only when it cannot work.** Its tooltip
+repeats what the icon already says, and it covers the row the
 pointer is aiming at — on a row where the neighbouring mark closes a session.
 What an icon cannot say is why it does nothing: an executor that has never heard
 of the action, a session already closing. That text stays; the rest is the icon
-and the name a screen reader is given.
+and the name a screen reader is given. The navigation rails name what their
+buttons open in a tooltip, including when their labels are hidden.
 
 **The terminal emulator loads as a separate file**: it weighs three hundred
 kilobytes and is not always needed — in the common bundle every phone would

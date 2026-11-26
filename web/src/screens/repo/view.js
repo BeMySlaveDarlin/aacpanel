@@ -9,6 +9,7 @@ import { html } from "../../html.js";
 import { useBackClose } from "../../ui/back.js";
 import { Icon } from "../../ui/icons.js";
 import { useWide } from "../../ui/wide.js";
+import { useColumnWidth } from "../../ui/resize.js";
 import { blameOf, changesOf, diffOf, fileOf, findOf, treeOf, useAsk } from "./data.js";
 import { BlameLines } from "./blame.js";
 import { FileLines, Hunk, SplitHunk } from "./lines.js";
@@ -114,6 +115,7 @@ export function FilesButton({ repo }) {
 // Keeping the list mounted also keeps a phone's folder and scroll on return.
 export function RepoView({ repo, feed, children, onSend, onConversation }) {
     const { cwd, wide, open, file, side, data, plain, review, noting } = repo;
+    const column = useColumnWidth({ key: "aacpanel.desktop.files", min: 14, max: 36, side: "left", half: true, label: "Resize files column" });
     const changed = data && !plain && (data.files || []).find((f) => f.path === file);
     const fileShown = Boolean(file) && (wide || open);
     const notesShown = open && side === "notes" && !plain;
@@ -138,7 +140,10 @@ export function RepoView({ repo, feed, children, onSend, onConversation }) {
                 ${children}
             </div>
             ${cwd && html`
-                <aside class="cdside" aria-label="Files" hidden=${!open || (!wide && fileShown && !notesShown)}>
+                <aside class="cdside" aria-label="Files" ref=${column.ref}
+                       style=${wide && column.width !== null ? `--files-width:${column.width}rem` : undefined}
+                       hidden=${!open || (!wide && fileShown && !notesShown)}>
+                    ${wide && column.edge}
                     ${!wide && html`
                         <div class="cdfileshead">
                             <div><h2>Files</h2><span>${dirName(cwd)}${data && !plain ? ` · ${data.branch}` : ""}</span></div>

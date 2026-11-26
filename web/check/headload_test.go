@@ -18,9 +18,9 @@ type loadShot struct {
 	Blank  int `json:"blank"`
 }
 
-// The top bar answers "what is this machine doing" without leaving the screen
+// The status bar answers "what is this machine doing" without leaving the screen
 // you are on: processor, memory and disk, in that order, on one line.
-func TestTheTopBarCarriesTheLoadOfTheHost(t *testing.T) {
+func TestTheStatusBarCarriesTheLoadOfTheHost(t *testing.T) {
 	var got loadShot
 	runWideFixture(t, "headload.html", &got)
 
@@ -79,24 +79,15 @@ func TestTheLoadLeadsIntoTheMachineAndVanishesWithoutASnapshot(t *testing.T) {
 	}
 }
 
-// The gauges sit between the icons and the controls, not among the buttons at
-// the end: they are read on the way past, and a number wedged between a theme
-// switch and a sign-out button is read as another control.
-func TestTheLoadSitsInTheMiddleOfTheTopBar(t *testing.T) {
-	files := srcFiles(t)
-	shell := stripComments(files["src/desktop/shell.js"])
-	if shell == "" {
-		t.Fatal("src/desktop/shell.js not found — the test looks in the wrong place")
+// The load stays available in the shell while its section changes.
+func TestTheStatusBarCarriesTheLoadControl(t *testing.T) {
+	shell := stripComments(srcFiles(t)["src/desktop/shell.js"])
+	start := strings.Index(shell, `<footer class="dkstatus">`)
+	if start < 0 {
+		t.Fatal("the shell has no status bar")
 	}
-	load := strings.Index(shell, "<${HeadLoad}")
-	right := strings.Index(shell, `<div class="dktopright">`)
-	if load < 0 {
-		t.Fatal("the top bar draws no load at all")
-	}
-	if right < 0 {
-		t.Fatal("the top bar has no right-hand group — the test looks in the wrong place")
-	}
-	if load > right {
-		t.Error("the load moved in among the controls at the end of the bar")
+	end := strings.Index(shell[start:], "</footer>")
+	if end < 0 || !strings.Contains(shell[start:start+end], "<${HeadLoad}") {
+		t.Error("the status bar has no host load control")
 	}
 }

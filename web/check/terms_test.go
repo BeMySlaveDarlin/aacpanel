@@ -707,7 +707,7 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 	}
 
 	t.Run("the places stand as columns of their own", func(t *testing.T) {
-		if len(got.Sections) < 2 || got.Sections[0] != "Sessions" || got.Sections[1] != "Terminals" {
+		if len(got.Sections) < 3 || got.Sections[0] != "Home" || got.Sections[1] != "Sessions" || got.Sections[2] != "Terminals" {
 			t.Errorf("the sections read %v, expected terminals right after the sessions", got.Sections)
 		}
 		heads := []string{}

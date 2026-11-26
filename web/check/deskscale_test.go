@@ -44,7 +44,7 @@ func TestDesktopSizesRideOnTheRootFontSize(t *testing.T) {
 
 	root := files["src/css/base.css"]
 	if !strings.Contains(root, "var(--ui-scale") {
-		t.Error("src/css/base.css: the root font size does not read --ui-scale — the two buttons in the header move nothing")
+		t.Error("src/css/base.css: the root font size does not read --ui-scale — the two buttons in the status bar move nothing")
 	}
 }
 
@@ -85,13 +85,13 @@ func TestDesktopScaleLivesOnTheRootAndLeavesWithTheShell(t *testing.T) {
 
 	shell := srcFiles(t)["src/desktop/shell.js"]
 	if !strings.Contains(shell, "useScale()") {
-		t.Error("the desktop shell does not take the scale — the header has nothing to move")
+		t.Error("the desktop shell does not take the scale — the status bar has nothing to move")
 	}
 	if !strings.Contains(shell, `class="dkzoom"`) {
-		t.Error("the header has no scale control — the size of the interface is settled by whoever wrote the styles")
+		t.Error("the status bar has no scale control — the size of the interface is settled by whoever wrote the styles")
 	}
 	if !strings.Contains(cssWithoutComments(cssSrc(t)), ".dkzoom") {
-		t.Error("the scale control has no styles — two bare buttons stand in the header")
+		t.Error("the scale control has no styles — two bare buttons stand in the status bar")
 	}
 }
 

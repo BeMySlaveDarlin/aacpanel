@@ -88,7 +88,7 @@ window.done = (async () => {
         const phone = document.getElementById("phone");
         out.nav = Array.from(phone.querySelectorAll("nav.tabs > button")).map(text);
         out.tab = localStorage.getItem("aacpanel.tab");
-        out.sections = Array.from(document.querySelectorAll("#desk .dkibs .dkib")).map((b) => b.getAttribute("aria-label"));
+        out.sections = Array.from(document.querySelectorAll("#desk .dksections .dkrailbtn")).map((b) => b.getAttribute("aria-label"));
         out.deskAt = (JSON.parse(localStorage.getItem("aacpanel.desktop.place") || "{}") || {}).section || "";
         out.deck = Boolean(document.querySelector("#chat .deck"));
         out.button = Boolean(document.querySelector("#chat .tjump"));

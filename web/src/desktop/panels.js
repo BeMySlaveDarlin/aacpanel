@@ -29,22 +29,19 @@ export function RightPanel({ tab, title, profiles, names, archPicks, setArchPick
     `;
 }
 
-// The buttons of a section beside its sections. Most open a panel at the
-// right; one marked layer opens over the whole shell instead — the map is
-// settings in three columns, too wide for a panel.
+export const JOURNAL = { id: "journal", label: "Action journal", name: "Journal", icon: Icon.list };
+
+// A layer opens over the whole shell: the map's settings need three columns.
 export const PANELS = {
     sessions: [
         { id: "archive", label: "Session archive", icon: Icon.clock },
         { id: "projects", label: "Projects", icon: Icon.cube, layer: true },
-        { id: "journal", label: "Action journal", icon: Icon.list },
     ],
     containers: [
         { id: "logs", label: "Container logs", icon: Icon.terminal },
-        { id: "journal", label: "Action journal", icon: Icon.list },
     ],
     machine: [
         { id: "procs", label: "Processes", icon: Icon.tools },
-        { id: "journal", label: "Action journal", icon: Icon.list },
     ],
     devices: [],
     home: [],

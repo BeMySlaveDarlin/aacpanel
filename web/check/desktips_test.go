@@ -17,7 +17,7 @@ import (
 func TestActionButtonsExplainOnlyWhyTheyAreOff(t *testing.T) {
 	// Marks, chips and readings are not buttons: they stand for a state, and
 	// the tip is the whole of what they say.
-	buttons := regexp.MustCompile(`dkact|dkib[^s]|dkzoombtn|viewbtn|feedjump`)
+	buttons := regexp.MustCompile(`dkact|dkzoombtn|viewbtn|feedjump`)
 	at := regexp.MustCompile(`data-tip=`)
 	// A text standing where the working button's tip goes — the branch taken
 	// when the host does know the action, with the refusal in the other one.

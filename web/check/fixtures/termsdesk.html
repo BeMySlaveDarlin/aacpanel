@@ -121,7 +121,7 @@ const until = async (fn, ms = 3000) => {
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const all = (sel, from = document) => Array.from(from.querySelectorAll(sel));
-const sections = () => all(".dktop .dkibs")[0];
+const sections = () => document.querySelector(".dksections");
 const sheet = () => document.querySelector(".sheet.on");
 const closes = () => asked.filter((a) => a.kind === "term.close");
 // The tabs over a terminal read as their names, the open one starred.
@@ -171,9 +171,9 @@ const cardShot = (c) => {
 window.done = (async () => {
     const out = {};
     try {
-        await until(() => all(".dkib", sections()).some((b) => b.getAttribute("aria-label") === "Terminals"));
-        out.sections = all(".dkib", sections()).map((b) => b.getAttribute("aria-label"));
-        all(".dkib", sections()).find((b) => b.getAttribute("aria-label") === "Terminals").click();
+        await until(() => all(".dkrailbtn", sections()).some((b) => b.getAttribute("aria-label") === "Terminals"));
+        out.sections = all(".dkrailbtn", sections()).map((b) => b.getAttribute("aria-label"));
+        all(".dkrailbtn", sections()).find((b) => b.getAttribute("aria-label") === "Terminals").click();
 
         await until(() => all(".pfdesk.row > .pfstack").length === 3 && all(".tcard").length === 6);
         const stacks = all(".pfdesk.row > .pfstack");

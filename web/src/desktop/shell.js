@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { terminalOnScreen, typing } from "../ui/focus.js";
+import { MenuItem, useMenu } from "../ui/menu.js";
+import { useColumnWidth } from "../ui/resize.js";
 import { attachTips } from "./tip.js";
 import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
@@ -22,18 +24,18 @@ import { MachineCats, MachineCenter } from "./machine.js";
 import { routeChip } from "../ui/route.js";
 import { useToastHide } from "../ui/toasts.js";
 import { Home } from "./home.js";
-import { PANELS, RightPanel } from "./panels.js";
+import { JOURNAL, PANELS, RightPanel } from "./panels.js";
 import { MapSettings } from "./settings.js";
 import { MenuHost } from "./menu.js";
 import { CardPieHost } from "../screens/sessions/cardpie.js";
 import { MAX, MIN, useScale } from "./scale.js";
 
 export const SECTIONS = [
+    { id: "home", label: "Home", icon: Icon.orbit },
     { id: "sessions", label: "Sessions", icon: Icon.sessions },
     { id: "terminals", label: "Terminals", icon: Icon.prompt },
     { id: "containers", label: "Containers", icon: Icon.containers },
     { id: "machine", label: "Machine", icon: Icon.cpu },
-    { id: "devices", label: "Devices", icon: Icon.skill },
 ];
 
 // The pages stand over a section rather than beside it: each has a way back,
@@ -42,9 +44,18 @@ const PAGES = ["devices", "alerts"];
 
 // Every section the shell can stand on. A kept section that is not among them
 // opens home.
-const PLACES = ["home", ...SECTIONS.map((s) => s.id), "alerts"];
+const PLACES = [...SECTIONS.map((s) => s.id), ...PAGES];
 
 const PLACE_KEY = "aacpanel.desktop.place";
+const LABELS_KEY = "aacpanel.desktop.labels";
+
+function readLabels() {
+    try {
+        return localStorage.getItem(LABELS_KEY) !== "false";
+    } catch {
+        return true;
+    }
+}
 
 // talkOf keeps what names a conversation and drops what it was drawn from: an
 // archive row is a copy of a list as it stood then, and the conversation opens
@@ -117,35 +128,39 @@ function Zoom({ scale, onSmaller, onBigger }) {
     `;
 }
 
-// A button of the header is its icon and nothing else: the name of what it
-// opens reaches a screen reader through aria-label, and a pointer reads the
-// section that lights up after the press.
-function IconButton({ item, active, onClick }) {
+function NavButton({ item, active, onClick, stripe = false, count = 0 }) {
     return html`
         <button
-            class=${`dkib${active ? " on" : ""}`}
+            class=${`${stripe ? "dkpaneltab" : "dkrailbtn"}${active ? " on" : ""}`}
             type="button"
-            aria-label=${item.label}
+            aria-label=${count > 0 ? `${item.label}, ${count} unread` : item.label}
+            aria-pressed=${Boolean(active)}
+            data-tip=${item.label}
+            data-tipside=${stripe ? "left" : undefined}
             onClick=${onClick}
-        ><${item.icon} /></button>
-    `;
-}
-
-// The alerts bell stays in the header even with nothing open, so there is a
-// way to the screen before anything breaks — the count on it is only how it
-// says something is waiting, not the only door in.
-function AlertsButton({ count, active, onClick }) {
-    return html`
-        <button
-            class=${`dkib${active ? " on" : ""}`}
-            type="button"
-            aria-label=${count > 0 ? `Alerts, ${count} unread` : "Alerts"}
-            onClick=${onClick}
-        >
-            <${Icon.alerts} />
+        ><${item.icon} /><span class="dknavlabel">${item.name || item.label}</span>
             ${count > 0 && html`<span class="dkibnum">${count}</span>`}
         </button>
     `;
+}
+
+function YouMenu({ onDevices, theme, onTheme }) {
+    return html`
+        <${MenuItem} label="Devices" onPick=${onDevices} />
+        <${MenuItem} label=${theme === "sky" ? "Dark theme" : "Light theme"} onPick=${onTheme} />
+        <${MenuItem} label="Sign out" onPick=${logout} />
+    `;
+}
+
+function AlertsButton({ count, active, onClick }) {
+    return html`<${NavButton} item=${{ label: "Alerts", icon: Icon.alerts }} count=${count}
+        active=${active} onClick=${onClick} />`;
+}
+
+function YouButton({ onDevices, theme, onTheme }) {
+    const menuOf = useMenu();
+    return html`<${NavButton} item=${{ label: "You", icon: Icon.settings }}
+        onClick=${menuOf && menuOf(YouMenu, { onDevices, theme, onTheme }, "You")} />`;
 }
 
 export function DesktopShell({
@@ -208,6 +223,12 @@ export function DesktopShell({
     const [order, setOrder] = useState([]);
 
     const zoom = useScale();
+    const [labels, setLabels] = useState(readLabels);
+    useEffect(() => {
+        try { localStorage.setItem(LABELS_KEY, String(labels)); } catch {
+        }
+    }, [labels]);
+    const column = useColumnWidth({ key: "aacpanel.desktop.column", min: 16, max: 32, initial: 19.5, label: "Resize section column" });
 
     const shellRef = useRef(null);
     const tipRef = useRef(null);
@@ -225,14 +246,14 @@ export function DesktopShell({
     const container = current ? (current.containers || []).find((c) => c.id === cont) || null : null;
 
     // A page opened from another page goes back to the section under both:
-    // two pages of the header replace each other, and neither is where the
+    // two pages replace each other, and neither is where the
     // person came from.
     const goSection = useCallback((id) => {
         setPlace((cur) => ({
             section: id,
             from: PAGES.includes(id) ? (PAGES.includes(cur.section) ? cur.from : cur.section) : "",
         }));
-        setPanel((cur) => ((PANELS[id] || []).some((p) => p.id === cur) ? cur : null));
+        setPanel((cur) => (cur === "journal" || (PANELS[id] || []).some((p) => p.id === cur) ? cur : null));
     }, []);
     const goBack = useCallback(() => goSection(from || "home"), [goSection, from]);
 
@@ -402,82 +423,46 @@ export function DesktopShell({
     ].filter(Boolean);
 
     const chip = routeChip(route);
+    const hostName = (snapshot && snapshot.hostName) || "host";
     const panels = PANELS[section] || [];
-    const panelTitle = (panels.find((p) => p.id === panel) || {}).label || "";
+    const panelTitle = ([...panels, JOURNAL].find((p) => p.id === panel) || {}).label || "";
     const wide = section === "home" || section === "devices" || section === "alerts" || section === "terminals";
 
     // The menu of the right click stands inside the shell, where the tips of
     // its items are read.
     return html`
-        <div class="deskshell" ref=${shellRef}>
+        <div class=${`deskshell${labels ? "" : " compact"}`} ref=${shellRef}>
             <${MenuHost}>
                 <div class="dktip" ref=${tipRef} role="tooltip"></div>
-                <header class="dktop">
-                    <button
-                        class="dkbrand"
-                        type="button"
-                        aria-label="Settings"
-                        onClick=${() => setSettings(true)}
-                    >${(snapshot && snapshot.hostName) || "host"}<span class="caret">▾</span></button>
-                    <button
-                        class=${`dklogo${section === "home" ? " on" : ""}`}
-                        type="button"
-                        aria-label="Home"
-                        onClick=${() => goSection("home")}
-                    ><${Icon.orbit} /></button>
-                    <nav class="dkibs">
-                        ${SECTIONS.filter((it) => it.id !== "terminals" || term.route).map((it) => html`
-                            <${IconButton} key=${it.id} item=${it} active=${section === it.id} onClick=${() => goSection(it.id)} />
-                        `)}
+                <div class="dkworkspace">
+                    <nav class="dkrail" aria-label="Sections">
+                        <button class="dkhost" type="button" aria-label=${labels ? "Settings" : `${hostName} settings`}
+                                data-tip=${labels ? "Settings" : `${hostName} · Settings`}
+                                onClick=${() => setSettings(true)}>
+                            <span>${labels ? hostName : Array.from(hostName)[0].toUpperCase()}</span>
+                            ${labels && html`<span class="caret">▾</span>`}
+                        </button>
+                        <div class="dksections">
+                            ${SECTIONS.filter((it) => it.id !== "terminals" || term.route).map((it) => html`
+                                <${NavButton} key=${it.id} item=${it} active=${section === it.id} onClick=${() => goSection(it.id)} />
+                            `)}
+                        </div>
+                        <div class="dkrailbottom">
+                            <button class="dkrailbtn dkcollapse" type="button" aria-label=${labels ? "Hide navigation labels" : "Show navigation labels"}
+                                    data-tip=${labels ? "Hide navigation labels" : "Show navigation labels"} aria-pressed=${!labels}
+                                    onClick=${() => setLabels((v) => !v)}><${Icon.chevron} /></button>
+                            <${AlertsButton} count=${openAlerts} active=${section === "alerts"} onClick=${() => goSection("alerts")} />
+                            <${YouButton} onDevices=${() => goSection("devices")} theme=${theme} onTheme=${onTheme} />
+                        </div>
                     </nav>
-                    ${panels.length > 0 && html`<span class="dksep"></span>`}
-                    <nav class="dkibs">
-                        ${panels.map((it) => html`
-                            <${IconButton}
-                                key=${it.id}
-                                item=${it}
-                                active=${it.layer ? mapOpen : panel === it.id}
-                                onClick=${() => (it.layer ? setMapOpen(true) : setPanel((cur) => (cur === it.id ? null : it.id)))}
-                            />
-                        `)}
-                    </nav>
-                    <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
-                    <div class="dktopright">
-                        ${snapshot && snapshot.cookieInsecure && html`
-                            <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well" data-tipside="left">
-                                cookie without Secure
-                            </span>
-                        `}
-                        ${troubles.length > 0 && html`
-                            <span class="dkalert" data-tip=${troubles.join(" · ")} data-tipside="left">
-                                silent <b>${troubles.length}</b>
-                            </span>
-                        `}
-                        ${route && route.here && html`
-                            <button
-                                class=${`dkroute${chip.near ? " on" : ""}`}
-                                type="button"
-                                data-tip=${chip.tip}
-                                data-tipside="left"
-                                onClick=${route.onOpen}
-                            >${chip.text}</button>
-                        `}
-                        <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
-                        <${AlertsButton} count=${openAlerts} active=${section === "alerts"} onClick=${() => goSection("alerts")} />
-                        <${IconButton}
-                            item=${{ label: theme === "sky" ? "Dark theme" : "Light theme", icon: theme === "sky" ? Icon.moon : Icon.sun }}
-                            active=${false}
-                            onClick=${onTheme}
-                        />
-                        <${IconButton} item=${{ label: "Sign out", icon: Icon.exit }} active=${false} onClick=${logout} />
-                    </div>
-                </header>
 
                 <${CardPieHost} snapshot=${snapshot} exec=${exec} wait=${wait} onTerm=${term.route ? openTerm : null}>
-                <div class=${`dkbody${panel ? " withpanel" : ""}${wide ? " full" : ""}`}>
-                    ${!wide && left()}
+                <div class=${`dkbody${panel ? " withpanel" : ""}${wide ? " full" : ""}`} style=${`--column-width:${column.width}rem`}>
+                    ${!wide && html`<div class="dkcolumn" ref=${column.ref}>
+                        ${left()}${column.edge}
+                    </div>`}
                     ${center()}
-                    ${panel && !wide && html`
+                    ${panel && html`
                         <${RightPanel}
                             snapshot=${snapshot}
                             tab=${panel}
@@ -494,6 +479,36 @@ export function DesktopShell({
                     `}
                 </div>
                 <//>
+                    <nav class="dkstripe" aria-label="Panels">
+                        <div class="dksectionpanels">
+                            ${panels.map((it) => html`
+                                <${NavButton} key=${it.id} item=${it} stripe=${true}
+                                    active=${it.layer ? mapOpen : panel === it.id}
+                                    onClick=${() => (it.layer ? setMapOpen(true) : setPanel((cur) => (cur === it.id ? null : it.id)))} />
+                            `)}
+                        </div>
+                        <${NavButton} item=${JOURNAL} stripe=${true} active=${panel === "journal"}
+                            onClick=${() => setPanel((cur) => cur === "journal" ? null : "journal")} />
+                    </nav>
+                </div>
+                <footer class="dkstatus">
+                    <span class="dkstatushost"><i class=${`dkconnection${hostError || ageSec > 120 ? " silent" : ""}`}></i>${(snapshot && snapshot.hostName) || "host"}</span>
+                    ${route && route.here && html`
+                        <button class=${`dkroute${chip.near ? " on" : ""}`} type="button" data-tip=${chip.tip}
+                                onClick=${route.onOpen}>${chip.text}</button>
+                    `}
+                    <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
+                    ${snapshot && snapshot.cookieInsecure && html`
+                        <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well">
+                            cookie without Secure
+                        </span>
+                    `}
+                    ${troubles.length > 0 && html`
+                        <span class="dkalert" data-tip=${troubles.join(" · ")}>silent <b>${troubles.length}</b></span>
+                    `}
+                    <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
+                </footer>
+
 
                 ${settings && html`<${Settings} onClose=${() => setSettings(false)} exec=${exec} />`}
 

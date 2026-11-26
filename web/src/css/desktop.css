@@ -1,4 +1,4 @@
-/* Desktop layout: columns, top menu and panels. */
+/* Desktop layout: navigation rails, columns and status bar. */
 
 @media (min-width: 1100px) {
     /* The model and moves stay together; tools take the spare width and wrap
@@ -43,65 +43,111 @@
         --me-bg: #f0efec;
     }
 
-    .dktop {
+    .dkworkspace { display: flex; flex: 1; min-height: 0; }
+
+    .dkrail, .dkstripe {
         display: flex;
-        align-items: center;
-        gap: .5rem;
-        height: 2.9rem;
+        flex-direction: column;
         flex: none;
-        padding: 0 .6rem;
-        border-bottom: var(--hair) solid var(--line);
+        min-height: 0;
+        gap: .2rem;
+        padding: .4rem .3rem;
         background: var(--top-bg);
     }
 
-    .dkbrand {
-        display: inline-flex;
+    .dkrail { width: 4.5rem; padding-inline: 0; border-right: var(--hair) solid var(--line); }
+    .dkstripe { border-left: var(--hair) solid var(--line); padding-inline: .2rem; }
+    .dksections, .dkrailbottom, .dksectionpanels { display: flex; flex-direction: column; gap: .2rem; }
+    .dksections { min-height: 0; overflow-y: auto; }
+    .dkrailbottom { margin-top: auto; }
+    .dksectionpanels { flex: 1; min-height: 0; overflow-y: auto; }
+
+    .dkhost {
+        display: flex;
         align-items: center;
+        justify-content: center;
+        flex: none;
         gap: .2rem;
-        padding: .2rem .3rem;
+        min-width: 0;
+        padding: .55rem .1rem .7rem;
+        margin-bottom: .2rem;
+        margin-inline: .3rem;
+        border: 0;
+        border-bottom: var(--hair) solid var(--line);
+        background: none;
+        color: var(--ink-dim);
+        font: 700 var(--t-xs)/1 var(--sans);
+        cursor: pointer;
+    }
+
+    .dkhost > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dkhost .caret { flex: none; }
+
+    .dkrailbtn, .dkpaneltab {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        gap: .3rem;
+        padding: .55rem .1rem;
         border: 0;
         border-radius: var(--r-small);
         background: none;
-        font: 700 var(--t-md)/1 var(--sans);
-        letter-spacing: .1em;
-        text-transform: uppercase;
-        color: var(--ink-dim);
+        color: var(--ink-faint);
+        font: 500 var(--t-xs)/1.15 var(--sans);
         cursor: pointer;
     }
 
-    .dklogo {
-        position: relative;
-        display: grid;
-        place-items: center;
-        width: 2rem;
-        height: 2rem;
-        margin-right: .2rem;
+    .dkrailbtn { flex-direction: column; min-height: 2.8rem; margin-inline: .3rem; }
+    .dkrailbtn svg { width: var(--i-md); height: var(--i-md); }
+    .dkpaneltab { writing-mode: vertical-rl; padding: .7rem .4rem; gap: .5rem; }
+    .dkpaneltab svg { width: var(--i-sm); height: var(--i-sm); }
+    .dkrailbtn.on, .dkpaneltab.on { color: var(--accent); background: var(--accent-bg); }
+    .dkrailbtn.on::before { content: ""; position: absolute; left: -.3rem; top: .4rem; bottom: .4rem; width: 2px; background: var(--accent); }
+    .dkcollapse { min-height: 1.8rem; }
+    .dkcollapse svg { transform: rotate(180deg); }
+    .compact .dkcollapse svg { transform: none; }
+    .compact .dkrail { width: 2.7rem; }
+    .compact .dkhost {
+        align-self: center;
+        width: 1.8rem;
+        height: 1.8rem;
+        padding: 0;
         border: 0;
         border-radius: var(--r-small);
-        background: transparent;
+        background: var(--accent-bg);
         color: var(--accent);
-        cursor: pointer;
+        font-size: var(--t-md);
+    }
+    .compact .dknavlabel { display: none; }
+    .compact .dkpaneltab { padding: .7rem .3rem; }
+    .compact .dkrailbtn { min-height: 2.2rem; }
+    .compact .dkcollapse { min-height: 1.8rem; }
+
+    .dkstatus {
+        display: flex;
+        align-items: center;
+        flex: none;
+        gap: .7rem;
+        min-height: 1.8rem;
+        padding: .1rem .6rem;
+        border-top: var(--hair) solid var(--line);
+        background: var(--top-bg);
+        color: var(--ink-faint);
+        font-size: var(--t-xs);
     }
 
-    .dklogo svg { width: var(--i-lg); height: var(--i-lg); }
+    .dkstatushost { display: flex; align-items: center; gap: .4rem; color: var(--ink-dim); }
+    .dkconnection { width: .4rem; height: .4rem; border-radius: var(--r-pill); background: var(--ok); }
+    .dkconnection.silent { background: var(--warn); }
+    .dkstatus .dkzoom { margin-left: auto; }
 
-    .dklogo.on { background: var(--accent-bg); }
-
-    .dkibs { display: flex; align-items: center; gap: .15rem; }
-
-    .dksep { width: var(--hair); height: 1.5rem; background: var(--line); margin: 0 .3rem; }
-
-    .dktopright { display: flex; align-items: center; gap: .3rem; }
-
-    /* The load of the host, at the end of the bar: three gauges that never move,
-       so a glance at the same spot always answers the same question. */
+    /* The same readings stay visible while the centre changes section. */
     .dkload {
         display: flex;
         align-items: center;
-        gap: 1.05rem;
-        /* Between the icons and the controls, in the middle of what is left:
-           the gauges are read, not pressed, and the bar reads left to right. */
-        margin-inline: auto;
+        gap: .6rem;
         padding: .25rem .5rem;
         border: 0;
         border-radius: var(--r-small);
@@ -122,26 +168,6 @@
         line-height: 1.35;
     }
 
-    .dkib {
-        position: relative;
-        display: grid;
-        place-items: center;
-        width: 2.2rem;
-        height: 2.2rem;
-        border: 0;
-        border-radius: var(--r-small);
-        background: transparent;
-        color: var(--ink-faint);
-        cursor: pointer;
-    }
-
-    .dkib svg { width: var(--i-md); height: var(--i-md); }
-
-    .dkib.on { color: var(--accent); background: var(--accent-bg); }
-
-    /* The count rides on the bell rather than standing beside it: the header
-       row is a line of equal buttons, and one of them grown wider by a number
-       moves every neighbour the pointer was already going for. */
     .dkibnum {
         position: absolute;
         top: 0;
@@ -250,12 +276,24 @@
         flex: 1;
         min-height: 0;
         display: grid;
-        grid-template-columns: 19.5rem minmax(0, 1fr);
+        grid-template-columns: var(--column-width, 19.5rem) minmax(0, 1fr);
+        min-width: 0;
     }
 
-    .dkbody.withpanel { grid-template-columns: 19.5rem minmax(0, 1fr) 24rem; }
+    .dkbody.withpanel { grid-template-columns: var(--column-width, 19.5rem) minmax(0, 1fr) 24rem; }
 
-    .dkbody.full, .dkbody.full.withpanel { grid-template-columns: minmax(0, 1fr); }
+    .dkbody.full { grid-template-columns: minmax(0, 1fr); }
+
+    .dkbody.full.withpanel { grid-template-columns: minmax(0, 1fr) 24rem; }
+
+    .dkcolumn { position: relative; display: flex; min-height: 0; min-width: 0; }
+    .dkcolumn > .dkleft { flex: 1; min-width: 0; }
+
+    .dkresize { position: absolute; top: 0; bottom: 0; z-index: 5; width: .4rem; cursor: col-resize; touch-action: none; }
+    .dkresize.right { right: -.2rem; }
+    .dkresize.left { left: -.2rem; }
+    .dkresize::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(50% - 1px); width: 2px; }
+    .dkresize:hover::after, .dkresize.dragging::after, .dkresize:focus-visible::after { background: var(--accent); }
 
     /* The columns are parted by hairlines and sit on the page: no column has a
        ground or a shadow of its own. */
@@ -1101,6 +1139,11 @@
         height: 32rem;
     }
 
+    /* The global panel narrows Home too; its summary needs a full row. */
+    .dkbody.full.withpanel .dkhmnow { grid-template-columns: minmax(0, 1fr); height: auto; }
+    .dkbody.full.withpanel .dkorbits { height: 32rem; }
+    .dkbody.full.withpanel .dkhmgroup { flex-wrap: wrap; }
+
     .dkhmside { display: flex; flex-direction: column; gap: .5rem; min-width: 0; min-height: 0; }
 
     .dkhmside > .uday { flex: 1; }
@@ -1800,9 +1843,7 @@
 
     .dkmodalbody .btnrow:not(.pfdiskrow) > .btn { flex: none; }
 
-.dklogo:hover { background: var(--glass); }
-    .dkbrand:hover { color: var(--ink); background: var(--glass); }
-    .dkib:hover { color: var(--ink); background: var(--glass); }
+    .dkhost:hover, .dkrailbtn:hover, .dkpaneltab:hover { color: var(--ink); background: var(--glass); }
     .dksess:not(.on):hover { background: var(--glass); }
     .dknew:not(:disabled):hover, .dkshelfall:hover { color: var(--ink); background: var(--glass); }
     .dknewrow:not(:disabled):hover { background: var(--glass); }

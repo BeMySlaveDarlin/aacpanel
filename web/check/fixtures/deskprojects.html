@@ -113,7 +113,7 @@ const until = async (fn, ms = 4000) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const all = (sel, scope = document) => Array.from(scope.querySelectorAll(sel));
 const button = (label, scope = document) => all("button", scope).find((b) => text(b) === label);
-const projectsButton = () => document.querySelector('.dktop button[aria-label="Projects"]');
+const projectsButton = () => document.querySelector('.dkstripe button[aria-label="Projects"]');
 const cols = () => all(".dkcols .dkcol");
 const heads = () => cols().map((c) => text(c.querySelector(".phead h2")));
 const confirm = async (label) => {
@@ -277,7 +277,7 @@ window.done = (async () => {
         }
         return { talk: talking(), tab: selected(), kept: localStorage.getItem("aacpanel.sessions.profile") || "" };
     };
-    document.querySelector('.dktop button[aria-label="Session archive"]').click();
+    document.querySelector('.dkstripe button[aria-label="Session archive"]').click();
     await until(() => archiveRow("stray-notes"));
     if (!archiveRow("stray-notes")) return out;
     out.reveal = { before: selected() };

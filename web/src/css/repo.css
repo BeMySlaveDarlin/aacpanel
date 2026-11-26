@@ -278,7 +278,7 @@
 
 @media (min-width: 1100px) {
     .cdsession { flex-direction: row; gap: 0; }
-    .cdside { position: static; z-index: auto; flex: 0 0 clamp(260px, 23vw, 350px); background: var(--bg); border-left: var(--hair) solid var(--line); }
+    .cdside { position: relative; z-index: auto; flex: 0 0 var(--files-width, clamp(260px, 23vw, 350px)); max-width: 50%; background: var(--bg); border-left: var(--hair) solid var(--line); }
     /* The list covers the work column of the feed instead of narrowing the prose. */
     .cdsession.sideopen .feedgrid.desk { grid-template-columns: minmax(0, 1fr); }
     .cdsession.sideopen .feedgrid.desk > .tline { display: none; }
