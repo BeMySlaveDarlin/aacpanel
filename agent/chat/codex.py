@@ -30,11 +30,11 @@ import contours
 import held
 import sesstate
 
-from .harness import COMPACTED, STOPPED, claim_letter
+from .harness import COMPACTED, STOPPED, service
 from .cards import (BRIEF_TOOL, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT, NOTIFY_TOOL, SECRET_TOOL,
                     brief_card, call_card, secret_call, secret_card, sent_card, REQUEST_TOOL, request_card)
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
-from .mail import LETTER_TOOL, mails, peer_name, sent_claim, undelivered
+from .mail import LETTER_TOOL, peer_name, sent_claim, undelivered
 from .tools import one_line, tool_arg, tool_kind, tool_label
 
 KINDS = ("session_meta", "world_state", "turn_context", "response_item",
@@ -414,27 +414,6 @@ def _said(role, text, at, pos):
         return []
     body, trimmed = cut(text, MAX_TEXT)
     return [{"role": role, "text": body, "cut": trimmed, "at": at, "pos": pos}]
-
-
-# A letter of another session reaches a codex thread as a message of the
-# panel: the envelope claude sends a letter in, with the panel's words around
-# it saying who wrote and that the person did not. The feed draws it as the
-# feed of claude draws one — a card of a letter from the session that wrote —
-# and leaves the panel's words out.
-LETTER_TAG = "<cross-session-message"
-
-
-def _letters(text, at, pos):
-    """Returns the cards of the letters a message of the thread carries, none for a message of the person."""
-    if LETTER_TAG not in text:
-        return []
-    out = []
-    for who, source, said in mails(text):
-        fields, said = claim_letter(said)
-        body, trimmed = cut(said, MAX_TEXT)
-        out.append({"role": "mail", "from": who, "source": source, "text": body, "cut": trimmed,
-                    "at": at, "pos": pos, **fields})
-    return out
 
 
 # A call of a tool of an MCP server. It is named the way claude names one,
@@ -1255,9 +1234,9 @@ def rows(record, pos, state=None, shelf=None):
                  if isinstance(part, dict) and part.get("type") == "localImage"
                  and isinstance(part.get("path"), str)]
         text = "\n".join([text, *paths]).strip()
-        letters = _letters(text, at, pos)
-        if letters:
-            return letters
+        inserted = service(text, at, pos)
+        if inserted is not None:
+            return inserted
         role = TASK if (state or {}).get(DRIVEN) else "me"
         return _said(role, text, at, pos)
     if kind == "AgentMessage":

@@ -24,7 +24,7 @@ import { Permit } from "./permit.js";
 import { ago, tokens } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { closed, lastPos, outboxRows, queuedLocal, queuedRows, rows, runCalls, turnCalls, unarrived, weld } from "./feed.js";
-import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
+import { JumpToEnd, JumpToPrevious, useFeedWindow } from "./feedwindow.js";
 import { FindBar, useFeedFind } from "./find.js";
 import { agentFeedId, SubChat } from "./subchat.js";
 import { FilesButton, RepoView, useRepo } from "../repo/view.js";
@@ -101,7 +101,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
     const {
-        state, shown, away, more, later, feedRef, bindFeed, topRef, bottomRef, onScroll, atEnd, toEnd, show,
+        state, shown, away, more, later, feedRef, bindFeed, topRef, bottomRef, onScroll, atEnd, toEnd, show, hasPrevious, toPrevious,
     } = useFeedWindow({ name, id, live: live && !sub });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
@@ -783,6 +783,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 />
             <//>
             ${later && html`<div class="mlater" ref=${bottomRef}>there is more below</div>`}
+            ${hasPrevious && html`<${JumpToPrevious} onJump=${toPrevious} above=${!atEnd} />`}
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} away=${away} />`}
         </div>
         `}

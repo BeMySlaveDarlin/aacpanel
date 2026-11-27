@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}.shell{height:100%;--nav-clear:0px}.body{height:100%;display:flex;flex-direction:column;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+import { h, render } from "preact";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const answer = (pos) => ({ role: "ai", pos, text: `Answer ${pos}. ${"Read the output and check the build result. ".repeat(140)}` });
+const person = (pos) => ({ role: "me", pos, text: `Your message ${pos}: check the build.` });
+const round = { role: "me", pos: 45, text: "The answer to your question:\n\nRun the check?\n   Yes" };
+const mixed = [answer(1), person(10), answer(11),
+    { role: "mail", source: "session", from: "neighbour", pos: 20, text: "The check is done." },
+    { role: "notice", pos: 25, text: "A hook finished." }, person(30), answer(31),
+    { role: "mail", source: "panel", from: "session restart", pos: 40, text: "Continue from the handoff." },
+    round, { role: "note", pos: 46, text: "The harness continued the turn." },
+    { role: "me", pos: 48, text: "The answer was delivered.", actReply: true }, person(50), answer(60)];
+let mode = "mixed", stream;
+const reads = [];
+const json = (body) => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (url) => {
+    const u = new URL(String(url), location.href);
+    if (u.pathname === "/api/chat") {
+        const before = Number(u.searchParams.get("before"));
+        if (before) reads.push(before);
+        let items = mixed, more = false;
+        if (mode === "empty") items = [answer(1), round, answer(60)];
+        if (mode === "pages" || mode === "exhausted" || mode === "stalled") {
+            items = [answer(100), answer(110)]; more = true;
+            if (before === 100) { items = [answer(80), answer(90)]; }
+            if (before === 80) {
+                items = mode === "pages" ? [answer(1), person(10), answer(11)] : [answer(1), answer(11)];
+                more = false;
+            }
+            if (mode === "stalled" && before) { items = []; more = true; }
+        }
+        return json({ items, first: items[0]?.pos ?? before, last: items.at(-1)?.pos, total: 120, moreBefore: more });
+    }
+    if (u.pathname === "/api/acts") return json({ acts: [] });
+    if (u.pathname === "/api/term") return json({ available: false });
+    return json({});
+});
+window.EventSource = class {
+    constructor() { this.readyState = 1; this.listeners = {}; stream = this; }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    close() { this.readyState = 2; }
+    emit(items) { for (const fn of this.listeners.chat || []) fn({ data: JSON.stringify({ items }) }); }
+};
+const root = document.getElementById("root");
+const box = () => root.querySelector(".chatfeed");
+const up = () => root.querySelector(".feedprevious");
+const down = () => root.querySelector(".feedjump:not(.feedprevious)");
+const row = (pos) => box().querySelector(`.feedrow[data-pos="${pos}"]`);
+const edge = () => box().getBoundingClientRect().top + box().clientTop;
+const current = () => Number([...box().querySelectorAll(".feedrow[data-pos]")]
+    .find((el) => el.getBoundingClientRect().top >= edge() - 1)?.dataset.pos);
+const until = async (ok) => {
+    const end = performance.now() + 5000;
+    while (!ok() && performance.now() < end) await new Promise(requestAnimationFrame);
+    if (!ok()) throw new Error(`The previous-message walk did not settle (${mode}, row ${current()})`);
+};
+const mount = async (next) => {
+    render(null, root); await quiet(); mode = next; reads.length = 0;
+    render(h(ToastHost, null, h(GateHost, null, h(Chat, {
+        name: "walk", id: next, live: { status: "idle", transport: "stream" },
+        exec: { available: true }, onBack: () => {},
+    }))), root);
+    await until(() => box()?.querySelector(".feedrow")); await quiet();
+};
+const clickTo = async (pos) => {
+    if (!up()) throw new Error(`No previous-message button (${mode})`);
+    up().click(); await until(() => current() === pos); await quiet();
+    return current();
+};
+const manualTo = async (pos) => {
+    box().scrollTop += row(pos).getBoundingClientRect().top - edge() - 12;
+    box().dispatchEvent(new Event("scroll")); await quiet();
+};
+const out = {};
+window.preview = { mount, clickTo, manualTo, box, up, down };
+(async () => {
+    try {
+        await mount("mixed");
+        if (new URLSearchParams(location.search).has("preview")) { window.done = { ready: true }; return; }
+        out.end = { up: Boolean(up()), down: Boolean(down()), tip: up()?.dataset.tip, label: up()?.getAttribute("aria-label") };
+        out.walk = [await clickTo(50)];
+        out.middle = { up: Boolean(up()), down: Boolean(down()) };
+        stream.emit([answer(70)]); await until(() => row(70)); await quiet();
+        out.held = current() === 50 && Boolean(down());
+        out.walk.push(await clickTo(30), await clickTo(10));
+        out.startHidden = !up();
+        await manualTo(50);
+        out.manual = await clickTo(30);
+        down().click(); await until(() => !down()); await quiet();
+        out.returned = Boolean(up()) && !down();
+        await mount("empty"); out.emptyHidden = !up();
+        await mount("pages"); out.paged = await clickTo(10); out.reads = [...reads];
+        await mount("exhausted"); up().click();
+        await until(() => reads.includes(80) && !up()); await quiet();
+        out.exhausted = [...reads];
+        await mount("stalled"); up().click();
+        await until(() => reads.length > 0 && !up()); await quiet();
+        out.stalled = [...reads];
+    } catch (error) { out.error = String(error.stack || error); }
+    window.done = out;
+})();
+</script>

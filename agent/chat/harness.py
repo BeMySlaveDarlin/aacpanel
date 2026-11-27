@@ -38,6 +38,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 TASK_NOTE_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
 TASK_FIELD_RE = re.compile(r"<([\w-]+)>([^<]*)</\1>")
+SYSTEM_REMINDERS_RE = re.compile(r"(?:\s*<system-reminder>.*?</system-reminder>\s*)+", re.S)
 
 
 def task_done(text):
@@ -147,6 +148,8 @@ def service(text, at, pos):
         return [{"role": "mail", "from": who, "source": "panel",
                  "text": body, "cut": trimmed, "at": at, "pos": pos,
                  **({"until": until} if until else {})}]
+    if SYSTEM_REMINDERS_RE.fullmatch(text):
+        return []
     said = delivery(text)
     if said:
         return [{"role": "note", "text": said, "at": at, "pos": pos}]

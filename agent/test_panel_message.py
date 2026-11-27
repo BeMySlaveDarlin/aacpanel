@@ -29,6 +29,11 @@ def pasted(text=PROMPT):
     return f'<pasted_content id="one">\n{text}\n</pasted_content id="one">'
 
 
+def codex_prompt(text=PROMPT):
+    return {"type": "event_msg", "payload": {"type": "item_completed", "item": {
+        "type": "UserMessage", "content": [{"type": "text", "text": text}]}}}
+
+
 class PanelMessages(unittest.TestCase):
     def assert_panel(self, items, pos=10, body=BODY, sender="context restart"):
         self.assertEqual([(i["role"], i.get("source"), i.get("from"), i["text"], i["pos"]) for i in items],
@@ -64,6 +69,26 @@ class PanelMessages(unittest.TestCase):
     def test_the_sender_comes_from_the_tag(self):
         text = '<panel-message from="maintenance">\nSave the handoff.\n</panel-message>'
         self.assert_panel(chat.parse(prompt(text), 10), body="Save the handoff.", sender="maintenance")
+
+    def test_codex_uses_the_shared_service_parser_for_panel_input(self):
+        for sender in ("session start", "session restart", "context restart", "the session's note"):
+            text = f'<panel-message from="{sender}">\n{BODY}\n</panel-message>'
+            with self.subTest(sender=sender):
+                self.assert_panel(chat.parse(codex_prompt(text), 10), sender=sender)
+
+    def test_codex_harness_inserts_are_not_human_messages(self):
+        samples = (
+            ('<cross-session-message from-name="lab">Run the check.</cross-session-message>', "mail"),
+            ('Stop hook feedback:\n[check] Read the output.', "mail"),
+            ('<task-notification><tool-use-id>call-1</tool-use-id><status>completed</status></task-notification>', "taskdone"),
+            ('<system-reminder>Read the project rules.</system-reminder>', None),
+        )
+        for text, role in samples:
+            with self.subTest(text=text):
+                items = chat.parse(codex_prompt(text), 10)
+                self.assertEqual([item["role"] for item in items], [role] if role else [])
+        own = 'Explain this tag: <system-reminder>Read the rules.</system-reminder>'
+        self.assertEqual([(item["role"], item["text"]) for item in chat.parse(codex_prompt(own), 10)], [("me", own)])
 
     def test_the_opening_prompt_is_a_panel_card_without_a_queue_record(self):
         body = 'Read "handoff.md".\nContinue with the tests.'

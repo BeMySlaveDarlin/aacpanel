@@ -183,7 +183,8 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         if (act.kind === "do") return html`<${RequestCard} item=${act} record=${act} />`;
         return null;
     }
-    const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
+    const saidByPanel = item.role === "me" ? panelSaid(item.text) : null;
+    const panel = item.state !== "failed" && !item.cut ? saidByPanel : null;
     // The answer to a question codex asked without waiting is the card of the
     // round answered, as claude's answer is, standing where it was sent; on
     // its way it says so under the card, as a bubble does.
@@ -224,6 +225,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         ${sent.length > 0 && html`<${Shots} shots=${sent} session=${session} id=${id} pos=${item.pos} files=${gallery} onFile=${onFile} />`}
         ${(said || !brought || failed) && html`
             <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}
+                 data-human=${mine && !saidByPanel ? "" : undefined}
                  onContextMenu=${menu && messageMenu(menu, writes, item, mine ? copied : String(said || ""), again)}>
                 ${copied !== "" && html`<button class="cmdcopy msgcopy" type="button" aria-label="copy the message"
                                         data-md=${copied}>${Icon.copy()}</button>`}

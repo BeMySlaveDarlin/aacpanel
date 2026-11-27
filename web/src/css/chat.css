@@ -340,18 +340,16 @@ a.mcprow.toolrow { text-decoration: none; }
     font-variant-numeric: tabular-nums;
 }
 
-/* The jump to the end of a scrolled-up feed. It is the last child of the feed
-   and sticks to the feed's bottom edge: that edge is what stays above the
+/* Jump buttons stick to the feed's bottom edge: that edge stays above the
    composer, the chips and whatever else stands under the feed on any screen,
    so the button never covers them. The negative margin gives back the height
    and the column gap it would take in flow, so the feed has the same scroll
    height with the button and without it; scroll anchoring is told to look
-   past it for the same reason. It is drawn only while the feed is away from
-   its end, and the feed at its end is exactly what it was without it. */
+   past it for the same reason. */
 .feedjump {
     --feedjump-size: 36px;
     position: sticky;
-    bottom: .5rem;
+    bottom: var(--feedjump-bottom, .5rem);
     align-self: flex-end;
     z-index: 2;
     width: var(--feedjump-size);
@@ -374,6 +372,10 @@ a.mcprow.toolrow { text-decoration: none; }
 }
 .feedjump svg { width: var(--i-md); height: var(--i-md); transform: rotate(90deg); }
 .feedjump:active { background: var(--glass-2); color: var(--ink); }
+.feedprevious svg { transform: rotate(-90deg); }
+.feedprevious.feedabove {
+    bottom: calc(var(--feedjump-bottom, .5rem) + var(--feedjump-size) + .5rem);
+}
 
 @keyframes feedjump-in {
     from { opacity: 0; transform: translateY(6px); }
@@ -384,7 +386,7 @@ a.mcprow.toolrow { text-decoration: none; }
 /* With nothing under the feed on the phone, its edge is the edge of the screen,
    and the button has to clear the home indicator. */
 .cdmain:not(:has(> .composerbox)) .feedjump {
-    bottom: calc(.5rem + env(safe-area-inset-bottom));
+    --feedjump-bottom: calc(.5rem + env(safe-area-inset-bottom));
 }
 
 /* Over a window away from the end the button says where it goes: the end is

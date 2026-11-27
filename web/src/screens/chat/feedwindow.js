@@ -57,6 +57,12 @@ const roleOf = (row) => row.className.match(/\br-(\S+)/)?.[1] || "";
 const sameRow = (row, at) => Number(row.dataset.pos) === at.pos
     && (!at.role || roleOf(row) === at.role) && Number(row.dataset.nth || 0) === (at.nth || 0);
 
+function previousRow(box) {
+    const edge = edgeOf(box);
+    return [...box.querySelectorAll(".feedrow:has(.msg.me[data-human])")]
+        .reverse().find((row) => row.getBoundingClientRect().top < edge - 1);
+}
+
 // feedKey names a feed: the conversation, and for an agent its own feed inside it.
 export function feedKey(name, id) {
     return id ? `id:${id}` : `name:${name}`;
@@ -128,6 +134,14 @@ export function JumpToEnd({ onJump, away }) {
     `;
 }
 
+// JumpToPrevious renders the button that takes the feed up to the person's
+// message above the top of the screen. It stands over the jump to the end, and
+// in its place when the feed is at its end.
+export function JumpToPrevious({ onJump, above }) {
+    return html`<button class=${`feedjump feedprevious${above ? " feedabove" : ""}`} type="button"
+                       aria-label="to your previous message" onClick=${onJump}>${Icon.chevron()}</button>`;
+}
+
 // useFeedWindow returns the feed and everything needed to show it.
 //
 // The feed shows one of two lists. The tail is the end of the conversation: the
@@ -145,6 +159,11 @@ export function useFeedWindow({ name, id, live }) {
     const topRef = useRef(null);
     const bottomRef = useRef(null);
     const busyRef = useRef(false);
+    const upReadRef = useRef(null);
+    const upMoreRef = useRef(false);
+    const previousJumpRef = useRef(null);
+    const previousAtRef = useRef(null);
+    const [hasPrevious, setHasPrevious] = useState(false);
     const lastRef = useRef(null);
     const firstRef = useRef(null);
     const stickRef = useRef(true);
@@ -205,14 +224,20 @@ export function useFeedWindow({ name, id, live }) {
         };
     }, [flushFeed]);
 
+    const readPrevious = (box) => setHasPrevious(Boolean(box && (upMoreRef.current || previousRow(box))));
+
     // settle reads the position of the box once and tells both sides of it, and the
     // feed is written down where it stands — every scroll of the box comes through
     // here, the reader's own and the ones the feed makes for itself. The bottom of a
     // window away from the end is not the end: there the feed neither follows new
     // messages nor hides the way back.
     const settle = (box) => {
+        readPrevious(box);
         if (restoringRef.current || box !== feedRef.current || putKeyRef.current !== keyRef.current) return;
-        const near = !awayRef.current && nearEnd(box);
+        const paused = previousAtRef.current;
+        if (paused && (paused.box !== box || paused.top !== box.scrollTop)) previousAtRef.current = null;
+        // A jump within the end's slack stays paused until the reader moves on.
+        const near = !awayRef.current && !previousJumpRef.current && !previousAtRef.current && nearEnd(box);
         const at = settledRef.current;
         // A queued scroll can arrive after a card grows, with the offset unchanged.
         // That is still following the end; the resize observer catches up with it.
@@ -271,6 +296,9 @@ export function useFeedWindow({ name, id, live }) {
         restoringRef.current = null;
         settledRef.current = null;
         homeRef.current = false;
+        previousJumpRef.current = null;
+        previousAtRef.current = null;
+        setHasPrevious(false);
         setAway(null);
         stickRef.current = !at;
         putRef.current = null;
@@ -413,10 +441,12 @@ export function useFeedWindow({ name, id, live }) {
             contentsRef.current = children;
         }
         if (box && putRef.current !== box) put(box);
+        readPrevious(box);
     });
 
     useEffect(() => () => {
         restoringRef.current = null;
+        previousJumpRef.current = null;
         if (drawnRef.current) drawnRef.current(false);
         if (watchRef.current) watchRef.current.disconnect();
     }, []);
@@ -448,43 +478,56 @@ export function useFeedWindow({ name, id, live }) {
     // trip names the list on screen: the tail, or one window away from the end.
     const tripOf = () => (awayRef.current ? awayRef.current.trip : 0);
 
-    const loadUp = async () => {
+    const loadUp = () => {
+        if (upReadRef.current) return upReadRef.current;
         const box = feedRef.current;
         const win = awayRef.current;
         const before = win ? win.first : firstRef.current;
-        if (before == null || !box || busyRef.current || restoringRef.current) return;
+        if (before == null || !box || busyRef.current || restoringRef.current) return Promise.resolve(false);
         busyRef.current = true;
         const trip = tripOf();
+        const key = keyRef.current;
         const wasHeight = box.scrollHeight;
         const wasTop = box.scrollTop;
-        try {
-            const data = await ask(`before=${before}`, PAGE);
-            if (win) {
-                if (tripOf() !== trip) return;
-                const now = awayRef.current;
-                leave({ ...now, items: merge(data.items || [], now.items),
-                        first: data.first ?? before, moreBefore: Boolean(data.moreBefore) });
-            } else {
-                firstRef.current = data.first ?? before;
-                setMore(Boolean(data.moreBefore));
-                setState((prev) => ({ ...prev, items: merge(data.items || [], prev.items) }));
+        const read = async () => {
+            try {
+                const data = await ask(`before=${before}`, PAGE);
+                if (keyRef.current !== key || tripOf() !== trip) return false;
+                const advanced = data.first != null && data.first < before;
+                const moreBefore = Boolean(data.moreBefore) && advanced;
+                if (win) {
+                    const now = awayRef.current;
+                    leave({ ...now, items: merge(data.items || [], now.items),
+                            first: data.first ?? before, moreBefore });
+                } else {
+                    firstRef.current = data.first ?? before;
+                    setMore(moreBefore);
+                    setState((prev) => ({ ...prev, items: merge(data.items || [], prev.items) }));
+                }
+                // The page grows over the rows the reader is on, and the box keeps them
+                // where they were — unless another list took the screen meanwhile.
+                await new Promise((resolve) => requestAnimationFrame(() => {
+                    if (keyRef.current === key && tripOf() === trip) {
+                        box.scrollTop = wasTop + (box.scrollHeight - wasHeight);
+                    }
+                    resolve();
+                }));
+                return advanced;
+            } catch (e) {
+                if (keyRef.current !== key || tripOf() !== trip) return false;
+                if (win) {
+                    if (tripOf() === trip) leave({ ...awayRef.current, moreBefore: false });
+                } else {
+                    setMore(false);
+                }
+                setState((prev) => ({ ...prev, note: String(e.message || e) }));
+                return false;
+            } finally {
+                busyRef.current = false;
             }
-            // The page grows over the rows the reader is on, and the box keeps them
-            // where they were — unless another list took the screen meanwhile.
-            requestAnimationFrame(() => {
-                if (tripOf() !== trip) return;
-                box.scrollTop = wasTop + (box.scrollHeight - wasHeight);
-            });
-        } catch (e) {
-            if (win) {
-                if (tripOf() === trip) leave({ ...awayRef.current, moreBefore: false });
-            } else {
-                setMore(false);
-            }
-            setState((prev) => ({ ...prev, note: String(e.message || e) }));
-        } finally {
-            busyRef.current = false;
-        }
+        };
+        upReadRef.current = read().finally(() => { upReadRef.current = null; });
+        return upReadRef.current;
     };
 
     // loadDown takes a window away from the end a page further down. A page
@@ -542,6 +585,7 @@ export function useFeedWindow({ name, id, live }) {
 
     const shownItems = away ? away.items : state.items;
     const upMore = away ? away.moreBefore : more;
+    upMoreRef.current = state.kind === "ready" && upMore;
     const downMore = Boolean(away && away.moreAfter);
 
     useEffect(() => {
@@ -551,7 +595,7 @@ export function useFeedWindow({ name, id, live }) {
         if (!box || !sentinel || typeof IntersectionObserver !== "function") return undefined;
 
         const io = new IntersectionObserver((entries) => {
-            if (entries.some((e) => e.isIntersecting)) loadUp();
+            if (!previousJumpRef.current && entries.some((e) => e.isIntersecting)) loadUp();
         }, { root: box, rootMargin: "300px 0px 0px 0px" });
         io.observe(sentinel);
         return () => io.disconnect();
@@ -572,12 +616,48 @@ export function useFeedWindow({ name, id, live }) {
 
     const onScroll = (event) => settle(event.currentTarget);
 
+    const toPrevious = async () => {
+        const box = feedRef.current;
+        if (!box || previousJumpRef.current) return;
+        const jump = { key: keyRef.current, trip: tripOf() };
+        previousJumpRef.current = jump;
+        // Stop following before the first read or scroll: a resize or an
+        // arriving message must not take the reader back to the tail.
+        stickRef.current = false;
+        previousAtRef.current = { box, top: box.scrollTop };
+        setAtEnd(false);
+        try {
+            while (previousJumpRef.current === jump && keyRef.current === jump.key
+                && tripOf() === jump.trip && feedRef.current === box) {
+                if (upReadRef.current) {
+                    if (!await upReadRef.current) break;
+                    continue;
+                }
+                const row = previousRow(box);
+                if (row) {
+                    box.scrollTop += row.getBoundingClientRect().top - edgeOf(box) - 12;
+                    previousAtRef.current = { box, top: box.scrollTop };
+                    settle(box);
+                    return;
+                }
+                if (!upMoreRef.current || !await loadUp()) break;
+            }
+        } finally {
+            if (previousJumpRef.current === jump) {
+                previousJumpRef.current = null;
+                readPrevious(box);
+            }
+        }
+    };
+
     // toEnd takes the feed to its end and makes it follow new messages again.
     // From a window away from the end that is the tail put back, and the box
     // goes to its end once the tail is drawn.
     const toEnd = () => {
         const box = feedRef.current;
         if (!box) return;
+        previousJumpRef.current = null;
+        previousAtRef.current = null;
         restoringRef.current = null;
         if (awayRef.current) {
             homeRef.current = true;
@@ -590,6 +670,6 @@ export function useFeedWindow({ name, id, live }) {
 
     return {
         state, shown: shownItems, away: Boolean(away), more: upMore, later: downMore,
-        feedRef, bindFeed, topRef, bottomRef, onScroll, atEnd, toEnd, show,
+        feedRef, bindFeed, topRef, bottomRef, onScroll, atEnd, toEnd, show, hasPrevious, toPrevious,
     };
 }

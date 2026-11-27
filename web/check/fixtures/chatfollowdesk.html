@@ -140,14 +140,14 @@ const pointer = async (point) => {
             const box = document.querySelector(".chatfeed");
             box.scrollTop = 200;
             box.dispatchEvent(new Event("scroll"));
-            await until(() => box.querySelector(".feedjump"));
+            await until(() => box.querySelector(".feedjump:not(.feedprevious)"));
             await quiet();
             if (mode.startsWith("wheel")) {
                 const r = box.getBoundingClientRect();
                 await pointer({ x: r.left + r.width / 2, y: r.top + r.height / 2, wheel: box.scrollHeight });
                 await new Promise((resolve) => setTimeout(resolve, 200));
             } else {
-                box.querySelector(".feedjump").click();
+                box.querySelector(".feedjump:not(.feedprevious)").click();
                 if (mode === "jump after settling") await quiet();
             }
             await open("beta", "nav-b");

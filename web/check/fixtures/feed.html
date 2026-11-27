@@ -217,13 +217,13 @@ const readingPositions = async () => {
         mountHistory();
         await until(() => [at.pos - 1, at.pos + 1].includes(firstVisible()?.pos)); await quiet();
         const missing = [at.pos - 1, at.pos + 1].includes(firstVisible()?.pos);
-        const jump = document.querySelector(".chatfeed .feedjump");
+        const jump = document.querySelector(".chatfeed .feedjump:not(.feedprevious)");
         const explicitJump = jump?.textContent.includes("Back to the end");
         jump.click(); await until(endVisible); await quiet();
         const endForgotten = !savedPosition();
         render(null, root); historyTotal = 180;
         await quiet(); mountHistory(); await until(endVisible); await quiet();
-        const end = Boolean(endVisible()) && !document.querySelector(".chatfeed .feedjump");
+        const end = Boolean(endVisible()) && !document.querySelector(".chatfeed .feedjump:not(.feedprevious)");
         const current = document.querySelector(".chatfeed");
         current.scrollTop = 0; current.dispatchEvent(new Event("scroll"));
         await until(savedPosition);
