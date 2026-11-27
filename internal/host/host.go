@@ -118,6 +118,7 @@ type LiveSession struct {
 	Name      string `json:"session"`
 	SessionID string `json:"sessionId"`
 	CWD       string `json:"cwd"`
+	StartedAt string `json:"startedAt"`
 	// Transport is "stream" for a session its holder keeps on the stream, and
 	// "bg" for Claude Code background sessions, and empty for a terminal.
 	Transport string `json:"transport"`

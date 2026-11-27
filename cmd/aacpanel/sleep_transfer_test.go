@@ -20,6 +20,13 @@ func TestRestartPassesSleepingChildrenToItsNewConversationPG(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			t.Setenv("XDG_STATE_HOME", t.TempDir())
 			s := newReviveScene(t)
+			profiles, err := s.srv.db.Profiles(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.srv.db.UpdateProfile(t.Context(), profiles[0].ID, store.ProfileEdit{LaunchSet: map[string]any{"restartIntent": "Continue the work"}}); err != nil {
+				t.Fatal(err)
+			}
 			parent, other := s.row(2), s.row(3)
 			next := s.row(20)
 			next.Session = "parent-new"

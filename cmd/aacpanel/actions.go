@@ -16,7 +16,10 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
 	"aacpanel/internal/chat"
+	"aacpanel/internal/host"
 	"aacpanel/internal/schema"
+	"aacpanel/internal/session"
+	"aacpanel/internal/sessionintent"
 	"aacpanel/internal/store"
 )
 
@@ -688,6 +691,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 
 	if req.Kind == action.SessionRestart {
 		plan, err := s.restartPlan(r.Context(), body.Target, body.Params)
+		if err == nil && plan.Project != nil && plan.Conversation != "" && plan.Resume == "" && plan.Intent == "" && !plan.Clean {
+			live, _ := s.host.LiveSessionOf(plan.Conversation)
+			plan.Project.Launch, err = s.restartWithHandoff(r.Context(), live, plan.ProjectID, plan.Project.Launch)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -1514,6 +1521,38 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 	want.Launch = launch
 	way.Project, way.ProjectID = want, found.project.ID
 	return way, nil
+}
+
+func (s *Server) restartWithHandoff(ctx context.Context, live host.LiveSession, project int, launch json.RawMessage) (json.RawMessage, error) {
+	var values map[string]any
+	if err := json.Unmarshal(launch, &values); err != nil {
+		return nil, err
+	}
+	if text, _ := values["intent"].(string); strings.TrimSpace(text) != "" {
+		return launch, nil
+	}
+	own, err := s.exec.Intents(ctx, live.Name)
+	if err != nil {
+		return nil, fmt.Errorf("the session's restart message cannot be read: %w", err)
+	}
+	if strings.TrimSpace(own[sessionintent.Restart]) != "" {
+		return launch, nil
+	}
+	// A collector sample says when the session was seen, not when it began;
+	// accepting an older handoff would reuse work from before this conversation.
+	started, err := time.Parse(time.RFC3339Nano, live.StartedAt)
+	if err != nil || started.IsZero() {
+		return nil, errors.New(session.RestartHandoffRequired)
+	}
+	handoff, err := s.db.SessionHandoff(ctx, project, live.SessionID, started)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, errors.New(session.RestartHandoffRequired)
+	}
+	if err != nil {
+		return nil, err
+	}
+	values["intent"] = fmt.Sprintf("Continue from the handoff “%s”: read it with handoff_read key=%s, then take its next step.", handoff.Title, handoff.Key)
+	return json.Marshal(values)
 }
 
 // restartLaunch returns a project's launch with the message after a restart

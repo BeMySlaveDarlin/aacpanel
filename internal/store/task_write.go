@@ -175,6 +175,21 @@ func (s *Store) Handoff(ctx context.Context, project int, key string) (h taskreg
 	return h, err
 }
 
+func (s *Store) SessionHandoff(ctx context.Context, project int, conversation string, after time.Time) (h taskreg.Handoff, err error) {
+	defer func() { err = Unavailable(err) }()
+	pool, err := s.Pool()
+	if err != nil {
+		return h, err
+	}
+	h, err = scanHandoff(rowOnly{pool.QueryRow(ctx, `SELECT `+handoffColumns+` FROM project_handoffs
+        WHERE project_id=$1 AND session=$2 AND at>$3 AND deleted_at IS NULL
+        ORDER BY at DESC,file DESC LIMIT 1`, project, conversation, after)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return h, ErrNotFound
+	}
+	return h, err
+}
+
 func (s *Store) WriteHandoff(ctx context.Context, project int, actor taskreg.Actor, cwd string, in taskreg.HandoffInput) (h taskreg.Handoff, err error) {
 	defer func() { err = Unavailable(err) }()
 	if strings.TrimSpace(in.Title) == "" || strings.TrimSpace(in.Markdown) == "" || actor.Conversation == "" || actor.Name == "" {

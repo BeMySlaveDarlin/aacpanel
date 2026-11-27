@@ -3425,8 +3425,17 @@ the validation that refuses a leading dash or slash; the delivery envelope
 starts with `<`, so claude cannot read it as an option or a slash command.
 The `session_restart` tool accepts
 intent only with `continue`; a fresh restart through that tool inherits the
-saved restart message. So does a conversation on the
-stream that starts anew because nobody said a word in it: the words were
+saved restart message. For Claude without `continue`, or Codex without `intent`
+or `clean`, the service requires a handoff when neither the effective map nor
+the session's own override provides a restart message. It selects
+the latest undeleted handoff of that project and calling conversation, strictly
+after the snapshot's `startedAt`; an unknown start cannot prove freshness and
+is refused too. The new session's first message names that handoff's title and
+key and directs it to `handoff_read` and the next step. This check belongs to
+the tool's action path: the person's restart and the panel's readiness cycle
+keep their own rules. An explicit Codex `clean` still starts without a message.
+A conversation on the stream that starts anew because nobody said a word in
+it inherits the saved restart message as well: the words were
 written for a conversation the new one does not have. Either way the executor restarts it
 only while it still runs the conversation that asked — a late repeat of the call
 would otherwise close the session an earlier restart brought up under the same

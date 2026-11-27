@@ -90,6 +90,13 @@ func TestSessionRestartComesBackAsItsProjectPG(t *testing.T) {
 // not the main checkout's. The agent names the repository on the session.
 func TestARestartOfAWorktreeSessionStaysInTheWorktreePG(t *testing.T) {
 	srv, fake, dir := switchServer(t, "stream", "stream")
+	profiles, err := srv.db.Profiles(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.db.UpdateProfile(t.Context(), profiles[0].ID, store.ProfileEdit{LaunchSet: map[string]any{"restartIntent": "Continue the work"}}); err != nil {
+		t.Fatal(err)
+	}
 	worktree := filepath.Join(filepath.Dir(dir), "worktrees", "aacpanel-fix")
 	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"aacpanel-fix","sessionId":"`+
 		switchSID+`","cwd":"`+worktree+`","checkout":"`+dir+`","transport":"stream"}]}`))

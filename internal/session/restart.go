@@ -18,7 +18,8 @@ func CodexRestart(h Host) mcp.Tool {
 	t.Description = "Starts a fresh Codex thread in this thread's directory and place in the session tree, " +
 		"with the same parent and report recipient. Save the work and next step on disk first. intent is the " +
 		"first message of the new thread; omitted uses the map's restart message. clean starts without a " +
-		"message. Children move to the new thread. Active agents, background commands and observers hold " +
+		"message. Without intent, clean or a saved restart message, a restart requires this session's handoff and passes it to the new thread. " +
+		"Children move to the new thread. Active agents, background commands and observers hold " +
 		"the restart; anyway ends that work only on the person's word. Codex in tmux must be restarted " +
 		"from its terminal. The old thread closes after this turn, only after the new one starts and accepts " +
 		"its first message. Once accepted, end the turn and do nothing more."
@@ -73,6 +74,9 @@ func CodexRestart(h Host) mcp.Tool {
 		case err != nil:
 			return "Nothing was restarted: " + err.Error(), true
 		case !got.Taken:
+			if got.Said == RestartHandoffRequired {
+				return "Nothing was restarted: " + got.Said, true
+			}
 			return "The panel did not take the restart: " + got.Said, true
 		case got.Late:
 			return "The panel is restarting this thread. End the turn now and do nothing more; the old thread closes after this turn.", false
@@ -86,6 +90,9 @@ func CodexRestart(h Host) mcp.Tool {
 // mcp__aacpanel__session_restart.
 const RestartName = "session_restart"
 
+const RestartHandoffRequired = "this project's map has no message after a restart, so the new session would start blank. " +
+	"Write a handoff first with handoff_write — the work done and the next step — then call again."
+
 // RestartInstructions is the tool's line in the server's word to every
 // session that has it.
 const RestartInstructions = "Use session_restart for an asked-for restart («перезапустись», «перезапусти сессию») " +
@@ -93,14 +100,15 @@ const RestartInstructions = "Use session_restart for an asked-for restart («п�
 
 // RestartDescription is the tool's own word to the model.
 const RestartDescription = "Restarts only this session through the panel with its project's directory, account " +
-	"and launch settings. Use when asked, or when settings, hooks, CLAUDE.md, or an MCP server " +
-	"require a new start. With no arguments it starts an empty context with the restart message. Save the work " +
+	"and launch settings. Use when asked, or when settings, hooks, CLAUDE.md, or an MCP server require a new start. " +
+	"With no arguments it starts a fresh context with the restart message. " +
+	"Without a saved restart message, a restart requires this session's handoff and passes it to the new session. Save the work " +
 	"on disk first as the project requires: its finalize skill if it has one, otherwise notes of the work and " +
 	"next step. continue: true is only for an explicit request to keep the conversation, never to spare notes; " +
 	"it requires intent, a message to yourself of at most 500 characters with the work and next step. intent " +
 	"is accepted only with continue and arrives first in the resumed conversation. Active agents, workflows, " +
-	"background commands or observers block the restart; wait for them to finish, or tell the person what is " +
-	"running if they asked for the restart. anyway: true ends that work too, only on the person's word. Alarms " +
+	"background commands or observers block the restart; wait, or tell the person what is running if they asked. " +
+	"anyway: true ends that work too, only on the person's word. Alarms " +
 	"do not block a restart but end with this session. Use session_close to finish without a replacement; this " +
 	"tool never restarts a service, container or another session. Once accepted, end the turn and do nothing " +
 	"more: a stream session closes at that point."
@@ -192,6 +200,9 @@ func restart(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (s
 	case err != nil:
 		return "Nothing was restarted: " + err.Error() + ".", true
 	case !got.Taken:
+		if got.Said == RestartHandoffRequired {
+			return "Nothing was restarted: " + got.Said, true
+		}
 		return "The panel did not take the restart: " + got.Said, true
 	case got.Late:
 		return "The panel is restarting this session. It closes at the end of this turn: end the turn now " +

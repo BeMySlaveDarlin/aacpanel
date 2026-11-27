@@ -62,6 +62,13 @@ func TestARestartAndAMoveKeepTheSessionThatOpenedItPG(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			srv, fake, dir := switchServer(t, "stream", "stream")
+			profiles, err := srv.db.Profiles(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := srv.db.UpdateProfile(t.Context(), profiles[0].ID, store.ProfileEdit{LaunchSet: map[string]any{"restartIntent": "Continue the work"}}); err != nil {
+				t.Fatal(err)
+			}
 			srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"aacpanel-2","sessionId":"`+
 				switchSID+`","cwd":"`+dir+`","transport":"stream"`+c.field+`}]}`))
 			for _, body := range []string{
