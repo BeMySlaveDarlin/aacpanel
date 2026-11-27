@@ -93,6 +93,18 @@
 
 .sheet.doc .sheetbody { padding: 0; }
 
+@media (max-width: 1099.98px) {
+    .sheet {
+        padding-left: calc(var(--phone-gutter) + env(safe-area-inset-left));
+        padding-right: calc(var(--phone-gutter) + env(safe-area-inset-right));
+    }
+    /* Documents carry their own gutter in the reading column. */
+    .sheet.docfull {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+}
+
 .sheet.inner {
     bottom: calc(var(--nav-clear) + env(safe-area-inset-bottom));
     max-height: calc(88dvh - var(--nav-clear));
@@ -281,6 +293,13 @@
 
 .toast.on { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
 .toast.bad { border-color: rgba(255, 111, 92, .45); }
+
+@media (max-width: 1099.98px) {
+    .toast {
+        left: calc(var(--phone-gutter) + env(safe-area-inset-left));
+        right: calc(var(--phone-gutter) + env(safe-area-inset-right));
+    }
+}
 .tsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
 /* The one way back the note offers: the toast lets touches through to the
    screen under it, its button takes them. */

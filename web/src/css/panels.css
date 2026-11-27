@@ -77,6 +77,13 @@
     transition: transform .26s cubic-bezier(.22, 1, .36, 1), height .26s ease;
 }
 
+@media (max-width: 1099.98px) {
+    .update, .logbar {
+        left: calc(var(--phone-gutter) + env(safe-area-inset-left));
+        right: calc(var(--phone-gutter) + env(safe-area-inset-right));
+    }
+}
+
 .logbar.on { transform: translateY(0); }
 .logbar.big { height: min(300px, 45dvh); }
 

@@ -276,6 +276,18 @@
     .cdside:has(.cdnotes) { z-index: 22; }
 }
 
+@media (max-width: 1099.98px) {
+    .cdside, .cdfileview {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+    .cdfileshead, .cdbranch, .cdlisttabs, .cdfind, .cdgroup, .cdstrip {
+        padding-inline: var(--phone-gutter);
+    }
+    .cdbackfiles, .cdhunk, .cdcut, .cdopen { margin-inline: var(--phone-gutter); }
+    .cdopen { width: calc(100% - 2 * var(--phone-gutter)); }
+}
+
 @media (min-width: 1100px) {
     .cdsession { flex-direction: row; gap: 0; }
     .cdside { position: relative; z-index: auto; flex: 0 0 var(--files-width, clamp(260px, 23vw, 350px)); max-width: 50%; background: var(--bg); border-left: var(--hair) solid var(--line); }

@@ -844,3 +844,17 @@
 .bdecision-foot .btn { min-height: 2.5rem; }
 .bdecision-review, .bdecision-send { margin-left: auto; }
 .bdecision-error { flex: 1 0 100%; margin: .3rem 0; color: var(--crit); font-size: var(--t-sm); overflow-wrap: anywhere; }
+
+@media (max-width: 1099.98px) {
+    /* The document owns its strips as well as its text; the page must not
+       add a second gutter around them. */
+    .body:has(> .brief), .body:has(> .brief-decisions) { --body-inline: 0; }
+    .body > .bshelf { padding-inline: 0; }
+    .brief {
+        --brief-gutter: max(var(--phone-gutter), calc((100% - var(--brief-col)) / 2 + var(--phone-gutter)));
+    }
+    .brief-page,
+    .brief-decisions:not(.embedded) > :is(.phead, .bdecision-body, .bdecision-foot) {
+        padding-inline: var(--phone-gutter);
+    }
+}

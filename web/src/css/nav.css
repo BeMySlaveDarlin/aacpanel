@@ -26,6 +26,10 @@ nav.tabs button {
     cursor: pointer;
 }
 
+@media (max-width: 1099.98px) {
+    nav.tabs { padding-inline: var(--phone-gutter); }
+}
+
 nav.tabs button svg { width: var(--i-lg); height: var(--i-lg); }
 nav.tabs button[aria-current="true"], nav.tabs button[aria-expanded="true"] {
     color: var(--accent);

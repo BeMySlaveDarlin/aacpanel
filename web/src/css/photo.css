@@ -25,6 +25,13 @@
 .shell:has(.pv) .body { z-index: 5; }
 .pv::backdrop { background: transparent; }
 
+@media (max-width: 1099.98px) {
+    .pv {
+        padding-left: calc(var(--phone-gutter) + env(safe-area-inset-left));
+        padding-right: calc(var(--phone-gutter) + env(safe-area-inset-right));
+    }
+}
+
 .pvbackdrop { position: absolute; inset: 0; background: rgba(3, 4, 10, .84); backdrop-filter: blur(4px); }
 .pvpanel {
     position: relative;

@@ -459,6 +459,11 @@
 
 .chips::-webkit-scrollbar { display: none; }
 
+@media (max-width: 1099.98px) {
+    .top, .shell > .chips { padding-inline: var(--phone-gutter); }
+    .titlerow .hname { padding-left: 0; }
+}
+
 /* A chip is a hairline with a word in it; the chosen one is the only chip
    with a fill, and its count rides along in the same colour. */
 .chip {

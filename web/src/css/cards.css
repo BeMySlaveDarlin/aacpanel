@@ -15,6 +15,10 @@
 
 .body::-webkit-scrollbar { display: none; }
 
+@media (max-width: 1099.98px) {
+    .body { --body-inline: var(--phone-gutter); }
+}
+
 * {
     scrollbar-width: none;
     -ms-overflow-style: none;

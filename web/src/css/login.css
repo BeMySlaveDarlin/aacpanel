@@ -12,6 +12,13 @@
 
 .gate > * { width: min(100%, 340px); }
 
+@media (max-width: 1099.98px) {
+    .gate {
+        padding-left: calc(var(--phone-gutter) + env(safe-area-inset-left));
+        padding-right: calc(var(--phone-gutter) + env(safe-area-inset-right));
+    }
+}
+
 .gate-logo {
     width: 64px;
     height: 64px;
