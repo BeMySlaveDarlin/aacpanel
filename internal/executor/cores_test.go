@@ -42,7 +42,7 @@ func TestEveryUnitRunsOnTheCoresOfTheDescription(t *testing.T) {
 			return err
 		},
 		"a codex daemon": func(e *Executor) error {
-			return startDaemon(ctx, "/bin/true", "/home/u/.codex", t.TempDir(), e.cores)
+			return startDaemon(ctx, "/bin/true", "/home/u/.codex", t.TempDir(), e.cores, e.tasks)
 		},
 		"an observer": func(e *Executor) error {
 			return observerUnits{cores: e.cores}.Start(ctx, "aacpanel-observer-0123456789abcdef.service",

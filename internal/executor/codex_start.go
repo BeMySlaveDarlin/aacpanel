@@ -213,7 +213,7 @@ func (e *Executor) codexDaemon(ctx context.Context, link *codex.Link, dir string
 		if err != nil {
 			return false, err
 		}
-		if err := startDaemon(ctx, bin, link.Home(), dir, e.cores); err != nil {
+		if err := startDaemon(ctx, bin, link.Home(), dir, e.cores, e.tasks); err != nil {
 			return false, err
 		}
 		started = true
@@ -226,9 +226,9 @@ func (e *Executor) codexDaemon(ctx context.Context, link *codex.Link, dir string
 	return started, link.Ready(wctx)
 }
 
-func startDaemon(ctx context.Context, bin, home, dir, cores string) error {
+func startDaemon(ctx context.Context, bin, home, dir, cores, tasks string) error {
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), daemonArgs(env, bin, home, dir, cores)...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), daemonArgs(env, bin, home, dir, cores, tasks)...)
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -244,8 +244,8 @@ func startDaemon(ctx context.Context, bin, home, dir, cores string) error {
 // running, as the launcher's unit leaves the tmux server, in the agents' slice
 // and on the cores the unit is held to: the commands of every thread run in
 // the daemon. One daemon holds every thread of its home, so its unit gets the
-// slice alone and not the ceilings of one session.
-func daemonArgs(env []string, bin, home, dir, cores string) []string {
+// slice's memory budget and the task ceiling of one unit.
+func daemonArgs(env []string, bin, home, dir, cores, tasks string) []string {
 	args := []string{
 		"--user",
 		"--wait",
@@ -254,7 +254,7 @@ func daemonArgs(env []string, bin, home, dir, cores string) []string {
 		"--description=codex app-server daemon of " + home,
 		"--working-directory=" + dir,
 	}
-	args = append(args, inSlice(hostcfg.Ceilings{})...)
+	args = append(args, inSlice(hostcfg.Ceilings{}, tasks)...)
 	args = append(args, affinity(cores)...)
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {

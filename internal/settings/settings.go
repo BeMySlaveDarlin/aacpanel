@@ -98,6 +98,10 @@ var specs = map[string]spec{
 		"the memory of one session on the stream past which the kernel kills one of its processes; a sixth of the machine when unset, none when empty or 0"},
 	hostcfg.SessionSwapMaxEnv: {groupMachine, CostExec, false,
 		"the swap one session on the stream may take; a sixty-fourth of the machine's memory when unset, none when empty or 0"},
+	hostcfg.SessionTasksMaxEnv: {groupMachine, CostExec, false,
+		"the tasks one agent unit may keep, including sessions, codex daemons and observers; 8192 when unset, none when empty, 0 or infinity; applied to running units at executor start"},
+	hostcfg.AgentsTasksMaxEnv: {groupMachine, CostExec, false,
+		"the tasks all agent units together may keep in their slice; 24576 when unset, none when empty, 0 or infinity"},
 
 	"AACP_RP_ID":      {groupAccess, CostRecreate, false, "the passkey domain; changing it voids every key already enrolled"},
 	"AACP_RP_ORIGINS": {groupAccess, CostRecreate, false, "the origins a sign-in is accepted from"},

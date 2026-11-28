@@ -35,7 +35,7 @@ func (e *Executor) checkClaude(ctx context.Context) (string, error) {
 		return "", err
 	}
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), checkArgs(env, bin, e.cores, e.memory.Session)...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), checkArgs(env, bin, e.cores, e.memory.Session, e.tasks)...)
 	cmd.Env = env
 	var out, errs bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errs
@@ -67,8 +67,8 @@ func (e *Executor) checkClaude(ctx context.Context) (string, error) {
 // slice, and held to the ceilings of one session, for it runs one claude.
 // Killing systemd-run does not stop its unit, so the check and all its
 // children are bounded even when the update's client or executor goes away.
-func checkArgs(env []string, bin, cores string, held hostcfg.Ceilings) []string {
-	args := launchArgs(env, bin, ClaudeContractFlag, cores, held)
+func checkArgs(env []string, bin, cores string, held hostcfg.Ceilings, tasks string) []string {
+	args := launchArgs(env, bin, ClaudeContractFlag, cores, held, tasks)
 	return append(args[:len(args)-3], "--property=KillMode=control-group", "--property=RuntimeMaxSec=12min",
 		"--", bin, ClaudeContractFlag)
 }

@@ -2213,6 +2213,13 @@ are started, `docker exec` from a session included, and are held by the
 container's own limits. The values are read once, at the executor's start; a
 running session keeps the unit and the ceilings it started with.
 
+`AACP_SESSION_TASKS_MAX` holds each unit to 8192 tasks when unset, and
+`AACP_AGENTS_TASKS_MAX` holds their slice to 24576; empty, 0 or `infinity`
+lifts the ceiling, and an invalid value is logged with the default in its place.
+At startup the executor also applies the unit's task ceiling to every running
+service and scope directly in the slice without restarting them; a refusal is
+logged and the remaining units are updated.
+
 **A cgroup that stands stuck at its `MemoryHigh` is let go to its
 `MemoryMax`.** A cgroup that goes on taking memory past `MemoryHigh` with no
 swap left to push into is held a little above it, slowed to a megabyte or so

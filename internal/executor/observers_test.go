@@ -147,10 +147,10 @@ func TestAnObserverWakesAThreadOfCodexThroughItsDaemon(t *testing.T) {
 func TestTheUnitOfAnObserverIsHeldToItsCeilings(t *testing.T) {
 	env := []string{"PATH=/usr/bin", "HOME=/home/u", "AACP_LANG=C", "GH_TOKEN=secret", "CLAUDECODE=1"}
 	args := observerArgs(env, "/opt/bin/aacpanel-exec", "aacpanel-observer-0123456789abcdef.service",
-		"/home/u/.local/state/aacpanel/observers/0123456789abcdef", observer.Spec{Name: "ci"}, "8-23")
+		"/home/u/.local/state/aacpanel/observers/0123456789abcdef", observer.Spec{Name: "ci"}, "8-23", "8192")
 	for _, want := range []string{"--user", "--collect", "--unit=aacpanel-observer-0123456789abcdef.service",
 		"--nice=10", "--property=MemoryMax=384M", "--property=MemorySwapMax=0", "--property=CPUQuota=5%",
-		"--property=CPUAffinity=8-23", "--setenv=PATH=/usr/bin", "--setenv=AACP_LANG=C"} {
+		"--property=CPUAffinity=8-23", "--property=TasksMax=8192", "--setenv=PATH=/usr/bin", "--setenv=AACP_LANG=C"} {
 		if !slices.Contains(args, want) {
 			t.Errorf("the unit is started without %s: %q", want, args)
 		}
@@ -165,7 +165,7 @@ func TestTheUnitOfAnObserverIsHeldToItsCeilings(t *testing.T) {
 		"/home/u/.local/state/aacpanel/observers/0123456789abcdef"}) {
 		t.Errorf("the unit runs %q", tail)
 	}
-	if args := observerArgs(env, "/b", "u", "/d", observer.Spec{Name: "ci"}, ""); slices.ContainsFunc(args,
+	if args := observerArgs(env, "/b", "u", "/d", observer.Spec{Name: "ci"}, "", ""); slices.ContainsFunc(args,
 		func(a string) bool { return strings.HasPrefix(a, "--property=CPUAffinity") }) {
 		t.Errorf("a host that names no cores holds the unit to some: %q", args)
 	}

@@ -379,7 +379,7 @@ func (e *Executor) restartCodex(ctx context.Context, program, home string) (busy
 		return 0, false, nil
 	}
 	restart := func() error {
-		args := daemonArgs(cleanEnv(os.Environ()), program, home, home, e.cores)
+		args := daemonArgs(cleanEnv(os.Environ()), program, home, home, e.cores, e.tasks)
 		args[len(args)-1] = "restart"
 		cmd := exec.CommandContext(ctx, systemdRunPath(), args...)
 		cmd.Env = cleanEnv(os.Environ())

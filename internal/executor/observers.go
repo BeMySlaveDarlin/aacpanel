@@ -30,7 +30,7 @@ import (
 // for the life of the executor.
 func (e *Executor) Observers() *observer.Keeper {
 	e.keeperOnce.Do(func() {
-		e.keeper = observer.NewKeeper(observer.Dir(), observerUnits{cores: e.cores}, observerOwners{e: e})
+		e.keeper = observer.NewKeeper(observer.Dir(), observerUnits{cores: e.cores, tasks: e.tasks}, observerOwners{e: e})
 	})
 	return e.keeper
 }
@@ -243,7 +243,7 @@ func wakeLetter(from, text string) string {
 // started from the executor, a command would live in the executor's unit and
 // its sandbox and die with its restart. They run on the cores every unit of
 // the executor is held to.
-type observerUnits struct{ cores string }
+type observerUnits struct{ cores, tasks string }
 
 // observerStopWait is how long a command asked to stop gets before its unit
 // kills it.
@@ -255,7 +255,7 @@ func (u observerUnits) Start(ctx context.Context, unit, dir string, spec observe
 		return err
 	}
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), observerArgs(env, bin, unit, dir, spec, u.cores)...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), observerArgs(env, bin, unit, dir, spec, u.cores, u.tasks)...)
 	cmd.Env = env
 	var errs bytes.Buffer
 	cmd.Stderr = &errs
@@ -272,7 +272,7 @@ func (u observerUnits) Start(ctx context.Context, unit, dir string, spec observe
 // slice, held to the ceilings of an observer, and return once it has started.
 // The unit is collected when it ends, failed or not: how the command ended is
 // in the directory of the observer, not in the unit.
-func observerArgs(env []string, bin, unit, dir string, spec observer.Spec, cores string) []string {
+func observerArgs(env []string, bin, unit, dir string, spec observer.Spec, cores, tasks string) []string {
 	args := []string{
 		"--user", "--quiet", "--collect",
 		"--unit=" + unit,
@@ -281,7 +281,7 @@ func observerArgs(env []string, bin, unit, dir string, spec observer.Spec, cores
 		"--property=CPUQuota=" + observer.CPUQuota,
 		"--property=TimeoutStopSec=" + observerStopWait,
 	}
-	args = append(args, inSlice(hostcfg.Ceilings{Max: observer.MemoryMax, Swap: "0"})...)
+	args = append(args, inSlice(hostcfg.Ceilings{Max: observer.MemoryMax, Swap: "0"}, tasks)...)
 	args = append(args, affinity(cores)...)
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {

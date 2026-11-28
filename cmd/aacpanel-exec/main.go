@@ -380,8 +380,12 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 	}
 	cores := executionCores(readCores())
 	memory := executionMemory(hostcfg.ReadMemory())
+	tasks, err := hostcfg.ReadTasks()
+	if err != nil {
+		log.Print(err)
+	}
 
-	exec := executor.New(executor.NewDocker(dockerHost), self).HoldTo(cores).HoldMemory(memory)
+	exec := executor.New(executor.NewDocker(dockerHost), self).HoldTo(cores).HoldMemory(memory).HoldTasks(tasks.Session)
 	srv := action.NewServer(socket, audited{next: exec}, actionTimeout)
 	ln, err := srv.Listen()
 	if err != nil {
@@ -409,9 +413,10 @@ func run(socket, dockerHost, self string, readCores func() (string, error)) erro
 		defer heavyLn.Close()
 	}
 
-	if err := executor.SetUpAgentsSlice(ctx, memory.Agents); err != nil {
+	if err := executor.SetUpAgentsSlice(ctx, memory.Agents, tasks.Agents); err != nil {
 		log.Printf("%v; sessions start all the same, and the slice keeps whatever ceilings it had", err)
 	}
+	executor.SetUpAgentTasks(ctx, tasks.Session)
 	go executor.WatchStalls(ctx, memory.Agents.High)
 	go keepLimits(ctx)
 	exec.StartCodex(ctx)

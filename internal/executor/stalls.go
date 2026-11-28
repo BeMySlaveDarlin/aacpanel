@@ -126,7 +126,7 @@ func (w *stallWatch) lookAt(ctx context.Context, now time.Time, m cgroupMemory) 
 		if m.current >= s.lifted/10*stallBackTenths {
 			return
 		}
-		if err := setHigh(ctx, m.unit, s.back); err != nil {
+		if err := setProperty(ctx, m.unit, "MemoryHigh", s.back); err != nil {
 			s.fail(fmt.Sprintf("memory: MemoryHigh=%s of %s was not set back: %v", s.back, m.unit, err))
 			return
 		}
@@ -147,7 +147,7 @@ func (w *stallWatch) lookAt(ctx context.Context, now time.Time, m cgroupMemory) 
 	if s.reads < stallReads {
 		return
 	}
-	if err := setHigh(ctx, m.unit, "infinity"); err != nil {
+	if err := setProperty(ctx, m.unit, "MemoryHigh", "infinity"); err != nil {
 		s.fail(fmt.Sprintf("memory: MemoryHigh of %s was not lifted: %v", m.unit, err))
 		return
 	}
@@ -175,22 +175,6 @@ func (s *stall) fail(line string) {
 		log.Print(line)
 	}
 	s.failed = line
-}
-
-// setHigh sets the MemoryHigh of a unit for the run of the manager, as the
-// slice is set up: the cgroup takes it at once.
-func setHigh(ctx context.Context, unit, value string) error {
-	ctx, cancel := context.WithTimeout(ctx, sliceWait)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, systemctlPath(), "--user", "--runtime", "set-property", unit,
-		"MemoryHigh="+value).CombinedOutput()
-	if err != nil {
-		if said := strings.TrimSpace(string(out)); said != "" {
-			return fmt.Errorf("%w: %s", err, shortenLines(said))
-		}
-		return err
-	}
-	return nil
 }
 
 // WatchStalls reads the memory of the agents' slice every stallLook until ctx
@@ -251,16 +235,27 @@ func agentsMemory(dir string) []cgroupMemory {
 	if m, err := readCgroupMemory(dir, AgentsSlice); err == nil {
 		read = append(read, m)
 	}
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		if m, err := readCgroupMemory(filepath.Join(dir, e.Name()), e.Name()); err == nil {
+	units, _ := sliceUnits(dir)
+	for _, unit := range units {
+		if m, err := readCgroupMemory(filepath.Join(dir, unit), unit); err == nil {
 			read = append(read, m)
 		}
 	}
 	return read
+}
+
+func sliceUnits(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var units []string
+	for _, e := range entries {
+		if e.IsDir() && (strings.HasSuffix(e.Name(), ".service") || strings.HasSuffix(e.Name(), ".scope")) {
+			units = append(units, e.Name())
+		}
+	}
+	return units, nil
 }
 
 func readCgroupMemory(dir, unit string) (cgroupMemory, error) {

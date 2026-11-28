@@ -55,6 +55,7 @@ type Executor struct {
 	// memory is the budget of the agents: the ceilings of the slice every
 	// unit for them lives in, and those of one session on the stream.
 	memory hostcfg.Memory
+	tasks  string
 	heavy  *heavy.Queue
 }
 
@@ -102,6 +103,13 @@ func (e *Executor) HoldTo(cores string) *Executor {
 // of the slice itself are SetUpAgentsSlice's.
 func (e *Executor) HoldMemory(m hostcfg.Memory) *Executor {
 	e.memory = m
+	return e
+}
+
+// HoldTasks holds every unit the executor starts for the agents to max
+// tasks; empty leaves the unit under the slice's ceiling alone.
+func (e *Executor) HoldTasks(max string) *Executor {
+	e.tasks = max
 	return e
 }
 

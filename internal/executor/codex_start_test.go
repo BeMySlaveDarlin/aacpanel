@@ -412,7 +412,7 @@ printf '%%s\n' "$TMPDIR" > %s
 	t.Setenv("TMPDIR", inherited)
 	tmp := filepath.Join(cache, "codex-tmp")
 	for _, home := range []string{"/home/u/.codex", "/home/u/.codex-work"} {
-		if err := startDaemon(t.Context(), os.Getenv(launcherEnv), home, cache, ""); err != nil {
+		if err := startDaemon(t.Context(), os.Getenv(launcherEnv), home, cache, "", ""); err != nil {
 			t.Fatal(err)
 		}
 		if got := strings.TrimSpace(string(readArgv(t, started))); got != tmp {
@@ -445,7 +445,7 @@ func TestCodexDaemonStartsWithoutAnAvailableCache(t *testing.T) {
 				}
 				t.Setenv("XDG_CACHE_HOME", cache)
 			}
-			if err := startDaemon(t.Context(), os.Getenv(launcherEnv), "/home/u/.codex", dir, ""); err != nil {
+			if err := startDaemon(t.Context(), os.Getenv(launcherEnv), "/home/u/.codex", dir, "", ""); err != nil {
 				t.Fatal(err)
 			}
 			if got := strings.TrimSpace(string(readArgv(t, started))); got != inherited {

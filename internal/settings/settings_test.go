@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/hostcfg"
 )
 
 func clean(t *testing.T, keys ...string) {
@@ -126,6 +128,16 @@ func TestEverySettingNamesItsCost(t *testing.T) {
 		}
 		if it.Note == "" {
 			t.Errorf("%s: a setting with no explanation — a person has nothing to understand it by", it.Key)
+		}
+	}
+}
+
+func TestTaskCeilingsBelongToTheMachinesExecutorSettings(t *testing.T) {
+	items := Collect(filepath.Join(t.TempDir(), "no-such-file"))
+	for _, key := range []string{hostcfg.SessionTasksMaxEnv, hostcfg.AgentsTasksMaxEnv} {
+		item := find(t, items, key)
+		if item.Group != groupMachine || item.Cost != CostExec || item.Secret || item.Note == "" {
+			t.Errorf("%s is not an explained machine setting applied at executor start: %+v", key, item)
 		}
 	}
 }

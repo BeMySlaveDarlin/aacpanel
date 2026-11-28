@@ -77,7 +77,7 @@ func (e *Executor) runUnit(ctx context.Context, bin, mode, what string, held hos
 	}
 
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), launchArgs(env, bin, mode, e.cores, held)...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), launchArgs(env, bin, mode, e.cores, held, e.tasks)...)
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(body)
 	var out, errs bytes.Buffer
@@ -123,7 +123,7 @@ func unitEnv(kv string) bool {
 // session on the stream, a window, the tmux server when this launch is the
 // one that starts it — and inherits the cores and the ceilings the unit is
 // held to.
-func launchArgs(env []string, bin, mode, cores string, held hostcfg.Ceilings) []string {
+func launchArgs(env []string, bin, mode, cores string, held hostcfg.Ceilings, tasks string) []string {
 	killMode := "process"
 	if mode == summaryFlag {
 		killMode = "control-group"
@@ -136,7 +136,7 @@ func launchArgs(env []string, bin, mode, cores string, held hostcfg.Ceilings) []
 		"--collect",
 		"--property=KillMode=" + killMode,
 	}
-	args = append(args, inSlice(held)...)
+	args = append(args, inSlice(held, tasks)...)
 	args = append(args, affinity(cores)...)
 	if mode == summaryFlag {
 		args = append(args, "--property=RuntimeMaxSec=120s")
