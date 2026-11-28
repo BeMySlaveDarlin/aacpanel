@@ -40,9 +40,13 @@ render(h("div", null, [...contours.map((contour) => h("footer", { class: "dkstat
 
 const text = (el) => el ? el.textContent.replace(/\s+/g, " ").trim() : "";
 const details = async (section, index) => {
-    document.querySelectorAll(`#${section} .limit-reading`)[index].click();
+    const reading = document.querySelectorAll(`#${section} .limit-reading`)[index];
+    reading.click();
     await quiet();
-    const pop = text(document.querySelector(".limit-popover"));
+    const bubble = document.querySelector(".limit-popover");
+    const label = reading.getAttribute("aria-label").split(",").slice(0, 2).join(",");
+    const detail = [...bubble.querySelectorAll(".limit-detail")].find((row) => row.querySelector(".limit-detail-reading").getAttribute("aria-label") === label);
+    const pop = [label, text(detail), ...[...bubble.children].filter((child) => child.tagName === "SPAN").map(text)].join(" ");
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await quiet();
     return pop;

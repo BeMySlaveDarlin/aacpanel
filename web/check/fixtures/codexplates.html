@@ -18,6 +18,7 @@ import { Sessions } from "/src/screens/sessions.js";
 import { Nav } from "/src/ui/nav.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 window.fetch = async (url) => {
@@ -79,20 +80,35 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 window.done = (async () => {
     if (!await until(() => document.querySelectorAll(".pfpage .pflimits").length === profileMap.length)) throw new Error("the contour pages did not show their limits");
-    return { pages: [...document.querySelectorAll(".pfpage")].map((page, i) => ({
-        name: profileMap[i].profile,
-        rings: [...page.querySelectorAll(".limit-ring")].map((ring) => ({
-            agent: ring.dataset.agent,
-            word: text(ring.closest(".limit-group").querySelector(".agentword")),
-            percent: text(ring.querySelector(".limit-percent")),
-            window: text(ring.querySelector(".limit-window")),
-            label: ring.getAttribute("aria-label"),
-            title: ring.title,
-            tone: ring.className,
-            old: ring.classList.contains("old"),
-        })),
-        notes: [...page.querySelectorAll(".limits-note")].map(text),
-        vendors: [...page.querySelectorAll(".limit-group legend .agentword")].map(text),
-    })) };
+    await quiet();
+    const pages = [];
+    for (const [i, page] of [...document.querySelectorAll(".pfpage")].entries()) {
+        const details = [];
+        for (const column of page.querySelectorAll(".limit-column")) {
+            column.click();
+            await quiet();
+            details.push(...[...page.querySelectorAll(".limit-detail")].map((detail) => ({
+                label: detail.querySelector(".limit-detail-reading").getAttribute("aria-label"), words: text(detail), tone: detail.className,
+            })));
+            column.click();
+            await quiet();
+        }
+        pages.push({
+            name: profileMap[i].profile, details,
+            columns: [...page.querySelectorAll(".limit-column")].map((column) => ({
+                agent: column.dataset.agent,
+                word: column.closest(".limit-group").dataset.agent,
+                percent: text(column.querySelector(".limit-percent")),
+                window: text(column.querySelector(".limit-window")),
+                label: column.getAttribute("aria-label"),
+                title: column.title,
+                tone: column.className,
+                old: column.classList.contains("old"),
+            })),
+            notes: [...page.querySelectorAll(".limits-note")].map(text),
+            vendors: [...page.querySelectorAll(".limit-group")].map((group) => group.dataset.agent),
+        });
+    }
+    return { pages };
 })();
 </script>

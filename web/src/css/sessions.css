@@ -198,7 +198,6 @@
 .pflimitrow { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .limit-group { flex: none; min-inline-size: 0; margin: 0; padding: 1px 5px 5px; border: var(--hair) solid var(--edge); border-radius: 10px; background: var(--glass); }
 .limit-group legend { margin-left: 3px; padding: 0 4px; font-size: var(--t-xs); line-height: 1; }
-.limit-windows { display: flex; gap: 5px; }
 .limit-anchor { display: inline-flex; flex: none; }
 .limit-reading { position: relative; flex: none; padding: 0; border: 0; background: none; font: inherit; text-align: inherit; color: var(--ok); cursor: pointer; }
 .limit-reading:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
@@ -226,47 +225,52 @@
 .limit-popover strong { color: var(--ink); }
 .limit-reading.warn { color: var(--warn); }
 .limit-reading.crit { color: var(--crit); }
-.limit-ring { display: grid; place-items: center; width: 42px; height: 42px; }
-.limit-gauge { position: absolute; inset: 0; border-radius: 50%; }
-.limit-gauge::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: conic-gradient(currentColor calc(var(--share) * 1%), var(--line) 0);
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--limit-stroke, 2.5px) - .4px), #000 calc(100% - var(--limit-stroke, 2.5px)));
-    mask: radial-gradient(farthest-side, transparent calc(100% - var(--limit-stroke, 2.5px) - .4px), #000 calc(100% - var(--limit-stroke, 2.5px)));
-}
-.limit-reading.crit .limit-gauge, .limit-reading.crit .limit-minitrack { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--crit) 75%, transparent)); }
-.limit-dial { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1; }
 .limit-percent { font-size: var(--t-sm); font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .limit-percent small { margin-left: 1px; font-size: .62em; font-weight: 600; color: var(--ink-faint); }
 .limit-reading.crit .limit-percent { color: var(--crit); }
 .limit-reading.crit .limit-percent small { color: inherit; opacity: .7; }
 .limit-window { --t-k: .8; font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); letter-spacing: -.03em; }
-.limit-ring.old .limit-gauge, .limit-ring.old .limit-dial { opacity: .45; }
-.limit-ring.old .limit-gauge::before {
-    background: conic-gradient(currentColor calc(var(--share) * 1%), transparent 0),
-        repeating-conic-gradient(var(--line) 0 5deg, transparent 5deg 10deg);
-}
 .limit-old { position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; background: var(--deep); color: var(--ink-dim); box-shadow: 0 0 0 1px var(--line); }
 .limit-old svg { width: var(--i-sm); height: var(--i-sm); }
-/* Folded, a vendor's readings and each action are tiles of one height and one
-   glass, so the line reads as one strip a third of the open row. */
-.limit-group.compact { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 9px; border: var(--hair) solid var(--edge); border-radius: 10px; background: var(--glass); box-shadow: var(--gloss), var(--hairline); }
-.limit-mini { display: flex; flex-direction: column; gap: 3px; min-width: 33px; }
-.limit-mini .limit-percent { font-size: var(--t-sm); line-height: 1; }
-.limit-minitrack { display: block; height: 3px; border-radius: 2px; background: linear-gradient(90deg, currentColor calc(var(--share) * 1%), var(--line) 0); }
-.limit-mini.old .limit-percent, .limit-mini.old .limit-minitrack { opacity: .45; }
-.limit-mini.old .limit-minitrack {
-    background: linear-gradient(90deg, currentColor calc(var(--share) * 1%), transparent 0),
-        repeating-linear-gradient(90deg, var(--line) 0 2px, transparent 2px 4px);
-}
-.limit-mini .limit-old { top: -7px; right: -7px; }
+
+.limit-columns { padding: 0 3px 3px; }
+.limit-columns legend { margin: 0 auto; padding: 0 2px; }
+.limit-columns .limit-vendor { display: flex; }
+.limit-columns .limit-vendor svg { width: var(--i-sm); height: var(--i-sm); }
+.limit-accounts { display: flex; align-items: flex-end; justify-content: center; gap: 2px; }
+.limit-column { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 24px; padding: 2px 2px 0; border-radius: 4px; }
+.limit-column .limit-percent { font-size: var(--t-xs); line-height: 1; }
+.limit-column .limit-window { font-size: var(--t-xs); line-height: 1; }
+.limit-column[aria-expanded="true"] { background: var(--accent-bg); box-shadow: 0 0 0 1px var(--accent); }
+.limit-column.ok, .limit-detail.ok { color: var(--limit-ok); }
+.limit-column.warn, .limit-detail.warn { color: var(--limit-warn); }
+.limit-column.crit, .limit-detail.crit, .limit-column.crit .limit-percent { color: var(--limit-crit); }
+.limit-cap { display: block; flex: none; width: 8px; height: 5px; font: .4em/5px var(--sans); color: var(--limit-crit); }
+.limit-bar { position: relative; display: block; flex: 1; height: 5px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.limit-used, .limit-ghost { position: absolute; top: 0; bottom: 0; }
+.limit-used { left: 0; width: calc(var(--share) * 1%); background: currentColor; }
+.limit-ghost { left: calc(var(--share) * 1%); width: calc((var(--forecast) - var(--share)) * 1%); background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 62%, transparent) 0 1.5px, color-mix(in srgb, currentColor 20%, transparent) 1.5px 3.5px); }
+.limit-bar.vertical { flex: none; width: 8px; height: 24px; }
+.limit-bar.vertical .limit-used { top: auto; right: 0; bottom: 0; width: auto; height: calc(var(--share) * 1%); }
+.limit-bar.vertical .limit-ghost { top: auto; left: 0; right: 0; bottom: calc(var(--share) * 1%); width: auto; height: calc((var(--forecast) - var(--share)) * 1%); }
+.limit-column.crit .limit-bar { box-shadow: 0 0 5px color-mix(in srgb, var(--limit-crit) 55%, transparent); }
+.limit-column.old > :not(.limit-old) { opacity: .45; }
+.limit-column .limit-old { top: -6px; right: -8px; }
+.limit-columns.compact { height: auto; padding: 0 3px 2px; box-shadow: var(--gloss), var(--hairline); }
+.limit-mini { min-width: 22px; gap: 0; }
+.limit-mini .limit-percent { font-size: var(--t-xs); }
+.limit-mini .limit-bar { height: 12px; width: 6px; }
+.limit-mini .limit-window { --t-k: .7; }
+.limit-mini .limit-cap { height: 3px; font-size: .34em; line-height: 3px; }
+.limit-detail { display: flex; flex-direction: column; gap: .15rem; margin: .2rem 0; }
+.limit-detail-reading { display: flex; align-items: center; gap: .5rem; }
+.limit-detail-reading .limit-window { flex: 0 0 1.6rem; }
+.limit-detail-percent { min-width: 4.7rem; text-align: right; font-weight: 700; color: var(--ink); }
+.limit-forecast { padding-left: 2.1rem; font-size: var(--t-xs); font-weight: 600; }
+.limit-reset { padding-left: 2.1rem; font-size: var(--t-xs); color: var(--ink-faint); }
 /* The actions keep to the right edge and take the height of the vendor frames
    beside them. A frame draws its top line through the middle of its legend,
-   so the tiles start half a legend down to meet that line. Folded, the row
-   has no frames, and the tiles keep their own size. */
+   so the tiles start half a legend down to meet that line. */
 .pfactions { display: flex; flex: none; align-self: stretch; gap: 4px; margin-left: auto; padding-top: calc(var(--t-xs) / 2); }
 .pflimits.tucked .pfactions { align-self: center; padding-top: 0; }
 .pflimits.tucked .pfaction { width: 36px; min-height: 0; height: 32px; padding: 6px; border-radius: 10px; }

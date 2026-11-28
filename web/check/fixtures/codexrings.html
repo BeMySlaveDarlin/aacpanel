@@ -94,8 +94,10 @@ window.done = (async () => {
     out.pop = [];
     for (const reading of desk.querySelectorAll(".dkstatus .limit-reading")) {
         reading.click();
-        await until(() => document.querySelector(".limit-popover")?.getAttribute("aria-label") === reading.title.split(", ").slice(0, 2).join(", "));
-        out.pop.push(text(document.querySelector(".limit-popover strong")));
+        await until(() => reading.getAttribute("aria-expanded") === "true" && document.querySelector(".limit-popover"));
+        const label = reading.title.split(", ").slice(0, 2).join(", ");
+        const detail = [...document.querySelectorAll(".limit-popover .limit-detail-reading")].find((row) => row.getAttribute("aria-label") === label);
+        out.pop.push(detail?.getAttribute("aria-label") || "");
     }
     const last = desk.querySelector('.limit-reading[aria-expanded="true"]');
     last.click();

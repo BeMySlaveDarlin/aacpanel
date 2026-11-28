@@ -6,7 +6,7 @@ import (
 )
 
 type contourTaskScene struct {
-	Rings         []struct{ Vendor, Window, Percent, Label, Tone string }
+	Columns       []struct{ Vendor, Window, Percent, Label, Tone string }
 	Actions       []string
 	Projects      []string
 	BeforeConfirm int
@@ -45,7 +45,7 @@ type contourTaskScene struct {
 	LongCollapsed, LongFirst, LongMore int
 	Empty                              string
 	EmptyBack                          bool
-	StaleRings                         int
+	StaleColumns                       int
 	StaleNote                          string
 	FoldedBeforeConfirm                int
 	FoldedProfile, FoldedTasks         bool
@@ -60,7 +60,13 @@ type contourTaskScene struct {
 		Vendor       string
 		Full, Folded limitToolbarState
 	}
-	Details struct {
+	Forecasts []struct {
+		Name         string
+		Full, Folded limitToolbarState
+		Windows      []limitDetailState
+	}
+	ChipForecast []limitDetailState
+	Details      struct {
 		ExpectedResetAt, ExpectedResetLocal                    string
 		Full, Week, Other, Folded, Stale, Codex, NoReset       limitPopoverState
 		ToggledClosed, OutsideClosed, EscapeClosed, InsideKept bool
@@ -79,10 +85,16 @@ type limitPopoverState struct {
 	Count                                   int
 	Words, Label, Role, ResetAt, ResetLocal string
 	Compact                                 bool
+	Windows                                 []limitDetailState
 	Readings                                []struct {
 		Label, Tag, Type, Popup, Expanded string
 		Focusable                         bool
 	}
+}
+
+type limitDetailState struct {
+	Label, Words, Forecast, Tone, Projection string
+	Ghost                                    bool
 }
 
 type limitToolbarState struct {
@@ -90,12 +102,13 @@ type limitToolbarState struct {
 	Words         string
 	Vendors       []string
 	Frames        []struct {
-		Vendor  string
-		Windows int
+		Vendor   string
+		Accounts int
 	}
 	Readings []struct {
 		Vendor, Percent, Label, Title, Tone, Share string
-		Old, Clock, Gauge, Bar                     bool
+		Old, Clock, Column, Bar, Mini, Ghost       bool
+		Window, Cap, Projection                    string
 	}
 	Actions []struct {
 		Label, Title, Words             string
@@ -103,31 +116,26 @@ type limitToolbarState struct {
 	}
 }
 
-func TestContourToolbarShowsLimitWindowsAndStartsMappedSessions(t *testing.T) {
+func TestContourToolbarShowsLimitColumnsAndStartsMappedSessions(t *testing.T) {
 	var got contourTaskScene
 	runFixture(t, "limitsfold.html", &got)
-	if len(got.Rings) != 3 {
-		t.Fatalf("rings: %+v", got.Rings)
+	if len(got.Columns) != 2 {
+		t.Fatalf("columns: %+v", got.Columns)
 	}
-	for i, want := range []string{"claude:1h/5h", "claude:5d/7d", "codex:5d/7d"} {
-		ring := got.Rings[i]
-		if ring.Vendor+":"+ring.Window != want || ring.Label == "" {
-			t.Errorf("ring %d: %+v, want %s", i, ring, want)
+	for i, want := range []string{"claude:5h", "codex:7d"} {
+		column := got.Columns[i]
+		if column.Vendor+":"+column.Window != want || column.Label == "" || column.Percent != []string{"99%", "44%"}[i] {
+			t.Errorf("column %d: %+v, want %s", i, column, want)
 		}
 	}
-	for i, want := range []string{"99%", "88%", "44%"} {
-		if got.Rings[i].Percent != want {
-			t.Errorf("ring %d says %q, want %q", i, got.Rings[i].Percent, want)
-		}
-	}
-	if !strings.Contains(got.Rings[0].Label, "99.5%") || !strings.Contains(got.Rings[0].Tone, "crit") || !strings.Contains(got.Rings[2].Tone, "ok") {
-		t.Errorf("ring details and tones: %+v", got.Rings)
+	if !strings.Contains(got.Columns[0].Label, "99.5%") || !strings.Contains(got.Columns[0].Tone, "crit") || !strings.Contains(got.Columns[1].Tone, "ok") {
+		t.Errorf("column details and tones: %+v", got.Columns)
 	}
 	if strings.Join(got.Actions, "|") != "Tasks|Profile|New session" {
 		t.Errorf("toolbar actions: %v", got.Actions)
 	}
-	if got.StaleRings != 3 || !strings.Contains(got.StaleNote, "the agent is silent") {
-		t.Errorf("silent collector loses its stale marks: %d, %s", got.StaleRings, got.StaleNote)
+	if got.StaleColumns != 2 || !strings.Contains(got.StaleNote, "the agent is silent") {
+		t.Errorf("silent collector loses its stale marks: %d, %s", got.StaleColumns, got.StaleNote)
 	}
 	if !got.Profile || len(got.Projects) != 2 || !strings.HasPrefix(got.Projects[0], "shop") || got.Projects[1] != "api" {
 		t.Errorf("mapped picker/profile: %+v", got)
@@ -137,41 +145,48 @@ func TestContourToolbarShowsLimitWindowsAndStartsMappedSessions(t *testing.T) {
 	}
 }
 
-func TestLimitReadingsOpenDetailsAndSwitchBetweenWindows(t *testing.T) {
+func TestLimitColumnsOpenBothWindowsAndSwitchVendors(t *testing.T) {
 	var got contourTaskScene
 	runFixture(t, "limitsfold.html", &got)
 	details := got.Details
 	for i, pop := range []limitPopoverState{details.Full, details.Week, details.Other, details.Folded} {
-		name := []string{"Claude, 5 hours", "Claude, 7 days", "Codex, 7 days", "Claude, 5 hours"}[i]
+		name := []string{"Claude limits", "Codex limits", "Claude limits", "Claude limits"}[i]
 		if pop.Count != 1 || pop.Label != name || pop.Role != "dialog" {
 			t.Errorf("details %d: %+v", i, pop)
 		}
-		for _, want := range []string{name, []string{"99.5% used", "88% used", "44% used", "99.5% used"}[i], "resets in ", "Updated 1 min ago"} {
+		for _, want := range []string{name, "resets in ", "Updated 1 min ago"} {
 			if !strings.Contains(pop.Words, want) {
 				t.Errorf("details %d lost %q: %s", i, want, pop.Words)
 			}
 		}
-		if len(pop.Readings) != 3 {
-			t.Fatalf("details %d lost a reading: %+v", i, pop.Readings)
+		if len(pop.Readings) != 2 {
+			t.Fatalf("details %d lost a column: %+v", i, pop.Readings)
 		}
 		for _, button := range pop.Readings {
 			expanded := "false"
-			if strings.HasPrefix(button.Label, name+",") {
+			if strings.HasPrefix(button.Label, strings.TrimSuffix(name, " limits")+",") {
 				expanded = "true"
 			}
 			if button.Tag != "BUTTON" || button.Type != "button" || button.Popup != "dialog" || !button.Focusable || button.Expanded != expanded {
 				t.Errorf("details %d control: %+v, want expanded=%s", i, button, expanded)
 			}
 		}
+		if i == 1 {
+			if len(pop.Windows) != 1 || pop.Windows[0].Label != "Codex, 7 days" || !strings.Contains(pop.Windows[0].Words, "44% used") {
+				t.Errorf("codex details: %+v", pop.Windows)
+			}
+		} else if len(pop.Windows) != 2 || pop.Windows[0].Label != "Claude, 5 hours" || pop.Windows[1].Label != "Claude, 7 days" || !strings.Contains(pop.Windows[0].Words, "99.5% used") || !strings.Contains(pop.Windows[1].Words, "88% used") {
+			t.Errorf("both Claude windows: %+v", pop.Windows)
+		}
 	}
 	if details.Full.ResetAt != details.ExpectedResetAt || details.Full.ResetLocal == "" || !strings.Contains(details.Full.ResetLocal, details.ExpectedResetLocal) || !strings.Contains(details.Full.Words, "resets in 1 h") {
 		t.Errorf("local reset and countdown: %+v", details.Full)
 	}
-	if strings.Contains(details.Full.Words, "last known numbers") || strings.Contains(details.Other.Words, "limit is reached") {
-		t.Errorf("fresh limits gained stale or reached notices: %s; %s", details.Full.Words, details.Other.Words)
+	if strings.Contains(details.Full.Words, "last known numbers") || strings.Contains(details.Week.Words, "limit is reached") {
+		t.Errorf("fresh limits gained stale or reached notices: %s; %s", details.Full.Words, details.Week.Words)
 	}
 	if !details.Folded.Compact {
-		t.Errorf("folded reading did not open its details: %+v", details.Folded)
+		t.Errorf("folded column did not open its details: %+v", details.Folded)
 	}
 }
 
@@ -189,7 +204,7 @@ func TestLimitDetailsShowStaleAgesReachedAndUnknownResets(t *testing.T) {
 	runFixture(t, "limitsfold.html", &got)
 	details := got.Details
 	for i, pop := range []limitPopoverState{details.Stale, details.Codex, details.NoReset} {
-		for _, want := range []string{[]string{"Claude, 5 hours", "Codex, 7 days", "Claude, 7 days"}[i], []string{"45.5% used", "100% used", "12.3% used"}[i], []string{"Updated 2 h ago", "Updated 3 h ago", "Updated 2 h ago"}[i], "last known numbers"} {
+		for _, want := range []string{[]string{"Claude limits", "Codex limits", "Claude limits"}[i], []string{"45.5% used", "100% used", "12.3% used"}[i], []string{"Updated 2 h ago", "Updated 3 h ago", "Updated 2 h ago"}[i], "last known numbers"} {
 			if pop.Count != 1 || !strings.Contains(pop.Words, want) {
 				t.Errorf("stale details %d lost %q: %+v", i, want, pop)
 			}
@@ -217,20 +232,20 @@ func TestTheLimitsFoldOverTheListScrolledPastThem(t *testing.T) {
 		if stop.Stuck != (i > 0 && i < 4) {
 			t.Errorf("scroll stop %d: stuck=%v", i, stop.Stuck)
 		}
-		if len(stop.Readings) != 3 {
+		if len(stop.Readings) != 2 {
 			t.Fatalf("scroll stop %d lost a window: %+v", i, stop)
 		}
-		for j, percent := range []string{"99%", "88%", "44%"} {
+		for j, percent := range []string{"99%", "44%"} {
 			reading := stop.Readings[j]
-			if reading.Percent != percent || reading.Share != []string{"99.5", "88", "44"}[j] || !strings.Contains(reading.Tone, []string{"crit", "crit", "ok"}[j]) {
+			if reading.Percent != percent || reading.Share != []string{"99.5", "44"}[j] || !strings.Contains(reading.Tone, []string{"crit", "ok"}[j]) {
 				t.Errorf("stop %d window %d: %+v", i, j, reading)
 			}
-			if reading.Bar != want || reading.Gauge == want || reading.Label == "" || reading.Title != reading.Label {
+			if !reading.Bar || !reading.Column || reading.Mini != want || reading.Label == "" || reading.Title != reading.Label {
 				t.Errorf("stop %d lost the reading's form or meaning: %+v", i, reading)
 			}
 		}
-		if want && (len(stop.Vendors) != 0 || strings.Contains(strings.ToLower(stop.Words), "claude") || strings.Contains(strings.ToLower(stop.Words), "codex")) {
-			t.Errorf("folded row contains vendor words: %+v", stop)
+		if want && (strings.Join(stop.Vendors, "|") != "claude|codex" || strings.Contains(strings.ToLower(stop.Words), "claude") || strings.Contains(strings.ToLower(stop.Words), "codex")) {
+			t.Errorf("folded row lost its vendor icons or contains vendor words: %+v", stop)
 		}
 	}
 	for _, state := range []limitToolbarState{got.TuckedNew, got.TuckedProfile, got.TuckedTasks} {
@@ -251,11 +266,11 @@ func TestTheLimitsFoldOverTheListScrolledPastThem(t *testing.T) {
 func TestLimitFramesKeepVendorsAndStaleReadingsDistinct(t *testing.T) {
 	var got contourTaskScene
 	runFixture(t, "limitsfold.html", &got)
-	if len(got.Full.Frames) != 2 || got.Full.Frames[0].Vendor != "claude" || got.Full.Frames[0].Windows != 2 || got.Full.Frames[1].Vendor != "codex" || got.Full.Frames[1].Windows != 1 {
+	if len(got.Full.Frames) != 2 || got.Full.Frames[0].Vendor != "claude" || got.Full.Frames[0].Accounts != 1 || got.Full.Frames[1].Vendor != "codex" || got.Full.Frames[1].Accounts != 1 {
 		t.Fatalf("full frames: %+v", got.Full.Frames)
 	}
 	for _, state := range []limitToolbarState{got.StaleFull, got.StaleFold} {
-		if len(state.Readings) != 3 {
+		if len(state.Readings) != 2 {
 			t.Fatalf("stale windows: %+v", state)
 		}
 		for _, reading := range state.Readings {
@@ -271,19 +286,74 @@ func TestLimitFramesKeepVendorsAndStaleReadingsDistinct(t *testing.T) {
 		t.Fatalf("single vendor cases: %+v", got.SingleVendor)
 	}
 	for _, single := range got.SingleVendor {
-		if len(single.Full.Frames) != 1 || single.Full.Frames[0].Vendor != single.Vendor || len(single.Folded.Frames) != 0 || len(single.Folded.Vendors) != 0 {
+		if len(single.Full.Frames) != 1 || single.Full.Frames[0].Vendor != single.Vendor || len(single.Folded.Frames) != 1 || strings.Join(single.Folded.Vendors, "|") != single.Vendor {
 			t.Errorf("single vendor groups: %+v", single)
 		}
 		if len(single.Full.Readings) != len(single.Folded.Readings) {
 			t.Errorf("single vendor lost a window: %+v", single)
 		}
 		if single.Vendor == "claude" {
-			if len(single.Full.Readings) != 2 || !strings.Contains(single.Full.Readings[0].Tone, "ok") || !strings.Contains(single.Full.Readings[1].Tone, "warn") {
+			if len(single.Full.Readings) != 1 || single.Full.Readings[0].Percent != "60%" || single.Full.Readings[0].Window != "7d" || !strings.Contains(single.Full.Readings[0].Tone, "warn") {
 				t.Errorf("threshold boundary: %+v", single)
 			}
 		} else if len(single.Full.Readings) != 1 || !strings.Contains(single.Full.Readings[0].Tone, "crit") || !single.Folded.Readings[0].Old || !single.Folded.Readings[0].Clock {
 			t.Errorf("codex threshold or stale sign: %+v", single)
 		}
+	}
+}
+
+func TestLimitColumnsUseForecastToneBeforeShareAndKeepBothWindowsInDetails(t *testing.T) {
+	var got contourTaskScene
+	runFixture(t, "limitsfold.html", &got)
+	if len(got.Forecasts) != 6 {
+		t.Fatalf("forecast cases: %+v", got.Forecasts)
+	}
+	for i, scene := range got.Forecasts {
+		wantName := []string{"out", "tight", "tie", "threshold", "edge", "day"}[i]
+		wantPct := []string{"42%", "64%", "85%", "60%", "72%", "8%"}[i]
+		wantWindow := []string{"5h", "5h", "7d", "7d", "5h", "day"}[i]
+		wantTone := []string{"crit", "warn", "ok", "warn", "warn", "ok"}[i]
+		if scene.Name != wantName {
+			t.Errorf("case %d: %s", i, scene.Name)
+		}
+		for j, state := range []limitToolbarState{scene.Full, scene.Folded} {
+			if len(state.Readings) != 1 {
+				t.Fatalf("%s columns: %+v", scene.Name, state.Readings)
+			}
+			column := state.Readings[0]
+			if column.Percent != wantPct || column.Window != wantWindow || !strings.Contains(column.Tone, wantTone) || !column.Column || !column.Bar || column.Mini != (j == 1) || state.Tucked != (j == 1) {
+				t.Errorf("%s state %d: %+v", scene.Name, j, state)
+			}
+			if (column.Cap == "▲") != (i == 0) || column.Ghost != (i != 3) || column.Projection != []string{"100", "96", "90", "60", "100", "22"}[i] {
+				t.Errorf("%s forecast marks: %+v", scene.Name, column)
+			}
+		}
+		expected := []string{"runs out in ~2 h 15 min", "tight: ~96% at reset", "lasts until reset", "", "tight: ~100% at reset", "lasts until reset"}[i]
+		if len(scene.Windows) != 2 && !(i == 5 && len(scene.Windows) == 1) {
+			t.Fatalf("%s popup windows: %+v", scene.Name, scene.Windows)
+		}
+		for j, window := range scene.Windows {
+			wantForecast := "lasts until reset"
+			if j == 0 {
+				wantForecast = expected
+			}
+			if i == 3 {
+				wantForecast = ""
+			}
+			wantTone := "ok"
+			if j == 0 && i == 0 {
+				wantTone = "crit"
+			}
+			if (j == 0 && (i == 1 || i == 4)) || (j == 1 && i == 3) {
+				wantTone = "warn"
+			}
+			if !strings.Contains(window.Tone, wantTone) || window.Forecast != wantForecast || window.Ghost != (i != 3) || !strings.Contains(window.Words, "% used") || !strings.Contains(window.Words, "resets in") {
+				t.Errorf("%s popup window %d: %+v, want forecast %q", scene.Name, j, window, wantForecast)
+			}
+		}
+	}
+	if len(got.ChipForecast) != 2 || got.ChipForecast[0].Forecast != "runs out in ~2 h 15 min" || got.ChipForecast[1].Forecast != "lasts until reset" || !got.ChipForecast[0].Ghost || !got.ChipForecast[1].Ghost {
+		t.Errorf("desktop chip forecast details: %+v", got.ChipForecast)
 	}
 }
 

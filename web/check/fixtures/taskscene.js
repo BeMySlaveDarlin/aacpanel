@@ -2,7 +2,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sessions } from "/src/screens/sessions.js";
-import { ProfileLimits } from "/src/screens/sessions/limits.js";
+import { ProfileLimits, LimitGroup, limitGroups } from "/src/screens/sessions/limits.js";
 import { Nav } from "/src/ui/nav.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -135,9 +135,10 @@ export async function contourScene(root, hash) {
         <main class="body"><${Sessions} snapshot=${snapshot} error=${null} ageSec=${stale ? null : 1} exec=${exec} wait=${wait} faults=${[]} onLayer=${() => {}} /></main>
         <${Nav} current="sessions" onSelect=${() => {}} home=${null} />
     `)), root);
+    if (hash.startsWith("limits-forecast")) return forecastScene(root, hash);
     mode = ["long", "empty"].includes(hash) ? hash : "list";
     mount();
-    await until(() => document.querySelectorAll(".limit-ring").length === 3);
+    await until(() => document.querySelectorAll(".limit-column").length === 2);
     if (hash) {
         if (hash.startsWith("limits")) {
             if (hash === "limits-stale" || hash === "limits-stale-tucked") { mount(true); await quiet(); }
@@ -153,13 +154,13 @@ export async function contourScene(root, hash) {
         return { screenshot: hash };
     }
     const out = {};
-    out.rings = [...document.querySelectorAll(".limit-ring")].map((r) => ({ vendor: r.dataset.agent, window: text(r.querySelector(".limit-window")), percent: text(r.querySelector(".limit-percent")), label: r.getAttribute("aria-label"), tone: r.className }));
+    out.columns = [...document.querySelectorAll(".limit-column")].map((r) => ({ vendor: r.dataset.agent, window: text(r.querySelector(".limit-window")), percent: text(r.querySelector(".limit-percent")), label: r.getAttribute("aria-label"), tone: r.className }));
     out.actions = [...document.querySelector(".pflimitrow").querySelectorAll(".pfaction")].map((b) => b.getAttribute("aria-label"));
     out.full = readToolbar();
     out.details = await limitDetailsScene(root, mount);
     out.folding = await scrollScene(root);
     mount();
-    await until(() => document.querySelectorAll(".limit-ring").length === 3);
+    await until(() => document.querySelectorAll(".limit-column").length === 2);
     await click('.pfpage .pfaction[aria-label="New session"]');
     await until(() => sheet("New session"));
     out.projects = [...sheet("New session").querySelectorAll(".newproject")].map(text);
@@ -280,7 +281,7 @@ export async function contourScene(root, hash) {
     mount(true);
     await quiet();
     await moveToolbar(0);
-    out.staleRings = document.querySelectorAll(".limit-ring.old").length;
+    out.staleColumns = document.querySelectorAll(".limit-column.old").length;
     out.staleNote = text(document.querySelector(".limits-note"));
     out.staleFull = readToolbar();
     await tuckToolbar();
@@ -288,6 +289,8 @@ export async function contourScene(root, hash) {
     await foldedActions(out, mount);
     out.singleVendor = [];
     for (const vendor of ["claude", "codex"]) out.singleVendor.push(await vendorScene(root, vendor));
+    out.forecasts = await forecastScene(root);
+    out.chipForecast = await chipForecastScene(root);
     return out;
 }
 
@@ -314,6 +317,11 @@ async function limitDetailsScene(root, mount) {
             count: document.querySelectorAll(".limit-popover").length,
             words: text(pop), label: pop?.getAttribute("aria-label") || "", role: pop?.getAttribute("role") || "",
             resetAt: time?.dateTime || "", resetLocal: text(time),
+            windows: [...(pop?.querySelectorAll(".limit-detail") || [])].map((detail) => ({
+                label: detail.querySelector(".limit-detail-reading").getAttribute("aria-label"), words: text(detail),
+                forecast: text(detail.querySelector(".limit-forecast")), ghost: Boolean(detail.querySelector(".limit-ghost")),
+                tone: detail.className, projection: detail.querySelector(".limit-bar").style.getPropertyValue("--forecast"),
+            })),
             compact: Boolean(document.querySelector('.limit-mini[aria-expanded="true"]')),
             readings: [...rowBox().querySelectorAll(".limit-reading")].map((button) => ({
                 label: button.getAttribute("aria-label"), tag: button.tagName, type: button.type,
@@ -328,9 +336,9 @@ async function limitDetailsScene(root, mount) {
     await tap(reading("Claude, 5 hours"));
     out.toggledClosed = closed();
     await tap(reading("Claude, 5 hours"));
-    await tap(reading("Claude, 7 days"));
-    out.week = details();
     await tap(reading("Codex, 7 days"));
+    out.week = details();
+    await tap(reading("Claude, 5 hours"));
     out.other = details();
     await tap(".limit-popover strong");
     out.insideKept = details().count === 1;
@@ -360,6 +368,12 @@ async function limitDetailsScene(root, mount) {
     out.stale = details();
     await tap(reading("Codex, 7 days"));
     out.codex = details();
+    delete own.contours[0].fiveHour;
+    render(h(ToastHost, null, h(GateHost, null, html`<main class="body">
+        <${ProfileLimits} key="no-reset" profile="details" contour=${72} limits=${own} stale=${false}
+            entry=${profiles[0]} snapshot=${snapshot} exec=${exec} onTasks=${() => {}} onSettings=${() => {}} />
+    </main>`)), root);
+    await quiet();
     await tap(reading("Claude, 7 days"));
     out.noReset = details();
     mount();
@@ -374,13 +388,15 @@ function readToolbar() {
         tucked: box.classList.contains("tucked"),
         stuck: box.classList.contains("stuck"),
         words: text(box.querySelector(".pflimitrow")),
-        vendors: [...box.querySelectorAll(".agentword")].map(text),
-        frames: [...box.querySelectorAll("fieldset.limit-group")].map((frame) => ({ vendor: text(frame.querySelector("legend")), windows: frame.querySelectorAll(".limit-reading").length })),
+        vendors: [...box.querySelectorAll(".limit-group")].map((group) => group.dataset.agent),
+        frames: [...box.querySelectorAll("fieldset.limit-group")].map((frame) => ({ vendor: frame.dataset.agent, accounts: frame.querySelectorAll(".limit-reading").length })),
         readings: [...box.querySelectorAll(".limit-reading")].map((reading) => ({
             vendor: reading.dataset.agent, percent: text(reading.querySelector(".limit-percent")),
             label: reading.getAttribute("aria-label"), title: reading.title, tone: reading.className,
             old: reading.classList.contains("old"), clock: Boolean(reading.querySelector(".limit-old")),
-            gauge: Boolean(reading.querySelector(".limit-gauge")), share: reading.style.getPropertyValue("--share"), bar: Boolean(reading.querySelector(".limit-minitrack")),
+            column: reading.classList.contains("limit-column"), mini: reading.classList.contains("limit-mini"), share: reading.style.getPropertyValue("--share"), bar: Boolean(reading.querySelector(".limit-bar.vertical")),
+            projection: reading.querySelector(".limit-bar")?.style.getPropertyValue("--forecast"),
+            window: text(reading.querySelector(".limit-window")), cap: text(reading.querySelector(".limit-cap")), ghost: Boolean(reading.querySelector(".limit-ghost")),
         })),
         actions: [...box.querySelectorAll(".pfaction")].map((button) => ({
             label: button.getAttribute("aria-label"), title: button.title, words: text(button),
@@ -437,7 +453,7 @@ async function scrollScene(root) {
             exec=${{ available: true, kinds: ["session.send"] }} wait=${wait} faults=${[]} onLayer=${() => {}} /></main>
         <${Nav} current="sessions" onSelect=${() => {}} home=${null} />
     `)), root);
-    await until(() => document.querySelectorAll(".pfpage .pflimits .limit-ring").length >= 3);
+    await until(() => document.querySelectorAll(".pfpage .pflimits .limit-column").length >= 2);
     await document.fonts.ready;
     await moveToolbar(0);
     const edge = Math.round(rowBox().getBoundingClientRect().bottom - pageOfRow().getBoundingClientRect().top);
@@ -464,6 +480,70 @@ async function vendorScene(root, vendor, fold = true) {
     return { vendor, full, folded: readToolbar() };
 }
 
+
+async function forecastScene(root, shot = "") {
+    const forecast = (pct, atReset, tone, hours, runsOut) => ({
+        ...windowOf(pct, hours), forecast: { pace: 18, pct: atReset, tone, ...(runsOut ? { runsOutAt: now + runsOut } : {}) },
+    });
+    const samples = [
+        { name: "out", fiveHour: forecast(42, 131.5, "out", 3, 8100), sevenDay: forecast(88, 92, "fine", 132) },
+        { name: "tight", fiveHour: forecast(64, 96, "tight", 3), sevenDay: forecast(90, 92, "fine", 132) },
+        { name: "tie", fiveHour: forecast(70, 80, "fine", 3), sevenDay: forecast(85, 90, "fine", 132) },
+        { name: "threshold", fiveHour: windowOf(59, 3), sevenDay: windowOf(60, 132) },
+        { name: "edge", fiveHour: forecast(72, 100, "tight", 3), sevenDay: forecast(60, 90, "fine", 132) },
+        { name: "day", gemini: { ageSec: 30, day: forecast(8, 22, "fine", 12) } },
+    ];
+    const mount = (sample, screenshot = false) => {
+        const contour = { profile: "personal", contour: 4, ageSec: 30, ...sample };
+        const ownLimits = { contours: [contour] };
+        if (screenshot) {
+            const entry = { ...profiles[0], name: "personal", profile: "personal" };
+            const sessions = [
+                { ...live[0], session: "shop", model: "claude-opus-5-5" },
+                { ...live[0], session: "api", sessionId: "codex-id", agent: "codex", model: "gpt-6-astra", status: "idle", project: { id: 8, name: "api" }, cwd: "/srv/api" },
+            ];
+            render(h(ToastHost, null, h(GateHost, null, html`
+                <main class="body"><${Sessions} key=${sample.name} snapshot=${{ ...snapshot, sessions, profileMap: [entry], limits: ownLimits }}
+                    error=${null} ageSec=${1} exec=${exec} wait=${wait} faults=${[]} onLayer=${() => {}} /></main>
+                <${Nav} current="sessions" onSelect=${() => {}} home=${null} />
+            `)), root);
+        } else {
+            render(h(ToastHost, null, h(GateHost, null, html`<main class="body">
+                <${ProfileLimits} key=${sample.name} profile="personal" contour=${4} limits=${ownLimits} stale=${false}
+                    entry=${profiles[0]} snapshot=${snapshot} exec=${exec} onTasks=${() => {}} onSettings=${() => {}} />
+            </main>`)), root);
+        }
+    };
+    const bubble = () => [...document.querySelectorAll(".limit-popover .limit-detail")].map((detail) => ({
+        label: detail.querySelector(".limit-detail-reading").getAttribute("aria-label"),
+        words: text(detail), forecast: text(detail.querySelector(".limit-forecast")), ghost: Boolean(detail.querySelector(".limit-ghost")),
+                tone: detail.className, projection: detail.querySelector(".limit-bar").style.getPropertyValue("--forecast"),
+    }));
+    if (shot) {
+        const sample = shot.endsWith("personal")
+            ? { name: "personal", fiveHour: forecast(23, 38, "fine", 3), sevenDay: forecast(52, 81, "fine", 132) }
+            : samples[shot.endsWith("tight") ? 1 : 0];
+        mount({ ...sample, codex: { ageSec: 30, fiveHour: forecast(64, 96, "tight", 3), sevenDay: forecast(30, 78, "fine", 132) } }, true);
+        await quiet();
+        if (shot.endsWith("tucked")) await tuckToolbar();
+        if (shot.endsWith("popover")) { document.querySelector(".limit-column").click(); await quiet(); }
+        return { screenshot: shot };
+    }
+    const out = [];
+    for (const sample of samples) {
+        mount(sample);
+        await quiet();
+        await moveToolbar(0);
+        const full = readToolbar();
+        document.querySelector(".limit-column").click();
+        await quiet();
+        const windows = bubble();
+        await tuckToolbar();
+        const folded = readToolbar();
+        out.push({ name: sample.name, full, folded, windows });
+    }
+    return out;
+}
 
 async function foldedActions(out, mount) {
     mode = "list";
@@ -493,4 +573,23 @@ async function foldedActions(out, mount) {
     await until(() => document.querySelector(".tqrow"));
     out.foldedTasks = Boolean(document.querySelector(".tqscreen"));
     await back(() => !document.querySelector(".tqscreen"));
+}
+
+async function chipForecastScene(root) {
+    const group = limitGroups({ ageSec: 30,
+        fiveHour: { ...windowOf(42, 3), forecast: { tone: "out", pct: 131.5, pace: 18, runsOutAt: now + 8100 } },
+        sevenDay: { ...windowOf(88, 132), forecast: { tone: "fine", pct: 92, pace: 1 } },
+    })[0];
+    const mount = (opened = null) => render(html`<div class="dklimitrow">
+        <${LimitGroup} group=${group} chip opened=${opened} onToggle=${(key) => mount({ key, x: 20 })} onClose=${() => mount()} />
+    </div>`, root);
+    mount();
+    await quiet();
+    document.querySelector(".limit-chip").click();
+    await quiet();
+    return [...document.querySelectorAll(".limit-detail")].map((detail) => ({
+        label: detail.querySelector(".limit-detail-reading").getAttribute("aria-label"), words: text(detail),
+        forecast: text(detail.querySelector(".limit-forecast")), ghost: Boolean(detail.querySelector(".limit-ghost")),
+                tone: detail.className, projection: detail.querySelector(".limit-bar").style.getPropertyValue("--forecast"),
+    }));
 }

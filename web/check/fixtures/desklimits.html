@@ -116,7 +116,10 @@ const details = async () => {
     for (const reading of document.querySelectorAll(".dklimitrow .limit-reading")) {
         reading.click();
         await quiet();
-        windows.push(text(document.querySelector(".limit-popover")));
+        const pop = document.querySelector(".limit-popover");
+        const label = reading.getAttribute("aria-label").split(",").slice(0, 2).join(",");
+        const detail = [...pop.querySelectorAll(".limit-detail")].find((row) => row.querySelector(".limit-detail-reading").getAttribute("aria-label") === label);
+        windows.push([label, text(detail), ...[...pop.children].filter((child) => child.tagName === "SPAN").map(text)].join(" "));
     }
     const out = { windows, note: windows.join(" | ") };
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));

@@ -127,6 +127,10 @@
     --ok: #7fe3d4;
     --warn: #9fc9f0;
     --crit: #b98cff;
+
+    --limit-crit: #ec7462;
+    --limit-warn: #f0a36b;
+    --limit-ok: #6b9c83;
     /* A session waiting for the person: the one warm colour of a state, so
        that it is told from a session at work without reading the word beside
        it. */

@@ -90,12 +90,13 @@ export function openLimits(snapshot) {
 export function limitGroups(contour, stale = false) {
     if (!contour) return [];
     const sources = [["claude", contour], ...Object.entries(contour).filter(([, source]) =>
-        source && typeof source === "object" && (source.fiveHour || source.sevenDay))];
+        source && typeof source === "object" && (source.fiveHour || source.sevenDay || source.day))];
     return sources.map(([agent, source]) => ({
         agent, old: stale || staleLimits(source), ageSec: source.ageSec, reached: source.reached,
         windows: [
             { span: "5h", full: `${agent[0].toUpperCase() + agent.slice(1)}, 5 hours`, data: source.fiveHour },
             { span: "7d", full: `${agent[0].toUpperCase() + agent.slice(1)}, 7 days`, data: source.sevenDay },
+            { span: "day", full: `${agent[0].toUpperCase() + agent.slice(1)}, day`, data: source.day },
         ].filter((window) => window.data),
     })).filter((group) => group.windows.length > 0);
 }
@@ -121,7 +122,7 @@ export function LimitNotes({ contour, groups, stale, compact }) {
 
 // Full groups carry their vendor on the frame. Past the row, the compact
 // readings keep that meaning in their accessible labels and leave the actions
-// available without taking the list's room for the full rings.
+// available without taking the list's room for the full columns.
 export function ProfileLimits({ limits, profile, contour, stale, entry, snapshot, exec, onTasks, onSettings }) {
     const [newSession, setNewSession] = useState(false);
     const [opened, setOpened] = useState(null);
@@ -170,65 +171,117 @@ function ringLeft(resetsAt) {
     return `${Math.max(1, Math.round(left / 60000))}m`;
 }
 
-export function LimitGroup({ group, tucked, chip, opened, onToggle, onClose }) {
-    const windows = group.windows.map((window) => {
-        const key = `${group.agent}:${window.span}`;
-        return html`<${LimitWindow} ...${window} key=${window.span} agent=${group.agent} old=${group.old}
-            ageSec=${group.ageSec} reached=${group.reached} tucked=${tucked} chip=${chip} opened=${opened && opened.key === key ? opened : null}
-            onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
+function worstWindow(windows) {
+    const rank = { ok: 0, warn: 1, crit: 2 };
+    return windows.reduce((worst, window) => {
+        const tone = rank[windowTone(window.data)] - rank[windowTone(worst.data)];
+        return tone > 0 || (tone === 0 && window.data.pct > worst.data.pct) ? window : worst;
     });
+}
+
+function forecastText(data) {
+    const forecast = data.forecast;
+    if (!forecast) return "";
+    if (data.pct >= 100) return "limit reached";
+    if (forecast.runsOutAt) {
+        const minutes = Math.max(1, Math.round((forecast.runsOutAt * 1000 - Date.now()) / 60000));
+        const hours = Math.floor(minutes / 60);
+        const rest = minutes % 60;
+        const duration = [hours && `${hours} h`, rest && `${rest} min`].filter(Boolean).join(" ");
+        return `runs out in ~${duration}`;
+    }
+    if (forecast.tone === "tight") return `tight: ~${Math.round(forecast.pct)}% at reset`;
+    return "lasts until reset";
+}
+
+function limitShares(data) {
+    const value = Math.max(0, Number(data.pct) || 0);
+    const pct = Math.min(100, value);
+    const whole = value < 100 ? Math.min(99, Math.round(value)) : Math.round(value);
+    const forecast = data.forecast && Number(data.forecast.pct);
+    const fore = Number.isFinite(forecast) ? Math.max(pct, Math.min(100, forecast)) : pct;
+    return { whole, style: `--share:${pct};--forecast:${fore}` };
+}
+
+function ForecastBar({ data, vertical = false }) {
+    return html`<span class=${`limit-bar${vertical ? " vertical" : ""}`} aria-hidden="true" style=${limitShares(data).style}>
+        <span class="limit-used"></span>
+        ${data.forecast && html`<span class="limit-ghost"></span>`}
+    </span>`;
+}
+
+export function LimitGroup({ group, tucked, chip, opened, onToggle, onClose }) {
+    const VendorIcon = LIMIT_ICONS.get(group.agent) || Icon.limit;
     if (chip) {
-        const VendorIcon = LIMIT_ICONS.get(group.agent) || Icon.limit;
+        const windows = group.windows.map((window) => {
+            const key = `${group.agent}:${window.span}`;
+            return html`<${LimitWindow} ...${window} key=${window.span} group=${group}
+                opened=${opened && opened.key === key ? opened : null}
+                onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
+        });
         return html`<div class=${`limit-group limit-chip-group${group.old ? " old" : ""}`} data-agent=${group.agent}
                         role="group" aria-label=${`${group.agent} limits`} style=${`--limit-windows:${group.windows.length}`}>
             <span class="limit-vendor agentword" data-agent=${group.agent} aria-hidden="true"><${VendorIcon} /></span>
             ${windows}
         </div>`;
     }
-    if (tucked) return html`<div class="limit-group compact" data-agent=${group.agent} role="group" aria-label=${`${group.agent} limits`}>
-        ${windows}
-    </div>`;
-    return html`<fieldset class="limit-group" data-agent=${group.agent}>
-        <legend><span class="agentword" data-agent=${group.agent}>${group.agent}</span></legend>
-        <div class="limit-windows">${windows}</div>
+    return html`<fieldset class=${`limit-group limit-columns${tucked ? " compact" : ""}`} data-agent=${group.agent} aria-label=${`${group.agent} limits`}>
+        <legend><span class="limit-vendor agentword" data-agent=${group.agent} aria-hidden="true"><${VendorIcon} /></span></legend>
+        <div class="limit-accounts">
+            <${LimitColumn} group=${group} tucked=${tucked} opened=${opened && opened.key === group.agent ? opened : null}
+                onToggle=${(event) => onToggle(group.agent, event)} onClose=${onClose} />
+        </div>
     </fieldset>`;
 }
 
-function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, chip, opened, onToggle, onClose }) {
-    const value = Math.max(0, Number(data.pct) || 0);
-    const pct = Math.min(100, value);
-    const whole = value < 100 ? Math.min(99, Math.round(value)) : Math.round(value);
-    const known = old && "last known numbers";
-    const label = [full, share(data.pct), resetText(data.resetsAt), known].filter(Boolean).join(", ");
-    const reading = html`<span class="limit-percent">${whole}<small>%</small></span>`;
+function LimitColumn({ group, tucked, opened, onToggle, onClose }) {
+    const { span, full, data } = worstWindow(group.windows);
+    const { whole, style } = limitShares(data);
+    const label = [full, share(data.pct), resetText(data.resetsAt), forecastText(data), group.old && "last known numbers"].filter(Boolean).join(", ");
     return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
-        <button class=${`limit-reading ${chip ? "limit-chip" : tucked ? "limit-mini" : "limit-ring"} ${windowTone(data)}${old && !chip ? " old" : ""}`}
-                    data-agent=${agent} type="button" aria-label=${label} title=${label} style=${`--share:${pct}`}
+        <button class=${`limit-reading limit-column${tucked ? " limit-mini" : ""} ${windowTone(data)}${group.old ? " old" : ""}`}
+                    data-agent=${group.agent} type="button" aria-label=${label} title=${label} style=${style}
                     aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
-            ${chip ? html`
-                ${reading}
-                <span class="limit-window limit-left">${ringLeft(data.resetsAt)}</span>
-            ` : tucked ? html`
-                ${reading}
-                <span class="limit-minitrack" aria-hidden="true"></span>
-            ` : html`
-                <span class="limit-gauge" aria-hidden="true"></span>
-                <span class="limit-dial">
-                    ${reading}
-                    <span class="limit-window">${ringLeft(data.resetsAt)}${data.resetsAt ? "/" : ""}${span}</span>
-                </span>
-            `}
-            ${old && !chip && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
+            <span class="limit-percent">${whole}<small>%</small></span>
+            <span class="limit-cap" aria-hidden="true">${data.forecast && data.forecast.pct > 100 ? "▲" : ""}</span>
+            <${ForecastBar} data=${data} vertical />
+            <span class="limit-window">${span}</span>
+            ${group.old && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
         </button>
-        <${Popover} open=${Boolean(opened)} onClose=${onClose} label=${full} className="limit-popover">
-            <strong>${full}</strong>
-            <span>${share(data.pct)} used</span>
-            ${Boolean(data.resetsAt) && html`<span><time dateTime=${new Date(data.resetsAt * 1000).toISOString()}>${alarmTime(data.resetsAt * 1000, true)}</time> · ${resetText(data.resetsAt)}</span>`}
-            <span>Updated ${agoText(ageSec)}</span>
-            ${known && html`<span>${known}</span>`}
-            ${agent === "codex" && reached && html`<span>${CODEX_REACHED}</span>`}
-        <//>
+        <${LimitPopover} group=${group} opened=${opened} onClose=${onClose} />
     </span>`;
+}
+
+function LimitWindow({ group, span, full, data, opened, onToggle, onClose }) {
+    const { whole } = limitShares(data);
+    const pct = Math.min(100, Math.max(0, Number(data.pct) || 0));
+    const label = [full, share(data.pct), resetText(data.resetsAt), group.old && "last known numbers"].filter(Boolean).join(", ");
+    return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
+        <button class=${`limit-reading limit-chip ${windowTone(data)}`}
+                    data-agent=${group.agent} type="button" aria-label=${label} title=${label} style=${`--share:${pct}`}
+                    aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
+            <span class="limit-percent">${whole}<small>%</small></span>
+            <span class="limit-window limit-left">${ringLeft(data.resetsAt)}</span>
+        </button>
+        <${LimitPopover} group=${group} opened=${opened} onClose=${onClose} />
+    </span>`;
+}
+
+function LimitPopover({ group, opened, onClose }) {
+    const name = `${group.agent[0].toUpperCase() + group.agent.slice(1)} limits`;
+    return html`<${Popover} open=${Boolean(opened)} onClose=${onClose} label=${name} className="limit-popover">
+        <strong>${name}</strong>
+        ${group.windows.map(({ span, full, data }) => html`<div class=${`limit-detail ${windowTone(data)}`} key=${span}>
+            <div class="limit-detail-reading" aria-label=${full}>
+                <span class="limit-window">${span}</span><${ForecastBar} data=${data} /><span class="limit-detail-percent">${share(data.pct)} used</span>
+            </div>
+            ${data.forecast && html`<span class="limit-forecast">${forecastText(data)}</span>`}
+            ${Boolean(data.resetsAt) && html`<span class="limit-reset"><time dateTime=${new Date(data.resetsAt * 1000).toISOString()}>${alarmTime(data.resetsAt * 1000, true)}</time> · ${resetText(data.resetsAt)}</span>`}
+        </div>`)}
+        <span>Updated ${agoText(group.ageSec)}</span>
+        ${group.old && html`<span>last known numbers</span>`}
+        ${group.agent === "codex" && group.reached && html`<span>${CODEX_REACHED}</span>`}
+    <//>`;
 }
 
 const folded = new Map();

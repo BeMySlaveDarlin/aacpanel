@@ -378,10 +378,8 @@
 .fill.warn { background: var(--warn); }
 .fill.crit { background: var(--crit); }
 
-/* A window of codex's is in codex's hue wherever it is drawn — the page of a
-   contour, the usage page — as its ring at a desk is, until it nears its end
-   and takes the colour of its state as any window does. In the accent it
-   would read as one more window of claude's. */
+/* Desktop bars distinguish Codex from Claude by hue. Phone limits keep one
+   forecast palette so their tones stay separate from session states. */
 .limit[data-agent="codex"] .fill.ok { background: var(--agent-codex); }
 
 .status {
@@ -487,3 +485,15 @@
     box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .chip .n { font-size: .82em; opacity: .65; margin-left: .3em; }
+
+@media (max-width: 1099px) {
+    .hm-usage .bar i.ok { background: var(--limit-ok); }
+    .hm-usage .bar i.warn { background: var(--limit-warn); }
+    .hm-usage .bar i.crit { background: var(--limit-crit); }
+    .limit .lval.ok { color: var(--limit-ok); }
+    .limit .lval.warn { color: var(--limit-warn); }
+    .limit .lval.crit { color: var(--limit-crit); }
+    .limit .fill.ok, .limit[data-agent="codex"] .fill.ok { background: var(--limit-ok); }
+    .limit .fill.warn { background: var(--limit-warn); }
+    .limit .fill.crit { background: var(--limit-crit); }
+}

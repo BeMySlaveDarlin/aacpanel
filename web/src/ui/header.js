@@ -99,7 +99,7 @@ export function HostMenu({
                     ${mem !== null && html`<span class="s">mem ${pct(mem)}</span>`}
                     ${cpu !== null && html`<span class="bar"><i class=${level(cpu)} style=${`width:${Math.min(100, cpu)}%`}></i></span>`}
                 </button>
-                <button class="hm-tile" type="button" data-stale=${limits && limits.stale ? "" : undefined}
+                <button class="hm-tile hm-usage" type="button" data-stale=${limits && limits.stale ? "" : undefined}
                     title=${limits && limits.contour ? `the limits of contour ${limits.contour}` : undefined}
                     onClick=${() => onPage("usage")}>
                     <span class="t">${Icon.pie()}Usage</span>
