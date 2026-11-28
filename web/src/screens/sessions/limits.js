@@ -32,6 +32,20 @@ function limitClass(pct) {
     return "ok";
 }
 
+// windowTone is the tone of one window of a limit. The collector forecasts a
+// window from its recent pace: "out" when it runs out before its reset, "tight"
+// when it reaches the reset nearly full, "fine" otherwise. A window it has no
+// pace for yet — a fresh window, a collector just started — falls back to its
+// share. One rule for every place that colours a limit: a column, a chip and a
+// ring that disagree about the same window would be worse than none.
+export function windowTone(data) {
+    const tone = data && data.forecast && data.forecast.tone;
+    if (tone === "out") return "crit";
+    if (tone === "tight") return "warn";
+    if (tone === "fine") return "ok";
+    return limitClass(data && typeof data.pct === "number" ? data.pct : 0);
+}
+
 // timeLeft is how long until a window starts over, "97 h" or "15 min", and
 // null once its time has come.
 function timeLeft(resetsAt) {
@@ -66,7 +80,7 @@ export function openLimits(snapshot) {
         contour: name,
         five,
         week: part(c.sevenDay),
-        tone: five === null ? "" : limitClass(five),
+        tone: five === null ? "" : windowTone(c.fiveHour),
         stale: staleLimits(c),
     };
 }
@@ -188,7 +202,7 @@ function LimitWindow({ agent, span, full, data, old, ageSec, reached, tucked, ch
     const label = [full, share(data.pct), resetText(data.resetsAt), known].filter(Boolean).join(", ");
     const reading = html`<span class="limit-percent">${whole}<small>%</small></span>`;
     return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
-        <button class=${`limit-reading ${chip ? "limit-chip" : tucked ? "limit-mini" : "limit-ring"} ${limitClass(data.pct)}${old && !chip ? " old" : ""}`}
+        <button class=${`limit-reading ${chip ? "limit-chip" : tucked ? "limit-mini" : "limit-ring"} ${windowTone(data)}${old && !chip ? " old" : ""}`}
                     data-agent=${agent} type="button" aria-label=${label} title=${label} style=${`--share:${pct}`}
                     aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
             ${chip ? html`
@@ -275,7 +289,7 @@ export function CodexWeek({ codex, name, head, span, full, short }) {
 // it, and the whole window in its title, under full.
 export function Limit({ name, data, agent, span, full }) {
     if (!data) return null;
-    const kind = limitClass(data.pct);
+    const kind = windowTone(data);
     const reset = resetText(data.resetsAt);
     const title = span ? [`${full}: ${share(data.pct)}`, reset].filter(Boolean).join(", ") : undefined;
     return html`
