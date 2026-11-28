@@ -97,6 +97,9 @@ func Crew(h Host) mcp.Tool {
 					state, at := "closed", ""
 					if live {
 						name, agent, profile = row.Name, row.Agent, row.Profile
+						if row.Agent == agentCodex && row.Title != "" {
+							name = row.Title + " (" + row.Name + ")"
+						}
 						state, at = h.crewState(ctx, row)
 					}
 					if name == "" {
@@ -142,6 +145,7 @@ func Crew(h Host) mcp.Tool {
 
 type crewRow struct {
 	Name      string          `json:"session"`
+	Title     string          `json:"title"`
 	SessionID string          `json:"sessionId"`
 	OpenedKey string          `json:"openedKey"`
 	Agent     string          `json:"agent"`

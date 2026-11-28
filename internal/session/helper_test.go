@@ -10,7 +10,7 @@ func TestTheHelperToolsCarryTheCallerAndOneStartOptions(t *testing.T) {
 	p, url := startPanel(t, http.StatusOK, `{"ok":true,"detail":"done"}`)
 	h := hostWith(t, "", url)
 	said, failed := call(t, Open(h), boundAs("lead", mine), map[string]any{
-		"dir": "/srv/proj", "agent": "codex", "model": "gpt-6.1-sol", "effort": "high",
+		"dir": "/srv/proj", "name": "review", "agent": "codex", "model": "gpt-6.1-sol", "effort": "high",
 		"sandbox": "workspace-write", "writableRoots": []string{"/srv/cache"},
 	})
 	if failed || !strings.Contains(said, "immediately") {
@@ -18,7 +18,7 @@ func TestTheHelperToolsCarryTheCallerAndOneStartOptions(t *testing.T) {
 	}
 	params := p.calls()[0]["params"].(map[string]any)
 	c := params["codex"].(map[string]any)
-	if params["openedBy"] != mine || params["parent"] != "lead" || c["model"] != "gpt-6.1-sol" ||
+	if p.calls()[0]["target"] != "review" || params["openedBy"] != mine || params["parent"] != "lead" || c["model"] != "gpt-6.1-sol" ||
 		c["effort"] != "high" || c["sandbox"] != "workspace-write" || len(c["writableRoots"].([]any)) != 1 {
 		t.Fatalf("open lost the caller or launch options: %v", params)
 	}

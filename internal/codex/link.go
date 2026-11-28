@@ -489,9 +489,10 @@ func (ls *Links) Find(name string) []Thread {
 	var out []Thread
 	for _, l := range ls.list {
 		l.mu.Lock()
-		for id := range l.threads {
-			if SessionName(id) == name {
-				out = append(out, Thread{Link: l, ID: id, Name: name})
+		for id, t := range l.threads {
+			if SessionName(id) == name || (t.info.Name != nil && t.given != "" &&
+				sameName(*t.info.Name, t.given) && sameName(name, t.given)) {
+				out = append(out, Thread{Link: l, ID: id, Name: SessionName(id)})
 			}
 		}
 		l.mu.Unlock()

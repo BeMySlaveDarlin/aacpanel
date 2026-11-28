@@ -236,7 +236,9 @@ func TestACodexRestartUsesTheMapMessageOrWaits(t *testing.T) {
 			} else if len(turns) != 0 {
 				t.Fatalf("an empty restart started a turn: %s", turns)
 			}
-			if len(srv.Calls("thread/name/set")) != 1 {
+			names := srv.Calls("thread/name/set")
+			if len(names) != 2 || paramsOf(t, names[1])["threadId"] == paramsOf(t, names[0])["threadId"] ||
+				paramsOf(t, names[1])["name"] != "shop" {
 				t.Fatal("the replacement was not materialized for follow-ups")
 			}
 			waitFor(t, "the idle old thread to close", func() bool { return len(e.codex.Find(name)) == 0 })

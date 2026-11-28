@@ -43,7 +43,16 @@ func (s *Server) chatTarget(r *http.Request, name string) (chatTarget, error) {
 		}
 		return chatTarget{Session: id, Subagent: sub}, nil
 	}
-	if live, ok := s.host.LiveSession(name); ok {
+	found := s.host.SessionsNamed(name)
+	if len(found) > 1 {
+		var names []string
+		for _, live := range found {
+			names = append(names, fmt.Sprintf("%s (%s)", live.Name, live.SessionID))
+		}
+		return chatTarget{}, fmt.Errorf("session %q is ambiguous: %s", name, strings.Join(names, "; "))
+	}
+	if len(found) == 1 {
+		live := found[0]
 		if live.SessionID != "" {
 			return chatTarget{Session: live.SessionID}, nil
 		}

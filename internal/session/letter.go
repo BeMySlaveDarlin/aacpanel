@@ -183,6 +183,9 @@ func listing(ctx context.Context, h Host, self string) (string, bool) {
 	named := map[string]int{}
 	for _, r := range s.Sessions {
 		named[r.Name]++
+		if name := recipientName(r); name != r.Name {
+			named[name]++
+		}
 	}
 	var lines []string
 	for _, r := range s.Sessions {
@@ -193,7 +196,11 @@ func listing(ctx context.Context, h Host, self string) (string, bool) {
 		}
 		name := r.Name
 		if r.Agent == agentCodex {
-			name += " (Codex, " + orUnknown(codexTitle(r)) + ")"
+			if r.Title != "" {
+				name = r.Title + " (Codex, " + r.Name + ")"
+			} else {
+				name += " (Codex, " + orUnknown(codexTitle(r)) + ")"
+			}
 		}
 		line := fmt.Sprintf("- %s — %s — %s", name, orUnknown(r.Profile), orUnknown(r.CWD))
 		if r.Sleeping {
@@ -203,7 +210,7 @@ func listing(ctx context.Context, h Host, self string) (string, bool) {
 			}
 			line += " (" + state + ")"
 		}
-		if named[r.Name] > 1 {
+		if named[recipientName(r)] > 1 {
 			line += " (two sessions answer to this name, so a letter to it is refused)"
 		}
 		lines = append(lines, line)
@@ -217,6 +224,13 @@ func listing(ctx context.Context, h Host, self string) (string, bool) {
 
 // agentCodex is what the snapshot calls the row of a codex thread.
 const agentCodex = "codex"
+
+func recipientName(r row) string {
+	if r.Agent == agentCodex && r.Title != "" {
+		return r.Title
+	}
+	return r.Name
+}
 
 // codexTitle is what a codex thread is called beside its name: the name the
 // panel gave it, else the directory it works in.

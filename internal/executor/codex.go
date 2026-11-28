@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 
@@ -77,18 +78,27 @@ func sessionTarget(k action.Kind) bool {
 }
 
 // codexSession is the codex thread a target names, nil when it names none. A
-// claude session of the same name wins: it was named by a person or by the
-// panel, and a codex thread only by the tail of its id.
+// shared name is refused across agents as well as across codex homes.
 func (e *Executor) codexSession(target string) (*codex.Thread, error) {
 	found := e.codex.Find(target)
 	if len(found) == 0 {
 		return nil, nil
 	}
-	if claude, _, err := liveSessionsByName(target); err == nil && len(claude) > 0 {
-		return nil, nil
+	claude, _, err := liveSessionsByName(target)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
 	}
-	if len(found) > 1 {
-		return nil, fmt.Errorf("%w: there are two sessions named %s right now — it is unclear which one to take", action.ErrSessionAmbiguous, target)
+	if len(found)+len(claude) > 1 {
+		var names []string
+		for _, th := range found {
+			names = append(names, fmt.Sprintf("%s (Codex, %s, %s)", th.Name, th.ID, th.Link.Home()))
+		}
+		for _, s := range claude {
+			names = append(names, fmt.Sprintf("%s (Claude, pid %d)", s.Name, s.PID))
+		}
+		slices.Sort(names)
+		return nil, fmt.Errorf("%w: sessions named %s: %s — it is unclear which one to take", action.ErrSessionAmbiguous,
+			target, strings.Join(names, "; "))
 	}
 	return &found[0], nil
 }

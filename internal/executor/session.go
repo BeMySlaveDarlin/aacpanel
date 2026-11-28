@@ -56,7 +56,7 @@ type project struct {
 // thread under the tail of its id.
 func (e *Executor) Open(ctx context.Context, req action.Request) (string, string, error) {
 	if req.Kind == action.SessionResume && req.Agent == action.ResumeCodex {
-		detail, name, err := e.codexResume(ctx, req.Contour, req.Resume, req.ResumeAt)
+		detail, name, err := e.codexResume(ctx, req.Contour, req.Resume, req.Target, req.ResumeAt)
 		if err != nil || req.Parent == "" {
 			return detail, name, err
 		}

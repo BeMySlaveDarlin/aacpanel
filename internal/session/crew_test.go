@@ -56,7 +56,7 @@ func TestCrewStatusListsOnlyTheCallingConversationsDescendants(t *testing.T) {
 		{"session":"lead","sessionId":"`+mine+`","profile":"personal","status":"busy"},
 		{"session":"child","sessionId":"child-id","openedKey":"process-11-100","profile":"work","status":"busy","statusUpdatedAt":1000000,"pct":23.6,
 		 "checklist":{"items":[{"text":"Read","status":"done"},{"text":"Verify\ncode","status":"active"},{"text":"Write report","status":"pending"}]}},
-		{"session":"grandchild","sessionId":"grand-id","agent":"codex","profile":"personal","status":"idle","lastRequestAt":"2026-01-01T00:00:00Z","pct":0},
+		{"session":"grandchild","title":"review","sessionId":"grand-id","agent":"codex","profile":"personal","status":"idle","lastRequestAt":"2026-01-01T00:00:00Z","pct":0},
 		{"session":"peer","sessionId":"peer-id"},
 		{"session":"stranger","sessionId":"stray-id","agent":"codex"},
 		{"session":"foreign-child","sessionId":"stray-child"},
@@ -68,7 +68,7 @@ func TestCrewStatusListsOnlyTheCallingConversationsDescendants(t *testing.T) {
 	}
 	lines := strings.Split(said, "\n")
 	if len(lines) != 3 || !strings.HasPrefix(lines[0], "child | claude | work | working | since 1970-01-01T00:16:40Z") ||
-		!strings.HasPrefix(lines[1], "  grandchild | codex | personal | idle | last 2026-01-01T00:00:00Z") ||
+		!strings.HasPrefix(lines[1], "  review (grandchild) | codex | personal | idle | last 2026-01-01T00:00:00Z") ||
 		lines[2] != "1 closed child not shown." || strings.Contains(said, "finished |") {
 		t.Fatalf("unexpected subtree:\n%s", said)
 	}

@@ -1456,9 +1456,10 @@ answering round alone through `stop_hook_active`.
   unloaded loses its file; a subagent's thread is part of its parent's turn and
   gets none, and so does the thread a review runs in. The panel names a thread
   by the tail of its id, `codex-<8 hex>`, and keeps that name whatever the
-  thread is called: actions find the session by it. The screen reads the
-  thread by the name the panel gave it — a rename, or the project's session at
-  a start in tmux — for as long as codex calls the thread by it, and by the
+  thread is called: actions find the session by it or its panel-given title;
+  new daemon threads and archive resumes take a free title across live Claude,
+  Codex and tmux sessions. The screen reads the thread by the name the panel gave
+  it at launch or on a rename, for as long as codex calls the thread by it, and by the
   session of its project otherwise, as a claude session there reads; a thread
   no project holds reads by `codex-<8 hex>`. A push of the thread is titled
   by the same name, and its tap opens the session by `codex-<8 hex>`. A name codex gave the thread is

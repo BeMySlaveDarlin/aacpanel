@@ -218,10 +218,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Resume, _ = body.Params["session"].(string)
 		req.Contour, _ = body.Params["contour"].(string)
 		var err error
-		req.ResumeAt, err = s.codexResumeDirectory(r.Context(), req.Resume)
+		var name string
+		req.ResumeAt, name, err = s.codexResumeProject(r.Context(), req.Resume)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
+		}
+		if name != "" {
+			req.Target = name
 		}
 		parent, why, err := s.archivedParent(r.Context(), req.Resume)
 		if err != nil {

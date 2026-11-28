@@ -44,8 +44,8 @@ var (
 // daemon the panel is the thread's client and holds it until it closes it,
 // and sends the first message as its first turn. In tmux codex resumes the
 // thread in a terminal and holds it there, the first message as its prompt;
-// the thread is named after the project's session, which writes it to the
-// disk for codex to resume.
+// naming writes the thread to disk for codex to resume. A daemon thread
+// takes the first free name after the project's session.
 func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexParams, warns []string) (string, string, error) {
 	owner, err := e.openingSession(p.OpenedBy)
 	if err != nil {
@@ -83,8 +83,17 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 	}
 
 	tmux := c.Transport == launcher.TransportTmux
+	title := p.Session
+	if !tmux {
+		title, err = launcher.FreeName(title)
+		if err != nil {
+			return "", "", err
+		}
+	}
+	// Naming also materializes an empty thread before the first letter:
+	// the daemon cannot resume or list turns of an unwritten thread.
 	begin := codex.Begin{CWD: p.Path, Model: c.Model, Approval: c.Approval, Sandbox: c.Sandbox, Effort: c.Effort,
-		Parent: p.Parent, Owner: owner}
+		Parent: p.Parent, Owner: owner, Name: title}
 	if p.Codex != nil {
 		begin.WritableRoots = p.Codex.WritableRoots
 		begin.Workspace = c.Sandbox == "workspace-write"
@@ -96,15 +105,8 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 		warns = append(warns, "the session starts without the panel's tools: the executor does not know its own path: "+
 			err.Error())
 	}
-	if tmux {
-		begin.Name = p.Session
-	} else {
+	if !tmux {
 		begin.Message, begin.Hold = c.Intent, true
-	}
-	if owner.Conversation != "" {
-		// Naming materializes an empty thread before the first letter: the
-		// daemon cannot resume or list turns of an unwritten thread.
-		begin.Name = p.Session
 	}
 	id, err := link.Start(ctx, begin)
 	if id == "" {
@@ -147,11 +149,10 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 
 // codexResume goes on with a thread of codex from the archive: the panel joins
 // it in the daemon of its contour's home and holds it, as a thread it started,
-// and the thread is a live session of the panel from then on, named by the
-// tail of its id. No daemon is started for it: a resume brings back what a
-// person had, and a daemon that does not run is the person's to start —
-// codex resume in codex's terminal goes on with the thread there.
-func (e *Executor) codexResume(ctx context.Context, contour, threadID string, at *action.ResumeDirectory) (string, string, error) {
+// and gives it a free title. Its address stays tied to the tail of its id.
+func (e *Executor) codexResume(ctx context.Context, contour, threadID, base string, at *action.ResumeDirectory) (string, string, error) {
+	e.projectMoves.Lock()
+	defer e.projectMoves.Unlock()
 	dir, err := resumeDirectory(at)
 	if err != nil {
 		return "", "", err
@@ -171,9 +172,25 @@ func (e *Executor) codexResume(ctx context.Context, contour, threadID string, at
 		return "", "", fmt.Errorf("the codex daemon of %s, which resumes thread %s, is not up: %w", link.Home(), threadID, err)
 	}
 	name := codex.SessionName(threadID)
+	_, live := e.codex.Thread(threadID)
+	title := ""
+	if !live {
+		if base == "" {
+			base = name
+		}
+		title, err = launcher.FreeName(base)
+		if err != nil {
+			return "", "", err
+		}
+	}
 	cwd, err := link.ResumeIn(ctx, threadID, dir)
 	if err != nil {
 		return "", "", fmt.Errorf("thread %s was not resumed in the codex daemon of contour %s: %w", name, contour, err)
+	}
+	if title != "" {
+		if err := link.Rename(ctx, threadID, title); err != nil {
+			return "", name, fmt.Errorf("session %s resumed, but its name was not set: %w", name, err)
+		}
 	}
 	return fmt.Sprintf("session %s resumed in the codex daemon of contour %s, in %s: the panel holds the thread "+
 		"until it closes it", name, contour, cwd), name, nil

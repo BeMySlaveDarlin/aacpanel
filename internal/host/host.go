@@ -116,6 +116,7 @@ func (h *Reader) JSON() ([]byte, error) {
 // LiveSession is what the agent snapshot knows about a live session.
 type LiveSession struct {
 	Name      string `json:"session"`
+	Title     string `json:"title,omitempty"`
 	SessionID string `json:"sessionId"`
 	CWD       string `json:"cwd"`
 	StartedAt string `json:"startedAt"`
@@ -195,7 +196,16 @@ func (h *Reader) Worktrees() map[string]string {
 
 // LiveSession returns a live session by name together with whether it was found.
 func (h *Reader) LiveSession(name string) (LiveSession, bool) {
-	return h.liveSession(func(s LiveSession) bool { return s.Name == name })
+	return h.liveSession(func(s LiveSession) bool { return s.MatchesName(name) })
+}
+
+func (h *Reader) SessionsNamed(name string) []LiveSession {
+	return h.liveSessions(func(s LiveSession) bool { return s.MatchesName(name) })
+}
+
+// MatchesName keeps the stable Codex address usable after a panel rename.
+func (s LiveSession) MatchesName(name string) bool {
+	return s.Name == name || (s.Agent == "codex" && s.Title != "" && s.Title == name)
 }
 
 // LiveSessionOf returns the live session a conversation runs in. A session
@@ -209,22 +219,31 @@ func (h *Reader) LiveSessionOf(conversation string) (LiveSession, bool) {
 }
 
 func (h *Reader) liveSession(match func(LiveSession) bool) (LiveSession, bool) {
+	found := h.liveSessions(match)
+	if len(found) != 1 {
+		return LiveSession{}, false
+	}
+	return found[0], true
+}
+
+func (h *Reader) liveSessions(match func(LiveSession) bool) []LiveSession {
 	payload, err := h.JSON()
 	if err != nil {
-		return LiveSession{}, false
+		return nil
 	}
 	var snapshot struct {
 		Sessions []LiveSession `json:"sessions"`
 	}
 	if err := json.Unmarshal(payload, &snapshot); err != nil {
-		return LiveSession{}, false
+		return nil
 	}
+	var found []LiveSession
 	for _, s := range snapshot.Sessions {
 		if match(s) {
-			return s, true
+			found = append(found, s)
 		}
 	}
-	return LiveSession{}, false
+	return found
 }
 
 // AuthBuiltin, AuthToken and AuthMissing are the authorization states of a contour.

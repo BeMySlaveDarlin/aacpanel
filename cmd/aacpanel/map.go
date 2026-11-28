@@ -618,30 +618,19 @@ func (m mapProject) resumeDirectory() *action.ResumeDirectory {
 	return &action.ResumeDirectory{Path: path.Clean(m.project.Path + suffix), Root: m.project.Path}
 }
 
-func (s *Server) codexResumeDirectory(ctx context.Context, conversation string) (*action.ResumeDirectory, error) {
+func (s *Server) codexResumeProject(ctx context.Context, conversation string) (*action.ResumeDirectory, string, error) {
 	if s.db == nil {
-		return nil, nil
+		return nil, "", nil
 	}
 	list, err := s.db.Profiles(ctx)
 	if err != nil {
-		return nil, err
-	}
-	hasPrevious := false
-	for _, profile := range list {
-		for _, group := range profile.Groups {
-			for _, p := range group.Projects {
-				hasPrevious = hasPrevious || len(p.PreviousPaths) > 0
-			}
-		}
-	}
-	if !hasPrevious {
-		return nil, nil
+		return nil, "", err
 	}
 	var cwd string
 	if s.chat.Available() {
 		page, err := s.chat.Archive(ctx, chat.ArchiveReq{Conversations: []string{conversation}, Limit: 1})
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		for _, row := range page.Rows {
 			if row.SessionID == conversation && row.Agent == schema.AgentCodex {
@@ -651,17 +640,17 @@ func (s *Server) codexResumeDirectory(ctx context.Context, conversation string) 
 	} else {
 		hostID, err := s.db.HostID(ctx, s.hostName)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		cwd, _, err = s.db.SessionResumeAt(ctx, hostID, conversation)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 	if found, ok := projectAt(list, cwd, s.worktrees(), s.db.ProjectRoots()); ok {
-		return found.resumeDirectory(), nil
+		return found.resumeDirectory(), sessionNameOf(found.project), nil
 	}
-	return nil, nil
+	return nil, "", nil
 }
 
 // ref is the entry of the map a session row carries: which project it ran in

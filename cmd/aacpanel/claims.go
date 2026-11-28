@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"aacpanel/internal/act"
@@ -83,14 +84,16 @@ func (s *Server) claimSessions(ctx context.Context) ([]claimSession, error) {
 
 func claimRecipient(rows []claimSession, name string) (claimSession, error) {
 	var found claimSession
+	var matches []string
 	for _, row := range rows {
-		if row.Name != name {
+		if !row.MatchesName(name) {
 			continue
 		}
-		if found.SessionID != "" {
-			return claimSession{}, fmt.Errorf("session %s is ambiguous", name)
-		}
+		matches = append(matches, fmt.Sprintf("%s (%s)", row.Name, row.SessionID))
 		found = row
+	}
+	if len(matches) > 1 {
+		return claimSession{}, fmt.Errorf("session %s is ambiguous: %s", name, strings.Join(matches, "; "))
 	}
 	if found.SessionID == "" {
 		return found, fmt.Errorf("session %s is not live or sleeping", name)

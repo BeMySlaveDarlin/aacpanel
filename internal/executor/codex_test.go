@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -457,14 +458,14 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	}
 }
 
-func TestAClaudeSessionOfTheSameNameWins(t *testing.T) {
+func TestASharedClaudeAndCodexNameIsAmbiguous(t *testing.T) {
 	_, e := onCodex(t, nil)
 	procFS(t, fakeProc{pid: 5001, comm: "claude", ppid: 1, cwd: "/srv/proj", start: "5555", args: []string{"claude"}})
 	sessionFiles(t, fakeSession{pid: 5001, name: codexName, start: "5555"})
 
 	th, err := e.codexSession(codexName)
-	if err != nil || th != nil {
-		t.Errorf("a live claude session is named %s, and the action went to codex: %+v, %v", codexName, th, err)
+	if !errors.Is(err, action.ErrSessionAmbiguous) || th != nil || !strings.Contains(err.Error(), "Claude, pid 5001") {
+		t.Errorf("a shared Claude and Codex name was not refused: %+v, %v", th, err)
 	}
 }
 

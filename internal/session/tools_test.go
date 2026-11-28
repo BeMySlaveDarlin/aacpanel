@@ -332,7 +332,7 @@ func TestTheListOfSessionsNamesTheCodexThreads(t *testing.T) {
 		t.Fatalf("the list answered %q", said)
 	}
 	for _, want := range []string{"- codex-0000abcd (Codex, shop) — acme — /srv/acme/shop",
-		"- codex-0000beef (Codex, docs review) — personal — /srv/proj/docs"} {
+		"- docs review (Codex, codex-0000beef) — personal — /srv/proj/docs"} {
 		if !strings.Contains(said, want) {
 			t.Errorf("the list does not say %q:\n%s", want, said)
 		}

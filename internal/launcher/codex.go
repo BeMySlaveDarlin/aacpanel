@@ -125,10 +125,7 @@ func runCodex(ctx context.Context, spec Spec) (Report, error) {
 	// What the map holds that codex does not take, the executor has named.
 	p, _ := ParseCodex(spec.Launch)
 	var warns []string
-	taken := takenNames()
-	for _, name := range tmuxSessions() {
-		taken[name] = true
-	}
+	taken := takenNames(c.Thread)
 	name, err := freeName(spec.Session, taken)
 	if err != nil {
 		return Report{}, err
