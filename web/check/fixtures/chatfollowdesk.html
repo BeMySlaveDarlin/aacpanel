@@ -16,6 +16,30 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
 
+// Hold only the feed's resize delivery: a late frame must not leave the
+// previous-message button below a feed that was already following its end.
+let holdFeedResizes = false;
+const heldResizes = new Map();
+const NativeResizeObserver = window.ResizeObserver;
+window.ResizeObserver = class extends NativeResizeObserver {
+    constructor(callback) {
+        super((entries, observer) => {
+            const deliver = () => callback(entries, observer);
+            if (holdFeedResizes && this.feed) heldResizes.set(observer, deliver);
+            else deliver();
+        });
+        this.feed = false;
+    }
+    observe(target, options) {
+        this.feed ||= target.matches(".chatfeed");
+        super.observe(target, options);
+    }
+    disconnect() {
+        heldResizes.delete(this);
+        super.disconnect();
+    }
+};
+
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const asked = [];
 let extraA = 0;
@@ -119,7 +143,7 @@ const pointer = async (point) => {
         for (const [name, id] of [["alpha", "nav-a"], ["beta", "nav-b"], ["alpha", "nav-a"]]) {
             const box = await open(name, id);
             out.navigation.push({ name, scrollable: box.scrollHeight > box.clientHeight,
-                atEnd: atEnd(box) });
+                atEnd: atEnd(box), gap: box.scrollHeight - box.scrollTop - box.clientHeight });
             if (out.navigation.length === 1) {
                 const edge = box.getBoundingClientRect();
                 const text = [...box.querySelectorAll(".msg, .askedq")].reverse().find((el) => {
@@ -154,6 +178,34 @@ const pointer = async (point) => {
             const returned = await open("alpha", "nav-a");
             out.jumpReturns.push({ mode, atEnd: atEnd(returned) });
         }
+        render(null, root);
+        await quiet();
+        show({ at: 5, sessions: [
+            { ...run("nav-a"), session: "alpha" }, { ...run("nav-b"), session: "beta" },
+        ] }, null);
+        await quiet();
+        holdFeedResizes = true;
+        out.delayedNavigation = [];
+        for (const [name, id] of [["alpha", "nav-a"], ["beta", "nav-b"], ["alpha", "nav-a"]]) {
+            const box = await open(name, id);
+            await until(() => box.querySelector(".feedprevious"));
+            out.delayedNavigation.push({ name, scrollable: box.scrollHeight > box.clientHeight,
+                atEnd: atEnd(box), gap: box.scrollHeight - box.scrollTop - box.clientHeight });
+            if (name === "beta") extraA += 8;
+        }
+        const delayedBox = document.querySelector(".chatfeed");
+        delayedBox.scrollTop = 200;
+        delayedBox.dispatchEvent(new Event("scroll"));
+        await until(() => delayedBox.querySelector(".feedjump:not(.feedprevious)"));
+        await quiet();
+        delayedBox.querySelector(".feedjump:not(.feedprevious)").click();
+        await quiet();
+        out.delayedJumpGap = delayedBox.scrollHeight - delayedBox.scrollTop - delayedBox.clientHeight;
+        out.delayedResizes = heldResizes.size;
+        holdFeedResizes = false;
+        for (const deliver of heldResizes.values()) deliver();
+        heldResizes.clear();
+        await quiet();
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

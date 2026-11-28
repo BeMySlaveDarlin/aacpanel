@@ -9,18 +9,24 @@ import (
 	"time"
 )
 
+type chatVisit struct {
+	Name       string  `json:"name"`
+	Scrollable bool    `json:"scrollable"`
+	AtEnd      bool    `json:"atEnd"`
+	Gap        float64 `json:"gap"`
+}
+
 type chatFollow struct {
-	PastAsked       []string `json:"pastAsked"`
-	PastComposer    bool     `json:"pastComposer"`
-	LiveComposer    bool     `json:"liveComposer"`
-	RestartAsked    []string `json:"restartAsked"`
-	RestartComposer bool     `json:"restartComposer"`
-	Navigation      []struct {
-		Name       string `json:"name"`
-		Scrollable bool   `json:"scrollable"`
-		AtEnd      bool   `json:"atEnd"`
-	} `json:"navigation"`
-	JumpReturns []struct {
+	PastAsked         []string    `json:"pastAsked"`
+	PastComposer      bool        `json:"pastComposer"`
+	LiveComposer      bool        `json:"liveComposer"`
+	RestartAsked      []string    `json:"restartAsked"`
+	RestartComposer   bool        `json:"restartComposer"`
+	Navigation        []chatVisit `json:"navigation"`
+	DelayedNavigation []chatVisit `json:"delayedNavigation"`
+	DelayedResizes    int         `json:"delayedResizes"`
+	DelayedJumpGap    *float64    `json:"delayedJumpGap"`
+	JumpReturns       []struct {
 		Mode  string `json:"mode"`
 		AtEnd bool   `json:"atEnd"`
 	} `json:"jumpReturns"`
@@ -77,6 +83,22 @@ func TestAnOpenConversationFollowsItsSessionAndNotItsName(t *testing.T) {
 				}
 			}
 			if c.screen == "desktop" {
+				if got.DelayedResizes == 0 {
+					t.Error("the delayed schedule delivered every resize before the navigation check")
+				}
+				if len(got.DelayedNavigation) != 3 {
+					t.Fatalf("the delayed schedule opened %d conversations, expected alpha, beta, alpha", len(got.DelayedNavigation))
+				}
+				for i, visit := range got.DelayedNavigation {
+					if !visit.Scrollable || !visit.AtEnd {
+						t.Errorf("delayed visit %d to %s opened above the end of the conversation (gap %.1fpx, scrollable %v)", i+1, visit.Name, visit.Gap, visit.Scrollable)
+					}
+				}
+				if got.DelayedJumpGap == nil {
+					t.Error("the delayed schedule did not jump back to the end")
+				} else if *got.DelayedJumpGap > 1 {
+					t.Errorf("the previous-message button left %.1fpx below the end after a delayed jump", *got.DelayedJumpGap)
+				}
 				if got.ClickedAtEnd == nil || !*got.ClickedAtEnd {
 					t.Error("clicking an ordinary message moved the feed away from its end")
 				}

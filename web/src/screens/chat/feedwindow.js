@@ -395,12 +395,6 @@ export function useFeedWindow({ name, id, live }) {
         };
     }, [name, id, isLive, state.kind]);
 
-    useEffect(() => {
-        const box = feedRef.current;
-        if (!box || state.kind !== "ready" || !stickRef.current) return;
-        box.scrollTop = box.scrollHeight;
-    }, [state.items, state.kind]);
-
     // The box of the feed comes and goes under a window that stays: the screen builds
     // it anew every time it returns from the terminal or from an agent. A new box
     // starts at the top of the conversation, and an observer left on the old one
@@ -441,6 +435,13 @@ export function useFeedWindow({ name, id, live }) {
             contentsRef.current = children;
         }
         if (box && putRef.current !== box) put(box);
+        // Rows and jump buttons can grow during this render. Follow before
+        // paint, so leaving now cannot save a position short of the end.
+        if (box && state.kind === "ready" && stickRef.current && !restoringRef.current
+            && putKeyRef.current === keyRef.current) {
+            box.scrollTop = box.scrollHeight;
+            settle(box);
+        }
         readPrevious(box);
     });
 
