@@ -1,17 +1,22 @@
 """Subscription limits: claude's from the snapshots written by statusLine, codex's from the executor."""
 import json
 import os
+import sys
 import time
 
 import contours
 import held
+import paths
 
 import agent
+
+from .forecast import History
 
 # The window codex calls weekly, in minutes. Codex names its windows by how
 # long they last and nothing else, and the week is the one the panel shows
 # beside the seven days of claude.
 CODEX_WEEK_MINUTES = 7 * 24 * 60
+CODEX_FIVE_HOUR_MINUTES = 5 * 60
 
 
 def limits_paths():
@@ -45,8 +50,8 @@ def current(window, now):
 def codex_block(data, now=None):
     """Returns the limits of a codex account as the snapshot carries them.
 
-    Every window codex told goes in "windows"; the weekly one is also
-    "sevenDay", in the shape of claude's, and is absent when codex told none.
+    Every window codex told goes in "windows"; the five-hour and weekly ones
+    also have the names of claude's windows when codex told them.
     """
     windows = []
     for key in ("primary", "secondary"):
@@ -66,9 +71,10 @@ def codex_block(data, now=None):
         "plan": data.get("plan") if isinstance(data.get("plan"), str) else "",
         "windows": windows,
     }
-    week = next((w for w in windows if w["windowMins"] == CODEX_WEEK_MINUTES), None)
-    if week:
-        block["sevenDay"] = {"pct": week["pct"], "resetsAt": week["resetsAt"]}
+    for key, minutes in (("fiveHour", CODEX_FIVE_HOUR_MINUTES), ("sevenDay", CODEX_WEEK_MINUTES)):
+        window = next((w for w in windows if w["windowMins"] == minutes), None)
+        if window:
+            block[key] = {"pct": window["pct"], "resetsAt": window["resetsAt"]}
     if isinstance(data.get("reached"), str) and data["reached"]:
         block["reached"] = data["reached"]
     return block
@@ -108,6 +114,24 @@ def limits():
         if accounts.get(contour):
             row["configDir"] = accounts[contour]
         found.append(row)
+    history = History(paths.state("limits-history.json"), now)
+    for row in found:
+        profile = row["profile"]
+        for key in ("fiveHour", "sevenDay"):
+            history.window((profile, "claude", key), row.get(key), row.get("at"))
+        block = row.get("codex")
+        if block:
+            for i, window in enumerate(block["windows"]):
+                key = str(window["windowMins"]) if window["windowMins"] else f"unknown-{i}"
+                history.window((profile, "codex", key), window, block["at"])
+            for key, minutes in (("fiveHour", CODEX_FIVE_HOUR_MINUTES), ("sevenDay", CODEX_WEEK_MINUTES)):
+                window = next((w for w in block["windows"] if w["windowMins"] == minutes), None)
+                if window and "forecast" in window:
+                    block[key]["forecast"] = dict(window["forecast"])
+    try:
+        history.save()
+    except OSError as e:
+        print(f"aacpanel-agent: could not write limit history to {history.path}: {e}", file=sys.stderr, flush=True)
     if not found:
         return None
     head = dict(found[0])

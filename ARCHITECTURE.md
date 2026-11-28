@@ -3612,6 +3612,8 @@ reset time has passed is handed out by the collector as started over — nothing
 used, no reset known — until the next snapshot: the share the snapshot holds is
 of the window that ended. The screens show the age of the snapshot beside old
 percentages.
+The collector forecasts each Claude and Codex window from distinct snapshots
+over the last 30 minutes, keeping an atomic one-hour history in its state directory.
 
 **The snapshot is parsed block by block, and a failed block is visible.** One
 field handed over as a fraction where an integer is expected does not bring down
