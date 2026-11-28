@@ -185,7 +185,7 @@ func TestStatusBarShowsTheLimitsOfTheContourInTheColumn(t *testing.T) {
 	if strings.Join(l.Alerts, ",") != "cookie without Secure,silent 1" || !l.SilentIcon || !l.StaleTip || l.Notes != 0 {
 		t.Errorf("the footer lost alerts or the stale tooltip, or shows notes beside the chips: %+v", l)
 	}
-	if !strings.Contains(l.Details, "Codex, 5 hours") || !strings.Contains(l.Details, "12% used") {
+	if !strings.HasPrefix(l.Details, "Codex limits5h12% used") {
 		t.Errorf("the footer chip opened details %q", l.Details)
 	}
 	if l.Changed.Name != "Evirma" || strings.Join(l.Changed.Values, ",") != "5%,99%" || !l.Changed.Closed {
