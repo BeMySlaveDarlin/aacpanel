@@ -1,5 +1,5 @@
-// The same chain is read in both lists: its deepest descendant stays beside
-// its parent at the third level, its question survives either fold, and the
+// The same chain is read in both lists: every parent keeps its own fold,
+// a deep question survives its ancestors' folds, and the
 // child with nothing under it stands before its sisters with subtrees.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -22,9 +22,9 @@ export async function sessionLevels() {
         startedAt: new Date(Date.now() - (100 - minute) * 60e3).toISOString(), ...extra,
     });
     const chain = [make("D", "C", 4, { status: "waiting" }), make("E", "A", 5), make("G", "A", 11, { cap: 70, autoRestart: false }),
-        make("C", "B", 3, { cap: 65, autoRestart: true, pct: 82 }),
+        make("C", "B", 3, { agent: "codex", cap: 65, autoRestart: true, pct: 82 }),
         make("A", "", 1, { cap: 80, autoRestart: true, checklist: { items: [{ text: "Review the branch", status: "active" }] } }),
-        make("B", "A", 2, { cap: 70, autoRestart: true, remote: true,
+        make("B", "A", 2, { agent: "codex", cap: 70, autoRestart: true, remote: true,
             checklist: { items: [{ text: "Read the brief", status: "done" }, { text: "Check the layout", status: "active" }] } }),
         make("F", "E", 10, { cap: 100, autoRestart: true })];
     const panels = [
@@ -61,26 +61,32 @@ export async function sessionLevels() {
         rows: rowsOf(p),
         waits: Array.from(p.root.querySelectorAll(".scfoldwaits")).map(text),
     });
-    const depthOf = (el) => Number(el.style.getPropertyValue("--depth") || 0);
-    // levels reads the cards of a list by the level each stands at, with what
-    // a card says of its cap and its restart, and the folds by their levels.
+    // The same cards also exercise the cap and automatic restart marks.
     const levels = (p) => ({
         rows: Array.from(p.root.querySelectorAll(CARD)).map((row) => {
             const cap = row.querySelector(".scedge .sccap");
             const mark = row.querySelector(".scl5 .scb:nth-child(3)");
-            return { name: row.dataset.name, depth: depthOf(row),
+            return { name: row.dataset.name,
                 cap: Boolean(cap), capAuto: Boolean(cap && cap.classList.contains("scauto")),
                 restart: text(mark), restartIcon: Boolean(mark?.querySelector("svg")), restartTip: mark ? mark.getAttribute("title") || "" : "" };
         }),
-        folds: Array.from(p.root.querySelectorAll(".scfold")).filter((fold) => !runsFold(fold)).map(depthOf),
+        folds: Array.from(p.root.querySelectorAll(".scfold")).filter((fold) => !runsFold(fold))
+            .map((fold) => ({ parent: fold.closest(".pjtree").previousElementSibling.querySelector(CARD).dataset.name,
+                text: text(fold.querySelector(".scfoldtext")) })),
     });
     draw(chain);
-    const tree = "A,fold: 3 opened,G,B,fold: 2 opened,C,D,E,fold: 1 opened,F";
-    const childClosed = "A,fold: 3 opened,G,B,fold: 2 opened,E,fold: 1 opened,F";
+    const tree = "A,fold: 3 opened,G,B,fold: 1 opened,C,fold: 1 opened,D,E,fold: 1 opened,F";
+    const childClosed = "A,fold: 3 opened,G,B,fold: 1 opened,E,fold: 1 opened,F";
     await until(() => rowsAre(tree) && order.join(",") === "A,G,B,C,D,E,F");
     const out = { root: kinOf(chain).rootOf(chain[0]).session, phone: {}, desk: {} };
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].open = { ...read(p), ...levels(p) }; });
     out.order = order.slice();
+    for (const p of panels) foldOf(p, "C").click();
+    await until(() => rowsAre("A,fold: 3 opened,G,B,fold: 1 opened,C,fold: 1 opened,E,fold: 1 opened,F")
+        && order.join(",") === "A,G,B,C,E,F");
+    panels.forEach((p, i) => { out[i ? "desk" : "phone"].deepClosed = read(p); });
+    for (const p of panels) foldOf(p, "C").click();
+    await until(() => rowsAre(tree));
     for (const p of panels) foldOf(p, "B").click();
     await until(() => rowsAre(childClosed) && order.join(",") === "A,G,B,E,F");
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].childClosed = read(p); });
@@ -98,7 +104,8 @@ export async function sessionLevels() {
     const runs = [make("RA", "A", 6, { outside: true }), make("RB", "B", 7, { outside: true }),
         make("RC", "C", 8, { outside: true }), make("RD", "D", 9, { outside: true })];
     draw([...chain, ...runs]);
-    await until(() => rowsAre("A,fold: 3 opened,G,B,fold: 2 opened,C,D,runs: 3 runs started by it,"
+    await until(() => rowsAre("A,fold: 3 opened,G,B,fold: 1 opened,C,fold: 1 opened,D,runs: 1 run started by it,"
+        + "runs: 1 run started by it,runs: 1 run started by it,"
         + "E,fold: 1 opened,F,runs: 1 run started by it"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].runsClosed = read(p); });
     for (const p of panels) {
@@ -113,10 +120,18 @@ export async function sessionLevels() {
     await until(() => panels.every((p) => rowOf(p, "B")));
 
     draw(chain.filter((s) => s.session !== "A"));
-    await until(() => rowsAre("stub: A,G,B,fold: 2 opened,C,D,E,fold: 1 opened,F"));
+    await until(() => rowsAre("stub: A,G,B,fold: 1 opened,C,fold: 1 opened,D,E,fold: 1 opened,F"));
     panels.forEach((p, i) => { out[i ? "desk" : "phone"].stub = { ...read(p), ...levels(p) }; });
     draw(chain.filter((s) => !["A", "E", "F"].includes(s.session)));
-    await until(() => rowsAre("stub: A,G,B,fold: 2 opened,C,D"));
+    await until(() => rowsAre("stub: A,G,B,fold: 1 opened,C,fold: 1 opened,D"));
+    const cycles = [make("cycle-A", "cycle-B", 1), make("cycle-B", "cycle-A", 2),
+        make("cycle-tail", "cycle-A", 3), make("self", "self", 4)];
+    draw(cycles);
+    await until(() => panels.every((p) => p.root.querySelectorAll(CARD).length === cycles.length));
+    const kin = kinOf(cycles);
+    out.cycles = { roots: cycles.map((s) => kin.rootOf(s).session),
+        phone: read(panels[0]), desk: read(panels[1]),
+        grouped: panels.map((p) => p.root.querySelectorAll(".scfold, .sckid, .scstub").length) };
     for (const p of panels) render(null, p.root);
     mount.remove();
     return out;

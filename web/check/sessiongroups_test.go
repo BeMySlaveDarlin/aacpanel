@@ -11,14 +11,9 @@ type groupBlock struct {
 	Rows []string `json:"rows"`
 }
 
-type levelRow struct {
-	Name  string
-	Depth int
-}
-
 type levelTree struct {
-	Rows  []levelRow
-	Folds []int
+	Rows  []struct{ Name string }
+	Folds []struct{ Parent, Text string }
 }
 
 type levelRead struct {
@@ -27,16 +22,13 @@ type levelRead struct {
 }
 
 type levelScreen struct {
-	Open                              levelTree
-	ChildClosed, RootClosed, Reopened levelRead
-	RunsClosed, RunsHidden            levelRead
-	RunsOpen, Stub                    levelTree
+	Open                                          levelTree
+	DeepClosed, ChildClosed, RootClosed, Reopened levelRead
+	RunsClosed, RunsHidden                        levelRead
+	RunsOpen, Stub                                levelTree
 }
 
-// A chain of sessions, each opened by the one before, stands two steps deep at
-// most: D, opened by C at the third level, stays at C's level beside it. G,
-// opened last with nothing under it, stands first among A's children.
-func TestSessionsStopAtTheThirdLevel(t *testing.T) {
+func TestSessionsKeepEveryParentsChildrenUnderItsFold(t *testing.T) {
 	var got struct {
 		Levels struct {
 			Root                    string
@@ -53,29 +45,27 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 	if strings.Join(levels.Kept, ",") != "A,B" {
 		t.Errorf("folds are kept as %v, expected both parents by name", levels.Kept)
 	}
-	depths := func(rows []levelRow) map[string]int {
-		out := make(map[string]int)
-		for _, row := range rows {
-			out[row.Name] = row.Depth
+	names := func(tree levelTree) []string {
+		out := make([]string, 0, len(tree.Rows))
+		for _, row := range tree.Rows {
+			out = append(out, row.Name)
 		}
 		return out
 	}
 	for name, screen := range map[string]levelScreen{"phone": levels.Phone, "desk": levels.Desk} {
 		t.Run(name, func(t *testing.T) {
-			rows := depths(screen.Open.Rows)
-			if len(rows) != 7 {
-				t.Fatalf("the open tree has rows %+v", screen.Open.Rows)
+			if want := []string{"A", "G", "B", "C", "D", "E", "F"}; !reflect.DeepEqual(names(screen.Open), want) {
+				t.Errorf("the open tree has rows %v, want %v", names(screen.Open), want)
 			}
-			if want := map[string]int{"A": 0, "B": 1, "C": 2, "D": 2, "E": 1, "F": 2, "G": 1}; !reflect.DeepEqual(rows, want) {
-				t.Errorf("the levels are %v, want %v: two steps, with D and F beside C, E and G beside B", rows, want)
+			folds := []struct{ Parent, Text string }{{"A", "3 opened"}, {"B", "1 opened"}, {"C", "1 opened"}, {"E", "1 opened"}}
+			if !reflect.DeepEqual(screen.Open.Folds, folds) {
+				t.Errorf("the folds count %v, want direct children %v", screen.Open.Folds, folds)
 			}
-			if len(screen.Open.Folds) != 3 {
-				t.Fatalf("the first two levels have folds %+v", screen.Open.Folds)
+			deepClosed := []string{"A", "fold: 3 opened", "G", "B", "fold: 1 opened", "C", "fold: 1 opened", "E", "fold: 1 opened", "F"}
+			if !reflect.DeepEqual(screen.DeepClosed.Rows, deepClosed) || strings.Join(screen.DeepClosed.Waits, ",") != "D,D,D" {
+				t.Errorf("the deepest fold must hide only D while keeping its question: %+v", screen.DeepClosed)
 			}
-			if screen.Open.Folds[1] != screen.Open.Folds[0]+1 {
-				t.Errorf("the child's fold does not take its parent's step: %v", screen.Open.Folds)
-			}
-			childClosed := []string{"A", "fold: 3 opened", "G", "B", "fold: 2 opened", "E", "fold: 1 opened", "F"}
+			childClosed := []string{"A", "fold: 3 opened", "G", "B", "fold: 1 opened", "E", "fold: 1 opened", "F"}
 			if !reflect.DeepEqual(screen.ChildClosed.Rows, childClosed) || !reflect.DeepEqual(screen.Reopened.Rows, childClosed) {
 				t.Errorf("B's fold hides the wrong rows or is lost when A reopens: %+v, %+v", screen.ChildClosed, screen.Reopened)
 			}
@@ -85,28 +75,43 @@ func TestSessionsStopAtTheThirdLevel(t *testing.T) {
 			if strings.Join(screen.ChildClosed.Waits, ",") != "D,D" || strings.Join(screen.RootClosed.Waits, ",") != "D" {
 				t.Errorf("D's question was hidden: child closed %+v, root closed %+v", screen.ChildClosed, screen.RootClosed)
 			}
-			runs := depths(screen.RunsOpen.Rows)
-			for _, run := range []string{"RB", "RC", "RD"} {
-				if depth, ok := runs[run]; !ok || depth != rows["C"] {
-					t.Errorf("run %s stands at level %d (drawn: %v), expected the third-level ancestor's fold at %d", run, depth, ok, rows["C"])
-				}
-			}
-			if depth, ok := runs["RA"]; !ok || depth != rows["B"] {
-				t.Errorf("root run stands at level %d (drawn: %v), expected the second level, %d", depth, ok, rows["B"])
-			}
-			if !reflect.DeepEqual(screen.RunsClosed.Rows, []string{"A", "fold: 3 opened", "G", "B", "fold: 2 opened",
-				"C", "D", "runs: 3 runs started by it", "E", "fold: 1 opened", "F", "runs: 1 run started by it"}) {
-				t.Errorf("runs do not follow their parent's subtree: %v", screen.RunsClosed.Rows)
+			runs := []string{"A", "G", "B", "C", "D", "RD", "RC", "RB", "E", "F", "RA"}
+			if !reflect.DeepEqual(names(screen.RunsOpen), runs) {
+				t.Errorf("runs must follow their own parent's subtree: %v, want %v", names(screen.RunsOpen), runs)
 			}
 			if !reflect.DeepEqual(screen.RunsHidden.Rows, []string{"A", "fold: 3 opened", "runs: 1 run started by it", "RA"}) {
 				t.Errorf("the root's fold leaves a child's runs behind: %v", screen.RunsHidden.Rows)
 			}
-			stub := depths(screen.Stub.Rows)
-			if len(stub) != 6 || stub["G"] != rows["B"] || stub["B"] != rows["B"] || stub["C"] != rows["C"] || stub["D"] != rows["C"] ||
-				stub["F"] != rows["C"] {
-				t.Errorf("a closed parent does not hold the root's place: %+v", screen.Stub)
+			if want := []string{"G", "B", "C", "D", "E", "F"}; !reflect.DeepEqual(names(screen.Stub), want) {
+				t.Errorf("a closed parent loses descendants: %v, want %v", names(screen.Stub), want)
 			}
 		})
+	}
+}
+
+func TestSessionsWithCyclicParentsStandOnTheirOwn(t *testing.T) {
+	var got struct {
+		Levels struct {
+			Cycles struct {
+				Roots       []string
+				Grouped     []int
+				Phone, Desk levelRead
+			}
+		}
+	}
+	runWideFixture(t, "sessiongroups.html", &got)
+	cycles := got.Levels.Cycles
+	want := []string{"cycle-A", "cycle-B", "cycle-tail", "self"}
+	if !reflect.DeepEqual(cycles.Roots, want) {
+		t.Errorf("cyclic ancestry has roots %v, want each affected session itself: %v", cycles.Roots, want)
+	}
+	for name, screen := range map[string]levelRead{"phone": cycles.Phone, "desk": cycles.Desk} {
+		if !reflect.DeepEqual(screen.Rows, want) {
+			t.Errorf("%s cyclic sessions draw %v, want every session once: %v", name, screen.Rows, want)
+		}
+	}
+	if !reflect.DeepEqual(cycles.Grouped, []int{0, 0}) {
+		t.Errorf("cyclic sessions still have child groups or a parent stub: %v", cycles.Grouped)
 	}
 }
 

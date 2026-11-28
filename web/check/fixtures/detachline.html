@@ -147,7 +147,7 @@ window.done = (async () => {
     if (!retry) throw new Error("the parent picker did not allow retry");
     retry.click();
     await until(() => !picker());
-    await choose("thread", "solo");
+    out.threadParents = await choose("thread", "solo");
     await until(() => !picker());
     await choose("alone", "Backend · worker");
     await until(() => !picker());

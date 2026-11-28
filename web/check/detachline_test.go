@@ -44,7 +44,7 @@ func TestTheToolsOfASessionTakeItFromUnderItsParent(t *testing.T) {
 func TestTheToolsChooseAParentAcrossProjects(t *testing.T) {
 	var got struct {
 		Child, Alone, Thread, Outside []string
-		Parents                       []string
+		Parents, ThreadParents        []string
 		ParentSent                    []ctxSent
 		Blocked                       map[string]struct {
 			Off    bool
@@ -68,6 +68,11 @@ func TestTheToolsChooseAParentAcrossProjects(t *testing.T) {
 	}
 	if want := []string{"solo", "Codex parent", "aacpanel · same-name-project", "Backend · worker"}; !slices.Equal(got.Parents, want) {
 		t.Errorf("parent choices are %v, want %v: exclude self, current parent, descendants, other contours and unknown projects; name foreign projects", got.Parents, want)
+	}
+	for _, child := range []string{"review", "kid", "grandkid"} {
+		if !slices.Contains(got.ThreadParents, child) {
+			t.Errorf("the codex parent picker excludes the child %q: %v", child, got.ThreadParents)
+		}
 	}
 	for id, why := range map[string]string{
 		"empty":    "no other mapped live session in this contour",
