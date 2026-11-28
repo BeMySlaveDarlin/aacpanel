@@ -1374,8 +1374,24 @@ supplied with the launch and the panel's own, and the action reports that
 roots given only to the replaced thread's start are not carried over. Its
 first message is the restart's `intent`, otherwise the saved session message
 after a restart, then the map's `restartIntent`; `clean` suppresses them all.
-Without a message it waits. A restart takes no `resume`, and a thread running
-in tmux must be restarted from the Codex terminal.
+Without a message it waits. A thread running in tmux must be restarted from
+the Codex terminal.
+
+The restart dialog offers a clean replacement with no first message, a reload
+of the same thread with its conversation intact, and preparation followed by a
+replacement. Preparation uses the same persisted `session_restarts` cycle and
+`session_ready` acknowledgment as the context cap. It waits for the saving
+turn and background work to finish; the reminder and forced deadline apply
+too. The replacement takes the readiness intent or the session's restart
+message, falling back to the map's. The `session_restart` tool without options
+still replaces its caller after the calling turn.
+
+A reload (`resume`) archives, unarchives and resumes the same thread. Archive
+unloads it even while subscribed, ending the running turn and background
+terminals; no daemon process is restarted. The held launch overrides and
+current settings are restored, and the directory, parent, report recipient
+and thread ID stay. Without an intent no new turn starts. A thread not yet
+written to disk cannot be reloaded.
 
 The old thread stays open until the replacement starts and accepts its first
 message. Failure leaves it and its children alone and releases an incomplete
@@ -1384,8 +1400,8 @@ after its current turn: the calling model receives the tool's answer and ends
 the turn. The mark survives an executor restart. The poll checks the turn
 itself before unsubscribing, since an idle status can lag behind a turn's
 start, and sends no queued messages into a thread marked to close. A forced
-context restart instead interrupts and closes the old thread after the
-replacement accepts its first message. The price is a new thread ID and lost
+context restart or a clean restart from the screen instead interrupts and
+closes the old thread after the replacement is ready. The price is a new thread ID and lost
 conversation context; without force both threads can run until the old turn
 ends, and a turn that never ends holds the close. The old rollout
 remains available through `codex resume`.

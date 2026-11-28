@@ -12,7 +12,7 @@ import (
 )
 
 // CodexRestart replaces the proven caller with a fresh thread in the same
-// place in the tree. Its conversation cannot be continued by a restart.
+// place in the tree. Continuing the conversation is a separate dialog choice.
 func CodexRestart(h Host) mcp.Tool {
 	t := Restart(h)
 	t.Description = "Starts a fresh Codex thread in this thread's directory and place in the session tree, " +

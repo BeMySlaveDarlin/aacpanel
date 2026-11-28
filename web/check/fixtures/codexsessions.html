@@ -134,7 +134,7 @@ const agentOf = (line) => {
 
 // closeSheet reads the sheet the gate put up inside root, presses its own
 // button and waits for the request it sends.
-const closeSheet = async (root) => {
+const closeSheet = async (root, mode = 0) => {
     const gate = () => root.querySelector('.sheet.on[aria-label="action confirmation"]');
     await until(() => gate() && gate().querySelector(".btnrow"), "the action confirmation");
     const sheet = {
@@ -144,6 +144,11 @@ const closeSheet = async (root) => {
         choices: names(gate(), '[role="radio"]'),
     };
     const before = sent.length;
+    const options = gate().querySelectorAll('[role="radio"]');
+    if (options.length) {
+        options[mode].click();
+        await until(() => options[mode].getAttribute("aria-checked") === "true", "the restart mode");
+    }
     gate().querySelector(".btnrow .btn:last-child").click();
     await until(() => sent.length > before);
     sheet.sent = sent.slice(before).map((s) => ({ kind: s.kind, target: s.target, params: s.params }));
@@ -329,7 +334,7 @@ window.done = (async () => {
     out.restarts["desktop row"] = await closeSheet(desk);
     await openPie(phoneRow);
     sector("restart").click();
-    out.restarts["phone row"] = await closeSheet(phone);
+    out.restarts["phone row"] = await closeSheet(phone, 1);
     await settled();
     chat.querySelector(".dkplace").click();
     await until(() => document.querySelector(".pie .piesec"));
@@ -343,7 +348,7 @@ window.done = (async () => {
     const restart = tools().find((b) => b.getAttribute("aria-label") === "Restart the session");
     if (restart) {
         restart.click();
-        out.restarts["desktop tools"] = await closeSheet(chat);
+        out.restarts["desktop tools"] = await closeSheet(chat, 2);
     }
 
     const probe = document.createElement("div");
@@ -388,6 +393,15 @@ window.done = (async () => {
     out.waiting.finished = !await draw(7000, [replacement, sessions[0]]);
     out.waiting.busyAfter = Boolean(probe.querySelector(".pjblock .scbusy"));
     out.waiting.afterOrder = cards(probe, ".pjblock .sc");
+
+    await mount(original);
+    await openPie(phoneCard(original.session));
+    sector("restart").click();
+    out.continued = { sheet: await closeSheet(probe, 1) };
+    await until(pending, "the reload wait");
+    out.continued.waiting = await draw(1000, [original, sessions[0]]);
+    out.continued.finished = !await draw(2000, [original, sessions[0]]);
+    out.continued.busyAfter = Boolean(probe.querySelector(".pjblock .scbusy"));
 
     out.unavailable = [];
     for (const [why, live, executor] of [

@@ -345,6 +345,22 @@ func (l *Link) Reconnect(ctx context.Context, threadID, tools string, allowed []
 	if err := within(ctx, c, "thread/resume", map[string]any{"threadId": threadID, "excludeTurns": true}, &before); err != nil {
 		return err
 	}
+	params := map[string]any{"threadId": threadID, "excludeTurns": true}
+	if tools != "" {
+		params["config"] = toolsConfig(tools, allowed)
+	}
+	lost := l.reload(ctx, c, threadID, before, params)
+	var unsettled Unsettled
+	if lost != nil && !errors.As(lost, &unsettled) {
+		return lost
+	}
+	if err := l.keepHeldTools(threadID, tools, allowed); err != nil {
+		return errors.Join(lost, fmt.Errorf("the servers started anew, but their recovery settings were not kept: %w", err))
+	}
+	return lost
+}
+
+func (l *Link) reload(ctx context.Context, c *conn, threadID string, before json.RawMessage, params map[string]any) error {
 	l.mu.Lock()
 	l.moving[threadID] = true
 	l.mu.Unlock()
@@ -359,12 +375,8 @@ func (l *Link) Reconnect(ctx context.Context, threadID, tools string, allowed []
 		return fmt.Errorf("codex did not take the thread out of the daemon: %w", err)
 	}
 	if err := within(ctx, c, "thread/unarchive", id, nil); err != nil {
-		return fmt.Errorf("the thread went into codex's archive to start its servers anew and did not come out: %w "+
+		return fmt.Errorf("the thread went into codex's archive to reload and did not come out: %w "+
 			"— it stays there, out of the daemon, until it is unarchived", err)
-	}
-	params := map[string]any{"threadId": threadID, "excludeTurns": true}
-	if tools != "" {
-		params["config"] = toolsConfig(tools, allowed)
 	}
 	var out struct {
 		Thread threadInfo `json:"thread"`
@@ -374,6 +386,9 @@ func (l *Link) Reconnect(ctx context.Context, threadID, tools string, allowed []
 		return fmt.Errorf("the thread is out of the daemon and did not come back in: %w — Resume from the archive "+
 			"of the panel brings it back", err)
 	}
+	if out.Thread.ID != threadID || out.Thread.Parent != "" {
+		return fmt.Errorf("the daemon did not reload thread %s as the same session", threadID)
+	}
 	l.seen(out.Thread, time.Now())
 	settled, lost := restore(ctx, c, threadID, before)
 	if lost != nil {
@@ -381,9 +396,6 @@ func (l *Link) Reconnect(ctx context.Context, threadID, tools string, allowed []
 	}
 	l.set(threadID, func(t *thread) { t.subscribed, t.settings = true, settled })
 	l.save(threadID)
-	if err := l.keepHeldTools(threadID, tools, allowed); err != nil {
-		return errors.Join(lost, fmt.Errorf("the servers started anew, but their recovery settings were not kept: %w", err))
-	}
 	return lost
 }
 
@@ -548,13 +560,12 @@ func (l *Link) Close(ctx context.Context, threadID string) (bool, error) {
 // interrupt stops the turn a thread runs and returns its id, empty when none
 // runs.
 func interrupt(ctx context.Context, c *conn, threadID string) (string, error) {
-	info, err := read(ctx, c, threadID)
+	_, err := read(ctx, c, threadID)
 	if err != nil {
 		return "", err
 	}
-	if info.Status.Type != "active" {
-		return "", nil
-	}
+	// Status can still say idle after turn/start; only the turn list proves
+	// that closing will leave no running turn behind.
 	turn, err := runningTurn(ctx, c, threadID)
 	if err != nil || turn == "" {
 		return "", err

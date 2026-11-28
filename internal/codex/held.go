@@ -78,21 +78,10 @@ func (l *Link) unloaded(ctx context.Context, c *conn, ids []string) []string {
 }
 
 func (l *Link) recover(ctx context.Context, c *conn, id string) error {
-	raw, err := os.ReadFile(heldPath(l.contour, id))
+	params, err := l.resumeParams(id)
 	if err != nil {
-		return fmt.Errorf("the held settings were not read: %w", err)
+		return err
 	}
-	params := map[string]any{}
-	// Empty marks carry no retained launch overrides.
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &params); err != nil {
-			return fmt.Errorf("the held settings do not parse: %w", err)
-		}
-	}
-	if params == nil {
-		params = map[string]any{}
-	}
-	params["threadId"], params["excludeTurns"] = id, true
 	var out struct {
 		Thread threadInfo `json:"thread"`
 		settingsWire
@@ -107,6 +96,25 @@ func (l *Link) recover(ctx context.Context, c *conn, id string) error {
 	l.set(id, func(t *thread) { t.subscribed, t.settings = true, out.read() })
 	l.save(id)
 	return nil
+}
+
+func (l *Link) resumeParams(id string) (map[string]any, error) {
+	raw, err := os.ReadFile(heldPath(l.contour, id))
+	if err != nil {
+		return nil, fmt.Errorf("the held settings were not read: %w", err)
+	}
+	params := map[string]any{}
+	// Empty marks carry no retained launch overrides.
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, fmt.Errorf("the held settings do not parse: %w", err)
+		}
+	}
+	if params == nil {
+		params = map[string]any{}
+	}
+	params["threadId"], params["excludeTurns"] = id, true
+	return params, nil
 }
 
 // heldDir keeps a mark per thread the panel holds, by the contour of its

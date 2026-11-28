@@ -280,8 +280,8 @@ func TestTheKeyboardOpensTheMenuOfTheRow(t *testing.T) {
 // which at the desk a card leaves to its pie.
 func TestEveryObjectHasItsMenu(t *testing.T) {
 	got := ctxMenuPage(t)
-	if got.CodexRestart == nil || got.CodexRestart.Kind != "session.restart" || got.CodexRestart.Target != "codex-1" || len(got.CodexRestart.Params) != 0 {
-		t.Errorf("the codex menu restarted with %+v, expected the thread's name and no Claude restart mode", got.CodexRestart)
+	if got.CodexRestart == nil || got.CodexRestart.Kind != "session.restart" || got.CodexRestart.Target != "codex-1" || len(got.CodexRestart.Params) != 1 || got.CodexRestart.Params["clean"] != true {
+		t.Errorf("the codex menu restarted with %+v, expected the thread's name and a clean restart", got.CodexRestart)
 	}
 	wantCopies := []string{"cd /srv/blog && CODEX_HOME=/home/u/.codex-profiles/work codex resume th-cx",
 		"cd /srv/aacpanel && codex resume th-cx2", "cd /srv/blog && CODEX_HOME=/srv/codex-archive codex resume c-cx"}

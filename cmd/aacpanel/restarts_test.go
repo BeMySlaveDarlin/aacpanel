@@ -435,66 +435,71 @@ func TestRestartCycleJournalsFailuresAndRetriesAfterFiveMinutesPG(t *testing.T) 
 }
 
 func TestManualRestartWaitsForReadinessWithoutTheCapPG(t *testing.T) {
-	srv, fake, dir := restartServer(t)
-	nextRequest := func() action.Request {
-		t.Helper()
-		deadline := time.After(time.Second)
-		for {
-			select {
-			case req := <-fake.got:
-				// The host snapshot also reads the queue; only the cycle's
-				// action advances the preparation checked here.
-				if req.Ask == action.AskHeavy {
-					continue
+	for _, agent := range []string{schema.AgentClaude, schema.AgentCodex} {
+		t.Run(agent, func(t *testing.T) {
+			srv, fake, dir := restartServer(t)
+			nextRequest := func() action.Request {
+				t.Helper()
+				deadline := time.After(time.Second)
+				for {
+					select {
+					case req := <-fake.got:
+						// The host snapshot also reads the queue; only the cycle's
+						// action advances the preparation checked here.
+						if req.Ask == action.AskHeavy {
+							continue
+						}
+						return req
+					case <-deadline:
+						t.Fatal("the manual cycle sent no action")
+						return action.Request{}
+					}
 				}
-				return req
-			case <-deadline:
-				t.Fatal("the manual cycle sent no action")
-				return action.Request{}
 			}
-		}
-	}
-	now := time.Now().Truncate(time.Second)
-	row := restartSession{LiveSession: host.LiveSession{Name: "aacpanel-2", SessionID: switchSID, CWD: dir, Transport: "stream"}, Status: "idle"}
-	restartSnapshot(t, srv, row, now)
-	w := post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":{"prepare":true}}`)
-	if w.Code != http.StatusOK {
-		t.Fatalf("manual restart: %d %s", w.Code, w.Body.String())
-	}
-	cycles, err := srv.db.RestartCycles(t.Context())
-	if err != nil || len(cycles) != 1 || !cycles[0].Manual {
-		t.Fatalf("manual cycle: %+v %v", cycles, err)
-	}
-	raw, err := srv.hostSnapshot(t.Context())
-	if err != nil || !strings.Contains(string(raw), `"restarting":true`) {
-		t.Fatalf("snapshot lost the cycle: %s %v", raw, err)
-	}
-	if err := srv.restartOnce(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	command := nextRequest()
-	if command.Kind != action.SessionSend || !strings.Contains(command.Text, "The person has asked") || strings.Contains(command.Text, "reached its project's context cap") {
-		t.Fatalf("manual command: %+v", command)
-	}
-	if w := readyPost(t, srv, true, ""); w.Code != http.StatusOK {
-		t.Fatalf("readiness: %d %s", w.Code, w.Body.String())
-	}
-	// A repeated press keeps the readiness already given.
-	if w := post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":{"prepare":true}}`); w.Code != http.StatusOK {
-		t.Fatalf("repeat: %d", w.Code)
-	}
-	restartSnapshot(t, srv, row, now.Add(3*time.Second))
-	if err := srv.restartOnce(t.Context(), now.Add(3*time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	req := nextRequest()
-	if req.Kind != action.SessionRestart || !req.AutoRestart || req.Resume != "" || req.Project == nil {
-		t.Fatalf("prepared restart: %+v", req)
-	}
-	row.Agent = "codex"
-	restartSnapshot(t, srv, row, now)
-	if w := post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":{"prepare":true}}`); w.Code == http.StatusOK {
-		t.Fatal("codex entered a preparation cycle")
+			now := time.Now().Truncate(time.Second)
+			row := restartSession{LiveSession: host.LiveSession{Name: "aacpanel-2", SessionID: switchSID, CWD: dir, Transport: "stream"}, Status: "idle"}
+			row.Agent = agent
+			restartSnapshot(t, srv, row, now)
+			w := post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":{"prepare":true}}`)
+			if w.Code != http.StatusOK {
+				t.Fatalf("manual restart: %d %s", w.Code, w.Body.String())
+			}
+			cycles, err := srv.db.RestartCycles(t.Context())
+			if err != nil || len(cycles) != 1 || !cycles[0].Manual {
+				t.Fatalf("manual cycle: %+v %v", cycles, err)
+			}
+			raw, err := srv.hostSnapshot(t.Context())
+			if err != nil || !strings.Contains(string(raw), `"restarting":true`) {
+				t.Fatalf("snapshot lost the cycle: %s %v", raw, err)
+			}
+			if err := srv.restartOnce(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			command := nextRequest()
+			if command.Kind != action.SessionSend || !strings.Contains(command.Text, "The person has asked") || strings.Contains(command.Text, "reached its project's context cap") {
+				t.Fatalf("manual command: %+v", command)
+			}
+			if w := readyPost(t, srv, true, ""); w.Code != http.StatusOK {
+				t.Fatalf("readiness: %d %s", w.Code, w.Body.String())
+			}
+			// A repeated press keeps the readiness already given.
+			if w := post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":{"prepare":true}}`); w.Code != http.StatusOK {
+				t.Fatalf("repeat: %d", w.Code)
+			}
+			restartSnapshot(t, srv, row, now.Add(3*time.Second))
+			if err := srv.restartOnce(t.Context(), now.Add(3*time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			req := nextRequest()
+			if req.Kind != action.SessionRestart || !req.AutoRestart || req.Resume != "" || req.Project == nil {
+				t.Fatalf("prepared restart: %+v", req)
+			}
+			row.Agent, row.Transport = "codex", "tmux"
+			restartSnapshot(t, srv, row, now)
+			if w := post(t, srv, `{"kind":"session.restart","target":"aacpanel-2","params":{"prepare":true}}`); w.Code == http.StatusOK {
+				t.Fatal("a Codex terminal entered a preparation cycle")
+			}
+		})
 	}
 }
 

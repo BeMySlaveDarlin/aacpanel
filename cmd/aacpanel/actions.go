@@ -1425,8 +1425,7 @@ type restartWay struct {
 	ProjectID    int
 	Resume       string
 	Conversation string
-	// Intent goes first in the resumed Claude conversation or fresh Codex
-	// thread, in place of the map's message after a restart.
+	// Intent goes first in the conversation, in place of the map's restart message.
 	Intent string
 	Clean  bool
 	Agent  string
@@ -1440,8 +1439,8 @@ type restartWay struct {
 // one, and the executor restarts it only if it is the host's main session.
 // With resume the new session goes on with the conversation the old one ran,
 // and with the message it wrote itself to go on with where it wrote one; the
-// check refuses that message on a fresh Claude restart. Codex always starts
-// a fresh thread and can supply its handoff as the first message.
+// check refuses that message on a fresh Claude restart. Codex can supply
+// its handoff as the first message of a fresh thread too.
 // The conversation a session names goes to the executor either way, which
 // restarts the session only while it still runs it.
 func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (restartWay, error) {
@@ -1483,9 +1482,6 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 		way.Name = live.Name
 	}
 	if ok && live.Agent == schema.AgentCodex {
-		if resume {
-			return restartWay{}, fmt.Errorf("a Codex restart starts a fresh thread and takes no resume")
-		}
 		way.Agent = schema.AgentCodex
 	}
 	if resume {

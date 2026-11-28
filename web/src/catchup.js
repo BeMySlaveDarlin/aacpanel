@@ -88,6 +88,8 @@ export function settled(task, names, at = 0, ids = {}, pins = {}, sessions = [])
     // a close; wait for a new thread in the same place in the same contour.
     if (task.kind === "restart" && task.replacing) {
         const old = task.replacing;
+        // Reload keeps the identity; the executor's answer proves it finished.
+        if (task.params?.resume) return !task.flying && sessions.some((s) => s.session === task.target && s.sessionId === old.sessionId);
         return !names.includes(task.target) && sessions.some((s) => isCodex(s) && !s.outside
             && !task.before.includes(s.session) && (!task.named || s.session === task.named)
             && s.cwd === old.cwd && s.codexHome === old.codexHome

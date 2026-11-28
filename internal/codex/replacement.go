@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,36 @@ import (
 
 	"aacpanel/internal/stream"
 )
+
+// Restart reloads a held thread, interrupting its turn and background terminals.
+// Resume alone can join an already loaded thread; archive forces the unload.
+// The retained launch overrides and current settings both survive the reload.
+func (l *Link) Restart(ctx context.Context, id string) error {
+	c, err := l.client()
+	if err != nil {
+		return err
+	}
+	l.sub.Lock()
+	defer l.sub.Unlock()
+	l.mu.Lock()
+	held := l.held[id]
+	l.mu.Unlock()
+	if !held {
+		return fmt.Errorf("the panel does not hold thread %s and cannot reload it", id)
+	}
+	if _, _, err := lastTurn(ctx, c, id); err != nil {
+		return fmt.Errorf("thread %s cannot be reloaded before its conversation is saved: %w", id, err)
+	}
+	params, err := l.resumeParams(id)
+	if err != nil {
+		return err
+	}
+	var before json.RawMessage
+	if err := within(ctx, c, "thread/resume", map[string]any{"threadId": id, "excludeTurns": true}, &before); err != nil {
+		return err
+	}
+	return l.reload(ctx, c, id, before, params)
+}
 
 // RestartSettings carries only what the link knows, with the name the panel
 // gave the thread. Empty settings let the executor fall back to the map;

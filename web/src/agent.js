@@ -16,8 +16,8 @@ export const CODEX_NOTE = "a codex thread: the panel writes to it, sets how it t
 export const CODEX_CLOSE = "the turn at work breaks off and the panel lets the thread go: the daemon unloads it "
     + "once no client is left, codex resume brings it back, and codex in tmux closes with its tmux session";
 
-export const CODEX_RESTART = "a fresh thread in the same directory and under the same parent, with an empty context; "
-    + "this thread closes after its turn. The first message comes from the map's restart message";
+export const CODEX_RESTART = "Choose a fresh thread in the same directory and under the same parent, "
+    + "or reload this thread with its conversation. Preparation saves work before a fresh thread gets its restart message.";
 
 // CODEX_STOP says what the stop of a turn does to a codex thread.
 export const CODEX_STOP = "codex breaks off the turn it is running; the thread stays";

@@ -617,9 +617,6 @@ func (r Request) Validate() error {
 		if r.Kind == SessionResume && r.Project != nil {
 			return badRequest("a resume of a codex thread takes no project: the daemon of its home knows where it ran")
 		}
-		if r.Kind == SessionRestart && r.Resume != "" {
-			return badRequest("a Codex restart starts a fresh thread and takes no resume")
-		}
 	}
 	if r.Resume != "" {
 		if r.Kind != SessionResume && r.Kind != SessionRestart {

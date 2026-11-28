@@ -349,15 +349,11 @@ func TestACodexProjectStartsAndRestartsCodexPG(t *testing.T) {
 		}
 	}
 	w = post(t, srv, `{"kind":"session.restart","target":"codex-0000abcd","params":{"resume":true}}`)
-	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "takes no resume") {
-		t.Errorf("a Codex resume at restart: %d %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("a Codex resume at restart: %d %s", w.Code, w.Body.String())
 	}
-	if _, err := srv.restartPlan(t.Context(), "codex-0000abcd", map[string]any{"resume": true}); err == nil {
-		t.Fatal("the plan accepted a Codex resume")
-	}
-	select {
-	case got := <-opened.got:
-		t.Fatalf("a refused restart reached the executor: %+v", got)
-	default:
+	if got := <-opened.got; got.Resume != "019a1f00-0000-7000-8000-00000000abcd" || got.Agent != action.ResumeCodex || got.Text != "" ||
+		got.Project == nil || got.Project.Parent != "lead" || got.Project.Path != dir {
+		t.Fatalf("the continue restart did not resume its own thread in place: %+v", got)
 	}
 }

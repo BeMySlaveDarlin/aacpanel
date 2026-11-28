@@ -164,7 +164,7 @@ func TestACodexRestartFailureLeavesTheOldThreadAndChildrenAlone(t *testing.T) {
 	}
 }
 
-func TestACodexRestartRefusesAnotherConversationAndResume(t *testing.T) {
+func TestACodexRestartRefusesAnotherConversation(t *testing.T) {
 	srv, e, p := onCodexContour(t)
 	newTmuxStub(t, nil, "")
 	_, name, err := open(t, e, p, `{"agent":"codex"}`)
@@ -181,6 +181,80 @@ func TestACodexRestartRefusesAnotherConversationAndResume(t *testing.T) {
 	}
 	if len(srv.Calls("thread/start")) != 1 || len(srv.Calls("thread/unsubscribe")) != 0 {
 		t.Fatal("a refused restart changed threads")
+	}
+}
+
+func TestACodexRestartContinuesTheSameThread(t *testing.T) {
+	for _, parent := range []string{"", "lead"} {
+		t.Run("parent="+parent, func(t *testing.T) {
+			srv, e, p := onCodexContour(t)
+			newTmuxStub(t, nil, "")
+			p.Parent = parent
+			_, name, err := open(t, e, p, `{"agent":"codex","codexModel":"gpt-test","codexEffort":"high","codexSandbox":"read-only","intent":"work"}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := e.codex.Find(name)[0]
+			owner := stream.SessionOwner{Name: "report-recipient", Conversation: streamSID}
+			if err := stream.KeepOwner(old.ID, owner); err != nil {
+				t.Fatal(err)
+			}
+			cwd := p.Path
+			p.Path, p.Parent = t.TempDir(), "stale-parent"
+			detail, ownership, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name,
+				Agent: action.ResumeCodex, Project: p, Conversation: old.ID, Resume: old.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ownership != nil || !strings.Contains(detail, "same thread") || len(srv.Calls("thread/start")) != 1 ||
+				len(srv.Calls("thread/archive")) != 1 || len(srv.Calls("thread/unarchive")) != 1 ||
+				len(srv.Calls("turn/start")) != 1 || srv.Archived(old.ID) || !srv.Subscribed(old.ID) || !heldMark(t, old.ID) {
+				t.Fatalf("continue did not reload the same thread without a message: %s, ownership %+v", detail, ownership)
+			}
+			resumes := srv.Calls("thread/resume")
+			if len(resumes) < 2 || paramsOf(t, resumes[len(resumes)-1])["threadId"] != old.ID || srv.Loads(old.ID) != 1 {
+				t.Fatalf("the same thread was not loaded again: %s", resumes)
+			}
+			settings, err := old.Link.RestartSettings(old.ID)
+			if err != nil || settings.CWD != cwd || settings.Parent != parent || settings.Model != "gpt-test" ||
+				settings.Effort != "high" || settings.Sandbox != "read-only" || stream.OwnerOf(old.ID) != owner {
+				t.Fatalf("the resumed thread lost its place, settings or report recipient: %+v, %v", settings, err)
+			}
+			if _, err := old.Link.Send(t.Context(), old.ID, codex.Message{Text: "Continue the saved work"}); err != nil {
+				t.Fatal(err)
+			}
+			turns := srv.Calls("turn/start")
+			if len(turns) != 2 || paramsOf(t, turns[1])["threadId"] != old.ID {
+				t.Fatalf("the resumed thread did not accept a new turn: %s", turns)
+			}
+		})
+	}
+}
+
+func TestACleanCodexRestartInterruptsTheOldTurnWithoutAFirstMessage(t *testing.T) {
+	srv, e, p := onCodexContour(t)
+	newTmuxStub(t, nil, "")
+	p.Parent = "lead"
+	srv.Lag()
+	_, name, err := open(t, e, p, `{"agent":"codex","intent":"work"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := e.codex.Find(name)[0]
+	detail, _, err := e.Restart(t.Context(), action.Request{Kind: action.SessionRestart, Target: name,
+		Project: p, Clean: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	starts, turns, stops := srv.Calls("thread/start"), srv.Calls("turn/start"), srv.Calls("turn/interrupt")
+	if len(starts) != 2 || len(turns) != 1 || len(stops) != 1 || paramsOf(t, stops[0])["threadId"] != old.ID ||
+		srv.Subscribed(old.ID) || heldMark(t, old.ID) || !strings.Contains(detail, "the old thread was closed") {
+		t.Fatalf("clean restart did not stop the old turn and start an empty thread: %s", detail)
+	}
+	newID := "019a2000-0000-7000-8000-0000beef0002"
+	settings, err := old.Link.RestartSettings(newID)
+	if err != nil || settings.CWD != p.Path || settings.Parent != p.Parent {
+		t.Fatalf("the clean replacement lost its directory or parent: %+v %v", settings, err)
 	}
 }
 

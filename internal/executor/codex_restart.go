@@ -18,8 +18,8 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 		return "", nil, fmt.Errorf("session %s runs thread %s, not %s: a restart replaces only the thread it names", th.Name, th.ID, req.Conversation)
 	}
 
-	if req.Resume != "" {
-		return "", nil, fmt.Errorf("a Codex restart starts a fresh thread and takes no resume")
+	if req.Resume != "" && req.Resume != th.ID {
+		return "", nil, fmt.Errorf("session %s runs thread %s, not %s: a restart resumes only its own thread", th.Name, th.ID, req.Resume)
 	}
 	if !e.restarting.take(th.Name) {
 		return "", nil, fmt.Errorf("session %s is being restarted already", th.Name)
@@ -34,6 +34,17 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 	}
 	if terminals[th.ID] != "" {
 		return "", nil, fmt.Errorf("session %s runs in tmux: restart from the Codex terminal", th.Name)
+	}
+	if req.Resume != "" {
+		if err := th.Link.Restart(ctx, th.ID); err != nil {
+			return "", nil, err
+		}
+		if req.Text != "" {
+			if _, err := th.Link.Send(ctx, th.ID, codex.Message{Text: req.Text}); err != nil {
+				return "", nil, fmt.Errorf("session %s reloaded, but did not take its continuation message: %w", th.Name, err)
+			}
+		}
+		return fmt.Sprintf("session %s reloaded the same thread %s; the running turn and background terminals ended", th.Name, th.ID), nil, nil
 	}
 	if req.Project == nil {
 		return "", nil, fmt.Errorf("session %s has no project on the map to restart from", th.Name)
@@ -123,9 +134,9 @@ func (e *Executor) codexRestart(ctx context.Context, th codex.Thread, req action
 		warns = append(warns, "the children's opening records were not all transferred: "+err.Error())
 	}
 	closing := "the old thread closes after this turn"
-	if req.Anyway {
-		// The context cycle has already allowed a full grace after its
-		// reminder; waiting for this turn again would leave it stuck forever.
+	if req.Anyway || (req.Clean && req.Conversation == "") {
+		// A forced cycle has spent its grace; a clean restart from the
+		// screen interrupts now. A calling tool must receive its reply first.
 		if _, err := th.Link.Close(ctx, th.ID); err != nil {
 			return "", ownership, fmt.Errorf("replacement %s started, but session %s could not be closed: %w", name, th.Name, err)
 		}

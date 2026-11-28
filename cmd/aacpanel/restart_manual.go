@@ -39,7 +39,8 @@ func (s *Server) prepareSession(w http.ResponseWriter, r *http.Request, kind act
 		return true
 	}
 	live, ok := s.host.LiveSession(plan.Name)
-	eligible := ok && !live.Outside && live.Agent != schema.AgentCodex && live.SessionID != "" && plan.Project != nil
+	eligible := ok && !live.Outside && live.SessionID != "" && plan.Project != nil &&
+		(live.Agent != schema.AgentCodex || (kind == action.SessionRestart && live.Transport == "stream"))
 	if eligible {
 		values, valid := launchOf(plan.Project.Launch)
 		eligible = valid && values["panelTools"] != false
@@ -48,7 +49,7 @@ func (s *Server) prepareSession(w http.ResponseWriter, r *http.Request, kind act
 		if kind == action.SessionClose {
 			return false
 		}
-		http.Error(w, "preparation needs a live Claude session in a project of the map with panel tools", http.StatusConflict)
+		http.Error(w, "preparation needs a managed live session in a project of the map with panel tools", http.StatusConflict)
 		return true
 	}
 	finish := store.PrepareRestart

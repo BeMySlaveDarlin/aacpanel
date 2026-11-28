@@ -329,7 +329,7 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 		saysCodexClose(t, "the close in the tools on a phone", got.Close.Note)
 	}
 	checkCodexCloseSheet(t, "the tools on a phone", "codex-5afc361b", got.CloseSheet)
-	checkCodexRestartSheet(t, "the tools on a phone", "codex-5afc361b", got.RestartSheet)
+	checkCodexRestartSheet(t, "the tools on a phone", "codex-5afc361b", "clean", got.RestartSheet)
 	if strings.Join(got.ResumeCopied, ",") != "cd /srv/shop && codex resume 0199c3a2-7f10-7b2e-9c41-6e1d5afc361b" {
 		t.Errorf("the tools on a phone copied %q", got.ResumeCopied)
 	}
@@ -433,22 +433,34 @@ func checkCodexCloseSheet(t *testing.T, where, name string, sheet *gateSheet) {
 	}
 }
 
-func checkCodexRestartSheet(t *testing.T, where, name string, sheet *gateSheet) {
+func checkCodexRestartSheet(t *testing.T, where, name, mode string, sheet *gateSheet) {
 	t.Helper()
 	if sheet == nil || sheet.Trouble != "" {
 		t.Errorf("the restart in %s put up no sheet: %+v", where, sheet)
 		return
 	}
-	for _, want := range []string{"fresh thread", "same directory", "same parent", "empty context", "closes after its turn", "map's restart message"} {
+	for _, want := range []string{"fresh thread", "same directory", "same parent", "reload", "conversation"} {
 		if !strings.Contains(sheet.Effect, want) {
 			t.Errorf("the restart in %s says %q: missing %q", where, sheet.Effect, want)
 		}
 	}
-	if sheet.OK != "Restart" || len(sheet.Choices) != 0 || len(sheet.Harsher) != 0 {
-		t.Errorf("the restart in %s offers %+v, expected one Restart and no Claude restart modes", where, sheet)
+	if sheet.OK != "Restart" || len(sheet.Choices) != 3 || len(sheet.Harsher) != 0 {
+		t.Errorf("the restart in %s offers %+v, expected three restart modes", where, sheet)
+		return
 	}
-	if len(sheet.Sent) != 1 || sheet.Sent[0].Kind != "session.restart" || sheet.Sent[0].Target != name || len(sheet.Sent[0].Params) != 0 {
-		t.Errorf("the restart in %s sent %+v, expected session.restart by the thread's name", where, sheet.Sent)
+	for i, wants := range [][]string{
+		{"Clean restart", "empty context", "no first message", "archive", "Interrupts the running turn", "daemon unloads"},
+		{"Restart and continue", "Unload and reload this same thread", "conversation intact", "ends background terminals", "daemon keeps running"},
+		{"Restart as auto-restart", "save its work", "wait for readiness", "restart message", "five minutes"},
+	} {
+		for _, want := range wants {
+			if !strings.Contains(sheet.Choices[i], want) {
+				t.Errorf("the restart choice %d in %s omits %q: %s", i, where, want, sheet.Choices[i])
+			}
+		}
+	}
+	if len(sheet.Sent) != 1 || sheet.Sent[0].Kind != "session.restart" || sheet.Sent[0].Target != name || len(sheet.Sent[0].Params) != 1 || sheet.Sent[0].Params[mode] != true {
+		t.Errorf("the restart in %s sent %+v, expected session.restart by the thread's name with %s", where, sheet.Sent, mode)
 	}
 }
 
@@ -464,6 +476,10 @@ func TestCodexRestartWaitsForItsReplacementAndExplainsUnavailableActions(t *test
 			Started, Busy, OldStillHere, GoneAlone, WrongParent, WrongDirectory, WrongContour, Finished, BusyAfter bool
 			BeforeOrder, AfterOrder                                                                                []string
 		}
+		Continued struct {
+			Sheet                        *gateSheet
+			Waiting, Finished, BusyAfter bool
+		}
 		Unavailable []struct {
 			Why               string
 			Phone, Tool, Menu *button
@@ -472,8 +488,14 @@ func TestCodexRestartWaitsForItsReplacementAndExplainsUnavailableActions(t *test
 		}
 	}
 	runWideFixture(t, "codexsessions.html", &got)
-	for _, where := range []string{"desktop row", "phone row", "desktop tools", "waiting row"} {
-		checkCodexRestartSheet(t, where, "codex-5afc361b", got.Restarts[where])
+	for _, choice := range []struct{ where, mode string }{
+		{"desktop row", "clean"}, {"phone row", "resume"}, {"desktop tools", "prepare"}, {"waiting row", "clean"},
+	} {
+		checkCodexRestartSheet(t, choice.where, "codex-5afc361b", choice.mode, got.Restarts[choice.where])
+	}
+	checkCodexRestartSheet(t, "continued row", "codex-5afc361b", "resume", got.Continued.Sheet)
+	if !got.Continued.Waiting || !got.Continued.Finished || got.Continued.BusyAfter {
+		t.Errorf("continue did not settle after a fresh snapshot of the same thread: %+v", got.Continued)
 	}
 	if strings.Join(got.ResumeCopied, ",") != "cd /srv/shop && CODEX_HOME=/home/u/.codex-profiles/acme codex resume 0199c3a2-7f10-7b2e-9c41-6e1d5afc361b" {
 		t.Errorf("the desktop tools copied %q, expected the contour's Codex home from the map", got.ResumeCopied)

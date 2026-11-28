@@ -73,17 +73,23 @@ function agentChoice(target, params) {
 }
 
 function restartChoice(target) {
-    if (codexTarget(target)) return null;
     const live = liveSessions.find((s) => s.session === target);
+    const codex = isCodex(live);
     const lost = stopsOf(live);
     const stops = lost ? ` Stops ${lost}.` : "";
     return {
         label: "restart mode", layout: "list", value: "clean",
         apply: (value) => value === "continue" ? { resume: true } : value === "prepare" ? { prepare: true } : { clean: true },
         options: [
-            { value: "clean", label: "Clean restart", note: "A new conversation with an empty context and no first message; the old transcript stays in the archive." + stops },
-            { value: "continue", label: "Restart and continue", note: "Restart the process and resume this same conversation." + stops },
-            { value: "prepare", label: "Restart as auto-restart", note: "Ask the session to save its work and stop background work, wait for readiness, then start a fresh conversation with its restart message." + stops },
+            { value: "clean", label: "Clean restart", note: codex
+                ? "A fresh thread in the same directory and under the same parent, with an empty context and no first message; the old thread stays in the archive. Interrupts the running turn; background terminals end when the daemon unloads the old thread."
+                : "A new conversation with an empty context and no first message; the old transcript stays in the archive." + stops },
+            { value: "continue", label: "Restart and continue", note: codex
+                ? "Unload and reload this same thread with its conversation intact, without a first message. Interrupts the running turn and ends background terminals; the shared daemon keeps running."
+                : "Restart the process and resume this same conversation." + stops },
+            { value: "prepare", label: "Restart as auto-restart", note: "Ask the session to save its work and stop background work, wait for readiness, then start a fresh "
+                + (codex ? "thread with its restart message. After a reminder, unfinished preparation has five minutes."
+                    : "conversation with its restart message." + stops) },
         ],
     };
 }
