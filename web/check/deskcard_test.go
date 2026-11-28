@@ -76,7 +76,10 @@ type deskCard struct {
 		Resume  bool   `json:"resume"`
 	} `json:"shelf"`
 	ArchiveOpened int `json:"archiveOpened"`
-	PickedClosed  struct {
+	ShelfHead     struct {
+		Title, Archive, Background, ProjectBackground string
+	} `json:"shelfHead"`
+	PickedClosed struct {
 		Name     string `json:"name"`
 		ID       string `json:"id"`
 		Archived bool   `json:"archived"`
@@ -346,6 +349,20 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 	}
 	if id, ok := got.ProjectOpened[0].Params["project"].(float64); !ok || int(id) != 12 {
 		t.Errorf("the session of the project's heading is addressed as %+v, expected project 12 by its id", got.ProjectOpened[0].Params)
+	}
+}
+
+func TestDeskShelfHeadingMatchesProjectGroups(t *testing.T) {
+	got := runDeskCard(t)
+	head := got.ShelfHead
+	if head.Title != "closed" || head.Archive != "the archive" {
+		t.Errorf("the closed heading reads %q with archive link %q", head.Title, head.Archive)
+	}
+	if head.Background == "" || head.Background == "rgba(0, 0, 0, 0)" || head.Background != head.ProjectBackground {
+		t.Errorf("the closed heading has background %q, expected the project band %q", head.Background, head.ProjectBackground)
+	}
+	if got.ArchiveOpened != 1 {
+		t.Errorf("the heading's archive link opened it %d times", got.ArchiveOpened)
 	}
 }
 

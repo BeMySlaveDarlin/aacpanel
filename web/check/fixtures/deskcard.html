@@ -220,6 +220,13 @@ window.done = (async () => {
 
     column(first, "aacpanel");
     await until(() => root().querySelector(".dkshelf .sc.scpast") && orders.length, "the column and its shelf");
+    const shelfHead = root().querySelector(".dkshelfhead");
+    out.shelfHead = {
+        title: text(shelfHead.querySelector(".dkshelftitle")),
+        archive: text(shelfHead.querySelector(".dkshelfall")),
+        background: getComputedStyle(shelfHead).backgroundColor,
+        projectBackground: getComputedStyle(root().querySelector(".dkproj")).backgroundColor,
+    };
     // Every contour on its tab: the first is the one the column starts on,
     // and its request went out with the first draw.
     Object.assign(out, { before: [], orderBefore: [], ghost: null, ghostIn: [], says: {}, runs: {}, tones: {}, facts: {}, bells: {},

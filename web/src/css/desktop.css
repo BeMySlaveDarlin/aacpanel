@@ -397,9 +397,9 @@
 
     .dksess.on { background: var(--accent-bg); }
 
-    /* A project is a group label, so matching session names below it still
-       read as a separate level. */
-    .dkproj {
+    /* Project and closed headings share a band, so matching session names
+       below them still read as a separate level. */
+    .dkproj, .dkshelfhead {
         display: flex;
         align-items: center;
         gap: .45rem;
@@ -411,7 +411,9 @@
     /* The heading right under the band of the contour needs no air above. */
     .dkcontour + .dkproj { padding-top: .35rem; }
 
-    .dkprojname { display: inline-flex; align-items: center; gap: .25rem; min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-xs); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); text-align: left; cursor: pointer; }
+    .dkprojname { display: inline-flex; align-items: center; gap: .25rem; min-width: 0; padding: 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+
+    .dkprojname, .dkshelftitle { font-size: var(--t-xs); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
 
     .dkprojchev { display: flex; flex: none; }
 
@@ -593,10 +595,6 @@
        bar. The time closes the first line and Resume the second; what the
        conversation was about gives way to both. */
     .dkshelf { margin-top: .9rem; border-top: var(--hair) solid var(--line); }
-
-    .dkshelfhead { display: flex; align-items: center; gap: .4rem; padding: .5rem .55rem .35rem; }
-
-    .dkshelftitle { font-size: var(--t-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
 
     .dkshelfall {
         margin-left: auto;
