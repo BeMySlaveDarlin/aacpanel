@@ -23,6 +23,7 @@ type chatFollow struct {
 	RestartAsked      []string    `json:"restartAsked"`
 	RestartComposer   bool        `json:"restartComposer"`
 	Navigation        []chatVisit `json:"navigation"`
+	DragHeld          bool        `json:"dragHeld"`
 	DelayedNavigation []chatVisit `json:"delayedNavigation"`
 	DelayedResizes    int         `json:"delayedResizes"`
 	DelayedJumpGap    *float64    `json:"delayedJumpGap"`
@@ -70,6 +71,9 @@ func TestAnOpenConversationFollowsItsSessionAndNotItsName(t *testing.T) {
 			}
 			if !got.RestartComposer {
 				t.Error("after the restart the conversation lost its composer")
+			}
+			if c.screen == "phone" && !got.DragHeld {
+				t.Error("a render with nothing grown pulled a feed dragged up inside the end's slack back to the end")
 			}
 			if len(got.Navigation) != 3 {
 				t.Fatalf("the fixture opened %d conversations, expected alpha, beta, alpha", len(got.Navigation))

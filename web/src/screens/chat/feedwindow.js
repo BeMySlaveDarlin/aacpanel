@@ -167,6 +167,7 @@ export function useFeedWindow({ name, id, live }) {
     const lastRef = useRef(null);
     const firstRef = useRef(null);
     const stickRef = useRef(true);
+    const followedRef = useRef(0);
     const seenRef = useRef(null);
     const putRef = useRef(null);
     const putKeyRef = useRef("");
@@ -404,6 +405,7 @@ export function useFeedWindow({ name, id, live }) {
         const box = feedRef.current;
         if (box !== seenRef.current) {
             seenRef.current = box;
+            followedRef.current = 0;
             contentsRef.current.clear();
             if (watchRef.current) {
                 watchRef.current.disconnect();
@@ -436,9 +438,13 @@ export function useFeedWindow({ name, id, live }) {
         }
         if (box && putRef.current !== box) put(box);
         // Rows and jump buttons can grow during this render. Follow before
-        // paint, so leaving now cannot save a position short of the end.
+        // paint, so leaving now cannot save a position short of the end. Only
+        // growth is followed: a render that changed nothing in height — a
+        // ticking timer under a finger dragging the feed up — leaves the
+        // scroll to the reader.
         if (box && state.kind === "ready" && stickRef.current && !restoringRef.current
-            && putKeyRef.current === keyRef.current) {
+            && putKeyRef.current === keyRef.current && box.scrollHeight !== followedRef.current) {
+            followedRef.current = box.scrollHeight;
             box.scrollTop = box.scrollHeight;
             settle(box);
         }

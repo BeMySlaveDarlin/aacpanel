@@ -91,6 +91,21 @@ const show = (snap, want) => render(h(ToastHost, null, h(GateHost, null, html`<$
             document.querySelector('button[aria-label="to sessions"]').click();
             await quiet();
         }
+
+        // A finger drags the followed feed up a little, inside the end's slack,
+        // and the screen renders again with nothing grown: the drag stays.
+        document.querySelector('button[aria-label="open conversation alpha"]').click();
+        await until(() => document.querySelector(".chatfeed")?.textContent.includes("nav-a message 40"));
+        await quiet();
+        const dragged = document.querySelector(".chatfeed");
+        dragged.scrollTop = dragged.scrollHeight - dragged.clientHeight - 60;
+        dragged.dispatchEvent(new Event("scroll"));
+        const held = dragged.scrollTop;
+        for (let at = 5; at < 8; at++) {
+            show({ at, sessions: [{ ...run("nav-a"), session: "alpha" }, { ...run("nav-b"), session: "beta" }] }, null);
+            await quiet();
+        }
+        out.dragHeld = Math.abs(dragged.scrollTop - held) <= 1;
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }
