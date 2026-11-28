@@ -40,7 +40,7 @@ export function Sessions(props) {
     `;
 }
 
-function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage, onTerm }) {
+function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, onChat, want, onWanted, pick, onUsage, onTerm }) {
     const [project, setProject] = useState(null);
     useAnswers();
 
@@ -73,6 +73,11 @@ function SessionsTab({ snapshot, error, ageSec, exec, wait, faults = [], onLayer
     useEffect(() => {
         if (onLayer) onLayer(layer);
     }, [layer, onLayer]);
+
+    useLayoutEffect(() => {
+        if (onChat) onChat(Boolean(chat));
+        return () => { if (onChat) onChat(false); };
+    }, [Boolean(chat), onChat]);
 
     const recentState = useSessionsArchive({ limit: RECENT_ASK, profile, contour });
     const recent = recentState.kind === "ready" ? spoken(recentState.archive.rows) : [];

@@ -5,6 +5,36 @@ import (
 	"testing"
 )
 
+func TestThePhoneHostBarGivesWayToConversations(t *testing.T) {
+	var got struct {
+		Error   string
+		Headers struct {
+			List, Archive, Machine, Usage, MachineTab bool
+			Conversations                             []struct {
+				Kind                 string
+				Host, Open, Returned bool
+			}
+		}
+	}
+	runFixture(t, "hosttab.html", &got)
+	if got.Error != "" {
+		t.Fatalf("the walk broke off: %s", got.Error)
+	}
+	h := got.Headers
+	if !h.List || !h.Archive || !h.Machine || !h.Usage || !h.MachineTab {
+		t.Errorf("the host bar is missing outside a conversation: %+v", h)
+	}
+	if len(h.Conversations) != 5 {
+		t.Fatalf("only %d conversation states were exercised", len(h.Conversations))
+	}
+	for _, chat := range h.Conversations {
+		if chat.Host || !chat.Open || !chat.Returned {
+			t.Errorf("%s: host bar present %v, conversation open %v, back restored list and host bar %v",
+				chat.Kind, chat.Host, chat.Open, chat.Returned)
+		}
+	}
+}
+
 // hostPage is what stands on the screen with the host tab on one of its pages.
 type hostPage struct {
 	Page    string   `json:"page"`

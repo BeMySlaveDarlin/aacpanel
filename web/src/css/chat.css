@@ -25,6 +25,10 @@
     line-height: 1.15;
     overflow-wrap: anywhere;
 }
+
+/* The phone's conversation takes the safe area of the host bar it replaces. */
+.shell.in-chat > .body > .phead.talk { padding-top: env(safe-area-inset-top); }
+
 /* How the session stands, as a dot and a word: answering, waiting for the
    person, at work in the background — an empty ring, at work but not
    answering — or idle. The word is there for whoever cannot tell the colours. */

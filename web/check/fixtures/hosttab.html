@@ -59,9 +59,17 @@ window.fetch = counted(async (url, options) => {
         return json({ ok: true, detail: "Agent update checked" });
     }
     if (u.startsWith("/api/term")) return new Response("404 page not found", { status: 404 });
+    if (u.startsWith("/api/chat?")) return json({ items: [
+        { role: "me", pos: 10, text: "Check the release.", at: new Date(now - 120000).toISOString() },
+        { role: "ai", pos: 20, text: "The build and checks passed. The release is ready for review.", at: new Date(now - 110000).toISOString() },
+    ], first: 10, last: 20, total: 2, moreBefore: false, state: null });
     if (u.startsWith("/api/actions")) return json({ actions });
     if (u === "/api/probes") return json({ probes: [] });
     if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/usage/summary")) return json({ summary: { output: 800, answers: 1, sessions: 1 },
+        inbound: 12400, subShareIn: 0, subShareOut: 0 });
+    if (u.startsWith("/api/usage/breakdown")) return json({ rows: new URL(u, location.href).searchParams.get("by") === "session"
+        ? [{ key: "live-claude", label: "workbench", inbound: 12400 }] : [] });
     if (u.startsWith("/api/briefs")) return json({ briefs: [] });
     if (u.startsWith("/api/devices")) return json({ devices: [], revoked: [], current: 1 });
     if (u === "/api/profiles") return json({ profiles: [] });
@@ -236,6 +244,76 @@ const closeLayer = async (name) => {
     return { pager: Boolean(document.querySelector(".pfpager")), page: current(), title: layer().title };
 };
 
+async function conversationHeaders() {
+    const live = { session: "workbench", sessionId: "live-claude", transport: "stream", status: "idle",
+        cwd: "/srv/proj/workbench", model: "claude-opus-4-6", pct: 12.4, tokensIn: 12400, tokensOut: 800,
+        lastRequestAt: new Date(now - 120000).toISOString() };
+    props.snapshot = { ...snapshot, sessions: [live, { ...live, session: "review", sessionId: "live-codex", agent: "codex", model: "gpt-5.4" }] };
+    props.route = { ...props.route, here: "lan" };
+    props.onJumped = () => { props.jump = null; queueMicrotask(start); };
+    const host = () => Boolean(document.querySelector("header.top"));
+    const list = () => Boolean(document.querySelector(".scopen"));
+    navTo("Sessions");
+    start();
+    await until(list);
+    await quiet();
+    const out = { list: host(), conversations: [] };
+    await pause("sessions");
+    for (const [kind, name, id] of [["chat", "workbench", "live-claude"], ["closed", "workbench", "past-claude"],
+        ["codex", "review", "live-codex"], ["codexClosed", "review", "past-codex"]]) {
+        if (kind === "chat") {
+            document.querySelector('[aria-label="open conversation workbench"]').click();
+        } else {
+            props.jump = { name, id };
+            start();
+        }
+        await until(() => document.querySelector(".phead.talk"));
+        await quiet();
+        const seen = { kind, host: host(), open: text(document.querySelector(".phead.talk .midname")) === name };
+        await pause(kind);
+        document.querySelector(".phead.talk .pback").click();
+        await until(list);
+        await quiet();
+        seen.returned = list() && host();
+        out.conversations.push(seen);
+    }
+    document.querySelector(".scfootlink").click();
+    await until(() => text(document.querySelector(".body > .phead h2")) === "Session archive");
+    await quiet();
+    out.archive = host();
+    document.querySelector(".body > .phead .pback").click();
+    await until(list);
+    await quiet();
+    document.querySelector("header.top .headload").click();
+    await until(() => layer().title === "Machine");
+    await quiet();
+    out.machine = host();
+    document.querySelector(".body > .phead .pback").click();
+    await until(list);
+    await quiet();
+    await openMenu("Usage");
+    await quiet();
+    out.usage = host();
+    await pause("usage");
+    document.querySelector("button.urow").click();
+    await until(() => document.querySelector(".phead.talk"));
+    await quiet();
+    const usageChat = { kind: "usage", host: host(), open: text(document.querySelector(".phead.talk .midname")) === "workbench" };
+    document.querySelector(".phead.talk .pback").click();
+    await until(() => layer().title === "Usage");
+    await quiet();
+    usageChat.returned = layer().title === "Usage" && host();
+    out.conversations.push(usageChat);
+    document.querySelector(".body > .phead .pback").click();
+    await until(list);
+    await quiet();
+    navTo("Host");
+    await until(() => settled("Machine"));
+    await quiet();
+    out.machineTab = host();
+    return out;
+}
+
 window.done = (async () => {
     const out = {};
     try {
@@ -356,6 +434,7 @@ window.done = (async () => {
         await frames(3);
         out.unframed = { between, over, kept: localStorage.getItem("aacpanel.host.page") || "" };
         out.unframedBack = await closeLayer("Machine");
+        out.headers = await conversationHeaders();
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

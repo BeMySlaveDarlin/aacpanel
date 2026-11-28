@@ -53,6 +53,7 @@ export function MobileShell({
     const [logsBig, setLogsBig] = useState(true);
 
     const [layer, setLayer] = useState(false);
+    const [chatOpen, setChatOpen] = useState(false);
 
     useBackClose(Boolean(page), () => {
         if (page === "briefs" && openBrief) {
@@ -126,8 +127,8 @@ export function MobileShell({
 
 
     return html`
-        <${MenuHost}><div class=${`shell${updateReady ? " has-update" : ""}${layer || page ? " no-nav" : ""}`}>
-            <${Header}
+        <${MenuHost}><div class=${`shell${updateReady ? " has-update" : ""}${layer || page ? " no-nav" : ""}${chatOpen ? " in-chat" : ""}`}>
+            ${!chatOpen && html`<${Header}
                 hostName=${(snapshot && snapshot.hostName) || "host"}
                 snapshot=${snapshot}
                 ageSec=${ageSec}
@@ -136,7 +137,7 @@ export function MobileShell({
                 alerts=${openAlerts}
                 onAlerts=${() => setPage("alerts")}
                 onMachine=${() => setPage("machine")}
-            />
+            />`}
 
             ${!page && chips && html`<${Chips} items=${chips} current=${filter} onSelect=${setFilter} />`}
 
@@ -147,7 +148,7 @@ export function MobileShell({
                     : page === "devices"
                     ? html`<${Devices} onBack=${() => setPage(null)} />`
                     : page === "usage"
-                    ? html`<${Usage} snapshot=${snapshot} exec=${exec} onBack=${() => setPage(null)} />`
+                    ? html`<${Usage} snapshot=${snapshot} exec=${exec} onBack=${() => setPage(null)} onChat=${setChatOpen} />`
                     : page === "settings"
                     ? html`<${Settings} onClose=${() => setPage(null)} exec=${exec} />`
                     : page === "profiles"
@@ -178,6 +179,7 @@ export function MobileShell({
                     history=${history}
                     faults=${faults}
                     onLayer=${setLayer}
+                    onChat=${setChatOpen}
                     want=${want}
                     onWanted=${() => setWant(null)}
                     terms=${term.route}
@@ -246,11 +248,11 @@ export function MobileShell({
 
 function Screen({
     tab, tree, snapshot, filter, onFilter, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec,
-    history, faults, onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm, onSession,
+    history, faults, onLayer, onChat, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm, onSession,
 }) {
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
-            exec=${exec} wait=${wait} faults=${faults} onLayer=${onLayer}
+            exec=${exec} wait=${wait} faults=${faults} onLayer=${onLayer} onChat=${onChat}
             want=${want} onWanted=${onWanted} onUsage=${onUsage} onTerm=${onTerm} />`;
     }
     if (tab === "terminals" && terms) {

@@ -1,5 +1,5 @@
 // Token usage on the phone: a layer page with a summary, one chart and two lists.
-import { useCallback, useMemo, useState } from "preact/hooks";
+import { useCallback, useLayoutEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { area, Chart } from "../chart.js";
@@ -35,11 +35,16 @@ const SERIES = [{}, area("--accent", "#63a8ff")];
 const TOP_SESSIONS = 20;
 
 // Usage renders the token usage page.
-export function Usage({ snapshot, exec, onBack }) {
+export function Usage({ snapshot, exec, onBack, onChat }) {
     const [period, setPeriod] = useState("7d");
     const [contour, setContour] = useState(ANY);
     const [project, setProject] = useState("");
     const [chat, setChat] = useState(null);
+
+    useLayoutEffect(() => {
+        if (onChat) onChat(Boolean(chat));
+        return () => { if (onChat) onChat(false); };
+    }, [Boolean(chat), onChat]);
 
     const scan = useUsageScan();
     const fresh = scan.rounds;
