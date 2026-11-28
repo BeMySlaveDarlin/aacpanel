@@ -232,10 +232,11 @@ export function LimitGroup({ group, tucked, chip, opened, onToggle, onClose }) {
 
 // A column is one window of an account, and its own gauge: the share fills it
 // from the bottom, the forecast to the reset is hatched over the share, and
-// the share in words and the span stand over both. Every window stands as a
-// column of its own, so the five hours stay in sight beside the week. Folded
-// over the list, a column keeps its share alone.
-function LimitColumn({ group, span, full, data, tucked, clock, opened, onToggle, onClose }) {
+// the share in words and the time to the reset stand over both, as on a chip
+// at a desk; the span is in its label and in the bubble. Every window stands
+// as a column of its own, so the five hours stay in sight beside the week.
+// Folded over the list, a column keeps its share alone.
+function LimitColumn({ group, full, data, tucked, clock, opened, onToggle, onClose }) {
     const { whole, style } = limitShares(data);
     const label = [full, share(data.pct), resetText(data.resetsAt), forecastText(data), group.old && "last known numbers"].filter(Boolean).join(", ");
     return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
@@ -244,7 +245,7 @@ function LimitColumn({ group, span, full, data, tucked, clock, opened, onToggle,
                     aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
             ${!tucked && data.forecast && data.forecast.pct > 100 && html`<span class="limit-cap" aria-hidden="true">▲</span>`}
             <span class="limit-percent">${whole}<small>%</small></span>
-            ${!tucked && html`<span class="limit-window">${span}</span>`}
+            ${!tucked && html`<span class="limit-window limit-left">${ringLeft(data.resetsAt)}</span>`}
             ${clock && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
         </button>
         <${LimitPopover} group=${group} opened=${opened} onClose=${onClose} />

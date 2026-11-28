@@ -122,10 +122,12 @@ func TestContourToolbarShowsLimitColumnsAndStartsMappedSessions(t *testing.T) {
 	if len(got.Columns) != 3 {
 		t.Fatalf("columns: %+v", got.Columns)
 	}
-	for i, want := range []string{"claude:5h", "claude:7d", "codex:7d"} {
+	// A column names its window in its label and shows the time to its reset.
+	for i, want := range []string{"claude:Claude, 5 hours:1h", "claude:Claude, 7 days:5d", "codex:Codex, 7 days:5d"} {
 		column := got.Columns[i]
-		if column.Vendor+":"+column.Window != want || column.Label == "" || column.Percent != []string{"99%", "88%", "44%"}[i] ||
-			!strings.Contains(column.Tone, []string{"crit", "crit", "ok"}[i]) {
+		parts := strings.Split(want, ":")
+		if column.Vendor != parts[0] || !strings.HasPrefix(column.Label, parts[1]+",") || column.Window != parts[2] ||
+			column.Percent != []string{"99%", "88%", "44%"}[i] || !strings.Contains(column.Tone, []string{"crit", "crit", "ok"}[i]) {
 			t.Errorf("column %d: %+v, want %s", i, column, want)
 		}
 	}
@@ -297,7 +299,7 @@ func TestLimitFramesKeepVendorsAndStaleReadingsDistinct(t *testing.T) {
 		}
 		if single.Vendor == "claude" {
 			if len(single.Full.Readings) != 2 || single.Full.Readings[0].Percent != "59%" || !strings.Contains(single.Full.Readings[0].Tone, "ok") ||
-				single.Full.Readings[1].Percent != "60%" || single.Full.Readings[1].Window != "7d" || !strings.Contains(single.Full.Readings[1].Tone, "warn") {
+				single.Full.Readings[1].Percent != "60%" || single.Full.Readings[1].Window != "4d" || !strings.HasPrefix(single.Full.Readings[1].Label, "Claude, 7 days,") || !strings.Contains(single.Full.Readings[1].Tone, "warn") {
 				t.Errorf("threshold boundary: %+v", single)
 			}
 		} else if len(single.Full.Readings) != 1 || !strings.Contains(single.Full.Readings[0].Tone, "crit") || !single.Folded.Readings[0].Old || !single.Folded.Readings[0].Clock {
@@ -312,22 +314,23 @@ func TestLimitColumnsShowEveryWindowWithItsForecast(t *testing.T) {
 	if len(got.Forecasts) != 6 {
 		t.Fatalf("forecast cases: %+v", got.Forecasts)
 	}
-	// Each case: the columns as window, share, tone, cap, ghost and projection.
+	// Each case: the columns as time to reset, share, tone, cap, ghost and
+	// projection.
 	type col struct {
-		window, pct, tone, cap string
-		ghost                  bool
-		projection             string
+		left, pct, tone, cap string
+		ghost                bool
+		projection           string
 	}
 	cases := []struct {
 		name string
 		cols []col
 	}{
-		{"out", []col{{"5h", "42%", "crit", "▲", true, "100"}, {"7d", "88%", "ok", "", true, "92"}}},
-		{"tight", []col{{"5h", "64%", "warn", "", true, "96"}, {"7d", "90%", "ok", "", true, "92"}}},
-		{"tie", []col{{"5h", "70%", "ok", "", true, "80"}, {"7d", "85%", "ok", "", true, "90"}}},
-		{"threshold", []col{{"5h", "59%", "ok", "", false, "59"}, {"7d", "60%", "warn", "", false, "60"}}},
-		{"edge", []col{{"5h", "72%", "warn", "", true, "100"}, {"7d", "60%", "ok", "", true, "90"}}},
-		{"day", []col{{"day", "8%", "ok", "", true, "22"}}},
+		{"out", []col{{"3h", "42%", "crit", "▲", true, "100"}, {"5d", "88%", "ok", "", true, "92"}}},
+		{"tight", []col{{"3h", "64%", "warn", "", true, "96"}, {"5d", "90%", "ok", "", true, "92"}}},
+		{"tie", []col{{"3h", "70%", "ok", "", true, "80"}, {"5d", "85%", "ok", "", true, "90"}}},
+		{"threshold", []col{{"3h", "59%", "ok", "", false, "59"}, {"5d", "60%", "warn", "", false, "60"}}},
+		{"edge", []col{{"3h", "72%", "warn", "", true, "100"}, {"5d", "60%", "ok", "", true, "90"}}},
+		{"day", []col{{"12h", "8%", "ok", "", true, "22"}}},
 	}
 	for i, scene := range got.Forecasts {
 		want := cases[i]
@@ -341,7 +344,7 @@ func TestLimitColumnsShowEveryWindowWithItsForecast(t *testing.T) {
 			for k, column := range state.Readings {
 				w := want.cols[k]
 				// Folded, a column keeps its share and the fill behind it alone.
-				window, capMark := w.window, w.cap
+				window, capMark := w.left, w.cap
 				if j == 1 {
 					window, capMark = "", ""
 				}

@@ -34,7 +34,8 @@ func TestThePhoneContourPageShowsCodexsWeekBesideClaudesLimits(t *testing.T) {
 	if strings.Join(acme.Vendors, "|") != "claude|codex" {
 		t.Errorf("vendor frames: %v", acme.Vendors)
 	}
-	if len(acme.Columns) != 3 || acme.Columns[0].Window != "5h" || acme.Columns[1].Window != "7d" || acme.Columns[2].Window != "7d" || acme.Columns[2].Agent != "codex" || !strings.Contains(acme.Columns[2].Label, "38%") {
+	if len(acme.Columns) != 3 || !strings.HasPrefix(acme.Columns[0].Label, "Claude, 5 hours,") || !strings.HasPrefix(acme.Columns[1].Label, "Claude, 7 days,") ||
+		acme.Columns[0].Window != "3h" || acme.Columns[1].Window != "4d" || acme.Columns[2].Window != "2d" || acme.Columns[2].Agent != "codex" || !strings.Contains(acme.Columns[2].Label, "38%") {
 		t.Fatalf("Acme columns: %+v", acme)
 	}
 	// Either Claude column opens both Claude windows; the Codex column its week.
@@ -46,7 +47,7 @@ func TestThePhoneContourPageShowsCodexsWeekBesideClaudesLimits(t *testing.T) {
 	if strings.Join(personal.Vendors, "|") != "claude" {
 		t.Errorf("Claude-only frame: %v", personal.Vendors)
 	}
-	if len(personal.Columns) != 2 || personal.Columns[0].Window != "5h" || personal.Columns[1].Window != "7d" || personal.Columns[1].Word != "claude" {
+	if len(personal.Columns) != 2 || !strings.HasPrefix(personal.Columns[0].Label, "Claude, 5 hours,") || personal.Columns[0].Window != "2h" || personal.Columns[1].Window != "4d" || personal.Columns[1].Word != "claude" {
 		t.Errorf("Claude-only contour: %+v", personal)
 	}
 	lab := got.Pages[2]
@@ -58,14 +59,14 @@ func TestThePhoneContourPageShowsCodexsWeekBesideClaudesLimits(t *testing.T) {
 		t.Errorf("independent staleness: %+v", globex)
 	}
 	initech := got.Pages[4]
-	if len(initech.Columns) != 2 || initech.Columns[0].Window != "5h" || !strings.Contains(initech.Columns[0].Label, "resets any moment") || !strings.Contains(initech.Columns[0].Tone, "crit") {
+	if len(initech.Columns) != 2 || !strings.HasPrefix(initech.Columns[0].Label, "Claude, 5 hours,") || initech.Columns[0].Window != "0m" || !strings.Contains(initech.Columns[0].Label, "resets any moment") || !strings.Contains(initech.Columns[0].Tone, "crit") {
 		t.Errorf("expired/minute resets: %+v", initech)
 	}
 	if len(initech.Details) != 4 || !strings.Contains(initech.Details[0].Words, "resets any moment") || !strings.Contains(initech.Details[1].Words, "resets in 30 min") || !strings.Contains(initech.Details[1].Tone, "warn") {
 		t.Errorf("expired and minute resets in details: %+v", initech.Details)
 	}
 	hooli := got.Pages[5]
-	if len(hooli.Columns) != 2 || hooli.Columns[0].Window != "7d" || hooli.Columns[1].Agent != "codex" {
+	if len(hooli.Columns) != 2 || !strings.HasPrefix(hooli.Columns[0].Label, "Claude, 7 days,") || hooli.Columns[0].Window != "" || hooli.Columns[1].Agent != "codex" {
 		t.Errorf("unknown reset or missing five-hour window: %+v", hooli)
 	}
 }
