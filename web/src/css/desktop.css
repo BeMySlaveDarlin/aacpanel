@@ -51,18 +51,20 @@
         display: flex;
         flex-direction: column;
         flex: none;
+        width: 4.5rem;
         min-height: 0;
         gap: .2rem;
-        padding: .4rem .3rem;
+        padding: .4rem 0;
         background: var(--top-bg);
     }
 
-    .dkrail { width: 4.5rem; padding-inline: 0; border-right: var(--hair) solid var(--line); }
-    .dkstripe { border-left: var(--hair) solid var(--line); padding-inline: .2rem; }
+    .dkrail { border-right: var(--hair) solid var(--line); }
+    .dkstripe { border-left: var(--hair) solid var(--line); }
     .dksections, .dkrailbottom, .dksectionpanels { display: flex; flex-direction: column; gap: .2rem; }
     .dksections { min-height: 0; overflow-y: auto; }
     .dkrailbottom { margin-top: auto; }
     .dksectionpanels { flex: 1; min-height: 0; overflow-y: auto; }
+    .dkrailstatus { display: flex; flex: none; flex-direction: column; gap: .3rem; margin: .4rem .3rem 0; }
 
     .dkhost {
         display: flex;
@@ -82,17 +84,17 @@
         cursor: pointer;
     }
 
-    .dkhost > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dkhostname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dkhost .caret { flex: none; }
 
-    .dkrailbtn, .dkpaneltab {
+    .dkrailbtn {
         position: relative;
         display: flex;
         align-items: center;
         justify-content: center;
         flex: none;
         gap: .3rem;
-        padding: .55rem .1rem;
+        padding: .55rem 0;
         border: 0;
         border-radius: var(--r-small);
         background: none;
@@ -103,14 +105,13 @@
 
     .dkrailbtn { flex-direction: column; min-height: 2.8rem; margin-inline: .3rem; }
     .dkrailbtn svg { width: var(--i-md); height: var(--i-md); }
-    .dkpaneltab { writing-mode: vertical-rl; padding: .7rem .4rem; gap: .5rem; }
-    .dkpaneltab svg { width: var(--i-sm); height: var(--i-sm); }
-    .dkrailbtn.on, .dkpaneltab.on { color: var(--accent); background: var(--accent-bg); }
+    .dknavlabel { max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+    .dkrailbtn.on { color: var(--accent); background: var(--accent-bg); }
     .dkrailbtn.on::before { content: ""; position: absolute; left: -.3rem; top: .4rem; bottom: .4rem; width: 2px; background: var(--accent); }
     .dkcollapse { min-height: 1.8rem; }
     .dkcollapse svg { transform: rotate(180deg); }
     .compact .dkcollapse svg { transform: none; }
-    .compact .dkrail { width: 2.7rem; }
+    .compact .dkrail, .compact .dkstripe { width: 2.7rem; }
     .compact .dkhost {
         align-self: center;
         width: 1.8rem;
@@ -123,7 +124,6 @@
         font-size: var(--t-md);
     }
     .compact .dknavlabel { display: none; }
-    .compact .dkpaneltab { padding: .7rem .3rem; }
     .compact .dkrailbtn { min-height: 2.2rem; }
     .compact .dkcollapse { min-height: 1.8rem; }
 
@@ -140,17 +140,17 @@
         font-size: var(--t-xs);
     }
 
-    .dkstatushost { display: flex; align-items: center; gap: .4rem; color: var(--ink-dim); }
-    .dkconnection { width: .4rem; height: .4rem; border-radius: var(--r-pill); background: var(--ok); }
+    .dkconnection { flex: none; width: .4rem; height: .4rem; border-radius: var(--r-pill); background: var(--ok); }
     .dkconnection.silent { background: var(--warn); }
-    .dkstatus .dkzoom { margin-left: auto; }
 
     /* The same readings stay visible while the centre changes section. */
     .dkload {
         display: flex;
-        align-items: center;
-        gap: .6rem;
-        padding: .25rem .5rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: .25rem;
+        width: 100%;
+        padding: 0;
         border: 0;
         border-radius: var(--r-small);
         background: transparent;
@@ -161,14 +161,16 @@
 
     .dkload:hover { background: var(--surface-2); }
 
-    .dkgauge {
-        align-items: baseline;
-        gap: .4rem;
-        padding: .16rem .45rem;
+    .dkload .dkgauge {
+        align-items: center;
+        justify-content: space-between;
+        gap: .1rem;
+        padding: .25rem .15rem;
         border-radius: var(--r-small);
-        font-size: var(--t-sm);
+        font-size: var(--t-xs);
         line-height: 1.35;
     }
+    .compact .dkload .dkgauge { flex-direction: column; gap: .05rem; }
 
     .dkibnum {
         position: absolute;
@@ -225,12 +227,14 @@
     }
 
     .dkroute {
-        font: 600 var(--t-sm)/1 var(--sans);
+        font: 600 var(--t-xs)/1.2 var(--sans);
+        max-width: 100%;
+        overflow-wrap: anywhere;
         color: var(--ink-dim);
         background: transparent;
         border: var(--hair) solid var(--edge);
-        border-radius: var(--r-pill);
-        padding: .3rem .5rem;
+        border-radius: var(--r-small);
+        padding: .35rem .1rem;
         cursor: pointer;
     }
 
@@ -243,18 +247,21 @@
        one control rather than two buttons that happen to stand together. */
     .dkzoom {
         display: flex;
+        flex-direction: column-reverse;
         align-items: center;
         gap: .1rem;
-        padding: 0 .15rem;
+        margin-inline: .3rem;
+        padding: .2rem 0;
         border: var(--hair) solid var(--edge);
-        border-radius: var(--r-pill);
+        border-radius: var(--r-small);
     }
+    .compact .dkzoom { margin-inline: .15rem; }
 
     .dkzoombtn {
         display: grid;
         place-items: center;
-        width: 1.6rem;
-        height: 1.6rem;
+        width: 100%;
+        height: 1.4rem;
         padding: 0;
         border: 0;
         border-radius: var(--r-small);
@@ -267,7 +274,8 @@
     .dkzoombtn:disabled { opacity: .35; cursor: default; }
 
     .dkzoomnum {
-        min-width: 2.7rem;
+        min-width: 0;
+        width: 100%;
         text-align: center;
         font-size: var(--t-xs);
         font-variant-numeric: tabular-nums;
@@ -1874,7 +1882,7 @@
 
     .dkmodalbody .btnrow:not(.pfdiskrow) > .btn { flex: none; }
 
-    .dkhost:hover, .dkrailbtn:hover, .dkpaneltab:hover { color: var(--ink); background: var(--glass); }
+    .dkhost:hover, .dkrailbtn:hover { color: var(--ink); background: var(--glass); }
     .dksess:not(.on):hover { background: var(--glass); }
     .dknew:not(:disabled):hover, .dkshelfall:hover { color: var(--ink); background: var(--glass); }
     .dknewrow:not(:disabled):hover { background: var(--glass); }

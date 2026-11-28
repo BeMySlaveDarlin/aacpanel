@@ -1,7 +1,7 @@
 import { html } from "../html.js";
 import { Gauge, headLoad } from "../ui/load.js";
 
-// HeadLoad draws what the machine is doing right now, at the end of the top bar.
+// HeadLoad keeps the host's readings available beside the sections.
 export function HeadLoad({ snapshot, onOpen }) {
     const load = headLoad(snapshot);
     if (!load) return null;

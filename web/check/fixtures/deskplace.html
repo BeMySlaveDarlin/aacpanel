@@ -147,8 +147,8 @@ const resize = async (want, files = false) => {
 };
 const navigation = async () => {
     const result = { labels: [compact()], journal: [], onlyJournal: [], tips: [] };
-    result.onlyJournal = [...document.querySelectorAll(".dkstripe button")].map((b) => b.getAttribute("aria-label"));
-    result.tips = [...document.querySelectorAll(".dkrail button, .dkstripe button")].map((b) => b.getAttribute("data-tip"));
+    result.onlyJournal = [...document.querySelectorAll(".dkstripe .dkrailbtn")].map((b) => b.getAttribute("aria-label"));
+    result.tips = [...document.querySelectorAll(".dkrail .dkhost, .dkrail .dkrailbtn, .dkstripe .dkrailbtn")].map((b) => b.getAttribute("data-tip"));
     await press("Action journal");
     await until(() => document.querySelector(".dkright .dkpaneltitle")?.textContent === "Action journal");
     result.journal.push(!!document.querySelector(".dkbody.full.withpanel .dkright"));

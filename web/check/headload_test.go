@@ -18,9 +18,8 @@ type loadShot struct {
 	Blank  int `json:"blank"`
 }
 
-// The status bar answers "what is this machine doing" without leaving the screen
-// you are on: processor, memory and disk, in that order, on one line.
-func TestTheStatusBarCarriesTheLoadOfTheHost(t *testing.T) {
+// The rail keeps the host readings available while the centre changes section.
+func TestTheRailCarriesTheLoadOfTheHost(t *testing.T) {
 	var got loadShot
 	runWideFixture(t, "headload.html", &got)
 
@@ -79,15 +78,68 @@ func TestTheLoadLeadsIntoTheMachineAndVanishesWithoutASnapshot(t *testing.T) {
 	}
 }
 
-// The load stays available in the shell while its section changes.
-func TestTheStatusBarCarriesTheLoadControl(t *testing.T) {
-	shell := stripComments(srcFiles(t)["src/desktop/shell.js"])
-	start := strings.Index(shell, `<footer class="dkstatus">`)
-	if start < 0 {
-		t.Fatal("the shell has no status bar")
+func TestDesktopRailsCarryConnectionLoadAndScale(t *testing.T) {
+	type railState struct {
+		Names, Values, Panels               []string
+		Readable, Labels, SameButtons, Zoom bool
 	}
-	end := strings.Index(shell[start:], "</footer>")
-	if end < 0 || !strings.Contains(shell[start:start+end], "<${HeadLoad}") {
-		t.Error("the status bar has no host load control")
+	var got struct {
+		Rail struct {
+			InRail, EmptyStatus, Host bool
+			HostName, Route, Tip      string
+		}
+		Expanded, Compact, Full railState
+		Opened                  int
+		PanelOpened             []bool
+		Routes                  []struct {
+			Text string
+			Fits bool
+		}
+		RouteOpened, Near, ZoomLarger, ZoomSmaller    bool
+		Failed, Stale, Cookie, Recovered, FooterClean bool
+		Error                                         string
+	}
+	runWideFixture(t, "headload.html", &got)
+	if got.Error != "" {
+		t.Fatal(got.Error)
+	}
+	if !got.Rail.InRail || !got.Rail.EmptyStatus || !got.Rail.Host || got.Rail.HostName != "helios▾" || got.Rail.Route != "LAN" || got.Rail.Tip == "" {
+		t.Errorf("the rail lost the route, host or readings, or the status bar is not empty: %+v", got.Rail)
+	}
+	for name, state := range map[string]railState{"expanded": got.Expanded, "compact": got.Compact, "full": got.Full} {
+		wantValues := []string{"74%", "23%", "94%"}
+		if name == "full" {
+			wantValues = []string{"100%", "100%", "100%"}
+		}
+		if !equalStrings(state.Names, []string{"cpu", "mem", "disk"}) || !equalStrings(state.Values, wantValues) ||
+			!equalStrings(state.Panels, []string{"Session archive", "Projects", "Action journal"}) || !state.Readable || !state.Labels || !state.SameButtons || !state.Zoom {
+			t.Errorf("%s rail lost a reading, a panel label or its shared controls: %+v", name, state)
+		}
+	}
+	if got.Opened != 3 {
+		t.Errorf("%d readings opened Machine, expected all three", got.Opened)
+	}
+	if len(got.PanelOpened) != 4 {
+		t.Fatalf("panel states: %v", got.PanelOpened)
+	}
+	for _, open := range got.PanelOpened {
+		if !open {
+			t.Error("the rail failed to mark an opened panel")
+		}
+	}
+	if len(got.Routes) != 4 {
+		t.Fatalf("route readings: %+v", got.Routes)
+	}
+	for i, want := range []string{"LAN", "domain", "tailscale", "localhost"} {
+		if got.Routes[i].Text != want || !got.Routes[i].Fits {
+			t.Errorf("route %d: %+v, expected %q without clipping", i, got.Routes[i], want)
+		}
+	}
+	for name, ok := range map[string]bool{"route sheet": got.RouteOpened, "near route": got.Near,
+		"larger scale": got.ZoomLarger, "smaller scale": got.ZoomSmaller, "host failure": got.Failed,
+		"stale snapshot": got.Stale, "cookie alert": got.Cookie, "recovered": got.Recovered, "clean footer": got.FooterClean} {
+		if !ok {
+			t.Errorf("%s: the desktop did not show the expected state", name)
+		}
 	}
 }

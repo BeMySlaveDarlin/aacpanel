@@ -128,15 +128,15 @@ function Zoom({ scale, onSmaller, onBigger }) {
     `;
 }
 
-function NavButton({ item, active, onClick, stripe = false, count = 0 }) {
+function NavButton({ item, active, onClick, tipSide, count = 0 }) {
     return html`
         <button
-            class=${`${stripe ? "dkpaneltab" : "dkrailbtn"}${active ? " on" : ""}`}
+            class=${`dkrailbtn${active ? " on" : ""}`}
             type="button"
             aria-label=${count > 0 ? `${item.label}, ${count} unread` : item.label}
             aria-pressed=${Boolean(active)}
             data-tip=${item.label}
-            data-tipside=${stripe ? "left" : undefined}
+            data-tipside=${tipSide}
             onClick=${onClick}
         ><${item.icon} /><span class="dknavlabel">${item.name || item.label}</span>
             ${count > 0 && html`<span class="dkibnum">${count}</span>`}
@@ -424,6 +424,7 @@ export function DesktopShell({
 
     const chip = routeChip(route);
     const hostName = (snapshot && snapshot.hostName) || "host";
+    const connectionWhy = hostError || (ageSec > 120 ? `the agent snapshot is ${Math.round(ageSec / 60)} min old` : "");
     const panels = PANELS[section] || [];
     const panelTitle = ([...panels, JOURNAL].find((p) => p.id === panel) || {}).label || "";
     const wide = section === "home" || section === "devices" || section === "alerts" || section === "terminals";
@@ -439,13 +440,22 @@ export function DesktopShell({
                         <button class="dkhost" type="button" aria-label=${labels ? "Settings" : `${hostName} settings`}
                                 data-tip=${labels ? "Settings" : `${hostName} · Settings`}
                                 onClick=${() => setSettings(true)}>
-                            <span>${labels ? hostName : Array.from(hostName)[0].toUpperCase()}</span>
+                            <i class=${`dkconnection${connectionWhy ? " silent" : ""}`} role="img"
+                               aria-label=${connectionWhy || "connected"} data-tip=${connectionWhy || "connected"}></i>
+                            <span class="dkhostname">${labels ? hostName : Array.from(hostName)[0].toUpperCase()}</span>
                             ${labels && html`<span class="caret">▾</span>`}
                         </button>
                         <div class="dksections">
                             ${SECTIONS.filter((it) => it.id !== "terminals" || term.route).map((it) => html`
                                 <${NavButton} key=${it.id} item=${it} active=${section === it.id} onClick=${() => goSection(it.id)} />
                             `)}
+                            <div class="dkrailstatus">
+                                ${route && route.here && html`
+                                    <button class=${`dkroute${chip.near ? " on" : ""}`} type="button" data-tip=${chip.tip}
+                                            onClick=${route.onOpen}>${chip.text}</button>
+                                `}
+                                <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
+                            </div>
                         </div>
                         <div class="dkrailbottom">
                             <button class="dkrailbtn dkcollapse" type="button" aria-label=${labels ? "Hide navigation labels" : "Show navigation labels"}
@@ -482,22 +492,19 @@ export function DesktopShell({
                     <nav class="dkstripe" aria-label="Panels">
                         <div class="dksectionpanels">
                             ${panels.map((it) => html`
-                                <${NavButton} key=${it.id} item=${it} stripe=${true}
+                                <${NavButton} key=${it.id} item=${it} tipSide="left"
                                     active=${it.layer ? mapOpen : panel === it.id}
                                     onClick=${() => (it.layer ? setMapOpen(true) : setPanel((cur) => (cur === it.id ? null : it.id)))} />
                             `)}
                         </div>
-                        <${NavButton} item=${JOURNAL} stripe=${true} active=${panel === "journal"}
-                            onClick=${() => setPanel((cur) => cur === "journal" ? null : "journal")} />
+                        <div class="dkrailbottom">
+                            <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
+                            <${NavButton} item=${JOURNAL} tipSide="left" active=${panel === "journal"}
+                                onClick=${() => setPanel((cur) => cur === "journal" ? null : "journal")} />
+                        </div>
                     </nav>
                 </div>
                 <footer class="dkstatus">
-                    <span class="dkstatushost"><i class=${`dkconnection${hostError || ageSec > 120 ? " silent" : ""}`}></i>${(snapshot && snapshot.hostName) || "host"}</span>
-                    ${route && route.here && html`
-                        <button class=${`dkroute${chip.near ? " on" : ""}`} type="button" data-tip=${chip.tip}
-                                onClick=${route.onOpen}>${chip.text}</button>
-                    `}
-                    <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
                     ${snapshot && snapshot.cookieInsecure && html`
                         <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well">
                             cookie without Secure
@@ -506,7 +513,6 @@ export function DesktopShell({
                     ${troubles.length > 0 && html`
                         <span class="dkalert" data-tip=${troubles.join(" · ")}>silent <b>${troubles.length}</b></span>
                     `}
-                    <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
                 </footer>
 
 

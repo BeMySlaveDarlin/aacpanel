@@ -3701,9 +3701,10 @@ screens themselves.
 
 **The desktop has a section rail and a panel strip.** Home and the sections
 stand on the left, their panels on the right; Journal is shared by every
-section and stays open across section changes. The status bar holds the host,
-route, load and scale. Rail labels and the widths of the section column and
-Files list are kept on the device. Both column edges reset on a double click;
+section and stays open across section changes. The left rail holds the host
+connection, route and load; the right rail holds the scale controls. The status
+bar carries connection and cookie warnings. Rail labels and the widths of the
+section column and Files list are kept on the device. Both column edges reset on a double click;
 the Files list gives at most half the conversation to its column.
 
 **A contour is asked for by the id of its map entry, never by the name on the
@@ -3723,7 +3724,7 @@ answered with the personal one alone.
 
 **The size of the desktop is the person's to set.** Every size in the styles is
 written in rem, so the root font size is the single number the whole interface
-hangs off: the two buttons in the status bar move it and the columns, the rows,
+hangs off: the two buttons in the right rail move it and the columns, the rows,
 the icons and the type follow at once. The scale sits on the root element while the
 desktop shell is mounted and is taken off with it — left there, it would follow
 the same browser to the phone, where no control can undo it. The starting point

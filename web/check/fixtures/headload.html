@@ -1,16 +1,22 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<div class="deskshell"><footer class="dkstatus"><div id="root"></div><div id="blank"></div></footer></div>
-<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<style>html,body{height:100%;margin:0}</style>
+<div id="root"></div><div id="blank" hidden></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
 <script type="module">
-// The load gauges of the status bar over a host with a busy processor, room in
-// memory and one disk nearly full among four.
 import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { DesktopShell } from "/src/desktop/shell.js";
 import { HeadLoad } from "/src/desktop/load.js";
-import { quiet } from "/check/fixtures/quiet.js";
+import { RouteSheet } from "/src/ui/route.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const snapshot = {
+    hostName: "helios", at: Math.floor(Date.now() / 1000),
+    sessions: [{ session: "build", sessionId: "live-build", status: "idle", transport: "stream", cwd: "/srv/build", profile: "personal", pct: 12 }],
     host: {
         cpuPct: 74.4,
         mem: { pct: 23.1 },
@@ -23,35 +29,122 @@ const snapshot = {
     },
 };
 
-let opened = 0;
-render(h(HeadLoad, { snapshot, onOpen: () => { opened++; } }), document.getElementById("root"));
-
-const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
-
+const json = (body) => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (url) => {
+    const u = new URL(String(url), location.href);
+    if (u.pathname === "/api/profiles") return json({ profiles: [] });
+    if (u.pathname === "/api/probes") return json({ probes: [] });
+    if (u.pathname === "/api/term") return json({ available: false });
+    if (u.pathname === "/api/sessions/archive") return json({ rows: [], total: 0, offset: 0 });
+    if (u.pathname.startsWith("/api/history")) return json({ rows: [] });
+    return json({});
+});
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+const root = document.getElementById("root");
+const noop = () => {};
+const wait = { opening: () => [], of: () => null };
+function Scene({ host = snapshot, ageSec = 1, hostError = null, leg = "lan", via = "" }) {
+    const [routeOpen, setRouteOpen] = useState(false);
+    const route = { here: leg, via, onOpen: () => setRouteOpen(true), onRecheck: noop };
+    return h(ToastHost, null, h(GateHost, null,
+        h(DesktopShell, { snapshot: host, ageSec, hostError, history: [], tree: { stacks: [] }, faults: [],
+            exec: { available: true }, wait, alerts: { kind: "ready", list: [], reload: noop }, openAlerts: 2,
+            theme: "space", onTheme: noop, onRefresh: noop, route }),
+        h(RouteSheet, { open: routeOpen, onClose: () => setRouteOpen(false), route, conn: { kind: "live" }, ageSec })));
+}
+const show = (props = {}) => render(h(Scene, props), root);
+const until = async (ok) => {
+    const end = performance.now() + 5000;
+    while (!ok() && performance.now() < end) await new Promise(requestAnimationFrame);
+    if (!ok()) throw new Error("The desktop rail did not settle");
+};
+const tap = (selector) => {
+    const el = root.querySelector(selector);
+    if (!el) throw new Error(`The rail has no ${selector}`);
+    el.click();
+};
+const text = (selector) => [...root.querySelectorAll(selector)].map((el) => el.textContent.trim());
+const fits = (el) => el.scrollWidth <= el.clientWidth;
+const railState = () => ({
+    names: text(".dkrail .dkgauge-n"), values: text(".dkrail .dkgauge-v"),
+    readable: [...root.querySelectorAll(".dkrail .dkgauge, .dkrail .dkgauge-v, .dkroute, .dkzoom, .dkzoomnum")].every(fits),
+    panels: [...root.querySelectorAll(".dkstripe .dkrailbtn")].map((b) => b.getAttribute("aria-label")),
+    labels: [...root.querySelectorAll(".dkrailbtn .dknavlabel")].every((el) =>
+        root.querySelector(".deskshell.compact") ? el.getClientRects().length === 0 : el.getClientRects().length > 0 && fits(el)),
+    sameButtons: [...root.querySelectorAll(".dkstripe .dksectionpanels button")].every((el) => el.classList.contains("dkrailbtn")),
+    zoom: Boolean(root.querySelector(".dkstripe .dkzoom")),
+});
+const panels = async () => {
+    const opened = [];
+    for (const label of ["Session archive", "Action journal"]) {
+        tap(`.dkstripe [aria-label="${label}"]`);
+        await until(() => root.querySelector(".dkright .dkpaneltitle")?.textContent === label);
+        opened.push(root.querySelector(`.dkstripe [aria-label="${label}"]`).getAttribute("aria-pressed") === "true");
+        tap(`.dkstripe [aria-label="${label}"]`);
+        await until(() => !root.querySelector(".dkright"));
+    }
+    return opened;
+};
+const dot = () => root.querySelector(".dkhost .dkconnection");
+localStorage.setItem("aacpanel.desktop.place", JSON.stringify({ section: "sessions", chat: null }));
+window.preview = { show, snapshot, until };
 (async () => {
-    await quiet();
-    const chips = Array.from(document.querySelectorAll(".dkgauge"));
-    const before = {
-        names: text(".dkgauge-n"),
-        values: text(".dkgauge-v"),
-        tones: chips.map((c) => c.className.replace("dkgauge", "").trim()),
-        // The reading is the fill of the chip itself, not a bar beside it.
-        fills: chips.map((c) => Math.round(parseFloat(c.style.getPropertyValue("--fill")) || 0)),
-        bars: document.querySelectorAll(".dkgauge-bar").length,
-        // The tip of a chip names what it reads, the disk by its mount.
-        tips: Array.from(document.querySelectorAll(".dkgauge")).map((g) => g.getAttribute("data-tip")),
-    };
-
-    document.querySelector(".dkload").click();
-    await quiet();
-
-    // A host the agent has not reported on yet draws nothing rather than zeros.
-    // It is drawn beside the first, not over it: a fixture is also the picture
-    // of the thing, and a picture of an empty bar shows nothing.
-    render(h(HeadLoad, { snapshot: {}, onOpen: () => {} }), document.getElementById("blank"));
-    await quiet();
-
-    window.done = { before, opened,
-        blank: document.querySelectorAll("#blank .dkgauge").length };
+    const out = {};
+    try {
+        show(); await quiet();
+        if (new URLSearchParams(location.search).has("preview")) { window.done = { ready: true }; return; }
+        const chips = [...root.querySelectorAll(".dkgauge")];
+        out.before = { names: text(".dkgauge-n"), values: text(".dkgauge-v"),
+            tones: chips.map((c) => c.className.replace("dkgauge", "").trim()),
+            fills: chips.map((c) => Math.round(parseFloat(c.style.getPropertyValue("--fill")) || 0)),
+            bars: root.querySelectorAll(".dkgauge-bar").length, tips: chips.map((c) => c.dataset.tip) };
+        out.rail = { inRail: Boolean(root.querySelector(".dkrail .dkroute, .dkrail .dkload")), emptyStatus: Boolean(root.querySelector(".dkstatus")) && !root.querySelector(".dkstatus").textContent.trim(),
+            host: Boolean(dot()) && dot().dataset.tip === "connected", hostName: root.querySelector(".dkhost")?.textContent.trim(),
+            route: root.querySelector(".dkroute")?.textContent.trim(), tip: root.querySelector(".dkroute")?.dataset.tip };
+        out.expanded = railState();
+        tap(".dkroute"); await until(() => document.querySelector('[role="dialog"][aria-label="connection"].on'));
+        out.routeOpened = true;
+        document.querySelector('[role="dialog"][aria-label="connection"] .sheetclose').click();
+        await until(() => !document.querySelector('[role="dialog"][aria-label="connection"].on'));
+        out.opened = 0;
+        for (let i = 0; i < 3; i++) {
+            root.querySelectorAll(".dkgauge")[i].click();
+            await until(() => root.querySelector('.dksections [aria-label="Machine"].on'));
+            out.opened++;
+            tap('.dksections [aria-label="Sessions"]');
+            await until(() => root.querySelector('.dksections [aria-label="Sessions"].on'));
+        }
+        out.panelOpened = await panels();
+        tap(".dkcollapse"); await until(() => root.querySelector(".deskshell.compact")); await quiet();
+        out.compact = railState();
+        out.panelOpened.push(...await panels());
+        out.routes = [];
+        for (const leg of ["lan", "public", "ts", "local"]) {
+            show({ leg }); await quiet();
+            out.routes.push({ text: root.querySelector(".dkroute")?.textContent.trim(), fits: fits(root.querySelector(".dkroute")) });
+        }
+        show({ via: "lan", leg: "public" }); await quiet();
+        out.near = root.querySelector(".dkroute").classList.contains("on");
+        tap('.dkzoom [aria-label="Draw the interface larger"]');
+        await until(() => document.documentElement.style.getPropertyValue("--ui-scale") === "1.3");
+        out.zoomLarger = true;
+        tap('.dkzoom [aria-label="Draw the interface smaller"]');
+        await until(() => document.documentElement.style.getPropertyValue("--ui-scale") === "1.2");
+        out.zoomSmaller = true;
+        show({ host: { ...snapshot, host: { ...snapshot.host, cpuPct: 100, mem: { pct: 100 }, disks: [{ mount: "/", pct: 100 }] } } });
+        await quiet(); out.full = railState();
+        show({ hostError: "Host request failed" }); await quiet();
+        out.failed = dot()?.classList.contains("silent") && dot().dataset.tip.includes("Host request failed")
+            && root.querySelector(".dkstatus")?.textContent.includes("silent");
+        out.footerClean = !root.querySelector(".dkstatus .dkstatushost, .dkstatus .dkconnection, .dkstatus .dkroute, .dkstatus .dkload, .dkstatus .dkzoom");
+        show({ ageSec: 121 }); await quiet();
+        out.stale = dot()?.classList.contains("silent") && dot().dataset.tip.includes("snapshot") && Boolean(root.querySelector(".dkstatus"));
+        show({ host: { ...snapshot, cookieInsecure: true } }); await quiet();
+        out.cookie = root.querySelector(".dkstatus")?.textContent.includes("cookie without Secure");
+        show(); await quiet(); out.recovered = Boolean(root.querySelector(".dkstatus")) && !root.querySelector(".dkstatus").textContent.trim() && !dot()?.classList.contains("silent");
+        render(h(HeadLoad, { snapshot: {}, onOpen: noop }), document.getElementById("blank"));
+        await quiet(); out.blank = document.querySelectorAll("#blank .dkgauge").length;
+    } catch (error) { out.error = String(error.stack || error); }
+    window.done = out;
 })();
 </script>
