@@ -26,6 +26,7 @@ func TestFeedWalksPreviousHumanMessages(t *testing.T) {
 				Held, StartHidden, EmptyHidden, Returned bool
 				Manual, Paged                            int
 				Reads, Exhausted, Stalled                []int
+				PreviousClear                            bool
 				Error                                    string
 			}
 			runFixtureOn(t, "feedprevious.html", screen.size, screen.pointer, &got)
@@ -55,6 +56,9 @@ func TestFeedWalksPreviousHumanMessages(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got.Exhausted, []int{100, 80}) || !reflect.DeepEqual(got.Stalled, []int{100}) {
 				t.Errorf("paging did not stop at the beginning or without progress: exhausted %v, stalled %v", got.Exhausted, got.Stalled)
+			}
+			if !got.PreviousClear {
+				t.Error("the previous-message button covers the last message's work badge")
 			}
 		})
 	}

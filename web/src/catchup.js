@@ -31,16 +31,16 @@ export function answerAction(kind, target, ok, named) {
 // conversation is known by its id first: the session holding it is its own,
 // under whatever name it goes now. By the name alone it is found only when it
 // has no id yet, or when it was seen live and follows its session (see follow).
-// A closed conversation opened beside a live session of the same name belongs
-// to nothing: its feed is not that session's, and whatever is typed under it
-// would go into a conversation that is not on the screen.
+// An archived conversation can become live by its exact id. Its name alone
+// cannot match: whatever is typed would go into a different conversation.
 export function liveOf(sessions, target) {
     const list = sessions || [];
-    if (!target || target.archived) return null;
+    if (!target) return null;
     if (target.id) {
         const own = list.find((s) => s.sessionId === target.id);
-        if (own || !target.follow) return own || null;
+        if (own || target.archived || !target.follow) return own || null;
     }
+    if (target.archived) return null;
     return list.find((s) => s.session === target.name) || null;
 }
 
@@ -53,8 +53,8 @@ export function follow(sessions, target) {
     const live = liveOf(sessions, target);
     if (!live) return target;
     const id = live.sessionId || target.id || null;
-    if (target.follow && live.session === target.name && id === target.id) return target;
-    return { ...target, name: live.session, id, follow: true };
+    if (target.follow && !target.archived && live.session === target.name && id === target.id) return target;
+    return { ...target, name: live.session, id, follow: true, ...(target.archived ? { archived: false } : {}) };
 }
 
 export function ownName(name, session) {

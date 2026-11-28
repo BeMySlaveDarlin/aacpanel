@@ -153,7 +153,7 @@
 }
 @media (prefers-reduced-motion: reduce) { .worktrack > i { transition: none; } }
 
-.composerbox { flex: 0 0 auto; display: flex; flex-direction: column; }
+.composerbox, .resumebox { flex: 0 0 auto; display: flex; flex-direction: column; }
 
 /* Where the composer stands for a session the panel did not start: why there
    is nothing to write into. */
@@ -285,7 +285,7 @@
 
 /* One field. The buttons live inside it without boxes of their own: the field
    is the thing, the paperclip and the arrow are marks on it. */
-.composer {
+.composer, .resumebar {
     /* The ground and the edge of the glass, named for the field whose glass
        is a layer under it (picker.css). */
     --field-ground: rgba(var(--tint), .06);
@@ -304,6 +304,12 @@
     box-shadow: var(--field-edge);
 }
 .composer:focus-within { --field-edge: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent), var(--gloss), var(--glow); }
+
+.resumebar { justify-content: space-between; gap: .75rem; padding: .6rem .75rem; }
+.resumenote { min-width: 0; font-size: var(--t-sm); color: var(--ink-dim); }
+.resumewhy { margin: .25rem 0 0; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
+.resumebar .btn { flex: none; display: inline-flex; align-items: center; gap: .35rem; }
+.resumebar .btn svg { width: var(--i-sm); height: var(--i-sm); }
 
 /* A long message scrolls inside the field, and its lines pass through the
    field's padding: there they fade out, so a line cut at the edge does not

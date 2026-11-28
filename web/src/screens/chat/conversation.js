@@ -61,6 +61,7 @@ import { AttachSheet } from "./tools.js";
 import { DeskHead } from "./deskhead.js";
 import { MoveScreen } from "./switch.js";
 import { outsideNote } from "../sessions/kin.js";
+import { resume } from "../sessions/actions.js";
 import { TakeBack } from "./takeback.js";
 import { usePieceMenu } from "./feedmenu.js";
 import { Term } from "./term.js";
@@ -834,6 +835,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             </div>
         `}
 
+        ${!live && archive?.sessionId && feedShown && html`
+            <${ClosedResume} key=${archive.sessionId} row=${archive} exec=${exec} />
+        `}
+
         ${live && feedShown && (!wide || live.outside) && html`
             <div class="deck">
                 ${movePill}
@@ -910,4 +915,35 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
         <${QuoteTip} quote=${quote} onQuote=${takeQuote} />
         <//>
     `;
+}
+
+function ClosedResume({ row, exec }) {
+    const run = useAction();
+    const [pending, setPending] = useState(false);
+    const fired = useRef(false);
+    const why = knows(exec, "session.resume") ? "" : whyNot(exec, "session.resume");
+    const press = async () => {
+        if (fired.current || why) return;
+        fired.current = true;
+        setPending(true);
+        const result = await resume(run, row, exec);
+        // Success waits for the live snapshot: the executor's reply alone
+        // does not put a composer on this conversation yet.
+        if (!result.ok) {
+            fired.current = false;
+            setPending(false);
+        }
+    };
+    return html`<div class="resumebox">
+        <div class="resumebar" aria-busy=${pending ? "true" : "false"}>
+            <div class="resumenote">This session is closed
+                ${why && html`<p class="resumewhy">${why}</p>`}
+            </div>
+            <button class="btn primary" type="button" disabled=${pending || Boolean(why)}
+                    data-tip=${why || undefined} onClick=${press}>
+                ${pending ? html`<span class="spin" aria-hidden="true"></span>` : html`<${Icon.resume} />`}
+                ${pending ? "Resuming…" : "Resume"}
+            </button>
+        </div>
+    </div>`;
 }

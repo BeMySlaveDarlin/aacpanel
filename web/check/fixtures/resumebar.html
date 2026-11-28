@@ -1,0 +1,133 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="root" class="shell no-nav"><main class="body" id="phone"></main></div>
+<script type="module">
+import { h, render } from "preact";
+import { Sessions } from "/src/screens/sessions.js";
+import { DesktopShell } from "/src/desktop/shell.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
+
+const wide = matchMedia("(min-width: 1100px)").matches;
+const root = document.getElementById(wide ? "root" : "phone");
+const claude = { name: "build", sessionId: "closed-claude", cwd: "/srv/project", messages: 12, pctMax: 21, profile: "personal" };
+const codex = { ...claude, name: "review", sessionId: "closed-codex", agent: "codex", profile: "work", tokensUsed: 12000 };
+const sent = [];
+let row = claude, finish;
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (url, init) => {
+    const u = new URL(String(url), location.href);
+    if (u.pathname === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return new Promise((resolve) => { finish = (ok) => resolve(json(ok ? { ok: true } : { error: "Resume refused" }, ok ? 200 : 500)); });
+    }
+    if (u.pathname === "/api/chat") return json({ items: [{ role: "me", pos: 1, text: "Check the build." },
+        { role: "ai", pos: 2, text: "The build passed. This conversation can be continued." }], total: 2, first: 1, last: 2 });
+    if (u.pathname === "/api/acts") return json({ acts: [] });
+    if (u.pathname === "/api/term") return json({ available: false });
+    if (u.pathname === "/api/profiles") return json({ profiles: [] });
+    if (u.pathname === "/api/sessions/archive") return json({ rows: [row], total: 1, offset: 0 });
+    return json({});
+});
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+const exec = { available: true, kinds: ["session.resume", "session.send"] };
+const wait = { opening: () => [], of: () => null };
+const noop = () => {};
+const live = (r, extra = {}) => ({ session: r.name, sessionId: r.sessionId, cwd: r.cwd, agent: r.agent,
+    status: "idle", transport: r.agent === "codex" ? "codex" : "stream", ...extra });
+const until = async (ok) => {
+    const end = performance.now() + 5000;
+    while (!ok() && performance.now() < end) await new Promise(requestAnimationFrame);
+    if (!ok()) throw new Error("The resume screen did not settle");
+};
+const show = (sessions = [], target = null, executor = exec) => {
+    const snapshot = { at: Date.now(), sessions };
+    const shared = { snapshot, exec: executor, wait, ageSec: 1, faults: [] };
+    const page = wide ? h(DesktopShell, { ...shared, tree: [], history: [], alerts: { kind: "ready", list: [], reload: noop },
+        openAlerts: 0, onRefresh: noop, theme: "space", onTheme: noop, route: { onRecheck: noop, onOpen: noop },
+        jump: target && { ...target, archived: true, row }, onJumped: noop })
+        : h(Sessions, { ...shared, want: target, onWanted: noop, onLayer: noop, onUsage: noop });
+    render(h(ToastHost, null, h(GateHost, null, page)), root);
+};
+const bar = () => root.querySelector(".resumebar");
+const button = () => bar()?.querySelector("button");
+const composer = () => Boolean(root.querySelector(".composer textarea"));
+const mount = async (r = claude, executor = exec, sessions = []) => {
+    render(null, root); row = r;
+    localStorage.removeItem("aacpanel.desktop.place");
+    show(sessions, { name: r.name, id: r.sessionId }, executor);
+    if (wide) {
+        await until(() => root.querySelector('button[aria-label="Session archive"]'));
+        root.querySelector('button[aria-label="Session archive"]').click();
+        await until(() => root.querySelector(".dkarch"));
+        root.querySelector(".dkarch").click();
+    }
+    await until(() => root.querySelector(r.sessionId ? ".chatfeed .feedrow" : ".chatfeed")); await quiet();
+};
+const press = async () => {
+    button().click();
+    await until(() => root.querySelector('.btnrow .btn.primary'));
+    root.querySelector('.btnrow .btn.primary').click();
+    await until(() => finish && button()?.disabled);
+};
+window.preview = { mount, show, claude, codex };
+(async () => {
+    const out = {};
+    try {
+        await mount();
+        if (new URLSearchParams(location.search).has("preview")) { window.done = { ready: true }; return; }
+        out.closed = Boolean(bar()) && !composer();
+        button().click();
+        await until(() => root.querySelector('.btnrow .btn:not(.primary)'));
+        root.querySelector('.btnrow .btn:not(.primary)').click();
+        await until(() => !button().disabled);
+        out.cancelled = sent.length === 0;
+        await press();
+        button().click(); button().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await until(() => !root.querySelector('.btnrow .btn.primary'));
+        out.once = sent.length === 1 && button().disabled && bar().getAttribute("aria-busy") === "true";
+        finish(true); finish = null; await quiet();
+        out.awaitingLive = button().disabled && !composer();
+        show([live(row, { session: "renamed" })]);
+        await until(() => composer() && !bar());
+        out.revived = root.textContent.includes("renamed");
+
+        await mount(codex);
+        await press(); finish(false); finish = null;
+        await until(() => !button().disabled && root.textContent.includes("Resume refused"));
+        out.retry = !composer();
+        await press(); finish(true); finish = null; await quiet();
+        show([live(row)]);
+        await until(() => composer() && !bar());
+        out.codexLive = Boolean(root.querySelector(".cxthink"));
+
+        await mount(claude, { available: true, kinds: ["session.send"] });
+        out.unavailable = { disabled: button().disabled, reason: bar().textContent, tip: button().dataset.tip };
+        await mount(claude, { available: false, reason: "The executor is offline" });
+        out.offline = button().disabled && bar().textContent.includes("The executor is offline");
+
+        await mount(claude, exec, [live(claude, { sessionId: "other-conversation" })]);
+        out.other = Boolean(bar()) && !composer();
+        show([live(claude)]);
+        await until(() => composer() && !bar());
+        out.external = true;
+        show([]); await until(() => !composer());
+        show([live(claude, { sessionId: "restarted-conversation" })]);
+        await until(() => composer() && !bar());
+        out.follow = true;
+
+        await mount({ ...claude, sessionId: "" });
+        out.noId = !bar() && !composer();
+        out.sent = sent;
+    } catch (error) { out.error = String(error.stack || error); }
+    window.done = out;
+})();
+</script>

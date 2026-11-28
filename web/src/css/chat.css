@@ -373,6 +373,10 @@ a.mcprow.toolrow { text-decoration: none; }
 .feedjump svg { width: var(--i-md); height: var(--i-md); transform: rotate(90deg); }
 .feedjump:active { background: var(--glass-2); color: var(--ink); }
 .feedprevious svg { transform: rotate(-90deg); }
+/* At the end the previous-message button takes its place in flow, leaving
+   the last row and its work badges above it. Away from the end both jump
+   buttons keep giving their height back, so scrolling has the same extent. */
+.feedprevious:not(.feedabove) { margin-top: 0; }
 .feedprevious.feedabove {
     bottom: calc(var(--feedjump-bottom, .5rem) + var(--feedjump-size) + .5rem);
 }
@@ -385,7 +389,7 @@ a.mcprow.toolrow { text-decoration: none; }
 
 /* With nothing under the feed on the phone, its edge is the edge of the screen,
    and the button has to clear the home indicator. */
-.cdmain:not(:has(> .composerbox)) .feedjump {
+.cdmain:not(:has(> .composerbox, > .resumebox)) .feedjump {
     --feedjump-bottom: calc(.5rem + env(safe-area-inset-bottom));
 }
 
@@ -493,7 +497,7 @@ a.mcprow.toolrow { text-decoration: none; }
 .chatnone { display: none; }
 
 @media (min-width: 1100px) {
-    :is(.chatfeed, .composerbox, .deck) {
+    :is(.chatfeed, .composerbox, .resumebox, .deck) {
         --chat-measure: 1.25rem;
         padding-inline: var(--chat-measure);
     }

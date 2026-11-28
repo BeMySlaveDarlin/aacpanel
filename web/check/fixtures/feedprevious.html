@@ -30,6 +30,9 @@ window.fetch = counted(async (url) => {
         if (before) reads.push(before);
         let items = mixed, more = false;
         if (mode === "empty") items = [answer(1), round, answer(60)];
+        if (mode === "rail") items = [...mixed,
+            { role: "tools", pos: 80, run: 80, kind: "bash", calls: [{ name: "Bash", arg: "make front", pos: 80, index: 0 }] },
+            { role: "ai", pos: 90, text: "Done." }];
         if (mode === "pages" || mode === "exhausted" || mode === "stalled") {
             items = [answer(100), answer(110)]; more = true;
             if (before === 100) { items = [answer(80), answer(90)]; }
@@ -106,6 +109,13 @@ window.preview = { mount, clickTo, manualTo, box, up, down };
         await mount("stalled"); up().click();
         await until(() => reads.length > 0 && !up()); await quiet();
         out.stalled = [...reads];
+        await mount("rail");
+        await until(() => box().querySelector(".railbadge, .tlentry")); await quiet();
+        const jump = up(), point = jump.getBoundingClientRect();
+        jump.style.visibility = "hidden";
+        const below = document.elementFromPoint(point.x + point.width / 2, point.y + point.height / 2);
+        out.previousClear = Boolean(below) && !below.closest(".railbadge, .tlentry");
+        jump.style.visibility = "";
     } catch (error) { out.error = String(error.stack || error); }
     window.done = out;
 })();
