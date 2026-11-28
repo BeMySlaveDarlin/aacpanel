@@ -157,16 +157,17 @@ type deskReading struct {
 }
 
 type deskSection struct {
-	Name     string        `json:"name"`
-	Head     string        `json:"head"`
-	Agents   []string      `json:"agents"`
-	Acts     []string      `json:"acts"`
-	Readings []deskReading `json:"readings"`
-	Old      bool          `json:"old"`
-	Grouped  bool          `json:"grouped"`
-	Live     []string      `json:"live"`
-	Closed   int           `json:"closed"`
-	Empty    string        `json:"empty"`
+	Name            string        `json:"name"`
+	Head            string        `json:"head"`
+	Agents          []string      `json:"agents"`
+	Acts            []string      `json:"acts"`
+	Readings        []deskReading `json:"readings"`
+	Old             bool          `json:"old"`
+	Grouped         bool          `json:"grouped"`
+	HeadingReadings int           `json:"headingReadings"`
+	Live            []string      `json:"live"`
+	Closed          int           `json:"closed"`
+	Empty           string        `json:"empty"`
 }
 
 type deskShelfRow struct {
@@ -224,6 +225,9 @@ func TestDeskColumnShowsTheContourOfItsTabWithItsLimitAndTheClosedOnAShelf(t *te
 			continue
 		}
 		sec := tab.Sections[0]
+		if sec.HeadingReadings != 0 {
+			t.Errorf("%q: the contour heading still has %d limit readings", sec.Name, sec.HeadingReadings)
+		}
 		var rings []string
 		for _, r := range sec.Readings {
 			rings = append(rings, r.Value+":"+r.Label)
@@ -335,7 +339,7 @@ func TestDeskLimitReadingsShowValuesResetsAndMissingWindows(t *testing.T) {
 			Vendors, Ages, Notes []string
 			Details              string
 		}
-		NoWeek, Empty string
+		NoWeek, NoWeekNote, HalfWeek, Empty string
 	}
 	runWideFixture(t, "deskrings.html", &got)
 	want := []struct{ value, left, reset, tone string }{
@@ -380,14 +384,17 @@ func TestDeskLimitReadingsShowValuesResetsAndMissingWindows(t *testing.T) {
 		t.Errorf("past and unknown resets: %v", got.Past)
 	}
 	if strings.Join(got.Stale.Vendors, ",") != "codex" ||
-		len(got.Stale.Ages) != 0 ||
+		len(got.Stale.Ages) != 0 || len(got.Stale.Notes) != 0 ||
 		!strings.Contains(got.Stale.Details, "Updated 1 h ago") || !strings.Contains(got.Stale.Details, "last known numbers") ||
 		!strings.Contains(got.Stale.Details, "codex says the limit is reached") {
 		t.Errorf("stale and reached Codex limits: %+v", got.Stale)
 	}
-	if !strings.Contains(got.NoWeek, "codex has told no weekly window yet") ||
-		!strings.Contains(got.NoWeek, "codex says the limit is reached") || got.Empty != "no numbers yet" {
+	if got.NoWeek != "no numbers yet" || !strings.Contains(got.NoWeekNote, "codex has told no weekly window yet") ||
+		!strings.Contains(got.NoWeekNote, "codex says the limit is reached") || got.Empty != "no numbers yet" {
 		t.Errorf("missing windows: %q; empty contour: %q", got.NoWeek, got.Empty)
+	}
+	if got.HalfWeek != "codex has told no weekly window yet" {
+		t.Errorf("a contour with numbers lost the note on codex's missing week: %q", got.HalfWeek)
 	}
 }
 

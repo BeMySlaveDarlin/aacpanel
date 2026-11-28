@@ -16,7 +16,7 @@ import { HeadLoad } from "./load.js";
 import { Devices } from "../screens/devices.js";
 import { Settings } from "../screens/settings.js";
 import { Tasks } from "../screens/tasks.js";
-import { SessionColumn } from "./sessions.js";
+import { ContourLimits, SessionColumn } from "./sessions.js";
 import { TermsDesk } from "./terms.js";
 import { useTermAvailable } from "../screens/chat/term.js";
 import { StackColumn, ContainersCenter } from "./containers.js";
@@ -505,14 +505,21 @@ export function DesktopShell({
                     </nav>
                 </div>
                 <footer class="dkstatus">
-                    ${snapshot && snapshot.cookieInsecure && html`
-                        <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well">
-                            cookie without Secure
-                        </span>
+                    ${shown && html`
+                        <span class="dkstatuscontour" title=${shown}>${shown}</span>
+                        <${ContourLimits} key=${shown} limits=${snapshot && snapshot.limits} name=${shown}
+                            profiles=${snapshot && snapshot.profileMap} />
                     `}
-                    ${troubles.length > 0 && html`
-                        <span class="dkalert" data-tip=${troubles.join(" · ")}>silent <b>${troubles.length}</b></span>
-                    `}
+                    <div class="dkstatusalerts">
+                        ${snapshot && snapshot.cookieInsecure && html`
+                            <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well">
+                                cookie without Secure
+                            </span>
+                        `}
+                        ${troubles.length > 0 && html`
+                            <span class="dkalert silent" data-tip=${troubles.join(" · ")}><${Icon.alerts} />silent <b>${troubles.length}</b></span>
+                        `}
+                    </div>
                 </footer>
 
 

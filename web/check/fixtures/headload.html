@@ -98,7 +98,7 @@ window.preview = { show, snapshot, until };
             tones: chips.map((c) => c.className.replace("dkgauge", "").trim()),
             fills: chips.map((c) => Math.round(parseFloat(c.style.getPropertyValue("--fill")) || 0)),
             bars: root.querySelectorAll(".dkgauge-bar").length, tips: chips.map((c) => c.dataset.tip) };
-        out.rail = { inRail: Boolean(root.querySelector(".dkrail .dkroute, .dkrail .dkload")), emptyStatus: Boolean(root.querySelector(".dkstatus")) && !root.querySelector(".dkstatus").textContent.trim(),
+        out.rail = { inRail: Boolean(root.querySelector(".dkrail .dkroute, .dkrail .dkload")), hasStatus: root.querySelector(".dkstatuscontour")?.textContent === "personal" && root.querySelector(".dklimitnone")?.textContent === "no numbers yet" && !root.querySelector(".dkstatus .limit-chip, .dkstatus .dkalert"),
             host: Boolean(dot()) && dot().dataset.tip === "connected", hostName: root.querySelector(".dkhost")?.textContent.trim(),
             route: root.querySelector(".dkroute")?.textContent.trim(), tip: root.querySelector(".dkroute")?.dataset.tip };
         out.expanded = railState();
@@ -141,7 +141,42 @@ window.preview = { show, snapshot, until };
         out.stale = dot()?.classList.contains("silent") && dot().dataset.tip.includes("snapshot") && Boolean(root.querySelector(".dkstatus"));
         show({ host: { ...snapshot, cookieInsecure: true } }); await quiet();
         out.cookie = root.querySelector(".dkstatus")?.textContent.includes("cookie without Secure");
-        show(); await quiet(); out.recovered = Boolean(root.querySelector(".dkstatus")) && !root.querySelector(".dkstatus").textContent.trim() && !dot()?.classList.contains("silent");
+        show(); await quiet(); out.recovered = Boolean(root.querySelector(".dkstatus")) && !root.querySelector(".dkstatus .dkalert") && !dot()?.classList.contains("silent");
+        const part = (pct, tone) => ({ pct, resetsAt: Date.now() / 1000 + 3600, forecast: { tone } });
+        const withLimits = { ...snapshot, cookieInsecure: true,
+            profileMap: [{ id: 11, profile: "personal", groups: [] }, { id: 12, profile: "Evirma", groups: [] }, { id: 13, profile: "Empty", groups: [] }],
+            limits: { contours: [
+                { contour: 11, profile: "personal", ageSec: 3600, fiveHour: part(88, "fine"), sevenDay: part(90, "fine"),
+                    codex: { ageSec: 30, fiveHour: part(12, "out"), sevenDay: part(15, "fine") },
+                    gemini: { ageSec: 30, sevenDay: part(42, "tight") } },
+                { contour: 12, profile: "evirma", ageSec: 30, fiveHour: part(5, "fine"), codex: { ageSec: 30, sevenDay: part(99, "fine") } },
+            ] },
+        };
+        show({ host: withLimits, hostError: "Host request failed" }); await quiet();
+        const status = () => root.querySelector(".dkstatus");
+        out.limits = {
+            name: status().querySelector(".dkstatuscontour")?.textContent,
+            groups: [...status().querySelectorAll(".limit-chip-group")].map((g) => g.dataset.agent),
+            readings: [...status().querySelectorAll(".limit-chip")].map((r) => ({ value: r.querySelector(".limit-percent").textContent, tone: ["ok", "warn", "crit"].find((tone) => r.classList.contains(tone)) })),
+            headingReadings: root.querySelectorAll(".dkcontour .limit-reading").length,
+            alerts: [...status().querySelectorAll(".dkalert")].map((a) => a.textContent.trim()),
+            silentIcon: Boolean(status().querySelector(".dkalert.silent svg")),
+            staleTip: status().querySelector('.limit-chip[data-agent="claude"]')?.title.includes("last known numbers"),
+            notes: status().querySelectorAll(".limits-note").length,
+        };
+        status().querySelector(".limit-chip").click(); await quiet();
+        out.limits.details = status().querySelector(".limit-popover")?.textContent;
+        const pick = async (name) => {
+            [...root.querySelectorAll(".dkpickbtn")].find((b) => b.querySelector(".dkpickname").textContent === name).click();
+            await until(() => status().querySelector(".dkstatuscontour")?.textContent === name);
+            await quiet();
+        };
+        await pick("Evirma");
+        out.limits.changed = { name: status().querySelector(".dkstatuscontour")?.textContent,
+            values: [...status().querySelectorAll(".limit-percent")].map((el) => el.textContent), closed: !status().querySelector(".limit-popover") };
+        await pick("Empty");
+        out.limits.empty = { name: status().querySelector(".dkstatuscontour")?.textContent,
+            note: status().querySelector(".dklimitnone")?.textContent, groups: status().querySelectorAll(".limit-chip-group").length };
         render(h(HeadLoad, { snapshot: {}, onOpen: noop }), document.getElementById("blank"));
         await quiet(); out.blank = document.querySelectorAll("#blank .dkgauge").length;
     } catch (error) { out.error = String(error.stack || error); }

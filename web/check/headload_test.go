@@ -85,8 +85,8 @@ func TestDesktopRailsCarryConnectionLoadAndScale(t *testing.T) {
 	}
 	var got struct {
 		Rail struct {
-			InRail, EmptyStatus, Host bool
-			HostName, Route, Tip      string
+			InRail, HasStatus, Host bool
+			HostName, Route, Tip    string
 		}
 		Expanded, Compact, Full railState
 		Opened                  int
@@ -103,8 +103,8 @@ func TestDesktopRailsCarryConnectionLoadAndScale(t *testing.T) {
 	if got.Error != "" {
 		t.Fatal(got.Error)
 	}
-	if !got.Rail.InRail || !got.Rail.EmptyStatus || !got.Rail.Host || got.Rail.HostName != "helios▾" || got.Rail.Route != "LAN" || got.Rail.Tip == "" {
-		t.Errorf("the rail lost the route, host or readings, or the status bar is not empty: %+v", got.Rail)
+	if !got.Rail.InRail || !got.Rail.HasStatus || !got.Rail.Host || got.Rail.HostName != "helios▾" || got.Rail.Route != "LAN" || got.Rail.Tip == "" {
+		t.Errorf("the rail lost the route, host or readings, or the status bar lost the contour without numbers: %+v", got.Rail)
 	}
 	for name, state := range map[string]railState{"expanded": got.Expanded, "compact": got.Compact, "full": got.Full} {
 		wantValues := []string{"74%", "23%", "94%"}
@@ -141,5 +141,57 @@ func TestDesktopRailsCarryConnectionLoadAndScale(t *testing.T) {
 		if !ok {
 			t.Errorf("%s: the desktop did not show the expected state", name)
 		}
+	}
+}
+
+func TestStatusBarShowsTheLimitsOfTheContourInTheColumn(t *testing.T) {
+	var got struct {
+		Limits struct {
+			Name                   string
+			Groups, Alerts         []string
+			Readings               []struct{ Value, Tone string }
+			HeadingReadings, Notes int
+			SilentIcon, StaleTip   bool
+			Details                string
+			Changed                struct {
+				Name   string
+				Values []string
+				Closed bool
+			}
+			Empty struct {
+				Name, Note string
+				Groups     int
+			}
+		}
+		Error string
+	}
+	runWideFixture(t, "headload.html", &got)
+	if got.Error != "" {
+		t.Fatal(got.Error)
+	}
+	l := got.Limits
+	if l.Name != "personal" || strings.Join(l.Groups, ",") != "codex,gemini,claude" || l.HeadingReadings != 0 {
+		t.Errorf("the footer lost the selected contour or forecast order, or the heading still has readings: %+v", l)
+	}
+	want := []struct{ Value, Tone string }{{"12%", "crit"}, {"15%", "ok"}, {"42%", "warn"}, {"88%", "ok"}, {"90%", "ok"}}
+	if len(l.Readings) != len(want) {
+		t.Fatalf("the footer has readings %+v, expected %+v", l.Readings, want)
+	}
+	for i, reading := range l.Readings {
+		if reading != want[i] {
+			t.Errorf("reading %d: %+v, expected %+v", i, reading, want[i])
+		}
+	}
+	if strings.Join(l.Alerts, ",") != "cookie without Secure,silent 1" || !l.SilentIcon || !l.StaleTip || l.Notes != 0 {
+		t.Errorf("the footer lost alerts or the stale tooltip, or shows notes beside the chips: %+v", l)
+	}
+	if !strings.Contains(l.Details, "Codex, 5 hours") || !strings.Contains(l.Details, "12% used") {
+		t.Errorf("the footer chip opened details %q", l.Details)
+	}
+	if l.Changed.Name != "Evirma" || strings.Join(l.Changed.Values, ",") != "5%,99%" || !l.Changed.Closed {
+		t.Errorf("the footer did not follow the column or kept the previous bubble open: %+v", l.Changed)
+	}
+	if l.Empty.Name != "Empty" || l.Empty.Note != "no numbers yet" || l.Empty.Groups != 0 {
+		t.Errorf("the contour without limits has %+v, expected its name and no numbers yet without frames", l.Empty)
 	}
 }

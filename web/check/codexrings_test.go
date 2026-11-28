@@ -27,7 +27,7 @@ func checkDeskLimitGroup(t *testing.T, got deskLimitGroup, agent string, windows
 	}
 }
 
-// Each provider supplied by the contour gets its own group and window
+// Each provider supplied by the contour gets a footer group and window
 // details. Thread titles remain separate from the address used to open them.
 func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
@@ -42,10 +42,11 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	}
 	var got struct {
 		Heads []struct {
-			Name   string           `json:"name"`
-			Agents []string         `json:"agents"`
-			Chips  []chip           `json:"chips"`
-			Groups []deskLimitGroup `json:"groups"`
+			HeadingReadings int
+			Name            string           `json:"name"`
+			Agents          []string         `json:"agents"`
+			Chips           []chip           `json:"chips"`
+			Groups          []deskLimitGroup `json:"groups"`
 		} `json:"heads"`
 		Pop                                        []string `json:"pop"`
 		ToggledClosed, EscapeClosed, OutsideClosed bool
@@ -62,9 +63,9 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 		t.Fatalf("the column has %d contour headings: %+v", len(got.Heads), got.Heads)
 	}
 	acme, lab, home := got.Heads[0], got.Heads[1], got.Heads[2]
-	if len(acme.Chips) != 5 || acme.Chips[0].Value != "7" || acme.Chips[1].Value != "41" ||
-		acme.Chips[2].Value != "63" || acme.Chips[2].Agent != "codex" || !strings.HasPrefix(acme.Chips[2].Tip, "Codex, 7 days") {
-		t.Errorf("the heading of Acme carries %+v, expected Claude and Codex followed by Gemini from the data", acme.Chips)
+	if len(acme.Chips) != 5 || acme.Chips[0].Value != "63" || acme.Chips[1].Value != "7" ||
+		acme.Chips[2].Value != "41" || acme.Chips[0].Agent != "codex" || !strings.HasPrefix(acme.Chips[0].Tip, "Codex, 7 days") {
+		t.Errorf("the heading of Acme carries %+v, expected Codex first by its worst window, followed by Claude and Gemini", acme.Chips)
 	}
 	if len(lab.Chips) != 1 || lab.Chips[0].Value != "18" || lab.Chips[0].Agent != "codex" {
 		t.Errorf("a contour codex alone spent in carries %+v, expected codex's week alone", lab.Chips)
@@ -72,7 +73,10 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 	if len(home.Chips) != 1 || home.Chips[0].Value != "9" || !strings.HasPrefix(home.Chips[0].Tip, "Claude, 7 days") {
 		t.Errorf("an account with no five-hour window carries %+v, expected claude's week alone", home.Chips)
 	}
-	for i, want := range []string{"claude,codex,gemini", "codex", "claude"} {
+	for i, want := range []string{"codex,claude,gemini", "codex", "claude"} {
+		if got.Heads[i].HeadingReadings != 0 {
+			t.Errorf("the contour heading still holds %d limit readings", got.Heads[i].HeadingReadings)
+		}
 		if head := got.Heads[i]; strings.Join(head.Agents, ",") != want {
 			t.Errorf("the chips of %s identify agents %v, expected %s", head.Name, head.Agents, want)
 		}
@@ -95,7 +99,7 @@ func TestTheColumnShowsCodexsWeekAndATitledThread(t *testing.T) {
 			}
 		}
 	}
-	if strings.Join(got.Pop, "|") != "Claude, 5 hours|Claude, 7 days|Codex, 7 days|Gemini, 5 hours|Gemini, 7 days" {
+	if strings.Join(got.Pop, "|") != "Codex, 7 days|Claude, 5 hours|Claude, 7 days|Gemini, 5 hours|Gemini, 7 days" {
 		t.Errorf("the details of Acme's limits name %v", got.Pop)
 	}
 	if len(acme.Agents) != 3 || acme.Agents[2] != "gemini" ||

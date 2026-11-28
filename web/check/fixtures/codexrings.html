@@ -3,14 +3,15 @@
 <link rel="stylesheet" href="/dist/bundle.css">
 <style>html,body{margin:0} .deskshell{position:static;height:700px} .dkbody{height:700px} #phone{width:390px}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
-<div class="deskshell"><div class="dkbody" id="desk"></div></div>
+<div class="deskshell" id="desk"></div>
 <div id="phone"></div>
 <script type="module">
 // Providers arrive as data. Each group keeps its own readings and details,
 // and named Codex threads still open by their address on both shells.
 import { h, render } from "preact";
+import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
-import { SessionColumn } from "/src/desktop/sessions.js";
+import { ContourLimits, SessionColumn } from "/src/desktop/sessions.js";
 import { LiveLines } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { setLiveSessions } from "/src/actions/registry.js";
@@ -37,10 +38,19 @@ window.fetch = async () => new Response(JSON.stringify({ rows: [], total: 0, lim
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
 const exec = { available: true, kinds: ["session.close", "session.stop", "session.permit"] };
 const opened = [];
-render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+const columnProps = {
     snapshot: { at: now, sessions, profileMap, limits }, limits,
     current: "", onPick(p) { opened.push(p); }, onNames() {}, onOrder() {}, exec, wait: null,
-}))), document.getElementById("desk"));
+};
+function Scene() {
+    const [shown, setShown] = useState("");
+    return h(ToastHost, null, h(GateHost, null, [
+        h("div", { class: "dkbody" }, h(SessionColumn, { ...columnProps, onShown: setShown })),
+        h("footer", { class: "dkstatus" }, [h("span", { class: "dkstatuscontour" }, shown),
+            h(ContourLimits, { key: shown, name: shown, limits, profiles: profileMap })]),
+    ]));
+}
+render(h(Scene), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
     <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
                                            onOpen=${(n) => opened.push({ name: n })} exec=${exec} /></section>
@@ -60,28 +70,29 @@ window.done = (async () => {
     if (!await until(() => tabs().length === 3 && desk.querySelector(".dklimhead"))) throw new Error("the contours did not show");
     const out = { heads: [] };
     const headOf = (head) => ({
+        headingReadings: head.querySelectorAll(".limit-reading").length,
         name: text(head.querySelector(".dkcontourname")),
-        agents: [...new Set([...head.querySelectorAll(".limit-chip")].map((r) => r.dataset.agent))],
-        groups: [...head.querySelectorAll(".limit-chip-group")].map((group) => ({
+        agents: [...new Set([...desk.querySelectorAll(".dkstatus .limit-chip")].map((r) => r.dataset.agent))],
+        groups: [...desk.querySelectorAll(".dkstatus .limit-chip-group")].map((group) => ({
             agent: group.dataset.agent, label: group.getAttribute("aria-label"), role: group.getAttribute("role"),
             windows: [...group.querySelectorAll(".limit-reading")].map((r) => r.getAttribute("aria-label")),
             icon: Boolean(group.querySelector(".limit-vendor svg path")?.getAttribute("d")),
         })),
-        chips: Array.from(head.querySelectorAll(".limit-chip")).map((r) => ({
+        chips: Array.from(desk.querySelectorAll(".dkstatus .limit-chip")).map((r) => ({
             tip: r.title, value: r.querySelector(".limit-percent").firstChild.textContent, agent: r.dataset.agent || "", vendor: r.closest(".limit-chip-group").querySelector(".limit-vendor")?.dataset.agent, left: text(r.querySelector(".limit-left")),
         })),
     });
     for (const tab of tabs().slice(1)) {
         const name = text(tab.querySelector(".dkpickname"));
         tab.click();
-        if (!await until(() => text(desk.querySelector(".dkcontourname")) === name)) throw new Error(`the tab of ${name} did not show it`);
+        if (!await until(() => text(desk.querySelector(".dkstatuscontour")) === name)) throw new Error(`the tab of ${name} did not show it`);
         out.heads.push(headOf(desk.querySelector(".dklimhead")));
     }
     tabs()[0].click();
-    if (!await until(() => desk.querySelector(".sc:not(.scpast)"))) throw new Error("the first tab did not come back");
+    if (!await until(() => desk.querySelector(".sc:not(.scpast)") && text(desk.querySelector(".dkstatuscontour")) === "Acme")) throw new Error("the first tab did not come back");
     out.heads.unshift(headOf(desk.querySelector(".dklimhead")));
     out.pop = [];
-    for (const reading of desk.querySelectorAll(".dklimhead .limit-reading")) {
+    for (const reading of desk.querySelectorAll(".dkstatus .limit-reading")) {
         reading.click();
         await until(() => document.querySelector(".limit-popover")?.getAttribute("aria-label") === reading.title.split(", ").slice(0, 2).join(", "));
         out.pop.push(text(document.querySelector(".limit-popover strong")));

@@ -1,5 +1,5 @@
 // The left column of the sessions section: the switch of contours, the live
-// sessions of the contour it stands on under a heading with its limit, and the
+// sessions of the contour it stands on under its heading, and the
 // closed conversations of that contour on a shelf of their own below.
 //
 // Live and closed stand apart. A contour holds its live sessions only, in
@@ -17,7 +17,7 @@ import { Icon } from "../ui/icons.js";
 import { knows } from "../exec.js";
 import { useAction } from "../actions/gate.js";
 import { liveOf, settled } from "../catchup.js";
-import { contourOf, limitGroups, LimitGroup, LimitNotes } from "../screens/sessions/limits.js";
+import { contourOf, limitGroups, LimitGroup, windowTone, CODEX_NO_WEEK, CODEX_REACHED } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames, useProfilePage } from "../screens/sessions/pages.js";
 import { contourOfLive } from "../screens/sessions/map.js";
@@ -123,15 +123,19 @@ export function ContourLimits({ limits, name, profiles }) {
     };
     const id = ((profiles || []).find((p) => p.profile === name) || {}).id || 0;
     const c = contourOf(limits, name, id);
-    const groups = limitGroups(c);
+    const rank = { ok: 0, warn: 1, crit: 2 };
+    const worst = (group) => Math.max(...group.windows.map((window) => rank[windowTone(window.data)]));
+    const groups = limitGroups(c).sort((a, b) => worst(b) - worst(a));
+    const missing = [c?.codex && !c.codex.sevenDay && CODEX_NO_WEEK,
+        c?.codex?.reached && CODEX_REACHED].filter(Boolean).join(" · ");
     return html`
         <div class="dklimitsummary">
             <div class="dklimitrow" role="group" aria-label=${`the limits of contour ${name}`}>
                 ${groups.map((group) => html`<${LimitGroup} key=${group.agent} group=${group} chip
                     opened=${opened} onToggle=${toggle} onClose=${close} />`)}
-                ${groups.length === 0 && html`<span class="dklimitnone">no numbers yet</span>`}
+                ${groups.length === 0 && html`<span class="dklimitnone" title=${missing || undefined}>no numbers yet</span>`}
+                ${groups.length > 0 && c.codex && !c.codex.sevenDay && html`<span class="dklimitnone">${CODEX_NO_WEEK}</span>`}
             </div>
-            <${LimitNotes} contour=${c} groups=${groups} compact />
         </div>
     `;
 }
@@ -198,7 +202,7 @@ function ProjectHead({ block, entry, snapshot, exec, wait, onTerm, onSettings, f
 // name with how many of its sessions wait for the person, and at the edge the
 // contour's actions as the phone has them over its page: its task registry
 // (onTasks, with its entry of the map), its page in the settings of the map
-// (onSettings) and a new session; under them the limit. A contour the map
+// (onSettings) and a new session. A contour the map
 // does not hold has neither a registry nor a page, and says so with the two
 // buttons off. Then its projects, each under its heading, with the cards of
 // their live sessions, the sessions those opened and the runs they started
@@ -234,9 +238,6 @@ function ContourSection({ name, entry, list, blocks, archive, folds, projectFold
                         `}
                         <${NewSession} name=${name} entry=${entry} snapshot=${snapshot} exec=${exec} />
                     </span>
-                </div>
-                <div class="dkcontourrow">
-                    <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
                 </div>
             </div>
             ${blocks.map((block) => {

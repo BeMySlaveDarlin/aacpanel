@@ -4,12 +4,13 @@
 <style>html,body{height:100%;margin:0} .deskshell{position:static;height:100%} .dkbody{height:100%}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script>document.documentElement.style.setProperty("--ui-scale", "1.2");</script>
-<div class="deskshell"><div class="dkbody" id="root"></div></div>
+<div class="deskshell" id="root"></div>
 <script type="module">
-// The contour tabs retain their limits, actions and archive while each
+// The contour tabs keep the footer limits, actions and archive scoped while each
 // reading opens its own shared details.
 import { h, render } from "preact";
-import { SessionColumn } from "/src/desktop/sessions.js";
+import { useState } from "preact/hooks";
+import { ContourLimits, SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
@@ -60,13 +61,22 @@ window.fetch = counted(async (url) => {
 // What the actions of a heading hand on: the entry of the map a press on
 // Tasks names, and where a press on Profile opens the settings.
 const handed = { tasks: [], settings: [] };
-render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+const columnProps = {
     snapshot: { at: now, sessions, profileMap, limits }, limits,
     current: "aacpanel", currentId: "", onPick() {}, onNames() {}, onOrder() {},
     onTasks(entry) { handed.tasks.push(entry ? entry.id : null); },
     onSettings(at) { handed.settings.push(at); },
     exec: { available: true, kinds: ["session.resume", "session.close"] }, wait: null,
-}))), document.getElementById("root"));
+};
+function Scene() {
+    const [shown, setShown] = useState("");
+    return h(ToastHost, null, h(GateHost, null, [
+        h("div", { class: "dkbody" }, h(SessionColumn, { ...columnProps, onShown: setShown })),
+        h("footer", { class: "dkstatus" }, [h("span", { class: "dkstatuscontour" }, shown),
+            h(ContourLimits, { key: shown, name: shown, limits, profiles: profileMap })]),
+    ]));
+}
+render(h(Scene), document.getElementById("root"));
 
 // until waits on a condition of the screen frame by frame, for three seconds
 // at most.
@@ -78,15 +88,17 @@ const until = async (ok) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const sections = () => Array.from(document.querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => {
     const head = sec.querySelector(".dkcontour");
+    const footer = document.querySelector(".dkstatus");
     return {
         name: text(head.querySelector(".dkcontourname")),
         head: text(head),
-        readings: Array.from(head.querySelectorAll(".limit-reading")).map((r) => ({
+        headingReadings: head.querySelectorAll(".limit-reading").length,
+        readings: Array.from(footer.querySelectorAll(".limit-reading")).map((r) => ({
             value: r.querySelector(".limit-percent").firstChild.textContent, label: (r.title.match(/resets (?:in [^,]+|any moment)/) || [""])[0], tip: r.title,
         })),
-        old: Boolean(head.querySelector(".limit-chip-group.old")),
-        agents: Array.from(head.querySelectorAll(".limit-chip-group .limit-vendor")).map((mark) => mark.dataset.agent),
-        grouped: Boolean(head.querySelector('.limit-chip-group[role="group"]')),
+        old: Boolean(footer.querySelector(".limit-chip-group.old")),
+        agents: Array.from(footer.querySelectorAll(".limit-chip-group .limit-vendor")).map((mark) => mark.dataset.agent),
+        grouped: Boolean(footer.querySelector('.limit-chip-group[role="group"]')),
         acts: Array.from(head.querySelectorAll(".dkcontouracts button"))
             .map((b) => `${b.getAttribute("aria-label")}${b.disabled ? " off" : ""}`),
         live: Array.from(sec.querySelectorAll(".sc:not(.scpast)")).map((c) => c.dataset.name),

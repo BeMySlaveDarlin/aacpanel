@@ -27,13 +27,15 @@ const contours = pairs.map(([fiveHour, sevenDay], i) => ({
 contours.push({ profile: "old", contour: 7, ageSec: 30, fiveHour: { pct: 9 },
     codex: { ageSec: 3600, reached: true, sevenDay: { pct: 100 } } });
 contours.push({ profile: "no-week", contour: 8, codex: { ageSec: 30, windows: [], reached: true } });
+contours.push({ profile: "half-week", contour: 10, ageSec: 30, fiveHour: { pct: 5 },
+    codex: { ageSec: 30, fiveHour: { pct: 7 } } });
 contours.push({ profile: "providers", contour: 9, ageSec: 30, sevenDay: { pct: 12 },
     codex: { ageSec: 30, sevenDay: { pct: 22 } }, gemini: { ageSec: 30, sevenDay: { pct: 32 } },
     other: { ageSec: 30, sevenDay: { pct: 42 } } });
 const limits = { contours };
-render(h("div", null, [...contours.map((contour) => h("section", { key: contour.profile, id: contour.profile },
+render(h("div", null, [...contours.map((contour) => h("footer", { class: "dkstatus", key: contour.profile, id: contour.profile },
     h(ContourLimits, { limits, name: contour.profile, profiles: [] }))),
-    h("section", { id: "empty" }, h(ContourLimits, { limits, name: "empty", profiles: [] })),
+    h("footer", { class: "dkstatus", id: "empty" }, h(ContourLimits, { limits, name: "empty", profiles: [] })),
 ]), document.getElementById("root"));
 
 const text = (el) => el ? el.textContent.replace(/\s+/g, " ").trim() : "";
@@ -69,9 +71,11 @@ window.done = (async () => {
             vendors: [...document.querySelectorAll("#old .limit-chip-group.old")].map((r) => r.dataset.agent),
             ages: [...document.querySelectorAll("#old .limit-group-age")].map(text),
             notes: [...document.querySelectorAll("#old .limits-note")].map(text),
-            details: await details("old", 1),
+            details: await details("old", 0),
         },
         noWeek: text(document.querySelector("#no-week")),
+        noWeekNote: document.querySelector("#no-week .dklimitnone").title,
+        halfWeek: text(document.querySelector("#half-week .dklimitnone")),
         empty: text(document.querySelector("#empty")),
     };
 })();

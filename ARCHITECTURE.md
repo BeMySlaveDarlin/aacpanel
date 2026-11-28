@@ -3705,7 +3705,8 @@ screens themselves.
 stand on the left, their panels on the right; Journal is shared by every
 section and stays open across section changes. The left rail holds the host
 connection, route and load; the right rail holds the scale controls. The status
-bar carries connection and cookie warnings. Rail labels and the widths of the
+bar carries the limits of the contour open in the sessions column, ordered by
+the worst window forecast, with connection and cookie warnings on the right. Rail labels and the widths of the
 section column and Files list are kept on the device. Both column edges reset on a double click;
 the Files list gives at most half the conversation to its column.
 

@@ -132,13 +132,17 @@
         align-items: center;
         flex: none;
         gap: .7rem;
-        min-height: 1.8rem;
-        padding: .1rem .6rem;
+        min-height: 2.4rem;
+        padding: .25rem .6rem;
         border-top: var(--hair) solid var(--line);
         background: var(--top-bg);
         color: var(--ink-faint);
         font-size: var(--t-xs);
     }
+
+    .dkstatuscontour { flex: 0 1 auto; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--ink-dim); }
+    .dkstatusalerts { display: flex; flex: none; align-items: center; gap: .5rem; margin-left: auto; }
+    .dkstatus .limit-popover { top: auto; bottom: calc(100% + .4rem); max-height: calc(100dvh - 3.4rem); overflow-y: auto; }
 
     .dkconnection { flex: none; width: .4rem; height: .4rem; border-radius: var(--r-pill); background: var(--ok); }
     .dkconnection.silent { background: var(--warn); }
@@ -225,6 +229,9 @@
         padding: .3rem .5rem;
         cursor: pointer;
     }
+
+    .dkalert.silent { display: inline-flex; align-items: center; gap: .3rem; color: var(--ink-dim); border-color: currentColor; }
+    .dkalert.silent svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dkroute {
         font: 600 var(--t-xs)/1.2 var(--sans);
@@ -718,7 +725,7 @@
         border-top: var(--hair) solid var(--line);
     }
 
-    /* Keep the name and actions above the shared limit readings. */
+    /* The contour heading keeps its name and actions together. */
     .dkcontour.dklimhead { flex-direction: column; align-items: stretch; gap: .15rem; padding: .3rem .45rem .3rem .55rem; }
 
     .dkcontourrow { display: flex; align-items: center; gap: .45rem; min-width: 0; min-height: 1.65rem; }
@@ -737,13 +744,13 @@
 
     .dklimitrow { position: relative; display: flex; gap: .4rem; }
 
-    .dklimitrow .limit-chip-group { display: flex; align-items: stretch; flex: var(--limit-windows) 1 0; min-width: 0; padding: 0; border: var(--hair) solid var(--line); border-radius: .45rem; background: var(--glass); }
+    .dklimitrow .limit-chip-group { display: flex; align-items: stretch; flex: 0 1 auto; min-width: 0; padding: 0; border: var(--hair) solid var(--line); border-radius: .45rem; background: var(--glass); }
 
-    .dklimitrow .limit-anchor { flex: 1 1 0; min-width: 0; }
+    .dklimitrow .limit-anchor { flex: 1 1 4.8rem; width: 4.8rem; min-width: 0; }
 
     .dklimitrow .limit-chip-group > .limit-anchor { border-left: var(--hair) solid var(--line); }
 
-    .dklimitrow .limit-chip { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 0 .15rem; min-height: 1.75rem; padding: .1rem .3rem; overflow: hidden; border-radius: 0; }
+    .dklimitrow .limit-chip { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 0 .3rem; min-height: 1.75rem; padding: .1rem .3rem; overflow: hidden; border-radius: 0; }
 
     .dklimitrow .limit-anchor:last-child .limit-chip { border-radius: 0 .4rem .4rem 0; }
 
@@ -767,11 +774,8 @@
 
     .dklimitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 
-    .dklimitsummary .limits-note { margin: .25rem 0 0; font-size: var(--t-xs); }
-
-    /* The bubble is bounded by the heading's row, above the sticky headings
-       that follow it in the column. */
-    .dkcontour.dklimhead:has(.dkpop, .limit-popover) { z-index: 5; }
+    /* The new-session menu stands above the sticky headings below it. */
+    .dkcontour.dklimhead:has(.dkpop) { z-index: 5; }
 
     .dknewhead { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
 
