@@ -20,21 +20,20 @@ import { Pie } from "../../ui/pie.js";
 import { Sheet } from "../../ui/sheet.js";
 import { useToast } from "../../ui/toasts.js";
 import { useAction } from "../../actions/gate.js";
-import { knows, whyNot } from "../../exec.js";
-import { CODEX_STOP, isCodex, noTurn, shownName } from "../../agent.js";
+import { whyNot } from "../../exec.js";
+import { isCodex, shownName } from "../../agent.js";
 import { LOOK_NAMES } from "../chat/look.js";
 import { IntentSheet } from "../chat/intent.js";
 import { ParentSheet } from "../chat/parent.js";
 import { useRemote } from "../chat/remote.js";
 import { RenameSheet, takenNames } from "../chat/rename.js";
 import { RoleSheet } from "../chat/role.js";
-import { sessionItems } from "../chat/sessiontools.js";
+import { sessionEndSectors, sessionSectors } from "../chat/sessionpie.js";
 import { StatusSheet } from "../chat/status.js";
-import { moveSession, sidesOf, useSwitchWay } from "../chat/switch.js";
+import { useSwitchWay } from "../chat/switch.js";
 import { useWindow } from "../chat/window.js";
 import { useTermJump } from "../terms/jump.js";
-import { busyOf, closeSession, endsOf, pinGroup, restartSession } from "./controls.js";
-import { openedBy } from "./kin.js";
+import { busyOf, endsOf, pinGroup } from "./controls.js";
 import { sessionPauseWhy } from "./pause.js";
 import { usePauseDial } from "./pausedial.js";
 import { pinOf } from "./pin.js";
@@ -48,20 +47,6 @@ const CardPieContext = createContext(null);
 export function useCardPie() {
     return useContext(CardPieContext);
 }
-
-// The icon and the word of a sector, for the items of the session's tools,
-// and the note of the plate where the line's own is longer than a plate
-// over the ring holds.
-const SECTORS = {
-    rename: { icon: Icon.pencil, word: "Rename" },
-    role: { icon: Icon.badge, word: "Role" },
-    intent: { icon: Icon.envelope, word: "Messages" },
-    status: { icon: Icon.info, word: "Info" },
-    parent: { icon: Icon.flow, word: "Stand under", lines: ["Stand", "under"] },
-    detach: { icon: Icon.exit, word: "Detach", note: (s) => `under ${openedBy(s)}` },
-    id: { icon: Icon.copy, word: "Copy ID" },
-    resume: { icon: Icon.resume, word: "Resume cmd", lines: ["Resume", "cmd"] },
-};
 
 // The sheets an item opens, by the look of the conversation they stand for.
 function sheetOf(kind, { s, profile, snapshot, exec, onDone }) {
@@ -154,8 +139,7 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
     const project = s.project && s.project.id ? s.project : null;
     const pauseWhy = sessionPauseWhy(s, project, exec);
     const pause = usePauseDial({ project, profile, sessions, session: s, exec, onClose });
-    const turn = codex ? noTurn(s) : s.status === "busy" ? "" : "No turn is running";
-    const stopWhy = turn || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
+    const end = sessionEndSectors({ name, live: s, exec, run, ends });
 
     const way = useSwitchWay(codex ? "" : name, s.transport);
     const [win] = useWindow(codex ? "" : name, s.transport);
@@ -163,52 +147,23 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
     const place = (s.project && s.project.path) || s.cwd || "";
     const jump = useTermJump(place, exec, onTerm);
 
-    const tools = Object.fromEntries(sessionItems({ name, live: s, exec, snapshot, cwd: s.cwd || "", run, toast })
-        .map((it) => {
-            const { note, ...sector } = SECTORS[it.key];
-            return [it.key, {
-                key: it.key, ...sector, title: it.label, note: note ? note(s) : it.note, off: it.off,
-                pick: it.look ? () => onSheet(it.look) : it.act || it.copy,
-            }];
-        }));
-
-    // Where the session can move is asked as the pie opens: until the panel
-    // answers, the move from where it lives stands dimmed, so no item of the
-    // ring changes its place under the finger.
-    const sides = sidesOf({ live: s, way, held: win.kind === "open", picked: "feed", canTerm: false, exec });
-    const to = way.pending || !sides.moves ? (s.transport === "stream" ? "console" : "stream") : sides.moves;
-    const lost = ends.lost;
-    const move = !codex && {
-        key: "move", icon: Icon.terminal, word: to === "console" ? "To tmux" : "To stream",
-        title: to === "console" ? "Move to tmux" : "Move to the stream", note: lost ? `stops ${lost}` : "",
-        off: way.pending ? way.reason : sides.moves ? sides.why : (sides.tip || way.reason || "the session cannot move from where it lives"),
-        pick: () => moveSession({ run, exec, name, to, lost }),
-    };
-    const rc = !codex && {
-        key: "remote", icon: Icon.remote, word: "RC", on: remote.shown,
-        title: remote.shown ? "Turn Remote Control off" : "Turn Remote Control on",
-        note: remote.shown ? "on: the session is open on claude.ai too" : "off", off: remote.why, pick: remote.press,
-    };
+    const tools = sessionSectors({ name, live: s, exec, snapshot, cwd: s.cwd || "", run, toast,
+        onLook: onSheet, way, win, remote, lost: ends.lost });
     const term = onTerm && place && {
         key: "term", icon: Icon.prompt, word: "Terminal", title: "Terminal of the project",
         note: "the one typed into last, or a new one", off: whyNot(exec, "term.start"), pick: jump.press,
     };
-    const second = [tools.rename, tools.role, tools.intent, tools.status, move, rc, term,
-        tools.parent, tools.detach, tools.id, tools.resume].filter(Boolean);
+    const tail = tools.findIndex((it) => ["parent", "detach", "id", "resume"].includes(it.key));
+    const split = tail < 0 ? tools.length : tail;
+    const second = [...tools.slice(0, split), term, ...tools.slice(split)].filter(Boolean);
 
     // Clockwise from the top: what ends something stands farthest from the
     // thumb, what is pressed often and undone easily nearest to it. The home
     // session is never closed, and its slot stays empty, so the rest keep
     // their places.
     const first = [
-        s.home ? null : {
-            key: "close", icon: Icon.close, word: "Close", title: "Close the session", note: ends.closeNote,
-            off: ends.closeWhy, tap: true, danger: true, pick: () => closeSession(run, s),
-        },
-        {
-            key: "restart", icon: Icon.refresh, word: "Restart", title: "Restart the session", note: ends.restartNote,
-            off: ends.restartWhy, pick: () => restartSession(run, s),
-        },
+        s.home ? null : { ...end.close, tap: true },
+        end.restart,
         s.pauseAlarm ? {
             key: "pause", icon: Icon.play, word: "Continue", title: "Continue now", note: "before its pause ends",
             off: pauseWhy, stay: true, pick: pause.activate,
@@ -221,11 +176,7 @@ function CardPie({ s, profile, card, press, spot, snapshot, exec, wait, onTerm, 
             off: ends.pinWhy, pick: () => pinGroup(run, pin),
         },
         { key: "more", icon: Icon.more, word: "More", title: "More", note: "who it is, where it lives, whose it is, how to find it", items: second },
-        {
-            key: "stop", icon: Icon.stopsquare, word: "Stop", title: "Stop the turn",
-            note: codex ? CODEX_STOP : "breaks off the answer it is writing; the session stays",
-            off: stopWhy, short: turn ? "no turn" : "", tap: true, danger: true, pick: () => run("session.stop", name, {}),
-        },
+        { ...end.stop, tap: true },
     ];
 
     const items = s.sleeping ? first.map((item) => item && !["close", "pause"].includes(item.key)

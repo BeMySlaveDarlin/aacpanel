@@ -18,6 +18,7 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { sector, said } from "/check/fixtures/pie.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
@@ -90,10 +91,10 @@ const openRole = async () => {
     // The button is pressed once the screen has bound what answers it.
     await quiet();
     chat.querySelector(".dkplace").click();
-    await until(() => [...document.querySelectorAll(".dkpanel .toollabel")].some((l) => text(l) === "Role…"), "the line of the role");
-    const labels = [...document.querySelectorAll(".dkpanel .toollabel")].map(text);
-    const line = [...document.querySelectorAll(".dkpanel .toolrow")].find((r) => text(r.querySelector(".toollabel")) === "Role…");
-    const note = text(line.querySelector(".toolnote"));
+    await until(() => sector("role"), "the line of the role");
+    const labels = [...document.querySelectorAll(".pie .piesec")].map((el) => el.getAttribute("aria-label"));
+    const line = sector("role");
+    const note = (await said("role")).split(" · ").slice(1).join(" · ");
     line.click();
     await until(() => field(), "the sheet of the role");
     return { labels, note };

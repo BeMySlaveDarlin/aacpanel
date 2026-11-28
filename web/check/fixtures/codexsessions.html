@@ -288,23 +288,21 @@ window.done = (async () => {
 
     // The session panel: where it lives, its id, and the stop of its turn.
     chat.querySelector(".dkplace").click();
-    await until(() => document.querySelector(".dkpanel .toollabel"));
-    out.panel = names(document, ".dkpanel .toollabel");
-    const stop = Array.from(document.querySelectorAll(".dkpanel .toolrow"))
-        .find((b) => text(b.querySelector(".toollabel")) === "Stop the turn");
-    out.panelStopOff = stop ? stop.disabled : null;
+    await until(() => document.querySelector(".pie .piesec"));
+    out.panel = ring().map((it) => it.label);
+    const stop = sector("stop");
+    out.panelStopOff = stop ? stop.getAttribute("aria-disabled") === "true" : null;
     if (stop) stop.click();
     await until(() => sent.some((s) => s.kind === "session.stop"));
     out.stopSent = sent.filter((s) => s.kind === "session.stop").map((s) => s.target);
 
     // The panel again, for the close at its end.
-    await until(() => !document.querySelector(".dkpanel"));
+    await until(() => !document.querySelector(".pie"));
     chat.querySelector(".dkplace").click();
-    await until(() => document.querySelector(".dkpanel .toollabel"));
-    const panelClose = Array.from(document.querySelectorAll(".dkpanel .toolrow"))
-        .find((b) => text(b.querySelector(".toollabel")) === "Close the session");
+    await until(() => document.querySelector(".pie .piesec"));
+    const panelClose = sector("close");
     out.panelClose = panelClose
-        ? { note: text(panelClose.querySelector(".toolnote")), off: panelClose.disabled }
+        ? { note: await said("close"), off: panelClose.getAttribute("aria-disabled") === "true" }
         : null;
     if (panelClose) {
         panelClose.click();
@@ -334,12 +332,15 @@ window.done = (async () => {
     out.restarts["phone row"] = await closeSheet(phone);
     await settled();
     chat.querySelector(".dkplace").click();
-    await until(() => document.querySelector(".dkpanel .toollabel"));
-    const tools = () => Array.from(document.querySelectorAll(".dkpanel .toolrow"));
-    tools().find((b) => text(b.querySelector(".toollabel")) === "Copy the resume command")?.click();
+    await until(() => document.querySelector(".pie .piesec"));
+    const tools = () => Array.from(document.querySelectorAll(".pie .piesec"));
+    tools().find((b) => b.getAttribute("aria-label") === "Copy the resume command")?.click();
     await until(() => copied.length > 0);
     out.resumeCopied = copied.slice();
-    const restart = tools().find((b) => text(b.querySelector(".toollabel")) === "Restart the session");
+    await until(() => !document.querySelector(".pie"));
+    chat.querySelector(".dkplace").click();
+    await until(() => sector("restart"));
+    const restart = tools().find((b) => b.getAttribute("aria-label") === "Restart the session");
     if (restart) {
         restart.click();
         out.restarts["desktop tools"] = await closeSheet(chat);

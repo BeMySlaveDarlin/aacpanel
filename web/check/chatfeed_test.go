@@ -297,13 +297,20 @@ func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
 		}
 	}
 
-	// Both headers draw the same tools, built once: the sheet of the phone and
-	// the panel of the wide screen hold one set of sections, fed one set of
-	// facts, and cannot drift apart.
+	// The phone owns the sections; the desktop header and the cards share
+	// sectors derived from the same session items.
 	tools := screenSrc(t, "src/screens/chat/sessiontools.js")
-	if n := strings.Count(tools, "<${Sections}"); n != 2 {
-		t.Errorf("the sections of the session are drawn in %d places, not in the phone's sheet and the "+
-			"wide screen's panel alone — the two drift apart silently", n)
+	if n := strings.Count(tools, "<${Sections}"); n != 1 {
+		t.Errorf("the phone's tools sections are drawn in %d places, want one", n)
+	}
+	sectors := withoutComments(screenSrc(t, "src/screens/chat/sessionpie.js"))
+	if !strings.Contains(sectors, "sessionItems({") {
+		t.Error("the pie sectors no longer derive from the phone's session items")
+	}
+	for _, path := range []string{"src/screens/chat/sessionbutton.js", "src/screens/sessions/cardpie.js"} {
+		if !strings.Contains(withoutComments(screenSrc(t, path)), "sessionSectors({") {
+			t.Errorf("%s no longer uses the shared session sectors", path)
+		}
 	}
 	if !strings.Contains(src, "<${SessionTools} ...${tools}") || !strings.Contains(src, "<${SessionButton} ...${tools}") {
 		t.Errorf("%s: the two headers do not share the facts of the conversation", chatFile)

@@ -250,7 +250,7 @@ func TestDesktopChatKeepsItsOwnColumn(t *testing.T) {
 
 func TestDesktopChatHeadIsTheSectionHead(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat.js")
-	head := screenSrc(t, "src/screens/chat/deskhead.js") + screenSrc(t, "src/screens/chat/sessiontools.js")
+	head := screenSrc(t, "src/screens/chat/deskhead.js") + screenSrc(t, "src/screens/chat/sessiontools.js") + screenSrc(t, "src/screens/chat/sessionbutton.js")
 
 	if !strings.Contains(src, "<${DeskHead}") {
 		t.Fatal("on a wide screen the chat draws the layer header: " +

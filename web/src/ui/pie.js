@@ -174,10 +174,10 @@ function Lift({ el, box }) {
 // Plate says what the chosen item does, why it cannot be done now, or — with
 // nothing chosen — whose menu it is and how it is used. A finger held over an
 // item lifting does not do, or lifted over one, is told so.
-function Plate({ at, item, name, lifting, node, readback = null }) {
+function Plate({ at, item, name, note, lifting, node, readback = null }) {
     const why = item && item.off ? item.off : "";
     const tap = Boolean(item) && !why && lifting && item.tap;
-    const words = readback || (!item ? [name, at.desk ? DESK_HINT : HINT]
+    const words = readback || (!item ? [name, note || (at.desk ? DESK_HINT : HINT)]
         : why ? [item.title, lifting ? `${why} — lifting here does nothing` : why]
         : tap ? [item.title, `${item.note ? `${item.note} · ` : ""}tap it: lifting here does nothing`]
         : [item.title, item.note || ""]);
@@ -405,7 +405,7 @@ function Crown({ at, scale, hover, dragging, onPick }) {
 // plate call the thing it is for, lift the element pressed, press the pointer
 // still held from the press that opened it and where it went down (null when
 // the keyboard or a reader opened it), onClose takes it down.
-export function Pie({ label, name, items, lift = null, press = null, spot = null, crown = null, bar = null, layer = null, focusFirst: keyboard = false, className = "", onClose }) {
+export function Pie({ label, name, note = "", items, lift = null, press = null, spot = null, crown = null, bar = null, layer = null, focusFirst: keyboard = false, tabCycle = false, className = "", onClose }) {
     const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
     const [more, setMore] = useState(false);
     const [sel, setSel] = useState("");
@@ -449,7 +449,7 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
     // chooses nothing.
     const armed = useRef(null);
 
-    const at = placeOf(size.w, size.h, anchor, Boolean(crown), Boolean(bar), crown ? plateHeight : PLATE_LINE);
+    const at = placeOf(size.w, size.h, anchor, Boolean(crown), Boolean(bar), crown || anchor ? plateHeight : PLATE_LINE);
     const parent = items.find((it) => it && it.items);
     const ring = layer ? layer.items : more && parent ? parent.items : items;
     const sectors = sectorsOf(ring, sel, at);
@@ -649,7 +649,10 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
         else if (event.key === "ArrowLeft" || event.key === "ArrowUp") go(here < 0 ? -1 : here - 1);
         else if (event.key === "Home") go(0);
         else if (event.key === "End") go(-1);
-        else if (event.key === "Tab") closer();
+        else if (event.key === "Tab") {
+            if (tabCycle) go(here + (event.shiftKey ? -1 : 1));
+            else closer();
+        }
         else return;
         event.preventDefault();
         event.stopPropagation();
@@ -680,7 +683,7 @@ export function Pie({ label, name, items, lift = null, press = null, spot = null
             <div class="piescrim" onClick=${pressed(() => closer())}></div>
             ${shown && shown.from && html`<div class="piewas" style=${px(shown.from)}></div>`}
             ${shown && html`<${Lift} el=${lift} box=${shown.box} />`}
-            <${Plate} at=${at} item=${chosen} name=${name} lifting=${held || (Boolean(sel) && lifted === sel)} node=${plateNode}
+            <${Plate} at=${at} item=${chosen} name=${name} note=${note} lifting=${held || (Boolean(sel) && lifted === sel)} node=${plateNode}
                      readback=${crown && !crown.items && (!chosen || !crown.item || chosen.key === crown.item) ? crown.read(!crown.off && hover?.stop && !hover.stop.off ? hover.stop : crown.value, hover?.zone) : null} />
             <${Ring} at=${at} sectors=${sectors} />
             <div class=${`piemenu${many ? " piemany" : ""}`} role="menu" aria-label=${label} tabindex="-1" ref=${menu}

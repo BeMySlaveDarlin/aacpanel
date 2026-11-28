@@ -11,20 +11,26 @@
 // session panel. The window on the host comes with a move to tmux and holds
 // the session there: while it is open, nothing moves.
 import { h, render } from "preact";
+import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
+import { SessionButton } from "/src/screens/chat/sessionbutton.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { counted, quiet } from "/check/fixtures/quiet.js";
+import { sector, said, until, plate } from "/check/fixtures/pie.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
+let tasks = [];
+const opened = [];
+window.open = (...args) => opened.push(args);
 const windows = { acme: "unknown", "acme-c": "none", "acme-w": "open", "acme-b": "none", "acme-q": "unknown" };
 const ways = { acme: "console", "acme-c": "stream", "acme-w": "stream", "acme-b": "stream", "acme-q": "console" };
 const who = (u) => new URL(u, location.href).searchParams.get("name");
 window.fetch = counted(async (url, init) => {
     const u = String(url);
-    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: { tasks, agents: [], workflows: [] } });
     if (u.startsWith("/api/term")) return json({ available: true });
     if (u.startsWith("/api/session/window")) {
         const state = windows[who(u)];
@@ -43,7 +49,7 @@ window.EventSource = class {
     close() { this.readyState = 2; }
 };
 
-const exec = { available: true, kinds: ["session.switch", "window.open", "window.close", "session.send"] };
+const exec = { available: true, kinds: ["session.switch", "window.open", "window.close", "session.send", "session.remote", "session.rename", "session.role"] };
 const base = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj/panel" };
 const root = document.getElementById("root");
 const show = (name, live) => render(h(ToastHost, null, h(GateHost, null,
@@ -60,7 +66,7 @@ const settle = async () => {
     for (let i = 0; i < 50 && !document.querySelector(".dkplace"); i++) await sleep(100);
     await quiet();
 };
-const go = () => document.querySelector(".dkpop .toolgo");
+const go = () => sector("move");
 const panel = async (press) => {
     press.click();
     for (let i = 0; i < 30 && !go(); i++) await sleep(50);
@@ -70,6 +76,10 @@ const panel = async (press) => {
 const agree = async (el) => {
     const before = sent.length;
     el.click();
+    if (el.dataset.key === "move" && el.getAttribute("aria-label") === "Move to tmux") {
+        await until(() => sector("move-only"));
+        sector("move-only").click();
+    }
     for (let i = 0; i < 30 && !document.querySelector(".stitle"); i++) await sleep(100);
     const title = (document.querySelector(".stitle") || {}).textContent || "";
     const effect = (document.querySelector(".warnline") || {}).textContent || "";
@@ -79,11 +89,21 @@ const agree = async (el) => {
     await quiet();
     return { title, effect, sent: sent.length > before ? sent[sent.length - 1] : null };
 };
-const notes = () => [...document.querySelectorAll(".dkpop .toolmove .toolnote")].map((n) => n.textContent).join(" | ");
 
 window.done = (async () => {
     await document.fonts.ready;
     const out = {};
+    const shot = new URLSearchParams(location.search).get("shot");
+    if (shot) {
+        show("acme", { ...base, session: "acme", sessionId: "s1", transport: "stream", remote: "https://claude.ai/code/session_123",
+            status: shot === "blocked" ? "busy" : "idle" });
+        await settle();
+        await panel(document.querySelector(".dkplace"));
+        await quiet();
+        if (shot === "blocked") await said("move");
+        if (shot === "move") { sector("move").click(); await until(() => sector("move-window")); }
+        return {};
+    }
 
     // On the stream: the feed is on, the terminal is reached by a move and
     // says so; it opens the move rather than making it.
@@ -95,14 +115,16 @@ window.done = (async () => {
     const before = sent.length;
     const move = await panel(tab("Terminal"));
     out.termSentNothing = sent.length === before;
+    out.radial = Boolean(document.querySelector(".pie.piedesk")) && !document.querySelector(".dkpop, .dkpanel");
+    out.place = plate();
     out.toConsole = move ? await agree(move) : { title: "", effect: "", sent: null };
     // The window comes with the move to tmux, as a choice in it.
     const again = await panel(document.querySelector(".dkplace"));
-    const box = document.querySelector(".dkpop .toolcheck input");
-    out.windowOff = !box || box.disabled;
-    if (box) box.click();
-    await quiet();
-    out.withWindow = again ? await agree(again) : null;
+    again.click();
+    await until(() => sector("move-window"));
+    const box = sector("move-window");
+    out.windowOff = box.getAttribute("aria-disabled") === "true";
+    out.withWindow = await agree(box);
 
     // A session in tmux of the same project: the terminal is on, and the
     // session panel moves it to the stream.
@@ -127,22 +149,84 @@ window.done = (async () => {
     out.heldFeed = Boolean(document.querySelector(".chatfeed"));
     out.heldMarked = tabs().some((b) => b.classList.contains("moves"));
 
+    await panel(document.querySelector(".dkplace"));
+    out.closeWindow = await agree(sector("window"));
+    show("acme-c", { ...base, transport: "tmux" });
+    await settle();
+    await panel(document.querySelector(".dkplace"));
+    out.openWindow = await agree(sector("window"));
+
     // A turn in progress: the move waits for it, and says so.
     show("acme-b", { ...base, transport: "tmux", status: "busy" });
     await settle();
     const busy = await panel(document.querySelector(".dkplace"));
-    out.busyOff = Boolean(busy && busy.disabled);
-    out.busyWhy = notes();
+    out.busyOff = Boolean(busy && busy.getAttribute("aria-disabled") === "true");
+    out.busyWhy = await said("move");
 
     // A message the session on the stream has not taken yet: claude is idle,
     // the holder still has it, and the move and its window wait for it.
     show("acme-q", { ...base, transport: "stream", queued: 1 });
     await settle();
     const queued = await panel(document.querySelector(".dkplace"));
-    out.queuedOff = Boolean(queued && queued.disabled);
-    out.queuedWhy = notes();
-    const qbox = document.querySelector(".dkpop .toolcheck input");
-    out.queuedWindowOff = Boolean(qbox && qbox.disabled);
+    out.queuedOff = Boolean(queued && queued.getAttribute("aria-disabled") === "true");
+    out.queuedWhy = await said("move");
+    const blockedSent = sent.length;
+    queued.click();
+    await quiet();
+    out.queuedWindowOff = !sector("move-window") && sent.length === blockedSent;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await until(() => !document.querySelector(".pie"));
+    out.escapeFocus = document.activeElement === document.querySelector(".dkplace");
+
+    show("acme", { ...base, session: "acme", sessionId: "s1", transport: "stream", remote: "https://claude.ai/code/session_123" });
+    await settle();
+    await panel(document.querySelector(".dkplace"));
+    const first = sector("rename");
+    first.focus();
+    first.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+    out.arrow = document.activeElement?.dataset.key;
+    document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+    out.tab = document.activeElement?.dataset.key;
+    document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true }));
+    out.shiftTab = document.activeElement?.dataset.key;
+    out.remotePlate = await said("remote");
+    sector("remote-open").click();
+    await until(() => !document.querySelector(".pie"));
+    out.opened = opened;
+    await panel(document.querySelector(".dkplace"));
+    sector("remote").click();
+    await quiet();
+    out.remoteOff = sent.find((s) => s.kind === "session.remote");
+    show("acme-on", { ...base, session: "acme-on", transport: "stream" });
+    await settle();
+    document.querySelector(".dkplace").click();
+    await until(() => sector("remote"));
+    sector("remote").click();
+    await quiet();
+    out.remoteOn = sent.find((s) => s.kind === "session.remote" && s.target === "acme-on");
+    tasks = [{ id: "build", kind: "bash", line: "make front", done: false }];
+    ways["acme-work"] = "console";
+    show("acme-work", { ...base, session: "acme-work", sessionId: "work", transport: "stream" });
+    await settle();
+    await panel(document.querySelector(".dkplace"));
+    out.stops = await said("move");
+    out.withWork = await agree(sector("move"));
+
+    show("acme", { ...base, session: "acme", sessionId: "s1", transport: "stream" });
+    await settle();
+    await panel(document.querySelector(".dkplace"));
+    sector("rename").click();
+    await until(() => document.querySelector(".sheet.on .rnname"));
+    out.rename = Boolean(document.querySelector(".sheet.on .rnname")) && !document.querySelector(".pie");
+    render(null, root);
+    function AlreadyOpen() {
+        const [open, setOpen] = useState(true);
+        return html`<${SessionButton} name="acme" live=${{ ...base, transport: "stream" }} exec=${exec}
+            way=${{ to: "console" }} win=${{ kind: "none" }} open=${open} onOpen=${setOpen} />`;
+    }
+    render(h(ToastHost, null, h(GateHost, null, h(AlreadyOpen))), root);
+    await until(() => sector("move"));
+    out.mountedOpen = Boolean(document.querySelector(".pie.piedesk"));
     return out;
 })();
 </script>

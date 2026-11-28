@@ -101,7 +101,7 @@ window.done = (async () => {
     const face = chat.querySelector(".dkplace");
     if (face) face.click();
     await quiet();
-    out.panel = names(document, ".dkpanel .toollabel");
+    out.panel = [...document.querySelectorAll(".pie .piesec")].map((el) => el.getAttribute("aria-label"));
     const background = ["waiting", "busy", "idle", "unknown"].map((status) => ({
         session: `bg-${status}`, sessionId: `b-${status}`, contour: 4, transport: "bg", outside: true,
         status, pct: 4, cwd: "/srv/rotation", waitingFor: status === "waiting" ? "input in Claude Code" : "",

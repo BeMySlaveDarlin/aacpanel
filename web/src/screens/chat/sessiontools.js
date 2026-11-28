@@ -2,18 +2,14 @@
 // it lives (the stream or tmux, the window on the host, the move
 // between them with what stops on the way), Remote Control, and the session
 // itself (its name and role, what it runs on, how to find it again, how it
-// ends). The
-// sections are one piece for both screens: on a phone they fill the sheet
-// behind the header's one button, on the wide screen they drop from the
-// session button beside the views. Every line says in words why it cannot be
-// done, when it cannot.
+// ends). The sections fill the sheet behind the header's button on a phone.
+// Every line says in words why it cannot be done, when it cannot.
 
-import { useCallback, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 
 import { BackgroundActions } from "./claudebg.js";
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
-import { Popover } from "../../ui/popover.js";
 import { useToast } from "../../ui/toasts.js";
 import { useAction } from "../../actions/gate.js";
 import { hostLabel } from "../../actions/registry.js";
@@ -27,7 +23,7 @@ import { intentWhy } from "./intent.js";
 import { roleWhy } from "./role.js";
 import { PARENT_LABEL, PARENT_NOTE, parentWhy } from "./parent.js";
 import { moveSession, stops } from "./switch.js";
-import { openedBy, outsideNote, placeOf } from "../sessions/kin.js";
+import { openedBy, outsideNote } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
 
 // MoreButton opens the tools of the session from the header on a phone.
@@ -450,33 +446,6 @@ export function ViewTabs({ view, sides, canTerm, onView, onMove }) {
         <span class="dktabs" role="group" aria-label="what to look at the conversation with">
             ${tab("feed", "Feed", pick("feed"))}
             ${tab("term", "Terminal", pick("term"), canTerm || sides.moves === "console")}
-        </span>
-    `;
-}
-
-// SessionButton is the wide screen's one control for the session: its face
-// says where the session lives, whether a window shows it and whether Remote
-// Control is on; the panel under it holds the sections.
-export function SessionButton(props) {
-    const { live, win, open, sections: Sections, onOpen } = props;
-    const close = useCallback(() => onOpen(false), [onOpen]);
-    const stream = live.transport === "stream";
-    return html`
-        <span class="dksessctl">
-            <button type="button" class=${`dkplace${open ? " on" : ""}`} aria-expanded=${open}
-                    aria-label="the session: where it lives, Remote Control and what can be done to it"
-                    onClick=${() => onOpen(!open)}>
-                <span class="dkplaceicon">${Icon.pin()}</span>
-                <span>${placeOf(live)}</span>
-                ${!stream && win.kind === "open" && html`<span class="dkplacewin">window</span>`}
-                ${live.remote && html`<span class="dkrc">RC</span>`}
-                <span class="dkplacechev">${Icon.chevron()}</span>
-            </button>
-            <${Popover} open=${open} onClose=${close} label="the session">
-                <div class="cmdsheet tools dkpanel">
-                    <${Sections} ...${props} onDone=${close} />
-                </div>
-            <//>
         </span>
     `;
 }

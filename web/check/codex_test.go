@@ -219,7 +219,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 
 	// The session panel: where it lives, its id, the stop of its turn and the
 	// close.
-	if strings.Join(got.Panel, ",") != "With codex,MCP servers,Skills,Role…,Session messages…,Copy the session ID,Copy the resume command,Stand under…,Stop the turn,Restart the session,Close the session" {
+	if strings.Join(got.Panel, ",") != "Role…,Session messages…,MCP servers,Skills,Stand under…,Copy the session ID,Copy the resume command,Stop the turn,Restart the session,Close the session" {
 		t.Errorf("the session panel of a codex thread lists %v", got.Panel)
 	}
 	if got.PanelStopOff == nil || *got.PanelStopOff || strings.Join(got.StopSent, ",") != name {

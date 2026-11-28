@@ -119,13 +119,13 @@ const moveLine = async () => {
         return go ? go.textContent.trim() : "";
     }
     root.querySelector(".dkplace").click();
-    await until(() => document.querySelector(".dkpop .toolgo"));
-    const go = document.querySelector(".dkpop .toolgo");
-    const say = go ? go.textContent.trim() : "";
+    await until(() => document.querySelector('.pie [data-key="move"]'));
+    const go = document.querySelector('.pie [data-key="move"]');
+    const say = go ? go.getAttribute("aria-label") : "";
     // The pop listens for Escape only once its effects have run, which on a
     // slow machine is after it is drawn: the key goes again until it closes.
     await until(() => {
-        if (!document.querySelector(".dkpop")) return true;
+        if (!document.querySelector(".pie")) return true;
         document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
         return false;
     });
@@ -166,7 +166,7 @@ window.done = (async () => {
     out.picked = shown();
     out.pickSent = sent.slice(before).map((s) => `${s.kind}:${s.target}`);
     out.pickAsked = (document.querySelector(".stitle") || {}).textContent || "";
-    out.pickPanel = Boolean(document.querySelector(".dkpop") || sheet());
+    out.pickPanel = Boolean(document.querySelector(".pie") || sheet());
 
     // Another session in tmux of the same project opens the way it would have, and
     // the first keeps its pick when the screen comes back to it.
