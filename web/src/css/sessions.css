@@ -233,35 +233,34 @@
 .limit-old { position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; background: var(--deep); color: var(--ink-dim); box-shadow: 0 0 0 1px var(--line); }
 .limit-old svg { width: var(--i-sm); height: var(--i-sm); }
 
-.limit-columns { padding: 0 3px 3px; }
+.limit-columns { padding: 0 3px 2px; }
 .limit-columns legend { margin: 0 auto; padding: 0 2px; }
 .limit-columns .limit-vendor { display: flex; }
 .limit-columns .limit-vendor svg { width: var(--i-sm); height: var(--i-sm); }
 .limit-accounts { display: flex; align-items: flex-end; justify-content: center; gap: 2px; }
-.limit-column { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 24px; padding: 2px 2px 0; border-radius: 4px; }
-.limit-column .limit-percent { font-size: var(--t-xs); line-height: 1; }
-.limit-column .limit-window { font-size: var(--t-xs); line-height: 1; }
+/* The column is its own gauge: the share fills it from the bottom and the
+   forecast is hatched over the share. The words stay in ink over both. */
+.limit-column { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-width: 30px; min-height: 36px; padding: 3px 3px 2px; border: var(--hair) solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--line) 55%, transparent); isolation: isolate; }
+.limit-column::before, .limit-column.forecast::after { content: ""; position: absolute; left: 0; right: 0; z-index: -1; }
+.limit-column::before { bottom: 0; height: calc(var(--share) * 1%); border-radius: 0 0 5px 5px; background: color-mix(in srgb, currentColor 42%, transparent); }
+.limit-column.forecast::after { bottom: calc(var(--share) * 1%); height: calc((var(--forecast) - var(--share)) * 1%); background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 30%, transparent) 0 1.5px, transparent 1.5px 4px); }
+.limit-column.limit-reading .limit-percent { font-size: var(--t-xs); line-height: 1; color: var(--ink); text-shadow: 0 0 3px var(--deep), 0 0 1px var(--deep); }
+.limit-column .limit-window { font-size: var(--t-xs); line-height: 1; color: var(--ink-dim); text-shadow: 0 0 3px var(--deep); }
 .limit-column[aria-expanded="true"] { background: var(--accent-bg); box-shadow: 0 0 0 1px var(--accent); }
 .limit-column.ok, .limit-detail.ok { color: var(--limit-ok); }
 .limit-column.warn, .limit-detail.warn { color: var(--limit-warn); }
-.limit-column.crit, .limit-detail.crit, .limit-column.crit .limit-percent { color: var(--limit-crit); }
-.limit-cap { display: block; flex: none; width: 8px; height: 5px; font: .4em/5px var(--sans); color: var(--limit-crit); }
+.limit-column.crit, .limit-detail.crit { color: var(--limit-crit); }
+.limit-column.crit { box-shadow: 0 0 5px color-mix(in srgb, var(--limit-crit) 45%, transparent); }
+/* A forecast past the top marks the column's corner. */
+.limit-cap { position: absolute; top: 1px; left: 2px; font: .6em/1 var(--sans); color: var(--limit-crit); text-shadow: 0 0 2px var(--deep); }
 .limit-bar { position: relative; display: block; flex: 1; height: 5px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .limit-used, .limit-ghost { position: absolute; top: 0; bottom: 0; }
 .limit-used { left: 0; width: calc(var(--share) * 1%); background: currentColor; }
 .limit-ghost { left: calc(var(--share) * 1%); width: calc((var(--forecast) - var(--share)) * 1%); background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 62%, transparent) 0 1.5px, color-mix(in srgb, currentColor 20%, transparent) 1.5px 3.5px); }
-.limit-bar.vertical { flex: none; width: 8px; height: 24px; }
-.limit-bar.vertical .limit-used { top: auto; right: 0; bottom: 0; width: auto; height: calc(var(--share) * 1%); }
-.limit-bar.vertical .limit-ghost { top: auto; left: 0; right: 0; bottom: calc(var(--share) * 1%); width: auto; height: calc((var(--forecast) - var(--share)) * 1%); }
-.limit-column.crit .limit-bar { box-shadow: 0 0 5px color-mix(in srgb, var(--limit-crit) 55%, transparent); }
-.limit-column.old > :not(.limit-old) { opacity: .45; }
+.limit-column.old > :not(.limit-old), .limit-column.old::before, .limit-column.old::after { opacity: .45; }
 .limit-column .limit-old { top: -6px; right: -8px; }
 .limit-columns.compact { height: auto; padding: 0 3px 2px; box-shadow: var(--gloss), var(--hairline); }
-.limit-mini { min-width: 22px; gap: 0; }
-.limit-mini .limit-percent { font-size: var(--t-xs); }
-.limit-mini .limit-bar { height: 12px; width: 6px; }
-.limit-mini .limit-window { --t-k: .7; }
-.limit-mini .limit-cap { height: 3px; font-size: .34em; line-height: 3px; }
+.limit-mini { min-width: 28px; min-height: 0; gap: 0; padding: 2px 3px; }
 .limit-detail { display: flex; flex-direction: column; gap: .15rem; margin: .2rem 0; }
 .limit-detail-reading { display: flex; align-items: center; gap: .5rem; }
 .limit-detail-reading .limit-window { flex: 0 0 1.6rem; }

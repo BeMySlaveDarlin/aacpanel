@@ -171,14 +171,6 @@ function ringLeft(resetsAt) {
     return `${Math.max(1, Math.round(left / 60000))}m`;
 }
 
-function worstWindow(windows) {
-    const rank = { ok: 0, warn: 1, crit: 2 };
-    return windows.reduce((worst, window) => {
-        const tone = rank[windowTone(window.data)] - rank[windowTone(worst.data)];
-        return tone > 0 || (tone === 0 && window.data.pct > worst.data.pct) ? window : worst;
-    });
-}
-
 function forecastText(data) {
     const forecast = data.forecast;
     if (!forecast) return "";
@@ -203,8 +195,8 @@ function limitShares(data) {
     return { whole, style: `--share:${pct};--forecast:${fore}` };
 }
 
-function ForecastBar({ data, vertical = false }) {
-    return html`<span class=${`limit-bar${vertical ? " vertical" : ""}`} aria-hidden="true" style=${limitShares(data).style}>
+function ForecastBar({ data }) {
+    return html`<span class="limit-bar" aria-hidden="true" style=${limitShares(data).style}>
         <span class="limit-used"></span>
         ${data.forecast && html`<span class="limit-ghost"></span>`}
     </span>`;
@@ -228,25 +220,32 @@ export function LimitGroup({ group, tucked, chip, opened, onToggle, onClose }) {
     return html`<fieldset class=${`limit-group limit-columns${tucked ? " compact" : ""}`} data-agent=${group.agent} aria-label=${`${group.agent} limits`}>
         <legend><span class="limit-vendor agentword" data-agent=${group.agent} aria-hidden="true"><${VendorIcon} /></span></legend>
         <div class="limit-accounts">
-            <${LimitColumn} group=${group} tucked=${tucked} opened=${opened && opened.key === group.agent ? opened : null}
-                onToggle=${(event) => onToggle(group.agent, event)} onClose=${onClose} />
+            ${group.windows.map((window, i) => {
+                const key = `${group.agent}:${window.span}`;
+                return html`<${LimitColumn} ...${window} key=${window.span} group=${group} tucked=${tucked}
+                    clock=${group.old && i === group.windows.length - 1} opened=${opened && opened.key === key ? opened : null}
+                    onToggle=${(event) => onToggle(key, event)} onClose=${onClose} />`;
+            })}
         </div>
     </fieldset>`;
 }
 
-function LimitColumn({ group, tucked, opened, onToggle, onClose }) {
-    const { span, full, data } = worstWindow(group.windows);
+// A column is one window of an account, and its own gauge: the share fills it
+// from the bottom, the forecast to the reset is hatched over the share, and
+// the share in words and the span stand over both. Every window stands as a
+// column of its own, so the five hours stay in sight beside the week. Folded
+// over the list, a column keeps its share alone.
+function LimitColumn({ group, span, full, data, tucked, clock, opened, onToggle, onClose }) {
     const { whole, style } = limitShares(data);
     const label = [full, share(data.pct), resetText(data.resetsAt), forecastText(data), group.old && "last known numbers"].filter(Boolean).join(", ");
     return html`<span class="limit-anchor" style=${opened ? `--limit-anchor:${opened.x}px` : undefined}>
-        <button class=${`limit-reading limit-column${tucked ? " limit-mini" : ""} ${windowTone(data)}${group.old ? " old" : ""}`}
+        <button class=${`limit-reading limit-column${tucked ? " limit-mini" : ""} ${windowTone(data)}${data.forecast ? " forecast" : ""}${group.old ? " old" : ""}`}
                     data-agent=${group.agent} type="button" aria-label=${label} title=${label} style=${style}
                     aria-expanded=${Boolean(opened)} aria-haspopup="dialog" onClick=${onToggle}>
+            ${!tucked && data.forecast && data.forecast.pct > 100 && html`<span class="limit-cap" aria-hidden="true">▲</span>`}
             <span class="limit-percent">${whole}<small>%</small></span>
-            <span class="limit-cap" aria-hidden="true">${data.forecast && data.forecast.pct > 100 ? "▲" : ""}</span>
-            <${ForecastBar} data=${data} vertical />
-            <span class="limit-window">${span}</span>
-            ${group.old && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
+            ${!tucked && html`<span class="limit-window">${span}</span>`}
+            ${clock && html`<span class="limit-old" aria-hidden="true">${Icon.clock()}</span>`}
         </button>
         <${LimitPopover} group=${group} opened=${opened} onClose=${onClose} />
     </span>`;

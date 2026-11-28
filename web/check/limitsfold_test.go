@@ -119,22 +119,23 @@ type limitToolbarState struct {
 func TestContourToolbarShowsLimitColumnsAndStartsMappedSessions(t *testing.T) {
 	var got contourTaskScene
 	runFixture(t, "limitsfold.html", &got)
-	if len(got.Columns) != 2 {
+	if len(got.Columns) != 3 {
 		t.Fatalf("columns: %+v", got.Columns)
 	}
-	for i, want := range []string{"claude:5h", "codex:7d"} {
+	for i, want := range []string{"claude:5h", "claude:7d", "codex:7d"} {
 		column := got.Columns[i]
-		if column.Vendor+":"+column.Window != want || column.Label == "" || column.Percent != []string{"99%", "44%"}[i] {
+		if column.Vendor+":"+column.Window != want || column.Label == "" || column.Percent != []string{"99%", "88%", "44%"}[i] ||
+			!strings.Contains(column.Tone, []string{"crit", "crit", "ok"}[i]) {
 			t.Errorf("column %d: %+v, want %s", i, column, want)
 		}
 	}
-	if !strings.Contains(got.Columns[0].Label, "99.5%") || !strings.Contains(got.Columns[0].Tone, "crit") || !strings.Contains(got.Columns[1].Tone, "ok") {
-		t.Errorf("column details and tones: %+v", got.Columns)
+	if !strings.Contains(got.Columns[0].Label, "99.5%") {
+		t.Errorf("column details: %+v", got.Columns)
 	}
 	if strings.Join(got.Actions, "|") != "Tasks|Profile|New session" {
 		t.Errorf("toolbar actions: %v", got.Actions)
 	}
-	if got.StaleColumns != 2 || !strings.Contains(got.StaleNote, "the agent is silent") {
+	if got.StaleColumns != 3 || !strings.Contains(got.StaleNote, "the agent is silent") {
 		t.Errorf("silent collector loses its stale marks: %d, %s", got.StaleColumns, got.StaleNote)
 	}
 	if !got.Profile || len(got.Projects) != 2 || !strings.HasPrefix(got.Projects[0], "shop") || got.Projects[1] != "api" {
@@ -159,12 +160,12 @@ func TestLimitColumnsOpenBothWindowsAndSwitchVendors(t *testing.T) {
 				t.Errorf("details %d lost %q: %s", i, want, pop.Words)
 			}
 		}
-		if len(pop.Readings) != 2 {
+		if len(pop.Readings) != 3 {
 			t.Fatalf("details %d lost a column: %+v", i, pop.Readings)
 		}
 		for _, button := range pop.Readings {
 			expanded := "false"
-			if strings.HasPrefix(button.Label, strings.TrimSuffix(name, " limits")+",") {
+			if strings.HasPrefix(button.Label, []string{"Claude, 5 hours", "Codex, 7 days", "Claude, 5 hours", "Claude, 5 hours"}[i]) {
 				expanded = "true"
 			}
 			if button.Tag != "BUTTON" || button.Type != "button" || button.Popup != "dialog" || !button.Focusable || button.Expanded != expanded {
@@ -232,15 +233,15 @@ func TestTheLimitsFoldOverTheListScrolledPastThem(t *testing.T) {
 		if stop.Stuck != (i > 0 && i < 4) {
 			t.Errorf("scroll stop %d: stuck=%v", i, stop.Stuck)
 		}
-		if len(stop.Readings) != 2 {
+		if len(stop.Readings) != 3 {
 			t.Fatalf("scroll stop %d lost a window: %+v", i, stop)
 		}
-		for j, percent := range []string{"99%", "44%"} {
+		for j, percent := range []string{"99%", "88%", "44%"} {
 			reading := stop.Readings[j]
-			if reading.Percent != percent || reading.Share != []string{"99.5", "44"}[j] || !strings.Contains(reading.Tone, []string{"crit", "ok"}[j]) {
+			if reading.Percent != percent || reading.Share != []string{"99.5", "88", "44"}[j] || !strings.Contains(reading.Tone, []string{"crit", "crit", "ok"}[j]) {
 				t.Errorf("stop %d window %d: %+v", i, j, reading)
 			}
-			if !reading.Bar || !reading.Column || reading.Mini != want || reading.Label == "" || reading.Title != reading.Label {
+			if reading.Bar || !reading.Column || reading.Mini != want || reading.Label == "" || reading.Title != reading.Label || (reading.Window == "") != want {
 				t.Errorf("stop %d lost the reading's form or meaning: %+v", i, reading)
 			}
 		}
@@ -266,15 +267,17 @@ func TestTheLimitsFoldOverTheListScrolledPastThem(t *testing.T) {
 func TestLimitFramesKeepVendorsAndStaleReadingsDistinct(t *testing.T) {
 	var got contourTaskScene
 	runFixture(t, "limitsfold.html", &got)
-	if len(got.Full.Frames) != 2 || got.Full.Frames[0].Vendor != "claude" || got.Full.Frames[0].Accounts != 1 || got.Full.Frames[1].Vendor != "codex" || got.Full.Frames[1].Accounts != 1 {
+	if len(got.Full.Frames) != 2 || got.Full.Frames[0].Vendor != "claude" || got.Full.Frames[0].Accounts != 2 || got.Full.Frames[1].Vendor != "codex" || got.Full.Frames[1].Accounts != 1 {
 		t.Fatalf("full frames: %+v", got.Full.Frames)
 	}
 	for _, state := range []limitToolbarState{got.StaleFull, got.StaleFold} {
-		if len(state.Readings) != 2 {
+		if len(state.Readings) != 3 {
 			t.Fatalf("stale windows: %+v", state)
 		}
-		for _, reading := range state.Readings {
-			if !reading.Old || !reading.Clock || !strings.Contains(reading.Label, "last known numbers") {
+		// One clock per vendor, on its last column, so two windows do not
+		// stack two marks over each other.
+		for i, reading := range state.Readings {
+			if !reading.Old || reading.Clock != (i != 0) || !strings.Contains(reading.Label, "last known numbers") {
 				t.Errorf("stale reading lost its sign: %+v", reading)
 			}
 		}
@@ -293,7 +296,8 @@ func TestLimitFramesKeepVendorsAndStaleReadingsDistinct(t *testing.T) {
 			t.Errorf("single vendor lost a window: %+v", single)
 		}
 		if single.Vendor == "claude" {
-			if len(single.Full.Readings) != 1 || single.Full.Readings[0].Percent != "60%" || single.Full.Readings[0].Window != "7d" || !strings.Contains(single.Full.Readings[0].Tone, "warn") {
+			if len(single.Full.Readings) != 2 || single.Full.Readings[0].Percent != "59%" || !strings.Contains(single.Full.Readings[0].Tone, "ok") ||
+				single.Full.Readings[1].Percent != "60%" || single.Full.Readings[1].Window != "7d" || !strings.Contains(single.Full.Readings[1].Tone, "warn") {
 				t.Errorf("threshold boundary: %+v", single)
 			}
 		} else if len(single.Full.Readings) != 1 || !strings.Contains(single.Full.Readings[0].Tone, "crit") || !single.Folded.Readings[0].Old || !single.Folded.Readings[0].Clock {
@@ -302,30 +306,51 @@ func TestLimitFramesKeepVendorsAndStaleReadingsDistinct(t *testing.T) {
 	}
 }
 
-func TestLimitColumnsUseForecastToneBeforeShareAndKeepBothWindowsInDetails(t *testing.T) {
+func TestLimitColumnsShowEveryWindowWithItsForecast(t *testing.T) {
 	var got contourTaskScene
 	runFixture(t, "limitsfold.html", &got)
 	if len(got.Forecasts) != 6 {
 		t.Fatalf("forecast cases: %+v", got.Forecasts)
 	}
+	// Each case: the columns as window, share, tone, cap, ghost and projection.
+	type col struct {
+		window, pct, tone, cap string
+		ghost                  bool
+		projection             string
+	}
+	cases := []struct {
+		name string
+		cols []col
+	}{
+		{"out", []col{{"5h", "42%", "crit", "▲", true, "100"}, {"7d", "88%", "ok", "", true, "92"}}},
+		{"tight", []col{{"5h", "64%", "warn", "", true, "96"}, {"7d", "90%", "ok", "", true, "92"}}},
+		{"tie", []col{{"5h", "70%", "ok", "", true, "80"}, {"7d", "85%", "ok", "", true, "90"}}},
+		{"threshold", []col{{"5h", "59%", "ok", "", false, "59"}, {"7d", "60%", "warn", "", false, "60"}}},
+		{"edge", []col{{"5h", "72%", "warn", "", true, "100"}, {"7d", "60%", "ok", "", true, "90"}}},
+		{"day", []col{{"day", "8%", "ok", "", true, "22"}}},
+	}
 	for i, scene := range got.Forecasts {
-		wantName := []string{"out", "tight", "tie", "threshold", "edge", "day"}[i]
-		wantPct := []string{"42%", "64%", "85%", "60%", "72%", "8%"}[i]
-		wantWindow := []string{"5h", "5h", "7d", "7d", "5h", "day"}[i]
-		wantTone := []string{"crit", "warn", "ok", "warn", "warn", "ok"}[i]
-		if scene.Name != wantName {
+		want := cases[i]
+		if scene.Name != want.name {
 			t.Errorf("case %d: %s", i, scene.Name)
 		}
 		for j, state := range []limitToolbarState{scene.Full, scene.Folded} {
-			if len(state.Readings) != 1 {
-				t.Fatalf("%s columns: %+v", scene.Name, state.Readings)
+			if len(state.Readings) != len(want.cols) || state.Tucked != (j == 1) {
+				t.Fatalf("%s columns: %+v", scene.Name, state)
 			}
-			column := state.Readings[0]
-			if column.Percent != wantPct || column.Window != wantWindow || !strings.Contains(column.Tone, wantTone) || !column.Column || !column.Bar || column.Mini != (j == 1) || state.Tucked != (j == 1) {
-				t.Errorf("%s state %d: %+v", scene.Name, j, state)
-			}
-			if (column.Cap == "▲") != (i == 0) || column.Ghost != (i != 3) || column.Projection != []string{"100", "96", "90", "60", "100", "22"}[i] {
-				t.Errorf("%s forecast marks: %+v", scene.Name, column)
+			for k, column := range state.Readings {
+				w := want.cols[k]
+				// Folded, a column keeps its share and the fill behind it alone.
+				window, capMark := w.window, w.cap
+				if j == 1 {
+					window, capMark = "", ""
+				}
+				if column.Percent != w.pct || column.Window != window || !strings.Contains(column.Tone, w.tone) || !column.Column || column.Bar || column.Mini != (j == 1) {
+					t.Errorf("%s state %d column %d: %+v, want %+v", scene.Name, j, k, column, w)
+				}
+				if column.Cap != capMark || column.Ghost != w.ghost || column.Projection != w.projection {
+					t.Errorf("%s forecast marks of column %d: %+v, want %+v", scene.Name, k, column, w)
+				}
 			}
 		}
 		expected := []string{"runs out in ~2 h 15 min", "tight: ~96% at reset", "lasts until reset", "", "tight: ~100% at reset", "lasts until reset"}[i]

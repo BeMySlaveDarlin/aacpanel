@@ -138,7 +138,7 @@ export async function contourScene(root, hash) {
     if (hash.startsWith("limits-forecast")) return forecastScene(root, hash);
     mode = ["long", "empty"].includes(hash) ? hash : "list";
     mount();
-    await until(() => document.querySelectorAll(".limit-column").length === 2);
+    await until(() => document.querySelectorAll(".limit-column").length === 3);
     if (hash) {
         if (hash.startsWith("limits")) {
             if (hash === "limits-stale" || hash === "limits-stale-tucked") { mount(true); await quiet(); }
@@ -160,7 +160,7 @@ export async function contourScene(root, hash) {
     out.details = await limitDetailsScene(root, mount);
     out.folding = await scrollScene(root);
     mount();
-    await until(() => document.querySelectorAll(".limit-column").length === 2);
+    await until(() => document.querySelectorAll(".limit-column").length === 3);
     await click('.pfpage .pfaction[aria-label="New session"]');
     await until(() => sheet("New session"));
     out.projects = [...sheet("New session").querySelectorAll(".newproject")].map(text);
@@ -394,9 +394,9 @@ function readToolbar() {
             vendor: reading.dataset.agent, percent: text(reading.querySelector(".limit-percent")),
             label: reading.getAttribute("aria-label"), title: reading.title, tone: reading.className,
             old: reading.classList.contains("old"), clock: Boolean(reading.querySelector(".limit-old")),
-            column: reading.classList.contains("limit-column"), mini: reading.classList.contains("limit-mini"), share: reading.style.getPropertyValue("--share"), bar: Boolean(reading.querySelector(".limit-bar.vertical")),
-            projection: reading.querySelector(".limit-bar")?.style.getPropertyValue("--forecast"),
-            window: text(reading.querySelector(".limit-window")), cap: text(reading.querySelector(".limit-cap")), ghost: Boolean(reading.querySelector(".limit-ghost")),
+            column: reading.classList.contains("limit-column"), mini: reading.classList.contains("limit-mini"), share: reading.style.getPropertyValue("--share"), bar: Boolean(reading.querySelector(".limit-bar")),
+            projection: reading.style.getPropertyValue("--forecast"),
+            window: text(reading.querySelector(".limit-window")), cap: text(reading.querySelector(".limit-cap")), ghost: reading.classList.contains("forecast"),
         })),
         actions: [...box.querySelectorAll(".pfaction")].map((button) => ({
             label: button.getAttribute("aria-label"), title: button.title, words: text(button),
