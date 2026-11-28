@@ -234,7 +234,10 @@
 .limit-old svg { width: var(--i-sm); height: var(--i-sm); }
 
 .limit-columns { padding: 0; }
-.limit-columns legend { margin: 0 auto; padding: 0 2px; }
+/* The vendor stands on the top line over the fill, which runs up under it to
+   that line: a full window fills the frame whole. */
+.limit-columns legend { position: relative; z-index: 1; margin: 0 auto; padding: 0 2px; }
+.limit-columns .limit-accounts { margin-top: calc(var(--i-sm) / -2); }
 .limit-columns .limit-vendor { display: flex; }
 .limit-columns .limit-vendor svg { width: var(--i-sm); height: var(--i-sm); }
 /* The frame of a vendor is the gauge itself: each window takes a part of it,
@@ -243,9 +246,9 @@
 .limit-accounts { display: flex; align-items: stretch; }
 .limit-accounts > .limit-anchor { display: flex; flex: 1 1 0; }
 .limit-accounts > .limit-anchor + .limit-anchor { border-left: var(--hair) solid var(--edge); }
-.limit-column { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-width: 34px; min-height: 36px; padding: 3px 3px 2px; overflow: hidden; isolation: isolate; }
-.limit-accounts > .limit-anchor:first-child .limit-column { border-bottom-left-radius: 9px; }
-.limit-accounts > .limit-anchor:last-child .limit-column { border-bottom-right-radius: 9px; }
+.limit-column { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-width: 34px; min-height: calc(36px + var(--i-sm) / 2); padding: calc(var(--i-sm) / 2 + 3px) 3px 2px; overflow: hidden; isolation: isolate; }
+.limit-accounts > .limit-anchor:first-child .limit-column { border-top-left-radius: 9px; border-bottom-left-radius: 9px; }
+.limit-accounts > .limit-anchor:last-child .limit-column { border-top-right-radius: 9px; border-bottom-right-radius: 9px; }
 .limit-column::before, .limit-column.forecast::after { content: ""; position: absolute; left: 0; right: 0; z-index: -1; }
 .limit-column::before { bottom: 0; height: calc(var(--share) * 1%); background: color-mix(in srgb, currentColor 42%, transparent); }
 .limit-column.forecast::after { bottom: calc(var(--share) * 1%); height: calc((var(--forecast) - var(--share)) * 1%); background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 30%, transparent) 0 1.5px, transparent 1.5px 4px); }
@@ -257,16 +260,16 @@
 .limit-column.crit, .limit-detail.crit { color: var(--limit-crit); }
 .limit-columns:has(.limit-column.crit) { border-color: color-mix(in srgb, var(--limit-crit) 55%, transparent); }
 /* A forecast past the top marks the column's corner. */
-.limit-cap { position: absolute; top: 1px; left: 2px; font: .6em/1 var(--sans); color: var(--limit-crit); text-shadow: 0 0 2px var(--deep); }
+.limit-cap { position: absolute; top: calc(var(--i-sm) / 2 + 1px); left: 2px; font: .6em/1 var(--sans); color: var(--limit-crit); text-shadow: 0 0 2px var(--deep); }
 .limit-bar { position: relative; display: block; flex: 1; height: 5px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .limit-used, .limit-ghost { position: absolute; top: 0; bottom: 0; }
 .limit-used { left: 0; width: calc(var(--share) * 1%); background: currentColor; }
 .limit-ghost { left: calc(var(--share) * 1%); width: calc((var(--forecast) - var(--share)) * 1%); background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 62%, transparent) 0 1.5px, color-mix(in srgb, currentColor 20%, transparent) 1.5px 3.5px); }
 .limit-column.old > :not(.limit-old), .limit-column.old::before, .limit-column.old::after { opacity: .45; }
-.limit-column .limit-old { top: 1px; right: 1px; width: 14px; height: 14px; }
+.limit-column .limit-old { top: calc(var(--i-sm) / 2 + 1px); right: 1px; width: 14px; height: 14px; }
 .limit-column .limit-old svg { width: var(--i-xs); height: var(--i-xs); }
 .limit-columns.compact { height: auto; padding: 0; box-shadow: var(--gloss), var(--hairline); }
-.limit-mini { min-width: 28px; min-height: 0; gap: 0; padding: 2px 3px; }
+.limit-mini { min-width: 28px; min-height: 0; gap: 0; padding: calc(var(--i-sm) / 2 + 2px) 3px 2px; }
 .limit-detail { display: flex; flex-direction: column; gap: .15rem; margin: .2rem 0; }
 .limit-detail-reading { display: flex; align-items: center; gap: .5rem; }
 .limit-detail-reading .limit-window { flex: 0 0 1.6rem; }
