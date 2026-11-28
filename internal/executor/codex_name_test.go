@@ -165,3 +165,24 @@ func TestArchivedCodexResumeTakesAFreeNameAndLeavesLiveTitlesAlone(t *testing.T)
 		t.Fatalf("resuming a live thread renamed it: %s", calls)
 	}
 }
+
+// A thread titled before titles were kept unique may share the name of a live
+// Claude session. The session's own name wins: it stays reachable by it, and
+// the thread stays reachable by its address.
+func TestALiveSessionNameWinsOverACodexTitle(t *testing.T) {
+	_, e := onCodex(t, nil)
+	waitFor(t, "the thread", func() bool { _, found := e.codex.Thread(codexThread); return found })
+	th, _ := e.codex.Thread(codexThread)
+	if err := th.Link.Rename(t.Context(), codexThread, "review"); err != nil {
+		t.Fatal(err)
+	}
+	procFS(t, fakeProc{pid: 5001, comm: "claude", ppid: 1, cwd: "/srv/proj", start: "5555", args: []string{"claude"}})
+	sessionFiles(t, fakeSession{pid: 5001, name: "review", start: "5555"})
+
+	if got, err := e.codexSession("review"); err != nil || got != nil {
+		t.Errorf("the Claude session named review lost its name to a codex title: %+v, %v", got, err)
+	}
+	if got, err := e.codexSession(codexName); err != nil || got == nil || got.ID != codexThread {
+		t.Errorf("the thread is no longer reachable by its address: %+v, %v", got, err)
+	}
+}

@@ -78,15 +78,24 @@ func sessionTarget(k action.Kind) bool {
 }
 
 // codexSession is the codex thread a target names, nil when it names none. A
-// shared name is refused across agents as well as across codex homes.
+// session's own name wins over a thread's title: a thread opened before titles
+// were kept unique may carry the name of a live session, and that session must
+// stay reachable by it. Titles alone that several sessions share are refused,
+// across agents as well as across codex homes.
 func (e *Executor) codexSession(target string) (*codex.Thread, error) {
 	found := e.codex.Find(target)
 	if len(found) == 0 {
 		return nil, nil
 	}
+	if own := slices.DeleteFunc(slices.Clone(found), func(th codex.Thread) bool { return th.Name != target }); len(own) > 0 {
+		found = own
+	}
 	claude, _, err := liveSessionsByName(target)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
+	}
+	if found[0].Name != target && len(claude) > 0 {
+		return nil, nil
 	}
 	if len(found)+len(claude) > 1 {
 		var names []string
